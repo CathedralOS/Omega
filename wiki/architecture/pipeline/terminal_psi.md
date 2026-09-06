@@ -3473,6 +3473,16 @@ ambient entry facts. Requirement names must agree both with their exact formal
 symbols and with the canonical entry ordinal; body reassignment does not change
 those hypotheses. All-crash scalar graphs retain their checked requirements
 instead of dropping the contract because no normal return exists.
+The strict Boolean-formal entry reader also accepts attached and mixed
+signatures. It rejoins an attachment through one live nominal symbol and checks
+its retained name; machine and owner generic/lifetime binders remain excluded.
+The entry state and every parameter must retain their exact live symbol owner,
+with no duplicate parameter symbols or names. Each observed leaf is one exact
+non-const, non-receiver owned Boolean formal, not a field or borrowed Boolean.
+Unread structural operands and receivers retain authored positions for crash
+identities; checked scalar operands count only preceding primitive parameters.
+Mutable formal reads in this contract namespace rebind to that scalar entry
+position, independently of the execution support for the enclosing body.
 
 Independent call-ceiling validation proves the union of a same-cause bucket's
 published alternatives from caller requirements. It reuses the checked Boolean
@@ -3512,8 +3522,8 @@ Boolean and numeric crash encodings remain unchanged. This logical budget does
 not replace the separate arithmetic-subtree checks.
 
 Boolean implication beyond structural common consequences, compound equality
-over structural predicate leaves, entry crash hypotheses for attached and
-structural signatures, and numeric entry coverage remain implementation work.
+over structural predicate leaves, exact entry crash hypotheses over structural
+predicates, and numeric entry coverage remain implementation work.
 
 Direct crash-site validation independently proves every asserted guard from
 invocation-entry requirements and facts reconstructed before that terminator.

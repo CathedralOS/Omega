@@ -48,6 +48,15 @@ fn assert_trap_at_entry_with_module_check(
     entry: &str,
     check_module: impl Fn(&terminal_psi::TerminalModule),
 ) {
+    assert_trap_with_entry_arguments(source, entry, false, check_module);
+}
+
+fn assert_trap_with_entry_arguments(
+    source: &str,
+    entry: &str,
+    has_opaque_record_argument: bool,
+    check_module: impl Fn(&terminal_psi::TerminalModule),
+) {
     let artifact = {
         let checked = lower_typed_trees(typed(source))
             .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
@@ -68,11 +77,46 @@ fn assert_trap_at_entry_with_module_check(
         &AdmissionProfile::default(),
     )
     .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
-    // A zero-argument source wrapper proves the actual call requirement. The
-    // independent consumer receives only bytes, not host arguments requiring
-    // some new runtime enforcement of the callee's entry contract.
-    let result =
-        interpret_terminal_artifact(&artifact.0, &artifact.1, &AdmissionProfile::default(), &[]);
+    // Boolean actuals remain source literals. The mixed fixture supplies only
+    // an opaque record; its entry has no Requires and no field is observed.
+    let result = if has_opaque_record_argument {
+        let entry = decoded_module
+            .machines
+            .iter()
+            .find(|machine| machine.id == decoded_module.entry)
+            .expect("exact decoded entry");
+        assert!(entry.parameters.is_empty(), "no host Boolean assumptions");
+        assert!(entry.contract.requires.is_empty(), "no host entry proof");
+        let [record] = entry.structural_parameters.as_slice() else {
+            panic!("one exact opaque record argument");
+        };
+        struct NoEffects;
+        impl terminal_interpreter::TerminalEffectHandler for NoEffects {
+            fn handle_effect(
+                &mut self,
+                _effect: &terminal_interpreter::TerminalEffect,
+            ) -> Result<(), terminal_interpreter::TerminalEffectRejection> {
+                panic!("the trigger must trap before the Sink effect");
+            }
+        }
+        terminal_interpreter::interpret_terminal_artifact_with_effect_handler_measured(
+            &artifact.0,
+            &artifact.1,
+            &AdmissionProfile::default(),
+            &[],
+            &[terminal_interpreter::TerminalStructuralValue {
+                opaque_identity: 71,
+                structural_type: record.structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            &mut NoEffects,
+        )
+        .map(|_| ())
+    } else {
+        interpret_terminal_artifact(&artifact.0, &artifact.1, &AdmissionProfile::default(), &[])
+            .map(|_| ())
+    };
     assert!(
         matches!(result,
         Err(TerminalArtifactInterpretError::Execution(TerminalInterpretError::Crash(crash)))
@@ -86,7 +130,15 @@ fn assert_unconditional_call_trap(source: &str) {
 }
 
 fn assert_unconditional_call_trap_at_entry(source: &str, entry: &str) {
-    assert_trap_at_entry_with_module_check(source, entry, |module| {
+    assert_unconditional_call_trap_with_structural_arguments(source, entry, false);
+}
+
+fn assert_unconditional_call_trap_with_structural_arguments(
+    source: &str,
+    entry: &str,
+    permits_structural_arguments: bool,
+) {
+    assert_trap_with_entry_arguments(source, entry, permits_structural_arguments, |module| {
         let mut checked_calls = 0;
         for operation in module
             .machines
@@ -107,8 +159,10 @@ fn assert_unconditional_call_trap_at_entry(source: &str, entry: &str) {
                     crash_continuations,
                     ..
                 } => {
-                    assert!(structural_arguments.is_empty(), "scalar-only Unit fixture");
-                    assert!(claim_transfers.is_empty(), "no structural claim transport");
+                    if !permits_structural_arguments {
+                        assert!(structural_arguments.is_empty(), "scalar-only Unit fixture");
+                        assert!(claim_transfers.is_empty(), "no structural claim transport");
+                    }
                     (callee, crash_continuations)
                 }
                 _ => continue,
@@ -136,6 +190,121 @@ fn assert_unconditional_call_trap_at_entry(source: &str, entry: &str) {
             "one unchanged unconditional trigger continuation"
         );
     });
+}
+
+#[test]
+fn attached_boolean_entry_requirement_covers_unconditional_scalar_call() {
+    assert_unconditional_call_trap_at_entry(
+        r#"
+        data Main {}
+        data Helper {}
+        boundary trait Sink { machine record(value: bool); }
+        machine trigger() -> bool
+        crashes Trap
+        { crash Trap; }
+        machine Helper::forward(flag: bool)
+        requires flag
+        crashes Trap flag
+        { Sink::record(trigger()); }
+        machine Main::value()
+        crashes Trap
+        { Helper::forward(true); }
+        "#,
+        "Main::value",
+    );
+}
+
+#[test]
+fn attached_boolean_entry_formulas_keep_original_scalar_parameters() {
+    for (predicate, arguments) in [
+        ("left && right", "true, true"),
+        ("!right", "true, false"),
+        ("left == right", "false, false"),
+        ("left == right", "true, true"),
+        ("!(left && right)", "false, true"),
+    ] {
+        let source = format!(
+            "data Main {{}}\ndata Helper {{}}\n\
+             boundary trait Sink {{ machine record(value: bool); }}\n\
+             machine trigger() -> bool\ncrashes Trap\n{{ crash Trap; }}\n\
+             machine Helper::forward(left: bool, right: bool)\nrequires {predicate}\ncrashes Trap {predicate}\n\
+             {{ Sink::record(trigger()); }}\n\
+             machine Main::value()\ncrashes Trap\n{{ Helper::forward({arguments}); }}",
+        );
+        assert_unconditional_call_trap_at_entry(&source, "Main::value");
+    }
+}
+
+#[test]
+fn attached_entry_requirements_cannot_substitute_another_boolean_formal() {
+    for (requirement, route, arguments) in [
+        ("left", "right", "true, false"),
+        ("!left", "!right", "false, true"),
+    ] {
+        let source = format!(
+            "data Main {{}}\ndata Helper {{}}\n\
+             boundary trait Sink {{ machine record(value: bool); }}\n\
+             machine trigger() -> bool\ncrashes Trap\n{{ crash Trap; }}\n\
+             machine Helper::forward(left: bool, right: bool)\nrequires {requirement}\ncrashes Trap {route}\n\
+             {{ Sink::record(trigger()); }}\n\
+             machine Main::value()\ncrashes Trap\n{{ Helper::forward({arguments}); }}",
+        );
+        let diagnostics = match lower_typed_trees(typed(&source)) {
+            Err(diagnostics) => diagnostics,
+            Ok(_) => panic!("distinct attached formals cannot authorize each other: {source}"),
+        };
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.message.contains("Helper::forward")
+                    && diagnostic.message.contains("uncovered Trap crash route")
+            }),
+            "the exact call crash coverage check must reject: {source}: {diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
+fn mixed_attached_entry_requirement_uses_the_original_nonfirst_boolean() {
+    let source = r#"
+        data Main {}
+        data Helper {}
+        data Box { value: u32; }
+        boundary trait Sink { machine record(value: bool); }
+        machine trigger() -> bool
+        crashes Trap
+        { crash Trap; }
+        machine Helper::forward(left: bool, record: Box, right: bool)
+        requires right
+        crashes Trap right
+        { Sink::record(trigger()); }
+        machine Main::value(record: Box)
+        crashes Trap
+        { Helper::forward(false, record, true); }
+    "#;
+    let checked = lower_typed_trees(typed(source))
+        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+    let missing = ["Helper::forward", "Main::value"]
+        .into_iter()
+        .filter(|name| {
+            let machine = checked
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == *name)
+                .expect("exact authored mixed fixture machine");
+            !checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .machines
+                .iter()
+                .any(|plan| plan.machine == machine.symbol)
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        missing.is_empty(),
+        "mixed fixture lacks checked Unit plans for {missing:?}"
+    );
+    assert_unconditional_call_trap_with_structural_arguments(source, "Main::value", true);
 }
 
 #[test]

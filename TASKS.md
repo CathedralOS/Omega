@@ -622,11 +622,11 @@ Owners include
   mutable formal cannot prove equality with its earlier argument value.
   Complete entry-requirement crash implication beyond canonical Boolean forms:
   extend compound Boolean equality to structural predicate leaves, admit exact
-  entry hypotheses for attached and structural signatures, and retain numeric
-  entry evidence through its totality owner. Acceptance: an attached machine's
-  `requires flag` covers an unconditional callee under `crashes Trap flag`,
-  compound member predicates survive independent verification, and numeric
-  coverage retains its checked totality evidence. The strict ordinary-entry
+  entry hypotheses over structural predicates, and retain numeric entry
+  evidence through its totality owner. Acceptance: compound member predicates
+  survive independent verification, structural entry hypotheses cover an
+  unconditional callee under the matching crash guard, and numeric coverage
+  retains its checked totality evidence. The strict Boolean-formal entry
   reader and structural crash-predicate owner must retain their exact namespace
   and totality checks; current body observations are not entry hypotheses.
   None may change the callee's exact continuation routes.

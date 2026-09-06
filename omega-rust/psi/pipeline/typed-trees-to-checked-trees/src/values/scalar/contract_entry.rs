@@ -3,8 +3,8 @@
 
 use super::*;
 
-/// Requires-only fallback for an ordinary scalar entry contract. Unlike the
-/// shared structural crash reader, this boundary cannot recover a source name
+/// Requires-only fallback for scalar Boolean formals in an exact entry namespace.
+/// Unlike the shared structural crash reader, this boundary cannot recover a source name
 /// from its spelling or introduce a result/body-local namespace.
 pub(crate) fn lower_machine_entry_scalar_contract_expression(
     program: &TypedTrees,
@@ -14,7 +14,7 @@ pub(crate) fn lower_machine_entry_scalar_contract_expression(
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<CheckedBooleanExpression> {
     if !machine.symbol.is_valid()
-        || machine.attached_data.is_some()
+        || program.symbols.get(machine.symbol).kind != symbols::SymbolKind::Machine
         || !program.machine_type_parameters(machine).is_empty()
         || !machine.lifetime_parameters.is_empty()
         || !machine.conformance_bounds.is_empty()
@@ -27,18 +27,40 @@ pub(crate) fn lower_machine_entry_scalar_contract_expression(
     {
         return None;
     }
+    match &machine.attached_data {
+        None if machine.attached_data_symbol.is_valid() => return None,
+        None => {}
+        Some(name) => {
+            let mut owners = program
+                .data_definitions()
+                .iter()
+                .filter(|data| data.symbol == machine.attached_data_symbol);
+            let owner = owners.next()?;
+            if owners.next().is_some()
+                || program.symbols.get(owner.symbol).kind != symbols::SymbolKind::Data
+                || owner.name.as_str() != name.as_str()
+                || !program.data_type_parameters(owner).is_empty()
+                || !owner.lifetime_parameters.is_empty()
+            {
+                return None;
+            }
+        }
+    }
     let entry = program.machine_states(machine).first()?;
+    let entry_symbol = program.symbols.get(entry.symbol);
+    if entry_symbol.kind != symbols::SymbolKind::State || entry_symbol.parent != machine.symbol {
+        return None;
+    }
     let parameters = program.state_parameters(entry);
+    // Unread structural operands and receivers retain their authored slots;
+    // they do not make an exact owned Boolean formal a structural predicate.
     for (position, parameter) in parameters.iter().enumerate() {
-        if !parameter.symbol.is_valid()
-            || parameter.is_self
-            || parameter.is_const
-            || program
-                .primitive_type_reference(parameter.type_reference)
-                .is_none()
+        let symbol = program.symbols.get(parameter.symbol);
+        if symbol.kind != symbols::SymbolKind::Parameter
+            || symbol.parent != entry.symbol
             || parameters[..position]
                 .iter()
-                .any(|prior| prior.symbol == parameter.symbol)
+                .any(|prior| prior.symbol == parameter.symbol || prior.name == parameter.name)
         {
             return None;
         }
@@ -65,13 +87,10 @@ pub(crate) fn lower_machine_entry_scalar_contract_expression(
         pending.push((expression, true));
         match program.expression_table.expression(expression) {
             ExpressionNode::Name(path) => {
+                let members = program.expression_table.name_path_members(path.members);
                 if !path.symbol.is_valid()
                     || path.head_symbol != path.symbol
-                    || program
-                        .expression_table
-                        .name_path_members(path.members)
-                        .len()
-                        != 1
+                    || members.len() != 1
                     || parameters
                         .iter()
                         .filter(|parameter| parameter.symbol == path.symbol)
@@ -79,6 +98,9 @@ pub(crate) fn lower_machine_entry_scalar_contract_expression(
                         != 1
                     || !parameters.iter().any(|parameter| {
                         parameter.symbol == path.symbol
+                            && !parameter.is_self
+                            && !parameter.is_const
+                            && parameter.name.as_str() == members[0].as_str()
                             && program.primitive_type_reference(parameter.type_reference)
                                 == Some(PrimitiveType::Bool)
                     })
@@ -287,6 +309,149 @@ mod tests {
                 scalar_requirement(&program, requirement(&program)).is_some(),
                 "{requirement_text}"
             );
+        }
+    }
+
+    #[test]
+    fn scalar_entry_requirement_accepts_attached_and_mixed_exact_namespaces() {
+        for requirement_text in ["right", "!right", "left && right", "left == right"] {
+            let ordinary = typed(&format!(
+                "machine value(left: bool, mut right: bool) -> bool requires {requirement_text} {{ true }}"
+            ));
+            let expected = scalar_requirement(&ordinary, requirement(&ordinary));
+            assert!(expected.is_some());
+            for signature in [
+                "machine Box::value(left: bool, mut right: bool)",
+                "machine value(left: bool, record: Box, mut right: bool)",
+                "machine Box::value(&self, left: bool, record: Box, mut right: bool)",
+            ] {
+                let program = typed(&format!(
+                    "data Box {{ flag: bool; }} {signature} -> bool requires {requirement_text} {{ true }}"
+                ));
+                assert_eq!(
+                    scalar_requirement(&program, requirement(&program)),
+                    expected,
+                    "{signature}: {requirement_text}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn scalar_entry_requirement_rejects_symbol_and_spelling_disagreement() {
+        let mut program =
+            typed("machine value(left: bool, right: bool) -> bool requires left { true }");
+        let root = requirement(&program);
+        let parameters =
+            program.state_parameters(&program.machine_states(&program.machines()[0])[0]);
+        let left = parameters[0].symbol;
+        let right = parameters[1].symbol;
+        let mut pending = vec![root];
+        while let Some(expression) = pending.pop() {
+            match program.expression_table.expression_mut(expression) {
+                ExpressionNode::Name(path) if path.symbol == left => {
+                    path.symbol = right;
+                    path.head_symbol = right;
+                    assert!(scalar_requirement(&program, root).is_none());
+                    return;
+                }
+                ExpressionNode::Binary(binary) => pending.extend([binary.left, binary.right]),
+                ExpressionNode::Unary(unary) => pending.push(unary.operand),
+                _ => {}
+            }
+        }
+        panic!("requirement has the left formal occurrence");
+    }
+
+    #[test]
+    fn scalar_entry_requirement_rejects_ambiguous_retained_formal_names() {
+        let mut program =
+            typed("machine value(left: bool, right: bool) -> bool requires right { true }");
+        let root = requirement(&program);
+        let parameters = program.machine_states(&program.machines()[0])[0].parameters;
+        let names = program
+            .tables
+            .state_parameters
+            .span_mut_or_empty(parameters);
+        names[0].name = names[1].name.clone();
+        assert!(scalar_requirement(&program, root).is_none());
+    }
+
+    #[test]
+    fn scalar_entry_requirement_requires_one_live_consistent_attachment_owner() {
+        let program = typed(
+            "data Box {} data Other {} machine Box::value(flag: bool) -> bool requires flag { flag }",
+        );
+        let root = requirement(&program);
+        assert!(scalar_requirement(&program, root).is_some());
+        let owner = program.machines()[0].attached_data_symbol;
+        for wrong in [
+            symbols::SymbolHandle::invalid(),
+            symbols::SymbolHandle::from_parts(owner.arena_index(), owner.generation() + 1),
+            program.data_definitions()[1].symbol,
+            program.machines()[0].symbol,
+        ] {
+            let mut invalid = program.clone();
+            invalid.machines_mut()[0].attached_data_symbol = wrong;
+            assert!(scalar_requirement(&invalid, root).is_none());
+        }
+        let mut detached = program.clone();
+        detached.machines_mut()[0].attached_data = None;
+        assert!(scalar_requirement(&detached, root).is_none());
+        let mut duplicate = program.clone();
+        let definitions = duplicate.roots.data_definitions;
+        duplicate
+            .tables
+            .data_definitions
+            .span_mut_or_empty(definitions)[1] = program.data_definitions()[0].clone();
+        assert!(scalar_requirement(&duplicate, root).is_none());
+        let mut stale = program.clone();
+        let definitions = stale.roots.data_definitions;
+        let stale_owner =
+            symbols::SymbolHandle::from_parts(owner.arena_index(), owner.generation() + 1);
+        stale.tables.data_definitions.span_mut_or_empty(definitions)[0].symbol = stale_owner;
+        stale.machines_mut()[0].attached_data_symbol = stale_owner;
+        assert!(scalar_requirement(&stale, root).is_none());
+    }
+
+    #[test]
+    fn scalar_entry_requirement_rejects_unresolved_or_non_owned_boolean_leaves() {
+        for source in [
+            "data Box<T> {} machine Box::value(flag: bool) -> bool requires flag { flag }",
+            "machine value<T>(flag: bool) -> bool requires flag { flag }",
+            "machine value(flag: &bool) -> bool requires flag { true }",
+            "data Box { flag: bool; } machine Box::value(&self) -> bool requires self.flag { true }",
+        ] {
+            let program = typed(source);
+            assert!(
+                scalar_requirement(&program, requirement(&program)).is_none(),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn scalar_entry_requirement_rejects_corrupted_formal_namespace_rows() {
+        let program = typed(
+            "machine value(left: bool, right: bool) -> bool requires left { true } machine foreign(right: bool) -> bool { right }",
+        );
+        let root = requirement(&program);
+        let entry = &program.machine_states(&program.machines()[0])[0];
+        let parameters = program.state_parameters(entry);
+        let right = parameters[1].symbol;
+        for wrong in [
+            symbols::SymbolHandle::invalid(),
+            symbols::SymbolHandle::from_parts(right.arena_index(), right.generation() + 1),
+            parameters[0].symbol,
+            program.state_parameters(&program.machine_states(&program.machines()[1])[0])[0].symbol,
+        ] {
+            let mut invalid = program.clone();
+            invalid
+                .tables
+                .state_parameters
+                .span_mut_or_empty(entry.parameters)[1]
+                .symbol = wrong;
+            assert!(scalar_requirement(&invalid, root).is_none());
         }
     }
 
