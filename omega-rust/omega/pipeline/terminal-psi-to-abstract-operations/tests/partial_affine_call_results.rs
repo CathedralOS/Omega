@@ -16,6 +16,15 @@ use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
 fn authored_call_result_cleanup_reaches_current_omega_ownership() {
+    check_authored_call_result_cleanup(false);
+}
+
+#[test]
+fn authored_boundary_result_cleanup_reaches_current_omega_ownership() {
+    check_authored_call_result_cleanup(true);
+}
+
+fn check_authored_call_result_cleanup(boundary: bool) {
     for (fields, calls, expected) in [
         (
             "left: Token; right: Token;",
@@ -43,7 +52,7 @@ fn authored_call_result_cleanup_reaches_current_omega_ownership() {
             ],
         ),
     ] {
-        let source = format!(
+        let mut source = format!(
             "data Token {{ value: u64; }}
              data Pair {{ {fields} }}
              data Sink {{}}
@@ -55,6 +64,17 @@ fn authored_call_result_cleanup_reaches_current_omega_ownership() {
                  {calls}
              }}"
         );
+        if boundary {
+            source = source
+                .replace("data Token", "pub data Token")
+                .replace("data Pair", "pub data Pair")
+                .replace(
+                    "machine Root::enter(value: Pair)",
+                    "machine Root::enter() reaches Factory",
+                )
+                .replace("Root::forward(value);", "Factory::create();");
+            source.push_str("boundary trait Factory { machine create() -> Pair reaches Factory; }");
+        }
         let tokens = Lexer::new(&source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
         let resolved = lower_syntax_trees(&syntax).expect("resolve");
@@ -84,10 +104,18 @@ fn authored_call_result_cleanup_reaches_current_omega_ownership() {
             .find(|function| function.machine == terminal.semantic_module.entry)
             .expect("entry function");
         let nodes = &caller.blocks[0].nodes;
-        let AbstractOperation::CallStructural { result, .. } = &nodes[0].operation else {
-            panic!("leading producer retained")
+        let result = match &nodes[0].operation {
+            AbstractOperation::CallStructural { result, .. } if !boundary => {
+                assert_ne!(result.place, caller.structural_parameters[0].place);
+                result
+            }
+            AbstractOperation::BoundaryCall { result, .. } if boundary => {
+                assert!(caller.structural_parameters.is_empty());
+                assert!(!caller.published_service_ceiling.is_empty());
+                result.structural().expect("structural boundary result")
+            }
+            _ => panic!("leading producer retained"),
         };
-        assert_ne!(result.place, caller.structural_parameters[0].place);
         let AbstractOperation::ReturnUnit {
             cleanup_actions, ..
         } = &nodes.last().unwrap().operation

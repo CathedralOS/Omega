@@ -31,7 +31,11 @@ pub(crate) fn validate_structural_place_availability(
             let place = match &node.operation {
                 O::EstablishPayloadlessCase { result, .. }
                 | O::EstablishAffineScalarRecord { result, .. }
-                | O::CallStructural { result, .. } => Some(result.place),
+                | O::CallStructural { result, .. }
+                | O::BoundaryCall {
+                    result: abstract_operations::AbstractBoundaryResult::Structural(result),
+                    ..
+                } => Some(result.place),
                 O::EstablishByteSequenceLiteral { place, .. }
                 | O::EstablishTrivialAffineLocal { place, .. } => Some(place.id),
                 _ => None,
@@ -474,6 +478,14 @@ pub(crate) fn validate_structural_root_operations(
                                     | O::CallStructural {
                                         psi_operation,
                                         result,
+                                        ..
+                                    }
+                                    | O::BoundaryCall {
+                                        psi_operation,
+                                        result:
+                                            abstract_operations::AbstractBoundaryResult::Structural(
+                                                result,
+                                            ),
                                         ..
                                     } if *psi_operation == producer
                                         && result.place == *source

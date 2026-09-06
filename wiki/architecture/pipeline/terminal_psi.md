@@ -1668,8 +1668,11 @@ identity-call result schedule without scalar arguments. The exact producer
 transfers its sole owned affine input unchanged, with no claims, qualifications,
 contracts, or effects. Replay joins the result declaration to that actual producer
 and reconstructs the same complement; an unrelated live result cannot disappear
-at Unit return. Boundary-result producer metadata and ownership replay remain
-unfinished. Target assignment and native replay remain parameter-rooted. This
+at Unit return. Structural boundary results use the same producer, type,
+availability, and ownership reconstruction while retaining their boundary
+signature and declared service reach. Result custody is installed only after
+the call's input transfers and completion receipts; it grants no input claim
+completion. Target assignment and native replay remain parameter-rooted. This
 does not admit result-root cleanup in native production, anonymous projected
 helper-result operands, claims, nominal destruction, or partial construction.
 

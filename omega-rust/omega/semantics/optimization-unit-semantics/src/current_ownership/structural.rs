@@ -95,6 +95,11 @@ pub(super) fn partial_affine_root_type(
                 psi_operation,
                 result,
                 ..
+            }
+            | O::BoundaryCall {
+                psi_operation,
+                result: abstract_operations::AbstractBoundaryResult::Structural(result),
+                ..
             } if *psi_operation == producer
                 && result.place == place
                 && result.structural_type == structural_type
