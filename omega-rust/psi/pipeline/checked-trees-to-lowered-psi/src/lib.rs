@@ -167,7 +167,7 @@ use crash_routes::{
     lower_checked_crash_exit, lower_checked_crash_predicates, lower_checked_crash_route_buckets,
     lower_checked_crash_routes, lower_structural_crash_route_buckets,
     lower_structural_runtime_requirement, structural_crash_route_argument_prefix,
-    substitute_structural_crash_route_roots, substitute_structural_requirement_roots,
+    substitute_structural_crash_route_roots,
 };
 use debug_map::build_debug_map;
 use evidence_lowering::lower_and_install_evidence_artifacts;
@@ -1199,7 +1199,12 @@ pub fn lower_machine(
     )?;
     // Unit closures can be provisional inputs to cleanup/borrow assembly.
     // Discharge operand obligations only after the selected module is complete.
-    if route == SelectedMachineRoute::UnitEffect {
+    if matches!(
+        route,
+        SelectedMachineRoute::UnitEffect
+            | SelectedMachineRoute::NominalAffineUnitCleanup
+            | SelectedMachineRoute::PartialAffineUnitCleanup
+    ) {
         finalize_operation_proofs(&mut lowered)?;
     } else if lowered
         .semantic_module

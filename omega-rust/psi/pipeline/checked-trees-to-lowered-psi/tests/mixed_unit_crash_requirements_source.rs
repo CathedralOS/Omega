@@ -72,6 +72,250 @@ fn literal_first_scalar_equality_requirement_keeps_canonical_value_identity() {
 }
 
 #[test]
+fn reversed_scalar_actuals_prove_the_symmetric_callee_requirement() {
+    let source = SOURCE.replace(
+        "requires 1u64 <= divisor",
+        "requires 1u64 <= divisor, divisor == limit",
+    );
+    let lowered = roundtrip(&checked(&source));
+    let obligation = call_requirement(&lowered, |requirement| {
+        matches!(requirement, semantic_vocabulary::Proposition::Equal(_, _))
+    });
+    let evidence = lowered
+        .proof_bundle
+        .evidence
+        .iter()
+        .find(|evidence| evidence.obligation == obligation)
+        .unwrap();
+    let proof_admission::EvidenceRoute::CertificateDerived(certificate) = &evidence.route else {
+        panic!("symmetry uses checked certificate evidence");
+    };
+    let proof_admission::ProofRule::EqualitySymmetry { equality } = &certificate.proof.rule else {
+        panic!("reversed actuals require the existing equality symmetry rule");
+    };
+    let proof_admission::ProofRule::Assumption { index } = equality.rule else {
+        panic!("symmetry child retains the caller equality premise");
+    };
+    let root = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .unwrap();
+    assert_eq!(equality.conclusion, root.contract.requires[index]);
+    let semantic_vocabulary::Proposition::Equal(left, right) = &equality.conclusion else {
+        panic!("equality child");
+    };
+    assert_eq!(
+        certificate.proof.conclusion,
+        semantic_vocabulary::Proposition::Equal(right.clone(), left.clone())
+    );
+    let reconstructed =
+        terminal_verifier::reconstruct_operation_obligations(&lowered.semantic_module).unwrap();
+    assert_eq!(
+        reconstructed
+            .iter()
+            .find(|site| site.obligation.id == obligation)
+            .unwrap()
+            .obligation
+            .proposition,
+        certificate.proof.conclusion
+    );
+    let wrong_index = root
+        .contract
+        .requires
+        .iter()
+        .position(|requirement| requirement != &equality.conclusion)
+        .unwrap();
+    for mutation in 0..3 {
+        let mut changed = lowered.proof_bundle.clone();
+        let proof_admission::EvidenceRoute::CertificateDerived(certificate) = &mut changed
+            .evidence
+            .iter_mut()
+            .find(|evidence| evidence.obligation == obligation)
+            .unwrap()
+            .route
+        else {
+            unreachable!();
+        };
+        let proof_admission::ProofRule::EqualitySymmetry { equality } = &mut certificate.proof.rule
+        else {
+            unreachable!();
+        };
+        let expected = match mutation {
+            0 => {
+                equality.rule = proof_admission::ProofRule::Assumption { index: usize::MAX };
+                proof_admission::ProofError::UnknownAssumption(usize::MAX)
+            }
+            1 => {
+                equality.rule = proof_admission::ProofRule::Assumption { index: wrong_index };
+                proof_admission::ProofError::AssumptionConclusionMismatch(wrong_index)
+            }
+            2 => {
+                certificate.proof = (**equality).clone();
+                proof_admission::ProofError::CertificateConclusionMismatch
+            }
+            _ => unreachable!(),
+        };
+        assert!(
+            matches!(terminal_verifier::verify_module(&lowered.semantic_module, &changed, &proof_admission::AdmissionProfile::default()),
+            Err(terminal_verifier::VerificationError::RejectedEvidence {
+                obligation: rejected, error: proof_admission::EvidenceError::Certificate(error)
+            }) if rejected == obligation && error == expected),
+            "symmetry evidence mutation={mutation}"
+        );
+    }
+}
+
+fn call_requirement(
+    lowered: &lowered_psi::LoweredPsi,
+    select: impl Fn(&semantic_vocabulary::Proposition) -> bool,
+) -> semantic_vocabulary::ObligationId {
+    let root = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .unwrap();
+    let (target, obligations) = root
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match &operation.kind {
+            terminal_psi::OperationKind::CallUnit {
+                callee,
+                requirement_obligations,
+                ..
+            } => Some((*callee, requirement_obligations)),
+            _ => None,
+        })
+        .unwrap();
+    let callee = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == target)
+        .unwrap();
+    let position = callee.contract.requires.iter().position(select).unwrap();
+    obligations[position]
+}
+
+#[test]
+fn stronger_caller_scalar_bound_proves_the_weaker_callee_requirement() {
+    let source = SOURCE.replace("requires 1u64 <= divisor", "requires 1u64 <= divisor, 1u64 <= limit")
+        .replace("requires 1u64 <= divisor, 1u64 <= limit\n    crashes Abort metrics.current / divisor <= limit\n    { Helper",
+            "requires 1u64 <= divisor, 2u64 <= limit\n    crashes Abort metrics.current / divisor <= limit\n    { Helper");
+    let lowered = roundtrip(&checked(&source));
+    let root = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .unwrap();
+    let target = root
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            terminal_psi::OperationKind::CallUnit { callee, .. } => Some(callee),
+            _ => None,
+        })
+        .unwrap();
+    let callee = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == target)
+        .unwrap();
+    let limit = semantic_vocabulary::ScalarTerm::value(
+        callee.parameters[1].id,
+        callee.parameters[1].scalar_type,
+    );
+    let obligation = call_requirement(&lowered, |requirement| {
+        matches!(requirement,
+        semantic_vocabulary::Proposition::LessOrEqual(_, subject) if subject == &limit)
+    });
+    let evidence = lowered
+        .proof_bundle
+        .evidence
+        .iter()
+        .find(|evidence| evidence.obligation == obligation)
+        .unwrap();
+    let proof_admission::EvidenceRoute::CertificateDerived(certificate) = &evidence.route else {
+        panic!("stronger caller bound needs checked proof");
+    };
+    let proof_admission::ProofRule::IntegerLessOrEqualTransitivity {
+        left_less_or_equal_middle,
+        middle_less_or_equal_right,
+    } = &certificate.proof.rule
+    else {
+        panic!("existing integer-order transitivity combines 1<=2 with 2<=limit");
+    };
+    assert!(matches!(
+        left_less_or_equal_middle.rule,
+        proof_admission::ProofRule::Primitive(
+            proof_admission::PrimitiveJudgment::ClosedIntegerRelation
+        )
+    ));
+    let proof_admission::ProofRule::Assumption { index } = middle_less_or_equal_right.rule else {
+        panic!("stronger bound child names caller premise");
+    };
+    assert_eq!(
+        middle_less_or_equal_right.conclusion,
+        root.contract.requires[index]
+    );
+    let reconstructed =
+        terminal_verifier::reconstruct_operation_obligations(&lowered.semantic_module).unwrap();
+    assert_eq!(
+        reconstructed
+            .iter()
+            .find(|site| site.obligation.id == obligation)
+            .unwrap()
+            .obligation
+            .proposition,
+        certificate.proof.conclusion
+    );
+}
+
+#[test]
+fn scalar_call_requirements_reject_weaker_bounds_and_disjoint_subjects() {
+    for (callee_requirement, caller_requirement, disjoint_subject) in [
+        ("2u64 <= limit", "1u64 <= limit", false),
+        ("1u64 <= limit", "2u64 <= spare", true),
+    ] {
+        let source = SOURCE.replacen(
+            "requires 1u64 <= divisor",
+            &format!("requires 1u64 <= divisor, {callee_requirement}"),
+            1,
+        );
+        let source = source.replace(
+            "requires 1u64 <= divisor\n    crashes Abort metrics.current / divisor <= limit\n    { Helper",
+            &format!("requires 1u64 <= divisor, {caller_requirement}\n    crashes Abort metrics.current / divisor <= limit\n    {{ Helper"),
+        );
+        let source = if disjoint_subject {
+            source.replace(
+                "Main::main(metrics: Metrics, limit: u64, divisor: u64)",
+                "Main::main(metrics: Metrics, limit: u64, divisor: u64, spare: u64)",
+            )
+        } else {
+            source
+        };
+        let tokens = Lexer::new(&source).tokenize().unwrap();
+        let syntax = parse_syntax_trees(&tokens).unwrap();
+        let resolved = lower_syntax_trees(&syntax).unwrap();
+        let typed = lower_symbol_resolved_trees(&resolved).unwrap();
+        let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(typed)
+            .expect_err("caller bounds must imply the requirement on the same scalar subject");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("requires")),
+            "{source}: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
 fn mixed_call_requirements_keep_callee_order_and_equal_actual_slots() {
     for equal_actuals in [false, true] {
         let source = SOURCE.replace(

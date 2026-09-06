@@ -69,6 +69,14 @@ pub(super) fn check_call_requires(
                             &entry_contexts,
                             expression,
                         )
+                        || super::call_bounds::proves_in_context(
+                            program,
+                            facts,
+                            state_flow,
+                            call_flow,
+                            &entry_contexts,
+                            expression,
+                        )
                         || if expression_is_boolean_place_like(program, expression) {
                             semantic_contexts_prove_contract_fact(
                                 program,

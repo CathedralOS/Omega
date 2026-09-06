@@ -1452,35 +1452,15 @@ pub(super) fn lower_shared_unit_closure(
                     source_call = Some((*coordinate, None, *target_state));
                     let requirement_obligations = target_runtime_requirements
                         .iter()
-                        .map(|requirement| {
-                            let mut goal = requirement.clone();
-                            substitute_structural_requirement_roots(&mut goal, &substitutions)?;
-                            let assumption_index = runtime_requirements
-                                .iter()
-                                .position(|assumption| assumption == &goal)
-                                .ok_or(LoweringError::Unsupported(
-                                    "runtime structural call requirement is not an exact caller premise",
-                                ))?;
+                        .map(|_| {
+                            // Proof finalization reconstructs this exact callee
+                            // slot against the completed caller's pre-call facts.
                             let obligation = obligation_id(next_call_obligation);
                             next_call_obligation = next_call_obligation
                                 .checked_add(1)
                                 .ok_or(LoweringError::Unsupported(
                                     "runtime structural call obligation identity space is exhausted",
                                 ))?;
-                            call_evidence.push(ObligationEvidence {
-                                obligation,
-                                route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
-                                    identity: EvidenceIdentity::new(obligation.get())
-                                        .expect("terminal obligation identity is nonzero"),
-                                    proof_system_marker: ProofSystemMarker::CURRENT,
-                                    proof: ProofNode {
-                                        conclusion: goal,
-                                        rule: ProofRule::Assumption {
-                                            index: assumption_index,
-                                        },
-                                    },
-                                }),
-                            });
                             Ok(obligation)
                         })
                         .collect::<Result<Vec<_>, LoweringError>>()?;

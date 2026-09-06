@@ -195,6 +195,10 @@ pub use contract_entailment::{MatchedLawGuarantee, matched_machine_law_guarantee
 pub use contract_entailment::{
     RankingRangeEdgeProof, RankingRangeMeasure, prove_ranking_range_edge, prove_ranking_range_entry,
 };
+pub use contract_entailment::{
+    StrictArithmeticBindingValue, StrictArithmeticImplicationJudgment,
+    StrictArithmeticSymbolBinding, strict_arithmetic_expression_implication,
+};
 pub use float_projection_invocations::{
     ValidatedFloatMeaningEqualityProposition, ValidatedFloatMeaningProjectionInvocation,
 };

@@ -534,10 +534,10 @@ Owners include
   including projected and borrowed operand staging.
   Connect scalar-returning boundary callees to ordinary Unit call closures;
   named-root lowering alone does not make them callable from a Unit ProgramEntry.
-  Complete mixed-signature runtime requirement transport beyond exact caller
-  premises, including equality symmetry after argument substitution. Retain
-  evaluated arguments and prove computed-argument routes against caller formal
-  ceilings; do not reread caller storage or retain callee-local IDs.
+  Complete mixed-signature runtime requirement transport for computed arguments
+  and mutable value snapshots. Retain evaluated arguments and prove
+  computed-argument routes against caller formal ceilings; do not reread caller
+  storage or retain callee-local IDs.
   Complete nonliteral contract arithmetic and callee-result bounds requiring
   caller-specific snapshots beyond immutable scalar formal comparisons; carry
   those facts into nested exact-cast obligations without rereading arguments.

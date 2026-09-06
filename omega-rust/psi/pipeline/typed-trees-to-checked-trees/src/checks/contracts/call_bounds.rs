@@ -7,8 +7,10 @@ use typed_trees::{
     expression::{BinaryOperator, ExpressionHandle, ExpressionNode},
 };
 
+mod context;
 #[cfg(test)]
 mod tests;
+pub(super) use context::proves as proves_in_context;
 
 pub(super) fn proves(
     program: &TypedTrees,
