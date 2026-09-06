@@ -35,6 +35,7 @@ pub(super) fn validate(
 ) -> Result<(), LoweringError> {
     let CheckedUnitEffectOperationPlan::StructuralCall {
         coordinate,
+        source_site,
         result,
         target_machine,
         target_state,
@@ -85,7 +86,6 @@ pub(super) fn validate(
             .rows
             .services(service_reach.transitive)
             .is_empty()
-        || coordinate.call_ordinal != 0
         || result.statement_index != coordinate.statement_index
         || result.multiplicity != Multiplicity::Affine
         || result.type_identity != target.result.type_identity
@@ -114,24 +114,45 @@ pub(super) fn validate(
     }
     let (source_machine, source_state) =
         crate::scalar_source_custody::authored_state(checked, caller.state)?;
-    let Some(StatementNode::LocalData(local)) = checked
-        .statement_table
-        .statements(source_state.statement_nodes)
-        .get(result.statement_index as usize)
+    let authored =
+        crate::call_source_custody::authored::locate_source(checked, caller.state, *coordinate)?;
+    let Some(checked_trees::NominalMachineUseSite::Expression(expression)) = authored.source_site
     else {
-        return unsupported("ordinary structural result has no authored immutable local");
+        return unsupported("ordinary structural result has no authored expression");
     };
-    // This outer result has its own checked target and custody slice. Retain
-    // its captured occurrence without widening nested result-call admission.
+    if *source_site != authored.source_site || source_machine.symbol != caller.machine {
+        return unsupported("ordinary structural result disagrees with its authored expression");
+    }
+    if coordinate.call_ordinal == 0 {
+        let Some(StatementNode::LocalData(local)) = checked
+            .statement_table
+            .statements(source_state.statement_nodes)
+            .get(result.statement_index as usize)
+        else {
+            return unsupported("ordinary structural result has no authored immutable local");
+        };
+        if local.initial_value != expression
+            || local.is_mutable
+            || !local.symbol.is_valid()
+            || checked
+                .typed
+                .normalized_type_identity(local.type_reference)
+                .into_string()
+                != result.type_identity
+        {
+            return unsupported(
+                "ordinary structural result disagrees with its authored initializer",
+            );
+        }
+    }
     crate::call_source_custody::occurrences::validate(
         checked,
         caller.machine,
         caller.state,
         *coordinate,
-        local.initial_value,
+        expression,
     )?;
-    let ExpressionNode::Call(call) = checked.expression_table.expression(local.initial_value)
-    else {
+    let ExpressionNode::Call(call) = checked.expression_table.expression(expression) else {
         return unsupported("ordinary structural result has no direct initializer call");
     };
     let authored_argument = checked
@@ -141,19 +162,6 @@ pub(super) fn validate(
         .ok_or(LoweringError::Unsupported(
             "ordinary structural call lost its authored argument",
         ))?;
-    if source_machine.symbol != caller.machine
-        || local.is_mutable
-        || !local.symbol.is_valid()
-        || checked
-            .typed
-            .normalized_type_identity(local.type_reference)
-            .into_string()
-            != result.type_identity
-    {
-        return unsupported(
-            "ordinary structural result or source disagrees with its authored initializer",
-        );
-    }
     if let Some(source_index) = argument.source_parameter_index() {
         let source = caller
             .structural_parameters

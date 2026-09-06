@@ -139,6 +139,8 @@ pub(super) fn validate_unit_operation_sequence(
         return unsupported("Unit machine does not end in exactly one checked Unit return");
     };
     let mut previous = None;
+    let mut previous_nested = false;
+    let mut coordinates = Vec::new();
     let mut next_scalar_binding = 0_u32;
     let mut next_structural_binding = 0_u32;
     for operation in &machine.operations[..machine.operations.len() - 1] {
@@ -234,7 +236,6 @@ pub(super) fn validate_unit_operation_sequence(
                 coordinate, result, ..
             } => {
                 if result.statement_index != coordinate.statement_index
-                    || coordinate.call_ordinal != 0
                     || result.binding_ordinal != next_structural_binding
                 {
                     return unsupported(
@@ -292,12 +293,37 @@ pub(super) fn validate_unit_operation_sequence(
                     ))?;
         }
         let key = (coordinate.statement_index, coordinate.call_ordinal);
-        if previous.is_some_and(|previous| previous >= key)
+        let nested = matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::StructuralCall { .. }
+        ) && coordinate.call_ordinal != 0;
+        let same_statement = previous.is_some_and(|previous: (u32, u32)| previous.0 == key.0);
+        let nested_consumer =
+            matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::StructuralCall { .. }
+            ) || matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. })
+                && coordinate.call_ordinal == 0;
+        // Coordinates retain preorder identity. Same-statement producers are
+        // published in postorder; exact syntax and argument ordering rejoin in
+        // structural result consumer validation after this shape check.
+        if (previous.is_some_and(|previous| previous >= key)
+            && !(same_statement && previous_nested && nested_consumer))
+            || (previous_nested && (!same_statement || !nested_consumer))
+            || (same_statement && nested && !previous_nested)
+            || coordinates.contains(&key)
             || coordinate.statement_index >= *statement_index
         {
             return unsupported("Unit machine operation order is not canonical source order");
         }
+        coordinates.push(key);
         previous = Some(key);
+        previous_nested = nested;
+    }
+    if previous_nested {
+        return unsupported(
+            "Unit machine has an anonymous structural result without its enclosing call",
+        );
     }
     Ok(())
 }

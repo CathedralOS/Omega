@@ -476,14 +476,14 @@ Owners include
   input's exact premise, while unknown writes and reference aliases without
   exact provenance retain no checked guarantee.
 
-  Realize nested value-call operands guarded by
+  Realize projected nested value-call operands guarded by
   `validation/src/calls/expression_scanning/result_realization.rs` through the
   checked/lowered value planning path. Borrow checking can transfer owned
   helper-result projections, but full checking still rejects the inner call's
   result as an unrealized operand.
-  Connect nested structural operands and result projections to the shared
-  evaluator and result-binding lookup; extend the shared closure to general
-  structural-result callees. Carry loans,
+  Complete result projections and interleaved scalar/structural argument
+  evaluation through the shared evaluator and result-binding lookup; extend the
+  shared closure to general structural-result callees. Carry loans,
   qualifications, and projected claims through structural results without
   erasing their obligations.
   Acceptance:

@@ -8,6 +8,8 @@ use checked_trees::types::PrimitiveType;
 use checked_trees::{CheckedUnitCallCoordinate, NominalMachineUseSite};
 use symbols::SymbolHandle;
 
+pub(crate) mod nested;
+
 pub(crate) struct AuthoredCall {
     pub source_target: SymbolHandle,
     pub source_site: Option<NominalMachineUseSite>,
@@ -51,58 +53,82 @@ pub(crate) fn locate_source(
         .ok_or(LoweringError::Unsupported(
             "call source custody has no authored statement",
         ))?;
-    let (source_target, arguments, source_site) = match statement {
-        StatementNode::Call(call) if coordinate.call_ordinal == 0 => {
-            if program
-                .statement_table
-                .expression_handles(call.arguments)
-                .len()
-                != call.arguments.count() as usize
-            {
-                return unsupported("call source custody has an invalid authored argument span");
-            }
-            let index = state
-                .statement_nodes
-                .start()
-                .arena_index()
-                .checked_add(coordinate.statement_index)
+    let (source_target, arguments, source_site) = if coordinate.call_ordinal != 0 {
+        let expression =
+            nested::execution_order(checked, caller_state, coordinate.statement_index)?
+                .into_iter()
+                .find_map(|(ordinal, expression)| {
+                    (ordinal == coordinate.call_ordinal).then_some(expression)
+                })
                 .ok_or(LoweringError::Unsupported(
-                    "call source statement identity overflows",
+                    "nested call source custody has no exact authored preorder coordinate",
                 ))?;
-            (
-                call.target_symbol,
-                program.statement_table.expression_handles(call.arguments),
-                Some(NominalMachineUseSite::Statement(arena::Handle::from_parts(
-                    index,
-                    state.statement_nodes.start().generation(),
-                ))),
-            )
-        }
-        StatementNode::LocalData(local) if coordinate.call_ordinal == 0 && !local.is_mutable => {
-            expression_call(checked, local.initial_value)?
-        }
-        StatementNode::Expression(expression) if coordinate.call_ordinal == 0 => {
-            if validation::unit_return_call_is_supported(program, machine, state, *expression) {
-                super::occurrences::validate(
-                    checked,
-                    machine.symbol,
-                    state.symbol,
-                    coordinate,
-                    *expression,
-                )?;
-            } else if !state.return_type.is_valid()
-                || matches!(
-                    program
-                        .type_reference_table
-                        .type_reference(state.return_type),
-                    checked_trees::types::TypeReferenceNode::Unit
+        super::occurrences::validate(
+            checked,
+            machine.symbol,
+            caller_state,
+            coordinate,
+            expression,
+        )?;
+        expression_call(checked, expression)?
+    } else {
+        match statement {
+            StatementNode::Call(call) if coordinate.call_ordinal == 0 => {
+                if program
+                    .statement_table
+                    .expression_handles(call.arguments)
+                    .len()
+                    != call.arguments.count() as usize
+                {
+                    return unsupported(
+                        "call source custody has an invalid authored argument span",
+                    );
+                }
+                let index = state
+                    .statement_nodes
+                    .start()
+                    .arena_index()
+                    .checked_add(coordinate.statement_index)
+                    .ok_or(LoweringError::Unsupported(
+                        "call source statement identity overflows",
+                    ))?;
+                (
+                    call.target_symbol,
+                    program.statement_table.expression_handles(call.arguments),
+                    Some(NominalMachineUseSite::Statement(arena::Handle::from_parts(
+                        index,
+                        state.statement_nodes.start().generation(),
+                    ))),
                 )
-            {
-                return unsupported("Unit call source custody has no exact authored Unit tail");
             }
-            expression_call(checked, *expression)?
+            StatementNode::LocalData(local)
+                if coordinate.call_ordinal == 0 && !local.is_mutable =>
+            {
+                expression_call(checked, local.initial_value)?
+            }
+            StatementNode::Expression(expression) if coordinate.call_ordinal == 0 => {
+                if validation::unit_return_call_is_supported(program, machine, state, *expression) {
+                    super::occurrences::validate(
+                        checked,
+                        machine.symbol,
+                        state.symbol,
+                        coordinate,
+                        *expression,
+                    )?;
+                } else if !state.return_type.is_valid()
+                    || matches!(
+                        program
+                            .type_reference_table
+                            .type_reference(state.return_type),
+                        checked_trees::types::TypeReferenceNode::Unit
+                    )
+                {
+                    return unsupported("Unit call source custody has no exact authored Unit tail");
+                }
+                expression_call(checked, *expression)?
+            }
+            _ => return unsupported("call source custody has no supported authored call root"),
         }
-        _ => return unsupported("call source custody has no supported authored call root"),
     };
     let (parameters, boundary, target_machine, target_state) =
         target_parameters(checked, machine.symbol, source_target)?;

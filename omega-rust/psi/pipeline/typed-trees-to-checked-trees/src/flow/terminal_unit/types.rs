@@ -2,8 +2,7 @@
 
 use super::*;
 
-mod plain_owned;
-pub(super) use plain_owned::has_plain_owned_contents;
+pub(super) use validation::has_plain_owned_contents;
 
 pub(super) fn return_unit_affine_discards(
     program: &TypedTrees,
@@ -1082,7 +1081,7 @@ impl<'program> ShapeCollector<'program> {
             .type_reference_table
             .type_reference(type_reference)
         {
-            let plain_owned_array = plain_owned::has_plain_owned_contents_with_substitutions(
+            let plain_owned_array = validation::has_plain_owned_contents_with_substitutions(
                 self.program,
                 type_reference,
                 substitutions,

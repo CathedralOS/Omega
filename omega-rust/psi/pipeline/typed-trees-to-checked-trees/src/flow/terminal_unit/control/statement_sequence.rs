@@ -126,7 +126,7 @@ pub(super) fn build(
                     )?;
                     result.statement_index = statement_index;
                     result.binding_ordinal = u32::try_from(structural_results.len()).ok()?;
-                    structural_result = Some((result, symbol));
+                    structural_result = Some((result, facts::PlaceRoot::Symbol(symbol)));
                     None
                 }
             }
@@ -163,6 +163,49 @@ pub(super) fn build(
             }
         }
         call_count = call_count.checked_add(1)?;
+        for nested in structural_operands::for_call(program, facts, machine, state, call)? {
+            let target = facts
+                .flow
+                .terminal_structural_returns
+                .claim_free_affine_machines
+                .iter()
+                .find(|target| target.state == nested.target_symbol)?;
+            let result = CheckedUnitStructuralResultBindingPlan {
+                statement_index,
+                binding_ordinal: u32::try_from(structural_results.len()).ok()?,
+                type_identity: target.result.type_identity.clone(),
+                multiplicity: Multiplicity::Affine,
+            };
+            let operation = build_call_operation(
+                program,
+                facts,
+                machine,
+                state,
+                structural_parameters,
+                &[],
+                &[],
+                entry_claims,
+                nested,
+                false,
+                Some(ExpectedCallValueResult::Structural(&result)),
+                &structural_results,
+            )?;
+            if !matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::StructuralCall { .. }
+            ) {
+                return None;
+            }
+            consume_results(&mut operations, &operation)?;
+            operations.push(operation);
+            structural_results.push((
+                result,
+                facts::PlaceRoot::Expression(nested.authored_expression),
+            ));
+        }
+        if let Some((result, _)) = &mut structural_result {
+            result.binding_ordinal = u32::try_from(structural_results.len()).ok()?;
+        }
         let operation = build_call_operation(
             program,
             facts,
@@ -193,34 +236,7 @@ pub(super) fn build(
             }
             structural_results.push((result, symbol));
         }
-        if let CheckedUnitEffectOperationPlan::StructuralCall {
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::CallUnit {
-            structural_arguments,
-            ..
-        } = &operation
-        {
-            for binding_ordinal in structural_arguments
-                .iter()
-                .filter_map(|argument| argument.source_structural_result_binding_ordinal())
-            {
-                let producer = operations.iter_mut().find(|operation| matches!(operation,
-                    CheckedUnitEffectOperationPlan::StructuralCall { result, .. } if result.binding_ordinal == binding_ordinal))?;
-                let CheckedUnitEffectOperationPlan::StructuralCall {
-                    discard_result_on_return,
-                    ..
-                } = producer
-                else {
-                    unreachable!()
-                };
-                if !*discard_result_on_return {
-                    return None;
-                }
-                *discard_result_on_return = false;
-            }
-        }
+        consume_results(&mut operations, &operation)?;
         operations.push(match result {
             Some(result) => bind_scalar_call_result(facts, operation, result, true)?,
             None => operation,
@@ -243,7 +259,45 @@ pub(super) fn build(
         local_count,
         structural_local_symbols: structural_results
             .into_iter()
-            .map(|(_, symbol)| symbol)
+            .filter_map(|(_, root)| match root {
+                facts::PlaceRoot::Symbol(symbol) => Some(symbol),
+                _ => None,
+            })
             .collect(),
     })
+}
+
+fn consume_results(
+    operations: &mut [CheckedUnitEffectOperationPlan],
+    consumer: &CheckedUnitEffectOperationPlan,
+) -> Option<()> {
+    if let CheckedUnitEffectOperationPlan::StructuralCall {
+        structural_arguments,
+        ..
+    }
+    | CheckedUnitEffectOperationPlan::CallUnit {
+        structural_arguments,
+        ..
+    } = consumer
+    {
+        for binding_ordinal in structural_arguments
+            .iter()
+            .filter_map(|argument| argument.source_structural_result_binding_ordinal())
+        {
+            let producer = operations.iter_mut().find(|operation| matches!(operation,
+                CheckedUnitEffectOperationPlan::StructuralCall { result, .. } if result.binding_ordinal == binding_ordinal))?;
+            let CheckedUnitEffectOperationPlan::StructuralCall {
+                discard_result_on_return,
+                ..
+            } = producer
+            else {
+                unreachable!()
+            };
+            if !*discard_result_on_return {
+                return None;
+            }
+            *discard_result_on_return = false;
+        }
+    }
+    Some(())
 }

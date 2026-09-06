@@ -134,7 +134,7 @@ fn assert_chain(
     assert_execution(module, &lowered.proof_bundle, scalar_arguments, fuel);
 }
 
-fn assert_execution(
+pub(super) fn assert_execution(
     module: &terminal_psi::TerminalModule,
     proof_bundle: &terminal_psi::ProofBundle,
     scalar_arguments: &[TerminalScalarValue],
