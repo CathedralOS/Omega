@@ -347,6 +347,15 @@ pub(super) fn machine_decrease_outcome(
         return DecreaseOutcome::Proven;
     }
 
+    // A statically established range may still need the relational owner to
+    // prove its actual step. Keep this fallback after the ordinary fast path,
+    // and retain the relational owner's entry, pinning, and every-edge gates.
+    if witness.rank_range.is_some()
+        && ranges::proves_relational_decrease(program, machine, &order, measure)
+    {
+        return DecreaseOutcome::Proven;
+    }
+
     // An unproven bounded-distance tuple is probed with its subjects swapped:
     // when the swapped distance proves on every cyclic edge, the clause is the
     // named bounded distance written backwards, and the diagnostic can point

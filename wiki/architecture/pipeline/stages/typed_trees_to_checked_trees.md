@@ -1692,8 +1692,11 @@ Current ownership is:
   change. Raw distance represents the natural rank only after its nonnegative
   branch is proved; the original clamped static tier remains intact. Range
   membership alone cannot authorize termination. A successful static range
-  proof still follows the existing decrease route; named-state, mutable,
-  custom-view, and call-component range transport need further proof support.
+  proof first follows the existing decrease recognizer. If that recognizer
+  cannot prove the actual step, the complete relational entry-and-edge proof
+  may establish descent, retaining its membership and endpoint-pinning checks.
+  Named-state, mutable, custom-view, and call-component range transport still
+  need further proof support.
   Parameter delivery establishes the range these proofs consume:
   `validation/src/calls/argument_bounds.rs` applies the shared store-containment
   check to numeric arguments using their evaluation snapshots and guard polarity.

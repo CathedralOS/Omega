@@ -37,6 +37,18 @@ pub(super) fn check(
     ))
 }
 
+/// Static membership alone says nothing about progress. If the usual descent
+/// recognizer declines, reuse the complete relational entry-and-edge judgment;
+/// never promote its membership result without strict decrease and pinning.
+pub(super) fn proves_relational_decrease(
+    program: &TypedTrees,
+    machine: &Machine,
+    order: &RankingOrder,
+    measure: DecreaseMeasure,
+) -> bool {
+    relational::prove(program, machine, measure, order)
+}
+
 fn proves_range(
     program: &TypedTrees,
     machine: &Machine,
