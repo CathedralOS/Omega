@@ -26,11 +26,7 @@ pub fn build_function_fragment_object_artifact(
     let mut functions = Vec::new();
     let mut semantic_code_attribution = Vec::new();
     for placed in &text.functions {
-        let fragment = fragments
-            .functions
-            .iter()
-            .find(|fragment| fragment.machine == placed.machine)
-            .ok_or(Error::Mismatch("missing placed fragment"))?;
+        let (attachment, provenance) = source::fragment_metadata(source, placed.machine)?;
         let (abstracted, targeted) = source::function(source, placed.machine)?;
         let offset = host(placed.section_offset)?;
         let length = host(placed.byte_count)?;
@@ -81,12 +77,12 @@ pub fn build_function_fragment_object_artifact(
         );
         functions.push(ObjectFunction {
             machine: placed.machine,
-            attachment: fragment.attachment,
+            attachment,
             fixed_integer_scalar_abi: targeted.fixed_integer_scalar_abi.clone(),
             mixed_structural_scalar_abi: None,
             structural_call_scalar_return: None,
             unit_scalar_abi: None,
-            provenance: fragment.provenance.clone(),
+            provenance: provenance.clone(),
             symbol,
             text_offset: offset,
             byte_count: length,
@@ -128,7 +124,19 @@ pub fn build_function_fragment_object_artifact(
             ranked_u32_countdown: None,
             structural_return: None,
         });
-        for attribution in attribution::produce(fragment, abstracted)? {
+        let rows = if let Some(fragment) = fragments
+            .functions
+            .iter()
+            .find(|row| row.machine == placed.machine)
+        {
+            attribution::produce(fragment, abstracted)?
+        } else {
+            super::structural::populate(
+                source,
+                functions.last_mut().expect("just inserted function"),
+            )?
+        };
+        for attribution in rows {
             semantic_code_attribution.push(ObjectCodeAttribution {
                 machine: placed.machine,
                 text_offset: offset
@@ -155,7 +163,7 @@ pub fn build_function_fragment_object_artifact(
         private_functions: Vec::new(),
         semantic_code_attribution,
         port_effects: Vec::new(),
-        boundary_settlements: Vec::new(),
+        boundary_settlements: super::structural::settlements(source)?,
         foreign_calls: Vec::new(),
     };
     validate_function_fragment_object_artifact(source, &artifact)?;

@@ -29,7 +29,7 @@ pub struct InternalUnitCallArgumentRecord {
     pub structural_type: StructuralTypeId,
     pub shape: ValueShape,
     pub source_byte_offset: u32,
-    pub source_home_byte_offset: u32,
+    pub source_location: crate::StructuralSourceLocation,
     pub call_stack_bytes: u32,
     pub fixed_array_length: Option<u64>,
     pub element_stride: Option<u32>,

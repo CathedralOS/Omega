@@ -521,6 +521,7 @@ pub(super) fn emit_unit_result_call(
         )?,
     };
     Ok(InternalUnitCallRecord {
+        source: machine_code::InternalUnitCallSource::Authored,
         owner: CallSiteOwner::Operation(*psi_operation),
         target: *callee,
         result: None,
@@ -540,7 +541,9 @@ pub(super) fn emit_unit_result_call(
                         structural_type: copy.structural_type,
                         shape: copy.shape,
                         source_byte_offset: copy.source_byte_offset,
-                        source_home_byte_offset,
+                        source_location: machine_code::StructuralSourceLocation::Stack {
+                            byte_offset: source_home_byte_offset,
+                        },
                         call_stack_bytes,
                         fixed_array_length: copy.fixed_array_length,
                         element_stride: copy.element_stride,
@@ -699,6 +702,7 @@ pub(super) fn emit_structural_scalar_call(
         )?,
     };
     Ok(InternalUnitCallRecord {
+        source: machine_code::InternalUnitCallSource::Authored,
         owner: CallSiteOwner::Operation(*psi_operation),
         target: *callee,
         result: Some(result.scalar_type),
@@ -718,7 +722,9 @@ pub(super) fn emit_structural_scalar_call(
                         structural_type: copy.structural_type,
                         shape: copy.shape,
                         source_byte_offset: copy.source_byte_offset,
-                        source_home_byte_offset,
+                        source_location: machine_code::StructuralSourceLocation::Stack {
+                            byte_offset: source_home_byte_offset,
+                        },
                         call_stack_bytes,
                         fixed_array_length: copy.fixed_array_length,
                         element_stride: copy.element_stride,
@@ -890,6 +896,7 @@ pub(super) fn emit_structural_result_call(
     let (argument_code_offset, argument_byte_count, source_home_byte_offset, call_stack_bytes) =
         *argument_interval;
     Ok(InternalUnitCallRecord {
+        source: machine_code::InternalUnitCallSource::Authored,
         owner: CallSiteOwner::Operation(*psi_operation),
         target: *callee,
         result: None,
@@ -911,7 +918,9 @@ pub(super) fn emit_structural_result_call(
             structural_type: copy.structural_type,
             shape: copy.shape,
             source_byte_offset: copy.source_byte_offset,
-            source_home_byte_offset,
+            source_location: machine_code::StructuralSourceLocation::Stack {
+                byte_offset: source_home_byte_offset,
+            },
             call_stack_bytes,
             fixed_array_length: copy.fixed_array_length,
             element_stride: copy.element_stride,

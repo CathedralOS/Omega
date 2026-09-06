@@ -29,7 +29,7 @@ pub(super) fn expected_owned_projected_copy_bytes(
     }
     let home = argument
         .call_stack_bytes
-        .checked_add(argument.source_home_byte_offset)?;
+        .checked_add(argument.source_location.stack_byte_offset()?)?;
     let indirect_source = matches!(
         argument.source.locations.as_slice(),
         [ValueLocation::Indirect { .. }]
@@ -199,7 +199,7 @@ fn append_fragment(
     } else {
         argument
             .call_stack_bytes
-            .checked_add(argument.source_home_byte_offset)?
+            .checked_add(argument.source_location.stack_byte_offset()?)?
             .checked_add(source_offset)?
     };
     match target.architecture {

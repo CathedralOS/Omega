@@ -3,7 +3,10 @@ mod boundary_settlement;
 mod call;
 mod callee_contract;
 mod contract;
+mod input;
 mod operations;
+
+pub(super) use input::accepts as accepts_publication_input;
 
 use super::matchers::MatchedStructuralUnitForm;
 use super::shared::*;

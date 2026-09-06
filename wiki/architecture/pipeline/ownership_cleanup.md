@@ -145,9 +145,11 @@ A serial public pipeline does not require branchless internal algorithms.
   The taskboard carries one integration item linking here.
 
 A milestone must demonstrate the changed ownership/route and preserved behavior,
-with focused controls plus formatting, workspace Clippy, architecture tests,
-all-target checking and `test --workspace --lib --no-fail-fast`. Run applicable
-native controls separately and name host legs not run. Preserve artifact bytes
+with focused controls, formatting, affected-crate Clippy and all-target checks,
+architecture tests and relevant integration coverage under the repository's
+validation-scope rules. Full-workspace runs are for baseline work or an impact
+that cannot be bounded. Run applicable native controls separately and name host
+legs not run. Preserve artifact bytes
 for internal moves; format changes require coordinated versions and replay.
 
 The cleanup is finished only when all four acceptance conditions hold, including

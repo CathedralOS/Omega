@@ -9,9 +9,11 @@ name = "image_emission"
 path = "src/lib.rs"
 
 [features]
+test-support = []
 installed-artifact = ["dep:executable-installation", "dep:layout-plans"]
 
 [dependencies]
+selected-instructions = { path = "../../../representations/selected-instructions" }
 calling-conventions = { path = "../../../representations/calling-conventions" }
 abstract-operations = { path = "../../../representations/abstract-operations" }
 executable-installation = { path = "../../runtime/executable-installation", optional = true }
@@ -43,7 +45,6 @@ sha2 = "0.10"
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }
 
 [dev-dependencies]
-selected-instructions = { path = "../../../representations/selected-instructions" }
 assigned-target-operations = { path = "../../../representations/assigned-target-operations" }
 abstract-operations-to-target-operations = { path = "../../../pipeline/abstract-operations-to-target-operations" }
 terminal-psi-to-abstract-operations = { path = "../../../pipeline/terminal-psi-to-abstract-operations" }

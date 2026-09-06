@@ -162,6 +162,21 @@ pub struct ObjectArtifact {
 }
 
 impl ObjectArtifact {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn functions_mut_for_test(&mut self) -> &mut Vec<ObjectFunction> {
+        &mut self.functions
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn boundary_settlements_mut_for_test(&mut self) -> &mut Vec<ObjectBoundarySettlement> {
+        &mut self.boundary_settlements
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn text_bytes_mut_for_test(&mut self) -> &mut Vec<u8> {
+        &mut self.text_bytes
+    }
+
     pub const fn psi(&self) -> TerminalPsiIdentity {
         self.psi
     }
@@ -750,6 +765,24 @@ fn build_object_artifact_with_x86_feature_profile(
         .map(|function| (function.machine, function))
         .collect::<std::collections::BTreeMap<_, _>>();
     for function in &plan.functions {
+        // Legacy machine plans have only assigned stack homes. Incoming ABI
+        // pointer custody is admitted through the independently replayed
+        // shared-fragment object boundary, including call-free functions.
+        if function
+            .unit_parameter_homes
+            .iter()
+            .chain(&function.scalar_structural_parameter_homes)
+            .any(|home| {
+                matches!(
+                    home.location,
+                    machine_code::StructuralSourceLocation::IncomingIndirectPointer { .. }
+                )
+            })
+        {
+            return Err(ObjectError::InvalidInternalUnitCallEvidence(
+                function.machine,
+            ));
+        }
         validate_mixed_structural_scalar_abi(plan.target, function)?;
         validate_unit_dynamic_descriptor_join(plan.target, function)?;
         if let Some(previous) = previous

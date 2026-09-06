@@ -4,7 +4,7 @@ use super::super::shared::*;
 pub(super) fn validate_callee_alpha_match(
     function: usize,
     callee: semantic_vocabulary::MachineId,
-    arguments: &[LegalizedCallUnitArgument],
+    arguments: &[super::input::Argument<'_>],
     transfers: &[terminal_psi::ClaimTransfer],
     caller_claims: &[terminal_psi::EntryClaim],
     target_plan: &TargetOperationPlan,

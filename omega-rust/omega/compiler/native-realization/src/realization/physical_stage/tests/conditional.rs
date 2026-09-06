@@ -216,8 +216,6 @@ fn publish(
     let (published, scope) = emit_optimized_fragments(
         physical,
         OptimizedFragmentPublicationRequest {
-            has_provider_installation: false,
-            has_boundary_settlements: false,
             boundary_application_coverage: selected_lowering.then_some(&coverage),
             optimized_plan: &plan,
             terminal: validation.psi(),

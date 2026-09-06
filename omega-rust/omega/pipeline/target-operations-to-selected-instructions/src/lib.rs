@@ -8,6 +8,7 @@
 mod legalization;
 mod optimized;
 mod selection;
+mod structural_unit_input;
 
 pub use legalization::{
     LegalizationError, LegalizationValidationReceipt,

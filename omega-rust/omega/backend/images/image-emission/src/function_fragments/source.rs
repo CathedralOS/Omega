@@ -70,13 +70,12 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
     object_file::validate_optimized_relocation_free_object_container(source)
         .map_err(Error::Source)?;
     let fragments = fragments(source);
-    if !fragments.structural_unit_functions.is_empty()
-        || fragments.functions.is_empty()
+    if (fragments.functions.is_empty() && fragments.structural_unit_functions.is_empty())
         || fragments.target.pointer_size != 8
         || fragments.target.pointer_alignment != 8
     {
         return Err(Error::Unsupported(
-            "shared image publication requires ordinary 64-bit functions",
+            "shared image publication requires a nonempty 64-bit function roster",
         ));
     }
     let current = source.source().source().source();
@@ -91,6 +90,9 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         return Err(Error::Mismatch(
             "shared text does not apply its exact frame",
         ));
+    }
+    if !fragments.structural_unit_functions.is_empty() {
+        return super::structural::admit(source);
     }
     for fragment in &fragments.functions {
         let (abstracted, targeted) = function(source, fragment.machine)?;
@@ -170,4 +172,28 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         }
     }
     Ok(())
+}
+
+pub(super) fn fragment_metadata(
+    source: &StagedOptimizedRelocationFreeObjectContainer,
+    machine: MachineId,
+) -> Result<
+    (
+        Option<semantic_vocabulary::StructuralTypeId>,
+        &target_operations::TerminalPsiProvenance,
+    ),
+    Error,
+> {
+    let plan = fragments(source);
+    if let Some(function) = plan.functions.iter().find(|row| row.machine == machine) {
+        return Ok((function.attachment, &function.provenance));
+    }
+    if let Some(function) = plan
+        .structural_unit_functions
+        .iter()
+        .find(|row| row.machine == machine)
+    {
+        return Ok((function.attachment, &function.provenance));
+    }
+    Err(Error::Mismatch("missing placed fragment"))
 }

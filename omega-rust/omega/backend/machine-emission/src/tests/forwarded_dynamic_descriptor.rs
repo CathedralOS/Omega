@@ -102,8 +102,10 @@ fn emits_stored_descriptor_establishment_and_later_reload() {
         );
         assert_eq!(call.argument.source, establishment.instance.source.source);
         assert_eq!(
-            call.argument.source_home_byte_offset,
-            establishment.descriptor_home_byte_offset
+            call.argument.source_location,
+            machine_code::StructuralSourceLocation::Stack {
+                byte_offset: establishment.descriptor_home_byte_offset
+            }
         );
         assert_eq!(
             call.result.home.byte_offset,

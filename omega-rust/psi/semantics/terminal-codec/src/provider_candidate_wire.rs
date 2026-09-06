@@ -125,3 +125,90 @@ pub(super) fn decode_provider_candidate(
         },
     })
 }
+
+/// Encode one provider declaration using the current Terminal vocabulary.
+/// This preserves data only; it does not validate conformance or grant authority.
+pub fn encode_provider_candidate_record(
+    candidate: &ProviderCandidateConformance,
+) -> Result<Vec<u8>, CodecError> {
+    let mut writer = Writer::default();
+    writer.u16(super::FORMAT_MARKER);
+    writer.u16(terminal_psi::VocabularyMarker::CURRENT.get());
+    encode_provider_candidate(&mut writer, candidate)?;
+    Ok(writer.finish())
+}
+
+/// Decode one complete provider declaration, rejecting other vocabulary versions
+/// and trailing bytes. Semantic conformance remains the verifier's responsibility.
+pub fn decode_provider_candidate_record(
+    bytes: &[u8],
+) -> Result<ProviderCandidateConformance, CodecError> {
+    let mut reader = Reader::new(bytes);
+    let format = reader.u16()?;
+    if format != super::FORMAT_MARKER {
+        return Err(CodecError::UnsupportedFormatMarker(format));
+    }
+    let marker = reader.u16()?;
+    if marker != terminal_psi::VocabularyMarker::CURRENT.get() {
+        return Err(CodecError::UnsupportedVocabularyMarker(marker));
+    }
+    let candidate = decode_provider_candidate(&mut reader)?;
+    if reader.remaining() != 0 {
+        return Err(CodecError::TrailingBytes(reader.remaining()));
+    }
+    Ok(candidate)
+}
+#[cfg(test)]
+mod record_tests {
+    use super::*;
+    fn candidate() -> ProviderCandidateConformance {
+        ProviderCandidateConformance {
+            boundary: semantic_vocabulary::BoundaryMachineId::new(1).unwrap(),
+            requirement_identity: "requirement".into(),
+            provider_identity: "provider".into(),
+            candidate_identity: "candidate".into(),
+            candidate: semantic_vocabulary::MachineId::new(2).unwrap(),
+            signature: ProviderUnitSignature {
+                parameters: Vec::new(),
+            },
+            refinement: ProviderUnitRefinement {
+                positional_parameters: Vec::new(),
+                required_domains: Vec::new(),
+                realized_service_ceiling: Vec::new(),
+            },
+        }
+    }
+    #[test]
+    fn provider_record_round_trip_retains_current_terminal_wire_contract() {
+        let candidate = candidate();
+        let bytes = encode_provider_candidate_record(&candidate).unwrap();
+        assert_eq!(&bytes[..2], &super::super::FORMAT_MARKER.to_le_bytes());
+        assert_eq!(
+            &bytes[2..4],
+            &terminal_psi::VocabularyMarker::CURRENT.get().to_le_bytes()
+        );
+        assert_eq!(decode_provider_candidate_record(&bytes).unwrap(), candidate);
+    }
+    #[test]
+    fn provider_record_rejects_trailing_bytes_and_stale_markers() {
+        let bytes = encode_provider_candidate_record(&candidate()).unwrap();
+        let mut trailing = bytes.clone();
+        trailing.push(0);
+        assert_eq!(
+            decode_provider_candidate_record(&trailing),
+            Err(CodecError::TrailingBytes(1))
+        );
+        let mut format = bytes.clone();
+        format[..2].copy_from_slice(&0u16.to_le_bytes());
+        assert_eq!(
+            decode_provider_candidate_record(&format),
+            Err(CodecError::UnsupportedFormatMarker(0))
+        );
+        let mut vocabulary = bytes;
+        vocabulary[2..4].copy_from_slice(&0u16.to_le_bytes());
+        assert_eq!(
+            decode_provider_candidate_record(&vocabulary),
+            Err(CodecError::UnsupportedVocabularyMarker(0))
+        );
+    }
+}

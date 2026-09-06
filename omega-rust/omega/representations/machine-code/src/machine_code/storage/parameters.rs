@@ -12,7 +12,10 @@ pub struct UnitParameterHomeRecord {
     pub access: terminal_psi::StructuralAccess,
     pub shape: ValueShape,
     pub source: ValuePlacement,
-    pub byte_offset: u32,
+    pub location: StructuralSourceLocation,
+    /// Stack slots can contain direct bytes or a saved pointer. An incoming
+    /// pointer location is valid only with `indirect == true` and the exact ABI
+    /// source register; it never denotes an invented stack home.
     pub indirect: bool,
 }
 
@@ -35,4 +38,21 @@ pub struct UnitScalarFunctionAbiRecord {
 pub enum UnitScalarParameterLocationRecord {
     Register(MachineRegister),
     IncomingStack { byte_offset: u32 },
+}
+
+/// Actual residence of a structural source. Incoming pointers do not imply
+/// an unperformed spill or copy into a stack home.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructuralSourceLocation {
+    Stack { byte_offset: u32 },
+    IncomingIndirectPointer { register: MachineRegister },
+}
+
+impl StructuralSourceLocation {
+    pub const fn stack_byte_offset(self) -> Option<u32> {
+        match self {
+            Self::Stack { byte_offset } => Some(byte_offset),
+            Self::IncomingIndirectPointer { .. } => None,
+        }
+    }
 }

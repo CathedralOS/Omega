@@ -47,7 +47,9 @@ pub struct InternalCallRelocation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InternalUnitCallRecord {
-    /// Must match the owner of the corresponding relocation exactly.
+    pub source: InternalUnitCallSource,
+    /// Must match the owner of the corresponding relocation or independently
+    /// resolved internal-machine fixup exactly.
     pub owner: CallSiteOwner,
     pub target: MachineId,
     /// `None` for a value-less structural call; otherwise the exact scalar
@@ -114,4 +116,19 @@ pub struct InstalledProviderUnitScalarCallRecord {
     pub operation_ordinal: usize,
     pub code_offset: usize,
     pub byte_count: usize,
+}
+
+/// Semantic origin is independent of the resolved call encoding.
+/// Semantic origin retained independently of equal internal-call bytes.
+/// Installed provider declarations and claim receipts are custody, not fresh
+/// provider admission authority. Publication replays them against the source.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InternalUnitCallSource {
+    Authored,
+    InstalledProvider {
+        boundary: BoundaryMachineId,
+        provider: Box<ProviderCandidateConformance>,
+        completion_claim_sources: Vec<abstract_operations::CompletionClaimSource>,
+        completion_receipts: Vec<CompletionReceipt>,
+    },
 }

@@ -368,6 +368,20 @@ manufacture stack-held result records for values in preserved registers.
 Installation replay composes WCSU from those same frame and call facts, taking
 the maximum across sequential calls. Other call ABIs and
 targets remain explicit prerequisites of physical-route convergence.
+The existing Microsoft-x64 structural Unit family also reaches this shared
+object, image and installation path with empty or nonempty selections: an
+owned-indirect pair leaf, or one entry caller passing that pair to one leaf.
+The call may be authored or selected from an admitted provider conformance;
+claim-completion prefixes retain their execution and receipt evidence as
+zero-byte metadata. Publication records incoming pointer locations directly,
+not invented local homes or cleanup. Provider calls keep their distinct origin
+and exact conformance through installation encoding and independent replay.
+The call's 72-byte outbound area and eight-byte return address contribute 80
+bytes to stack demand without becoming a persistent frame. Larger structural
+graphs, other ABIs and structural executable-entry provisioning remain outside
+this bounded family; object/image construction does not admit an entrypoint.
+The input classifier enforces the existing singleton or caller-to-leaf topology
+before routing, rather than diverting unsupported programs into later rejection.
 This boundary is checked before execution; a failure never
 selects the old route. Empty and selected fragment publication bind the exact
 validated abstract projection, final optimization unit and shared object custody.
@@ -375,7 +389,8 @@ Native admission rejects a substituted object, including changed metadata;
 the retained object is immutable equality evidence, not a second current-program
 access path. Missing application coverage remains explicitly unavailable.
 Every optimizer-owned arm then enters one function-fragment
-emission stage. Native projection admits Unit returns, ordered calls and the scalar bodies above;
+emission stage. Native projection admits Unit returns, ordered calls, the bounded
+structural family and the scalar bodies above;
 it does not inspect which physical optimization variant produced them. Scalar
 publication binds the exact ABI, bytes and semantic intervals, with independent
 object/stack replay. Forward scalar graphs retain actual conditional predicates,

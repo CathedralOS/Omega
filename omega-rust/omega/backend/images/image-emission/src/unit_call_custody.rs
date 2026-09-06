@@ -55,7 +55,7 @@ pub(super) fn validate_unit_affine_scalar_records(
                     && argument.source.shape == record.shape
                     && argument.source.locations.is_empty()
                     && argument.source_byte_offset == 0
-                    && argument.source_home_byte_offset == 0
+                    && argument.source_location.stack_byte_offset() == Some(0)
             })
             .count();
         if !operations.insert(record.psi_operation)
@@ -174,7 +174,7 @@ pub(super) fn validate_mixed_structural_scalar_abi(
                     || home.access != retained.access
                     || home.shape != retained.shape
                     || home.source != retained.placement
-                    || home.byte_offset != 0
+                    || home.location.stack_byte_offset() != Some(0)
                     || home.indirect
                         != matches!(
                             retained.placement.locations.as_slice(),
@@ -314,7 +314,10 @@ pub(super) fn exact_write_only_projection(
         && argument.source_byte_offset == byte_offset
         && argument.source == source.source
         && argument.source.shape == source.shape
-        && argument.source_home_byte_offset == source.byte_offset
+        && source
+            .location
+            .stack_byte_offset()
+            .is_some_and(|offset| argument.source_location.stack_byte_offset() == Some(offset))
         && source.indirect
         && matches!(
             source.source.locations.as_slice(),
@@ -344,7 +347,20 @@ pub(super) fn validate_internal_unit_call_custody(
     fully_consumed_affine_parameter: bool,
 ) -> Result<(), ObjectError> {
     let invalid = || ObjectError::InvalidInternalUnitCallEvidence(machine);
-    if function.machine != machine || function.bytes.as_slice() != function_bytes {
+    if function.machine != machine
+        || function.bytes.as_slice() != function_bytes
+        || !matches!(
+            custody.source,
+            machine_code::InternalUnitCallSource::Authored
+        )
+        || parameter_homes
+            .iter()
+            .any(|home| home.location.stack_byte_offset().is_none())
+        || custody
+            .arguments
+            .iter()
+            .any(|argument| argument.source_location.stack_byte_offset().is_none())
+    {
         return Err(invalid());
     }
     let Some(relocation) = relocations.iter().find(|relocation| {
@@ -695,7 +711,7 @@ pub(super) fn validate_internal_unit_call_custody(
         let [home] = parameter_homes else {
             return Err(invalid());
         };
-        if home.byte_offset != 0
+        if home.location.stack_byte_offset() != Some(0)
             || home.indirect
                 != matches!(
                     home.source.locations.as_slice(),
@@ -785,7 +801,7 @@ pub(super) fn validate_internal_unit_call_custody(
                         argument.root_structural_type == home.structural_type
                             && argument.source == home.source
                             && argument.source.shape == home.shape
-                            && argument.source_home_byte_offset == home.byte_offset
+                            && home.location.stack_byte_offset().is_some_and(|offset| argument.source_location.stack_byte_offset() == Some(offset))
                             && (argument.path.is_empty()
                                 || projected_home.is_some_and(|projected| {
                                     projected.place == home.place
@@ -806,7 +822,7 @@ pub(super) fn validate_internal_unit_call_custody(
                                 && argument.source.locations.is_empty()
                                 && argument.destination.shape == argument.shape
                                 && argument.destination.locations.is_empty()
-                                && argument.source_home_byte_offset == 0
+                                && argument.source_location.stack_byte_offset() == Some(0)
                                 && matches!(
                                     place.kind,
                                     semantic_vocabulary::StructuralPlaceKind::TrivialAffineLocal {
@@ -851,7 +867,7 @@ pub(super) fn validate_internal_unit_call_custody(
                             && argument.shape == record.shape
                             && argument.source.shape == record.shape
                             && argument.source.locations.is_empty()
-                            && argument.source_home_byte_offset == 0
+                            && argument.source_location.stack_byte_offset() == Some(0)
                             && record.result.multiplicity
                                 == terminal_psi::StructuralMultiplicity::Affine
                             && record.result.qualifications.is_empty()
@@ -1208,7 +1224,7 @@ pub(super) fn expected_projected_copy_bytes(
         }
         let home = argument
             .call_stack_bytes
-            .checked_add(argument.source_home_byte_offset)?;
+            .checked_add(argument.source_location.stack_byte_offset()?)?;
         return match target.architecture {
             Architecture::X86_64 => {
                 let destination = match *pointer {
@@ -1296,7 +1312,7 @@ pub(super) fn expected_projected_copy_bytes(
     }
     let home = argument
         .call_stack_bytes
-        .checked_add(argument.source_home_byte_offset)?;
+        .checked_add(argument.source_location.stack_byte_offset()?)?;
     match target.architecture {
         Architecture::X86_64 => {
             let destination = x86_terminal_register(*register)?;

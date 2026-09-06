@@ -47,7 +47,7 @@ abstract-operations-to-target-operations = { path = "../../omega-rust/omega/pipe
 target-operations-to-assigned-target-operations = { path = "../../omega-rust/omega/pipeline/target-operations-to-assigned-target-operations" }
 machine-emission = { path = "../../omega-rust/omega/backend/machine-emission", features = ["test-support"] }
 machine-code = { path = "../../omega-rust/omega/representations/machine-code" }
-image-emission = { path = "../../omega-rust/omega/backend/images/image-emission" }
+image-emission = { path = "../../omega-rust/omega/backend/images/image-emission", features = ["test-support"] }
 installation-evidence = { path = "../../omega-rust/omega/representations/installation-evidence" }
 terminal-psi-to-abstract-operations = { path = "../../omega-rust/omega/pipeline/terminal-psi-to-abstract-operations" }
 native-realization = { path = "../../omega-rust/omega/compiler/native-realization", features = ["test-support"] }

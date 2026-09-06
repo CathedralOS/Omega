@@ -141,7 +141,7 @@ the record retains the definition ordinal needed for independent replay.
 Fixed-integer physical assignment and machine emission independently replay
 their joins before producing the non-observing store bytes. Dedicated custody
 rows bind every fact to exact code intervals and bytes, which object
-construction replays independently and installation format 79 transports
+construction replays independently and the current installation format transports
 canonically for integer, Boolean, and raw-bit IEEE float literals. The runtime
 source sibling admits one exact non-address native fixed-integer parameter,
 including every signed and unsigned 8-, 16-, 32-, and 64-bit carrier, or one

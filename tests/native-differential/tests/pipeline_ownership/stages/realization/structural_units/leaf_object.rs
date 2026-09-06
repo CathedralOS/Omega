@@ -123,6 +123,25 @@ fn structural_extent_unit_leaf_reaches_canonical_object_artifact() {
     assert_eq!(object.object().symbols[0].byte_count, 1);
     assert_eq!(object.object().relocation_record_count, 0);
 
+    let published = image_emission::build_function_fragment_object_artifact(&object)
+        .expect("the shared structural leaf must publish without invented stack homes");
+    image_emission::validate_function_fragment_object_artifact(&object, &published)
+        .expect("structural object publication must independently replay");
+    let image = image_emission::emit_executable_image(&published, 10)
+        .expect("the structural object must retain its ABI through image publication");
+    let installation = image_emission::build_installation_record(
+        &image,
+        semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),
+    )
+    .expect("structural ABI installation custody");
+    let bytes = image_emission::encode_installation_record(&installation)
+        .expect("structural ABI installation encoding");
+    let decoded = image_emission::decode_installation_record(&bytes)
+        .expect("structural ABI installation decoding");
+    assert_eq!(decoded, installation);
+    image_emission::validate_installation_record(&decoded, &image)
+        .expect("structural ABI installation replay");
+
     let artifact =
         stage_validated_optimized_object_artifact(canonical_artifact(&semantic, &proof), object)
             .expect("the leaf object must retain the exact canonical semantic/proof join");

@@ -192,7 +192,7 @@ pub(super) fn validate_boolean_shared_convergence_stack(
                 .filter(|home| home.place == read.source);
             let home = homes.next().ok_or_else(invalid)?;
             if homes.next().is_some()
-                || home.byte_offset != 0
+                || home.location.stack_byte_offset() != Some(0)
                 || home.shape != home.source.shape
                 || home.indirect
                     != matches!(

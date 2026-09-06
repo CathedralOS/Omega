@@ -45,6 +45,9 @@ pub(crate) fn accepts(
     {
         return false;
     }
+    if super::structural::accepts_publication_input(native, plan, unit) {
+        return true;
+    }
     native
         .functions
         .iter()

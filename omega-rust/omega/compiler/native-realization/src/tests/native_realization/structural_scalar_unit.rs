@@ -158,7 +158,12 @@ fn direct_dynamic_projected_store_and_call_reach_machine_custody() {
             .iter()
             .find(|home| home.place == store.destination.place)
             .expect("store destination has one exact staged parameter home");
-        assert_eq!(store.parameter_home_byte_offset, parameter_home.byte_offset);
+        assert_eq!(
+            machine_code::StructuralSourceLocation::Stack {
+                byte_offset: store.parameter_home_byte_offset,
+            },
+            parameter_home.location
+        );
         assert_eq!(store.parameter_home_indirect, parameter_home.indirect);
         assert!(!store.bytes.is_empty());
         assert_eq!(
@@ -614,7 +619,12 @@ fn record_and_literal_indexed_write_only_field_stores_reach_both_linux_targets()
                 .find(|home| home.place == store.destination.place)
                 .expect("store destination home");
             assert_eq!(store.destination_placement, home.source);
-            assert_eq!(store.parameter_home_byte_offset, home.byte_offset);
+            assert_eq!(
+                machine_code::StructuralSourceLocation::Stack {
+                    byte_offset: store.parameter_home_byte_offset,
+                },
+                home.location
+            );
             assert_eq!(store.parameter_home_indirect, home.indirect);
             assert_eq!(
                 &function.bytes[store.code_offset..store.code_offset + store.byte_count],

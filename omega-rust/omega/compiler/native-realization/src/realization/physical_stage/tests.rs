@@ -181,8 +181,6 @@ fn identity_return_programs_use_fragments_and_preserve_native_bytes() {
         let (plan, _) = emit_optimized_fragments(
             physical.physical,
             OptimizedFragmentPublicationRequest {
-                has_provider_installation: false,
-                has_boundary_settlements: false,
                 boundary_application_coverage: None,
                 optimized_plan: &physical.optimized_plan,
                 terminal: physical.terminal,

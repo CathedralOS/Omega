@@ -772,7 +772,7 @@ the target store; the Boolean source additionally retains its definition
 ordinal. Dedicated whole-root records bind these facts to exact code intervals
 and bytes. Object construction independently replays the declaration joins,
 borrowed-reference placement and home, literal source, architecture encoding,
-attribution, interval, and bytes. Installation format 79 transports and
+attribution, interval, and bytes. The current installation format transports and
 revalidates the integer, Boolean, and IEEE float store families without
 treating physical pointer-layout equivalence as permission equivalence. IEEE
 float stores retain their exact preceding definition, raw bits, referent shape,
@@ -813,7 +813,7 @@ the selected stack-carried scalar and store it through the staged write-only
 destination. Records retain every scalar source, destination, interval, and
 relocation coordinate. Object construction
 independently rejoins the Unit callee ABI, caller parameter source, frame and
-call-stack evidence, structural copy, and exact bytes. Installation format 79
+call-stack evidence, structural copy, and exact bytes. The current installation format
 transports and replays the same custody on both Linux targets. The ordinary
 call source may be either the caller's exact native-fixed-integer-or-Boolean
 parameter, an exact preceding Boolean literal definition, or the durable home

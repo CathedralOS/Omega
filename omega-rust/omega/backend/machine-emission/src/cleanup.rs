@@ -205,6 +205,7 @@ pub(super) fn emit_scalar_return_with_cleanup(
             aarch64_return_link: None,
         });
         internal_unit_calls.push(InternalUnitCallRecord {
+            source: machine_code::InternalUnitCallSource::Authored,
             owner,
             target: cleanup.cleanup_machine,
             result: None,
@@ -272,7 +273,7 @@ pub(super) fn emit_scalar_return_with_cleanup(
             access: parameter.access,
             shape: parameter.shape,
             source: parameter.placement.clone(),
-            byte_offset: 0,
+            location: machine_code::StructuralSourceLocation::Stack { byte_offset: 0 },
             indirect: matches!(
                 parameter.placement.locations.as_slice(),
                 [ValueLocation::Indirect { .. }]
@@ -492,7 +493,7 @@ pub(super) fn emit_boolean_control_with_cleanup(
             access: parameter.access,
             shape: parameter.shape,
             source: parameter.placement.clone(),
-            byte_offset: 0,
+            location: machine_code::StructuralSourceLocation::Stack { byte_offset: 0 },
             indirect: matches!(
                 parameter.placement.locations.as_slice(),
                 [ValueLocation::Indirect { .. }]
@@ -866,6 +867,7 @@ fn emit_boolean_cleanup_leaf(
             aarch64_return_link: None,
         });
         internal_unit_calls.push(InternalUnitCallRecord {
+            source: machine_code::InternalUnitCallSource::Authored,
             owner,
             target: cleanup.cleanup_machine,
             result: None,

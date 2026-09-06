@@ -90,8 +90,6 @@ fn source_ordered_calls_reach_executable_publication() {
             let (object, _) = emit_optimized_fragments(
                 physical.physical,
                 OptimizedFragmentPublicationRequest {
-                    has_provider_installation: false,
-                    has_boundary_settlements: false,
                     boundary_application_coverage: None,
                     optimized_plan: &physical.optimized_plan,
                     terminal: physical.terminal,

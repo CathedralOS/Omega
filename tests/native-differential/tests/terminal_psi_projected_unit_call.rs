@@ -1259,7 +1259,8 @@ fn literal_element_calls_retain_native_and_installed_custody_on_all_targets() {
         let first_copy_offset =
             machine.functions[0].internal_unit_calls[0].arguments[0].code_offset;
         let mut forged_home = machine.clone();
-        forged_home.functions[0].internal_unit_calls[0].arguments[0].source_home_byte_offset = 8;
+        forged_home.functions[0].internal_unit_calls[0].arguments[0].source_location =
+            machine_code::StructuralSourceLocation::Stack { byte_offset: 8 };
         forged_home.functions[0].internal_unit_calls[0].arguments[0].bytes[0] ^= 1;
         forged_home.functions[0].bytes[first_copy_offset] ^= 1;
         assert!(build_object_artifact(&forged_home).is_err());
@@ -4429,6 +4430,8 @@ fn one_executable_nominal_cleanup_action_retains_its_exact_ordinal_on_all_target
                     .to_le_bytes(),
             );
             installed_call_header.extend_from_slice(&owner_encoding);
+            // Format 80 retains the semantic call origin between owner and target.
+            installed_call_header.push(1); // Authored, including authored cleanup.
             installed_call_header
                 .extend_from_slice(&installed_call.custody.target.get().to_le_bytes());
             let installed_call_offsets = bytes

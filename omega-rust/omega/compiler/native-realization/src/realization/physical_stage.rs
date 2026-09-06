@@ -17,7 +17,6 @@ pub(crate) struct OptimizedNativePhysicalStage {
     pub(crate) terminal: terminal_psi::TerminalPsiIdentity,
     pub(crate) validation: optimization_core::OptimizedAbstractPlanProjectionIdentity,
     pub(crate) final_unit: optimization_core::OptimizationUnitIdentity,
-    pub(crate) has_provider_installation: bool,
 }
 
 /// One completed physical-routing stage result.
@@ -45,8 +44,6 @@ pub(crate) fn lower_realization_physical_stage(
             // retained translation evidence no longer depend on this selection.
             if request.optimization_selections.is_empty()
                 && !(is_fragment_publication_program(&optimized_target)
-                    && optimized_target.provider_installation().is_none()
-                    && request.settlements.is_empty()
                     && request.compiler_builtins.is_empty()
                     && request.native_callbacks.is_empty()
                     && request.callback_thunks.is_empty())
@@ -55,7 +52,6 @@ pub(crate) fn lower_realization_physical_stage(
             }
             let optimized_plan = optimized_target.optimized().plan().clone();
             let optimized_validation = optimized_target.optimized().validation();
-            let has_provider_installation = optimized_target.provider_installation().is_some();
             let physical = crate::stage_optimized_verified_physical_pipeline(
                 *optimized_target,
                 request.optimization_selections,
@@ -73,7 +69,6 @@ pub(crate) fn lower_realization_physical_stage(
                     terminal: optimized_validation.psi(),
                     validation: optimized_validation.identity(),
                     final_unit: optimized_validation.final_unit(),
-                    has_provider_installation,
                 },
             )))
         }
