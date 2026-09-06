@@ -2623,26 +2623,14 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             && returned.source.multiplicity == StructuralMultiplicity::Linear
             && returned.result.multiplicity == StructuralMultiplicity::Linear
             && returned.returned_claims.len() == 1;
-        let exact_claim_free_affine_mixed = matches!(returned.scalar_parameters.as_slice(), [scalar]
-            if scalar.placement.shape == scalar_shapes[0])
-            && returned.parameters.len() == 1
-            && returned.source.multiplicity == StructuralMultiplicity::Affine
-            && returned.result.multiplicity == StructuralMultiplicity::Affine
-            && returned.source.access == terminal_psi::StructuralAccess::Owned
-            && returned.source.qualifications.is_empty()
-            && returned.source.projected_qualifications.is_empty()
-            && returned.result.qualifications.is_empty()
-            && returned.result.projected_qualifications.is_empty()
-            && returned.returned_claims.is_empty()
-            && returned.trivial_affine_locals.is_empty()
-            && returned.trivial_affine_discards.is_empty()
-            && returned.shape == ValueShape::integer(8, 8);
+        let exact_claim_free_affine =
+            crate::structural_return::has_claim_free_affine_identity_custody(returned);
         if previous_return.is_some_and(|previous| previous >= installed.machine)
             || returned.code_offset != 0
             || returned.byte_count != function.byte_count
             || returned.source.position != 0
             || returned.source.is_self
-            || (!exact_claimful_linear && !exact_claim_free_affine_mixed)
+            || (!exact_claimful_linear && !exact_claim_free_affine)
             || returned.source.structural_type != returned.result.structural_type
             || returned.source.qualifications != returned.result.qualifications
             || returned.source.projected_qualifications

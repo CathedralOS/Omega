@@ -3,6 +3,9 @@
 #[path = "../fixture_rosters/structural_return.rs"]
 mod fixture_roster;
 
+#[path = "terminal_psi_structural_return/affine_identity.rs"]
+mod affine_identity;
+
 use abstract_operations::{AbstractFunctionResult, AbstractOperation};
 use abstract_operations_to_abstract_operations::validation::validate_verified_psi_optimization_unit;
 use abstract_operations_to_target_operations::lower_to_target_operations;
