@@ -1,6 +1,50 @@
 use super::*;
 
 #[test]
+fn computed_byte_stores_use_live_scalar_snapshots() {
+    for (body, succeeds) in [
+        ("let byte: u8 = 60 + 5; output[position] = byte;", true),
+        (
+            "let mut byte: u8 = 60; byte = byte + 5; output[position] = byte;",
+            true,
+        ),
+        (
+            "let mut byte: u8 = 60; let saved: u8 = byte + 5; byte = 255; output[position] = saved;",
+            true,
+        ),
+        ("let byte: u8 = 120 + 8; output[position] = byte;", false),
+        (
+            "let mut byte: u8 = 60 + 5; byte = unknown; output[position] = byte;",
+            false,
+        ),
+        (
+            "let mut byte: u8 = 60 + 5; corrupt(&mut byte); output[position] = byte;",
+            false,
+        ),
+    ] {
+        let source = format!(
+            r#"
+            domain [u8; 4]::Ascii requires ascii_only(self);
+            machine corrupt(byte: &mut u8) {{ byte = 255; }}
+            machine replace(output: &mut [u8; 4], position: u64 [0..=3], unknown: u8)
+            requires output in Ascii
+            ensures output in Ascii {{ {body} }}
+            "#
+        );
+        let result = lower_typed_trees(parse_typed_trees(&source));
+        assert_eq!(result.is_ok(), succeeds, "{body}: {result:#?}");
+        if let Err(diagnostics) = result {
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains("cannot prove ensures")),
+                "{body}: {diagnostics:#?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn dynamic_byte_stores_preserve_only_proved_carrier_predicates() {
     for (predicate, byte, succeeds) in [
         ("ascii_only", 65, true),

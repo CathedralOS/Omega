@@ -195,7 +195,8 @@ pub(super) fn append_element_replacement_predicates(
     let Some(byte) = replacement_byte(
         program,
         semantic,
-        &active_facts,
+        contexts,
+        active,
         machine_symbol,
         state_symbol,
         statement_index,
@@ -224,14 +225,13 @@ pub(super) fn append_element_replacement_predicates(
     }
 }
 
-/// The exact byte an indexed store installs, or `None` when the stored value is
-/// not a live literal. An unproved value leaves the carrier's class unprovable;
-/// it never widens to "some byte".
+// Read captured scalar values without replaying mutable operand expressions.
 #[allow(clippy::too_many_arguments)]
 fn replacement_byte(
     program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
-    active: &[Fact],
+    contexts: &FlowBuildContext,
+    active: HandleSpan<FlowSemanticContextRef>,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -249,18 +249,23 @@ fn replacement_byte(
                 statement_index,
                 source_expression,
             )?;
-            active.iter().find_map(|fact| {
-                let FactPayload::AssignedValue { value } = fact.payload else {
-                    return None;
-                };
-                let FactPlace::Place(source) = fact.place else {
-                    return None;
-                };
-                if !semantic.places_equal(source, place) {
-                    return None;
-                }
-                program.expression_table.constant_integer_value(value)
-            })
+            let subject =
+                canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))?;
+            let facts::ScalarValue::Integer(value) = crate::values::scalar_value_at_place(
+                program,
+                semantic,
+                contexts
+                    .contexts
+                    .semantic_context_refs
+                    .span_or_empty(active)
+                    .iter()
+                    .map(|reference| semantic.contexts.get(reference.context)),
+                &subject,
+            )?
+            else {
+                return None;
+            };
+            value.to_i64()
         })?;
     u8::try_from(value).ok()
 }
