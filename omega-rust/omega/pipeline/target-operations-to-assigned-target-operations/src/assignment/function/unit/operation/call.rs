@@ -2,6 +2,8 @@
 
 use super::*;
 
+mod affine_projection;
+
 fn exact_write_only_projection(
     body: &target_operations::TargetUnitBody,
     source: &target_operations::TargetStructuralParameter,
@@ -210,6 +212,11 @@ pub(super) fn assign(
                     }) && argument.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
                     {
                         exact_write_only_projection(body, parameter, argument)
+                    } else if !argument.path.is_empty()
+                        && argument.access == terminal_psi::StructuralAccess::Owned
+                        && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+                    {
+                        affine_projection::exact(body, parameter, argument)
                     } else {
                         true
                     }

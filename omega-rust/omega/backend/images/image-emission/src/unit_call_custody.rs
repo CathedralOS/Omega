@@ -5,6 +5,8 @@
 //! exact copy bytes, and call-span containment. It neither assigns layouts nor
 //! emits relocations or executable bytes.
 
+mod projected_copy;
+
 use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
 use machine_code::{
     MachineCodeFunction, SemanticCodeAttribution, SemanticCodeSite, StructuralReturnRecord,
@@ -339,7 +341,7 @@ pub(super) fn validate_internal_unit_call_custody(
     callee_structural_return: Option<&StructuralReturnRecord>,
     custody: &machine_code::InternalUnitCallRecord,
     affine_cleanup: Option<&machine_code::UnitAffineCleanupRecord>,
-    fully_consumed_affine_pair: bool,
+    fully_consumed_affine_parameter: bool,
 ) -> Result<(), ObjectError> {
     let invalid = || ObjectError::InvalidInternalUnitCallEvidence(machine);
     if function.machine != machine || function.bytes.as_slice() != function_bytes {
@@ -915,6 +917,20 @@ pub(super) fn validate_internal_unit_call_custody(
                                 || argument.element_stride.is_some()
                         }
                         _ if exact_write_only_argument(argument_index, argument) => false,
+                        _ if argument.access == terminal_psi::StructuralAccess::Owned
+                            && parameter_homes.iter().any(|home| {
+                                home.place == argument.place
+                                    && home.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+                            }) =>
+                        {
+                            parameter_homes.iter().find(|home| home.place == argument.place)
+                                .zip(affine_cleanup)
+                                .is_none_or(|(home, cleanup)| {
+                                    !crate::affine_projected_calls::exact_owned_projection(
+                                        argument, home, &cleanup.structural_types,
+                                    )
+                                })
+                        }
                         [terminal_psi::StructuralPathSegment::FixedIndex(index)] => {
                             let expected_stride = u32::from(argument.shape.byte_size)
                                 .next_multiple_of(u32::from(argument.shape.alignment));
@@ -1000,7 +1016,7 @@ pub(super) fn validate_internal_unit_call_custody(
                 return false;
             }
             argument.path.is_empty()
-                || (!fully_consumed_affine_pair
+                || (!fully_consumed_affine_parameter
                     && affine_cleanup.is_none_or(|cleanup| {
                         !cleanup.actions.iter().any(|action| {
                             matches!(action,
@@ -1168,6 +1184,11 @@ pub(super) fn expected_projected_copy_bytes(
     target: NativeTarget,
     argument: &machine_code::InternalUnitCallArgumentRecord,
 ) -> Option<Vec<u8>> {
+    if argument.access == terminal_psi::StructuralAccess::Owned
+        && argument.shape.class == calling_conventions::ValueClass::Integer
+    {
+        return projected_copy::expected_owned_projected_copy_bytes(target, argument);
+    }
     if argument.shape.class == calling_conventions::ValueClass::BorrowedReference
         && argument.source.shape.class == calling_conventions::ValueClass::BorrowedReference
     {

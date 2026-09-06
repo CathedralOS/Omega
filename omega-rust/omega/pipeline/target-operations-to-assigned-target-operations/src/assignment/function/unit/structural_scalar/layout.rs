@@ -249,6 +249,12 @@ fn field_shape(
         StructuralFieldType::Structural(nested) => {
             structural_shape(*nested, declarations, cache, active)
         }
+        StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+            capacity,
+        }) => {
+            let byte_size = u16::try_from(capacity.checked_add(8)?).ok()?;
+            Some(ValueShape::integer(byte_size, 8))
+        }
         _ => None,
     }
 }

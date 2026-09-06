@@ -11,9 +11,9 @@ use target::{Architecture, NativeTarget, ObjectFormat};
 
 use super::scalar_call::emit_unit_scalar_result;
 use super::{
-    Aarch64UnitParameterHome, X86UnitParameterHome, aarch64_outgoing_placement_extent, align_u32,
+    Aarch64UnitParameterHome, X86UnitParameterHome, align_u32,
     emit_aarch64_aggregate_copy_from_home, emit_x86_64_aggregate_copy_from_home,
-    outgoing_placement_extent,
+    outgoing_placement_extent, outgoing_placement_extent_with_copy,
 };
 use crate::{
     EmissionError, aarch64_load_base, aarch64_store_base, aarch64_unit_memory_access,
@@ -857,7 +857,10 @@ fn emit_aarch64_dynamic_call(
         homes,
         rebound_selection_ordinal,
     )?;
-    let call_stack_bytes = align_u32(aarch64_outgoing_placement_extent(&rebound.destination)?, 16)?;
+    let call_stack_bytes = align_u32(
+        outgoing_placement_extent_with_copy(&rebound.destination)?,
+        16,
+    )?;
     let allocation = if call_stack_bytes == 0 {
         None
     } else {
@@ -944,7 +947,10 @@ fn emit_aarch64_stored_call(
     ),
     EmissionError,
 > {
-    let call_stack_bytes = align_u32(aarch64_outgoing_placement_extent(&source.destination)?, 16)?;
+    let call_stack_bytes = align_u32(
+        outgoing_placement_extent_with_copy(&source.destination)?,
+        16,
+    )?;
     let allocation = if call_stack_bytes == 0 {
         None
     } else {

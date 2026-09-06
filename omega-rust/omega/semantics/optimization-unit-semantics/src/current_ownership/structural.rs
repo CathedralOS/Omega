@@ -43,7 +43,7 @@ pub(super) fn place_structural_type(
         })
 }
 
-pub(super) fn projected_fixed_array_root_is_fully_consumed(
+pub(super) fn projected_root_is_fully_consumed(
     function: &PsiOptimizationFunction,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     frontier: &CurrentOwnership,
@@ -60,34 +60,34 @@ pub(super) fn projected_fixed_array_root_is_fully_consumed(
         .claims
         .values()
         .any(|claim| claim.input == Some(place))
+        || function
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == place)
     {
         return false;
     }
-    let Some(StructuralTypeShape::FixedArray { element, length }) = structural_types
+    let Some(moved) = frontier.partial_custody_paths.get(&place) else {
+        return false;
+    };
+    if parameter.multiplicity == StructuralMultiplicity::Affine {
+        return !parameter.is_self
+            && parameter.access == StructuralAccess::Owned
+            && parameter.qualifications.is_empty()
+            && parameter.projected_qualifications.is_empty()
+            && partial_affine_residuals(structural_types, parameter.structural_type, moved, 0)
+                .is_some_and(|residuals| residuals.is_empty());
+    }
+    if parameter.multiplicity != StructuralMultiplicity::Linear {
+        return false;
+    }
+    let Some(StructuralTypeShape::FixedArray { length, .. }) = structural_types
         .get(&parameter.structural_type)
         .map(|declaration| &declaration.shape)
     else {
         return false;
     };
     let Some(length) = usize::try_from(*length).ok() else {
-        return false;
-    };
-    if parameter.multiplicity != StructuralMultiplicity::Linear
-        && (parameter.multiplicity != StructuralMultiplicity::Affine
-            || parameter.is_self
-            || parameter.access != StructuralAccess::Owned
-            || !parameter.qualifications.is_empty()
-            || length != 2
-            || !matches!(
-                structural_types
-                    .get(element)
-                    .map(|declaration| &declaration.shape),
-                Some(StructuralTypeShape::Record { .. })
-            ))
-    {
-        return false;
-    }
-    let Some(moved) = frontier.partial_custody_paths.get(&place) else {
         return false;
     };
     moved.len() == length

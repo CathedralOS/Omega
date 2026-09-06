@@ -1417,16 +1417,9 @@ fn partial_affine_field_cleanup_is_zero_code_and_installed_on_all_targets() {
             panic!("caller ends in a Unit return")
         };
         *cleanup_actions = vec![TerminalAffineCleanupAction::DiscardRoot(residual.place)];
-        let root_cleanup_machine = emit_machine_code(&root_cleanup_assigned).unwrap();
-        let root_cleanup_bytes = &root_cleanup_machine
-            .functions
-            .iter()
-            .find(|function| function.machine == caller_machine)
-            .unwrap()
-            .bytes;
-        assert_eq!(
-            &emitted.bytes, root_cleanup_bytes,
-            "path-sensitive cleanup adds no runtime instruction bytes"
+        assert!(
+            emit_machine_code(&root_cleanup_assigned).is_err(),
+            "a partially moved ancestor cannot be discarded whole, even by no-code cleanup"
         );
 
         let mut forged_path = machine.clone();
@@ -3525,16 +3518,9 @@ fn wide_partial_affine_cleanup_preserves_reverse_field_order_without_code() {
             panic!("caller ends in a Unit return")
         };
         *root_actions = vec![TerminalAffineCleanupAction::DiscardRoot(middle.place)];
-        let root_cleanup_machine = emit_machine_code(&root_cleanup_assigned).unwrap();
-        let root_cleanup_bytes = &root_cleanup_machine
-            .functions
-            .iter()
-            .find(|function| function.machine == caller_machine)
-            .unwrap()
-            .bytes;
-        assert_eq!(
-            &emitted.bytes, root_cleanup_bytes,
-            "two residual field actions add no runtime instruction bytes"
+        assert!(
+            emit_machine_code(&root_cleanup_assigned).is_err(),
+            "a partially moved ancestor cannot be discarded whole, even by no-code cleanup"
         );
 
         let object = build_object_artifact(&machine).unwrap();
@@ -3642,16 +3628,9 @@ fn multiple_direct_moves_preserve_exact_residual_complement_on_all_targets() {
             panic!("multiple-move caller ends in a Unit return")
         };
         *root_actions = vec![TerminalAffineCleanupAction::DiscardRoot(third.place)];
-        let root_cleanup_machine = emit_machine_code(&root_cleanup_assigned).unwrap();
-        let root_cleanup_bytes = &root_cleanup_machine
-            .functions
-            .iter()
-            .find(|function| function.machine == caller_machine)
-            .unwrap()
-            .bytes;
-        assert_eq!(
-            &emitted.bytes, root_cleanup_bytes,
-            "multiple residual actions add no runtime instruction bytes"
+        assert!(
+            emit_machine_code(&root_cleanup_assigned).is_err(),
+            "a partially moved ancestor cannot be discarded whole, even by no-code cleanup"
         );
 
         let object = build_object_artifact(&machine).unwrap();
@@ -3791,16 +3770,9 @@ fn nested_move_preserves_maximal_residual_subtrees_on_all_targets() {
             panic!("nested caller ends in a Unit return")
         };
         *root_actions = vec![TerminalAffineCleanupAction::DiscardRoot(last.place)];
-        let root_cleanup_machine = emit_machine_code(&root_cleanup_assigned).unwrap();
-        let root_cleanup_bytes = &root_cleanup_machine
-            .functions
-            .iter()
-            .find(|function| function.machine == caller_machine)
-            .unwrap()
-            .bytes;
-        assert_eq!(
-            &emitted.bytes, root_cleanup_bytes,
-            "nested residual cleanup adds no runtime instruction bytes"
+        assert!(
+            emit_machine_code(&root_cleanup_assigned).is_err(),
+            "a partially moved ancestor cannot be discarded whole, even by no-code cleanup"
         );
 
         let object = build_object_artifact(&machine).unwrap();

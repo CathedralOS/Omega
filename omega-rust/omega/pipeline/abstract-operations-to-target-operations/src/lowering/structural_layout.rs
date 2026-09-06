@@ -4,6 +4,26 @@ use super::shared::*;
 
 pub(super) use residual_cleanup::{expected_maximal_residual_subtrees, is_partial_cleanup_path};
 
+/// Existing copy metadata describes the root array, not the final index in a
+/// nested path. Record-root projections have no root array metadata.
+pub(super) fn root_array_projection_metadata(
+    root: StructuralTypeId,
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+) -> Result<(Option<u64>, Option<u32>), LoweringError> {
+    let declaration = declarations
+        .get(&root)
+        .ok_or(LoweringError::UnknownStructuralType(root))?;
+    let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
+        return Ok((None, None));
+    };
+    let shape = structural_shape(element, declarations, cache, active)?;
+    let stride = checked_align_up_u32(u32::from(shape.byte_size), u32::from(shape.alignment))
+        .ok_or(LoweringError::StructuralTypeTooLarge(root))?;
+    Ok((Some(length), Some(stride)))
+}
+
 pub(crate) fn structural_shape(
     structural_type: StructuralTypeId,
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,

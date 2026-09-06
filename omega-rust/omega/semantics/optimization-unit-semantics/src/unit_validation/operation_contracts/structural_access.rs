@@ -52,6 +52,7 @@ pub(crate) fn structural_arguments_match(
         let path_shape_matches = match projection {
             StructuralProjectionPolicy::Unit => {
                 argument.path.is_empty()
+                    || is_nonempty_field_path(&argument.path)
                     || matches!(
                         argument.path.as_slice(),
                         [terminal_psi::StructuralPathSegment::FixedIndex(_)]
@@ -60,7 +61,11 @@ pub(crate) fn structural_arguments_match(
                                 terminal_psi::StructuralPathSegment::FixedIndex(_),
                             ]
                     )
-                    || is_nonempty_field_path(&argument.path)
+                    || (source.access == terminal_psi::StructuralAccess::Owned
+                        && argument.access == terminal_psi::StructuralAccess::Owned
+                        && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+                        && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+                        && is_partial_affine_path(types, source.structural_type, &argument.path))
             }
             StructuralProjectionPolicy::EmptyOnly => argument.path.is_empty(),
             StructuralProjectionPolicy::Projected => true,
@@ -95,7 +100,7 @@ pub(crate) fn structural_arguments_match(
             terminal_psi::StructuralMultiplicity::Unrestricted
         } else if parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine
             && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-            && is_bounded_partial_affine_path(types, source.structural_type, &argument.path)
+            && is_partial_affine_path(types, source.structural_type, &argument.path)
         {
             terminal_psi::StructuralMultiplicity::Affine
         } else {
@@ -248,41 +253,10 @@ pub(crate) fn is_nonempty_field_path(path: &[terminal_psi::StructuralPathSegment
             .all(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Field(_)))
 }
 
-pub(crate) fn is_bounded_partial_affine_path(
+pub(crate) fn is_partial_affine_path(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     root: StructuralTypeId,
     path: &[terminal_psi::StructuralPathSegment],
 ) -> bool {
-    is_nonempty_field_path(path)
-        || (matches!(path, [terminal_psi::StructuralPathSegment::FixedIndex(_)])
-            && types.get(&root).is_some_and(|declaration| {
-                matches!(
-                    (&declaration.shape, path),
-                    (
-                        terminal_psi::StructuralTypeShape::FixedArray { length: 2, .. },
-                        [terminal_psi::StructuralPathSegment::FixedIndex(0 | 1)]
-                    ) | (
-                        terminal_psi::StructuralTypeShape::FixedArray { length: 3, .. },
-                        [terminal_psi::StructuralPathSegment::FixedIndex(0..=2)]
-                    ) | (
-                        terminal_psi::StructuralTypeShape::FixedArray { length: 4, .. },
-                        [terminal_psi::StructuralPathSegment::FixedIndex(
-                            0..=3
-                        )]
-                    )
-                )
-            }))
-        || (matches!(path, [terminal_psi::StructuralPathSegment::FixedIndex(_), terminal_psi::StructuralPathSegment::FixedIndex(_)])
-            && types.get(&root).is_some_and(|declaration| {
-                let terminal_psi::StructuralTypeShape::FixedArray { length: 2, element } = declaration.shape else {
-                    return false;
-                };
-                let Some(inner) = types.get(&element) else {
-                    return false;
-                };
-                let terminal_psi::StructuralTypeShape::FixedArray { length: inner_length @ (3..=16), .. } = inner.shape else {
-                    return false;
-                };
-                matches!(path, [terminal_psi::StructuralPathSegment::FixedIndex(outer), terminal_psi::StructuralPathSegment::FixedIndex(index)] if *outer < 2 && *index < inner_length)
-            }))
+    !path.is_empty() && resolve_structural_path(types, root, path).is_some()
 }

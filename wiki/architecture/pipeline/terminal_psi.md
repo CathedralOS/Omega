@@ -1590,16 +1590,19 @@ loops confer no authority. Authored projected moves retain authored order.
 Partial construction follows the same rule on its established prefix, while
 trap and nuclear-abort terminators carry no cleanup.
 
-Native replay remains narrower than this Psi contract. Its existing carriers
-cover all-field record residuals, `[T; 2]` with one or both elements moved,
-`[T; 3]` with one or two moved, `[T; 4]` with two moved, and
-`[[T; N]; 2]` for `N` from three through sixteen with one leaf moved from each
-outer element. Array leaves are claim-free affine records. Omega, machine,
-object/image, and installation replay retain exact paths, layouts, call order,
-and cleanup order for those carriers, emitting no cleanup instruction or runtime
-bitmap. General mixed paths, wider arrays, and other empty complements still
-need those native readers generalized; Psi acceptance alone does not authorize
-native replay.
+Omega ownership and native replay reconstruct the same type-directed finite
+record/array complement, including mixed field/index paths, whole-subtree moves,
+and empty complements. Native acceptance remains subject to existing structural
+layout, size, and ABI limits; Psi acceptance alone does not authorize native
+replay. Target assignment, machine emission, object/image validation, and
+installation replay retain the exact root and projected types, full-path byte
+offset, source and destination homes, authored calls, and reverse residual order.
+For an array root, call metadata retains that root's length and element stride;
+record-root paths carry neither, even when they pass through an array.
+ABI-required indirect argument copies materialize only the transferred subtree.
+Cleanup itself emits no instruction, runtime bitmap, or liveness-dependent loop.
+This route does not extend cleanup to local/result roots or admit projected
+helper-result operands, claims, nominal destruction, or partial construction.
 
 The straight-line Unit return slice carries explicit no-code cleanup for owned
 affine structural parameters that have no claim rows. The checked plan derives

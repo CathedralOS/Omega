@@ -4,7 +4,7 @@ mod direct_call_return;
 mod return_value;
 
 pub(super) use return_value::{
-    exact_fully_consumed_affine_pair_root, lower_structural_return_function,
+    exact_fully_consumed_affine_root, lower_structural_return_function,
     require_direct_structural_fragments,
 };
 

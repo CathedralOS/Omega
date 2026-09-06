@@ -20,7 +20,8 @@ use terminal_psi::{
 #[test]
 fn unit_assignment_retains_typed_structural_argument_paths() {
     let target = NativeTarget::linux_x64();
-    let shape = calling_conventions::ValueShape::integer(8, 8);
+    let shape = calling_conventions::ValueShape::integer(2, 1);
+    let element_shape = calling_conventions::ValueShape::integer(1, 1);
     let call_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
@@ -31,6 +32,15 @@ fn unit_assignment_retains_typed_structural_argument_paths() {
     .unwrap();
     let place = PlaceId::new(1).unwrap();
     let structural_type = StructuralTypeId::new(1).unwrap();
+    let element_type = StructuralTypeId::new(2).unwrap();
+    let callee_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: vec![element_shape],
+            result: None,
+        },
+    )
+    .unwrap();
     let path = vec![StructuralPathSegment::FixedIndex(1)];
     let plan = TargetOperationPlan {
         psi: TerminalPsiIdentity {
@@ -46,7 +56,30 @@ fn unit_assignment_retains_typed_structural_argument_paths() {
             attachment: None,
             provenance: TerminalPsiProvenance::default(),
             operation: TargetOperation::UnitBody(target_operations::TargetUnitBody {
-                structural_types: Vec::new(),
+                structural_types: vec![
+                    StructuralTypeDeclaration {
+                        id: structural_type,
+                        identity: "[Token; 2]".into(),
+                        shape: StructuralTypeShape::FixedArray {
+                            element: element_type,
+                            length: 2,
+                        },
+                    },
+                    StructuralTypeDeclaration {
+                        id: element_type,
+                        identity: "Token".into(),
+                        shape: StructuralTypeShape::Record {
+                            fields: vec![terminal_psi::StructuralFieldDeclaration {
+                                id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+                                identity: "value".into(),
+                                relevance: terminal_psi::BindingRelevance::Relevant,
+                                field_type: terminal_psi::StructuralFieldType::Scalar(
+                                    semantic_vocabulary::ScalarType::Boolean,
+                                ),
+                            }],
+                        },
+                    },
+                ],
                 call_plan: call_plan.clone(),
                 scalar_parameters: Vec::new(),
                 parameters: vec![TargetStructuralParameter {
@@ -61,20 +94,20 @@ fn unit_assignment_retains_typed_structural_argument_paths() {
                 operations: vec![TargetUnitOperation::Call {
                     psi_operation: OperationId::new(1).unwrap(),
                     callee: MachineId::new(2).unwrap(),
-                    call_plan: call_plan.clone(),
+                    call_plan: callee_plan.clone(),
                     scalar_arguments: Vec::new(),
                     arguments: vec![target_operations::TargetStructuralArgument {
                         place,
                         access: terminal_psi::StructuralAccess::Owned,
                         path: path.clone(),
                         root_structural_type: structural_type,
-                        structural_type,
-                        shape,
-                        source_byte_offset: 0,
-                        fixed_array_length: None,
-                        element_stride: None,
+                        structural_type: element_type,
+                        shape: element_shape,
+                        source_byte_offset: 1,
+                        fixed_array_length: Some(2),
+                        element_stride: Some(1),
                         source: call_plan.parameters[0].clone(),
-                        destination: call_plan.parameters[0].clone(),
+                        destination: callee_plan.parameters[0].clone(),
                     }],
                     claim_transfers: Vec::new(),
                     requirement_obligations: vec![ObligationId::new(1).unwrap()],
@@ -108,6 +141,16 @@ fn unit_assignment_retains_typed_structural_argument_paths() {
             cause: CrashCause::Trap,
             alternatives: vec![CrashRouteGuard::Truth],
         }]
+    );
+
+    let mut missing_types = plan.clone();
+    let TargetOperation::UnitBody(body) = &mut missing_types.functions[0].operation else {
+        unreachable!()
+    };
+    body.structural_types.clear();
+    assert!(
+        assign_registers(&missing_types).is_err(),
+        "a path needs its actual root and element declarations"
     );
 
     let mut corrupted = plan;

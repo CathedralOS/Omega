@@ -1,8 +1,6 @@
-//! Exact partial-affine cleanup partition replay.
-//!
-//! This module reconstructs the residual field partition implied by moved
-//! structural paths and compares it with retained cleanup evidence. It does not
-//! choose moved paths, cleanup operations, or aggregate layouts.
+//! Independent finite partial-affine partition replay from retained types and moves.
+
+use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
@@ -16,11 +14,20 @@ pub(crate) fn exact_partial_cleanup_partition(
     moved: &[(&[StructuralPathSegment], StructuralTypeId)],
     residuals: &[&StructuralAffineDiscard],
 ) -> bool {
-    if declarations.is_empty() || moved.is_empty() || residuals.is_empty() {
+    if declarations.is_empty()
+        || moved.is_empty()
+        || declarations.windows(2).any(|pair| pair[0].id >= pair[1].id)
+        || moved.iter().enumerate().any(|(index, (path, _))| {
+            path.is_empty()
+                || moved[..index]
+                    .iter()
+                    .any(|(earlier, _)| path.starts_with(earlier) || earlier.starts_with(path))
+        })
+    {
         return false;
     }
-    let mut by_id = std::collections::BTreeMap::new();
-    let mut identities = std::collections::BTreeSet::new();
+    let mut by_id = BTreeMap::new();
+    let mut identities = BTreeSet::new();
     for declaration in declarations {
         if declaration.identity.is_empty()
             || !identities.insert(declaration.identity.as_str())
@@ -29,11 +36,26 @@ pub(crate) fn exact_partial_cleanup_partition(
             return false;
         }
     }
-    if declarations.windows(2).any(|pair| pair[0].id >= pair[1].id) {
+    if finite_cleanup_type(
+        root_type,
+        &by_id,
+        &mut BTreeSet::new(),
+        &mut BTreeSet::new(),
+    )
+    .is_none()
+    {
         return false;
     }
     let mut expected = Vec::new();
-    if append_expected_partial_residuals(root_type, &[], moved, &by_id, &mut expected).is_none()
+    if append_expected_residuals(
+        root_type,
+        &[],
+        moved,
+        &by_id,
+        residuals.len(),
+        &mut expected,
+    )
+    .is_none()
         || expected.len() != residuals.len()
     {
         return false;
@@ -46,178 +68,120 @@ pub(crate) fn exact_partial_cleanup_partition(
         })
 }
 
-fn append_expected_partial_residuals(
+fn finite_cleanup_type(
     structural_type: StructuralTypeId,
-    prefix: &[StructuralPathSegment],
-    moved: &[(&[StructuralPathSegment], StructuralTypeId)],
-    declarations: &std::collections::BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    output: &mut Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>,
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    active: &mut BTreeSet<StructuralTypeId>,
+    complete: &mut BTreeSet<StructuralTypeId>,
 ) -> Option<()> {
-    if prefix.is_empty()
-        && moved.iter().all(|(path, _)| {
-            matches!(
-                path,
-                [
-                    StructuralPathSegment::FixedIndex(_),
-                    StructuralPathSegment::FixedIndex(_)
-                ]
-            )
-        })
-    {
-        let StructuralTypeShape::FixedArray { element, length: 2 } =
-            declarations.get(&structural_type)?.shape
-        else {
-            return None;
-        };
-        let StructuralTypeShape::FixedArray {
-            element: leaf,
-            length: inner_length @ (3..=16),
-        } = declarations.get(&element)?.shape
-        else {
-            return None;
-        };
-        if moved.len() != 2
-            || moved.iter().any(|(_, moved_type)| *moved_type != leaf)
-            || !matches!(
-                declarations
-                    .get(&leaf)
-                    .map(|declaration| &declaration.shape),
-                Some(StructuralTypeShape::Record { .. })
-            )
-        {
-            return None;
-        }
-        let moved_by_outer = moved
-            .iter()
-            .filter_map(|(path, _)| match path {
-                [
-                    StructuralPathSegment::FixedIndex(outer @ (0 | 1)),
-                    StructuralPathSegment::FixedIndex(inner),
-                ] if *inner < inner_length => Some((*outer, *inner)),
-                _ => None,
-            })
-            .collect::<std::collections::BTreeMap<_, _>>();
-        if moved_by_outer.len() != 2 {
-            return None;
-        }
-        for outer in (0_u64..2).rev() {
-            let moved_inner = *moved_by_outer.get(&outer)?;
-            for inner in (0_u64..inner_length).rev() {
-                if inner != moved_inner {
-                    output.push((
-                        vec![
-                            StructuralPathSegment::FixedIndex(outer),
-                            StructuralPathSegment::FixedIndex(inner),
-                        ],
-                        leaf,
-                    ));
+    if complete.contains(&structural_type) {
+        return Some(());
+    }
+    if !active.insert(structural_type) {
+        return None;
+    }
+    match &declarations.get(&structural_type)?.shape {
+        StructuralTypeShape::Record { fields } => {
+            let mut identities = BTreeSet::new();
+            if fields.windows(2).any(|pair| pair[0].id >= pair[1].id) {
+                return None;
+            }
+            for field in fields {
+                if field.relevance.is_erased()
+                    || field.identity.is_empty()
+                    || !identities.insert(field.identity.as_str())
+                {
+                    return None;
+                }
+                match field.field_type {
+                    StructuralFieldType::Structural(nested) => {
+                        finite_cleanup_type(nested, declarations, active, complete)?;
+                    }
+                    StructuralFieldType::Scalar(_)
+                    | StructuralFieldType::IeeeFloat(_)
+                    | StructuralFieldType::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                    ) => {}
+                    _ => return None,
                 }
             }
         }
-        return Some(());
+        StructuralTypeShape::FixedArray { element, length } if *length != 0 => {
+            finite_cleanup_type(*element, declarations, active, complete)?;
+        }
+        _ => return None,
     }
-    if prefix.is_empty()
-        && moved
-            .iter()
-            .all(|(path, _)| matches!(path, [StructuralPathSegment::FixedIndex(_)]))
-    {
-        let declaration = declarations.get(&structural_type)?;
-        let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
-            return None;
-        };
-        if !matches!((length, moved.len()), (2, 1) | (3, 1 | 2) | (4, 2))
-            || moved.iter().any(|(_, moved_type)| *moved_type != element)
-            || !matches!(
-                declarations
-                    .get(&element)
-                    .map(|declaration| &declaration.shape),
-                Some(StructuralTypeShape::Record { .. })
-            )
-        {
+    active.remove(&structural_type);
+    complete.insert(structural_type);
+    Some(())
+}
+
+fn append_expected_residuals(
+    structural_type: StructuralTypeId,
+    prefix: &[StructuralPathSegment],
+    moved: &[(&[StructuralPathSegment], StructuralTypeId)],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    limit: usize,
+    output: &mut Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>,
+) -> Option<()> {
+    if moved.is_empty() {
+        if output.len() == limit {
             return None;
         }
-        let moved_indexes = moved
+        output.push((prefix.to_vec(), structural_type));
+        return Some(());
+    }
+    if moved.iter().any(|(path, _)| path.is_empty()) {
+        return (moved.len() == 1 && moved[0].1 == structural_type).then_some(());
+    }
+    let remaining = limit.checked_sub(output.len())?;
+    let mut visit = |segment: StructuralPathSegment, child: StructuralTypeId| {
+        let nested = moved
             .iter()
-            .filter_map(|(path, _)| match path {
-                [StructuralPathSegment::FixedIndex(index)] if *index < length => Some(*index),
-                _ => None,
+            .filter_map(|(path, leaf)| {
+                (path.first() == Some(&segment)).then_some((&path[1..], *leaf))
             })
-            .collect::<std::collections::BTreeSet<_>>();
-        if moved_indexes.len() != moved.len() {
-            return None;
-        }
-        let residuals = (0..length)
-            .rev()
-            .filter(|index| !moved_indexes.contains(index))
             .collect::<Vec<_>>();
-        if residuals.is_empty() {
-            return None;
-        }
-        output.extend(
-            residuals
-                .into_iter()
-                .map(|residual| (vec![StructuralPathSegment::FixedIndex(residual)], element)),
-        );
-        return Some(());
-    }
-    let declaration = declarations.get(&structural_type)?;
-    let StructuralTypeShape::Record { fields } = &declaration.shape else {
-        return None;
+        let mut path = prefix.to_vec();
+        path.push(segment);
+        append_expected_residuals(child, &path, &nested, declarations, limit, output)
     };
-    if fields.is_empty()
-        || fields.iter().any(|field| {
-            field.relevance.is_erased()
-                || !matches!(
-                    field.field_type,
-                    StructuralFieldType::Structural(_)
-                        | StructuralFieldType::Scalar(_)
-                        | StructuralFieldType::IeeeFloat(_)
-                        | StructuralFieldType::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                        )
-                )
-        })
-    {
-        return None;
-    }
-    let mut matched = 0_usize;
-    for field in fields.iter().rev() {
-        let matching = moved
-            .iter()
-            .filter(|(path, _)| {
-                matches!(path.first(), Some(StructuralPathSegment::Field(identity))
-                    if identity == &field.identity)
-            })
-            .copied()
-            .collect::<Vec<_>>();
-        matched += matching.len();
-        let mut field_path = prefix.to_vec();
-        field_path.push(StructuralPathSegment::Field(field.identity.clone()));
-        let StructuralFieldType::Structural(field_type) = field.field_type else {
-            if !matching.is_empty() {
+    match &declarations.get(&structural_type)?.shape {
+        StructuralTypeShape::Record { fields } => {
+            if moved.iter().any(|(path, _)| {
+                !fields.iter().any(|field| {
+                    matches!(&path[0], StructuralPathSegment::Field(identity)
+                        if identity == &field.identity)
+                        && matches!(field.field_type, StructuralFieldType::Structural(_))
+                })
+            }) {
                 return None;
             }
-            continue;
-        };
-        if matching.is_empty() {
-            output.push((field_path, field_type));
-            continue;
+            for field in fields.iter().rev() {
+                if let StructuralFieldType::Structural(child) = field.field_type {
+                    visit(StructuralPathSegment::Field(field.identity.clone()), child)?;
+                }
+            }
         }
-        let whole = matching
-            .iter()
-            .filter(|(path, _)| path.len() == 1)
-            .collect::<Vec<_>>();
-        if !whole.is_empty() {
-            if whole.len() != 1 || matching.len() != 1 || whole[0].1 != field_type {
+        StructuralTypeShape::FixedArray { element, length } => {
+            let touched = moved
+                .iter()
+                .map(|(path, _)| match path[0] {
+                    StructuralPathSegment::FixedIndex(index) if index < *length => Some(index),
+                    _ => None,
+                })
+                .collect::<Option<BTreeSet<_>>>()?;
+            // Every untouched child contributes one maximal residual. Check this
+            // lower bound before enumerating a dimension supplied by evidence.
+            let untouched = length.checked_sub(u64::try_from(touched.len()).ok()?)?;
+            if untouched > u64::try_from(remaining).ok()? {
                 return None;
             }
-            continue;
+            for index in (0..*length).rev() {
+                visit(StructuralPathSegment::FixedIndex(index), *element)?;
+            }
         }
-        let nested = matching
-            .iter()
-            .map(|(path, leaf)| (&path[1..], *leaf))
-            .collect::<Vec<_>>();
-        append_expected_partial_residuals(field_type, &field_path, &nested, declarations, output)?;
+        _ => return None,
     }
-    (matched == moved.len()).then_some(())
+    Some(())
 }
