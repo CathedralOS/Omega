@@ -405,10 +405,13 @@ Owners include
   establish disjointness/containment but cannot extend lifetime, duplicate a
   loan, or replace ownership accounting.
 
-  Retain exact operand dependencies for computed range premises in
-  `typed-trees-to-checked-trees/src/checks/ranges/`, so unrelated writes need
-  not discard them. Writes to an operand must still retire its computed
-  premises; numeric facts about values captured before the write must survive.
+  Extend computed range-premise dependencies in
+  `typed-trees-to-checked-trees/src/checks/ranges/` to indexed/atomic reads and
+  selected calls when their complete read and selector footprints are known.
+  Acceptance: unrelated writes preserve those premises, operand or selector
+  writes retire them, and unknown footprints remain conservative. Explicit call
+  arguments alone do not establish all callee reads; captured numeric values
+  must still retain their independent facts.
 
 - **CALLBACK-PARAMETER-REQUIREMENT.** Implement the nominal
   `where machine Selected satisfies Trait::requirement` binder and retain its

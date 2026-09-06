@@ -116,6 +116,8 @@ fn seed_binary_guard_facts(
     binary: &TableBinaryExpression,
     operator: BinaryOperator,
 ) {
+    facts.record_expression_dependencies(program, machine, state, binary.left);
+    facts.record_expression_dependencies(program, machine, state, binary.right);
     match operator {
         BinaryOperator::Less => {
             seed_length_greater_than_fact(program, facts, binary.right, binary.left);

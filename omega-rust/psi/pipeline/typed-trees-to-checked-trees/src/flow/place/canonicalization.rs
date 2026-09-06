@@ -126,6 +126,39 @@ pub(crate) fn canonical_place_from_symbol(symbol: SymbolHandle) -> Option<Canoni
     })
 }
 
+/// Rejoin an inherited attached-field root with its exact receiver storage.
+pub(crate) fn normalize_attached_place_root(
+    program: &typed_trees::TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    place: &mut CanonicalPlace,
+) {
+    if let facts::PlaceRoot::Symbol(root) = place.root
+        && let Some(state) = crate::semantic_calls::find_state(program, state_symbol)
+        && program
+            .state_parameters(state)
+            .iter()
+            .any(|parameter| parameter.is_self)
+        && let Some(machine) = program.machines().iter().find(|machine| {
+            machine.symbol == machine_symbol
+                && program
+                    .machine_states(machine)
+                    .iter()
+                    .any(|state| state.symbol == state_symbol)
+        })
+        && let Some(field) =
+            validation::exact_attached_field(program, machine, root, program.symbols.name(root))
+    {
+        place.root = facts::PlaceRoot::Symbol(machine_symbol);
+        place.segments.insert(
+            0,
+            facts::PlaceSegment::Field {
+                symbol: field.symbol,
+            },
+        );
+    }
+}
+
 pub(crate) fn canonical_place_from_semantic_place(
     program: &typed_trees::TypedTrees,
     semantic: &FactPlan,

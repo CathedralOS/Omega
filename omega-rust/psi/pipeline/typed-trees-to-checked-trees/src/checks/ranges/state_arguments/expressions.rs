@@ -34,7 +34,7 @@ pub(super) fn collect_state_argument_facts_from_expression(
                 .expression_write_frame(context.machine, expression)
                 .into_complete_paths()
         });
-        facts.invalidate_call_writes(program, context.state, paths.as_deref());
+        facts.invalidate_call_writes(program, context.machine, context.state, paths.as_deref());
         return;
     }
     let mut visit = |child| {

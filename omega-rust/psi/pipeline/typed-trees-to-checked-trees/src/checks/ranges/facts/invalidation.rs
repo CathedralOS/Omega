@@ -1,13 +1,38 @@
 use super::RangeFacts;
-use typed_trees::{TypedTrees, state::State, statement::StatementNode};
+use typed_trees::{TypedTrees, machine::Machine, state::State, statement::StatementNode};
 
 impl RangeFacts<'_> {
     /// Shared direct-assignment transfer for the checking and incoming-edge
     /// walks. Replacing an index invalidates its ordering/position premises;
     /// replacing a collection descriptor invalidates its extent/window rows.
     /// Value snapshots are replaced separately after the RHS is evaluated.
-    pub(in crate::checks::ranges) fn invalidate_assignment_bounds(&mut self, target: &str) {
-        self.invalidate_relational_bounds(|name| write_affects_bound(name, target));
+    pub(in crate::checks::ranges) fn invalidate_assignment_bounds(
+        &mut self,
+        program: &TypedTrees,
+        machine: &Machine,
+        state: &State,
+        statement: &StatementNode,
+    ) {
+        let StatementNode::Assignment(assignment) = statement else {
+            return;
+        };
+        let target = program.expression_table.display_name(assignment.target);
+        let writes = (!self.expression_dependencies.is_empty())
+            .then(|| {
+                crate::flow::statement_storage_writes(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    self.statement_index,
+                    statement,
+                )
+            })
+            .flatten();
+        let preserved =
+            self.preserved_expression_labels(program, machine, state, writes.as_deref());
+        self.invalidate_relational_bounds(|name| {
+            !preserved.iter().any(|label| label == name) && write_affects_bound(name, &target)
+        });
         // A saved Boolean expression is not a persistent proof of its old
         // operands after a direct assignment any more than after a call.
         self.boolean_locals.clear();
@@ -19,14 +44,30 @@ impl RangeFacts<'_> {
     pub(in crate::checks::ranges) fn invalidate_call_writes(
         &mut self,
         program: &TypedTrees,
+        machine: &Machine,
         state: &State,
         paths: Option<&[String]>,
     ) {
         if paths.is_some_and(|paths| paths.is_empty()) {
             return;
         }
+        let writes = paths
+            .filter(|_| !self.expression_dependencies.is_empty())
+            .and_then(|paths| {
+                crate::flow::frame_storage_writes(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    self.statement_index,
+                    &facts::NormalizedWriteFrame::complete(paths.to_vec()),
+                )
+            });
+        let preserved =
+            self.preserved_expression_labels(program, machine, state, writes.as_deref());
         let overlaps = |name: &str| {
-            paths.is_none_or(|paths| paths.iter().any(|path| write_affects_bound(name, path)))
+            !preserved.iter().any(|label| label == name)
+                && paths
+                    .is_none_or(|paths| paths.iter().any(|path| write_affects_bound(name, path)))
         };
         // Field constants currently retain a leaf name and declaration symbol,
         // not the instance's full storage path. A write to `self.cell.value`
@@ -71,7 +112,7 @@ impl RangeFacts<'_> {
         self.boolean_locals.clear();
     }
 
-    fn invalidate_relational_bounds(&mut self, overlaps: impl Fn(&str) -> bool) {
+    pub(super) fn invalidate_relational_bounds(&mut self, overlaps: impl Fn(&str) -> bool) {
         self.proven_indexes
             .retain(|(collection, index)| !overlaps(collection) && !overlaps(index));
         self.proven_index_upper_bounds
@@ -91,9 +132,9 @@ impl RangeFacts<'_> {
 }
 
 fn write_affects_bound(name: &str, path: &str) -> bool {
-    // Computed labels and dynamic selectors do not retain their full operand
-    // dependencies. Both direct assignments and calls must retire these
-    // premises; a separately named value snapshot keeps its own numeric facts.
+    // Without a complete, disjoint typed read set, computed labels and dynamic
+    // selectors must expire on writes. A separately named value snapshot keeps
+    // its own numeric facts; this predicate never parses a computation's reads.
     !name.split('.').all(|part| {
         !part.is_empty()
             && part
@@ -117,7 +158,7 @@ mod tests {
         facts.prove_index_upper_bound("index".to_owned(), 4);
         facts.prove_index_upper_bound("unrelated".to_owned(), 4);
 
-        facts.invalidate_assignment_bounds("index");
+        facts.invalidate_relational_bounds(|name| write_affects_bound(name, "index"));
 
         assert!(!facts.index_upper_bound_is_proven("index", 4));
         assert!(facts.index_upper_bound_is_proven("unrelated", 4));
@@ -136,11 +177,12 @@ mod tests {
             if call {
                 facts.invalidate_call_writes(
                     &TypedTrees::default(),
+                    &Machine::default(),
                     &State::default(),
                     Some(&["record".into()]),
                 );
             } else {
-                facts.invalidate_assignment_bounds("record");
+                facts.invalidate_relational_bounds(|name| write_affects_bound(name, "record"));
             }
             for name in ["record.value", "record.value - 1", "captured", "unrelated"] {
                 let survives = matches!(name, "captured" | "unrelated");
@@ -160,6 +202,7 @@ mod tests {
 
         facts.invalidate_call_writes(
             &TypedTrees::default(),
+            &Machine::default(),
             &State::default(),
             Some(&["index".to_owned()]),
         );
@@ -177,7 +220,12 @@ mod tests {
         facts.define_local(SymbolHandle::invalid(), "view", Some(2), None);
         facts.prove_index("view".to_owned(), "index".to_owned());
         facts.prove_index_upper_bound("index".to_owned(), 2);
-        facts.invalidate_call_writes(&TypedTrees::default(), &State::default(), None);
+        facts.invalidate_call_writes(
+            &TypedTrees::default(),
+            &Machine::default(),
+            &State::default(),
+            None,
+        );
         assert_eq!(
             facts.local_integer(SymbolHandle::invalid(), Some("index")),
             None

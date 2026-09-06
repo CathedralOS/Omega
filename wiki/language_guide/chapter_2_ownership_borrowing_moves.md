@@ -523,9 +523,16 @@ array length does not prove that the start precedes the end. Immutable integer
 copies retain established numeric bounds about their captured value after the
 source changes. This does not retain expired bounds about the mutable source.
 Inclusive ends must remain strictly below the array length.
-The current checker conservatively discards computed-expression premises on
-writes where their full operand dependencies are not retained; a separately
-captured integer keeps its own numeric facts.
+The checker retains guard-derived builtin arithmetic, unary, and cast premises
+across writes proven disjoint from their exact operand places. This includes
+direct assignments and complete call write frames, with reference aliases and
+bare/explicit receiver fields mapped to the same storage. Writing an operand
+retires its computed premises; a separately captured integer keeps its own
+numeric facts. Unknown writes or incomplete read sets grant no preservation.
+Indexed, atomic, and call expressions still need complete read/selector evidence
+before their computed premises can survive a potentially mutating operation;
+scanning a call's explicit arguments alone is insufficient. Equal expression
+text cannot choose between incompatible typed operand identities.
 
 No public `footprint(...)` contract surface follows from this rule. Most
 source contracts state ordinary value relationships such as `mid <= items.len`,
