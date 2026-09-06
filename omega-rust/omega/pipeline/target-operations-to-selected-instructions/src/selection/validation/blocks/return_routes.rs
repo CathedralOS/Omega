@@ -6,7 +6,7 @@ pub(super) fn validate(
     function_index: usize,
     source: &SourceFunction,
     function: &SelectedFunction,
-    keys: SelectedConstraintKeys,
+    keys: &SelectedConstraintKeys,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
     match (&source.when_true.value, &source.when_false.value) {
@@ -146,7 +146,7 @@ fn validate_exact_binary_pair(
     function_index: usize,
     source: &SourceFunction,
     function: &SelectedFunction,
-    keys: SelectedConstraintKeys,
+    keys: &SelectedConstraintKeys,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
     exact_binary_return::validate(

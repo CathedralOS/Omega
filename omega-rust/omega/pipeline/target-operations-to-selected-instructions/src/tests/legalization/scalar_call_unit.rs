@@ -26,7 +26,7 @@ fn one_call_and_equal_constant_operands_have_no_fixture_topology_requirement() {
     )
     .unwrap();
     let legalized = legalize_target_operations(&target, &abstract_plan, &unit)
-        .expect("one ordinary pair call with equal constants");
+        .expect("one ordinary register call with equal constants");
     assert_eq!(
         legalized.plan().scalar_call_unit_functions[0]
             .operations
@@ -78,7 +78,7 @@ fn zero_call_proposal_and_forward_references_reject() {
 }
 
 #[test]
-fn substituted_pair_call_plan_and_memory_effectful_callee_reject() {
+fn substituted_register_call_plan_and_memory_effectful_callee_reject() {
     let (abstract_plan, target, unit) = scalar_call_unit_fixture();
     let mut changed = target.clone();
     let target_operations::TargetOperation::UnitBody(body) = &mut changed.functions[0].operation
@@ -200,4 +200,131 @@ fn publication_classification_uses_the_existing_unit_grammar() {
     assert!(!crate::legalization::accepts_fragment_publication_input(
         &targeted, &changed, &unit
     ));
+}
+fn register_arity_source(arity: usize) -> abstract_operations::AbstractOperationPlan {
+    use abstract_operations::{AbstractBlockEntry, AbstractOperation, AbstractParameter};
+    use semantic_vocabulary::{
+        EdgeId, IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType, ValueId,
+    };
+    let (mut plan, _, _) = scalar_call_unit_fixture();
+    let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    for operation in &mut plan.functions[0].operations {
+        if let AbstractOperation::Call { arguments, .. } = operation {
+            let original = arguments.clone();
+            *arguments = (0..arity)
+                .map(|index| original[index % original.len()])
+                .collect();
+        }
+    }
+    let callee = &mut plan.functions[1];
+    callee.parameters = (0..arity)
+        .map(|index| AbstractParameter {
+            value: ValueId::new(1000 + index as u64).unwrap(),
+            scalar_type,
+        })
+        .collect();
+    callee.block_entries = vec![AbstractBlockEntry {
+        block: callee.entry,
+        parameters: Vec::new(),
+        operation_offset: 0,
+    }];
+    let abstract_operations::AbstractFunctionResult::Scalar(result) = callee.result else {
+        unreachable!()
+    };
+    let source = callee
+        .parameters
+        .first()
+        .map_or(ValueId::new(2000).unwrap(), |parameter| parameter.value);
+    callee.operations = if arity == 0 {
+        vec![AbstractOperation::IntegerConstant {
+            psi_operation: OperationId::new(2001).unwrap(),
+            result: source,
+            scalar_type,
+            value: IntegerValue::Unsigned(7),
+        }]
+    } else {
+        Vec::new()
+    };
+    callee.operations.push(AbstractOperation::Return {
+        psi_edge: EdgeId::new(2002).unwrap(),
+        result: result.value,
+        value: source,
+        scalar_type,
+        cleanup_actions: Vec::new(),
+    });
+    plan
+}
+
+#[test]
+fn every_register_arity_uses_one_input_contract_and_independent_replay() {
+    for (native, capacity) in [
+        (target::NativeTarget::linux_x64(), 6),
+        (target::NativeTarget::linux_arm64(), 8),
+    ] {
+        for arity in 0..=capacity {
+            let source = register_arity_source(arity);
+            let target = abstract_operations_to_target_operations::lower_to_target_operations(
+                &source, native,
+            )
+            .unwrap();
+            let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+                &source,
+                semantic_vocabulary::FuelScheduleIdentity::new(1).unwrap(),
+            )
+            .unwrap();
+            assert!(crate::legalization::accepts_fragment_publication_input(
+                &target, &source, &unit
+            ));
+            let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
+            for operation in &legalized.plan().scalar_call_unit_functions[0].operations {
+                if let legalized_operations::LegalizedScalarCallUnitOperation::Call(call) =
+                    operation
+                {
+                    assert_eq!(call.arguments.len(), arity);
+                }
+            }
+            validate_legalized_operations(&target, &source, &unit, legalized.plan().clone())
+                .unwrap();
+            let mut omitted = legalized.plan().clone();
+            let call = call_mut(&mut omitted.scalar_call_unit_functions[0], 0);
+            if call.arguments.pop().is_some() {
+                assert!(validate_legalized_operations(&target, &source, &unit, omitted).is_err());
+            }
+        }
+        let source = register_arity_source(capacity + 1);
+        let target =
+            abstract_operations_to_target_operations::lower_to_target_operations(&source, native)
+                .unwrap();
+        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            semantic_vocabulary::FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        assert!(!crate::legalization::accepts_fragment_publication_input(
+            &target, &source, &unit
+        ));
+        assert!(legalize_target_operations(&target, &source, &unit).is_err());
+    }
+}
+
+#[test]
+fn register_calls_do_not_claim_other_target_frame_contracts() {
+    let source = register_arity_source(1);
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &source,
+        semantic_vocabulary::FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    for native in [
+        target::NativeTarget::windows_x64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let target =
+            abstract_operations_to_target_operations::lower_to_target_operations(&source, native)
+                .unwrap();
+        assert!(!crate::legalization::accepts_fragment_publication_input(
+            &target, &source, &unit
+        ));
+        assert!(legalize_target_operations(&target, &source, &unit).is_err());
+    }
 }

@@ -18,7 +18,7 @@ pub(super) fn validate_roots(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     plan: &FixedViewCopyPlan,
 ) -> Result<(), FixedViewCopyError> {
     if plan.source_selected != selected.receipt().identity()

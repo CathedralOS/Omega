@@ -82,7 +82,7 @@ fn ordered_integer_projection_reuses_values_and_rejects_detached_rows() {
             &inputs,
             13,
             &mut registers,
-            keys,
+            &keys,
             catalog,
         )
         .unwrap();
@@ -107,7 +107,7 @@ fn ordered_integer_projection_reuses_values_and_rejects_detached_rows() {
                 1,
                 registers,
                 instructions,
-                keys,
+                &keys,
                 catalog,
             )
         };

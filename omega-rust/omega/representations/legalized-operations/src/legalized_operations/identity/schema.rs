@@ -16,7 +16,7 @@ pub(super) enum IdentitySchema {
     V20,
     V21,
     V22,
-    V24,
+    V25,
 }
 
 pub(super) fn identity(
@@ -24,8 +24,8 @@ pub(super) fn identity(
     schema: IdentitySchema,
 ) -> LegalizedOperationPlanIdentity {
     let (domain, retain_call_contract, retain_scalar_call_unit_roster) = match schema {
-        IdentitySchema::V24 => (
-            b"omega.terminal-legalized-operations.v24\0".as_slice(),
+        IdentitySchema::V25 => (
+            b"omega.terminal-legalized-operations.v25\0".as_slice(),
             true,
             true,
         ),
@@ -95,7 +95,7 @@ pub(super) fn identity(
         domain,
         retain_call_contract,
         retain_scalar_call_unit_roster,
-        matches!(schema, IdentitySchema::V22 | IdentitySchema::V24),
-        matches!(schema, IdentitySchema::V24),
+        matches!(schema, IdentitySchema::V22 | IdentitySchema::V25),
+        matches!(schema, IdentitySchema::V25),
     )
 }

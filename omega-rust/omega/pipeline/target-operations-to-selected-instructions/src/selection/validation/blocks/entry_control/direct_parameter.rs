@@ -7,7 +7,7 @@ pub(super) fn validate(
     function_index: usize,
     source: &SourceFunction,
     function: &SelectedFunction,
-    keys: SelectedConstraintKeys,
+    keys: &SelectedConstraintKeys,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
     let entry = &function.blocks[0];
@@ -50,7 +50,7 @@ pub(super) fn validate_branch(
     function_index: usize,
     source: &SourceFunction,
     instruction: &SelectedInstruction,
-    keys: SelectedConstraintKeys,
+    keys: &SelectedConstraintKeys,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
     instruction_projection::validate(

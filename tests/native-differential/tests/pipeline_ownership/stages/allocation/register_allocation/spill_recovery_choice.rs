@@ -29,7 +29,7 @@ pub(super) fn choose(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         selected_instructions_to_register_homes::SpillRecoveryChoicePolicy::EpochOneFarthestEndThenHighestVregV1,
         budget,
     )
@@ -56,7 +56,7 @@ fn validate(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         plan,
     )
 }

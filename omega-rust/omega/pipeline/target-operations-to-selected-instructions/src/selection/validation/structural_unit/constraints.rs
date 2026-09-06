@@ -3,11 +3,11 @@
 use crate::selection::constraints::row;
 use crate::selection::shared::*;
 
-pub(super) fn reconstruct_structural_call_row(
+pub(super) fn reconstruct_structural_call_row<'catalog>(
     function: usize,
-    keys: SelectedConstraintKeys,
-    catalog: &ValidatedRegisterConstraintCatalog,
-) -> Result<&RegisterInstructionConstraint, SelectedInstructionError> {
+    keys: &SelectedConstraintKeys,
+    catalog: &'catalog ValidatedRegisterConstraintCatalog,
+) -> Result<&'catalog RegisterInstructionConstraint, SelectedInstructionError> {
     let key = keys
         .structural_unit_call
         .ok_or(SelectedInstructionError::UnsupportedSourceShape { function })?;

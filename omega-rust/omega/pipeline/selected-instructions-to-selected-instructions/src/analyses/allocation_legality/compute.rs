@@ -27,7 +27,7 @@ pub(crate) fn compute_terminal_allocation_legality(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> Result<AllocationLegalityPlan, AllocationLegalityError> {
     validate_roots(
         ranges,

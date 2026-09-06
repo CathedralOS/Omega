@@ -18,7 +18,7 @@ pub(crate) fn compute_terminal_allocator_availability(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     policy: AllocatorAvailabilityPolicy,
 ) -> Result<AllocatorAvailabilityPlan, AllocatorAvailabilityError> {
     if target.architecture != physical.model().architecture

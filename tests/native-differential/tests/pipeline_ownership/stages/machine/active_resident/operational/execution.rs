@@ -142,7 +142,7 @@ fn active_resident_rule_reconstructs_deterministically_and_reaches_a_rule_core_f
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
             CHOICE_POLICY,
             budget,
         )
@@ -182,7 +182,7 @@ fn active_resident_rule_reconstructs_deterministically_and_reaches_a_rule_core_f
                 environment.physical(),
                 environment.constraints(),
                 environment.reservations(),
-                environment.allocation_constraint_keys(),
+                &environment.allocation_constraint_keys(),
                 REMATERIALIZATION_POLICY,
                 OptimizationWorkBudget::new(100, 100, 1_000, 100, 10).unwrap(),
             )

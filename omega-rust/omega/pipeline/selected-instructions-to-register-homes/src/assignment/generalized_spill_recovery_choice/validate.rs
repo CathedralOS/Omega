@@ -23,7 +23,7 @@ pub fn validate_generalized_spill_recovery_choices<S: ValidatedSelectedAnalysis>
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     plan: GeneralizedSpillRecoveryChoicePlan,
 ) -> Result<ValidatedGeneralizedSpillRecoveryChoices, GeneralizedSpillRecoveryChoiceError> {
     let source = worklist.plan();

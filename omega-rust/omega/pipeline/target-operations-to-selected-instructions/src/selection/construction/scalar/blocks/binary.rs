@@ -13,7 +13,7 @@ pub(in crate::selection::construction::scalar) fn exact_binary_return(
     registers: [VirtualRegisterId; 3],
     source: &SourceLeaf,
 ) -> Result<SelectedBlock, SelectedInstructionError> {
-    let keys = context.constraints.keys;
+    let keys = &context.constraints.keys;
     let (obligation, operations, values, operation_fuel, left, right, kind, key) =
         match &source.value {
             SourceLeafValue::ExactAdd {

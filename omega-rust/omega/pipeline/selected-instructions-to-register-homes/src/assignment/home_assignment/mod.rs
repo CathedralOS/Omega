@@ -26,7 +26,7 @@ pub fn assign_register_homes(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
     let plan = compute::compute_terminal_register_homes(
         legality,

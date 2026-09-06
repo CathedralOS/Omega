@@ -25,7 +25,7 @@ pub fn validate_recursive_reload_value_homes(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     plan: RecursiveReloadValueHomePlan,
 ) -> Result<ValidatedRecursiveReloadValueHomes, RecursiveReloadValueHomeError> {
     if plan.recursive_spill_insertion != recursive.receipt().identity()

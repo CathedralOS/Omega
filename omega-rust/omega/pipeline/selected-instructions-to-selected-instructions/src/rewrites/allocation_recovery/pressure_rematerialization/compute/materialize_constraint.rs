@@ -5,10 +5,10 @@ use register_model::{
 
 use crate::PressureRematerializationError;
 
-pub(super) fn select(
-    constraints: &ValidatedRegisterConstraintCatalog,
-    keys: TargetRegisterEnvironmentConstraintKeys,
-) -> Result<&RegisterInstructionConstraint, PressureRematerializationError> {
+pub(super) fn select<'a>(
+    constraints: &'a ValidatedRegisterConstraintCatalog,
+    keys: &TargetRegisterEnvironmentConstraintKeys,
+) -> Result<&'a RegisterInstructionConstraint, PressureRematerializationError> {
     let row = constraints
         .catalog()
         .constraints

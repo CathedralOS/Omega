@@ -34,7 +34,7 @@ pub(in crate::assignment) fn compute(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     policy: ReloadValueHomePolicy,
     budget: OptimizationWorkBudget,
 ) -> Result<ReloadValueHomePlan, ReloadValueHomeError> {
@@ -93,7 +93,7 @@ fn admit_roots(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> Result<(), ReloadValueHomeError> {
     let logical_receipt = logical.receipt();
     let environment = target_register_environment_identity(

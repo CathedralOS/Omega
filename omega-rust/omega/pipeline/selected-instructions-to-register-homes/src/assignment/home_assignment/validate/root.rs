@@ -18,7 +18,7 @@ pub(super) fn validate(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     plan: &RegisterHomePlan,
 ) -> Result<(), RegisterHomeError> {
     if plan.legality != legality.receipt().identity()

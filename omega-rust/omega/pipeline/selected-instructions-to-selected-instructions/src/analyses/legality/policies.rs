@@ -21,7 +21,7 @@ pub(super) fn all_environment_allocatable_views(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         AllocatorAvailabilityPolicy::AllEnvironmentAllocatableViewsV1,
     )
     .map_err(OptimizedAllocationLegalityCustodyError::Availability)?;
@@ -73,7 +73,7 @@ pub(super) fn frameless_leaf_caller_saved_views(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         AllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 { views },
     )
     .map_err(OptimizedAllocationLegalityCustodyError::Availability)?;
@@ -101,7 +101,7 @@ pub(super) fn active_resident_immediate_u64_multi_use_rematerialization_v1(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         AllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 { views },
     )
     .map_err(OptimizedAllocationLegalityCustodyError::Availability)?;

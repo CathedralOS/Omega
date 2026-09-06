@@ -40,7 +40,7 @@ pub fn validate_pressure_rematerialization<S: ValidatedSelectedAnalysis>(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     plan: PressureRematerializationPlan,
 ) -> Result<ValidatedPressureRematerialization, PressureRematerializationError> {
     source_custody::admit(

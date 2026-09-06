@@ -33,7 +33,7 @@ pub fn validate_register_homes(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     plan: RegisterHomePlan,
 ) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
     root::validate(

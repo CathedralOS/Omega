@@ -22,7 +22,7 @@ pub(super) fn build_plan(
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<SelectedInstructionPlan, SelectedInstructionError> {
     let target = legalized.plan();
-    require_key_rows(constraints.keys, catalog)?;
+    require_key_rows(&constraints.keys, catalog)?;
     let mut functions = target
         .functions
         .iter()
@@ -43,7 +43,7 @@ pub(super) fn build_plan(
         target
             .unit_functions
             .iter()
-            .map(|source| unit::build(source, constraints.keys, catalog))
+            .map(|source| unit::build(source, &constraints.keys, catalog))
             .collect::<Result<Vec<_>, _>>()?,
     );
     functions.extend(
@@ -55,7 +55,9 @@ pub(super) fn build_plan(
                 scalar_call_unit::build(
                     index + target.functions.len() + target.unit_functions.len(),
                     source,
+                    target.target,
                     constraints,
+                    physical,
                     catalog,
                 )
             })
@@ -67,7 +69,7 @@ pub(super) fn build_plan(
         .iter()
         .enumerate()
         .map(|(index, source)| {
-            structural_unit::build(index, source, target, constraints.keys, catalog)
+            structural_unit::build(index, source, target, &constraints.keys, catalog)
         })
         .collect::<Result<Vec<_>, _>>()?;
     structural_unit_functions.sort_by_key(|function| function.machine);

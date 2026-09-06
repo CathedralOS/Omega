@@ -5,7 +5,7 @@ use crate::selection::shared::*;
 
 pub(super) fn build(
     source: &SourceUnitFunction,
-    keys: SelectedConstraintKeys,
+    keys: &SelectedConstraintKeys,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<SelectedFunction, SelectedInstructionError> {
     Ok(SelectedFunction {

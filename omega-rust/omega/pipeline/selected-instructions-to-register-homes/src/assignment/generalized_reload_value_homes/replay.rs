@@ -57,7 +57,7 @@ pub(super) fn replay(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     policy: GeneralizedReloadValueHomePolicy,
     budget: OptimizationWorkBudget,
 ) -> Result<GeneralizedReloadValueHomePlan, GeneralizedReloadValueHomeError> {

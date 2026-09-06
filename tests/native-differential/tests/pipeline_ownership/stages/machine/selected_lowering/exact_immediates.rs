@@ -36,7 +36,7 @@ fn named_exact_subtract_immediate_suite_closes_pressure_and_rejects_policy_subst
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
             AllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 {
                 views: vec![sole_view],
             },
@@ -101,7 +101,7 @@ fn named_exact_subtract_immediate_suite_closes_pressure_and_rejects_policy_subst
                 environment.physical(),
                 environment.constraints(),
                 environment.reservations(),
-                environment.allocation_constraint_keys(),
+                &environment.allocation_constraint_keys(),
                 substituted_policy,
             )
             .is_err()
@@ -150,7 +150,7 @@ fn combined_exact_immediate_selection_executes_each_named_shape() {
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
             AllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 {
                 views: vec![sole_view],
             },

@@ -34,7 +34,7 @@ pub fn seed_spill_recovery_worklist(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     reload_home_policy: crate::ReloadValueHomePolicy,
     reload_home_budget: optimization_core::OptimizationWorkBudget,
     policy: SpillRecoveryWorklistPolicy,

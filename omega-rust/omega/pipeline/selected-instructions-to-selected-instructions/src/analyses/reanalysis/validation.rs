@@ -48,7 +48,7 @@ pub fn validate_optimized_selected_reanalysis_custody(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         legality.plan().clone(),
     )
     .map_err(OptimizedSelectedReanalysisError::AllocationLegalityRevalidation)?;

@@ -24,7 +24,7 @@ pub fn choose_generalized_spill_recovery_victims<S: crate::ValidatedSelectedAnal
     physical: &register_model::ValidatedPhysicalRegisterModel,
     constraints: &register_model::ValidatedRegisterConstraintCatalog,
     reservations: &register_model::ValidatedRegisterReservationProfile,
-    selected_keys: register_model::TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &register_model::TargetRegisterEnvironmentConstraintKeys,
     policy: GeneralizedSpillRecoveryChoicePolicy,
     budget: optimization_core::OptimizationWorkBudget,
 ) -> Result<ValidatedGeneralizedSpillRecoveryChoices, GeneralizedSpillRecoveryChoiceError> {

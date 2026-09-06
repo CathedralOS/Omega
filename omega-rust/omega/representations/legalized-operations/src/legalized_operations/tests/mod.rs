@@ -24,6 +24,7 @@ pub(super) use terminal_psi::{
 mod fixtures;
 mod identity;
 mod integer_sequences;
+mod scalar_calls;
 mod validation;
 
 use fixtures::*;

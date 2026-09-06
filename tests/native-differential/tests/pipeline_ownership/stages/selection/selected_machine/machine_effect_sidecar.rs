@@ -93,7 +93,7 @@ fn machine_effect_sidecar_reconstructs_subtraction_and_control_barriers() {
                 selected.register_environment().physical(),
                 selected.register_environment().constraints(),
                 selected.register_environment().reservations(),
-                selected.register_environment().allocation_constraint_keys(),
+                &selected.register_environment().allocation_constraint_keys(),
                 &match target.architecture {
                     target::Architecture::X86_64 => {
                         isa_x86_64::validate_x86_64_machine_effect_catalog(

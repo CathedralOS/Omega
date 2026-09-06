@@ -65,12 +65,22 @@ pub(super) fn validate(
                     catalog,
                 )?
             }
-            ([], [source], []) => {
-                validate_unit_function(function_index, source, selected, constraints.keys, catalog)?
-            }
-            ([], [], [source]) => {
-                scalar_call_unit::validate(function_index, source, selected, constraints, catalog)?
-            }
+            ([], [source], []) => validate_unit_function(
+                function_index,
+                source,
+                selected,
+                &constraints.keys,
+                catalog,
+            )?,
+            ([], [], [source]) => scalar_call_unit::validate(
+                function_index,
+                source,
+                selected,
+                target.target,
+                constraints,
+                physical,
+                catalog,
+            )?,
             _ => return Err(SelectedInstructionError::SourceCustodyMismatch),
         }
     }

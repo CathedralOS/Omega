@@ -59,6 +59,7 @@ pub use preservation_storage::{
     X86_64PreservationStorageCatalogError, x86_64_preservation_storage_catalog,
 };
 pub use ranked_u32_countdown::*;
+pub use register_model::x86_64_system_v_register_call_keys;
 pub use register_model::{
     X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COMPARE_I64, X86_64_COMPARE_I64_ZERO,
     X86_64_CONDITIONAL_BRANCH, X86_64_COPY_I64, X86_64_INLINE_ASSEMBLY_DEFAULT, X86_64_JUMP,

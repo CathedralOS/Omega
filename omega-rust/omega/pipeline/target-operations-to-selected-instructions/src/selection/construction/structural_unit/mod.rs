@@ -10,7 +10,7 @@ pub(super) fn build(
     function: usize,
     source: &SourceStructuralUnitFunction,
     plan: &LegalizedOperationPlan,
-    keys: SelectedConstraintKeys,
+    keys: &SelectedConstraintKeys,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<SelectedStructuralUnitFunction, SelectedInstructionError> {
     if plan.target != target::NativeTarget::uefi_x64() {

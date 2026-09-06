@@ -3,7 +3,10 @@
 //! function roster separately produces and independently replays each callee.
 
 use abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractOperation};
-use calling_conventions::{CallPlan, CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+use calling_conventions::{
+    CallPlan, CallSignature, CallingPolicy, ValueLocation, ValuePlacement, ValueShape,
+    evaluate_call_plan,
+};
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 use target_operations::TargetFunction;
@@ -15,17 +18,30 @@ pub(super) fn accepts(
     optimized: &PsiOptimizationFunction,
     call: &CallPlan,
 ) -> bool {
+    // The current selected call encoders and frame policies support these
+    // descriptors only. Register-only does not imply a Microsoft home area.
+    if native != target::NativeTarget::linux_x64() && native != target::NativeTarget::linux_arm64()
+    {
+        return false;
+    }
+    let arity = abstracted.parameters.len();
     let integer = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
     let scalar = ScalarType::Integer(integer);
     let Ok(expected) = evaluate_call_plan(
         CallingPolicy::native_for_target(native),
         &CallSignature {
-            parameters: vec![ValueShape::integer(8, 8); 2],
+            parameters: vec![ValueShape::integer(8, 8); arity],
             result: Some(ValueShape::integer(8, 8)),
         },
     ) else {
         return false;
     };
+    if expected.shadow_bytes != 0
+        || !expected.parameters.iter().all(register_u64)
+        || !expected.result.as_ref().is_some_and(register_u64)
+    {
+        return false;
+    }
     let Some(abi) = &target.fixed_integer_scalar_abi else {
         return false;
     };
@@ -37,7 +53,7 @@ pub(super) fn accepts(
         && target.mixed_structural_scalar_abi.is_none()
         && *call == expected
         && abi.call_plan == expected
-        && abi.parameters.len() == 2
+        && abi.parameters.len() == arity
         && abi
             .parameters
             .iter()
@@ -47,12 +63,11 @@ pub(super) fn accepts(
             })
         && abi.result.scalar_type == integer
         && expected.result.as_ref() == Some(&abi.result.placement)
-        && abstracted.parameters.len() == 2
         && abstracted
             .parameters
             .iter()
             .all(|parameter| parameter.scalar_type == scalar)
-        && optimized.parameters.len() == 2
+        && optimized.parameters.len() == arity
         && optimized
             .parameters
             .iter()
@@ -109,4 +124,15 @@ fn memory_free_operation(operation: &AbstractOperation) -> bool {
         }
         _ => false,
     }
+}
+fn register_u64(placement: &ValuePlacement) -> bool {
+    placement.shape == ValueShape::integer(8, 8)
+        && matches!(
+            placement.locations.as_slice(),
+            [ValueLocation::Register {
+                value_byte_offset: 0,
+                byte_size: 8,
+                ..
+            }]
+        )
 }

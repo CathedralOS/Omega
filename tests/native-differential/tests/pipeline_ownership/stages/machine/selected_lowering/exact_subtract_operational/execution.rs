@@ -43,7 +43,7 @@ fn exact_subtract_rule_is_disabled_by_the_default_selected_lowering_projection()
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
             SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
             selected_lowering_budget(),
         )

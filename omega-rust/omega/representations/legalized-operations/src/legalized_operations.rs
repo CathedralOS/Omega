@@ -64,6 +64,7 @@ pub use values::*;
 pub mod identity;
 mod validation;
 pub use identity::*;
+pub use validation::LegalizedScalarCallShapeError;
 
 #[cfg(test)]
 mod tests;

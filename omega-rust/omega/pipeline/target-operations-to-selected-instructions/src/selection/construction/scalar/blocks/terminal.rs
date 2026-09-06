@@ -25,7 +25,7 @@ pub(in crate::selection::construction::scalar) fn constant_return(
             function: context.function,
         });
     };
-    let keys = context.constraints.keys;
+    let keys = &context.constraints.keys;
     Ok(SelectedBlock {
         id,
         source_block,

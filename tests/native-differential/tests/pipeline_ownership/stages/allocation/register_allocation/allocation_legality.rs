@@ -86,7 +86,7 @@ fn allocation_legality_is_phase_exact_and_exposes_fixed_view_transitions() {
                 environment.physical(),
                 environment.constraints(),
                 &reduced,
-                environment.allocation_constraint_keys(),
+                &environment.allocation_constraint_keys(),
             );
             let reduced_availability = materialize_allocator_availability(
                 reduced_identity,
@@ -94,7 +94,7 @@ fn allocation_legality_is_phase_exact_and_exposes_fixed_view_transitions() {
                 environment.physical(),
                 environment.constraints(),
                 &reduced,
-                environment.allocation_constraint_keys(),
+                &environment.allocation_constraint_keys(),
                 AllocatorAvailabilityPolicy::AllEnvironmentAllocatableViewsV1,
             )
             .unwrap();
@@ -106,7 +106,7 @@ fn allocation_legality_is_phase_exact_and_exposes_fixed_view_transitions() {
                     environment.physical(),
                     environment.constraints(),
                     &reduced,
-                    environment.allocation_constraint_keys(),
+                    &environment.allocation_constraint_keys(),
                 )
                 .unwrap();
             let r15 = model.view_named("r15").unwrap().id;
@@ -157,7 +157,7 @@ fn allocation_legality_is_phase_exact_and_exposes_fixed_view_transitions() {
                 environment.physical(),
                 environment.constraints(),
                 environment.reservations(),
-                environment.allocation_constraint_keys(),
+                &environment.allocation_constraint_keys(),
                 corrupted,
             ),
             Err(AllocationLegalityError::VirtualRegisterMismatch { .. })

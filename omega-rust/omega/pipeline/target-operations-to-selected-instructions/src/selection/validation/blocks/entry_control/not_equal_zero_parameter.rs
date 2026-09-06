@@ -8,7 +8,7 @@ pub(super) fn validate(
     function_index: usize,
     source: &SourceFunction,
     function: &SelectedFunction,
-    keys: SelectedConstraintKeys,
+    keys: &SelectedConstraintKeys,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
     let LegalizedCondition::U64NotEqualZeroParameterV1 {

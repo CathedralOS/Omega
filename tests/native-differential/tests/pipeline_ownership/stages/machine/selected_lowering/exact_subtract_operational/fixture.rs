@@ -81,7 +81,7 @@ fn staged_source(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         AllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 {
             views: vec![sole_view],
         },

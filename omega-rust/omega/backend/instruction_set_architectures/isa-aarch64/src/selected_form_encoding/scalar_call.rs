@@ -10,7 +10,7 @@ use semantic_vocabulary::MachineId;
 use target::NativeTarget;
 
 use crate::{
-    AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64, aarch64_physical_register_model,
+    aarch64_aapcs64_register_call_keys, aarch64_physical_register_model,
     aarch64_register_constraint_catalog,
 };
 
@@ -47,7 +47,7 @@ pub struct Aarch64ScalarCallFixup {
 pub struct ValidatedAarch64SelectedScalarCallTemplate {
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
-    operand_views: [RegisterViewId; 3],
+    operand_views: Vec<RegisterViewId>,
     effects: MachineEncodedEffects,
     bytes: [u8; AARCH64_SCALAR_CALL_TEMPLATE_BYTE_COUNT],
     fixup: Aarch64ScalarCallFixup,
@@ -62,7 +62,7 @@ impl ValidatedAarch64SelectedScalarCallTemplate {
         self.alternative
     }
 
-    pub const fn operand_views(&self) -> &[RegisterViewId; 3] {
+    pub fn operand_views(&self) -> &[RegisterViewId] {
         &self.operand_views
     }
 
@@ -154,11 +154,16 @@ pub fn validate_aarch64_selected_scalar_call_template(
     if alternative != expected_alternative {
         return Err(Aarch64ScalarCallTemplateError::AlternativeMismatch);
     }
-    let expected_operand_views = expected_operand_views(physical);
+    let arity = operand_views
+        .len()
+        .checked_sub(1)
+        .filter(|arity| *arity <= 8)
+        .ok_or(Aarch64ScalarCallTemplateError::OperandViewMismatch)?;
+    let expected_operand_views = expected_operand_views(physical, arity);
     if operand_views != expected_operand_views {
         return Err(Aarch64ScalarCallTemplateError::OperandViewMismatch);
     }
-    if effects != &expected_effects(physical) {
+    if effects != &expected_effects(physical, arity) {
         return Err(Aarch64ScalarCallTemplateError::EffectMismatch);
     }
     let bytes: [u8; AARCH64_SCALAR_CALL_TEMPLATE_BYTE_COUNT] = bytes
@@ -192,26 +197,37 @@ fn canonical_fixup(callee: MachineId) -> Aarch64ScalarCallFixup {
     }
 }
 
-fn expected_operand_views(physical: &ValidatedPhysicalRegisterModel) -> [RegisterViewId; 3] {
-    ["x0", "x1", "x0"].map(|name| {
-        physical
-            .model()
-            .view_named(name)
-            .expect("canonical AArch64 model contains scalar-call ABI view")
-            .id
-    })
+fn expected_operand_views(
+    physical: &ValidatedPhysicalRegisterModel,
+    arity: usize,
+) -> Vec<RegisterViewId> {
+    ["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"]
+        .into_iter()
+        .take(arity)
+        .chain(["x0"])
+        .map(|name| {
+            physical
+                .model()
+                .view_named(name)
+                .expect("canonical ABI register")
+                .id
+        })
+        .collect()
 }
 
-fn expected_effects(physical: &ValidatedPhysicalRegisterModel) -> MachineEncodedEffects {
+fn expected_effects(
+    physical: &ValidatedPhysicalRegisterModel,
+    arity: usize,
+) -> MachineEncodedEffects {
     let catalog = aarch64_register_constraint_catalog(physical);
     let row = catalog
         .constraints
         .iter()
-        .find(|row| row.key == AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64)
+        .find(|row| row.key == aarch64_aapcs64_register_call_keys()[arity])
         .expect("canonical AArch64 catalog contains scalar-call constraint");
     MachineEncodedEffects {
-        external_operand_reads: vec![0, 1],
-        external_operand_writes: vec![2],
+        external_operand_reads: (0..arity as u16).collect(),
+        external_operand_writes: vec![arity as u16],
         implicit_unit_uses: row.implicit_uses.clone(),
         implicit_unit_defs: row.implicit_defs.clone(),
         implicit_unit_clobbers: row.clobbers.clone(),
@@ -232,7 +248,7 @@ mod tests {
         ValidatedPhysicalRegisterModel,
         SelectedInstructionKind,
         MachineAlternativeKey,
-        [RegisterViewId; 3],
+        Vec<RegisterViewId>,
         MachineEncodedEffects,
     ) {
         let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
@@ -243,9 +259,85 @@ mod tests {
             family: MachineAlternativeFamily::CallI64,
             variant: 0,
         };
-        let operands = expected_operand_views(&physical);
-        let effects = expected_effects(&physical);
+        let operands = expected_operand_views(&physical, 2);
+        let effects = expected_effects(&physical, 2);
         (physical, kind, alternative, operands, effects)
+    }
+
+    #[test]
+    fn every_register_arity_has_exact_operands_and_effects() {
+        let (physical, kind, alternative, _, _) = inputs();
+        let catalog = crate::aarch64_register_constraint_catalog(&physical);
+        for (arity, key) in aarch64_aapcs64_register_call_keys().into_iter().enumerate() {
+            let row = catalog
+                .constraints
+                .iter()
+                .find(|row| row.key == key)
+                .unwrap();
+            let operands = expected_operand_views(&physical, arity);
+            assert_eq!(row.operands.len(), arity + 1);
+            assert_eq!(
+                row.operands
+                    .iter()
+                    .map(|operand| operand.fixed_view.unwrap())
+                    .collect::<Vec<_>>(),
+                operands
+            );
+            let effects = expected_effects(&physical, arity);
+            assert_eq!(
+                effects.external_operand_reads,
+                (0..arity as u16).collect::<Vec<_>>()
+            );
+            assert_eq!(effects.external_operand_writes, vec![arity as u16]);
+            let template = encode_aarch64_selected_scalar_call_template(
+                NativeTarget::linux_arm64(),
+                &physical,
+                kind,
+                alternative,
+                &operands,
+                &effects,
+            )
+            .unwrap();
+            assert_eq!(template.operand_views(), operands.as_slice());
+            let mut wrong_effects = effects.clone();
+            wrong_effects.external_operand_writes = vec![(arity + 1) as u16];
+            assert!(
+                encode_aarch64_selected_scalar_call_template(
+                    NativeTarget::linux_arm64(),
+                    &physical,
+                    kind,
+                    alternative,
+                    &operands,
+                    &wrong_effects,
+                )
+                .is_err()
+            );
+            let mut wrong_views = operands.clone();
+            wrong_views[arity] = physical.model().view_named("sp").unwrap().id;
+            assert!(
+                encode_aarch64_selected_scalar_call_template(
+                    NativeTarget::linux_arm64(),
+                    &physical,
+                    kind,
+                    alternative,
+                    &wrong_views,
+                    &effects,
+                )
+                .is_err()
+            );
+        }
+        let oversized = vec![physical.model().view_named("x0").unwrap().id; 10];
+        assert_eq!(
+            encode_aarch64_selected_scalar_call_template(
+                NativeTarget::linux_arm64(),
+                &physical,
+                kind,
+                alternative,
+                &oversized,
+                &expected_effects(&physical, 0),
+            ),
+            Err(Aarch64ScalarCallTemplateError::OperandViewMismatch)
+        );
     }
 
     #[test]

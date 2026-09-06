@@ -22,7 +22,7 @@ pub(super) fn admit<S: ValidatedSelectedAnalysis>(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     plan: &PressureRematerializationPlan,
 ) -> Result<(), PressureRematerializationError> {
     if plan.source_selected != selected.selected_identity()

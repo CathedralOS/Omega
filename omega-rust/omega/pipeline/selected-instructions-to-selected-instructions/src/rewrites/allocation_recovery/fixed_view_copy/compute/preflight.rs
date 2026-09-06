@@ -10,7 +10,7 @@ pub(super) fn validate_roots(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> Result<(), FixedViewCopyError> {
     if ranges.plan().selected != selected.receipt().identity()
         || ranges.plan().optimization_unit != selected.receipt().optimization_unit()
@@ -35,10 +35,10 @@ pub(super) fn validate_roots(
     Ok(())
 }
 
-pub(super) fn copy_row(
-    constraints: &ValidatedRegisterConstraintCatalog,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
-) -> Result<&RegisterInstructionConstraint, FixedViewCopyError> {
+pub(super) fn copy_row<'a>(
+    constraints: &'a ValidatedRegisterConstraintCatalog,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
+) -> Result<&'a RegisterInstructionConstraint, FixedViewCopyError> {
     let row = constraints
         .catalog()
         .constraints

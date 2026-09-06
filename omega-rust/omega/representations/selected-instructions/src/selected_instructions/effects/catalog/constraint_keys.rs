@@ -4,10 +4,10 @@ use super::MachineSemanticKind;
 use crate::SelectedConstraintKeys;
 
 impl SelectedConstraintKeys {
-    pub fn in_identity_order(self) -> Vec<RegisterConstraintKey> {
+    pub fn in_identity_order(&self) -> Vec<RegisterConstraintKey> {
         self.structural_unit_call
             .into_iter()
-            .chain(self.call_i64_2_u64_to_u64)
+            .chain(self.call_i64.iter().copied())
             .chain([
                 self.materialize_i64,
                 self.copy_i64,
@@ -26,7 +26,7 @@ impl SelectedConstraintKeys {
     }
 
     pub const fn for_semantic(
-        self,
+        &self,
         semantic: MachineSemanticKind,
     ) -> Option<RegisterConstraintKey> {
         Some(match semantic {
@@ -43,8 +43,29 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::CompareI64 => self.compare_i64,
             MachineSemanticKind::ConditionalBranchU64LessThan => self.conditional_branch,
             MachineSemanticKind::ConditionalBranchI64LessThan => self.conditional_branch,
-            MachineSemanticKind::CallI64 => return self.call_i64_2_u64_to_u64,
+            MachineSemanticKind::CallI64 => return None,
             MachineSemanticKind::Jump => self.jump,
         })
+    }
+
+    /// Canonical catalog coordinates: semantic order, then authored ABI arity.
+    pub fn declaration_keys(&self) -> Vec<(MachineSemanticKind, RegisterConstraintKey)> {
+        MachineSemanticKind::ALL
+            .into_iter()
+            .flat_map(|semantic| {
+                if semantic == MachineSemanticKind::CallI64 {
+                    self.call_i64
+                        .iter()
+                        .copied()
+                        .map(|key| (semantic, key))
+                        .collect()
+                } else {
+                    self.for_semantic(semantic)
+                        .map(|key| (semantic, key))
+                        .into_iter()
+                        .collect::<Vec<_>>()
+                }
+            })
+            .collect()
     }
 }

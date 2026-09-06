@@ -25,7 +25,7 @@ pub fn validate_generalized_reload_value_homes(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     plan: GeneralizedReloadValueHomePlan,
 ) -> Result<ValidatedGeneralizedReloadValueHomes, GeneralizedReloadValueHomeError> {
     if plan.generalized_spill_insertion != generalized.receipt().identity()

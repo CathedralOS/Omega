@@ -132,9 +132,6 @@ pub(super) fn match_sequence<'a>(
             TargetUnitOperation::ScalarCall { call_plan, .. } => {
                 let (operation, result, callee, arguments) =
                     call_parts(target_operation, abstract_operation, function)?;
-                let [left, right] = arguments else {
-                    return Err(Error::UnsupportedSourceShape { function });
-                };
                 let resolve = |value: &ValueId| {
                     definitions
                         .iter()
@@ -142,11 +139,11 @@ pub(super) fn match_sequence<'a>(
                         .map(|(_, source)| *source)
                         .ok_or(Error::SourceCustodyMismatch)
                 };
-                validate_call_sources(
-                    target_operation,
-                    [resolve(left)?, resolve(right)?],
-                    function,
-                )?;
+                let sources = arguments
+                    .iter()
+                    .map(resolve)
+                    .collect::<Result<Vec<_>, _>>()?;
+                validate_call_sources(target_operation, &sources, function)?;
                 validate_callee(function, callee, call_plan, target, abstract_plan, unit)?;
                 (operation, result, home(target_operation)?)
             }

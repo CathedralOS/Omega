@@ -17,7 +17,7 @@ use crate::{
 pub(super) fn replay_transformation(
     selected: &ValidatedSelectedInstructions,
     boundaries: &[super::super::evidence::AuthenticatedFixedViewBoundary],
-    keys: TargetRegisterEnvironmentConstraintKeys,
+    keys: &TargetRegisterEnvironmentConstraintKeys,
     row: &RegisterInstructionConstraint,
     policy: FixedViewCopyPolicy,
 ) -> Result<

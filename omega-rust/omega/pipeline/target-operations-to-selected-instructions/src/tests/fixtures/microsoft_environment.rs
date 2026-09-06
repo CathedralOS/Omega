@@ -28,7 +28,7 @@ pub(in crate::tests) fn microsoft_selection_environment() -> (
     let constraints = SelectedSelectionConstraints {
         keys: SelectedConstraintKeys {
             structural_unit_call: Some(X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR),
-            call_i64_2_u64_to_u64: None,
+            call_i64: Vec::new(),
             materialize_i64: X86_64_MATERIALIZE_I64,
             copy_i64: X86_64_COPY_I64,
             add_i64: X86_64_ADD_I64,

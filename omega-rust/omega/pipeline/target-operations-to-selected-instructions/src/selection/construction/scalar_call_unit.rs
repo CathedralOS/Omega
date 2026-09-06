@@ -1,36 +1,34 @@
-//! Ordered attached-Unit calls using the existing `U64, U64 -> U64` ABI.
+//! Ordered attached-Unit calls using the actual native U64 register ABI.
 
 use crate::selection::constraints::{instruction, row};
 use crate::selection::shared::*;
 
+#[cfg(test)]
+mod tests;
+
 pub(super) fn build(
     function: usize,
     source: &SourceScalarCallUnitFunction,
+    native_target: target::NativeTarget,
     constraints: &SelectedSelectionConstraints,
+    physical: &ValidatedPhysicalRegisterModel,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<SelectedFunction, SelectedInstructionError> {
-    let call_key = constraints
-        .keys
-        .call_i64_2_u64_to_u64
-        .ok_or(SelectedInstructionError::UnsupportedSourceShape { function })?;
+    let invalid = || SelectedInstructionError::UnsupportedSourceShape { function };
+    let environment = register_environment::validate_target_register_environment(
+        native_target,
+        physical.model().clone(),
+        catalog.catalog().clone(),
+    )
+    .map_err(|_| invalid())?;
     let materialize = row(catalog, constraints.keys.materialize_i64)?;
     let copy = row(catalog, constraints.keys.copy_i64)?;
-    let call = row(catalog, call_key)?;
-    if materialize.operands.len() != 1
-        || copy.operands.len() != 2
-        || call.operands.len() != 3
-        || call
-            .operands
-            .iter()
-            .any(|operand| operand.fixed_view.is_none())
-    {
-        return Err(SelectedInstructionError::MissingConstraint(call_key));
+    if materialize.operands.len() != 1 || copy.operands.len() != 2 {
+        return Err(invalid());
     }
     let class = materialize.operands[0].class;
-    if copy.operands.iter().any(|operand| operand.class != class)
-        || call.operands.iter().any(|operand| operand.class != class)
-    {
-        return Err(SelectedInstructionError::MissingConstraint(call_key));
+    if copy.operands.iter().any(|operand| operand.class != class) {
+        return Err(invalid());
     }
     let u64_type = ScalarType::Integer(
         semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 scalar type"),
@@ -77,19 +75,41 @@ pub(super) fn build(
             }
 
             LegalizedScalarCallUnitOperation::Call(selected_call) => {
-                base.checked_add(3)
-                    .ok_or(SelectedInstructionError::UnsupportedSourceShape { function })?;
+                let argument_count =
+                    u32::try_from(selected_call.arguments.len()).map_err(|_| invalid())?;
+                base.checked_add(argument_count)
+                    .and_then(|value| value.checked_add(2))
+                    .ok_or_else(invalid)?;
+                let call_key = constraints
+                    .keys
+                    .call_i64
+                    .get(selected_call.arguments.len())
+                    .copied()
+                    .ok_or_else(invalid)?;
+                let call = row(catalog, call_key)?;
+                crate::selection::scalar_call_abi::validate(
+                    function,
+                    selected_call,
+                    call_key,
+                    call,
+                    &environment,
+                )?;
+                if call.operands.iter().any(|operand| operand.class != class) {
+                    return Err(invalid());
+                }
                 let base_instruction = base;
                 let base_register = base;
-                let input_registers = selected_call.arguments.each_ref().map(|argument| {
-                    definitions
-                        .iter()
-                        .find(|(value, _, _)| *value == argument.source.source_value())
-                        .map(|(_, register, _)| *register)
-                        .ok_or(SelectedInstructionError::UnsupportedSourceShape { function })
-                });
-                let [left, right] = input_registers;
-                let input_registers = [left?, right?];
+                let input_registers = selected_call
+                    .arguments
+                    .iter()
+                    .map(|argument| {
+                        definitions
+                            .iter()
+                            .find(|(value, _, _)| *value == argument.source.source_value())
+                            .map(|(_, register, _)| *register)
+                            .ok_or_else(invalid)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
                 for (argument_index, input_register) in input_registers.into_iter().enumerate() {
                     let instruction_id = base_instruction + u32::try_from(argument_index).unwrap();
                     let register_id = base_register + u32::try_from(argument_index).unwrap();
@@ -120,50 +140,49 @@ pub(super) fn build(
                         catalog,
                     )?);
                 }
-                let short_result = VirtualRegisterId(base_register + 2);
+                let short_result = VirtualRegisterId(base_register + argument_count);
                 registers.push(result_register(
                     short_result.0,
-                    base_instruction + 2,
+                    base_instruction + argument_count,
                     selected_call.result_home.source_value,
                     selected_call.result_definition_site,
                     u64_type,
                     class,
                 ));
                 instructions.push(instruction(
-                    SelectedInstructionId(base_instruction + 2),
+                    SelectedInstructionId(base_instruction + argument_count),
                     SelectedInstructionKind::CallI64 {
                         callee: selected_call.callee,
                     },
                     call_key,
-                    &[
-                        VirtualRegisterId(base_register),
-                        VirtualRegisterId(base_register + 1),
-                        short_result,
-                    ],
+                    &(0..=argument_count)
+                        .map(|index| VirtualRegisterId(base_register + index))
+                        .collect::<Vec<_>>(),
                     SelectedInstructionProvenance {
                         operations: vec![selected_call.operation],
-                        values: vec![
-                            selected_call.arguments[0].source.source_value(),
-                            selected_call.arguments[1].source.source_value(),
-                            selected_call.result_home.source_value,
-                        ],
+                        values: selected_call
+                            .arguments
+                            .iter()
+                            .map(|argument| argument.source.source_value())
+                            .chain(std::iter::once(selected_call.result_home.source_value))
+                            .collect(),
                         obligations: selected_call.requirement_obligations.clone(),
                         fuel: selected_call.fuel.clone(),
                         ..Default::default()
                     },
                     catalog,
                 )?);
-                let durable_result = VirtualRegisterId(base_register + 3);
+                let durable_result = VirtualRegisterId(base_register + argument_count + 1);
                 registers.push(result_register(
                     durable_result.0,
-                    base_instruction + 3,
+                    base_instruction + argument_count + 1,
                     selected_call.result_home.source_value,
                     selected_call.result_definition_site,
                     u64_type,
                     class,
                 ));
                 instructions.push(instruction(
-                    SelectedInstructionId(base_instruction + 3),
+                    SelectedInstructionId(base_instruction + argument_count + 1),
                     SelectedInstructionKind::CopyI64,
                     constraints.keys.copy_i64,
                     &[short_result, durable_result],

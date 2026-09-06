@@ -149,7 +149,7 @@ fn cross_target_selected_and_allocator_receipts_fail_closed() {
             arm_environment.physical(),
             arm_environment.constraints(),
             arm_environment.reservations(),
-            arm_environment.allocation_constraint_keys(),
+            &arm_environment.allocation_constraint_keys(),
             x64.homes().plan().clone(),
         ),
         Err(RegisterHomeError::RootMismatch)

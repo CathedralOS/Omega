@@ -37,7 +37,7 @@ fn named_selected_lowering_suite_reaches_a_verified_fixed_point_on_both_architec
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
             AllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 {
                 views: vec![sole_view],
             },

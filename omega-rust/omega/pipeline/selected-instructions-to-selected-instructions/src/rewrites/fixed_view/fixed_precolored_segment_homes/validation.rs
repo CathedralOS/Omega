@@ -49,7 +49,7 @@ pub fn validate_optimized_fixed_precolored_segment_home_custody(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         homes.plan().clone(),
     )
     .map_err(OptimizedFixedPrecoloredSegmentHomeCustodyError::SegmentHomes)?;

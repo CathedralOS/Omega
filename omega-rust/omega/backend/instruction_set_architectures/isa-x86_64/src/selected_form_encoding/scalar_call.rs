@@ -10,8 +10,8 @@ use semantic_vocabulary::MachineId;
 use target::NativeTarget;
 
 use crate::{
-    X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64, x86_64_physical_register_model,
-    x86_64_register_constraint_catalog,
+    x86_64_physical_register_model, x86_64_register_constraint_catalog,
+    x86_64_system_v_register_call_keys,
 };
 
 pub const X86_64_SCALAR_CALL_TEMPLATE_BYTE_COUNT: usize = 5;
@@ -47,7 +47,7 @@ pub struct X86_64ScalarCallFixup {
 pub struct ValidatedX86_64SelectedScalarCallTemplate {
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
-    operand_views: [RegisterViewId; 3],
+    operand_views: Vec<RegisterViewId>,
     effects: MachineEncodedEffects,
     bytes: [u8; X86_64_SCALAR_CALL_TEMPLATE_BYTE_COUNT],
     fixup: X86_64ScalarCallFixup,
@@ -62,7 +62,7 @@ impl ValidatedX86_64SelectedScalarCallTemplate {
         self.alternative
     }
 
-    pub const fn operand_views(&self) -> &[RegisterViewId; 3] {
+    pub fn operand_views(&self) -> &[RegisterViewId] {
         &self.operand_views
     }
 
@@ -154,11 +154,16 @@ pub fn validate_x86_64_selected_scalar_call_template(
     if alternative != expected_alternative {
         return Err(X86_64ScalarCallTemplateError::AlternativeMismatch);
     }
-    let expected_operand_views = expected_operand_views(physical);
+    let arity = operand_views
+        .len()
+        .checked_sub(1)
+        .filter(|arity| *arity <= 6)
+        .ok_or(X86_64ScalarCallTemplateError::OperandViewMismatch)?;
+    let expected_operand_views = expected_operand_views(physical, arity);
     if operand_views != expected_operand_views {
         return Err(X86_64ScalarCallTemplateError::OperandViewMismatch);
     }
-    if effects != &expected_effects(physical) {
+    if effects != &expected_effects(physical, arity) {
         return Err(X86_64ScalarCallTemplateError::EffectMismatch);
     }
     let bytes: [u8; X86_64_SCALAR_CALL_TEMPLATE_BYTE_COUNT] = bytes
@@ -192,22 +197,33 @@ fn canonical_fixup(callee: MachineId) -> X86_64ScalarCallFixup {
     }
 }
 
-fn expected_operand_views(physical: &ValidatedPhysicalRegisterModel) -> [RegisterViewId; 3] {
-    ["rdi", "rsi", "rax"].map(|name| {
-        physical
-            .model()
-            .view_named(name)
-            .expect("canonical x86-64 model contains scalar-call ABI view")
-            .id
-    })
+fn expected_operand_views(
+    physical: &ValidatedPhysicalRegisterModel,
+    arity: usize,
+) -> Vec<RegisterViewId> {
+    ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
+        .into_iter()
+        .take(arity)
+        .chain(["rax"])
+        .map(|name| {
+            physical
+                .model()
+                .view_named(name)
+                .expect("canonical ABI register")
+                .id
+        })
+        .collect()
 }
 
-fn expected_effects(physical: &ValidatedPhysicalRegisterModel) -> MachineEncodedEffects {
+fn expected_effects(
+    physical: &ValidatedPhysicalRegisterModel,
+    arity: usize,
+) -> MachineEncodedEffects {
     let catalog = x86_64_register_constraint_catalog(physical);
     let row = catalog
         .constraints
         .iter()
-        .find(|row| row.key == X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64)
+        .find(|row| row.key == x86_64_system_v_register_call_keys()[arity])
         .expect("canonical x86-64 catalog contains scalar-call constraint");
     let stack_pointer = physical
         .model()
@@ -215,8 +231,8 @@ fn expected_effects(physical: &ValidatedPhysicalRegisterModel) -> MachineEncoded
         .expect("canonical x86-64 model contains rsp")
         .id;
     MachineEncodedEffects {
-        external_operand_reads: vec![0, 1],
-        external_operand_writes: vec![2],
+        external_operand_reads: (0..arity as u16).collect(),
+        external_operand_writes: vec![arity as u16],
         implicit_unit_uses: row.implicit_uses.clone(),
         implicit_unit_defs: row.implicit_defs.clone(),
         implicit_unit_clobbers: row.clobbers.clone(),
@@ -243,7 +259,7 @@ mod tests {
         ValidatedPhysicalRegisterModel,
         SelectedInstructionKind,
         MachineAlternativeKey,
-        [RegisterViewId; 3],
+        Vec<RegisterViewId>,
         MachineEncodedEffects,
     ) {
         let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
@@ -254,9 +270,85 @@ mod tests {
             family: MachineAlternativeFamily::CallI64,
             variant: 0,
         };
-        let operands = expected_operand_views(&physical);
-        let effects = expected_effects(&physical);
+        let operands = expected_operand_views(&physical, 2);
+        let effects = expected_effects(&physical, 2);
         (physical, kind, alternative, operands, effects)
+    }
+
+    #[test]
+    fn every_register_arity_has_exact_operands_and_effects() {
+        let (physical, kind, alternative, _, _) = inputs();
+        let catalog = crate::x86_64_register_constraint_catalog(&physical);
+        for (arity, key) in x86_64_system_v_register_call_keys().into_iter().enumerate() {
+            let row = catalog
+                .constraints
+                .iter()
+                .find(|row| row.key == key)
+                .unwrap();
+            let operands = expected_operand_views(&physical, arity);
+            assert_eq!(row.operands.len(), arity + 1);
+            assert_eq!(
+                row.operands
+                    .iter()
+                    .map(|operand| operand.fixed_view.unwrap())
+                    .collect::<Vec<_>>(),
+                operands
+            );
+            let effects = expected_effects(&physical, arity);
+            assert_eq!(
+                effects.external_operand_reads,
+                (0..arity as u16).collect::<Vec<_>>()
+            );
+            assert_eq!(effects.external_operand_writes, vec![arity as u16]);
+            let template = encode_x86_64_selected_scalar_call_template(
+                NativeTarget::linux_x64(),
+                &physical,
+                kind,
+                alternative,
+                &operands,
+                &effects,
+            )
+            .unwrap();
+            assert_eq!(template.operand_views(), operands.as_slice());
+            let mut wrong_effects = effects.clone();
+            wrong_effects.external_operand_writes = vec![(arity + 1) as u16];
+            assert!(
+                encode_x86_64_selected_scalar_call_template(
+                    NativeTarget::linux_x64(),
+                    &physical,
+                    kind,
+                    alternative,
+                    &operands,
+                    &wrong_effects,
+                )
+                .is_err()
+            );
+            let mut wrong_views = operands.clone();
+            wrong_views[arity] = physical.model().view_named("rsp").unwrap().id;
+            assert!(
+                encode_x86_64_selected_scalar_call_template(
+                    NativeTarget::linux_x64(),
+                    &physical,
+                    kind,
+                    alternative,
+                    &wrong_views,
+                    &effects,
+                )
+                .is_err()
+            );
+        }
+        let oversized = vec![physical.model().view_named("rax").unwrap().id; 8];
+        assert_eq!(
+            encode_x86_64_selected_scalar_call_template(
+                NativeTarget::linux_x64(),
+                &physical,
+                kind,
+                alternative,
+                &oversized,
+                &expected_effects(&physical, 0),
+            ),
+            Err(X86_64ScalarCallTemplateError::OperandViewMismatch)
+        );
     }
 
     #[test]

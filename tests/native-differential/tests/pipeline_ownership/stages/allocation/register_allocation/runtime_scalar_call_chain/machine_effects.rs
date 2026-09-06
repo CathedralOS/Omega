@@ -199,7 +199,7 @@ fn scalar_call_effect_corruption_fails_independent_replay() {
                 environment.physical(),
                 environment.constraints(),
                 environment.reservations(),
-                environment.allocation_constraint_keys(),
+                &environment.allocation_constraint_keys(),
                 &catalog,
                 plan,
             )

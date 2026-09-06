@@ -37,7 +37,7 @@ pub(super) fn build(
         &[],
         2,
         &mut virtual_registers,
-        context.constraints.keys,
+        &context.constraints.keys,
         context.catalog,
     )?;
     let return_id = 2 + u32::try_from(instructions.len()).map_err(|_| invalid())?;

@@ -178,7 +178,7 @@ fn fixed_view_copies_are_explicit_reanalyzed_and_deterministic() {
                 environment.physical(),
                 environment.constraints(),
                 environment.reservations(),
-                environment.allocation_constraint_keys(),
+                &environment.allocation_constraint_keys(),
                 corrupted,
             ),
             Err(FixedViewCopyError::CopyMismatch { index: 0 })
@@ -210,7 +210,7 @@ fn fixed_view_copies_are_explicit_reanalyzed_and_deterministic() {
                 environment.physical(),
                 environment.constraints(),
                 environment.reservations(),
-                environment.allocation_constraint_keys(),
+                &environment.allocation_constraint_keys(),
                 corrupted,
             ),
             Err(FixedViewCopyError::TransformedPlanMismatch)
@@ -239,7 +239,7 @@ fn fixed_view_copies_are_explicit_reanalyzed_and_deterministic() {
                 environment.physical(),
                 environment.constraints(),
                 environment.reservations(),
-                environment.allocation_constraint_keys(),
+                &environment.allocation_constraint_keys(),
                 corrupted,
             ),
             Err(FixedViewCopyError::ReceiptMismatch)

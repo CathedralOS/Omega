@@ -61,7 +61,7 @@ fn build_homes_and_manifest(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
     )
     .map_err(OptimizedPostLiteralFoldHomeCustodyError::Assignment)?;
     let transformations = literal_fold_transformations(source);
@@ -98,7 +98,7 @@ pub(super) fn construct_register_homes_after_selected_lowering(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
     )
     .map_err(OptimizedPostSelectedLoweringHomeCustodyError::Assignment)?;
     let transformations = selected_lowering_transformations(&source);

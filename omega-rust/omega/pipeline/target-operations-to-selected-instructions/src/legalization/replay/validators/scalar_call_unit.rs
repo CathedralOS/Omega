@@ -15,7 +15,7 @@ pub(in crate::legalization::replay) fn validate_scalar_call_unit_form(
     };
     if form.validator
         != LegalizationValidatorKind::ScalarCallUnit(
-            ScalarCallUnitLegalizationValidatorKind::OrderedU64PairCalls,
+            ScalarCallUnitLegalizationValidatorKind::OrderedU64RegisterCalls,
         )
     {
         return false;

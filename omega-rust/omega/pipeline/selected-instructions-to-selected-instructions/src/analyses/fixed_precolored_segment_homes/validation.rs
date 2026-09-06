@@ -24,7 +24,7 @@ pub fn validate_fixed_precolored_segment_homes(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     candidate: FixedPrecoloredSegmentHomePlan,
 ) -> Result<ValidatedFixedPrecoloredSegmentHomes, FixedPrecoloredSegmentHomeError> {
     validate_roots(
@@ -107,7 +107,7 @@ fn validate_roots(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     candidate: &FixedPrecoloredSegmentHomePlan,
 ) -> Result<(), FixedPrecoloredSegmentHomeError> {
     if candidate.split_requirements != requirements.receipt().identity()

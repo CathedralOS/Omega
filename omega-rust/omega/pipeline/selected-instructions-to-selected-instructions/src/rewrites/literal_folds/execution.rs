@@ -402,7 +402,7 @@ fn build_attempt<S: ValidatedSelectedAnalysis>(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         choice_policy,
         budget,
     )
@@ -427,7 +427,7 @@ fn build_attempt<S: ValidatedSelectedAnalysis>(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         fold_policy,
         budget,
     )
@@ -463,7 +463,7 @@ fn complete_attempt(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
     )
     .map_err(OptimizedLiteralFoldCustodyError::AllocationLegality)?;
     let transition_count = legality.receipt().entry_transition_count();

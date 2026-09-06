@@ -63,26 +63,11 @@ pub(super) fn replay_call(
     else {
         unreachable!()
     };
-    let [left, right] = arguments.as_slice() else {
-        unreachable!()
-    };
     let definition = optimization_unit::ValueDefinition {
         value: result,
         scalar_type: result_home.scalar_type,
         site: optimization_unit::ValueDefinitionSite::Node { block, node: index },
     };
-    let expected_arguments = [
-        LegalizedScalarCallUnitArgument {
-            parameter_index: left.parameter_index,
-            source: left.source,
-            placement: left.placement.clone(),
-        },
-        LegalizedScalarCallUnitArgument {
-            parameter_index: right.parameter_index,
-            source: right.source,
-            placement: right.placement.clone(),
-        },
-    ];
     if node.provenance != [PsiProvenance::Operation(operation)]
         || node.definitions != [definition]
         || !node.successors.is_empty()
@@ -91,7 +76,17 @@ pub(super) fn replay_call(
         || proposed.call_plan != *call_plan
         || proposed.result_home != *result_home
         || proposed.result_definition_site != definition.site
-        || proposed.arguments != expected_arguments
+        || proposed.arguments.len() != arguments.len()
+        || proposed
+            .arguments
+            .iter()
+            .zip(arguments)
+            .any(|(proposed, target)| {
+                proposed.parameter_index != target.parameter_index
+                    || proposed.source != target.source
+                    || proposed.placement != target.placement
+            })
+        || proposed.validate_shape().is_err()
         || proposed.requirement_obligations != *requirement_obligations
         || proposed.crash_continuations != *crash_continuations
         || proposed.fuel != node.fuel

@@ -31,7 +31,7 @@ pub fn analyze_pre_allocation_machine_effects<S: ValidatedSelectedAnalysis>(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     catalog: &ValidatedMachineEffectCatalog,
 ) -> Result<ValidatedPreAllocationMachineEffects, MachineEffectError> {
     let plan = compute::compute_terminal_pre_allocation_machine_effects(

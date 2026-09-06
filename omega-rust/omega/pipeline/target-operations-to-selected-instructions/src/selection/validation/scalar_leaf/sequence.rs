@@ -93,7 +93,7 @@ pub(super) fn validate(
         inputs.len(),
         &selected.virtual_registers[..definitions],
         &block.instructions[..sequence.steps.len()],
-        constraints.keys,
+        &constraints.keys,
         catalog,
     )?;
     if copied {

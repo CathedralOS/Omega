@@ -113,7 +113,7 @@ pub(super) fn validate_initial_roots(
     if constraints.fixed_inputs.len() != expected_fixed_inputs {
         return Err(SelectedInstructionError::SourceCustodyMismatch);
     }
-    require_key_rows(constraints.keys, catalog)
+    require_key_rows(&constraints.keys, catalog)
 }
 
 pub(super) fn validate_structural_roster(

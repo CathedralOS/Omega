@@ -24,7 +24,7 @@ pub(super) fn build(
     else {
         unreachable!("condition entrance selected U64 inequality with zero")
     };
-    let keys = context.constraints.keys;
+    let keys = &context.constraints.keys;
     Ok(SelectedBlock {
         id: SelectedBlockId(0),
         source_block: source.entry_block,

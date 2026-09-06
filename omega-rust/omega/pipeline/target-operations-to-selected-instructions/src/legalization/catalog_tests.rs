@@ -37,7 +37,7 @@ const EXPECTED_RECIPES: [LegalizationFormRecipe; 21] = [
     LegalizationFormRecipe::Scalar(LegalizationRecipe::ReturnU64EqualZeroParameterConditionalV1),
     LegalizationFormRecipe::Scalar(LegalizationRecipe::ReturnU64NotEqualZeroParameterConditionalV1),
     LegalizationFormRecipe::ScalarCallUnit(
-        ScalarCallUnitLegalizationRecipe::OrderedU64PairCallsThenReturnUnitV1,
+        ScalarCallUnitLegalizationRecipe::OrderedU64RegisterCallsThenReturnUnitV1,
     ),
     LegalizationFormRecipe::Unit(UnitLegalizationRecipe::ReturnUnitV1),
     LegalizationFormRecipe::StructuralUnit(StructuralUnitLegalizationRecipe::ReturnUnitV1),
@@ -300,19 +300,19 @@ fn u64_not_equal_zero_catalog_row_freezes_the_exact_source_grammar() {
 #[test]
 fn scalar_call_unit_catalog_row_requires_ordered_calls_without_fixed_counts() {
     let row = legalization_form_for_recipe(LegalizationFormRecipe::ScalarCallUnit(
-        ScalarCallUnitLegalizationRecipe::OrderedU64PairCallsThenReturnUnitV1,
+        ScalarCallUnitLegalizationRecipe::OrderedU64RegisterCallsThenReturnUnitV1,
     ))
     .expect("scalar-call Unit catalog row");
     assert_eq!(
         row.producer_matcher,
         LegalizationProducerMatcherKind::ScalarCallUnit(
-            ScalarCallUnitLegalizationMatcherKind::OrderedU64PairCalls,
+            ScalarCallUnitLegalizationMatcherKind::OrderedU64RegisterCalls,
         )
     );
     assert_eq!(
         row.validator,
         LegalizationValidatorKind::ScalarCallUnit(
-            ScalarCallUnitLegalizationValidatorKind::OrderedU64PairCalls,
+            ScalarCallUnitLegalizationValidatorKind::OrderedU64RegisterCalls,
         )
     );
     let LegalizationShapeConstraints::ScalarCallUnit(constraints) = row.constraints else {
@@ -321,6 +321,13 @@ fn scalar_call_unit_catalog_row_requires_ordered_calls_without_fixed_counts() {
     assert_eq!(constraints.block_count, 1);
     assert_eq!(constraints.minimum_call_count, 1);
     assert_eq!(constraints.scalar_parameter_count, 0);
+    assert_eq!(row.cost.projected_selected_instruction_count, 3);
+    assert_ne!(
+        super::legalization_validator_identity(),
+        optimization_core::OptimizationValidatorIdentity::from_canonical_bytes(
+            b"omega.terminal-target-legalization-independent-replay.v24"
+        )
+    );
 }
 #[test]
 fn exact_sequence_catalog_uses_source_cardinality_not_canned_counts() {

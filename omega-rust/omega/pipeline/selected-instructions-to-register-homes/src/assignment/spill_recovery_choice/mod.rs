@@ -29,7 +29,7 @@ pub fn choose_spill_recovery_victims(
     physical: &register_model::ValidatedPhysicalRegisterModel,
     constraints: &register_model::ValidatedRegisterConstraintCatalog,
     reservations: &register_model::ValidatedRegisterReservationProfile,
-    selected_keys: register_model::TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &register_model::TargetRegisterEnvironmentConstraintKeys,
     policy: SpillRecoveryChoicePolicy,
     budget: optimization_core::OptimizationWorkBudget,
 ) -> Result<ValidatedSpillRecoveryChoices, SpillRecoveryChoiceError> {

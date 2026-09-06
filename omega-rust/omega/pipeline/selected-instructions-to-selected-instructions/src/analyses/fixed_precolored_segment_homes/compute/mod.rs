@@ -31,7 +31,7 @@ pub(super) fn compute(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     policy: FixedPrecoloredSegmentHomePolicy,
     budget: OptimizationWorkBudget,
 ) -> Result<FixedPrecoloredSegmentHomePlan, FixedPrecoloredSegmentHomeError> {

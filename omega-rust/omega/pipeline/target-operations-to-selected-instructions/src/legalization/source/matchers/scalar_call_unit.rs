@@ -30,7 +30,7 @@ pub(in crate::legalization::source) fn match_scalar_call_unit_form(
     LEGALIZATION_FORMS.iter().find(|form| {
         form.producer_matcher
             == LegalizationProducerMatcherKind::ScalarCallUnit(
-                ScalarCallUnitLegalizationMatcherKind::OrderedU64PairCalls,
+                ScalarCallUnitLegalizationMatcherKind::OrderedU64RegisterCalls,
             )
     })
 }

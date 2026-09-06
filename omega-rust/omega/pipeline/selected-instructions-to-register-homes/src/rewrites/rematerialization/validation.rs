@@ -55,7 +55,7 @@ pub fn validate_optimized_active_resident_rematerialization(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         staged.choices.plan().clone(),
     )
     .map_err(OptimizedActiveResidentRematerializationError::SpillChoice)?;
@@ -78,7 +78,7 @@ pub fn validate_optimized_active_resident_rematerialization(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         staged.rematerialization.plan().clone(),
     )
     .map_err(OptimizedActiveResidentRematerializationError::Rematerialization)?;
@@ -96,7 +96,7 @@ pub fn validate_optimized_active_resident_rematerialization(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         staged.legality.plan().clone(),
     )
     .map_err(OptimizedActiveResidentRematerializationError::Legality)?;
@@ -114,7 +114,7 @@ pub fn validate_optimized_active_resident_rematerialization(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         staged.homes.plan().clone(),
     )
     .map_err(OptimizedActiveResidentRematerializationError::Homes)?;

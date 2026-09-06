@@ -149,7 +149,7 @@ pub(super) fn validate(
             ),
             _ => return Err(invalid()),
         };
-    let keys = constraints.keys;
+    let keys = &constraints.keys;
     instruction_projection::validate(
         function,
         &entry.instructions[0],

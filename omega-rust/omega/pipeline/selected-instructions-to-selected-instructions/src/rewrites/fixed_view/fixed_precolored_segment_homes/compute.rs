@@ -52,7 +52,7 @@ pub(super) fn derive(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         FixedPrecoloredSegmentHomePolicy::MostConstrainedLowestCompatibleViewV1,
         budget,
     )

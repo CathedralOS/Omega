@@ -134,7 +134,7 @@ fn disconnected_functions_reach_independent_allocator_and_machine_custody() {
                 environment.physical(),
                 environment.constraints(),
                 environment.reservations(),
-                environment.allocation_constraint_keys(),
+                &environment.allocation_constraint_keys(),
                 corrupted_legality,
             )
             .is_err()
@@ -174,7 +174,7 @@ fn disconnected_functions_reach_independent_allocator_and_machine_custody() {
                 environment.physical(),
                 environment.constraints(),
                 environment.reservations(),
-                environment.allocation_constraint_keys(),
+                &environment.allocation_constraint_keys(),
                 corrupted_homes,
             )
             .is_err()

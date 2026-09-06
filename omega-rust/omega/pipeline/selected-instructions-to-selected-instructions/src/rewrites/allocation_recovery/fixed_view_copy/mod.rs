@@ -29,7 +29,7 @@ pub fn materialize_fixed_view_copies(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     policy: FixedViewCopyPolicy,
     budget: optimization_core::OptimizationWorkBudget,
 ) -> Result<ValidatedFixedViewCopies, FixedViewCopyError> {

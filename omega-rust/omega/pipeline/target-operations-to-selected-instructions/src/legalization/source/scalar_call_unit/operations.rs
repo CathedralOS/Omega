@@ -122,7 +122,7 @@ pub(super) fn home(
 
 pub(super) fn validate_call_sources(
     operation: &TargetUnitOperation,
-    expected: [TargetUnitScalarArgumentSource; 2],
+    expected: &[TargetUnitScalarArgumentSource],
     function: usize,
 ) -> Result<(), LegalizationError> {
     let TargetUnitOperation::ScalarCall {
@@ -134,17 +134,20 @@ pub(super) fn validate_call_sources(
     else {
         unreachable!()
     };
-    let [left, right] = arguments.as_slice() else {
+    if arguments.len() != expected.len() || call_plan.parameters.len() != arguments.len() {
         return Err(Error::UnsupportedSourceShape { function });
-    };
-    if call_plan.parameters.len() != 2
-        || call_plan.result.as_ref().map(|value| value.shape) != Some(result_home.shape)
-        || left.parameter_index != 0
-        || right.parameter_index != 1
-        || left.source != expected[0]
-        || right.source != expected[1]
-        || left.placement != call_plan.parameters[0]
-        || right.placement != call_plan.parameters[1]
+    }
+    if call_plan.result.as_ref().map(|value| value.shape) != Some(result_home.shape)
+        || arguments
+            .iter()
+            .zip(expected)
+            .zip(&call_plan.parameters)
+            .enumerate()
+            .any(|(index, ((argument, source), placement))| {
+                u32::try_from(index) != Ok(argument.parameter_index)
+                    || argument.source != *source
+                    || argument.placement != *placement
+            })
     {
         return Err(Error::SourceCustodyMismatch);
     }

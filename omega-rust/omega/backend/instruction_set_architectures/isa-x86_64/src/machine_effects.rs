@@ -19,7 +19,7 @@ use crate::{
     X86_64_CONDITIONAL_BRANCH, X86_64_COPY_I64, X86_64_MATERIALIZE_I64,
     X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR, X86_64_MICROSOFT_RETURN,
     X86_64_MICROSOFT_RETURN_UNIT, X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE,
-    X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64, X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT,
+    X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT, x86_64_system_v_register_call_keys,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,7 +51,7 @@ pub fn x86_64_machine_effect_catalog(
     Ok(MachineEffectCatalog {
         target,
         register_constraints: constraints.identity(),
-        selected_keys,
+        selected_keys: selected_keys.clone(),
         structural_unit_call: selected_keys.structural_unit_call.map(|constraint| {
             selected_instructions::StructuralUnitCallEffectDeclaration {
                 constraint,
@@ -70,14 +70,13 @@ pub fn x86_64_machine_effect_catalog(
                 cleanup: MachineCleanupEffect::NoneV1,
             }
         }),
-        declarations: MachineSemanticKind::ALL
-            .into_iter()
-            .filter_map(|semantic| {
-                selected_keys
-                    .for_semantic(semantic)
-                    .map(|_| declaration(semantic, selected_keys, constraints))
-            })
-            .collect(),
+        declarations: selected_keys.declaration_keys().into_iter().map(|(semantic, constraint)| {
+            if semantic == MachineSemanticKind::CallI64 {
+                scalar_call_declaration(constraint, constraints)
+            } else {
+                declaration(semantic, &selected_keys)
+            }
+        }).collect(),
     })
 }
 
@@ -120,8 +119,11 @@ fn selected_keys(
     Ok(SelectedConstraintKeys {
         structural_unit_call: matches!(target.object_format, ObjectFormat::Coff)
             .then_some(X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR),
-        call_i64_2_u64_to_u64: matches!(target.object_format, ObjectFormat::Elf)
-            .then_some(X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64),
+        call_i64: if matches!(target.object_format, ObjectFormat::Elf) {
+            x86_64_system_v_register_call_keys()
+        } else {
+            Vec::new()
+        },
         materialize_i64: X86_64_MATERIALIZE_I64,
         copy_i64: X86_64_COPY_I64,
         add_i64: X86_64_ADD_I64,
@@ -139,12 +141,8 @@ fn selected_keys(
 
 fn declaration(
     semantic: MachineSemanticKind,
-    keys: SelectedConstraintKeys,
-    constraints: &ValidatedRegisterConstraintCatalog,
+    keys: &SelectedConstraintKeys,
 ) -> MachineEffectDeclaration {
-    if semantic == MachineSemanticKind::CallI64 {
-        return scalar_call_declaration(keys, constraints);
-    }
     let alternatives = match semantic {
         MachineSemanticKind::ExactAddI64 => vec![alternative(
             semantic,

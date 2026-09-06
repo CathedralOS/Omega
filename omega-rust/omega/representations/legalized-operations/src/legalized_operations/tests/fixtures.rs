@@ -329,7 +329,7 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
             call_plan: call_plan.clone(),
             result_home: home(index),
             result_definition_site: definition(index as u32),
-            arguments: [argument(0, sources[0]), argument(1, sources[1])],
+            arguments: vec![argument(0, sources[0]), argument(1, sources[1])],
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
             fuel: fuel(operations[index]),
@@ -345,7 +345,7 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
                 operations: operations.to_vec(),
                 edges: vec![edge],
             },
-            recipe: ScalarCallUnitLegalizationRecipe::OrderedU64PairCallsThenReturnUnitV1,
+            recipe: ScalarCallUnitLegalizationRecipe::OrderedU64RegisterCallsThenReturnUnitV1,
             entry_block: block,
             operations: vec![
                 LegalizedScalarCallUnitOperation::Constant(constant(0, 7)),

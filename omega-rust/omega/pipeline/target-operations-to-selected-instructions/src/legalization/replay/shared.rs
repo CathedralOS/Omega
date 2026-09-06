@@ -3,8 +3,8 @@ pub(super) use calling_conventions::{CallSignature, CallingPolicy, evaluate_call
 pub(super) use legalized_operations::{
     LegalizationRecipe, LegalizationTheorem, LegalizedCondition, LegalizedConditionParameter,
     LegalizedConditionalFunction as LegalizedFunction, LegalizedImmediate, LegalizedLeaf,
-    LegalizedLeafValue, LegalizedOperationPlan, LegalizedScalarCallUnitArgument,
-    LegalizedScalarCallUnitCall, LegalizedScalarCallUnitConstant, LegalizedScalarCallUnitFunction,
+    LegalizedLeafValue, LegalizedOperationPlan, LegalizedScalarCallUnitCall,
+    LegalizedScalarCallUnitConstant, LegalizedScalarCallUnitFunction,
     LegalizedScalarCallUnitOperation, LegalizedStructuralUnitFunction, LegalizedTemporaryId,
     LegalizedUnitFunction,
 };

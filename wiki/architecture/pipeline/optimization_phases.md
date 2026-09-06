@@ -334,7 +334,7 @@ sequences by tree shape or chain length. The same representation carries the
 existing conditional pressure graphs; rematerialization remains an opt-in
 rewrite over their ordinary instructions, not a special source-program kind.
 Independent replay checks definition order, operand identity, accepted arithmetic
-facts and logical fuel. Legalized identity v24 binds these ordered steps; the
+facts and logical fuel. Legalized identity v25 binds these ordered steps; the
 retired chain-specific tags are not reused. Incoming stack arguments and other
 scalar operations remain outside this sequence contract.
 The direct-return conditional forms include unsigned equality and inequality,
@@ -357,7 +357,7 @@ outside this scalar migration. Direct-return controls start at separately
 authored, verified Terminal products; shared-return controls start at Omega
 source and pass through ordinary Terminal publication and resumed lowering.
 The shared selected call path accepts ordered straight-line attached-Unit
-sequences of U64 constants and pair-argument U64 calls to admitted, call-free
+sequences of U64 constants and register-argument U64 calls to admitted, call-free
 scalar functions. Constant and call counts, constant equality, call target
 identity, and use of earlier results do not select a special graph recipe.
 Each call retains its exact ABI and source operation; allocation sees explicit
@@ -378,6 +378,17 @@ manufacture stack-held result records for values in preserved registers.
 Installation replay composes WCSU from those same frame and call facts, taking
 the maximum across sequential calls. Other call ABIs and
 targets remain explicit prerequisites of physical-route convergence.
+Register-call argument counts come from the checked call plan, including zero;
+they do not select different source-program recipes. The target catalog supplies
+one exact constraint and effect row per admitted ABI register roster. Selection
+and independent replay check every argument's source, dense parameter ordinal,
+fixed register and result placement. Encoding checks the same exact register
+roster while preserving the target's ordinary call bytes and relocation. The
+current System V AMD64 and AAPCS64 routes admit all-register U64 signatures;
+an argument requiring stack placement remains outside this contract. Legalized
+identity v25 frames the variable argument list and retires the pair-only recipe
+tag; register-environment v9 and machine-effect catalog v11 bind the arity-key
+roster. Empty physical selection uses the same admission and encoding route.
 The existing Microsoft-x64 structural Unit family also reaches this shared
 object, image and installation path with empty or nonempty selections: an
 owned-indirect pair leaf, or one entry caller passing that pair to one leaf.

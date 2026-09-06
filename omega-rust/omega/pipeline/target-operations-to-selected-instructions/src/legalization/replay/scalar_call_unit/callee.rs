@@ -1,4 +1,4 @@
-//! Exact memory-free pair-call callee roster join.
+//! Exact memory-free register-call callee roster join.
 
 use super::super::shared::*;
 

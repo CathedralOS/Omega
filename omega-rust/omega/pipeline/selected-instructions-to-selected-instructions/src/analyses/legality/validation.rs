@@ -28,7 +28,7 @@ pub fn validate_optimized_allocation_legality_custody(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         availability.plan().clone(),
     )
     .map_err(OptimizedAllocationLegalityCustodyError::Availability)?;
@@ -42,7 +42,7 @@ pub fn validate_optimized_allocation_legality_custody(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         legality.plan().clone(),
     )
     .map_err(OptimizedAllocationLegalityCustodyError::Revalidation)?;

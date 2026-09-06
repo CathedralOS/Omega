@@ -17,7 +17,7 @@ pub(in crate::selection) fn validate(
     first_register: usize,
     registers: &[VirtualRegister],
     instructions: &[SelectedInstruction],
-    keys: SelectedConstraintKeys,
+    keys: &SelectedConstraintKeys,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let invalid = || SelectedInstructionError::FunctionProjectionMismatch { function };

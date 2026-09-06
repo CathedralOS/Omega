@@ -15,11 +15,11 @@ mod scalar_call;
 use scalar_call::declaration as scalar_call_declaration;
 
 use crate::{
-    AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64, AARCH64_AAPCS64_RETURN, AARCH64_AAPCS64_RETURN_UNIT,
-    AARCH64_ADD_I64, AARCH64_ADD_I64_IMMEDIATE, AARCH64_COMPARE_I64, AARCH64_COMPARE_I64_ZERO,
+    AARCH64_AAPCS64_RETURN, AARCH64_AAPCS64_RETURN_UNIT, AARCH64_ADD_I64,
+    AARCH64_ADD_I64_IMMEDIATE, AARCH64_COMPARE_I64, AARCH64_COMPARE_I64_ZERO,
     AARCH64_CONDITIONAL_BRANCH, AARCH64_COPY_I64, AARCH64_DARWIN_RETURN,
     AARCH64_DARWIN_RETURN_UNIT, AARCH64_MATERIALIZE_I64, AARCH64_SUBTRACT_I64,
-    AARCH64_SUBTRACT_I64_IMMEDIATE,
+    AARCH64_SUBTRACT_I64_IMMEDIATE, aarch64_aapcs64_register_call_keys,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,14 +51,17 @@ pub fn aarch64_machine_effect_catalog(
     Ok(MachineEffectCatalog {
         target,
         register_constraints: constraints.identity(),
-        selected_keys,
+        selected_keys: selected_keys.clone(),
         structural_unit_call: None,
-        declarations: MachineSemanticKind::ALL
+        declarations: selected_keys
+            .declaration_keys()
             .into_iter()
-            .filter_map(|semantic| {
-                selected_keys
-                    .for_semantic(semantic)
-                    .map(|_| declaration(semantic, selected_keys, constraints))
+            .map(|(semantic, constraint)| {
+                if semantic == MachineSemanticKind::CallI64 {
+                    scalar_call_declaration(constraint, constraints)
+                } else {
+                    declaration(semantic, &selected_keys)
+                }
             })
             .collect(),
     })
@@ -102,8 +105,11 @@ fn selected_keys(
     };
     Ok(SelectedConstraintKeys {
         structural_unit_call: None,
-        call_i64_2_u64_to_u64: matches!(target.object_format, ObjectFormat::Elf)
-            .then_some(AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64),
+        call_i64: if matches!(target.object_format, ObjectFormat::Elf) {
+            aarch64_aapcs64_register_call_keys()
+        } else {
+            Vec::new()
+        },
         materialize_i64: AARCH64_MATERIALIZE_I64,
         copy_i64: AARCH64_COPY_I64,
         add_i64: AARCH64_ADD_I64,
@@ -121,12 +127,8 @@ fn selected_keys(
 
 fn declaration(
     semantic: MachineSemanticKind,
-    keys: SelectedConstraintKeys,
-    constraints: &ValidatedRegisterConstraintCatalog,
+    keys: &SelectedConstraintKeys,
 ) -> MachineEffectDeclaration {
-    if semantic == MachineSemanticKind::CallI64 {
-        return scalar_call_declaration(keys, constraints);
-    }
     MachineEffectDeclaration {
         semantic,
         constraint: keys

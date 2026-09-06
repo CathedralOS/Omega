@@ -42,7 +42,7 @@ fn exact_add_pressure_reaches_deterministic_homes_on_both_architectures() {
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
             SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
             OptimizationWorkBudget::new(100, 100, 1_000, 100, 1).unwrap(),
         )

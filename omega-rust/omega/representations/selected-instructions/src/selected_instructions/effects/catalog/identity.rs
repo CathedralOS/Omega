@@ -12,9 +12,15 @@ pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v10\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v11\0");
     encode_target(&mut bytes, catalog.target);
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
+    // Preserve role boundaries before the ordered keys: a structural call
+    // key must not alias the first key in a scalar argument-count roster.
+    bytes.push(u8::from(
+        catalog.selected_keys.structural_unit_call.is_some(),
+    ));
+    encode_len(&mut bytes, catalog.selected_keys.call_i64.len());
     let selected_keys = catalog.selected_keys.in_identity_order();
     encode_len(&mut bytes, selected_keys.len());
     for key in selected_keys {
@@ -358,10 +364,10 @@ mod tests {
                 family: RegisterConstraintFamily::Call,
                 variant: 2,
             }),
-            call_i64_2_u64_to_u64: Some(RegisterConstraintKey {
+            call_i64: vec![RegisterConstraintKey {
                 family: RegisterConstraintFamily::Call,
                 variant: 3,
-            }),
+            }],
             materialize_i64: instruction(0),
             copy_i64: instruction(1),
             add_i64: instruction(2),
@@ -387,6 +393,7 @@ mod tests {
         let keys = keys();
         let constraint = keys
             .for_semantic(semantic)
+            .or_else(|| (semantic == MachineSemanticKind::CallI64).then_some(keys.call_i64[0]))
             .expect("test catalog declares every semantic constraint");
         MachineEffectDeclaration {
             semantic,
@@ -498,5 +505,26 @@ mod tests {
         let mut changed = source;
         changed.declarations[0].barrier = MachineBarrier::ControlFlow;
         assert_ne!(baseline, machine_effect_catalog_identity(&changed));
+    }
+
+    #[test]
+    fn identity_distinguishes_call_arity_order_and_role_boundaries() {
+        let mut source = catalog();
+        source.selected_keys.call_i64.push(RegisterConstraintKey {
+            family: RegisterConstraintFamily::Call,
+            variant: 4,
+        });
+        let baseline = machine_effect_catalog_identity(&source);
+        let mut reordered = source.clone();
+        reordered.selected_keys.call_i64.swap(0, 1);
+        assert_ne!(baseline, machine_effect_catalog_identity(&reordered));
+        let mut relabeled = source.clone();
+        let structural_key = relabeled.selected_keys.structural_unit_call.take().unwrap();
+        relabeled.selected_keys.call_i64.insert(0, structural_key);
+        assert_eq!(
+            source.selected_keys.in_identity_order(),
+            relabeled.selected_keys.in_identity_order()
+        );
+        assert_ne!(baseline, machine_effect_catalog_identity(&relabeled));
     }
 }

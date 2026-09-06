@@ -20,7 +20,7 @@ pub fn analyze_allocation_legality(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> Result<ValidatedAllocationLegality, AllocationLegalityError> {
     let plan = compute::compute_terminal_allocation_legality(
         ranges,

@@ -4,6 +4,7 @@ mod constraints;
 mod construction;
 mod identity;
 mod model;
+mod scalar_call_abi;
 mod shared;
 mod validation;
 

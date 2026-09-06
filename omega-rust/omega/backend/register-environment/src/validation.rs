@@ -51,7 +51,7 @@ pub(super) fn validate_target_register_environment_join(
         &physical,
         &constraints,
         &reservations,
-        selected_environment_keys(selected_keys),
+        &selected_environment_keys(selected_keys.clone()),
     );
     Ok(ValidatedTargetRegisterEnvironment::new(
         target,

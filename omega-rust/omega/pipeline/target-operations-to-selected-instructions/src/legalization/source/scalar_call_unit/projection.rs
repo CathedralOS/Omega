@@ -48,9 +48,6 @@ pub(super) fn project(
                 else {
                     unreachable!()
                 };
-                let [left, right] = arguments.as_slice() else {
-                    unreachable!()
-                };
                 Ok(LegalizedScalarCallUnitOperation::Call(
                     LegalizedScalarCallUnitCall {
                         operation: *psi_operation,
@@ -58,7 +55,7 @@ pub(super) fn project(
                         call_plan: call_plan.clone(),
                         result_home: *result_home,
                         result_definition_site: node.definitions[0].site,
-                        arguments: [project_argument(left), project_argument(right)],
+                        arguments: arguments.iter().map(project_argument).collect(),
                         requirement_obligations: requirement_obligations.clone(),
                         crash_continuations: crash_continuations.clone(),
                         fuel: exact_operation_fuel(node, *psi_operation, function)
@@ -76,7 +73,7 @@ pub(super) fn project(
         machine: matched.target.machine,
         attachment: matched.attachment,
         provenance: matched.target.provenance.clone(),
-        recipe: ScalarCallUnitLegalizationRecipe::OrderedU64PairCallsThenReturnUnitV1,
+        recipe: ScalarCallUnitLegalizationRecipe::OrderedU64RegisterCallsThenReturnUnitV1,
         entry_block: matched.block.id,
         operations,
         return_edge: matched.return_edge,

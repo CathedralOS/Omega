@@ -80,12 +80,12 @@ impl ValidatedTargetRegisterEnvironment {
         self.constraint(super::catalog::scalar_call_constraint_key(self.target)?)
     }
 
-    pub const fn selected_keys(&self) -> SelectedConstraintKeys {
-        self.selected_keys
+    pub fn selected_keys(&self) -> SelectedConstraintKeys {
+        self.selected_keys.clone()
     }
 
-    pub const fn allocation_constraint_keys(&self) -> TargetRegisterEnvironmentConstraintKeys {
-        selected_environment_keys(self.selected_keys)
+    pub fn allocation_constraint_keys(&self) -> TargetRegisterEnvironmentConstraintKeys {
+        selected_environment_keys(self.selected_keys.clone())
     }
 
     pub fn fixed_register_view(
