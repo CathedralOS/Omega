@@ -418,12 +418,18 @@ coordinates publishing across machines; it does not assign work ownership.
 
 ### Agent delegation
 
-Use Astra to coordinate bounded workers when delegation helps. Route fully
-specified work with understood dependencies and measurable acceptance to Luna;
-use Astra or stronger reasoning for cross-component uncertainty, semantic risk,
-or unclear implementation invariants. Choose from the objective and evidence,
-not a claim that a model is universally safe. A single bounded change can stay
-with one agent; parallelize independent work with one edit owner per change.
+Use Astra for coordination and delegated work requiring judgment: repository
+refactoring, architecture or ownership decisions, performance analysis, semantic
+review, and skill evaluation or improvement. A bounded task or detailed prompt
+does not make that work mechanical.
+
+Use Luna only for straightforward execution after the decisions are settled:
+applying an exact edit recipe, repetitive mechanical changes, or running already
+specified checks. The assignment must leave no architectural, behavioral, or
+tradeoff decisions to the worker and must include concrete acceptance checks.
+If such decisions emerge, stop that worker's implementation and route the work
+to Astra. A single bounded change can stay with one agent; parallelize independent
+work with one edit owner per change.
 
 Assignments need the objective and rationale, anchor files and governing design
 links, ownership boundary, dependencies, acceptance command or artifact, and
