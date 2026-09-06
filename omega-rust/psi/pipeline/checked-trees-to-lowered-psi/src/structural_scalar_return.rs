@@ -121,17 +121,23 @@ pub(super) fn lower_trait_operator_scalar_return_machine(
         &synthesized_realization
     };
 
-    let mut staged = checked.clone();
-    staged.facts.values.scalar_expressions.expressions.push(
-        checked_trees::CheckedLocatedScalarExpression {
-            state: plan.realization_state,
-            statement_ordinal: 0,
-            role: CheckedScalarExpressionRole::Return,
-            expression: plan.realization_return_expression.clone(),
-        },
-    );
+    let (_, authored_return) = checked
+        .facts
+        .values
+        .scalar_expressions
+        .bound_expression_at(
+            plan.realization_state,
+            0,
+            CheckedScalarExpressionRole::Return,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "trait operator realization has no unique source-bound return plan",
+        ))?;
+    if authored_return != &plan.realization_return_expression {
+        return unsupported("trait operator realization disagrees with its source-bound return");
+    }
     let mut lowered = lower_structural_scalar_return_machine_in_namespace(
-        &staged,
+        checked,
         realization,
         machine_id(2),
         TERMINAL_MACHINE_IDENTITY_STRIDE,
@@ -993,6 +999,18 @@ mod trait_operator_tests {
             .name
             .clone();
         let lowered = lower_machine(&checked, &name).expect("lower exact operator closure");
+        let mut substituted = checked.clone();
+        substituted
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .trait_operator_machines[0]
+            .realization_return_expression =
+            CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::Constant(false)));
+        assert!(
+            lower_machine(&substituted, &name).is_err(),
+            "selected realization cannot substitute its authored return value"
+        );
         assert_eq!(lowered.semantic_module.machines.len(), 2);
         assert_eq!(
             lowered

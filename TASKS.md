@@ -470,9 +470,9 @@ Owners include
   evaluation points and activate staged loans at their evaluation points.
   Complete typed computation plans for remaining numeric policies and selected
   operator calls and borrowed/projected operands and writes.
-  Rejoin pure scalar expression facts to their authored expressions, beyond
-  the current statement/role coordinates; replacing a guard must not reuse
-  a stale pure-expression row.
+  Extend source-bound scalar operand custody to boundary and Unit call arguments;
+  their call-occurrence and mixed-parameter namespaces must retain exact authored
+  operands rather than relying on statement/role coordinates alone.
   Complete nonliteral contract arithmetic and callee-result bounds requiring
   caller-specific snapshots beyond immutable scalar formal comparisons; carry
   those facts into nested exact-cast obligations without rereading arguments.

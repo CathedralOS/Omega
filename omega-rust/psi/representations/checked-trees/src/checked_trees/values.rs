@@ -6,6 +6,9 @@ use typed_trees::types::TypeReferenceHandle;
 mod computations;
 pub use computations::*;
 
+#[cfg(test)]
+mod tests;
+
 pub type CheckedValueHandle = Handle<CheckedValueFact>;
 
 /// A checker-established inclusive integer interval for one value at its exact
@@ -117,8 +120,8 @@ impl CheckedValueFacts {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedScalarExpressionPlans {
     pub expressions: Vec<CheckedLocatedScalarExpression>,
-    /// Source custody for plans consumed by proof. Plans without a retained
-    /// binding row cannot recover values by reconstructing a positional scope.
+    /// Source custody for selected scalar plans consumed by proof and lowering.
+    /// Plans without a retained row cannot reconstruct a positional scope.
     pub source_bindings: Arena<CheckedScalarExpressionBindings>,
     pub binding_symbols: Arena<SymbolHandle>,
 }
@@ -152,6 +155,36 @@ impl Default for CheckedScalarExpressionBindings {
 }
 
 impl CheckedScalarExpressionPlans {
+    /// Select one custody row and one plan at the exact source coordinate.
+    /// Expected handles and destinations are checked only after uniqueness;
+    /// filtering by those values could conceal conflicting custody rows.
+    pub fn bound_expression_at(
+        &self,
+        state: SymbolHandle,
+        statement_ordinal: u32,
+        role: CheckedScalarExpressionRole,
+    ) -> Option<(&CheckedScalarExpressionBindings, &CheckedScalarExpression)> {
+        let mut bindings = self.source_bindings.iter().filter(|(_, binding)| {
+            binding.state == state
+                && binding.statement_ordinal == statement_ordinal
+                && binding.role == role
+        });
+        let (_, binding) = bindings.next()?;
+        if bindings.next().is_some() {
+            return None;
+        }
+        let mut expressions = self.expressions.iter().filter(|expression| {
+            expression.state == state
+                && expression.statement_ordinal == statement_ordinal
+                && expression.role == role
+        });
+        let expression = &expressions.next()?.expression;
+        if expressions.next().is_some() {
+            return None;
+        }
+        Some((binding, expression))
+    }
+
     pub fn expression_at(
         &self,
         state: SymbolHandle,

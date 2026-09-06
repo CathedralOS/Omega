@@ -27,6 +27,8 @@ mod crash_destinations;
 mod integer_computations;
 #[path = "scalar_return_calls_source/parameter_result_contracts.rs"]
 mod parameter_result_contracts;
+#[path = "scalar_return_calls_source/pure_source_custody.rs"]
+mod pure_source_custody;
 
 fn encoded(source: &str) -> (Vec<u8>, Vec<u8>) {
     encoded_arms(source, false)
