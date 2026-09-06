@@ -1859,10 +1859,8 @@ pub(super) fn checked_boolean_proposition(
                 .collect::<Result<Vec<_>, _>>()?;
             propositions.sort_by(|left, right| left.0.cmp(&right.0));
             propositions.dedup_by(|left, right| left.0 == right.0);
-            if propositions.len() < 2 {
-                return unsupported(
-                    "scalar crash connective must retain at least two distinct predicates",
-                );
+            if propositions.len() == 1 {
+                return Ok(propositions.pop().expect("one distinct crash predicate").1);
             }
             let propositions = propositions
                 .into_iter()

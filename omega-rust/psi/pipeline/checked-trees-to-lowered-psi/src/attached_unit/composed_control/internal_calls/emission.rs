@@ -32,10 +32,11 @@ pub(in crate::attached_unit::composed_control) fn emit_call_operation(
     let arguments = crate::attached_unit::argument_evaluation::validated_values(
         scalar_values,
         &target.scalar_parameters,
-    )?
-    .into_iter()
-    .map(|value| value.id)
-    .collect();
+    )?;
+    // Instantiate against completed arguments, never callee-local value IDs or
+    // a second evaluation of the authored argument expressions.
+    let crash_continuations =
+        lower_checked_crash_route_buckets(&target.parameter_relative_crash_routes, &arguments)?;
     let id = operations.allocate();
     operations.record_source_call(
         SourceCallCoordinate {
@@ -55,11 +56,11 @@ pub(in crate::attached_unit::composed_control) fn emit_call_operation(
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             callee: target.id,
-            arguments,
+            arguments: arguments.into_iter().map(|value| value.id).collect(),
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
-            crash_continuations: target.crash_routes.clone(),
+            crash_continuations,
         },
     });
     Ok(())

@@ -44,6 +44,203 @@ pub(super) fn substitute_crash_routes(
         .collect()
 }
 
+pub(super) fn validate_call_crash_coverage(
+    caller: &TerminalMachine,
+    continuations: &[CrashRouteBucket],
+    operation: OperationId,
+) -> Result<(), ModuleError> {
+    let published_routes = normalized_crash_routes(&caller.contract.crash_routes);
+    let covered = |continuation: &CrashRouteBucket| {
+        published_routes.iter().any(|published| {
+            published.cause == continuation.cause
+                && (published.alternatives == [CrashRouteGuard::Truth]
+                    || continuation
+                        .alternatives
+                        .iter()
+                        .all(|route| published.alternatives.contains(route)))
+        })
+    };
+    if normalized_crash_routes(continuations).iter().all(covered) {
+        return Ok(());
+    }
+    // Invocation routes remain exact in the caller's actual-value namespace.
+    // Only ceiling coverage may follow independently reconstructed CFG copies.
+    let forwarded = forwarded_formal_values(caller);
+    for continuation in normalized_crash_routes(&substitute_crash_routes(continuations, &forwarded))
+    {
+        if !covered(&continuation) {
+            return Err(ModuleError::CallCrashContinuationUncovered {
+                operation,
+                cause: continuation.cause,
+            });
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn crash_routes_match(
+    actual: &[CrashRouteBucket],
+    expected: &[CrashRouteBucket],
+) -> bool {
+    // Comparison normalization is not permission to publish noncanonical route
+    // rosters. Keep the artifact's cause and alternative ordering fences.
+    if actual.windows(2).any(|pair| pair[0].cause >= pair[1].cause)
+        || actual.iter().any(|bucket| {
+            bucket.alternatives.is_empty()
+                || bucket
+                    .alternatives
+                    .windows(2)
+                    .any(|pair| pair[0] >= pair[1])
+                || (bucket.alternatives.contains(&CrashRouteGuard::Truth)
+                    && bucket.alternatives != [CrashRouteGuard::Truth])
+                || bucket.alternatives.iter().any(|guard| {
+                    matches!(guard, CrashRouteGuard::Predicate(predicate)
+                        if predicate.proposition().validate().is_err())
+                })
+        })
+    {
+        return false;
+    }
+    actual == expected || normalized_crash_routes(actual) == normalized_crash_routes(expected)
+}
+
+fn normalized_crash_routes(routes: &[CrashRouteBucket]) -> Vec<CrashRouteBucket> {
+    fn normalize(proposition: &Proposition) -> Proposition {
+        match proposition {
+            Proposition::Conjunction(children) | Proposition::Disjunction(children) => {
+                let conjunction = matches!(proposition, Proposition::Conjunction(_));
+                let mut flattened = Vec::new();
+                for child in children {
+                    match normalize(child) {
+                        Proposition::Conjunction(nested) if conjunction => flattened.extend(nested),
+                        Proposition::Disjunction(nested) if !conjunction => {
+                            flattened.extend(nested)
+                        }
+                        child => flattened.push(child),
+                    }
+                }
+                flattened.sort();
+                flattened.dedup();
+                if flattened.len() == 1 {
+                    flattened.pop().expect("one connective member")
+                } else if conjunction {
+                    Proposition::Conjunction(flattened)
+                } else {
+                    Proposition::Disjunction(flattened)
+                }
+            }
+            Proposition::Implication {
+                premise,
+                conclusion,
+            } => Proposition::Implication {
+                premise: Box::new(normalize(premise)),
+                conclusion: Box::new(normalize(conclusion)),
+            },
+            _ => proposition.clone(),
+        }
+    }
+    routes
+        .iter()
+        .map(|bucket| {
+            let mut alternatives = bucket
+                .alternatives
+                .iter()
+                .map(|guard| match guard {
+                    CrashRouteGuard::Truth => CrashRouteGuard::Truth,
+                    CrashRouteGuard::Predicate(predicate) => CrashRouteGuard::Predicate(
+                        CrashPredicateTerm::new(normalize(predicate.proposition())),
+                    ),
+                })
+                .collect::<Vec<_>>();
+            alternatives.sort();
+            alternatives.dedup();
+            CrashRouteBucket {
+                cause: bucket.cause,
+                alternatives,
+            }
+        })
+        .collect()
+}
+
+fn forwarded_formal_values(machine: &TerminalMachine) -> BTreeMap<ValueId, ScalarTerm> {
+    let mut incoming = machine
+        .blocks
+        .iter()
+        .map(|block| (block.id, Vec::<Option<&[ValueId]>>::new()))
+        .collect::<BTreeMap<_, _>>();
+    for block in &machine.blocks {
+        let mut retain = |target, arguments| {
+            if let Some(edges) = incoming.get_mut(&target) {
+                edges.push(arguments);
+            }
+        };
+        match &block.terminator {
+            Terminator::Jump {
+                target, arguments, ..
+            } => retain(*target, Some(arguments.as_slice())),
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                retain(when_true.target, Some(when_true.arguments.as_slice()));
+                retain(when_false.target, Some(when_false.arguments.as_slice()));
+            }
+            Terminator::StructuralCase { cases, .. } => {
+                for case in cases {
+                    // Payload extraction is not a scalar-parameter copy.
+                    retain(case.target, None);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut known = machine
+        .parameters
+        .iter()
+        .map(|parameter| {
+            (
+                parameter.id,
+                ScalarTerm::value(parameter.id, parameter.scalar_type),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    loop {
+        let mut changed = false;
+        for block in &machine.blocks {
+            let predecessors = &incoming[&block.id];
+            if block.id == machine.entry
+                || predecessors.is_empty()
+                || predecessors.iter().any(|arguments| {
+                    arguments.is_none_or(|arguments| arguments.len() != block.parameters.len())
+                })
+            {
+                continue;
+            }
+            for (position, parameter) in block.parameters.iter().enumerate() {
+                if known.contains_key(&parameter.id) {
+                    continue;
+                }
+                let mut values = predecessors.iter().map(|arguments| {
+                    known.get(&arguments.expect("complete incoming scalar roster")[position])
+                });
+                let Some(Some(formal)) = values.next() else {
+                    continue;
+                };
+                if formal.scalar_type() == parameter.scalar_type
+                    && values.all(|value| value == Some(formal))
+                {
+                    known.insert(parameter.id, formal.clone());
+                    changed = true;
+                }
+            }
+        }
+        if !changed {
+            return known;
+        }
+    }
+}
+
 pub(super) fn validate_crash_frontiers(
     module: &TerminalModule,
     machine: &TerminalMachine,

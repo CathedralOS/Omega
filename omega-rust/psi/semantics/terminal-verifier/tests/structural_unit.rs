@@ -3848,6 +3848,158 @@ fn unit_call_crash_routes_substitute_structural_parameters() {
     );
 }
 
+#[test]
+fn unit_crash_ceiling_follows_only_unanimous_cfg_formal_copies() {
+    let mut module = hard_root_module();
+    let declaration = |id| ValueDeclaration {
+        id: value_id(id),
+        scalar_type: ScalarType::Boolean,
+    };
+    let route = |id| {
+        let mut terms = [
+            ScalarTerm::boolean(true),
+            ScalarTerm::value(value_id(id), ScalarType::Boolean),
+        ];
+        terms.sort();
+        CrashRouteBucket {
+            cause: CrashCause::Abort,
+            alternatives: vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+                Proposition::Equal(terms[0].clone(), terms[1].clone()),
+            ))],
+        }
+    };
+    module.machines[0].parameters = vec![declaration(10), declaration(11)];
+    module.machines[1].parameters = vec![declaration(20)];
+    module.machines[0].contract.crash_routes = vec![route(11)];
+    module.machines[1].contract.crash_routes = vec![route(20)];
+    let mut completion = module.machines[0].blocks[0].clone();
+    completion.id = block_id(103);
+    completion.parameters = vec![declaration(30)];
+    let OperationKind::CallUnit {
+        arguments,
+        crash_continuations,
+        ..
+    } = &mut completion.operations[0].kind
+    else {
+        unreachable!()
+    };
+    *arguments = vec![value_id(30)];
+    *crash_continuations = vec![route(30)];
+    let bridge = |block, parameter, edge| Block {
+        id: block_id(block),
+        parameters: vec![declaration(parameter)],
+        operations: Vec::new(),
+        terminator: Terminator::Jump {
+            edge: edge_id(edge),
+            target: completion.id,
+            arguments: vec![value_id(parameter)],
+            trivial_affine_discards: Vec::new(),
+        },
+    };
+    module.machines[0].blocks = vec![
+        Block {
+            id: block_id(1),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::Conditional {
+                condition: value_id(10),
+                when_true: SuccessorEdge {
+                    edge: edge_id(100),
+                    target: block_id(101),
+                    arguments: vec![value_id(11)],
+                    trivial_affine_discards: Vec::new(),
+                },
+                when_false: SuccessorEdge {
+                    edge: edge_id(101),
+                    target: block_id(102),
+                    arguments: vec![value_id(11)],
+                    trivial_affine_discards: Vec::new(),
+                },
+            },
+        },
+        bridge(101, 40, 102),
+        bridge(102, 50, 103),
+        completion,
+    ];
+    validate_module(&module).expect("both incoming paths retain the same machine formal");
+
+    let mut conflicting = module.clone();
+    let Terminator::Conditional { when_false, .. } =
+        &mut conflicting.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    when_false.arguments[0] = value_id(10);
+    assert_eq!(
+        validate_module(&conflicting).unwrap_err(),
+        ModuleError::CallCrashContinuationUncovered {
+            operation: operation_id(1),
+            cause: CrashCause::Abort
+        }
+    );
+
+    let mut cyclic = module.clone();
+    cyclic.machines[0].blocks[2].terminator = Terminator::Conditional {
+        condition: value_id(10),
+        when_true: SuccessorEdge {
+            edge: edge_id(103),
+            target: block_id(102),
+            arguments: vec![value_id(50)],
+            trivial_affine_discards: Vec::new(),
+        },
+        when_false: SuccessorEdge {
+            edge: edge_id(104),
+            target: block_id(103),
+            arguments: vec![value_id(50)],
+            trivial_affine_discards: Vec::new(),
+        },
+    };
+    // Even a backedge carrying the same slot cannot manufacture a known
+    // formal when that slot's own origin has not been established.
+    assert_eq!(
+        validate_module(&cyclic).unwrap_err(),
+        ModuleError::CallCrashContinuationUncovered {
+            operation: operation_id(1),
+            cause: CrashCause::Abort
+        }
+    );
+
+    let mut foreign = module.clone();
+    let OperationKind::CallUnit {
+        crash_continuations,
+        ..
+    } = &mut foreign.machines[0].blocks[3].operations[0].kind
+    else {
+        unreachable!()
+    };
+    *crash_continuations = vec![route(20)];
+    assert_eq!(
+        validate_module(&foreign).unwrap_err(),
+        ModuleError::CallCrashContinuationsMismatch {
+            operation: operation_id(1),
+            callee: machine_id(2)
+        }
+    );
+
+    let mut computed = module;
+    computed.machines[0].blocks[2].operations.push(Operation {
+        id: operation_id(100),
+        result: OperationResult::Scalar(declaration(60)),
+        kind: OperationKind::BooleanConstant { value: true },
+    });
+    let Terminator::Jump { arguments, .. } = &mut computed.machines[0].blocks[2].terminator else {
+        unreachable!()
+    };
+    arguments[0] = value_id(60);
+    assert_eq!(
+        validate_module(&computed).unwrap_err(),
+        ModuleError::CallCrashContinuationUncovered {
+            operation: operation_id(1),
+            cause: CrashCause::Abort
+        }
+    );
+}
+
 fn signed_i8() -> ScalarType {
     ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 8).expect("i8"))
 }

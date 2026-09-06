@@ -1287,17 +1287,18 @@ pub(super) fn lower_shared_unit_closure(
                             "Unit call scalar argument count disagrees with its target",
                         );
                     }
-                    let terminal_scalar_arguments = argument_evaluation::validated_values(
+                    let terminal_scalar_values = argument_evaluation::validated_values(
                         evaluated_scalar_arguments.as_deref(),
                         &target
                             .scalar_parameters
                             .iter()
                             .map(|parameter| terminal_scalar_type(parameter.primitive_type))
                             .collect::<Result<Vec<_>, _>>()?,
-                    )?
-                    .iter()
-                    .map(|value| value.id)
-                    .collect();
+                    )?;
+                    let terminal_scalar_arguments = terminal_scalar_values
+                        .iter()
+                        .map(|value| value.id)
+                        .collect();
                     validate_transfer_shape(
                         structural_arguments,
                         claim_transfers,
@@ -1329,17 +1330,27 @@ pub(super) fn lower_shared_unit_closure(
                     let mut crash_continuations = if let Some(target_contract) =
                         checked.facts.contract_plans.for_machine(*target_machine)
                     {
-                        lower_structural_crash_route_buckets(
-                            target_contract.crash.published(),
-                            target_parameters,
-                            &structural_types,
-                            lowered_machine_runtime_requirements
-                                .iter()
-                                .find_map(|(symbol, requirements)| {
-                                    (*symbol == *target_machine).then_some(requirements.as_slice())
-                                })
-                                .expect("every closure target has lowered runtime requirements"),
-                        )?
+                        if target_parameters.is_empty() {
+                            lower_checked_crash_route_buckets(
+                                target_contract.crash.published(),
+                                &terminal_scalar_values,
+                            )?
+                        } else {
+                            lower_structural_crash_route_buckets(
+                                target_contract.crash.published(),
+                                target_parameters,
+                                &structural_types,
+                                lowered_machine_runtime_requirements
+                                    .iter()
+                                    .find_map(|(symbol, requirements)| {
+                                        (*symbol == *target_machine)
+                                            .then_some(requirements.as_slice())
+                                    })
+                                    .expect(
+                                        "every closure target has lowered runtime requirements",
+                                    ),
+                            )?
+                        }
                     } else {
                         Vec::new()
                     };
@@ -2683,12 +2694,19 @@ pub(super) fn lower_shared_unit_closure(
         let edge = edge_id(allocate_dense(&mut next_edge)?);
         let crash_routes =
             if let Some(contract_plan) = checked.facts.contract_plans.for_machine(plan.machine) {
-                lower_structural_crash_route_buckets(
-                    contract_plan.crash.published(),
-                    parameters,
-                    &structural_types,
-                    runtime_requirements,
-                )?
+                if parameters.is_empty() {
+                    lower_checked_crash_route_buckets(
+                        contract_plan.crash.published(),
+                        &scalar_parameters,
+                    )?
+                } else {
+                    lower_structural_crash_route_buckets(
+                        contract_plan.crash.published(),
+                        parameters,
+                        &structural_types,
+                        runtime_requirements,
+                    )?
+                }
             } else {
                 Vec::new()
             };

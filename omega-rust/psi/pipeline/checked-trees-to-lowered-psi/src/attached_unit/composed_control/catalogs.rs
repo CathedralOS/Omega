@@ -78,7 +78,7 @@ pub(crate) struct LoweredComposedInternalTarget {
     pub(super) source: symbols::SymbolHandle,
     pub(super) id: MachineId,
     pub(super) scalar_parameters: Vec<ScalarType>,
-    pub(super) crash_routes: Vec<terminal_psi::CrashRouteBucket>,
+    pub(super) parameter_relative_crash_routes: Vec<checked_trees::CrashRouteBucket>,
 }
 
 pub(crate) struct LoweredComposedBoundary {
