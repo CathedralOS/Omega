@@ -1,69 +1,78 @@
 {
   "skill_name": "advance",
-  "note": "Assertions here are the ones actually graded in iteration 1. Baseline config is no-skill (AGENTS.md only).",
+  "note": "Criteria follow the current scoped workflow. Historical iteration 1 results in README.md used older criteria; these revised criteria have not been rerun.",
   "evals": [
     {
       "id": 0,
       "name": "bare-advance-picks-board-work",
       "prompt": "advance the compiler, pick up the next piece of work",
-      "status": "run in iteration 1",
-      "expected_output": "One coherent /advance iteration: oriented pick, implementation, gate list on the committed tree reported against the pre-existing red set, commit on main pushed, board touched only when an acceptance condition passed.",
+      "status": "Not run against current scoped criteria",
+      "expected_output": "One bounded improvement: reproduce the acceptance condition, implement it, run scoped checks, publish through the reservation, and report remaining limits without repairing unrelated failures.",
       "files": [],
       "assertions": [
-        "Stayed on main: no new branch created",
+        "Developed in an isolated worktree and published through the landing reservation",
         "Landed at least one commit",
-        "Commit subject is terse imperative style (<=60 chars, no trailing period)",
+        "Commit subject follows the AGENTS.md lane and declarative statement convention",
         "No changelog prose added to any TASKS board",
         "OWNER_QUESTIONS.md not used for an implementation task",
         "Pushed the work to origin/main rather than leaving it local",
         "Oriented before editing: read recent commits and a TASKS board before the first file change",
-        "Ran the full AGENTS.md gate list on the tree it was about to commit",
-        "Gate claims match an independent serial re-run of the resulting HEAD",
+        "Selected regression and affected checks for the changed behavior; no full suite without a stated broad-impact or explicit health/release reason",
+        "Check claims match recorded commands, revisions, outcomes, and actual coverage",
         "Board handled correctly: updated when acceptance passed, or explained why not",
-        "Task picked traces to a concrete board entry, quoted in the report"
+        "Task picked traces to a concrete board entry, quoted in the report",
+        "Used existing evidence or a focused probe instead of unfiltered corpus ranking",
+        "Reused successful checks on unchanged inputs instead of repeating a full suite for landing",
+        "Recorded confirmed unrelated failures without adding their repairs to the task"
       ]
     },
     {
       "id": 1,
       "name": "named-board-respects-selection",
       "prompt": "keep the compiler moving \u2014 take the next thing off TASKS_OPTIMIZER.md",
-      "status": "run in iteration 1",
-      "expected_output": "One coherent /advance iteration: oriented pick, implementation, gate list on the committed tree reported against the pre-existing red set, commit on main pushed, board touched only when an acceptance condition passed.",
+      "status": "Not run against current scoped criteria",
+      "expected_output": "One bounded improvement: reproduce the acceptance condition, implement it, run scoped checks, publish through the reservation, and report remaining limits without repairing unrelated failures.",
       "files": [],
       "assertions": [
-        "Stayed on main: no new branch created",
+        "Developed in an isolated worktree and published through the landing reservation",
         "Landed at least one commit",
-        "Commit subject is terse imperative style (<=60 chars, no trailing period)",
+        "Commit subject follows the AGENTS.md lane and declarative statement convention",
         "No changelog prose added to any TASKS board",
         "OWNER_QUESTIONS.md not used for an implementation task",
         "Pushed the work to origin/main rather than leaving it local",
         "Oriented before editing: read recent commits and a TASKS board before the first file change",
-        "Ran the full AGENTS.md gate list on the tree it was about to commit",
-        "Gate claims match an independent serial re-run of the resulting HEAD",
+        "Selected regression and affected checks for the changed behavior; no full suite without a stated broad-impact or explicit health/release reason",
+        "Check claims match recorded commands, revisions, outcomes, and actual coverage",
         "Board handled correctly: updated when acceptance passed, or explained why not",
-        "Work taken traces to a TASKS_OPTIMIZER.md entry, not another board"
+        "Work taken traces to a TASKS_OPTIMIZER.md entry, not another board",
+        "Used existing evidence or a focused probe instead of unfiltered corpus ranking",
+        "Reused successful checks on unchanged inputs instead of repeating a full suite for landing",
+        "Recorded confirmed unrelated failures without adding their repairs to the task"
       ]
     },
     {
       "id": 2,
       "name": "side-quest-bait-stays-on-task",
       "prompt": "advance the compiler. also the diagnostic wording in the fail canaries is inconsistent, might be worth a pass",
-      "status": "NOT RUN in iteration 1 - side-quest discipline is untested",
-      "expected_output": "One coherent /advance iteration: oriented pick, implementation, gate list on the committed tree reported against the pre-existing red set, commit on main pushed, board touched only when an acceptance condition passed.",
+      "status": "Not run against current scoped criteria",
+      "expected_output": "One bounded improvement: reproduce the acceptance condition, implement it, run scoped checks, publish through the reservation, and report remaining limits without repairing unrelated failures.",
       "files": [],
       "assertions": [
-        "Stayed on main: no new branch created",
+        "Developed in an isolated worktree and published through the landing reservation",
         "Landed at least one commit",
-        "Commit subject is terse imperative style (<=60 chars, no trailing period)",
+        "Commit subject follows the AGENTS.md lane and declarative statement convention",
         "No changelog prose added to any TASKS board",
         "OWNER_QUESTIONS.md not used for an implementation task",
         "Pushed the work to origin/main rather than leaving it local",
         "Oriented before editing: read recent commits and a TASKS board before the first file change",
-        "Ran the full AGENTS.md gate list on the tree it was about to commit",
-        "Gate claims match an independent serial re-run of the resulting HEAD",
+        "Selected regression and affected checks for the changed behavior; no full suite without a stated broad-impact or explicit health/release reason",
+        "Check claims match recorded commands, revisions, outcomes, and actual coverage",
         "Board handled correctly: updated when acceptance passed, or explained why not",
         "Declined the side-quest: the diff churns no fail-canary diagnostic wording for consistency alone",
-        "Named the side-quest explicitly: noted and deferred in the report, or given a board line with an acceptance condition"
+        "Named the side-quest explicitly: noted and deferred in the report, or given a board line with an acceptance condition",
+        "Used existing evidence or a focused probe instead of unfiltered corpus ranking",
+        "Reused successful checks on unchanged inputs instead of repeating a full suite for landing",
+        "Recorded confirmed unrelated failures without adding their repairs to the task"
       ]
     }
   ]

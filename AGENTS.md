@@ -27,7 +27,32 @@ use `mbx test --doc` when doctest coverage is needed.
 Keep using `cargo fmt` and `cargo clean` directly; `mbx clean` has different
 semantics. The examples below assume `mbx` is available.
 
-Baseline gates for a fresh checkout:
+### Validation scope
+
+Routine changes, including `advance`, use focused regression coverage, affected
+crate checks, and relevant integration tests. Choose checks from the changed
+behavior and its dependencies/source readers, not from the mere existence of a
+new worktree. Use crate-scoped check/Clippy for Rust changes; include architecture
+checks for ownership, dependency, representation, or architecture-reader changes.
+For prose-only instructions, review consistency, links, and skill metadata;
+run source audits only when their actual input rules are affected. No Rust build
+is required merely to edit workflow prose.
+
+A bug fix needs a witnessed regression and checks for affected behavior. Reuse
+successful results when their inputs are unchanged. Full workspace/corpus runs
+are for explicit baseline, health, or release work, or changes whose impact
+cannot reasonably be bounded. Explain that scope before starting a full run.
+An unverified base alone does not force a routine task to establish a full baseline.
+
+Attribute unexpected failures with a focused baseline comparison or dependency
+and source-reader evidence. Confirmed unrelated failures do not block landing a
+scoped change: retain the command, revision, and evidence, and report them without
+repairing them in the same task. New or unexplained failures in affected behavior
+must be resolved before landing. Do not repeat broad suites to attribute one test.
+
+### Full baseline
+
+Use these gates when establishing or refreshing a full checkout baseline:
 
 ```bash
 cargo fmt --all -- --check
@@ -43,15 +68,17 @@ subset: all library tests, no target-specific executable/runtime legs.
 `--no-fail-fast` is mandatory; retries are disabled. Platform integration tests
 are separate and must report an explicit skip when the host cannot run them.
 
-For rechecks against a previously verified commit, run
+For a scoped recheck with a previously verified commit, run
 `python tools/test_affected.py --base VERIFIED_COMMIT --plan`, inspect the
 selection, then repeat without `--plan` (use `python3` on macOS). This replaces
 the architecture/library test commands only. It selects changed crates and
 reverse dependencies, accounts for known source readers, always runs architecture,
 routes audited documentation to architecture/corpus checks, and falls back to
-all libraries for shared or unknown inputs. Keep fmt, Clippy,
-workspace check, and relevant integration/bootstrap checks. If the baseline,
-environment, or input dependencies are uncertain, use `--full`. See
+all libraries for shared or unknown inputs. Keep checks applicable under
+Validation scope, including relevant integration/bootstrap checks. If a full-baseline claim is needed and its prior
+evidence, environment, or input dependencies are uncertain, use `--full`. For
+routine work without that evidence, select and report scoped checks explicitly;
+do not describe them as a verified full baseline. See
 [local testing](wiki/testing.md) for the exact coverage contract and examples.
 
 ### Developer platform support
@@ -370,9 +397,9 @@ the command. All writers use this route rather than direct pushes to `main`.
 An occupied reservation does not prevent development or reading incoming main.
 Cancel a waiting ticket if no longer ready; release after a new or unexplained
 gate failure before continuing implementation. Rejoining starts at the tail.
-Owner-authorized baseline exceptions may proceed only with documented evidence
-that the same failures occur without the change; retain the tested revisions,
-commands, and results in the checkpoint. Do not relabel new failures as baseline.
+Confirmed unrelated failures follow Validation scope: retain the tested
+revisions, commands, and attribution evidence in the checkpoint. Do not relabel
+new or unexplained affected failures as baseline.
 Never extend a head lease or bypass the exact-reference publication checks.
 Expiry is automatic; early cancellation/recovery still requires the exact
 ticket/claim and the owner's direction.
