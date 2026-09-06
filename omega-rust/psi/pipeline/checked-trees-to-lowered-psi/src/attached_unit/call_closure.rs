@@ -254,11 +254,14 @@ pub(super) fn validate_unit_operation_sequence(
                 if result.statement_index != coordinate.statement_index
                     || coordinate.call_ordinal != 0
                     || result.binding_ordinal != next_structural_binding
-                    || *discard_result_on_return != (result.multiplicity == Multiplicity::Affine)
+                    || (result.multiplicity != Multiplicity::Affine && *discard_result_on_return)
                 {
                     return unsupported(
                         "Unit boundary structural result local or call coordinate is not canonical",
                     );
+                }
+                if result.multiplicity == Multiplicity::Affine {
+                    structural_calls::validate_usage(machine, result)?;
                 }
                 *coordinate
             }

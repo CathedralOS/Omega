@@ -87,8 +87,8 @@ pub(super) fn build(
     let mut scalar_count = 0_usize;
     let mut structural_count = 0_usize;
     let mut structural_local_symbols = Vec::new();
-    // Only ordinary affine producers participate in the existing result
-    // forwarding rules. Boundary results still own their normal cleanup.
+    // Only whole claim-free affine results participate in move custody.
+    // Unrestricted boundary results keep their separate non-moving route.
     let mut structural_results = Vec::new();
     let mut call_count = 0_usize;
     let binders = machine_binders(program, machine);
@@ -256,7 +256,9 @@ pub(super) fn build(
                 if matches!(
                     operation,
                     CheckedUnitEffectOperationPlan::StructuralCall { .. }
-                ) {
+                        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
+                ) && result.multiplicity == Multiplicity::Affine
+                {
                     structural_results.push((result, facts::PlaceRoot::Symbol(symbol)));
                 }
             } else {
@@ -270,7 +272,12 @@ pub(super) fn build(
             None => operation,
         });
     }
-    if !structural_results.is_empty() {
+    if operations.iter().any(|operation| {
+        matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::StructuralCall { .. }
+        )
+    }) {
         for plan in &facts.flow.terminal_structural_returns.structural_types {
             if shapes
                 .types
@@ -306,16 +313,30 @@ fn consume_results(
             .iter()
             .filter_map(|argument| argument.source_structural_result_binding_ordinal())
         {
-            let producer = operations.iter_mut().find(|operation| matches!(operation,
-                CheckedUnitEffectOperationPlan::StructuralCall { result, .. } if result.binding_ordinal == binding_ordinal))?;
-            let CheckedUnitEffectOperationPlan::StructuralCall {
+            let mut producers = operations.iter_mut().filter(|operation| {
+                matches!(operation,
+                CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
+                    if result.binding_ordinal == binding_ordinal)
+            });
+            let producer = producers.next()?;
+            if producers.next().is_some() {
+                return None;
+            }
+            let (CheckedUnitEffectOperationPlan::StructuralCall {
                 discard_result_on_return,
+                result,
                 ..
-            } = producer
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                discard_result_on_return,
+                result,
+                ..
+            }) = producer
             else {
                 unreachable!()
             };
-            if !*discard_result_on_return {
+            if result.multiplicity != Multiplicity::Affine || !*discard_result_on_return {
                 return None;
             }
             *discard_result_on_return = false;
