@@ -503,6 +503,8 @@ Owners include
   `7 / 2 * 2` lands as 7 with a warning, `7 / 2` cannot land in an integer,
   `7i32 / 2 * 2` is 6 without that warning, and mixed runtime/constant operands
   follow the guide's boundaries identically before and after optimization.
+  Pin the practical alignment case: `(4097 / 4096) * 4096` is 4097 with a
+  warning; `(4097u32 / 4096) * 4096` is 4096 without one.
   Only anonymous signed remainder awaits the
   [remainder ruling](OWNER_QUESTIONS.md#anonymous-integer-remainder).
   Acceptance: implicit cross-state use rejects, while explicit renamed

@@ -212,6 +212,19 @@ Chapter 5 defines fixed-width `%` as dividend-sign remainder. Its
 does not choose an anonymous remainder convention: rational division has no
 implicit truncated quotient from which to derive one.
 
+The ruling must state which quotient/remainder law applies to which operand
+kinds. For typed integers under Exact, the mathematical equality
+`a = q * b + r` relates the truncating integer quotient and dividend-sign
+remainder, subject to the existing division preconditions. This does not
+itself prove every intermediate in a machine-typed evaluation of the identity
+safe; other arithmetic policies also retain their own overflow rules.
+With anonymous rational `/`, `(a / b) * b` already equals `a`
+for nonzero `b`; adding a nonzero remainder cannot preserve that identity.
+If anonymous `%` is admitted, name its associated integer-quotient convention
+rather than silently treating rational `/` as that quotient. Future algebra
+contracts must not assert `a == (a / b) * b + a % b` across both operand kinds
+without these distinctions.
+
 This is an existing arithmetic spelling, not a proposed new surface. Current
 context-free integer evaluators use truncating `BigInt::div_rem`; that
 implementation is not a ruling on anonymous signed remainder.
