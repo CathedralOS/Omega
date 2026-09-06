@@ -46,8 +46,8 @@ def fixtures():
          (2, b"")),
     ))
 
-    # Reverse insertion exercises both index ends at the actual 4096-row cap.
-    # The last authored duplicate must reject before requesting a fresh row.
+    # Preserve reverse insertion at the former 4096-row cap without making
+    # the expanded-capacity witness perform quadratic reverse shifts.
     full = b"".join(
         f"(def f{index:04d} () Int {index % 251})\n".encode("ascii")
         for index in reversed(range(4095))
@@ -57,6 +57,27 @@ def fixtures():
         ("duplicate before full function provision",
          full + b"(def f0000 () Int 0)\n", (1, b"")),
         ("fresh function beyond reverse full census",
-         full + b"(def f4095 () Int 0)\n", (3, b"")),
+         full + b"(def f4095 () Int 0)\n", (0, bytes((4094 % 251, 0)))),
     ))
     return cases
+
+
+def upper_capacity_fixtures():
+    """Generate sorted-name controls for the expanded function census."""
+    names = [f"u{index:05d}" for index in range(65535)]
+    declarations = [
+        f"(def {name} () Int {65 if index == 0 else 66 if index == 65534 else 0})\n"
+        .encode("ascii")
+        for index, name in enumerate(names)
+    ]
+    main = (
+        b"(def main () Int (let first Int (write (u00000)) (u65534)))\n"
+    )
+    exact = b"".join(declarations) + main
+    return (
+        ("exact expanded function census", exact, (0, b"AB")),
+        ("duplicate at expanded function census",
+         exact + b"(def u00000 () Int 0)\n", (1, b"")),
+        ("fresh function beyond expanded census",
+         exact + b"(def u65535 () Int 0)\n", (3, b"")),
+    )
