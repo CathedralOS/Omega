@@ -231,6 +231,26 @@ pub(super) fn call_result_origins(
                 &context.aliases,
                 &context.stored,
             ) {
+                if include_shared
+                    && parameters.iter().any(|parameter| {
+                        super::type_reference_is_reference(program, parameter.type_reference)
+                            && (parameter.symbol == origin.source.root
+                                || (parameter.is_self && machine.symbol == origin.source.root))
+                    })
+                {
+                    // Check a borrowed carrier's loaded boundary while its
+                    // complete helper-prefix evidence is available. Caller
+                    // substitution cannot reconstruct a callee's frozen slots
+                    // or establish which payload the helper selected.
+                    super::reference_subjects::validate_source_projection(
+                        program,
+                        machine,
+                        state,
+                        statements.len(),
+                        &origin.source,
+                        &context.stored,
+                    )?;
+                }
                 relative.references.push(ReferenceLeaf {
                     local_suffix: leaf.local_suffix.clone(),
                     local_segments: leaf.local_segments.clone(),

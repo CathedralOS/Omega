@@ -386,7 +386,11 @@ elision or a result qualification alone does not establish that relationship.
 The same relationship applies when references are returned inside owned
 carriers. An input carrier's declared reference boundary must be checked before
 substituting the caller's actual leaf; an empty write frame cannot establish
-its identity. Moving selected cases transports the cases and leaves together.
+its identity. Reconstructing an owned result from a borrowed input carrier
+checks the loaded reference against the helper's complete binding history before
+composing it with the caller's source. An unchanged nominal return type cannot
+substitute for that evidence. Moving selected cases transports the cases and
+leaves together.
 The helper's writes remain independent evidence: returning the same reference
 after replacing a field cannot preserve the field's previous progress subject.
 

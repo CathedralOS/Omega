@@ -367,7 +367,7 @@ fn frozen_reference_origin(
 /// their stability through the queried prefix. A helper result checks its whole
 /// body before exporting that boundary for caller substitution. Neither query
 /// supplies a qualification merely from the input's declared type.
-fn validate_source_projection(
+pub(super) fn validate_source_projection(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
