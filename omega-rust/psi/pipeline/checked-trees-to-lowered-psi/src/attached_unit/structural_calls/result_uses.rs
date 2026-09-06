@@ -342,6 +342,7 @@ fn validate_nested_execution_order(
         && !caller.operations.iter().any(|operation| {
             matches!(operation,
         CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate, .. }
             if coordinate.statement_index == statement_index && coordinate.call_ordinal != 0)
         })
     {

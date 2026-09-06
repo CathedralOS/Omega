@@ -251,7 +251,7 @@ fn append_one_to_one_call_carry_facts(
     );
 }
 
-pub(super) fn call_target_return_type(
+pub(crate) fn call_target_return_type(
     program: &typed_trees::TypedTrees,
     target_state_symbol: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {

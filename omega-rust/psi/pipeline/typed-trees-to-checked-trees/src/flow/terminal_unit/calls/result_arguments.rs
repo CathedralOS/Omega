@@ -39,8 +39,8 @@ pub(super) fn argument(
                 return None;
             }
         }
-        // Only the existing ordinary affine producer owns an anonymous result,
-        // even when its consumer is a boundary. Rejoin its exact captured
+        // Ordinary and boundary affine producers own anonymous results.
+        // Rejoin their exact captured
         // preorder coordinate; the shared sequencer executes it in postorder.
         facts::PlaceRoot::Expression(source) if source == expression => {
             if usize::try_from(result.statement_index).ok()? != call.statement_index {
@@ -66,17 +66,15 @@ pub(super) fn argument(
                 return None;
             };
             if authored.target_symbol != producer.target_symbol
-                || !facts
-                    .flow
-                    .terminal_structural_returns
-                    .claim_free_affine_machines
-                    .iter()
-                    .any(|target| {
-                        target.state == producer.target_symbol
-                            && target.result.type_identity == result.type_identity
-                            && target.result.multiplicity == Multiplicity::Affine
-                            && target.result.qualifications.is_empty()
-                    })
+                || super::super::control::structural_operands::result(
+                    program,
+                    facts,
+                    machine,
+                    source,
+                    &mut ShapeCollector::new(program),
+                )?
+                .type_identity
+                    != result.type_identity
             {
                 return None;
             }

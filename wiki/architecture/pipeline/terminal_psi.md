@@ -3130,13 +3130,19 @@ results across Unit, scalar, and structural return carriers, including nominal
 boundary requirements. Successful boundary completion consumes the input before
 establishing a replacement result; rejected or ill-typed provider responses
 leave the input available for retry.
-The call rejoins the exact authored local and transfer event; only that result
+The call rejoins the exact authored local or temporary expression and transfer
+event; only that result
 loses caller cleanup. Boundary result signatures remain independently checked,
 without deriving facts from provider implementations. Unrestricted results do
 not enter this affine move route. Borrowed or projected result operands, self
 consumers, linear result claims, and sum-payload inspection remain separate work.
-Boundary operands in this route name earlier locals, not anonymous nested
-structural-result calls.
+Anonymous boundary structural results use the same argument schedule as
+ordinary affine producers. Static requirements, bodyless declarations, and
+caller-owned nominal requirements retain their exact source target separately
+from the resolved boundary declaration. Each temporary is established after
+successful provider completion and transfers exactly once to its enclosing
+consumer. Provider refusal preserves completed operands for retry; a later
+operand crash preserves earlier effects without a cleanup successor.
 
 Scalar-returning boundary callers also use this evaluator for their existing
 two-statement body: an immutable boundary-result initializer followed by that
@@ -3934,8 +3940,7 @@ scalar-returning boundary wrappers, claim-free affine structural calls, and
 direct boundary consumers with Unit, scalar, or structural results. Boundary
 consumers may name bodyless declarations, static trait requirements, or the
 caller's exact nominal requirement parameter. Their anonymous structural
-operands still originate only in ordinary claim-free affine producers; nested
-boundary-produced temporaries remain unsupported.
+operands originate in ordinary or boundary claim-free affine producers.
 The same binding namespace retains these temporary results without inventing
 local names. Captured call ordinals identify authored
 preorder occurrences; the operation sequence evaluates children before their

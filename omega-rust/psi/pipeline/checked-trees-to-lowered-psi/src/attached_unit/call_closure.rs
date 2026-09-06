@@ -252,9 +252,9 @@ pub(super) fn validate_unit_operation_sequence(
                 ..
             } => {
                 if result.statement_index != coordinate.statement_index
-                    || coordinate.call_ordinal != 0
                     || result.binding_ordinal != next_structural_binding
                     || (result.multiplicity != Multiplicity::Affine && *discard_result_on_return)
+                    || (coordinate.call_ordinal != 0 && result.multiplicity != Multiplicity::Affine)
                 {
                     return unsupported(
                         "Unit boundary structural result local or call coordinate is not canonical",
@@ -299,18 +299,19 @@ pub(super) fn validate_unit_operation_sequence(
         let nested = matches!(
             operation,
             CheckedUnitEffectOperationPlan::StructuralCall { .. }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
         ) && coordinate.call_ordinal != 0;
         let same_statement = previous.is_some_and(|previous: (u32, u32)| previous.0 == key.0);
         let nested_consumer = matches!(
             operation,
             CheckedUnitEffectOperationPlan::StructuralCall { .. }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
         ) || matches!(
             operation,
             CheckedUnitEffectOperationPlan::CallUnit { .. }
                 | CheckedUnitEffectOperationPlan::ScalarCall { .. }
                 | CheckedUnitEffectOperationPlan::BoundaryCall { .. }
                 | CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
         ) && coordinate.call_ordinal == 0;
         // Coordinates retain preorder identity. Same-statement producers are
         // published in postorder; exact syntax and argument ordering rejoin in

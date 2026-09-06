@@ -146,6 +146,7 @@ use call_phases::{
     build_call_exit_contexts, build_call_requires_contexts,
 };
 use calls::build_call_flow_fact;
+pub(crate) use calls::call_target_return_type;
 pub(crate) use carried_semantic_dependencies::derive_checked_semantic_dependencies;
 use common::{
     append_constraint_ref, append_flow_contexts_for_points, append_place_segments,

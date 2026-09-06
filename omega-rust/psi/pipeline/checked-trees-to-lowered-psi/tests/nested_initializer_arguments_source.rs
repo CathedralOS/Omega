@@ -32,6 +32,9 @@ mod direct_boundary_results;
 #[path = "nested_initializer_arguments_source/nested_boundary_arguments.rs"]
 mod nested_boundary_arguments;
 
+#[path = "nested_initializer_arguments_source/boundary_temporaries.rs"]
+mod boundary_temporaries;
+
 #[path = "nested_initializer_arguments_source/boundary_result_custody.rs"]
 mod boundary_result_custody;
 

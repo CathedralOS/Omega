@@ -20,7 +20,9 @@ pub(super) fn build(
     let mut steps = Vec::new();
     let mut index = 0;
     while index < operations.len() {
-        let CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. } = &operations[index]
+        let (CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. }
+        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate, .. }) =
+            &operations[index]
         else {
             steps.push(Step::Ordinary(index));
             index += 1;
@@ -115,11 +117,12 @@ fn append(
     };
     let authored =
         crate::call_source_custody::authored::locate_source(checked, plan.state, coordinate)?;
-    let (parameters, _, _, _) = crate::call_source_custody::authored::target_parameters(
+    let target = crate::call_source_custody::authored::target_signature(
         checked,
         plan.machine,
         authored.source_target,
     )?;
+    let parameters = target.parameters;
     if parameters.iter().any(|parameter| parameter.is_self)
         || parameters.len() != authored.scalar_arguments.len() + authored.structural_arguments.len()
         || scalar_arguments.len() != authored.scalar_arguments.len()
@@ -156,6 +159,7 @@ fn append(
         let mut producers = group.clone().filter(|producer| matches!(
             &plan.operations[*producer],
             CheckedUnitEffectOperationPlan::StructuralCall { source_site, .. }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { source_site, .. }
                 if *source_site == Some(checked_trees::NominalMachineUseSite::Expression(expression))
         ));
         let producer = producers.next().ok_or(LoweringError::Unsupported(

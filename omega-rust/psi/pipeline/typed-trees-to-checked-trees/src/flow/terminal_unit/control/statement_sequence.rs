@@ -185,16 +185,17 @@ pub(super) fn build(
         }
         call_count = call_count.checked_add(1)?;
         for nested in structural_operands::for_call(program, facts, machine, state, call)? {
-            let target = facts
-                .flow
-                .terminal_structural_returns
-                .claim_free_affine_machines
-                .iter()
-                .find(|target| target.state == nested.target_symbol)?;
+            let target = structural_operands::result(
+                program,
+                facts,
+                machine.symbol,
+                nested.authored_expression,
+                shapes,
+            )?;
             let result = CheckedUnitStructuralResultBindingPlan {
                 statement_index,
                 binding_ordinal: u32::try_from(structural_count).ok()?,
-                type_identity: target.result.type_identity.clone(),
+                type_identity: target.type_identity,
                 multiplicity: Multiplicity::Affine,
             };
             let operation = build_call_operation(
@@ -211,12 +212,7 @@ pub(super) fn build(
                 Some(ExpectedCallValueResult::Structural(&result)),
                 &structural_results,
             )?;
-            if !matches!(
-                operation,
-                CheckedUnitEffectOperationPlan::StructuralCall { .. }
-            ) {
-                return None;
-            }
+            let operation = bind_structural_call_result(operation, result.clone())?;
             consume_results(&mut operations, &operation)?;
             operations.push(operation);
             structural_results.push((

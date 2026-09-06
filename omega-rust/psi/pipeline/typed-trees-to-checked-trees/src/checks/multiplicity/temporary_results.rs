@@ -23,26 +23,26 @@ pub(super) fn append_whole_affine_transfer(
     else {
         return;
     };
-    // Only the whole result of an actually discovered ordinary call
+    // Only the whole result of an actually discovered call
     // participates here. Projected results and reference/qualified or
     // claim-carrying roots retain their existing permission rules.
-    let ordinary_affine_result = event.segments.is_empty()
+    let affine_result = event.segments.is_empty()
         && calls.iter().any(|call| {
             call.statement_index == statement_index
                 && call.authored_expression == expression
-                && crate::find_state(program, call.target_symbol).is_some_and(|target| {
-                    matches!(
-                        program
-                            .type_reference_table
-                            .type_reference(target.return_type),
-                        TypeReferenceNode::Named { .. }
-                            | TypeReferenceNode::Generic { .. }
-                            | TypeReferenceNode::FixedArray { .. }
-                    ) && type_multiplicity(program, target.return_type) == Multiplicity::Affine
-                        && !type_carries_linear_obligation(program, target.return_type)
-                })
+                && crate::flow::call_target_return_type(program, call.target_symbol).is_some_and(
+                    |result| {
+                        matches!(
+                            program.type_reference_table.type_reference(result),
+                            TypeReferenceNode::Named { .. }
+                                | TypeReferenceNode::Generic { .. }
+                                | TypeReferenceNode::FixedArray { .. }
+                        ) && type_multiplicity(program, result) == Multiplicity::Affine
+                            && !type_carries_linear_obligation(program, result)
+                    },
+                )
         });
-    if ordinary_affine_result {
+    if affine_result {
         permission_events.push(FlowPermissionEventFact {
             machine_symbol,
             state_symbol,

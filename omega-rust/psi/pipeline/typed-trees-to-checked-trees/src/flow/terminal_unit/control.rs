@@ -8,7 +8,7 @@ use checked_trees::{
 
 mod call_occurrences;
 mod statement_sequence;
-mod structural_operands;
+pub(super) mod structural_operands;
 pub(super) use call_occurrences::{outer_calls, tail_call};
 
 pub(crate) fn build_checked_structural_unit_control_plans(
@@ -1046,12 +1046,14 @@ pub(super) fn build_checked_machine_with(
                 .iter()
                 .any(|call| {
                     call.call_ordinal != 0
-                        && facts
-                            .flow
-                            .terminal_structural_returns
-                            .claim_free_affine_machines
-                            .iter()
-                            .any(|target| target.state == call.target_symbol)
+                        && structural_operands::result(
+                            program,
+                            facts,
+                            machine.symbol,
+                            call.authored_expression,
+                            &mut ShapeCollector::new(program),
+                        )
+                        .is_some()
                 })
         });
     let carries_fused_service_parameter = program.state_parameters(state).iter().any(|parameter| {
