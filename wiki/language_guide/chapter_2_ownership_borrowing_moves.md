@@ -175,18 +175,22 @@ storage containing no live `T` is a separate feature.
 > records from either a fixed-integer or Boolean literal or one exact
 > same-typed fixed-integer or Boolean parameter, read a literal fixed-array
 > length as static metadata through the same eligible record paths, and forward
-> the loan explicitly. A whole closed-record parameter or attached `self` may
-> also invoke an exactly selected checked `&write self` method, in statement or
+> the loan explicitly. A closed-record parameter, attached `self`, or finite
+> relevant field-only projection through eligible closed records may also
+> invoke an exactly selected checked `&write self` method, in statement or
 > scalar-result position. The receiver remains exclusive against explicit
 > arguments and live local loans, even when the callee performs no writes;
-> shared access cannot supply it. Projected receiver calls remain gated.
+> shared access cannot supply it. Selecting a receiver field never grants
+> observation of its prior contents, even after replacement.
 > Single-state Unit callers carry whole borrowed receiver parameters and
 > attached `self` through canonical Terminal production and interpretation,
 > including transitive forwarding methods and interleaved scalar parameters.
-> Mutable receiver calls also retain finite field-only paths through borrowed
-> record parameters or attached `self`, preserving the container's identity and
-> the callee's exact leaf type. Indexed and write-only receiver projections
-> remain outside that Terminal producer path.
+> Mutable and write-only receiver calls with matching root and callee access
+> also retain finite field-only paths through borrowed record parameters or
+> attached `self`, preserving the container's identity and the callee's exact
+> leaf type. Bare attached-field spellings retain the same
+> `self` root and ordered path. Indexed receiver projections remain outside
+> that Terminal producer path.
 > Borrowed `self` uses the reference type's usage multiplicity, just like an
 > explicit reference parameter; its access still controls reading and mutation.
 > This does not provision a native executable's entry receiver.

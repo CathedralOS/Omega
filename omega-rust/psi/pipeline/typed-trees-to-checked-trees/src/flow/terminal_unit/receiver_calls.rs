@@ -263,11 +263,12 @@ fn receiver_argument(
         Vec::new()
     } else {
         // Reuse the ordinary exact-place resolver and the existing Terminal
-        // field-path mutable subloan contract. The root keeps its container
+        // field-path exclusive subloan contract. The root keeps its container
         // type; the operand names the leaf, without transferring ownership.
-        if parameter.access != MutableBorrow
-            || target.access != MutableBorrow
-            || parameter.multiplicity != Multiplicity::Unrestricted
+        if !matches!(
+            (parameter.access, target.access),
+            (MutableBorrow, MutableBorrow) | (WriteOnlyBorrow, WriteOnlyBorrow)
+        ) || parameter.multiplicity != Multiplicity::Unrestricted
             || !parameter.qualifications.is_empty()
             || !place
                 .segments

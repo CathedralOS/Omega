@@ -54,6 +54,48 @@ pub(crate) fn canonical_receiver_place_for_call_site(
     caller_state_symbol: SymbolHandle,
     call_site: &CallSite<'_>,
 ) -> Option<CanonicalPlace> {
+    let mut place = receiver_place_for_call_site(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        call_site,
+    )?;
+    // Bare attached-field receivers use inherited field symbols as roots.
+    // Their storage is the caller's actual self plus the exact declared field,
+    // not an independent parameter or a same-named field from another owner.
+    if let facts::PlaceRoot::Symbol(root) = place.root
+        && let Some(state) = find_state(program, caller_state_symbol)
+        && program
+            .state_parameters(state)
+            .iter()
+            .any(|parameter| parameter.is_self)
+        && let Some(machine) = program.machines().iter().find(|machine| {
+            machine.symbol == caller_machine_symbol
+                && program
+                    .machine_states(machine)
+                    .iter()
+                    .any(|state| state.symbol == caller_state_symbol)
+        })
+        && let Some(field) =
+            validation::exact_attached_field(program, machine, root, program.symbols.name(root))
+    {
+        place.root = facts::PlaceRoot::Symbol(caller_machine_symbol);
+        place.segments.insert(
+            0,
+            facts::PlaceSegment::Field {
+                symbol: field.symbol,
+            },
+        );
+    }
+    Some(place)
+}
+
+fn receiver_place_for_call_site(
+    program: &typed_trees::TypedTrees,
+    caller_machine_symbol: SymbolHandle,
+    caller_state_symbol: SymbolHandle,
+    call_site: &CallSite<'_>,
+) -> Option<CanonicalPlace> {
     match call_site {
         CallSite::Statement(statement) => {
             let state = find_state(program, caller_state_symbol)?;

@@ -156,32 +156,92 @@ pub(super) fn validate_statement_call(
                 attached_field(program, root, call.receiver_root_symbol, name.as_str()).is_some()
             })
         {
-            if receiver.len() == 1
-                && (call.receiver_root_symbol == root.symbol
-                    || call.receiver_root_symbol == root.receiver_machine)
-                && admits_call(program, root, call.target_symbol)
+            if statement_receiver_record(program, root, call)
+                .is_some_and(|owner| admits_call(program, owner, call.target_symbol))
             {
                 continue;
             }
             diagnostics.push(Diagnostic::error(format!(
-                "machine `{machine}` state `{state}` calls through write-only parameter `{}`; dispatch requires an exact checked `&write self` target on the whole receiver",
+                "machine `{machine}` state `{state}` calls through write-only parameter `{}`; dispatch requires an exact checked `&write self` target on the whole receiver or an eligible record-field projection",
                 root.name,
             )));
         }
     }
 }
 
-/// Dispatch borrows the receiver without loading its contents only when the
-/// selected declaration retains write-only access under its exact data owner.
-pub(super) fn admits_call(
-    program: &TypedTrees,
+fn root_record<'program>(
+    program: &'program TypedTrees,
     root: &WriteOnlyRoot,
+) -> Option<&'program DataDefinition> {
+    record(program, root).or_else(|| write_only_record(program, root.referee))
+}
+
+/// Statement receiver paths retain names plus exact root and endpoint symbols.
+/// Walk only relevant fields in closed records; selecting their addresses is
+/// independent of prior contents and does not authorize reading those fields.
+fn statement_receiver_record<'program>(
+    program: &'program TypedTrees,
+    root: &WriteOnlyRoot,
+    call: &TableCall,
+) -> Option<&'program DataDefinition> {
+    let names = program.statement_table.name_path_members(call.receiver);
+    let (first, remaining) = names.split_first()?;
+    let (mut owner, mut endpoint) = if call.receiver_root_symbol == root.symbol
+        || (root.receiver_machine.is_valid() && call.receiver_root_symbol == root.receiver_machine)
+    {
+        (root_record(program, root)?, SymbolHandle::invalid())
+    } else {
+        let field = attached_field(program, root, call.receiver_root_symbol, first.as_str())?;
+        if field.relevance.is_erased() {
+            return None;
+        }
+        (
+            write_only_record(program, field.type_reference)?,
+            field.symbol,
+        )
+    };
+    for name in remaining {
+        let field = crate::places::exact_data_member_field(
+            program,
+            owner,
+            SymbolHandle::invalid(),
+            name.as_str(),
+            None,
+        )?;
+        if field.relevance.is_erased() {
+            return None;
+        }
+        owner = write_only_record(program, field.type_reference)?;
+        endpoint = field.symbol;
+    }
+    if endpoint.is_valid() && call.receiver_symbol != endpoint {
+        let inherited =
+            attached_field(program, root, call.receiver_symbol, names.last()?.as_str())?;
+        if inherited.symbol != endpoint {
+            return None;
+        }
+    }
+    Some(owner)
+}
+
+pub(super) fn admits_expression_call(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    roots: &[WriteOnlyRoot],
     target: SymbolHandle,
 ) -> bool {
-    let Some(owner) = record(program, root).or_else(|| write_only_record(program, root.referee))
-    else {
-        return false;
-    };
+    let owner = direct_write_only_root(program, expression, roots)
+        .and_then(|root| root_record(program, root))
+        .or_else(|| {
+            write_only_record_field_type(program, expression, roots)
+                .and_then(|field_type| write_only_record(program, field_type))
+        });
+    owner.is_some_and(|owner| admits_call(program, owner, target))
+}
+
+/// Dispatch borrows the receiver without loading its contents only when the
+/// selected declaration retains write-only access under its exact data owner.
+fn admits_call(program: &TypedTrees, owner: &DataDefinition, target: SymbolHandle) -> bool {
     let Some((callee, state)) = crate::calls::machine_state_by_symbol(program, target) else {
         return false;
     };

@@ -310,7 +310,7 @@ fn whole_root_replacement_is_supported(program: &TypedTrees, root: &WriteOnlyRoo
 
 /// Resolve `root.record_field...leaf`, where every receiver is an admitted
 /// plain record and every selected field is relevant and unconstrained. This
-/// is a store-place judgment only: expression traversal still rejects reading
+/// is a content-independent place judgment: expression traversal rejects reading
 /// the same path, and sum payloads never enter this content-independent walk.
 fn write_only_record_field_type(
     program: &TypedTrees,
@@ -964,8 +964,8 @@ fn validate_expression(
             validate_expression(program, machine, state, cast.value, roots, diagnostics)
         }
         ExpressionNode::Call(call) => {
-            let nonobserving_receiver = direct_write_only_root(program, call.receiver, roots)
-                .is_some_and(|root| receiver::admits_call(program, root, call.target_symbol));
+            let nonobserving_receiver =
+                receiver::admits_expression_call(program, call.receiver, roots, call.target_symbol);
             if call.receiver.is_valid() && !nonobserving_receiver {
                 validate_expression(program, machine, state, call.receiver, roots, diagnostics);
             }
