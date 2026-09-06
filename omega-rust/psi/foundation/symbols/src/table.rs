@@ -101,13 +101,14 @@ impl SymbolTableBuilder {
         children: impl IntoIterator<Item = (SymbolKind, SymbolNameRef<'name>)>,
     ) -> HandleSpan<Symbol> {
         let names = &mut self.names;
+        let sources = self.sources.as_deref();
         self.symbols.insert_children(
             parent,
             children.into_iter().map(|(kind, name)| Symbol {
                 parent,
                 children: HandleSpan::empty(),
                 kind,
-                name: names.insert(SymbolName::from_ref(name)),
+                name: names.insert(SymbolName::from_ref_with_sources(name, sources)),
                 generated_from: SymbolHandle::invalid(),
             }),
         )
@@ -149,7 +150,10 @@ impl SymbolTableBuilder {
             parent,
             children: HandleSpan::empty(),
             kind,
-            name: self.names.insert(SymbolName::from_ref(name)),
+            name: self.names.insert(SymbolName::from_ref_with_sources(
+                name,
+                self.sources.as_deref(),
+            )),
             generated_from: SymbolHandle::invalid(),
         }
     }
@@ -739,6 +743,7 @@ impl SymbolTableExtension {
         declarations: impl IntoIterator<Item = (SymbolKind, SymbolNameRef<'name>)>,
     ) -> Vec<SymbolHandle> {
         let root = self.table.root;
+        let sources = self.table.sources.as_deref();
         let names = &mut self.table.names;
         let symbols = &mut self.table.symbols;
         let mut inserted = Vec::new();
@@ -749,7 +754,7 @@ impl SymbolTableExtension {
                     parent: root,
                     children: HandleSpan::empty(),
                     kind,
-                    name: names.insert(SymbolName::from_ref(name)),
+                    name: names.insert(SymbolName::from_ref_with_sources(name, sources)),
                     generated_from: SymbolHandle::invalid(),
                 },
             );
@@ -764,6 +769,7 @@ impl SymbolTableExtension {
         parent: SymbolHandle,
         children: impl IntoIterator<Item = (SymbolKind, SymbolNameRef<'name>)>,
     ) -> HandleSpan<Symbol> {
+        let sources = self.table.sources.as_deref();
         let names = &mut self.table.names;
         self.table.symbols.insert_generated_children(
             parent,
@@ -771,7 +777,7 @@ impl SymbolTableExtension {
                 parent,
                 children: HandleSpan::empty(),
                 kind,
-                name: names.insert(SymbolName::from_ref(name)),
+                name: names.insert(SymbolName::from_ref_with_sources(name, sources)),
                 generated_from: SymbolHandle::invalid(),
             }),
         )
@@ -903,5 +909,48 @@ mod builtin_function_identity_tests {
             ),
             Some(BuiltinFunction::Min),
         );
+    }
+}
+
+#[cfg(test)]
+mod source_name_storage_tests {
+    use super::*;
+    use source::Span;
+
+    #[test]
+    fn builder_and_extension_names_borrow_retained_source_bytes() {
+        let mut sources = SourceMap::default();
+        let source_id = sources.add("main.omg".into(), "Ready".into()).source_id;
+        let source_span = SourceSpan::new(source_id, Span::new(0, 5));
+        let sources = Arc::new(sources);
+        let expected_pointer = sources.text_at(source_span).as_ptr();
+        let seed = SymbolNameRef::OwnedSource {
+            value: "Ready",
+            source_span,
+        };
+        let mut builder = SymbolTableBuilder::with_sources(Some(sources.clone()));
+        let root = builder.insert_root(SymbolKind::Root, seed);
+        let child = SymbolTableBuilder::child_handles(
+            builder.insert_children(root, [(SymbolKind::Machine, seed)]),
+        )
+        .next()
+        .expect("authored child");
+        let mut extension = builder.finish().begin_extension(Some(sources), Vec::new());
+        let additional = extension.insert_top_level([(SymbolKind::Machine, seed)])[0];
+        let additional_child = SymbolTableBuilder::child_handles(
+            extension.insert_children(additional, [(SymbolKind::State, seed)]),
+        )
+        .next()
+        .expect("extension child");
+        // Dropping the map must not lose the retained spelling or its source allocation.
+        let table = extension
+            .finish()
+            .begin_extension(None, Vec::new())
+            .finish();
+        for symbol in [root, child, additional, additional_child] {
+            assert_eq!(table.name(symbol), "Ready");
+            assert_eq!(table.name(symbol).as_ptr(), expected_pointer);
+            assert_eq!(table.symbol_source_span(symbol), Some(source_span));
+        }
     }
 }
