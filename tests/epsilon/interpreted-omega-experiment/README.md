@@ -16,9 +16,9 @@ Delta-written Epsilon evaluator + exact Epsilon-written Omega D
 The gate requires the Omega product build to bind exactly one
 `alpha_bootstrap::ProgramEntry`, requires Omega D to retain its Alpha tape
 construction, and rejects any `EpsilonAlpha`/`epsilon_alpha_` backend residue in
-the Delta-written Epsilon implementation. The evaluator is currently 11,777
-lines / 600,123 bytes, authored in 84 explicitly manifested members.
-The complete gate checks 141 ordinary fixtures, five D customers, and seven
+the Delta-written Epsilon implementation. The evaluator is currently 11,984
+lines / 610,428 bytes, authored in 87 explicitly manifested members.
+The complete gate checks 142 ordinary fixtures, five D customers, and seven
 framing controls against the exact reconstructed evaluator receipt.
 
 The executable slice runs the current checking pipeline, locates `Main::main`,
@@ -72,8 +72,8 @@ This removes no language observation and does not close the resource profile.
 The gate compiles the exact evaluator plus the 55-line / 2,565-byte
 `execution_driver.delta` (SHA-256
 `ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a01b7cb3897199b38`) through the
-selected Delta route and pins the measured 702,903-byte receipt, SHA-256
-`3bc739535e467378a4c82d03358bcbe2ae91ba7447139c20ef202d1313585f92`.
+selected Delta route and pins the measured 711,597-byte receipt, SHA-256
+`8b5cea511a5d286212848b2c4f919d2bde4d815a91f46be556e557d7ffb17217`.
 The ordinary controls cover
 success, local, receiver-field, and fixed-array values, repeated mutation,
 output, comparisons, bitwise/shift/division behavior, short-circuiting, bounds
@@ -264,7 +264,7 @@ the failing argument, and suppresses later mutation/output, Assertion, or exit.
 Existing successful snapshot and later-argument-trap controls ensure valid
 earlier fields do not suppress later argument evaluation.
 
-The inventory specifies 146 language/customer judgments (141 ordinary fixtures
+The inventory specifies 147 language/customer judgments (142 ordinary fixtures
 and five whole-member D customers). Seven private-framing controls are counted
 separately. The companion
 [checking gate](../checking/README.md) pins exact checker reasons and coordinates

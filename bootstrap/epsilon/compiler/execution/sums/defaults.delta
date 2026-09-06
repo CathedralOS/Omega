@@ -23,8 +23,8 @@
             NoEpsilonRuntimeValue))
         ((EpsilonRuntimeAggregate typeValue children)
           (match children
-            ((MoreEpsilonRuntimeChildren projection child rest)
-              NoEpsilonRuntimeValue)
+            ((EpsilonRuntimeRecordChildren fields) NoEpsilonRuntimeValue)
+            ((EpsilonRuntimeIndexedChildren extent tree) NoEpsilonRuntimeValue)
             (NoEpsilonRuntimeChildren
               (match typeValue
                 ((EpsilonNamedType typeStart typeEnd typeName)

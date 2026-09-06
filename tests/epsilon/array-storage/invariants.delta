@@ -1,0 +1,191 @@
+; Synthetic runtime representations bypass authored Epsilon admission.
+; Production helpers produce every observation: 40 predicate bytes, all 01.
+(def array_storage_type ((extent Int)) EpsilonType
+  (EpsilonArrayType 0 5 (EpsilonI32Type 1 2) (EpsilonIntegerSpan 3 4 extent)))
+
+(def array_storage_array ((extent Int) (children EpsilonRuntimeChildren))
+  EpsilonRuntimeValue
+  (EpsilonRuntimeAggregate (array_storage_type extent) children))
+
+(def array_storage_integer ((value EpsilonRuntimeValue) (expected Int)) Int
+  (match value
+    ((EpsilonRuntimeInteger actual) (eq actual expected))
+    ((EpsilonRuntimeAggregate typeValue children) 0)
+    ((EpsilonRuntimeViewValue view) 0)
+    ((EpsilonRuntimeSumValue owner caseValue payloads) 0)))
+
+(def array_storage_absent ((result EpsilonRuntimeValueLookup)) Int
+  (match result
+    (NoEpsilonRuntimeValue 1)
+    ((SomeEpsilonRuntimeValue value) 0)))
+
+(def array_storage_read ((result EpsilonRuntimeValueLookup)
+  (index Int) (expected Int)) Bytes
+  (bytes_single
+    (match result
+      (NoEpsilonRuntimeValue 0)
+      ((SomeEpsilonRuntimeValue value)
+        (match (epsilon_runtime_project value (EpsilonRuntimeIndex index))
+          (NoEpsilonRuntimeValue 0)
+          ((SomeEpsilonRuntimeValue element)
+            (array_storage_integer element expected)))))))
+
+(def array_storage_write ((result EpsilonRuntimeValueLookup)
+  (index Int) (value Int)) EpsilonRuntimeValueLookup
+  (match result
+    (NoEpsilonRuntimeValue NoEpsilonRuntimeValue)
+    ((SomeEpsilonRuntimeValue previous)
+      (epsilon_runtime_with_child previous (EpsilonRuntimeIndex index)
+        (EpsilonRuntimeInteger value)))))
+
+; Each malformed case emits read rejection, then update rejection.
+(def array_storage_corrupt ((children EpsilonRuntimeChildren) (index Int)) Bytes
+  (let value EpsilonRuntimeValue (array_storage_array 5 children)
+    (bytes_concat
+      (bytes_single
+        (array_storage_absent
+          (epsilon_runtime_project value (EpsilonRuntimeIndex index))))
+      (bytes_single
+        (array_storage_absent
+          (epsilon_runtime_with_child value (EpsilonRuntimeIndex index)
+            (EpsilonRuntimeInteger 99)))))))
+
+(def array_storage_corruptions () Bytes
+  (bytes_concat
+    (array_storage_corrupt
+      (EpsilonRuntimeIndexedChildren 4 EmptyEpsilonRuntimeArrayTree) 0)
+    (bytes_concat
+      (array_storage_corrupt
+        (EpsilonRuntimeRecordChildren NoEpsilonRuntimeFieldChildren) 0)
+      (bytes_concat
+        (array_storage_corrupt
+          (EpsilonRuntimeIndexedChildren 5
+            (LeafEpsilonRuntimeArrayTree (- 0 1) (EpsilonRuntimeInteger 33))) 0)
+        (bytes_concat
+          (array_storage_corrupt
+            (EpsilonRuntimeIndexedChildren 5
+              (LeafEpsilonRuntimeArrayTree 5 (EpsilonRuntimeInteger 33))) 0)
+          (bytes_concat
+            (array_storage_corrupt
+              (EpsilonRuntimeIndexedChildren 5
+                (BranchEpsilonRuntimeArrayTree 3
+                  EmptyEpsilonRuntimeArrayTree EmptyEpsilonRuntimeArrayTree)) 0)
+            (bytes_concat
+              (array_storage_corrupt
+                (EpsilonRuntimeIndexedChildren 5
+                  (BranchEpsilonRuntimeArrayTree 0
+                    EmptyEpsilonRuntimeArrayTree EmptyEpsilonRuntimeArrayTree)) 0)
+              (bytes_concat
+                (array_storage_corrupt
+                  (EpsilonRuntimeIndexedChildren 5
+                    (BranchEpsilonRuntimeArrayTree 5
+                      EmptyEpsilonRuntimeArrayTree EmptyEpsilonRuntimeArrayTree)) 4)
+                (bytes_concat
+                  (array_storage_corrupt
+                    (EpsilonRuntimeIndexedChildren 5
+                      (BranchEpsilonRuntimeArrayTree 2
+                        (LeafEpsilonRuntimeArrayTree 3 (EpsilonRuntimeInteger 33))
+                        EmptyEpsilonRuntimeArrayTree)) 0)
+                  (bytes_concat
+                    (array_storage_corrupt
+                      (EpsilonRuntimeIndexedChildren 5
+                        (BranchEpsilonRuntimeArrayTree 2
+                          EmptyEpsilonRuntimeArrayTree
+                          (LeafEpsilonRuntimeArrayTree 1 (EpsilonRuntimeInteger 33)))) 4)
+                    (bytes_concat
+                      (array_storage_corrupt
+                        (EpsilonRuntimeIndexedChildren 5 EmptyEpsilonRuntimeArrayTree)
+                        (- 0 1))
+                      (array_storage_corrupt
+                        (EpsilonRuntimeIndexedChildren 5 EmptyEpsilonRuntimeArrayTree)
+                        5))))))))))))
+
+(def array_storage_defaults () Bytes
+  (let leaf EpsilonRuntimeValueLookup
+    (SomeEpsilonRuntimeValue
+      (array_storage_array 5
+        (EpsilonRuntimeIndexedChildren 5
+          (LeafEpsilonRuntimeArrayTree 4 (EpsilonRuntimeInteger 33)))))
+    (bytes_concat (array_storage_read leaf 0 0)
+      (bytes_concat (array_storage_read leaf 4 33)
+        (array_storage_read
+          (SomeEpsilonRuntimeValue
+            (array_storage_array 5
+              (EpsilonRuntimeIndexedChildren 5 EmptyEpsilonRuntimeArrayTree)))
+          2 0)))))
+
+(def array_storage_snapshots () Bytes
+  (let initial EpsilonRuntimeValueLookup
+    (SomeEpsilonRuntimeValue (array_storage_array 5 NoEpsilonRuntimeChildren))
+    (let first EpsilonRuntimeValueLookup (array_storage_write initial 0 10)
+      (let second EpsilonRuntimeValueLookup (array_storage_write first 1 11)
+        (let previous EpsilonRuntimeValueLookup (array_storage_write second 4 14)
+          (let updated EpsilonRuntimeValueLookup (array_storage_write previous 1 21)
+            (bytes_concat (array_storage_read updated 0 10)
+              (bytes_concat (array_storage_read updated 1 21)
+                (bytes_concat (array_storage_read updated 4 14)
+                  (bytes_concat (array_storage_read updated 2 0)
+                    (bytes_concat (array_storage_read previous 0 10)
+                      (bytes_concat (array_storage_read previous 1 11)
+                        (bytes_concat (array_storage_read previous 4 14)
+                          (array_storage_read previous 3 0))))))))))))))
+
+(def array_storage_maximum () Bytes
+  (let initial EpsilonRuntimeValueLookup
+    (SomeEpsilonRuntimeValue
+      (array_storage_array 2147483647 NoEpsilonRuntimeChildren))
+    (let first EpsilonRuntimeValueLookup
+      (array_storage_write initial 2147483645 45)
+      (let second EpsilonRuntimeValueLookup
+        (array_storage_write first 2147483646 46)
+        (bytes_concat (array_storage_read second 2147483645 45)
+          (bytes_concat (array_storage_read second 2147483646 46)
+            (array_storage_read second 2147483644 0)))))))
+
+(def array_storage_field () EpsilonDataMember
+  (EpsilonFieldMember 2 3 (EpsilonNameSpan 0 1) (EpsilonI32Type 2 3)))
+
+(def array_storage_record_owner () EpsilonDeclaration
+  (EpsilonDataDeclaration 0 4 (EpsilonNameSpan 0 1)
+    (MoreEpsilonDataMembers (array_storage_field) NoEpsilonDataMembers)))
+
+(def array_storage_families () Bytes
+  (let value EpsilonRuntimeValue
+    (EpsilonRuntimeAggregate (EpsilonNamedType 0 1 (EpsilonNameSpan 0 1))
+      (EpsilonRuntimeIndexedChildren 5 EmptyEpsilonRuntimeArrayTree))
+    (let projection EpsilonRuntimeProjection
+      (EpsilonRuntimeField (array_storage_record_owner) (array_storage_field))
+      (bytes_concat
+        (bytes_single (array_storage_absent (epsilon_runtime_project value projection)))
+        (bytes_single
+          (array_storage_absent
+            (epsilon_runtime_with_child value projection (EpsilonRuntimeInteger 99))))))))
+
+(def array_storage_sum_owner () EpsilonDeclaration
+  (EpsilonDataDeclaration 0 4 (EpsilonNameSpan 0 1)
+    (MoreEpsilonDataMembers
+      (EpsilonCaseMember 2 3 (EpsilonNameSpan 0 1) NoEpsilonPayload)
+      NoEpsilonDataMembers)))
+
+(def array_storage_sum_rejected ((children EpsilonRuntimeChildren)) Bytes
+  (bytes_single
+    (array_storage_absent
+      (epsilon_runtime_normalize_sum (epsilon_source_whole (bytes_single 120))
+        (array_storage_sum_owner)
+        (EpsilonRuntimeAggregate (EpsilonNamedType 0 1 (EpsilonNameSpan 0 1))
+          children)))))
+
+(def array_storage_sums () Bytes
+  (bytes_concat
+    (array_storage_sum_rejected
+      (EpsilonRuntimeRecordChildren NoEpsilonRuntimeFieldChildren))
+    (array_storage_sum_rejected
+      (EpsilonRuntimeIndexedChildren 5 EmptyEpsilonRuntimeArrayTree))))
+
+; Order: 22 corruptions, 3 defaults, 8 snapshots, 3 maximum, 2 family, 2 sum.
+(def main ((input Bytes)) Bytes
+  (bytes_concat (array_storage_corruptions)
+    (bytes_concat (array_storage_defaults)
+      (bytes_concat (array_storage_snapshots)
+        (bytes_concat (array_storage_maximum)
+          (bytes_concat (array_storage_families) (array_storage_sums)))))))

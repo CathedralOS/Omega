@@ -43,8 +43,35 @@
 
 (data EpsilonRuntimeChildren
   (NoEpsilonRuntimeChildren)
-  (MoreEpsilonRuntimeChildren EpsilonRuntimeProjection EpsilonRuntimeValue
-    EpsilonRuntimeChildren))
+  (EpsilonRuntimeRecordChildren EpsilonRuntimeFieldChildren)
+  (EpsilonRuntimeIndexedChildren Int EpsilonRuntimeArrayTree))
+
+(data EpsilonRuntimeFieldChildren
+  (NoEpsilonRuntimeFieldChildren)
+  (MoreEpsilonRuntimeFieldChildren EpsilonRuntimeProjection EpsilonRuntimeValue
+    EpsilonRuntimeFieldChildren))
+
+; Array branches partition [0, extent) at canonical interval midpoints.
+; A leaf retains its exact index; untouched intervals have no allocated value.
+(data EpsilonRuntimeArrayTree
+  (EmptyEpsilonRuntimeArrayTree)
+  (LeafEpsilonRuntimeArrayTree Int EpsilonRuntimeValue)
+  (BranchEpsilonRuntimeArrayTree Int EpsilonRuntimeArrayTree EpsilonRuntimeArrayTree))
+
+(data EpsilonRuntimeArrayFrames
+  (NoEpsilonRuntimeArrayFrames)
+  (EpsilonRuntimeArrayLeftFrame Int EpsilonRuntimeArrayTree EpsilonRuntimeArrayFrames)
+  (EpsilonRuntimeArrayRightFrame Int EpsilonRuntimeArrayTree EpsilonRuntimeArrayFrames))
+
+(data EpsilonRuntimeArrayUpdate
+  (EpsilonRuntimeArrayUpdated EpsilonRuntimeArrayTree)
+  (EpsilonRuntimeArrayInvalid))
+
+; Reconstruction stacks are not aggregate child storage.
+(data EpsilonRuntimeParents
+  (NoEpsilonRuntimeParents)
+  (MoreEpsilonRuntimeParents EpsilonRuntimeProjection EpsilonRuntimeValue
+    EpsilonRuntimeParents))
 
 (data EpsilonRuntimePath
   (NoEpsilonRuntimePath)

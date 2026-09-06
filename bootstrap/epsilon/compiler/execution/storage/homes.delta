@@ -79,7 +79,7 @@
         (NoEpsilonRuntimeValue EpsilonRuntimeStoreInternal)
         ((SomeEpsilonRuntimeValue previous)
           (match (epsilon_runtime_replace_path previous path value
-            NoEpsilonRuntimeChildren)
+            NoEpsilonRuntimeParents)
             (NoEpsilonRuntimeValue EpsilonRuntimeStoreInternal)
             ((SomeEpsilonRuntimeValue updated)
               (EpsilonRuntimeStoreUpdated

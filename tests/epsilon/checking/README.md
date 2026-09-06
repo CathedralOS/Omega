@@ -85,8 +85,8 @@ reserved duplicates to entry formation. A missing `Console` alongside an
 than the missing-support candidate at source extent 83. The pre-repair checker
 also publishes these exact diagnostics; the fixtures pin their preservation.
 
-`receipt.tsv` records the measured 699,289-byte checker receipt with SHA-256
-`3ddeec0376e44e731b621852cc6bc9a1f3cfa35857bdf9f410a997f1db42d9e5`.
+`receipt.tsv` records the measured 707,983-byte checker receipt with SHA-256
+`96304c2690c1321db665a74877e1d03244129a49f95599a48853d0bf2babf47a`.
 Every gate run reconstructs this exact receipt before comparing the 60 complete
 judgments. These controls establish the listed checking relations, not full
 Epsilon conformance, runtime execution, or closure of the Omega bootstrap edge.

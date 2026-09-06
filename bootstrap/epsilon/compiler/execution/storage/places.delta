@@ -31,10 +31,10 @@
 ; Parent snapshots and the selected projection form an explicit reconstruction
 ; stack. Neither path length nor sparse-child width retains recursive frames.
 (def epsilon_runtime_rebuild_parents ((value EpsilonRuntimeValue)
-  (parents EpsilonRuntimeChildren)) EpsilonRuntimeValueLookup
+  (parents EpsilonRuntimeParents)) EpsilonRuntimeValueLookup
   (match parents
-    (NoEpsilonRuntimeChildren (SomeEpsilonRuntimeValue value))
-    ((MoreEpsilonRuntimeChildren projection parent rest)
+    (NoEpsilonRuntimeParents (SomeEpsilonRuntimeValue value))
+    ((MoreEpsilonRuntimeParents projection parent rest)
       (match (epsilon_runtime_with_child parent projection value)
         (NoEpsilonRuntimeValue NoEpsilonRuntimeValue)
         ((SomeEpsilonRuntimeValue updated)
@@ -42,7 +42,7 @@
 
 (def epsilon_runtime_replace_path ((previous EpsilonRuntimeValue)
   (path EpsilonRuntimePath) (value EpsilonRuntimeValue)
-  (parents EpsilonRuntimeChildren)) EpsilonRuntimeValueLookup
+  (parents EpsilonRuntimeParents)) EpsilonRuntimeValueLookup
   (match path
     (NoEpsilonRuntimePath (epsilon_runtime_rebuild_parents value parents))
     ((MoreEpsilonRuntimePath projection rest)
@@ -50,4 +50,4 @@
         (NoEpsilonRuntimeValue NoEpsilonRuntimeValue)
         ((SomeEpsilonRuntimeValue child)
           (epsilon_runtime_replace_path child rest value
-            (MoreEpsilonRuntimeChildren projection previous parents)))))))
+            (MoreEpsilonRuntimeParents projection previous parents)))))))
