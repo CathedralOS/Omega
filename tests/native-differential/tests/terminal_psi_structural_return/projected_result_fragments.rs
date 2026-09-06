@@ -2,12 +2,91 @@
 
 use super::*;
 
+#[cfg(unix)]
+#[path = "fragment_host.rs"]
+mod host;
+
 #[test]
 fn projected_result_home_retains_narrow_direct_abi_fragments() {
     for count in 9_u16..=16 {
         check(count, false);
-        if matches!(count - 8, 1 | 2 | 4 | 8) {
-            check(count, true);
+        check(count, true);
+    }
+}
+
+#[test]
+fn packed_projected_fragments_load_at_unaligned_field_offsets() {
+    for width in [3, 5, 6, 7] {
+        check_projected_fragment(width, true);
+        check_projected_fragment(width, false);
+    }
+}
+
+fn check_projected_fragment(width: u16, returned: bool) {
+    let count = if returned { 16 } else { 24 };
+    let initialization = if returned {
+        "let result: Root = forward(value);"
+    } else {
+        ""
+    };
+    let owner = if returned { "result" } else { "value" };
+    let source = format!(
+        "data Token {{ value: u8; }}
+             data Root {{ prefix: Token; payload: [Token; {width}]; suffix: [Token; {}]; }}
+             machine forward(value: Root) -> Root {{ value }}
+             machine take(value: [Token; {width}]) {{}}
+             machine enter(value: Root) {{
+                 {initialization}
+                 take({owner}.payload);
+             }}",
+        count - 1 - width
+    );
+    let tokens = Lexer::new(&source).tokenize().unwrap();
+    let syntax = parse_syntax_trees(&tokens).unwrap();
+    let resolved = lower_syntax_trees(&syntax).unwrap();
+    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
+    let checked = lower_typed_trees(typed).unwrap();
+    let terminal = lower_machine(&checked, "enter").unwrap();
+    let semantic = encode_module(&terminal.semantic_module).unwrap();
+    let proof = encode_proof_bundle(&terminal.proof_bundle).unwrap();
+    let plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default()).unwrap();
+    for case in target_cases() {
+        if returned && case.policy == CallingPolicy::MicrosoftX64 {
+            assert!(lower_to_target_operations(&plan, case.target).is_err());
+            continue;
+        }
+        let target = lower_to_target_operations(&plan, case.target).unwrap();
+        let assigned = assign_registers(&target).unwrap();
+        let emitted = emit_machine_code(&assigned).unwrap();
+        let caller = emitted
+            .functions
+            .iter()
+            .find(|function| function.machine == terminal.semantic_module.entry)
+            .unwrap();
+        let consumer = &caller.internal_unit_calls[usize::from(returned)];
+        assert_eq!(consumer.arguments[0].source_byte_offset, 1);
+        assert_eq!(consumer.arguments[0].shape, ValueShape::integer(width, 1));
+        assert_eq!(
+            caller.unit_affine_cleanup.as_ref().unwrap().actions.len(),
+            2
+        );
+        let object = build_object_artifact(&emitted).unwrap();
+        let image = emit_executable_image(&object, 3).unwrap();
+        let installation =
+            build_installation_record(&image, ProfileDecisionId::new(1).unwrap()).unwrap();
+        validate_installation_record(&installation, &image).unwrap();
+        assert_eq!(
+            decode_installation_record(&encode_installation_record(&installation).unwrap())
+                .unwrap(),
+            installation
+        );
+        #[cfg(unix)]
+        if case.target == NativeTarget::host() {
+            super::affine_call_result_host::execute_byte_array(
+                &image,
+                object.entry_function().text_offset,
+                count,
+            );
         }
     }
 }
@@ -44,7 +123,7 @@ fn check(count: u16, full: bool) {
     drop(terminal);
     drop(checked);
     for case in target_cases() {
-        if case.policy == CallingPolicy::MicrosoftX64 || !matches!(count - 8, 1 | 2 | 4 | 8) {
+        if case.policy == CallingPolicy::MicrosoftX64 {
             assert!(lower_to_target_operations(&plan, case.target).is_err());
             continue;
         }
@@ -186,6 +265,8 @@ fn check(count: u16, full: bool) {
         );
         #[cfg(unix)]
         if case.target == NativeTarget::host() {
+            assert_eq!(producer.arguments[0].call_stack_bytes, 0);
+            host::execute(&producer.arguments[0].bytes, &home.bytes, count);
             super::affine_call_result_host::execute_byte_array(
                 &image,
                 object.entry_function().text_offset,

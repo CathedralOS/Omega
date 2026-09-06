@@ -171,7 +171,7 @@ pub(super) fn assign_result_call(
                         !matches!(
                             location,
                             ValueLocation::Register {
-                                byte_size: 1 | 2 | 4 | 8,
+                                byte_size: 1..=8,
                                 ..
                             }
                         )

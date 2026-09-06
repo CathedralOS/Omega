@@ -1675,18 +1675,23 @@ the call's input transfers and completion receipts; it grants no input claim
 completion. Native production also admits one leading ordinary identity result
 followed by projected Unit disposers, with no other live roots. Its claim-free,
 unqualified record or fixed-array result retains the direct structural-return
-ABI limits below. Each direct-register fragment must have an existing native
-load/store width of one, two, four, or eight bytes. Aggregate result homes align
-to at least eight bytes while retaining the exact logical byte extent; alignment
+ABI limits below. Each direct-register fragment retains its exact one-to-eight
+byte extent. Fragments of three, five, six, or seven bytes use byte accesses and
+shifts rather than accessing alignment padding; the existing one-, two-, four-,
+and eight-byte encodings stay unchanged. The same packing serves incoming
+parameter staging, outgoing argument copies, and result stores. R10 on x86-64
+and X16 on AArch64 are caller-clobbered scratch registers, disjoint from the
+native argument/result registers and indirect source bases. Stores preserve
+their source register; loads preserve an indirect base. Aggregate result homes
+align to at least eight bytes while retaining the exact logical byte extent; alignment
 padding precedes the home and cannot authorize an oversized store. The call
 stores each fragment at its actual width into a distinct result home before
-later projected copies;
-the result is not relabeled as an input parameter or a tagged sum. Assignment,
-object validation, and installation replay retain the real producer/result,
+later projected copies; the result is not relabeled as an input parameter or a
+tagged sum. Assignment, object validation, and installation replay retain the real producer/result,
 independently reconstruct the store bytes and intervals, reject overlapping
 homes, and reconstruct the residual or empty complement. Boundary-result native
-projection, multi-instruction fragment packing, anonymous projected helper-result
-operands, claims, nominal destruction, and partial construction remain outside
+projection, anonymous projected helper-result operands, claims, nominal
+destruction, and partial construction remain outside
 this native slice.
 
 Free and static attached Unit machines use the same checked result-root cleanup
@@ -4021,9 +4026,9 @@ source and result placements. Indirect Microsoft x64 aggregate returns remain
 unsupported. The one-scalar-side-argument form retains its single-u64-field
 record restriction. Assignment, object validation, and installation replay
 retain distinct source/result identities and reject invented claims or cleanup.
-Projected call-result cleanup has the narrower stored-result width contract
-described above; whole-value return support does not imply arbitrary result-home
-or projection support.
+Projected call-result cleanup retains the bounded result-home schedule described
+above; whole-value return support does not imply arbitrary result-home or
+projection support.
 
 A free Unit caller can invoke this identity producer without scalar arguments
 and discard the whole returned affine owner at its return edge. The call

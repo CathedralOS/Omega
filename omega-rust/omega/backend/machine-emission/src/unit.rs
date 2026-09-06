@@ -27,6 +27,7 @@ mod affine_cleanup;
 mod dynamic;
 mod dynamic_argument;
 mod installed_provider;
+mod packed_fragments;
 mod projected_copy;
 mod scalar_call;
 mod scalar_transport;
@@ -3490,32 +3491,20 @@ fn emit_aarch64_stage_unit_parameters(
                 .checked_add(u32::from(value_offset))
                 .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
             match *source {
-                ValueLocation::Register { register, .. } => {
-                    instructions.push(aarch64_unit_stack_access(
-                        aarch64_store_base(byte_size)?,
-                        aarch64_unit_register(register)?,
-                        destination,
-                        byte_size,
-                    )?)
-                }
+                ValueLocation::Register { register, .. } => packed_fragments::aarch64_stack_store(
+                    instructions,
+                    aarch64_unit_register(register)?,
+                    destination,
+                    byte_size,
+                )?,
                 ValueLocation::Stack {
                     stack_byte_offset, ..
                 } => {
                     let incoming = frame_bytes
                         .checked_add(stack_byte_offset)
                         .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
-                    instructions.push(aarch64_unit_stack_access(
-                        aarch64_load_base(byte_size)?,
-                        9,
-                        incoming,
-                        byte_size,
-                    )?);
-                    instructions.push(aarch64_unit_stack_access(
-                        aarch64_store_base(byte_size)?,
-                        9,
-                        destination,
-                        byte_size,
-                    )?);
+                    packed_fragments::aarch64_stack_load(instructions, 9, incoming, byte_size)?;
+                    packed_fragments::aarch64_stack_store(instructions, 9, destination, byte_size)?;
                 }
                 ValueLocation::Indirect { .. } => unreachable!(),
             }
@@ -3545,7 +3534,7 @@ fn emit_x86_64_stage_unit_parameters(
                 return Err(EmissionError::UnsupportedAggregatePlacement);
             };
             match *pointer {
-                IndirectPointerLocation::Register(register) => emit_x86_64_stack_store_width(
+                IndirectPointerLocation::Register(register) => packed_fragments::x86_stack_store(
                     bytes,
                     x86_unit_register(register)?,
                     home.byte_offset,
@@ -3558,8 +3547,8 @@ fn emit_x86_64_stage_unit_parameters(
                         .checked_add(8)
                         .and_then(|offset| offset.checked_add(stack_byte_offset))
                         .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
-                    emit_x86_64_stack_load_width(bytes, 0, incoming, 8)?;
-                    emit_x86_64_stack_store_width(bytes, 0, home.byte_offset, 8)?;
+                    packed_fragments::x86_stack_load(bytes, 0, incoming, 8)?;
+                    packed_fragments::x86_stack_store(bytes, 0, home.byte_offset, 8)?;
                 }
             }
             continue;
@@ -3571,7 +3560,7 @@ fn emit_x86_64_stage_unit_parameters(
                 .checked_add(u32::from(value_offset))
                 .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
             match *source {
-                ValueLocation::Register { register, .. } => emit_x86_64_stack_store_width(
+                ValueLocation::Register { register, .. } => packed_fragments::x86_stack_store(
                     bytes,
                     x86_unit_register(register)?,
                     destination,
@@ -3584,8 +3573,8 @@ fn emit_x86_64_stage_unit_parameters(
                         .checked_add(8)
                         .and_then(|offset| offset.checked_add(stack_byte_offset))
                         .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
-                    emit_x86_64_stack_load_width(bytes, 0, incoming, byte_size)?;
-                    emit_x86_64_stack_store_width(bytes, 0, destination, byte_size)?;
+                    packed_fragments::x86_stack_load(bytes, 0, incoming, byte_size)?;
+                    packed_fragments::x86_stack_store(bytes, 0, destination, byte_size)?;
                 }
                 ValueLocation::Indirect { .. } => unreachable!(),
             }
@@ -3706,13 +3695,13 @@ fn emit_x86_64_aggregate_copy_from_home(
                     IndirectPointerLocation::Register(register) => x86_unit_register(register)?,
                     IndirectPointerLocation::Stack { .. } => 11,
                 };
-                emit_x86_64_stack_load_width(bytes, destination, pointer_home, 8)?;
+                packed_fragments::x86_stack_load(bytes, destination, pointer_home, 8)?;
                 emit_x86_64_pointer_offset(bytes, destination, copy.source_byte_offset);
                 if let IndirectPointerLocation::Stack {
                     stack_byte_offset, ..
                 } = *pointer
                 {
-                    emit_x86_64_stack_store_width(bytes, destination, stack_byte_offset, 8)?;
+                    packed_fragments::x86_stack_store(bytes, destination, stack_byte_offset, 8)?;
                 }
                 return Ok(());
             }
@@ -3727,7 +3716,7 @@ fn emit_x86_64_aggregate_copy_from_home(
             let pointer_home = call_stack_bytes
                 .checked_add(home.byte_offset)
                 .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
-            emit_x86_64_stack_load_width(bytes, 11, pointer_home, 8)?;
+            packed_fragments::x86_stack_load(bytes, 11, pointer_home, 8)?;
             for destination in &copy.destination.locations {
                 let (value_offset, width) = placement_fragment(destination)?;
                 let source_offset = copy
@@ -3736,7 +3725,7 @@ fn emit_x86_64_aggregate_copy_from_home(
                     .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
                 match *destination {
                     ValueLocation::Register { register, .. } => {
-                        emit_x86_64_memory_load_width(
+                        packed_fragments::x86_memory_load(
                             bytes,
                             x86_unit_register(register)?,
                             11,
@@ -3747,8 +3736,8 @@ fn emit_x86_64_aggregate_copy_from_home(
                     ValueLocation::Stack {
                         stack_byte_offset, ..
                     } => {
-                        emit_x86_64_memory_load_width(bytes, 0, 11, source_offset, width)?;
-                        emit_x86_64_stack_store_width(bytes, 0, stack_byte_offset, width)?;
+                        packed_fragments::x86_memory_load(bytes, 0, 11, source_offset, width)?;
+                        packed_fragments::x86_stack_store(bytes, 0, stack_byte_offset, width)?;
                     }
                     ValueLocation::Indirect { .. } => unreachable!(),
                 }
@@ -3766,14 +3755,17 @@ fn emit_x86_64_aggregate_copy_from_home(
             .checked_add(home.byte_offset)
             .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
         return match *pointer {
-            IndirectPointerLocation::Register(register) => {
-                emit_x86_64_stack_load_width(bytes, x86_unit_register(register)?, source_offset, 8)
-            }
+            IndirectPointerLocation::Register(register) => packed_fragments::x86_stack_load(
+                bytes,
+                x86_unit_register(register)?,
+                source_offset,
+                8,
+            ),
             IndirectPointerLocation::Stack {
                 stack_byte_offset, ..
             } => {
-                emit_x86_64_stack_load_width(bytes, 0, source_offset, 8)?;
-                emit_x86_64_stack_store_width(bytes, 0, stack_byte_offset, 8)
+                packed_fragments::x86_stack_load(bytes, 0, source_offset, 8)?;
+                packed_fragments::x86_stack_store(bytes, 0, stack_byte_offset, 8)
             }
         };
     }
@@ -3795,7 +3787,7 @@ fn emit_x86_64_aggregate_copy_from_home(
         match *destination {
             ValueLocation::Register { register, .. } => {
                 let destination_register = x86_unit_register(register)?;
-                emit_x86_64_stack_load_width(
+                packed_fragments::x86_stack_load(
                     bytes,
                     destination_register,
                     source_offset,
@@ -3805,8 +3797,8 @@ fn emit_x86_64_aggregate_copy_from_home(
             ValueLocation::Stack {
                 stack_byte_offset, ..
             } => {
-                emit_x86_64_stack_load_width(bytes, 0, source_offset, destination_size)?;
-                emit_x86_64_stack_store_width(bytes, 0, stack_byte_offset, destination_size)?;
+                packed_fragments::x86_stack_load(bytes, 0, source_offset, destination_size)?;
+                packed_fragments::x86_stack_store(bytes, 0, stack_byte_offset, destination_size)?;
             }
             ValueLocation::Indirect { .. } => unreachable!(),
         }
@@ -3855,23 +3847,18 @@ fn emit_aarch64_aggregate_copy_from_home(
                     IndirectPointerLocation::Register(register) => aarch64_unit_register(register)?,
                     IndirectPointerLocation::Stack { .. } => 9,
                 };
-                instructions.push(aarch64_unit_stack_access(
-                    aarch64_load_base(8)?,
-                    destination,
-                    pointer_home,
-                    8,
-                )?);
+                packed_fragments::aarch64_stack_load(instructions, destination, pointer_home, 8)?;
                 emit_aarch64_pointer_offset(instructions, destination, copy.source_byte_offset);
                 if let IndirectPointerLocation::Stack {
                     stack_byte_offset, ..
                 } = *pointer
                 {
-                    instructions.push(aarch64_unit_stack_access(
-                        aarch64_store_base(8)?,
+                    packed_fragments::aarch64_stack_store(
+                        instructions,
                         destination,
                         stack_byte_offset,
                         8,
-                    )?);
+                    )?;
                 }
                 return Ok(());
             }
@@ -3895,30 +3882,30 @@ fn emit_aarch64_aggregate_copy_from_home(
                     .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
                 match *destination {
                     ValueLocation::Register { register, .. } => {
-                        instructions.push(aarch64_unit_memory_access(
-                            aarch64_load_base(width)?,
+                        packed_fragments::aarch64_memory_load(
+                            instructions,
                             aarch64_unit_register(register)?,
                             9,
                             source_offset,
                             width,
-                        )?)
+                        )?
                     }
                     ValueLocation::Stack {
                         stack_byte_offset, ..
                     } => {
-                        instructions.push(aarch64_unit_memory_access(
-                            aarch64_load_base(width)?,
+                        packed_fragments::aarch64_memory_load(
+                            instructions,
                             10,
                             9,
                             source_offset,
                             width,
-                        )?);
-                        instructions.push(aarch64_unit_stack_access(
-                            aarch64_store_base(width)?,
+                        )?;
+                        packed_fragments::aarch64_stack_store(
+                            instructions,
                             10,
                             stack_byte_offset,
                             width,
-                        )?);
+                        )?;
                     }
                     ValueLocation::Indirect { .. } => unreachable!(),
                 }
@@ -3996,13 +3983,7 @@ fn emit_aarch64_aggregate_copy_from_home(
             } else {
                 1
             };
-            instructions.push(aarch64_unit_memory_access(
-                aarch64_load_base(width)?,
-                10,
-                9,
-                copied,
-                width,
-            )?);
+            packed_fragments::aarch64_memory_load(instructions, 10, 9, copied, width)?;
             instructions.push(aarch64_unit_stack_access(
                 aarch64_store_base(width)?,
                 10,
@@ -4051,29 +4032,27 @@ fn emit_aarch64_aggregate_copy_from_home(
             .and_then(|offset| offset.checked_add(u32::from(destination_offset)))
             .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
         match *destination {
-            ValueLocation::Register { register, .. } => {
-                instructions.push(aarch64_unit_stack_access(
-                    aarch64_load_base(destination_size)?,
-                    aarch64_unit_register(register)?,
-                    source_offset,
-                    destination_size,
-                )?)
-            }
+            ValueLocation::Register { register, .. } => packed_fragments::aarch64_stack_load(
+                instructions,
+                aarch64_unit_register(register)?,
+                source_offset,
+                destination_size,
+            )?,
             ValueLocation::Stack {
                 stack_byte_offset, ..
             } => {
-                instructions.push(aarch64_unit_stack_access(
-                    aarch64_load_base(destination_size)?,
+                packed_fragments::aarch64_stack_load(
+                    instructions,
                     9,
                     source_offset,
                     destination_size,
-                )?);
-                instructions.push(aarch64_unit_stack_access(
-                    aarch64_store_base(destination_size)?,
+                )?;
+                packed_fragments::aarch64_stack_store(
+                    instructions,
                     9,
                     stack_byte_offset,
                     destination_size,
-                )?);
+                )?;
             }
             ValueLocation::Indirect { .. } => unreachable!(),
         }

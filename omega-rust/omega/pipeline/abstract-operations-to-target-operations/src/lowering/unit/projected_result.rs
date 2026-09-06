@@ -8,8 +8,8 @@ use super::super::structural_layout::{
 use target_operations::{TargetStructuralHomeLayout, TargetStructuralHomeRequirement};
 use terminal_psi::TerminalAffineCleanupAction;
 
-/// The direct fragment must fit one existing native load/store width. Wider
-/// packing is independent work; no store may round up the logical byte extent.
+/// A direct register fragment contains at most eight logical bytes. Native
+/// packing must not round up the fragment's memory extent.
 pub(super) fn has_store_fragments(placement: &ValuePlacement) -> bool {
     placement.shape.class == ValueClass::Integer
         && placement.shape.byte_size != 0
@@ -25,7 +25,7 @@ pub(super) fn has_store_fragments(placement: &ValuePlacement) -> bool {
                 else {
                     return None;
                 };
-                if *value_byte_offset != cursor || !matches!(byte_size, 1 | 2 | 4 | 8) {
+                if *value_byte_offset != cursor || !matches!(byte_size, 1..=8) {
                     return None;
                 }
                 cursor.checked_add(*byte_size)
