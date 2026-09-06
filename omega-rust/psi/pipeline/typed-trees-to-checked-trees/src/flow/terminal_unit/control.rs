@@ -1034,10 +1034,10 @@ pub(super) fn build_checked_machine_with(
         .then(|| checked_unit_structural_result_local(program, shapes, statements, &binders))
         .flatten();
     let structural_result_symbol = structural_result_local.as_ref().map(|(_, symbol)| *symbol);
-    let has_ordinary_structural_result = statements
-        .iter()
-        .any(|statement| statement_sequence::has_structural_result(program, facts, statement))
-        || state_flow(facts, machine.symbol, state.symbol).is_some_and(|flow| {
+    let has_structural_result =
+        statements.iter().any(|statement| {
+            statement_sequence::has_structural_result(program, facts, machine, statement)
+        }) || state_flow(facts, machine.symbol, state.symbol).is_some_and(|flow| {
             facts
                 .flow
                 .control
@@ -1073,7 +1073,7 @@ pub(super) fn build_checked_machine_with(
             } else if (selected_scalar_result_local.is_some()
                 || selected_structural_result_local.is_some()
                 || structural_result_local.is_some()
-                || has_ordinary_structural_result)
+                || has_structural_result)
                 && !carries_scalar_parameter
             {
                 let structural =
@@ -1249,6 +1249,7 @@ pub(super) fn build_checked_machine_with(
         && statement_sequence::has_statement_shape(
             program,
             facts,
+            machine,
             state,
             construction_statement_count,
         ) {
@@ -1649,46 +1650,18 @@ pub(super) fn build_checked_machine_with(
                     Some(ExpectedCallValueResult::Structural(&result)),
                     &[],
                 )?;
-                let operation = match operation {
-                    CheckedUnitEffectOperationPlan::BoundaryCall {
-                        coordinate,
-                        source_site,
-                        target_machine,
-                        target_state,
-                        target_contract_report_fingerprint,
-                        service_reach,
-                        scalar_arguments,
-                        structural_arguments,
-                        completion_receipts,
-                    } => CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                        coordinate,
-                        source_site,
-                        discard_result_on_return: result.multiplicity == Multiplicity::Affine,
-                        result,
-                        target_machine,
-                        target_state,
-                        target_contract_report_fingerprint,
-                        service_reach,
-                        scalar_arguments,
-                        structural_arguments,
-                        completion_receipts,
-                    },
-                    operation @ CheckedUnitEffectOperationPlan::StructuralCall { .. } => {
-                        for plan in &facts.flow.terminal_structural_returns.structural_types {
-                            if shapes
-                                .types
-                                .get(&plan.identity)
-                                .is_some_and(|existing| existing != plan)
-                            {
-                                return None;
-                            }
-                            shapes.types.insert(plan.identity.clone(), plan.clone());
-                        }
-                        operation
-                    }
-                    _ => return None,
-                };
+                let operation = bind_structural_call_result(operation, result)?;
                 if let CheckedUnitEffectOperationPlan::StructuralCall { result, .. } = &operation {
+                    for plan in &facts.flow.terminal_structural_returns.structural_types {
+                        if shapes
+                            .types
+                            .get(&plan.identity)
+                            .is_some_and(|existing| existing != plan)
+                        {
+                            return None;
+                        }
+                        shapes.types.insert(plan.identity.clone(), plan.clone());
+                    }
                     structural_result_bindings.push((
                         result.clone(),
                         facts::PlaceRoot::Symbol(structural_result_symbol?),
@@ -2101,6 +2074,41 @@ fn bind_scalar_call_result(
         }),
         _ => None,
     }
+}
+
+/// Keep the checked call's exact target, source coordinate, operands and
+/// completion receipts while attaching its independently checked result local.
+fn bind_structural_call_result(
+    operation: CheckedUnitEffectOperationPlan,
+    result: CheckedUnitStructuralResultBindingPlan,
+) -> Option<CheckedUnitEffectOperationPlan> {
+    Some(match operation {
+        CheckedUnitEffectOperationPlan::BoundaryCall {
+            coordinate,
+            source_site,
+            target_machine,
+            target_state,
+            target_contract_report_fingerprint,
+            service_reach,
+            scalar_arguments,
+            structural_arguments,
+            completion_receipts,
+        } => CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+            coordinate,
+            source_site,
+            discard_result_on_return: result.multiplicity == Multiplicity::Affine,
+            result,
+            target_machine,
+            target_state,
+            target_contract_report_fingerprint,
+            service_reach,
+            scalar_arguments,
+            structural_arguments,
+            completion_receipts,
+        },
+        operation @ CheckedUnitEffectOperationPlan::StructuralCall { .. } => operation,
+        _ => return None,
+    })
 }
 
 pub(super) fn checked_unit_structural_result_local(

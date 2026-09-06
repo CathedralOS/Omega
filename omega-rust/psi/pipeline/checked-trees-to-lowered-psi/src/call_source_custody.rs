@@ -12,6 +12,18 @@ pub(super) fn validate_operation(
     caller_state: symbols::SymbolHandle,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Result<(), LoweringError> {
+    if let CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+        coordinate, result, ..
+    } = operation
+    {
+        initializers::validate_structural(
+            checked,
+            caller_machine,
+            caller_state,
+            *coordinate,
+            result,
+        )?;
+    }
     if let CheckedUnitEffectOperationPlan::ScalarCall { result, .. }
     | CheckedUnitEffectOperationPlan::BoundaryScalarCall { result, .. } = operation
     {

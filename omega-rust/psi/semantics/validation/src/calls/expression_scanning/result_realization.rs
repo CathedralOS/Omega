@@ -172,8 +172,8 @@ pub(crate) fn report_nested_call_in_local_initializer(
 /// Source-family eligibility for the existing Unit result-local call path.
 /// Typing and ordinary call validation still own result, argument and contract
 /// compatibility; this predicate does not supply those semantic judgments.
-/// Ordinary scalar and structural results use the authored statement sequence;
-/// boundary structural results retain the first-initializer ownership route.
+/// Scalar and plain structural results use the authored statement sequence.
+/// Structural ownership and cleanup are checked by that sequence's producer.
 pub fn unit_result_initializer_call_is_supported(
     program: &TypedTrees,
     machine: &Machine,
@@ -207,11 +207,25 @@ pub fn unit_result_initializer_call_is_supported(
             && program
                 .primitive_type_reference(local.type_reference)
                 .is_none()
-            && !ordinary_structural_initializer(program, local))
+            && !ordinary_structural_initializer(program, local)
+            && !boundary_structural_initializer(program, machine, local))
     {
         return false;
     }
     initializer_target_is_supported(program, machine, local, true, false)
+}
+
+fn boundary_structural_initializer(
+    program: &TypedTrees,
+    machine: &Machine,
+    local: &typed_trees::statement::TableLocalData,
+) -> bool {
+    // The existing exact target resolver also covers boundary-trait requirements
+    // and this caller's nominal machine parameters. This is not a new receiver,
+    // qualification, reference, or linear-result realization route.
+    program.type_multiplicity(local.type_reference) != language_semantics::Multiplicity::Linear
+        && crate::has_plain_owned_contents(program, local.type_reference)
+        && initializer_target_is_supported(program, machine, local, false, false)
 }
 
 fn ordinary_structural_initializer(

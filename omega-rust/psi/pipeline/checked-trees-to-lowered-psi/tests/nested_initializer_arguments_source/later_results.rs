@@ -1,6 +1,9 @@
 use super::*;
 
-fn encoded_locals(checked: &checked_trees::CheckedTrees, names: &[&str]) -> (Vec<u8>, Vec<u8>) {
+pub(super) fn encoded_locals(
+    checked: &checked_trees::CheckedTrees,
+    names: &[&str],
+) -> (Vec<u8>, Vec<u8>) {
     let machine = main_machine(checked);
     let states = checked.typed.machine_states(machine);
     assert_eq!(states.len(), 1, "initializers remain in the authored state");
@@ -55,7 +58,7 @@ fn pure_local_before_computed_scalar_result_initializer_reaches_consumer() {
     assert_eq!(observer.calls, vec![vec![unsigned(16, 7)]]);
 }
 
-const SCALAR_HELPERS: &str = r#"
+pub(super) const SCALAR_HELPERS: &str = r#"
     machine identity16(value: u16) -> u16
     requires 0u16 == 0u16
     ensures result == value
