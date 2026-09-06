@@ -182,6 +182,85 @@ measured-recursion rule without the runtime tail-position lowering fence.
 Productive machines may deliberately run forever. A transition loop that does
 not promise termination therefore owes no ranking witness.
 
+## Ranked callees on projected receivers
+
+Owner-ratified 2026-09-05. A fixed-subobject loop uses an ordinary projected
+call: the caller borrows its field once, and the callee carries that same
+receiver reference around its ranked backedges. For example,
+`compiler.parser.scan(...)` establishes the parser field as `scan`'s whole
+receiver. Inside `scan`, `self` denotes that parser throughout the invocation;
+it does not change from the enclosing compiler to the parser at a transition.
+No new source syntax or receiver-transfer semantics are introduced.
+
+The caller checks the exact projection, type, access, lifetime, and relationship
+to the enclosing object through ordinary borrow/call evidence. The callee need
+not know the enclosing nominal type or receive a second reference to it. The
+same original referent must survive backedges and return under the
+[structural borrow identity contract](core_multiplicity_and_linearity.md#structural-borrow-identity-at-native-calls).
+While the subloan is live, conflicting access through the parent rejects.
+Keeping both a parent and a subloan is not inherently illegal, but their loan
+relationship must be represented and overlapping access restricted; this case
+does not require that extra loop parameter or an aliasing exception.
+
+### Missing implementation, not missing authoring semantics
+
+The current native ranked route in `terminal-psi-to-abstract-operations` obtains
+the entry machine and requires that machine's ranked component. Its exact
+countdown/fuel checks admit the whole-entry slice, not an ordinary caller
+invoking a ranked callee. Ordinary projected calls and a standalone ranked
+receiver each existing do not establish their composition.
+
+Implement a bounded ranked-callee route with actual argument/reference
+preparation, call/return and cleanup behavior, and composed resource evidence.
+Independently check the callee's decreasing measure under the same ranking
+rules as the entry case. An entry-specific exact ceiling is neither a callee
+ranking proof nor a composed caller/callee resource bound. Removing the entry
+guard alone is not implementation of this contract.
+
+The `ranked_u32_countdown` replay's single structural parameter and persistent
+mutable-receiver checks describe its narrow implementation slice, not a general
+language restriction. The fixed-subobject callee may keep one whole receiver;
+whether existing checks can be reused unchanged must be established by the
+implementation, not promised by this ruling. Iterations and runtime recursive
+cycles still lower to backedges with no frame accumulation. An ordinary outer
+call may use its normal frame; it does not add one frame per loop iteration.
+
+### Excluded proposals and wider loops
+
+Receiver rebinding at transitions is a retired proposal, not deferred syntax
+or planned work. No identified customer needs it beyond ordinary projected
+calls and explicit loop-carried references. A concrete customer requiring a
+distinct capability may propose it later under the owner-question rules.
+
+Linked traversal may carry its changing node reference as an ordinary cursor
+parameter; it is not necessarily array indexing and need not change `self`.
+Its termination witness may use a checked remaining length, an explicit
+decreasing traversal budget, or a structural measure. A structural measure is
+not forced or coupled to receiver syntax.
+
+Broader loop-carried-reference support remains separate implementation scope.
+Multiple structural parameters remove one restriction but do not by themselves
+implement changing-reference transfers, loan lifetimes, alias checks, or rank
+substitution. Some traversals need only a cursor and no separate receiver.
+Do not infer completion of either case from widening a parameter count, or add
+a new language decision merely to finish ordinary reference-flow support.
+
+### Acceptance
+
+Use an ordinary caller invoking a ranked machine on a nested field, not only
+the ranked machine selected as a standalone entry. Verify original-referent
+preservation across iterations and caller-visible writes after return. Reject
+conflicting parent access while the subloan is live, and reject an invalid or
+missing decreasing-measure proof for the callee. Reconstruct call/return,
+cleanup, and resource composition independently of ranking. Preserve exact
+argument/projection and callee identity through Terminal admission and native
+replay; substituted identities and stale evidence reject. Native execution on
+both Linux architectures must exercise the composed caller/callee path.
+
+The bounded implementation lives with cyclic execution and call composition;
+existing whole-entry countdown support remains valid. This ruling grants no
+support to other still-fenced native forms and creates no owner-policy blocker.
+
 ## Partial correctness, outcomes, and reach
 
 `ensures` remains partial correctness: **if** a return edge is reached, the

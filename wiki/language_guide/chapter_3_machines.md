@@ -357,6 +357,18 @@ concurrency consequences.
 
 ## Termination And Ranked Cycles
 
+A loop operating on a fixed field does not need receiver rebinding. An ordinary
+projected call, such as `compiler.parser.scan(...)`, borrows the field at the
+call; inside `scan`, that parser is the whole receiver and remains the same
+referent across iterations. Conflicting parent access rejects while the loan
+is live, and writes affect the original field after return. Changing cursors
+can be ordinary loop-carried reference parameters; no new `self`-rebinding
+surface is planned. The [ranked-callee ruling](../design_briefs/termination_ranking_and_progress.md#ranked-callees-on-projected-receivers)
+records the semantics and acceptance. The current native whole-entry countdown
+route does not yet compose an ordinary caller with such a ranked callee; this
+requires call/return, borrow, ranking, and resource implementation, not new
+source semantics.
+
 A machine may promise termination with `terminates`: every invocation reaches
 a terminal outcome under its declared progress premises. Checked acyclic bodies
 derive that guarantee without annotation. Every cycle in a terminating machine
