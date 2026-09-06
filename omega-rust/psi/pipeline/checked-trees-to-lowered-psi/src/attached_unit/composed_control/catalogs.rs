@@ -17,6 +17,8 @@ pub(crate) struct ComposedCatalogs {
     pub(crate) internal_targets: Vec<LoweredComposedInternalTarget>,
     pub(crate) service_ids: Vec<(ServiceReachId, ServiceId)>,
     pub(crate) next_place: u64,
+    pub(crate) scalar_calls: scalar_calls::ComposedScalarCalls,
+    pub(crate) root_crash_routes: Vec<checked_trees::CrashRouteBucket>,
 }
 
 fn lower_composed_services(
@@ -288,6 +290,8 @@ fn lower_catalogs(
             result,
         });
     }
+    let scalar_calls = scalar_calls::prepare(checked, machine, states, &internal_targets)?;
+    let root_crash_routes = lower_checked_crash_routes(checked, machine)?;
     Ok(ComposedCatalogs {
         structural_types,
         type_ids,
@@ -298,5 +302,7 @@ fn lower_catalogs(
         internal_targets,
         service_ids,
         next_place,
+        scalar_calls,
+        root_crash_routes,
     })
 }

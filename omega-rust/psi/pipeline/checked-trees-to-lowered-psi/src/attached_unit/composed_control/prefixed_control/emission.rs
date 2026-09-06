@@ -6,7 +6,7 @@ pub(super) fn emit(
     checked: &CheckedTrees,
     plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
     admitted: super::admission::AdmittedPrefixed<'_>,
-    catalogs: super::super::catalogs::ComposedCatalogs,
+    mut catalogs: super::super::catalogs::ComposedCatalogs,
 ) -> Result<LoweredPsi, LoweringError> {
     let control_parameters = (0..admitted.controls.len())
         .map(|index| {
@@ -20,6 +20,7 @@ pub(super) fn emit(
         .map(|index| Ok(block_id(dense_identity(index)?)))
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let mut next_edge = 1_u64;
+    let mut next_block = dense_identity(plan.states.len())?;
     let mut blocks = (0..admitted.controls.len() - 1)
         .map(|index| {
             Ok(Block {
@@ -82,30 +83,33 @@ pub(super) fn emit(
         let (leaf, mut occurrences) = match &state.operations[0] {
             CheckedUnitEffectOperationPlan::BoundaryCall { .. } => {
                 super::super::emission::emit_boundary_leaf(
+                    checked,
+                    plan.machine,
                     state,
                     *block,
-                    &catalogs.lowered_boundaries,
-                    &catalogs.type_ids,
-                    &catalogs.structural_types,
+                    &mut catalogs,
+                    &[],
                     &[],
                     &[],
                     &mut next_value,
+                    &mut next_block,
                     &mut next_operation,
                     &mut next_edge,
                 )?
             }
             CheckedUnitEffectOperationPlan::CallUnit { .. } => {
-                super::super::internal_calls::emission::emit_leaf(
+                let (block, occurrences) = super::super::internal_calls::emission::emit_leaf(
                     state,
                     *block,
                     &catalogs.internal_targets,
                     &mut next_operation,
                     &mut next_edge,
-                )?
+                )?;
+                (vec![block], occurrences)
             }
             _ => unreachable!("prefixed admission retained one exact leaf call"),
         };
-        blocks.push(leaf);
+        blocks.extend(leaf);
         source_call_occurrences.append(&mut occurrences);
     }
     let attachment = lookup_type_id(&catalogs.type_ids, &plan.attachment_type_identity)?;
@@ -158,12 +162,6 @@ pub(super) fn emit(
         },
     };
     let mut machines = vec![machine];
-    let mut next_block = u64::try_from(state_ids.len())
-        .map_err(|_| LoweringError::Unsupported("prefixed block count exceeds u64"))?
-        .checked_add(1)
-        .ok_or(LoweringError::Unsupported(
-            "prefixed block identity space is exhausted",
-        ))?;
     machines.extend(super::super::internal_calls::emission::emit_targets(
         checked,
         &catalogs.internal_targets,

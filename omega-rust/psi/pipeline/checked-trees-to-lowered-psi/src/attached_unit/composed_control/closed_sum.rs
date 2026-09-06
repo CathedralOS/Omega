@@ -170,7 +170,7 @@ fn emit(
     checked: &CheckedTrees,
     plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
     admitted: admission::AdmittedComposedUnit<'_>,
-    catalogs: catalogs::ComposedCatalogs,
+    mut catalogs: catalogs::ComposedCatalogs,
 ) -> Result<LoweredPsi, LoweringError> {
     let entry = admitted.entry;
     let CheckedComposedUnitControlTerminatorPlan::ClosedSum { result, cases } = &entry.terminator
@@ -202,6 +202,7 @@ fn emit(
     let BoundaryMachineResult::Structural(boundary_result) = &target.result else {
         return unsupported("closed-sum source boundary lost its structural result");
     };
+    let boundary_result = boundary_result.clone();
     if !scalar_arguments.is_empty()
         || !structural_arguments.is_empty()
         || !completion_receipts.is_empty()
@@ -338,38 +339,29 @@ fn emit(
             cases: successors,
         },
     });
+    let mut next_block = dense_identity(state_ids.len())?;
     for ((leaf, parameters), block) in admitted
         .leaves
         .into_iter()
         .zip(leaf_parameters)
         .zip(&state_ids[1..])
     {
-        let mut operations = OperationBuffer::new(next_operation - 1);
-        for operation in &leaf.operations {
-            emission::emit_boundary_call_operation(
-                leaf,
-                operation,
-                &catalogs.lowered_boundaries,
-                &catalogs.type_ids,
-                &catalogs.structural_types,
-                &[],
-                &[],
-                &parameters,
-                &mut next_value,
-                &mut operations,
-            )?;
-        }
-        next_operation = operations.next_identity;
-        source_calls.append(&mut operations.source_calls);
-        blocks.push(Block {
-            id: *block,
-            parameters,
-            operations: operations.operations,
-            terminator: Terminator::ReturnUnit {
-                edge: edge_id(allocate_dense(&mut next_edge)?),
-                trivial_affine_discards: Vec::new(),
-            },
-        });
+        let (fragment, mut occurrences) = emission::emit_boundary_leaf(
+            checked,
+            plan.machine,
+            leaf,
+            *block,
+            &mut catalogs,
+            &[],
+            &[],
+            &parameters,
+            &mut next_value,
+            &mut next_block,
+            &mut next_operation,
+            &mut next_edge,
+        )?;
+        blocks.extend(fragment);
+        source_calls.append(&mut occurrences);
     }
 
     let attachment = lookup_type_id(&catalogs.type_ids, &plan.attachment_type_identity)?;

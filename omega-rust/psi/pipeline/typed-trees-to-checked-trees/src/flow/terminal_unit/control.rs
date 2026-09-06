@@ -7,6 +7,7 @@ use checked_trees::{
 };
 
 mod call_occurrences;
+pub(super) use call_occurrences::outer_calls;
 
 pub(crate) fn build_checked_structural_unit_control_plans(
     program: &TypedTrees,

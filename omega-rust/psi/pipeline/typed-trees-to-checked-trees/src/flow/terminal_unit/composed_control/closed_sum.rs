@@ -390,10 +390,17 @@ fn build_leaf(
         return None;
     }
     let flow = state_flow(facts, machine.symbol, state.symbol)?;
-    let calls = facts.flow.control.calls.span_or_empty(flow.calls);
+    let mut calls = super::super::control::outer_calls(
+        program,
+        facts,
+        machine.symbol,
+        state,
+        facts.flow.control.calls.span(flow.calls)?,
+    )?;
     if calls.len() != statements.len() {
         return None;
     }
+    calls.sort_by_key(|call| call.statement_index);
     let mut operations = Vec::with_capacity(calls.len() + 1);
     for (statement_index, call) in calls.iter().enumerate() {
         if call.statement_index != statement_index || call.call_ordinal != 0 {

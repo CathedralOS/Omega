@@ -27,7 +27,8 @@ impl Evaluation {
     pub(super) fn arguments(
         &mut self,
         checked: &CheckedTrees,
-        plan: &CheckedUnitEffectMachinePlan,
+        machine: symbols::SymbolHandle,
+        state: symbols::SymbolHandle,
         operation: &CheckedUnitEffectOperationPlan,
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,
@@ -110,9 +111,9 @@ impl Evaluation {
                 .map(Some);
         }
 
-        let mut expansion = crate::scalar_computations::Expansion::new(checked, plan.machine, 1);
+        let mut expansion = crate::scalar_computations::Expansion::new(checked, machine, 1);
         let entry_index = expansion.call_arguments(
-            plan.state,
+            state,
             coordinate,
             boundary,
             arguments,

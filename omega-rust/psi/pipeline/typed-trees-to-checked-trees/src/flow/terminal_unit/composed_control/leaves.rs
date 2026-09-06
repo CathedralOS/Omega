@@ -15,7 +15,14 @@ pub(super) fn build(
         return None;
     };
     let flow = state_flow(facts, machine.symbol, state.symbol)?;
-    let [call] = facts.flow.control.calls.span_or_empty(flow.calls) else {
+    let calls = super::super::control::outer_calls(
+        program,
+        facts,
+        machine.symbol,
+        state,
+        facts.flow.control.calls.span(flow.calls)?,
+    )?;
+    let [call] = calls.as_slice() else {
         return None;
     };
     if call.statement_index != 0 || call.call_ordinal != 0 {

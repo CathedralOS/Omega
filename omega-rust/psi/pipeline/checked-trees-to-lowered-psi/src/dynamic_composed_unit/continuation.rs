@@ -18,7 +18,7 @@ pub(super) fn lower(
         DynamicLoweringLane::Stored(stored) => Some(stored),
         _ => None,
     };
-    let catalogs =
+    let mut catalogs =
         crate::attached_unit::lower_dynamic_control_catalogs(checked, plan, continuation, stored)?;
     if !catalogs.internal_targets.is_empty() || catalogs.next_place != 1 {
         return unsupported(
@@ -59,6 +59,33 @@ pub(super) fn lower(
     let source_type = lookup_type_id(&catalogs.type_ids, &plan.source_type_identity)?;
     let all_realizations = collect_dynamic_realizations(checked, plan)?;
     let lowered_realizations = retain_realizations_for_lane(&all_realizations, plan, lane)?;
+    let realization_prefix = lowered_realizations
+        .iter()
+        .map(|realization| realization.machine.get())
+        .max()
+        .unwrap_or(1);
+    let forwarded_count = if matches!(
+        plan.origin,
+        checked_trees::CheckedDynamicScalarCallOrigin::Forwarded { .. }
+    ) {
+        plan.forwarding_transfers
+            .len()
+            .checked_add(1)
+            .ok_or(LoweringError::Unsupported(
+                "dynamic forwarding machine count overflows usize",
+            ))?
+    } else {
+        0
+    };
+    let scalar_prefix = usize::try_from(realization_prefix)
+        .ok()
+        .and_then(|count| count.checked_add(forwarded_count))
+        .ok_or(LoweringError::Unsupported(
+            "dynamic machine prefix exceeds usize",
+        ))?;
+    catalogs
+        .scalar_calls
+        .reserve_machine_prefix(scalar_prefix)?;
     let selected_realizations = lowered_realizations
         .iter()
         .filter(|candidate| {
@@ -107,6 +134,7 @@ pub(super) fn lower(
 
     let caller_block = block_id(1);
     let leaf_blocks = [block_id(2), block_id(3)];
+    let mut next_block = 4_u64;
     let mut next_edge = 1_u64;
     let when_true = empty_successor(leaf_blocks[0], &mut next_edge)?;
     let when_false = empty_successor(leaf_blocks[1], &mut next_edge)?;
@@ -114,18 +142,20 @@ pub(super) fn lower(
     let mut leaf_source_call_occurrences = Vec::new();
     for (state, block) in continuation.leaves.iter().zip(leaf_blocks) {
         let (leaf, mut occurrences) = crate::attached_unit::emit_direct_dynamic_boundary_leaf(
+            checked,
+            plan.caller_machine,
             state,
             block,
-            &catalogs.lowered_boundaries,
-            &catalogs.type_ids,
-            &catalogs.structural_types,
+            &mut catalogs,
+            &[],
             &[],
             &[],
             &mut next_value,
+            &mut next_block,
             &mut next_operation,
             &mut next_edge,
         )?;
-        emitted_leaf_blocks.push(leaf);
+        emitted_leaf_blocks.extend(leaf);
         leaf_source_call_occurrences.append(&mut occurrences);
     }
 
@@ -172,7 +202,6 @@ pub(super) fn lower(
     })
     .chain(provider_places)
     .collect();
-    let mut next_block = 4_u64;
     let forwarded_helpers = forwarded_helper_chain_ids(
         plan,
         &lowered_realizations,
@@ -250,7 +279,7 @@ pub(super) fn lower(
         &forwarded_helpers,
     )?;
 
-    Ok(LoweredPsi {
+    let mut lowered = LoweredPsi {
         semantic_module: TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: caller_machine,
@@ -324,7 +353,15 @@ pub(super) fn lower(
         debug_map: None,
         source_call_occurrences,
         selected_ieee_float_fma_occurrences: Vec::new(),
-    })
+    };
+    lowered.semantic_module.machines[0].contract.crash_routes =
+        lower_checked_crash_route_buckets(&catalogs.root_crash_routes, &[])?;
+    lowered.semantic_module.machines[0]
+        .blocks
+        .sort_by_key(|block| block.id);
+    catalogs.scalar_calls.append_to(&mut lowered)?;
+    finalize_operation_proofs(&mut lowered)?;
+    Ok(lowered)
 }
 
 fn empty_successor(target: BlockId, next_edge: &mut u64) -> Result<SuccessorEdge, LoweringError> {

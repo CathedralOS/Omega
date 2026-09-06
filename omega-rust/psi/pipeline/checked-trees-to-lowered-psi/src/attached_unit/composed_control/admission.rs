@@ -551,7 +551,11 @@ pub(super) fn retain_exact_flow_call(
     })?;
     let call_ordinal = usize::try_from(coordinate.call_ordinal)
         .map_err(|_| LoweringError::Unsupported("composed Unit call coordinate exceeds usize"))?;
-    if checked
+    let authored = crate::call_source_custody::authored::locate_source(checked, state, coordinate)?;
+    if authored.target_state != target {
+        return unsupported("composed Unit call disagrees with its authored resolved target");
+    }
+    let mut calls = checked
         .facts
         .flow
         .control
@@ -559,12 +563,12 @@ pub(super) fn retain_exact_flow_call(
         .span_or_empty(flow.calls)
         .iter()
         .filter(|call| {
-            call.statement_index == statement_index
-                && call.call_ordinal == call_ordinal
-                && call.target_symbol == target
-        })
-        .count()
-        != 1
+            call.statement_index == statement_index && call.call_ordinal == call_ordinal
+        });
+    if calls
+        .next()
+        .is_none_or(|call| call.target_symbol != authored.source_target)
+        || calls.next().is_some()
     {
         return unsupported("composed Unit boundary call drifted from checked flow");
     }
