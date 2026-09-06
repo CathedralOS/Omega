@@ -978,6 +978,12 @@ Current ownership is:
   gains write capability. Initializers and rebindings require declared nominal
   roots and owned Field/Case projections. Name-only, loaded-reference-slot,
   coarse, and unresolved helper origins cannot supply exact identity.
+  An unresolved read-only binding stays unknown independently of other local
+  references. Its marker has no structural source, and copies preserve that
+  absence; a later direct rebinding can recover only the replaced binding.
+  These query-local markers are retained after initializer effects and binding
+  exposure checks, never as permission to bypass them or as cached write
+  summaries. Unknown write-capable aliases still make the prefix opaque.
   `flow/reference_places.rs` adapts that structural origin and checks earlier
   operand writes against both the local binding and its referent. Contract
   domain checking may then match an existing call-entry fact for the exact

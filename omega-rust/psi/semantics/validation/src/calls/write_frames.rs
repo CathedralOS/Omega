@@ -570,26 +570,44 @@ fn walk_state_write_prefix_inner(
                         assignment.value,
                         &mut local_alias_origins,
                         |aliases| {
-                            if include_shared {
-                                reference_subjects::validate_initializer(
+                            let declared = !include_shared
+                                || reference_subjects::validate_initializer(
                                     program,
                                     machine,
                                     assignment.value,
+                                )
+                                .is_some();
+                            let origin = declared
+                                .then(|| {
+                                    stable_alias_initializer_origin(
+                                        program,
+                                        machine,
+                                        &machine_symbols,
+                                        inference,
+                                        assignment.value,
+                                        parameters,
+                                        &isolated_local_roots,
+                                        aliases,
+                                        symbols,
+                                        true,
+                                        &stored,
+                                    )
+                                })
+                                .flatten();
+                            origin.or_else(|| {
+                                if !include_shared {
+                                    return None;
+                                }
+                                let reference = crate::places::declared_place_type_raw(
+                                    program,
+                                    machine,
+                                    Some(state),
+                                    assignment.target,
                                 )?;
-                            }
-                            stable_alias_initializer_origin(
-                                program,
-                                machine,
-                                &machine_symbols,
-                                inference,
-                                assignment.value,
-                                parameters,
-                                &isolated_local_roots,
-                                aliases,
-                                symbols,
-                                true,
-                                &stored,
-                            )
+                                reference_subjects::unknown_readonly_origin(
+                                    program, reference, relative,
+                                )
+                            })
                         },
                     )?
                 {
@@ -753,7 +771,20 @@ fn walk_state_write_prefix_inner(
                     || (include_shared
                         && type_reference_is_reference(program, local.type_reference))
                 {
-                    if let Some(origin) = declared_local_alias_origin {
+                    // An unknown read-only origin is local to this query. Add
+                    // it only after the exposure/effect checks: retaining a
+                    // binding is not admission to expose another alias slot.
+                    let origin = declared_local_alias_origin.or_else(|| {
+                        if !include_shared {
+                            return None;
+                        }
+                        reference_subjects::unknown_readonly_origin(
+                            program,
+                            local.type_reference,
+                            local.name.as_str(),
+                        )
+                    });
+                    if let Some(origin) = origin {
                         local_alias_origins.push((local.name.as_str().to_owned(), origin));
                     } else {
                         let origins = declared_stored_origins?;

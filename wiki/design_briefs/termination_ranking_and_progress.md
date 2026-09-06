@@ -363,6 +363,10 @@ reference. An owned value read through an alias uses that alias's binding at
 the capture point. Explicit state requirements may use an existing live
 qualification of the exact referent; reference identity cannot establish a
 missing or invalidated qualification.
+An unrelated reference with an unknown origin does not erase another
+reference's exact correspondence. Copies of that unknown reference remain
+unknown, and recovering its binding later does not retroactively recover them.
+Unknown writes and exposed reference bindings still prevent preservation.
 
 State arrivals retain independent field origins. A finite field permutation
 may require several entry subjects, but does not by itself create an unbounded

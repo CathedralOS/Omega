@@ -470,9 +470,7 @@ Owners include
   cannot use root correspondence as evidence for its previous field values;
   a may-write frame cannot identify a replacement value. Extend per-field
   arrivals through opaque reference, recursive-proof, and unresolved generic
-  leaves when exact provenance is available. A demanded local reference must
-  not lose a known origin solely because an unrelated shared-reference local
-  is opaque. Acceptance: those finite
+  leaves when exact provenance is available. Acceptance: those finite
   projected arrivals and checked helper correspondences derive the replacement
   input's exact premise, while unknown writes and reference aliases without
   exact provenance retain no checked guarantee.
