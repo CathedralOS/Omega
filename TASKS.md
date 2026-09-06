@@ -165,14 +165,15 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   chapter 3 and the
   [termination brief](wiki/design_briefs/termination_ranking_and_progress.md).
 
-- **PRIVATE-JOINT-PROGRESS.** Consume the validated joint-call ranking in
-  `typed-trees-to-checked-trees/src/checks/termination/progress.rs`. The current
-  `NoGuarantee` fixed point cannot derive progress for mutually dependent
-  private bodies without an authored public promise to seed it. Derive their
-  checked summaries from the exact component judgment while retaining progress
-  premises from calls outside that component. Acceptance: private scalar and
-  lexicographic cycles derive checked `Terminates` without publishing a
-  guarantee; an external call with unknown progress prevents that derivation.
+- **TERMINATION-SUBJECT-LINEAGE.** Make local-state progress-subject lineage
+  finite in `typed-trees-to-checked-trees/src/checks/termination/progress.rs`.
+  `state_parameter_lineage` unions projected paths without a finite closure:
+  a ranked loop forwarding `next: &Node` can keep extending them, including
+  for parameters unused by progress premises. Acceptance: ranked local loops
+  through recursive reference projections finish checking; qualification
+  correspondence remains exact and a changed subject cannot inherit the
+  entry subject's progress premise. This is separate from mutual-call
+  component inference, which currently admits one entry state per member.
 
 - **EXACT-CALL-RESULT-RELATIONS.** Carry exact call-result comparisons through
   state arrivals and arithmetic validation in

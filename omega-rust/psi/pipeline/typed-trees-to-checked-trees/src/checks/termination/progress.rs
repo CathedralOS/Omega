@@ -8,6 +8,8 @@ use symbols::SymbolHandle;
 
 use crate::{call_site_argument_expressions, call_target_parameters, find_call_site};
 
+mod components;
+
 /// Derive checked termination premises from exact selected call contracts.
 ///
 /// Published operation contracts remain the caller-facing authority. Private
@@ -30,36 +32,7 @@ pub(crate) fn analyze_checked_progress(
     if !correspondence_diagnostics.is_empty() {
         return Err(correspondence_diagnostics);
     }
-    let mut summaries = program
-        .machines()
-        .iter()
-        .map(|machine| CheckedProgressSummary {
-            machine: machine.symbol,
-            guarantee: TerminationGuarantee::NoGuarantee,
-            build_bound_demands: Vec::new(),
-        })
-        .collect::<Vec<_>>();
-
-    loop {
-        let previous = summaries.clone();
-        for machine in program.machines() {
-            let summary = derive_machine_summary(program, flow, semantic, machine, &previous)
-                .unwrap_or_else(|| CheckedProgressSummary {
-                    machine: machine.symbol,
-                    guarantee: TerminationGuarantee::NoGuarantee,
-                    build_bound_demands: Vec::new(),
-                });
-            if let Some(retained) = summaries
-                .iter_mut()
-                .find(|summary| summary.machine == machine.symbol)
-            {
-                *retained = summary;
-            }
-        }
-        if summaries == previous {
-            break;
-        }
-    }
+    let summaries = components::derive_summaries(program, flow, semantic);
 
     let mut diagnostics = Vec::new();
     for machine in program

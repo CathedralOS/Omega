@@ -131,6 +131,14 @@ insufficient: a preserving cross-edge cycle must also reject. The exact source
 spelling for differently shaped participants remains deferred; the normalized
 joint-cycle rule is settled.
 
+Checked progress for a private mutual component uses that validated joint
+ranking without an authored public promise to seed inference. Calls outside
+the component still supply their exact progress obligations. Finite sets of
+subject-qualified premises and build-bound provider demands propagate through
+the component; unknown external progress prevents the checked guarantee.
+Growing projected demands are not generalized into a universal qualification
+or silently dropped.
+
 The future proof-certificate form preserves that granularity. One recursive
 component cites the selected ranking relation and its well-foundedness evidence
 once; every intra-component edge carries its own rank-comparison proof, and

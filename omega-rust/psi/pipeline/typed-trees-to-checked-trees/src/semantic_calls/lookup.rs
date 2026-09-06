@@ -48,13 +48,25 @@ pub(crate) fn find_state(
     })
 }
 
-/// The parameter list of a call target: a machine state's parameters, or --
+/// The parameter list of a call target: a machine entry or selected state's
+/// parameters, or --
 /// for a call through a trait-typed receiver (boundary trait machines) or a
 /// boundary-trait receiver -- the owning signature's parameters.
 pub(crate) fn call_target_parameters(
     program: &typed_trees::TypedTrees,
     target_state_symbol: SymbolHandle,
 ) -> Option<&[typed_trees::signature::StateParameter]> {
+    if target_state_symbol.is_valid()
+        && let Some(machine) = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == target_state_symbol)
+    {
+        return program
+            .machine_states(machine)
+            .first()
+            .map(|entry| program.state_parameters(entry));
+    }
     if let Some(state) = find_state(program, target_state_symbol) {
         return Some(program.state_parameters(state));
     }
@@ -84,10 +96,12 @@ pub(crate) fn call_target_type_parameters(
     target_state_symbol: SymbolHandle,
 ) -> &[typed_trees::data::TypeParameter] {
     if let Some(machine) = program.machines().iter().find(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .any(|state| state.symbol == target_state_symbol)
+        target_state_symbol.is_valid()
+            && (machine.symbol == target_state_symbol
+                || program
+                    .machine_states(machine)
+                    .iter()
+                    .any(|state| state.symbol == target_state_symbol))
     }) {
         return program.machine_type_parameters(machine);
     }
@@ -113,6 +127,73 @@ mod tests {
     use super::*;
     use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
     use typed_trees::{machine::Machine, state::State};
+
+    #[test]
+    fn machine_head_calls_use_entry_parameters_and_the_same_generic_context() {
+        use typed_trees::data::{TypeParameter, TypeParameterKind};
+        use typed_trees::name::Identifier;
+        use typed_trees::signature::StateParameter;
+
+        let mut program = typed_trees::TypedTrees::default();
+        let machine_symbol = SymbolHandle::from_arena_index(40);
+        let entry_symbol = SymbolHandle::from_arena_index(41);
+        let later_symbol = SymbolHandle::from_arena_index(42);
+        let parameter_symbol = SymbolHandle::from_arena_index(43);
+        let generic_symbol = SymbolHandle::from_arena_index(44);
+        let later_parameter = SymbolHandle::from_arena_index(45);
+        let mut machine = Machine {
+            symbol: machine_symbol,
+            ..Default::default()
+        };
+        program.push_machine_type_parameter(
+            &mut machine,
+            TypeParameter {
+                symbol: generic_symbol,
+                name: Identifier::generated("Value"),
+                kind: TypeParameterKind::Type,
+                bounds: Default::default(),
+            },
+        );
+        for (state_symbol, parameter) in [
+            (entry_symbol, parameter_symbol),
+            (later_symbol, later_parameter),
+        ] {
+            let mut state = State {
+                symbol: state_symbol,
+                ..Default::default()
+            };
+            program.push_state_parameter(
+                &mut state,
+                StateParameter {
+                    symbol: parameter,
+                    ..Default::default()
+                },
+            );
+            program.push_machine_state(&mut machine, state);
+        }
+        program.push_machine(machine);
+        for target in [machine_symbol, entry_symbol] {
+            assert_eq!(
+                call_target_parameters(&program, target).unwrap()[0].symbol,
+                parameter_symbol
+            );
+            assert_eq!(
+                call_target_type_parameters(&program, target)[0].symbol,
+                generic_symbol
+            );
+        }
+        assert_eq!(
+            call_target_parameters(&program, later_symbol).unwrap()[0].symbol,
+            later_parameter
+        );
+        assert_eq!(
+            call_target_type_parameters(&program, later_symbol)[0].symbol,
+            generic_symbol
+        );
+        assert!(call_target_parameters(&program, SymbolHandle::invalid()).is_none());
+        assert!(call_target_type_parameters(&program, SymbolHandle::invalid()).is_empty());
+        assert!(call_target_parameters(&program, SymbolHandle::from_arena_index(99)).is_none());
+    }
 
     #[test]
     fn state_lookup_rejects_invalid_handles_but_retains_unresolved_table_fallback() {
