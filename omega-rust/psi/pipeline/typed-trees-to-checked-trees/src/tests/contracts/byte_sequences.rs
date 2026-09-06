@@ -1,6 +1,65 @@
 use super::*;
 
 #[test]
+fn copied_byte_predicates_follow_materialized_storage() {
+    for (body, succeeds) in [
+        (
+            "input.bytes[position] = 65; output.bytes = input.bytes;",
+            true,
+        ),
+        (
+            "input.bytes[position] = 65; let saved: [u8; 4] = input.bytes; output.bytes = saved;",
+            true,
+        ),
+        (
+            "input.bytes[position] = 65; output.bytes = input.bytes; input.bytes[position] = 255;",
+            true,
+        ),
+        (
+            "input.bytes[position] = 255; output.bytes = input.bytes;",
+            false,
+        ),
+        (
+            "input.bytes[position] = 65; output.bytes = input.bytes; output.bytes[position] = 66;",
+            true,
+        ),
+        (
+            "input.bytes[position] = 65; output.bytes = input.bytes; let alias: &mut [u8; 4] = &mut output.bytes; alias[position] = 255;",
+            false,
+        ),
+        (
+            "input.bytes[position] = 65; output.bytes = input.bytes; output.bytes[position] = 255;",
+            false,
+        ),
+        (
+            "input.bytes[position] = 65; output.bytes = input.bytes; corrupt(&mut output.bytes);",
+            false,
+        ),
+    ] {
+        let source = format!(
+            r#"
+            domain [u8; 4]::Ascii requires ascii_only(self);
+            data Buffer {{ bytes: [u8; 4]; }}
+            machine corrupt(bytes: &mut [u8; 4]) {{ bytes[0] = 255; }}
+            machine copy(output: &mut Buffer, input: &mut Buffer, position: u64 [0..=3])
+            requires input.bytes in Ascii
+            ensures output.bytes in Ascii {{ {body} }}
+            "#
+        );
+        let result = lower_typed_trees(parse_typed_trees(&source));
+        assert_eq!(result.is_ok(), succeeds, "{body}: {result:#?}");
+        if let Err(diagnostics) = result {
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains("cannot prove ensures")),
+                "{body}: {diagnostics:#?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn direct_computed_byte_stores_use_selected_arithmetic() {
     for (body, succeeds) in [
         ("output[position] = 1 / 2 * 400;", false),
