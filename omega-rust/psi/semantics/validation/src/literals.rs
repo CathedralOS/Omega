@@ -73,7 +73,8 @@ mod float_landing;
 pub use float_landing::land_float_literal_destinations;
 mod integer_landing;
 mod integer_remainder;
-pub(crate) use integer_landing::{anonymous_integer_value, land_integer_value};
+pub(crate) use integer_landing::anonymous_integer_landing_warnings;
+pub(crate) use integer_landing::{anonymous_numeric_value, land_integer_value};
 pub use integer_landing::{has_anonymous_operator_meaning, land_anonymous_integer_expression};
 pub(crate) use integer_remainder::validate_anonymous_remainders;
 

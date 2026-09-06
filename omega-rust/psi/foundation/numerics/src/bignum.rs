@@ -418,6 +418,12 @@ impl BigRational {
         self.numerator.is_negative() || (self.numerator.is_zero() && self.negative_zero)
     }
 
+    /// Return the integer value only when the normalized rational has no
+    /// fractional part. Unlike a conversion cast, this never truncates.
+    pub fn to_integer_exact(&self) -> Option<BigInt> {
+        (self.denominator == BigInt::from_u64(1)).then(|| self.numerator.clone())
+    }
+
     /// Truncate toward zero, matching the language's float-to-integer
     /// conversion rule.
     pub fn truncate_to_integer(&self) -> BigInt {
@@ -857,6 +863,19 @@ impl Ord for BigInt {
     }
 }
 
+impl fmt::Display for BigRational {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.numerator.is_zero() {
+            return formatter.write_str("0");
+        }
+        write!(formatter, "{}", self.numerator)?;
+        if self.denominator != BigInt::from_u64(1) {
+            write!(formatter, "/{}", self.denominator)?;
+        }
+        Ok(())
+    }
+}
+
 impl fmt::Display for BigInt {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.is_zero() {
@@ -1212,6 +1231,75 @@ mod tests {
         assert_eq!(big(i128::from(u64::MAX) + 1).to_u64(), None);
         assert_eq!(big(-1).to_u64(), None);
         assert_eq!(big(0).to_u64(), Some(0));
+    }
+
+    #[test]
+    fn rational_exact_integer_conversion_requires_complete_cancellation() {
+        let seven = BigRational::from_integer(BigInt::from_u64(7));
+        let two = BigRational::from_integer(BigInt::from_u64(2));
+        let quotient = seven.div(&two).unwrap();
+        assert_eq!(quotient.to_integer_exact(), None);
+        assert_eq!(quotient.to_string(), "7/2");
+        assert_eq!(
+            quotient.mul(&two).to_integer_exact(),
+            Some(BigInt::from_u64(7))
+        );
+        assert_eq!(
+            quotient.add(&quotient).to_integer_exact(),
+            Some(BigInt::from_u64(7))
+        );
+        assert_eq!(
+            quotient.sub(&quotient).to_integer_exact(),
+            Some(BigInt::zero())
+        );
+        assert_eq!(quotient.negate().to_integer_exact(), None);
+        assert_eq!(
+            quotient.negate().mul(&two).to_integer_exact(),
+            Some(BigInt::from_i64(-7))
+        );
+        assert!(seven.div(&BigRational::zero()).is_none());
+    }
+
+    #[test]
+    fn rational_display_normalizes_fraction_sign_and_zero() {
+        for (numerator, denominator, expected) in [
+            (6, 8, "3/4"),
+            (-6, 8, "-3/4"),
+            (6, -8, "-3/4"),
+            (-6, -8, "3/4"),
+            (-8, 2, "-4"),
+            (8, -2, "-4"),
+            (0, -2, "0"),
+        ] {
+            let value = BigRational::from_integer(BigInt::from_i64(numerator))
+                .div(&BigRational::from_integer(BigInt::from_i64(denominator)))
+                .unwrap();
+            assert_eq!(value.to_string(), expected);
+        }
+        let negative_zero = BigRational::from_decimal_str("-0.000").unwrap();
+        assert_eq!(negative_zero.to_string(), "0");
+        assert_eq!(negative_zero.to_integer_exact(), Some(BigInt::zero()));
+        assert_eq!(
+            BigRational::from_decimal_str("1.2500").unwrap().to_string(),
+            "5/4"
+        );
+    }
+
+    #[test]
+    fn rational_exact_conversion_and_display_preserve_unbounded_values() {
+        let huge = BigInt::from_u64(1).shl_bits(256).add(&BigInt::from_u64(1));
+        let whole = BigRational::from_integer(huge.clone());
+        assert_eq!(whole.to_integer_exact(), Some(huge.clone()));
+        assert_eq!(whole.to_string(), huge.to_string());
+        let fraction = BigRational::from_integer(huge.mul(&BigInt::from_u64(7)))
+            .div(&BigRational::from_integer(BigInt::from_u64(21)))
+            .unwrap();
+        assert_eq!(fraction.to_integer_exact(), None);
+        assert_eq!(fraction.to_string(), format!("{huge}/3"));
+        let cancelled = fraction.mul(&BigRational::from_integer(BigInt::from_u64(3)));
+        assert_eq!(cancelled.to_integer_exact(), Some(huge.clone()));
+        assert_eq!(cancelled.negate().to_integer_exact(), Some(huge.negate()));
+        assert_eq!(cancelled.negate().to_string(), format!("-{huge}"));
     }
 
     #[test]

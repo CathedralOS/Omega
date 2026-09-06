@@ -342,6 +342,7 @@ const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
 /// Pure checked-semantics canaries. These deliberately do not enter native
 /// lowering and therefore do not require a deployable `ProgramEntry` binding.
 const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
+    "arithmetic/anonymous_rational_integer_landing",
     "slices/signed_index_and_range_lower_bounds",
     "operators/slice_index_bounds_from_operator_contract",
     "slices/bounded_slice_index_max",
@@ -717,6 +718,8 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
 ];
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
+    "arithmetic/fractional_integer_landing",
+    "arithmetic/fractional_integer_operand",
     "slices/signed_slice_index_upper_only",
     "slices/signed_slice_range_upper_only",
     "slices/signed_array_range_upper_only",

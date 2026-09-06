@@ -1,0 +1,4 @@
+machine value() -> i32
+{
+    7 / 2
+}
