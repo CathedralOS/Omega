@@ -328,11 +328,12 @@ pub(super) fn emit_scalar_binding(
         .collect::<Vec<_>>();
     emit_direct_call_operation(
         call,
-        &call.crash_continuations,
-        match call.crash_scope {
-            ScalarCallCrashScope::CallerValues => parameters,
-            ScalarCallCrashScope::Arguments => &arguments,
-        },
+        // Terminal calls retain the callee's published routes substituted onto
+        // evaluated argument values. Source-refined surviving buckets can fold
+        // a literal guard to Truth or remove it, which is not that exact value
+        // substitution and disagrees with the independently verified callee.
+        &call.parameter_relative_crash_routes,
+        &arguments,
         parameters,
         &arguments,
         next_value_identity,

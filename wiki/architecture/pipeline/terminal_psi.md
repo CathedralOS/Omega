@@ -3283,6 +3283,10 @@ routes to the actual argument values, using the same route substitution as
 ordinary staged calls. The checker row still supplies exact target-contract
 identity; Terminal verification independently reconstructs route coverage.
 Declared crash ceilings may remain even when every crashing branch is skipped.
+Direct scalar calls, including literal arguments, bind those same pinned callee
+routes to the emitted argument values. Source-side simplification of a caller's
+crash conditions is proof information; it does not replace the callee's published
+route interface in a call operation.
 
 Integer applications share operation construction with pure checked expressions.
 Each operand retains its own arithmetic policy; a resolved callee's declared
