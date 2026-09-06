@@ -34,7 +34,25 @@ pub(super) fn build_domains<'a>(
 ) -> Result<Vec<AllocationDomain<'a>>, RegisterHomeError> {
     tied_components(function, legality, ranges)?
         .into_iter()
-        .map(|members| build_domain(function, members))
+        .map(|members| {
+            let edge = ranges.edge_transfers.iter().find(|edge| {
+                members
+                    .iter()
+                    .any(|member| member.virtual_register == edge.parameter)
+            });
+            build_domain(function, members).map_err(|error| {
+                if let Some(edge) = edge
+                    && matches!(error, RegisterHomeError::NoCommonTiedComponent { .. })
+                {
+                    RegisterHomeError::UnsupportedEdgeTransfer {
+                        function,
+                        edge: edge.psi_edge.get(),
+                    }
+                } else {
+                    error
+                }
+            })
+        })
         .collect()
 }
 
@@ -69,6 +87,28 @@ fn tied_components<'a>(
             parents[defined_root] = used_root;
         }
     }
+    for transfer in &ranges.edge_transfers {
+        let error = || RegisterHomeError::UnsupportedEdgeTransfer {
+            function,
+            edge: transfer.psi_edge.get(),
+        };
+        let (Some(&argument), Some(&parameter)) = (
+            positions.get(&transfer.argument),
+            positions.get(&transfer.parameter),
+        ) else {
+            return Err(error());
+        };
+        if legality.virtual_registers[argument].class != transfer.class
+            || legality.virtual_registers[parameter].class != transfer.class
+        {
+            return Err(error());
+        }
+        let argument_root = component_root(&parents, argument);
+        let parameter_root = component_root(&parents, parameter);
+        if argument_root != parameter_root {
+            parents[parameter_root] = argument_root;
+        }
+    }
     let mut grouped = BTreeMap::<usize, Vec<_>>::new();
     for (position, register) in legality.virtual_registers.iter().enumerate() {
         grouped
@@ -77,6 +117,25 @@ fn tied_components<'a>(
             .push(register);
     }
     for members in grouped.values() {
+        if ranges.early_clobbers.iter().any(|early| {
+            members
+                .iter()
+                .any(|member| member.virtual_register == early.def_virtual_register)
+                && early.uses.iter().any(|used| {
+                    members
+                        .iter()
+                        .any(|member| member.virtual_register == used.virtual_register)
+                })
+        }) && let Some(edge) = ranges.edge_transfers.iter().find(|edge| {
+            members
+                .iter()
+                .any(|member| member.virtual_register == edge.parameter)
+        }) {
+            return Err(RegisterHomeError::UnsupportedEdgeTransfer {
+                function,
+                edge: edge.psi_edge.get(),
+            });
+        }
         for (index, left) in members.iter().enumerate() {
             for right in members.iter().skip(index + 1) {
                 if registers_interfere(
@@ -86,6 +145,16 @@ fn tied_components<'a>(
                 ) {
                     let (lower, higher) =
                         ordered_pair(left.virtual_register, right.virtual_register);
+                    if let Some(edge) = ranges.edge_transfers.iter().find(|edge| {
+                        members
+                            .iter()
+                            .any(|member| member.virtual_register == edge.parameter)
+                    }) {
+                        return Err(RegisterHomeError::UnsupportedEdgeTransfer {
+                            function,
+                            edge: edge.psi_edge.get(),
+                        });
+                    }
                     return Err(RegisterHomeError::TiedRegistersInterfere {
                         function,
                         lower: lower.0,

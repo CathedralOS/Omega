@@ -3,7 +3,7 @@
 use selected_instructions::{MachineAlternativeKey, SelectedBlockId, SelectedInstructionId};
 use semantic_vocabulary::MachineId;
 
-use super::ResolvedConditionalBranchEvidence;
+use super::ResolvedBranchEvidence;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedSelectedFormRow {
@@ -11,7 +11,7 @@ pub struct ResolvedSelectedFormRow {
     pub alternative: MachineAlternativeKey,
     pub offset: u64,
     pub bytes: Vec<u8>,
-    pub branch: Option<Box<ResolvedConditionalBranchEvidence>>,
+    pub branch: Option<Box<ResolvedBranchEvidence>>,
     pub internal_machine_fixup: Option<crate::SelectedFormInternalMachineFixup>,
 }
 

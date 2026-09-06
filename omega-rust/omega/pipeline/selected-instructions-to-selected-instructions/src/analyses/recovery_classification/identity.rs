@@ -135,6 +135,16 @@ fn encode_integer_value(bytes: &mut Vec<u8>, value: IntegerValue) {
 
 fn encode_origin(bytes: &mut Vec<u8>, origin: VirtualRegisterOrigin) {
     match origin {
+        VirtualRegisterOrigin::BlockParameter {
+            source_value,
+            block,
+            parameter_index,
+        } => {
+            bytes.push(3);
+            bytes.extend_from_slice(&source_value.get().to_le_bytes());
+            bytes.extend_from_slice(&block.0.to_le_bytes());
+            encode_len(bytes, parameter_index);
+        }
         VirtualRegisterOrigin::EntryParameter {
             source_value,
             parameter_index,
@@ -380,10 +390,10 @@ mod tests {
         );
 
         let mut wrong_version = encoded;
-        wrong_version[8..12].copy_from_slice(&4_u32.to_le_bytes());
+        wrong_version[8..12].copy_from_slice(&3_u32.to_le_bytes());
         assert_eq!(
             RecoveryClassificationPlan::decode(&wrong_version),
-            Err(RecoveryClassificationDecodeError::UnsupportedVersion(4))
+            Err(RecoveryClassificationDecodeError::UnsupportedVersion(3))
         );
     }
 

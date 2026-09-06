@@ -42,6 +42,9 @@ pub(super) fn require_function(
     if actual.tied_pairs != expected.tied_pairs {
         return Err(LiveRangeError::TiedPairMismatch { function });
     }
+    if actual.edge_transfers != expected.edge_transfers {
+        return Err(LiveRangeError::FunctionMismatch { function });
+    }
     require_early_clobber_rows(function, &actual.early_clobbers, &expected.early_clobbers)?;
     if actual.architectural_units != expected.architectural_units {
         let unit = expected

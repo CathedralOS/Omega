@@ -1,5 +1,6 @@
 use machine_code::{
-    FunctionFragment, FunctionFragmentConditionalBranchPredicate, FunctionFragmentControlProvenance,
+    FunctionFragment, FunctionFragmentBranchEvidence as Branch,
+    FunctionFragmentConditionalBranchPredicate, FunctionFragmentControlProvenance,
 };
 use selected_instructions::{MachineAlternativeFamily, MachineEncodedControlEffect};
 
@@ -14,7 +15,7 @@ pub(in crate::text_placement) fn prove_none(
                 MachineAlternativeFamily::ConditionalBranchNonZero
                 | MachineAlternativeFamily::ConditionalBranchU64LessThan
                 | MachineAlternativeFamily::ConditionalBranchI64LessThan => {
-                    let Some(branch) = row.branch.as_deref() else {
+                    let Some(Branch::Conditional(branch)) = row.branch.as_deref() else {
                         return Err(TextPlacementError::UnsupportedRelocationShape);
                     };
                     let FunctionFragmentControlProvenance::ConditionalBranch {
@@ -50,6 +51,25 @@ pub(in crate::text_placement) fn prove_none(
                             != Some(branch.when_taken_offset)
                         || target_block_offset(function, branch.when_fallthrough_block)
                             != Some(branch.when_fallthrough_offset)
+                    {
+                        return Err(TextPlacementError::UnsupportedRelocationShape);
+                    }
+                }
+                MachineAlternativeFamily::Jump => {
+                    let (
+                        Some(Branch::Jump(branch)),
+                        FunctionFragmentControlProvenance::Jump { successor },
+                    ) = (row.branch.as_deref(), &row.control)
+                    else {
+                        return Err(TextPlacementError::UnsupportedRelocationShape);
+                    };
+                    if branch.source_block != block.block
+                        || branch.target_edge != successor.psi_edge
+                        || branch.target_block != successor.block
+                        || branch.decoded_effects.control
+                            != MachineEncodedControlEffect::UnconditionalRelativeBranchV1
+                        || target_block_offset(function, branch.target_block)
+                            != Some(branch.target_offset)
                     {
                         return Err(TextPlacementError::UnsupportedRelocationShape);
                     }

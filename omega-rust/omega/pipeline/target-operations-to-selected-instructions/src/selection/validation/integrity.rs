@@ -159,71 +159,7 @@ pub(super) fn validate_block_constraints(
     Ok(())
 }
 
-pub(super) fn validate_def_use(
-    function_index: usize,
-    function: &SelectedFunction,
-    catalog: &ValidatedRegisterConstraintCatalog,
-) -> Result<(), SelectedInstructionError> {
-    let mut definitions = vec![0_u8; function.virtual_registers.len()];
-    let entry_registers = function
-        .virtual_registers
-        .iter()
-        .filter_map(|register| {
-            matches!(
-                register.origin,
-                VirtualRegisterOrigin::EntryParameter { .. }
-            )
-            .then_some(register.id)
-        })
-        .collect::<BTreeSet<_>>();
-    for register in &entry_registers {
-        definitions[register.0 as usize] = 1;
-    }
-    for block in &function.blocks {
-        let mut available = entry_registers.clone();
-        for instruction in block
-            .instructions
-            .iter()
-            .chain(std::iter::once(terminator_instruction(&block.terminator)))
-        {
-            let row = row(catalog, instruction.constraint)?;
-            for (operand, constraint) in instruction.operands.iter().zip(&row.operands) {
-                let index = operand.virtual_register.0 as usize;
-                if matches!(
-                    constraint.access,
-                    RegisterOperandAccess::Use | RegisterOperandAccess::UseDef
-                ) && !available.contains(&operand.virtual_register)
-                {
-                    return Err(SelectedInstructionError::UseBeforeDefinition {
-                        function: function_index,
-                        instruction: instruction.id.0,
-                        register: operand.virtual_register.0,
-                    });
-                }
-                if matches!(
-                    constraint.access,
-                    RegisterOperandAccess::Def | RegisterOperandAccess::UseDef
-                ) {
-                    definitions[index] += 1;
-                    if definitions[index] != 1 {
-                        return Err(SelectedInstructionError::MultipleDefinitions {
-                            function: function_index,
-                            register: operand.virtual_register.0,
-                        });
-                    }
-                    available.insert(operand.virtual_register);
-                }
-            }
-        }
-    }
-    if definitions.iter().any(|count| *count != 1) {
-        return Err(SelectedInstructionError::MultipleDefinitions {
-            function: function_index,
-            register: definitions.iter().position(|count| *count != 1).unwrap() as u32,
-        });
-    }
-    Ok(())
-}
+pub(super) use super::def_use::validate_def_use;
 
 pub(super) fn validate_provenance_partition(
     function_index: usize,
@@ -585,11 +521,12 @@ pub(super) fn validate_provenance_partition(
     Ok(())
 }
 
-fn terminator_instruction(terminator: &SelectedTerminator) -> &SelectedInstruction {
+pub(super) fn terminator_instruction(terminator: &SelectedTerminator) -> &SelectedInstruction {
     match terminator {
         SelectedTerminator::ConditionalBranch { instruction, .. }
         | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
         | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
+        | SelectedTerminator::Jump { instruction, .. }
         | SelectedTerminator::Return { instruction, .. } => instruction,
     }
 }

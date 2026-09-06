@@ -18,6 +18,7 @@ const V8_DOMAIN: &[u8] = b"omega-fixed-view-copy-envelope-v8\0";
 const V9_DOMAIN: &[u8] = b"omega-fixed-view-copy-envelope-v9\0";
 const V10_DOMAIN: &[u8] = b"omega-fixed-view-copy-envelope-v10\0";
 const V11_DOMAIN: &[u8] = b"omega-fixed-view-copy-envelope-v11\0";
+const V12_DOMAIN: &[u8] = b"omega-fixed-view-copy-envelope-v12\0";
 
 pub(super) fn v5_identity(plan: &FixedViewCopyPlan, content: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
@@ -70,6 +71,14 @@ pub(super) fn v10_identity(plan: &FixedViewCopyPlan, content: &[u8]) -> [u8; 32]
 pub(super) fn v11_identity(plan: &FixedViewCopyPlan, content: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(V11_DOMAIN);
+    hasher.update(fixed_view_copy_identity(plan).bytes());
+    hasher.update(Sha256::digest(content));
+    hasher.finalize().into()
+}
+
+pub(super) fn v12_identity(plan: &FixedViewCopyPlan, content: &[u8]) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(V12_DOMAIN);
     hasher.update(fixed_view_copy_identity(plan).bytes());
     hasher.update(Sha256::digest(content));
     hasher.finalize().into()

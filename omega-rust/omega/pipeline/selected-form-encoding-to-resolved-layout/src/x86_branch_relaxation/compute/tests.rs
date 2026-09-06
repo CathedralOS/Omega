@@ -119,19 +119,21 @@ fn conditional_function(
                     alternative: branch_alternative,
                     offset: 0,
                     bytes: near.bytes().to_vec(),
-                    branch: Some(Box::new(crate::ResolvedConditionalBranchEvidence {
-                        predicate,
-                        source_block: entry,
-                        when_taken_edge: EdgeId::new(1).unwrap(),
-                        when_taken_block: taken,
-                        when_taken_offset: taken_offset,
-                        when_fallthrough_edge: EdgeId::new(2).unwrap(),
-                        when_fallthrough_block: fallthrough,
-                        when_fallthrough_offset: fallthrough_offset,
-                        byte_displacement: displacement,
-                        decoded_register_reads: vec![],
-                        decoded_effects: near.footprint().encoded.clone(),
-                    })),
+                    branch: Some(Box::new(machine_code::ResolvedBranchEvidence::Conditional(
+                        crate::ResolvedConditionalBranchEvidence {
+                            predicate,
+                            source_block: entry,
+                            when_taken_edge: EdgeId::new(1).unwrap(),
+                            when_taken_block: taken,
+                            when_taken_offset: taken_offset,
+                            when_fallthrough_edge: EdgeId::new(2).unwrap(),
+                            when_fallthrough_block: fallthrough,
+                            when_fallthrough_offset: fallthrough_offset,
+                            byte_displacement: displacement,
+                            decoded_register_reads: vec![],
+                            decoded_effects: near.footprint().encoded.clone(),
+                        },
+                    ))),
                     internal_machine_fixup: None,
                 }],
             },
@@ -206,6 +208,7 @@ fn eligible_near_branch_shrinks_and_both_reflow_implementations_agree() {
         produced[0].blocks[0].instructions[0]
             .branch
             .as_deref()
+            .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
             .unwrap()
             .byte_displacement,
         127

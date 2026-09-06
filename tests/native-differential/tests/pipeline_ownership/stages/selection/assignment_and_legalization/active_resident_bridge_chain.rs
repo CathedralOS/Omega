@@ -25,7 +25,7 @@ fn bridge_chain_legalization_is_independently_validated_on_both_architectures() 
             target.optimized().unit(),
         )
         .unwrap();
-        let function = &legalized.plan().functions[0];
+        let function = legalized.plan().functions[0].conditional();
         assert_eq!(
             function.recipe,
             LegalizationRecipe::ReturnU64ActiveResidentExactAddBridgeChainConditionalV1,
@@ -40,7 +40,7 @@ fn bridge_chain_legalization_is_independently_validated_on_both_architectures() 
 
         let mut corrupted = legalized.plan().clone();
         let LegalizedLeafValue::ActiveResidentExactAddBridgeChain(chain) =
-            &mut corrupted.functions[0].when_true.value
+            &mut corrupted.functions[0].conditional_mut().when_true.value
         else {
             unreachable!()
         };

@@ -2,6 +2,7 @@
 
 mod calling;
 mod canonical;
+mod condition;
 mod plan;
 mod projected_structural_call_return;
 mod scalar;

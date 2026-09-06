@@ -45,7 +45,12 @@ pub fn function_fragment_emission_statistics(
                 .ok_or(FunctionFragmentStatisticsOverflow)?;
             for row in &block.instructions {
                 result.zero_byte_instruction_spans += u64::from(row.bytes.is_empty());
-                result.resolved_conditional_branches += u64::from(row.branch.is_some());
+                result.resolved_conditional_branches += u64::from(
+                    row.branch
+                        .as_deref()
+                        .and_then(machine_code::FunctionFragmentBranchEvidence::as_conditional)
+                        .is_some(),
+                );
                 result.unresolved_internal_machine_fixups = result
                     .unresolved_internal_machine_fixups
                     .checked_add(u64::from(row.internal_machine_fixup.is_some()))

@@ -118,6 +118,7 @@ pub(super) fn ranges(register_count: u32, interference: &[(u32, u32)]) -> Functi
                 edge_connectors: Vec::new(),
             })
             .collect(),
+        edge_transfers: Vec::new(),
         tied_pairs: Vec::new(),
         early_clobbers: Vec::new(),
         architectural_units: Vec::new(),

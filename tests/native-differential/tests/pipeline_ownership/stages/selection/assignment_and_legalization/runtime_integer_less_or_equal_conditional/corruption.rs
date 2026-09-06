@@ -57,7 +57,7 @@ fn inclusive_order_substitution_and_swap_corruption_fail_closed() {
 
         let mut swapped = original.clone();
         let LegalizedCondition::IntegerLessOrEqualParametersV1 { left, right, .. } =
-            &mut swapped.functions[0].condition
+            &mut swapped.functions[0].conditional_mut().condition
         else {
             panic!("fixture must retain authored inclusive order")
         };
@@ -75,11 +75,11 @@ fn inclusive_order_substitution_and_swap_corruption_fail_closed() {
                 fuel,
                 left,
                 right,
-            } = substituted.functions[0].condition.clone()
+            } = substituted.functions[0].conditional().condition.clone()
             else {
                 unreachable!()
             };
-            substituted.functions[0].condition = if substitute == 0 {
+            substituted.functions[0].conditional_mut().condition = if substitute == 0 {
                 LegalizedCondition::IntegerEqualParametersV1 {
                     operation,
                     result_definition_site,

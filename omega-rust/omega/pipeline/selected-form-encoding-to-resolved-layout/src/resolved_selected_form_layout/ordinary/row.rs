@@ -21,7 +21,7 @@ use post_allocation_machine_to_selected_form_encoding::{
     SelectedFormInternalMachineFixupState, SelectedFormMachineDisposition,
 };
 
-use super::super::{OptimizedResolvedSelectedFormLayoutError, ResolvedConditionalBranchEvidence};
+use super::super::{OptimizedResolvedSelectedFormLayoutError, ResolvedBranchEvidence};
 use super::branch;
 
 #[allow(clippy::too_many_arguments)]
@@ -40,7 +40,7 @@ pub(super) fn resolve(
 ) -> Result<
     (
         Vec<u8>,
-        Option<Box<ResolvedConditionalBranchEvidence>>,
+        Option<Box<ResolvedBranchEvidence>>,
         Option<SelectedFormInternalMachineFixup>,
     ),
     OptimizedResolvedSelectedFormLayoutError,

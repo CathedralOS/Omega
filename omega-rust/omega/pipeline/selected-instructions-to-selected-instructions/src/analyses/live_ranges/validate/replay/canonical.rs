@@ -13,6 +13,10 @@ pub(super) fn validate(function: usize, actual: &FunctionLiveRanges) -> Result<(
             .any(|rows| rows[0].virtual_register >= rows[1].virtual_register)
         || actual.tied_pairs.windows(2).any(|rows| rows[0] >= rows[1])
         || actual
+            .edge_transfers
+            .windows(2)
+            .any(|rows| rows[0] >= rows[1])
+        || actual
             .early_clobbers
             .windows(2)
             .any(|rows| rows[0] >= rows[1])

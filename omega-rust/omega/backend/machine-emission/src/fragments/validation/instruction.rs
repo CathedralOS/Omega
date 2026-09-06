@@ -18,9 +18,12 @@ pub(super) fn check(
             && span.provenance == selected.provenance,
     )?;
     control::check(block, selected, &span.control)?;
-    match (&row.branch, &span.branch) {
+    match (row.branch.as_deref(), span.branch.as_deref()) {
         (None, None) => {}
-        (Some(source), Some(actual)) => {
+        (
+            Some(ResolvedBranchEvidence::Conditional(source)),
+            Some(FunctionFragmentBranchEvidence::Conditional(actual)),
+        ) => {
             require(
                 matches!(
                     (source.predicate, actual.predicate),
@@ -43,6 +46,19 @@ pub(super) fn check(
                     && actual.when_fallthrough_offset == source.when_fallthrough_offset
                     && actual.byte_displacement == source.byte_displacement
                     && actual.decoded_register_reads == source.decoded_register_reads
+                    && actual.decoded_effects == source.decoded_effects,
+            )?;
+        }
+        (
+            Some(ResolvedBranchEvidence::Jump(source)),
+            Some(FunctionFragmentBranchEvidence::Jump(actual)),
+        ) => {
+            require(
+                actual.source_block == source.source_block
+                    && actual.target_edge == source.target_edge
+                    && actual.target_block == source.target_block
+                    && actual.target_offset == source.target_offset
+                    && actual.byte_displacement == source.byte_displacement
                     && actual.decoded_effects == source.decoded_effects,
             )?;
         }

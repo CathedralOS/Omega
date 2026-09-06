@@ -30,6 +30,7 @@ pub(in crate::physical_instructions::codec) fn decode_content(
     identity: PostAllocationMachineIdentity,
     allow_i64_less_than: bool,
     allow_scalar_call: bool,
+    allow_jump: bool,
 ) -> Result<PostAllocationMachinePlan, PostAllocationMachineDecodeError> {
     let selected = SelectedInstructionPlanIdentity::from_bytes(array(cursor)?);
     let effects = PreAllocationMachineEffectIdentity::from_bytes(array(cursor)?);
@@ -63,6 +64,7 @@ pub(in crate::physical_instructions::codec) fn decode_content(
                     cursor,
                     allow_i64_less_than,
                     allow_scalar_call,
+                    allow_jump,
                 )?);
             }
             blocks.push(PostAllocationMachineBlock {
@@ -84,7 +86,7 @@ pub(in crate::physical_instructions::codec) fn decode_content(
             1 => Some(effect_codec::decode_structural_call(cursor).map_err(map_field_error)?),
             _ => return Err(PostAllocationMachineDecodeError::InvalidField),
         };
-        let return_instruction = decode_instruction(cursor, allow_i64_less_than, false)?;
+        let return_instruction = decode_instruction(cursor, allow_i64_less_than, false, false)?;
         let return_provenance = effect_codec::decode_provenance(cursor).map_err(map_field_error)?;
         let return_effect = effect_codec::decode_effect_link(cursor).map_err(map_field_error)?;
         let return_ownership = effect_codec::decode_ownership(cursor).map_err(map_field_error)?;

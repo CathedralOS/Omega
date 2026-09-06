@@ -8,7 +8,7 @@ use crate::{
 
 pub fn live_range_identity(plan: &LiveRangePlan) -> LiveRangeIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-live-range-fragments.v8\0");
+    bytes.extend_from_slice(b"omega.terminal-live-range-fragments.v9\0");
     bytes.extend_from_slice(&plan.selected.bytes());
     bytes.extend_from_slice(&plan.liveness.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
@@ -72,6 +72,15 @@ pub fn live_range_identity(plan: &LiveRangePlan) -> LiveRangeIdentity {
                 encode_connectors(&mut bytes, &register.edge_connectors);
             }
             encode_len(&mut bytes, function.tied_pairs.len());
+            encode_len(&mut bytes, function.edge_transfers.len());
+            for edge in &function.edge_transfers {
+                bytes.extend_from_slice(&edge.source.0.to_le_bytes());
+                bytes.extend_from_slice(&edge.target.0.to_le_bytes());
+                bytes.extend_from_slice(&edge.psi_edge.get().to_le_bytes());
+                bytes.extend_from_slice(&edge.argument.0.to_le_bytes());
+                bytes.extend_from_slice(&edge.parameter.0.to_le_bytes());
+                bytes.extend_from_slice(&edge.class.0.to_le_bytes());
+            }
             for tie in &function.tied_pairs {
                 bytes.extend_from_slice(&tie.block.0.to_le_bytes());
                 bytes.extend_from_slice(&tie.position.0.to_le_bytes());
@@ -228,6 +237,7 @@ mod tests {
                     fragments: vec![fragment],
                     edge_connectors: vec![connector],
                 }],
+                edge_transfers: Vec::new(),
                 tied_pairs: vec![DistinctUseDefTie {
                     block: SelectedBlockId(0),
                     position: LivenessPosition(0),
@@ -281,6 +291,7 @@ mod tests {
                     end: LiveRangePoint(4),
                 }],
                 virtual_registers: Vec::new(),
+                edge_transfers: Vec::new(),
                 tied_pairs: Vec::new(),
                 early_clobbers: Vec::new(),
                 architectural_units: vec![ArchitecturalUnitLiveRange {

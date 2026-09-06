@@ -20,6 +20,24 @@ pub(in crate::assignment::home_assignment) fn validate_function(
         return Err(RegisterHomeError::FunctionMismatch { function });
     }
     validate_assignment_order(function, actual)?;
+    for transfer in &ranges.edge_transfers {
+        let argument = actual
+            .assignments
+            .iter()
+            .find(|row| row.virtual_register == transfer.argument);
+        let parameter = actual
+            .assignments
+            .iter()
+            .find(|row| row.virtual_register == transfer.parameter);
+        if !matches!((argument, parameter), (Some(argument), Some(parameter))
+            if argument.view == parameter.view && argument.class == transfer.class && parameter.class == transfer.class)
+        {
+            return Err(RegisterHomeError::UnsupportedEdgeTransfer {
+                function,
+                edge: transfer.psi_edge.get(),
+            });
+        }
+    }
     let expected = replay_function(function, legality, ranges, physical)?;
     if actual != &expected {
         let register = actual

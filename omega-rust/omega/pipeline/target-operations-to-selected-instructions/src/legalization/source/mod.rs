@@ -8,6 +8,7 @@ mod matchers;
 mod ordinary_roster;
 mod scalar_call_unit;
 mod shared;
+mod shared_return;
 mod structural;
 
 use crate::legalization::projected_structural_call_return;

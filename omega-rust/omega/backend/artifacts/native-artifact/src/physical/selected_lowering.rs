@@ -896,7 +896,8 @@ mod tests {
 
     fn conditional_scalar_plan() -> MachineCodePlan {
         use machine_code::{
-            FunctionFragmentConditionalBranchPredicate, ScalarControlFlowEvidence,
+            FunctionFragmentConditionalBranchPredicate, ScalarControlBlockEvidence,
+            ScalarControlFlowEvidence, ScalarControlTerminatorEvidence,
             ScalarDirectConditionalBranchEvidence,
         };
         use semantic_vocabulary::{EdgeId, OperationId};
@@ -910,16 +911,39 @@ mod tests {
         let operations = [11, 12].map(|value| OperationId::new(value).unwrap());
         function.provenance.edges = edges.to_vec();
         function.provenance.operations = operations.to_vec();
-        function.scalar_stack.as_mut().unwrap().control_flow =
-            ScalarControlFlowEvidence::DirectConditional {
-                branch: ScalarDirectConditionalBranchEvidence {
-                    predicate: FunctionFragmentConditionalBranchPredicate::NonZeroV1,
-                    branch_offset: 2,
-                    branch_byte_count: 2,
-                    taken_offset: 10,
-                    fallthrough_offset: 4,
+        function.scalar_stack.as_mut().unwrap().control_flow = ScalarControlFlowEvidence::Acyclic {
+            blocks: vec![
+                ScalarControlBlockEvidence {
+                    offset: 0,
+                    byte_count: 4,
+                    terminator: ScalarControlTerminatorEvidence::Conditional(
+                        ScalarDirectConditionalBranchEvidence {
+                            predicate: FunctionFragmentConditionalBranchPredicate::NonZeroV1,
+                            branch_offset: 2,
+                            branch_byte_count: 2,
+                            taken_offset: 10,
+                            fallthrough_offset: 4,
+                        },
+                    ),
                 },
-            };
+                ScalarControlBlockEvidence {
+                    offset: 4,
+                    byte_count: 6,
+                    terminator: ScalarControlTerminatorEvidence::Return {
+                        offset: 9,
+                        byte_count: 1,
+                    },
+                },
+                ScalarControlBlockEvidence {
+                    offset: 10,
+                    byte_count: 6,
+                    terminator: ScalarControlTerminatorEvidence::Return {
+                        offset: 15,
+                        byte_count: 1,
+                    },
+                },
+            ],
+        };
         function.semantic_code_attribution = [
             (SemanticCodeSite::Edge(edges[0]), 0, 2, 2),
             (SemanticCodeSite::Edge(edges[1]), 0, 4, 0),
@@ -939,6 +963,17 @@ mod tests {
         )
         .collect();
         plan
+    }
+
+    #[test]
+    fn scalar_object_admission_rejects_detached_edge_intervals() {
+        let plan = conditional_scalar_plan();
+        image_emission::build_object_artifact(&plan).unwrap();
+        for index in [0, 1, 3, 5] {
+            let mut missing = plan.clone();
+            missing.functions[0].semantic_code_attribution.remove(index);
+            assert!(image_emission::build_object_artifact(&missing).is_err());
+        }
     }
 
     #[test]
@@ -969,8 +1004,13 @@ mod tests {
                         ScalarControlFlowEvidence::Linear
                 }
                 1 => {
-                    let ScalarControlFlowEvidence::DirectConditional { branch } =
+                    let ScalarControlFlowEvidence::Acyclic { blocks } =
                         &mut function.scalar_stack.as_mut().unwrap().control_flow
+                    else {
+                        unreachable!()
+                    };
+                    let machine_code::ScalarControlTerminatorEvidence::Conditional(branch) =
+                        &mut blocks[0].terminator
                     else {
                         unreachable!()
                     };

@@ -11,7 +11,7 @@ use isa_x86_64::{
     encode_x86_64_selected_u64_less_than_branch_form,
 };
 use machine_code::{
-    FunctionFragment, FunctionFragmentConditionalBranchEvidence,
+    FunctionFragment, FunctionFragmentBranchEvidence, FunctionFragmentConditionalBranchEvidence,
     FunctionFragmentConditionalBranchPredicate,
 };
 use register_model::ValidatedPhysicalRegisterModel;
@@ -40,22 +40,73 @@ pub(super) fn reencode_branches(
             let Some(branch) = row.branch.as_mut() else {
                 continue;
             };
-            rewrite_branch_coordinates(
-                instruction,
-                row_offset,
-                row_byte_count,
-                branch,
-                architecture,
-                &block_offsets,
-            )?;
-            let encoded = encode_branch(
-                instruction,
-                alternative,
-                row_byte_count,
-                branch,
-                architecture,
-                physical,
-            )?;
+            let encoded = match branch.as_mut() {
+                FunctionFragmentBranchEvidence::Jump(branch) => {
+                    let target = block_offsets.get(&branch.target_block).copied().ok_or(
+                        FrameApplicationError::MissingTargetBlock(branch.target_block),
+                    )?;
+                    let reference = match architecture {
+                        Architecture::X86_64 => row_offset
+                            .checked_add(row_byte_count as u64)
+                            .ok_or(FrameApplicationError::OffsetOverflow)?,
+                        Architecture::Aarch64 => row_offset,
+                    };
+                    branch.target_offset = target;
+                    branch.byte_displacement = checked_delta(target, reference)?;
+                    let (bytes, effects) = match architecture {
+                        Architecture::X86_64 => {
+                            let encoded = isa_x86_64::encode_x86_64_selected_jump_form(
+                                physical,
+                                alternative,
+                                branch.byte_displacement,
+                            )
+                            .map_err(|error| {
+                                FrameApplicationError::X86_64Branch(instruction, error)
+                            })?;
+                            (
+                                encoded.bytes().to_vec(),
+                                encoded.footprint().encoded.clone(),
+                            )
+                        }
+                        Architecture::Aarch64 => {
+                            let encoded = isa_aarch64::encode_aarch64_selected_jump_form(
+                                physical,
+                                alternative,
+                                branch.byte_displacement,
+                            )
+                            .map_err(|error| {
+                                FrameApplicationError::Aarch64Branch(instruction, error)
+                            })?;
+                            (
+                                encoded.bytes().to_vec(),
+                                encoded.footprint().encoded.clone(),
+                            )
+                        }
+                    };
+                    if bytes.len() != row_byte_count || effects != branch.decoded_effects {
+                        return Err(FrameApplicationError::BranchEffectsMismatch(instruction));
+                    }
+                    bytes
+                }
+                FunctionFragmentBranchEvidence::Conditional(branch) => {
+                    rewrite_branch_coordinates(
+                        instruction,
+                        row_offset,
+                        row_byte_count,
+                        branch,
+                        architecture,
+                        &block_offsets,
+                    )?;
+                    encode_branch(
+                        instruction,
+                        alternative,
+                        row_byte_count,
+                        branch,
+                        architecture,
+                        physical,
+                    )?
+                }
+            };
             let start =
                 usize::try_from(row_offset).map_err(|_| FrameApplicationError::OffsetOverflow)?;
             let end = start

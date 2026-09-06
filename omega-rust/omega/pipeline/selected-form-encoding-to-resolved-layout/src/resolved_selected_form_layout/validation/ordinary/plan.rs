@@ -94,7 +94,16 @@ fn instruction_size(
         }
         SelectedFormEncodingState::DeferredControl {
             reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,
-        } => Ok(branch_size(architecture)),
+        } => Ok(
+            if matches!(instruction.kind, SelectedInstructionKind::Jump) {
+                match architecture {
+                    Architecture::X86_64 => 5,
+                    Architecture::Aarch64 => 4,
+                }
+            } else {
+                branch_size(architecture)
+            },
+        ),
     }
 }
 

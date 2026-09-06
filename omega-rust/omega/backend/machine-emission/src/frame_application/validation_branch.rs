@@ -10,7 +10,10 @@ use isa_x86_64::{
     validate_x86_64_selected_short_nonzero_branch_form,
     validate_x86_64_selected_u64_less_than_branch_form,
 };
-use machine_code::{FunctionFragmentConditionalBranchPredicate, FunctionFragmentInstructionSpan};
+use machine_code::{
+    FunctionFragmentBranchEvidence as Branch, FunctionFragmentConditionalBranchPredicate,
+    FunctionFragmentInstructionSpan,
+};
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::SelectedBlockId;
 use target::Architecture;
@@ -26,6 +29,63 @@ pub(super) fn validate(
 ) -> Result<(), FrameApplicationError> {
     let (Some(source_branch), Some(branch)) =
         (source.branch.as_deref(), candidate.branch.as_deref())
+    else {
+        return Err(FrameApplicationError::ArtifactMismatch);
+    };
+    if let (Branch::Jump(source_branch), Branch::Jump(branch)) = (source_branch, branch) {
+        if source_branch.source_block != branch.source_block
+            || source_branch.target_edge != branch.target_edge
+            || source_branch.target_block != branch.target_block
+            || source_branch.decoded_effects != branch.decoded_effects
+        {
+            return Err(FrameApplicationError::ArtifactMismatch);
+        }
+        let target = block_offsets.get(&branch.target_block).copied().ok_or(
+            FrameApplicationError::MissingTargetBlock(branch.target_block),
+        )?;
+        let reference = match architecture {
+            Architecture::X86_64 => candidate
+                .offset
+                .checked_add(candidate.bytes.len() as u64)
+                .ok_or(FrameApplicationError::OffsetOverflow)?,
+            Architecture::Aarch64 => candidate.offset,
+        };
+        let displacement = i64::try_from(i128::from(target) - i128::from(reference))
+            .map_err(|_| FrameApplicationError::OffsetOverflow)?;
+        if branch.target_offset != target || branch.byte_displacement != displacement {
+            return Err(FrameApplicationError::ArtifactMismatch);
+        }
+        let effects = match architecture {
+            Architecture::X86_64 => isa_x86_64::validate_x86_64_selected_jump_form(
+                physical,
+                candidate.alternative,
+                displacement,
+                &candidate.bytes,
+            )
+            .map_err(|error| FrameApplicationError::X86_64Branch(candidate.instruction, error))?
+            .footprint()
+            .encoded
+            .clone(),
+            Architecture::Aarch64 => isa_aarch64::validate_aarch64_selected_jump_form(
+                physical,
+                candidate.alternative,
+                displacement,
+                &candidate.bytes,
+            )
+            .map_err(|error| FrameApplicationError::Aarch64Branch(candidate.instruction, error))?
+            .footprint()
+            .encoded
+            .clone(),
+        };
+        return if effects == branch.decoded_effects {
+            Ok(())
+        } else {
+            Err(FrameApplicationError::BranchEffectsMismatch(
+                candidate.instruction,
+            ))
+        };
+    }
+    let (Branch::Conditional(source_branch), Branch::Conditional(branch)) = (source_branch, branch)
     else {
         return Err(FrameApplicationError::ArtifactMismatch);
     };
@@ -95,7 +155,9 @@ fn decode(
     FrameApplicationError,
 > {
     let instruction = row.instruction;
-    let branch = row.branch.as_deref().unwrap();
+    let Some(Branch::Conditional(branch)) = row.branch.as_deref() else {
+        return Err(FrameApplicationError::ArtifactMismatch);
+    };
     macro_rules! footprint {
         ($encoded:expr) => {{
             let encoded = $encoded;

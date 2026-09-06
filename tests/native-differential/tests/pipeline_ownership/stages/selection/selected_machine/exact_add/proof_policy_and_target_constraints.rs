@@ -7,7 +7,7 @@ fn exact_add_selection_retains_proof_policy_and_target_constraints() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let staged = staged_exact_add_conditional(target);
         assert_eq!(
-            staged.legalized().plan().functions[0].recipe,
+            staged.legalized().plan().functions[0].conditional().recipe,
             LegalizationRecipe::ReturnU64ExactAddImmediateConditionalV1
         );
         let plan = staged.selected().plan();

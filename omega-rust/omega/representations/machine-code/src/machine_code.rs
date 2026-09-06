@@ -25,9 +25,10 @@ pub use functions::*;
 pub use instructions::*;
 pub use layout::text_section::*;
 pub use layout::{
-    ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate, ResolvedMachineLayout,
-    ResolvedMachineProgram, ResolvedSelectedBlockLayout, ResolvedSelectedFormLayoutIdentity,
-    ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout, ResolvedStructuralUnitCallLayout,
+    ResolvedBranchEvidence, ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate,
+    ResolvedJumpEvidence, ResolvedMachineLayout, ResolvedMachineProgram,
+    ResolvedSelectedBlockLayout, ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFormRow,
+    ResolvedSelectedFunctionLayout, ResolvedStructuralUnitCallLayout,
     ResolvedStructuralUnitFunctionLayout, SelectedFunctionLayoutPolicy,
     X86BranchRelaxationIdentity, resolved_machine_layout_identity,
 };

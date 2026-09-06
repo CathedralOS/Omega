@@ -56,6 +56,7 @@ pub(super) fn compute_terminal_pre_allocation_machine_effects<S: ValidatedSelect
                 SelectedTerminator::ConditionalBranch { instruction, .. }
                 | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
                 | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
+                | SelectedTerminator::Jump { instruction, .. }
                 | SelectedTerminator::Return { instruction, .. } => instruction,
             };
             instructions.push(compute_instruction(terminator, constraints, catalog)?);
@@ -176,6 +177,7 @@ fn terminal_selected_keys(keys: TargetRegisterEnvironmentConstraintKeys) -> Sele
         compare_i64_zero: keys.compare_i64_zero,
         compare_i64: keys.compare_i64,
         conditional_branch: keys.conditional_branch,
+        jump: keys.jump,
         return_i64: keys.return_i64,
         return_unit: keys.return_unit,
     }
@@ -266,6 +268,7 @@ fn semantic(kind: SelectedInstructionKind) -> MachineSemanticKind {
         SelectedInstructionKind::ConditionalBranchI64LessThan => {
             MachineSemanticKind::ConditionalBranchI64LessThan
         }
+        SelectedInstructionKind::Jump => MachineSemanticKind::Jump,
         SelectedInstructionKind::ReturnI64 => MachineSemanticKind::ReturnI64,
         SelectedInstructionKind::ReturnUnit => MachineSemanticKind::ReturnUnit,
         SelectedInstructionKind::CallI64 { .. } => MachineSemanticKind::CallI64,

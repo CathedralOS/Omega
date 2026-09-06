@@ -55,6 +55,7 @@ pub(in super::super) fn instructions(block: &SelectedBlock) -> Vec<&SelectedInst
             SelectedTerminator::ConditionalBranch { instruction, .. }
             | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
             | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
+            | SelectedTerminator::Jump { instruction, .. }
             | SelectedTerminator::Return { instruction, .. } => instruction,
         }))
         .collect()
@@ -112,7 +113,16 @@ fn instruction_size(
                     OptimizedResolvedSelectedFormLayoutError::MissingInstruction(instruction.id),
                 );
             }
-            Ok(branch_size(architecture))
+            Ok(
+                if matches!(instruction.kind, SelectedInstructionKind::Jump) {
+                    match architecture {
+                        Architecture::X86_64 => 5,
+                        Architecture::Aarch64 => 4,
+                    }
+                } else {
+                    branch_size(architecture)
+                },
+            )
         }
     }
 }

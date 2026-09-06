@@ -14,6 +14,18 @@ pub(super) fn provenance(
         return FunctionFragmentControlProvenance::DirectInternalCall { callee };
     }
     match &block.terminator {
+        SelectedTerminator::Jump {
+            instruction: jump,
+            successor,
+        } if jump.id == instruction.id => FunctionFragmentControlProvenance::Jump {
+            successor: FunctionFragmentSuccessorProvenance {
+                psi_edge: successor.psi_edge,
+                block: successor.block,
+                source_target: successor.source_target,
+                bindings: successor.bindings.clone(),
+                fuel: successor.fuel.clone(),
+            },
+        },
         SelectedTerminator::ConditionalBranch {
             instruction: branch,
             when_nonzero,

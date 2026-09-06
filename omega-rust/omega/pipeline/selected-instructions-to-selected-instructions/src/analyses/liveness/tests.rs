@@ -17,6 +17,10 @@ use super::compute::{
 };
 use crate::LivenessError;
 
+mod successor_transfers;
+
+pub(crate) use successor_transfers::successor_parameter_function;
+
 #[test]
 fn structural_unit_call_and_terminal_callee_retain_exact_unit_liveness() {
     let caller_machine = MachineId::new(1).unwrap();

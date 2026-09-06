@@ -2,7 +2,8 @@
 
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use machine_code::{
-    FunctionFragment, FunctionFragmentControlProvenance, SemanticCodeAttribution, SemanticCodeSite,
+    FunctionFragment, FunctionFragmentBranchEvidence, FunctionFragmentControlProvenance,
+    SemanticCodeAttribution, SemanticCodeSite,
 };
 
 pub(super) fn project(
@@ -42,6 +43,10 @@ pub(super) fn project(
                         .branch
                         .as_ref()
                         .ok_or("scalar branch lacks decoded evidence")?;
+                    let FunctionFragmentBranchEvidence::Conditional(branch) = branch.as_ref()
+                    else {
+                        return Err("scalar conditional has jump evidence");
+                    };
                     push(
                         &mut rows,
                         source,
@@ -56,6 +61,15 @@ pub(super) fn project(
                         usize::try_from(branch.when_fallthrough_offset)
                             .map_err(|_| "scalar fallthrough offset exceeds host size")?,
                         0,
+                    )?;
+                }
+                FunctionFragmentControlProvenance::Jump { successor } => {
+                    push(
+                        &mut rows,
+                        source,
+                        SemanticCodeSite::Edge(successor.psi_edge),
+                        offset,
+                        instruction.bytes.len(),
                     )?;
                 }
                 FunctionFragmentControlProvenance::None => {}
@@ -122,6 +136,11 @@ fn matches_site(operation: &AbstractOperation, site: SemanticCodeSite) -> bool {
             site == SemanticCodeSite::Edge(when_true.psi_edge)
                 || site == SemanticCodeSite::Edge(when_false.psi_edge)
         }
+        AbstractOperation::Jump {
+            psi_edge,
+            trivial_affine_discards,
+            ..
+        } if trivial_affine_discards.is_empty() => site == SemanticCodeSite::Edge(*psi_edge),
         AbstractOperation::Return {
             psi_edge,
             cleanup_actions,

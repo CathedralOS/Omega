@@ -1,9 +1,6 @@
 //! Functions, blocks, and instruction spans in an unplaced fragment.
 
-use super::{
-    FunctionFragmentConditionalBranchEvidence, FunctionFragmentControlProvenance,
-    FunctionFragmentInternalMachineFixup,
-};
+use super::{FunctionFragmentControlProvenance, FunctionFragmentInternalMachineFixup};
 use selected_instructions::{
     MachineAlternativeKey, SelectedBlockId, SelectedInstructionId, SelectedInstructionProvenance,
 };
@@ -66,7 +63,7 @@ pub struct FunctionFragmentInstructionSpan {
     pub alternative: MachineAlternativeKey,
     pub offset: u64,
     pub bytes: Vec<u8>,
-    pub branch: Option<Box<FunctionFragmentConditionalBranchEvidence>>,
+    pub branch: Option<Box<super::FunctionFragmentBranchEvidence>>,
     pub internal_machine_fixup: Option<FunctionFragmentInternalMachineFixup>,
     pub provenance: SelectedInstructionProvenance,
     pub control: FunctionFragmentControlProvenance,

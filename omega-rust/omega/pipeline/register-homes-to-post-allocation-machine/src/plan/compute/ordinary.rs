@@ -111,6 +111,7 @@ fn selected_instructions(block: &SelectedBlock) -> impl Iterator<Item = &Selecte
             instruction,
             ..
         }
+        | selected_instructions::SelectedTerminator::Jump { instruction, .. }
         | selected_instructions::SelectedTerminator::Return { instruction, .. } => instruction,
     };
     block.instructions.iter().chain(std::iter::once(terminator))

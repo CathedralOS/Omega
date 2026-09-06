@@ -49,7 +49,7 @@ pub(super) fn derive(
 
 fn is_admitted_canonical_shape(function: &SelectedFunction) -> bool {
     is_single_entry(function)
-        || (function.blocks.len() == 3
+        || (matches!(function.blocks.len(), 3 | 4)
             && matches!(
                 function.blocks.first().map(|block| &block.terminator),
                 Some(

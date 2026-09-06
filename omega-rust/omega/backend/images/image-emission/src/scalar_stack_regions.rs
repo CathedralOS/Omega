@@ -1,165 +1,24 @@
-//! Independent replay of one current predicate-bearing scalar decision.
-//! The branch decoder admits actual selected target encodings, not legacy
-//! true-first Boolean templates. Stack depth at the decision reaches both arms.
+//! Stack replay within a straight-line region of a scalar control-flow graph.
 
 use std::collections::BTreeMap;
 
-use machine_code::{
-    FunctionFragmentConditionalBranchPredicate as Predicate, ScalarDirectConditionalBranchEvidence,
-    ScalarStackEvidence, ScalarStackMutation,
-};
+use machine_code::ScalarStackMutation;
 use semantic_vocabulary::MachineId;
 use target::Architecture;
 
+use super::ObjectError;
 use super::scalar_stack_mutation::{
     aarch64_control_flow_instruction, aarch64_unsupported_sp_write, replay_scalar_mutation,
     validate_aarch64_scalar_mutation, validate_x86_scalar_mutation,
 };
 use super::unit_stack::aarch64_stack_adjustment_at;
-use super::{ObjectError, ObjectScalarStack};
-
-/// Independently check the final branch instruction and its exact physical
-/// successors. Public native publication replay uses the same byte predicate;
-/// it does not invoke instruction selection, layout or branch encoding.
-pub fn validate_direct_scalar_conditional_branch(
-    architecture: Architecture,
-    machine: MachineId,
-    bytes: &[u8],
-    branch: &ScalarDirectConditionalBranchEvidence,
-) -> Result<(), ObjectError> {
-    let invalid = || ObjectError::InvalidScalarConditionalEvidence {
-        machine,
-        offset: branch.branch_offset,
-    };
-    let end = branch
-        .branch_offset
-        .checked_add(branch.branch_byte_count)
-        .ok_or_else(invalid)?;
-    if end != branch.fallthrough_offset
-        || end >= branch.taken_offset
-        || branch.taken_offset >= bytes.len()
-    {
-        return Err(invalid());
-    }
-    let instruction = bytes.get(branch.branch_offset..end).ok_or_else(invalid)?;
-    let displacement = match architecture {
-        Architecture::X86_64 => {
-            let (short, near) = match branch.predicate {
-                Predicate::NonZeroV1 => (0x75, 0x85),
-                Predicate::U64LessThanV1 => (0x72, 0x82),
-                Predicate::I64LessThanV1 => (0x7c, 0x8c),
-            };
-            match instruction {
-                [opcode, displacement] if *opcode == short => i64::from(*displacement as i8),
-                [0x0f, opcode, displacement @ ..] if *opcode == near && displacement.len() == 4 => {
-                    i64::from(i32::from_le_bytes(
-                        displacement.try_into().map_err(|_| invalid())?,
-                    ))
-                }
-                _ => return Err(invalid()),
-            }
-        }
-        Architecture::Aarch64 => {
-            if !branch.branch_offset.is_multiple_of(4) || instruction.len() != 4 {
-                return Err(invalid());
-            }
-            let encoded = u32::from_le_bytes(instruction.try_into().map_err(|_| invalid())?);
-            let condition = match branch.predicate {
-                Predicate::NonZeroV1 => 1,
-                Predicate::U64LessThanV1 => 3,
-                Predicate::I64LessThanV1 => 11,
-            };
-            let conditional = encoded & 0xff00_001f == 0x5400_0000 | condition;
-            let fused_nonzero =
-                branch.predicate == Predicate::NonZeroV1 && encoded & 0xff00_0000 == 0xb500_0000;
-            if !conditional && !fused_nonzero {
-                return Err(invalid());
-            }
-            let immediate = ((encoded >> 5) & 0x7ffff) as i32;
-            i64::from((immediate << 13 >> 13) * 4)
-        }
-    };
-    let base = match architecture {
-        Architecture::X86_64 => end,
-        Architecture::Aarch64 => branch.branch_offset,
-    };
-    let target = i64::try_from(base)
-        .ok()
-        .and_then(|base| base.checked_add(displacement))
-        .and_then(|target| usize::try_from(target).ok());
-    if target != Some(branch.taken_offset) {
-        return Err(invalid());
-    }
-    Ok(())
-}
-
-pub(super) fn validate_stack(
-    architecture: Architecture,
-    machine: MachineId,
-    bytes: &[u8],
-    evidence: &ScalarStackEvidence,
-    branch: &ScalarDirectConditionalBranchEvidence,
-) -> Result<ObjectScalarStack, ObjectError> {
-    validate_direct_scalar_conditional_branch(architecture, machine, bytes, branch)?;
-    if evidence.cleanup_preservation.is_some()
-        || evidence.stack_alignment != 16
-        || evidence
-            .mutations
-            .windows(2)
-            .any(|pair| pair[0].offset >= pair[1].offset)
-    {
-        return Err(ObjectError::InvalidScalarConditionalEvidence {
-            machine,
-            offset: branch.branch_offset,
-        });
-    }
-    let mut claimed = evidence
-        .mutations
-        .iter()
-        .map(|row| (row.offset, *row))
-        .collect::<BTreeMap<_, _>>();
-    let mut peak = 0;
-    let depth = replay_region(
-        architecture,
-        machine,
-        bytes,
-        0,
-        branch.branch_offset,
-        0,
-        false,
-        &mut claimed,
-        &mut peak,
-    )?;
-    for (start, end) in [
-        (branch.fallthrough_offset, branch.taken_offset),
-        (branch.taken_offset, bytes.len()),
-    ] {
-        if replay_region(
-            architecture,
-            machine,
-            bytes,
-            start,
-            end,
-            depth,
-            true,
-            &mut claimed,
-            &mut peak,
-        )? != 0
-        {
-            return Err(ObjectError::MissingBalancedScalarReturn(machine));
-        }
-    }
-    if let Some((&offset, _)) = claimed.first_key_value() {
-        return Err(ObjectError::InvalidScalarStackEvidence { machine, offset });
-    }
-    Ok(ObjectScalarStack {
-        local_peak_bytes: peak,
-        stack_alignment: evidence.stack_alignment,
-    })
-}
+#[cfg(test)]
+use machine_code::{
+    FunctionFragmentConditionalBranchPredicate as Predicate, ScalarDirectConditionalBranchEvidence,
+};
 
 #[allow(clippy::too_many_arguments)]
-fn replay_region(
+pub(super) fn replay_region(
     architecture: Architecture,
     machine: MachineId,
     bytes: &[u8],
@@ -323,8 +182,81 @@ fn replay_region(
 
 #[cfg(test)]
 mod tests {
+    use super::super::ObjectScalarStack;
     use super::*;
-    use machine_code::{ScalarControlFlowEvidence, ScalarStackMutationKind};
+    use machine_code::{
+        ScalarControlBlockEvidence, ScalarControlFlowEvidence, ScalarControlTerminatorEvidence,
+        ScalarStackEvidence, ScalarStackMutationKind,
+    };
+
+    fn validate_stack(
+        architecture: Architecture,
+        machine: MachineId,
+        bytes: &[u8],
+        evidence: &ScalarStackEvidence,
+        branch: &ScalarDirectConditionalBranchEvidence,
+    ) -> Result<ObjectScalarStack, ObjectError> {
+        let returned = if architecture == Architecture::X86_64 {
+            1
+        } else {
+            4
+        };
+        if branch.fallthrough_offset >= branch.taken_offset
+            || branch.taken_offset >= bytes.len()
+            || branch.taken_offset - branch.fallthrough_offset < returned
+            || bytes.len() - branch.taken_offset < returned
+        {
+            return Err(ObjectError::InvalidScalarConditionalEvidence {
+                machine,
+                offset: branch.branch_offset,
+            });
+        }
+        let blocks = vec![
+            ScalarControlBlockEvidence {
+                offset: 0,
+                byte_count: branch.fallthrough_offset,
+                terminator: ScalarControlTerminatorEvidence::Conditional(*branch),
+            },
+            ScalarControlBlockEvidence {
+                offset: branch.fallthrough_offset,
+                byte_count: branch.taken_offset - branch.fallthrough_offset,
+                terminator: ScalarControlTerminatorEvidence::Return {
+                    offset: branch.taken_offset - returned,
+                    byte_count: returned,
+                },
+            },
+            ScalarControlBlockEvidence {
+                offset: branch.taken_offset,
+                byte_count: bytes.len() - branch.taken_offset,
+                terminator: ScalarControlTerminatorEvidence::Return {
+                    offset: bytes.len() - returned,
+                    byte_count: returned,
+                },
+            },
+        ];
+        super::super::scalar_control_flow::validate_stack(
+            architecture,
+            machine,
+            bytes,
+            evidence,
+            &blocks,
+        )
+    }
+
+    fn validate_direct_scalar_conditional_branch(
+        architecture: Architecture,
+        machine: MachineId,
+        bytes: &[u8],
+        branch: &ScalarDirectConditionalBranchEvidence,
+    ) -> Result<ObjectScalarStack, ObjectError> {
+        let evidence = ScalarStackEvidence {
+            mutations: Vec::new(),
+            control_flow: ScalarControlFlowEvidence::Linear,
+            stack_alignment: 16,
+            cleanup_preservation: None,
+        };
+        validate_stack(architecture, machine, bytes, &evidence, branch)
+    }
 
     fn framed(
         architecture: Architecture,
@@ -384,7 +316,7 @@ mod tests {
                     kind: ScalarStackMutationKind::Release { byte_size: size },
                 },
             ],
-            control_flow: ScalarControlFlowEvidence::DirectConditional { branch },
+            control_flow: ScalarControlFlowEvidence::Linear,
             stack_alignment: 16,
             cleanup_preservation: None,
         };
@@ -558,7 +490,7 @@ mod tests {
                     kind: ScalarStackMutationKind::X86Pop,
                 },
             ],
-            control_flow: ScalarControlFlowEvidence::DirectConditional { branch },
+            control_flow: ScalarControlFlowEvidence::Linear,
             stack_alignment: 16,
             cleanup_preservation: None,
         };
@@ -660,7 +592,7 @@ mod tests {
                     kind: ScalarStackMutationKind::Release { byte_size: size },
                 },
             ],
-            control_flow: ScalarControlFlowEvidence::DirectConditional { branch },
+            control_flow: ScalarControlFlowEvidence::Linear,
             stack_alignment: 16,
             cleanup_preservation: None,
         };

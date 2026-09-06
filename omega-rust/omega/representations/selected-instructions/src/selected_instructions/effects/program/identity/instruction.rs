@@ -93,6 +93,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::ConditionalBranchU64LessThan => 11,
         SelectedInstructionKind::ConditionalBranchI64LessThan => 12,
         SelectedInstructionKind::CallI64 { .. } => 13,
+        SelectedInstructionKind::Jump => 14,
     });
     match kind {
         SelectedInstructionKind::MaterializeI64 { value } => encode_integer(bytes, value),
@@ -127,6 +128,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         | SelectedInstructionKind::ConditionalBranchNonZero
         | SelectedInstructionKind::ConditionalBranchU64LessThan
         | SelectedInstructionKind::ConditionalBranchI64LessThan
+        | SelectedInstructionKind::Jump
         | SelectedInstructionKind::ReturnI64
         | SelectedInstructionKind::ReturnUnit => {}
         SelectedInstructionKind::CallI64 { callee } => {

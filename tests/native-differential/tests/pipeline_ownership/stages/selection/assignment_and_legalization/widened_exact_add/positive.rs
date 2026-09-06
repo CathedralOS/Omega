@@ -129,7 +129,7 @@ fn widened_u8_exact_add_legalization_retains_theorem_temporaries_and_exact_custo
                 .receipt()
                 .identity()
         );
-        let legalized_function = &legalized.plan().functions[0];
+        let legalized_function = legalized.plan().functions[0].conditional();
         assert_eq!(
             legalized_function.recipe,
             LegalizationRecipe::ReturnU64WidenedU8ExactAddImmediateConditionalV1

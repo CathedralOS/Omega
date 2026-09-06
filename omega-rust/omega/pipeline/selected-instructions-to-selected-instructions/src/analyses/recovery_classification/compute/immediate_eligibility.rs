@@ -24,6 +24,9 @@ pub(super) fn classify(
         return no_recovery(NoAdmittedRecoveryReason::UnsupportedScalarType);
     }
     let (defining_id, source_value) = match victim.origin {
+        VirtualRegisterOrigin::BlockParameter { .. } => {
+            return no_recovery(NoAdmittedRecoveryReason::UnsupportedRangeShape);
+        }
         VirtualRegisterOrigin::EntryParameter { .. } => {
             return no_recovery(NoAdmittedRecoveryReason::EntryParameter);
         }
@@ -186,6 +189,7 @@ fn block_instructions(block: &selected_instructions::SelectedBlock) -> Vec<&Sele
         SelectedTerminator::ConditionalBranch { instruction, .. }
         | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
         | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
+        | SelectedTerminator::Jump { instruction, .. }
         | SelectedTerminator::Return { instruction, .. } => instruction,
     };
     block

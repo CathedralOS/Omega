@@ -1,11 +1,10 @@
 //! Canonical identity of the complete fragment program, including zero-code rows.
 
 use super::{
-    FunctionFragmentConditionalBranchEvidence, FunctionFragmentConditionalBranchPredicate,
-    FunctionFragmentControlProvenance, FunctionFragmentEmissionPlan,
-    FunctionFragmentInstructionSpan, FunctionFragmentInternalMachineFixup,
-    FunctionFragmentInternalMachineFixupKind, FunctionFragmentInternalMachineFixupState,
-    FunctionFragmentSuccessorProvenance,
+    FunctionFragmentConditionalBranchPredicate, FunctionFragmentControlProvenance,
+    FunctionFragmentEmissionPlan, FunctionFragmentInstructionSpan,
+    FunctionFragmentInternalMachineFixup, FunctionFragmentInternalMachineFixupKind,
+    FunctionFragmentInternalMachineFixupState, FunctionFragmentSuccessorProvenance,
 };
 use optimization_core::FunctionFragmentEmissionIdentity;
 use optimization_unit::{FuelSettlement, PsiProvenance};
@@ -196,6 +195,10 @@ fn encode_fuel(hasher: &mut Sha256, fuel: &[FuelSettlement]) {
 
 fn encode_control(hasher: &mut Sha256, control: &FunctionFragmentControlProvenance) {
     match control {
+        FunctionFragmentControlProvenance::Jump { successor } => {
+            hasher.update([4]);
+            encode_successor(hasher, successor);
+        }
         FunctionFragmentControlProvenance::None => hasher.update([0]),
         FunctionFragmentControlProvenance::DirectInternalCall { callee } => {
             hasher.update([3]);
@@ -252,10 +255,23 @@ fn encode_successor(hasher: &mut Sha256, successor: &FunctionFragmentSuccessorPr
     encode_fuel(hasher, &successor.fuel);
 }
 
-fn encode_branch(hasher: &mut Sha256, branch: Option<&FunctionFragmentConditionalBranchEvidence>) {
+fn encode_branch(hasher: &mut Sha256, branch: Option<&super::FunctionFragmentBranchEvidence>) {
     let Some(branch) = branch else {
         hasher.update([0]);
         return;
+    };
+    let branch = match branch {
+        super::FunctionFragmentBranchEvidence::Conditional(branch) => branch,
+        super::FunctionFragmentBranchEvidence::Jump(jump) => {
+            hasher.update([2]);
+            hasher.update(jump.source_block.0.to_le_bytes());
+            hasher.update(jump.target_edge.get().to_le_bytes());
+            hasher.update(jump.target_block.0.to_le_bytes());
+            hasher.update(jump.target_offset.to_le_bytes());
+            hasher.update(jump.byte_displacement.to_le_bytes());
+            encode_effects(hasher, &jump.decoded_effects);
+            return;
+        }
     };
     hasher.update([1]);
     encode_branch_predicate(hasher, branch.predicate);
@@ -290,6 +306,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::ConditionalBranchU64LessThan => 11,
         MachineAlternativeFamily::ConditionalBranchI64LessThan => 12,
         MachineAlternativeFamily::CallI64 => 13,
+        MachineAlternativeFamily::Jump => 14,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }
@@ -383,6 +400,7 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
             hasher.update(target.0.to_le_bytes());
         }
         MachineEncodedControlEffect::DirectRelativeCallV1 => hasher.update([4]),
+        MachineEncodedControlEffect::UnconditionalRelativeBranchV1 => hasher.update([5]),
     }
 }
 

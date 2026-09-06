@@ -66,6 +66,7 @@ pub enum SelectedInstructionKind {
     /// Branch on signed-I64 strict less-than from the immediately preceding
     /// comparison.
     ConditionalBranchI64LessThan,
+    Jump,
     ReturnI64,
     /// Value-less semantic return. This is deliberately distinct from
     /// `ReturnI64` even on targets where both select the same opcode.

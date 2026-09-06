@@ -205,6 +205,7 @@ fn validate_function(
             SelectedTerminator::ConditionalBranch { instruction, .. }
             | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
             | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
+            | SelectedTerminator::Jump { instruction, .. }
             | SelectedTerminator::Return { instruction, .. } => instruction,
         };
         validate_instruction(
@@ -290,6 +291,7 @@ fn replay_declaration<'a>(
         SelectedInstructionKind::ConditionalBranchI64LessThan => {
             MachineSemanticKind::ConditionalBranchI64LessThan
         }
+        SelectedInstructionKind::Jump => MachineSemanticKind::Jump,
         SelectedInstructionKind::ReturnI64 => MachineSemanticKind::ReturnI64,
         SelectedInstructionKind::ReturnUnit => MachineSemanticKind::ReturnUnit,
         SelectedInstructionKind::CallI64 { .. } => MachineSemanticKind::CallI64,
@@ -326,6 +328,7 @@ fn copied_selected_keys(keys: TargetRegisterEnvironmentConstraintKeys) -> Select
         compare_i64_zero: keys.compare_i64_zero,
         compare_i64: keys.compare_i64,
         conditional_branch: keys.conditional_branch,
+        jump: keys.jump,
         return_i64: keys.return_i64,
         return_unit: keys.return_unit,
     }

@@ -238,6 +238,9 @@ fn replay_classification(
         return replay_no(NoAdmittedRecoveryReason::UnsupportedScalarType);
     }
     let (expected_instruction, source_value) = match victim.origin {
+        VirtualRegisterOrigin::BlockParameter { .. } => {
+            return replay_no(NoAdmittedRecoveryReason::UnsupportedRangeShape);
+        }
         VirtualRegisterOrigin::EntryParameter { .. } => {
             return replay_no(NoAdmittedRecoveryReason::EntryParameter);
         }
@@ -394,6 +397,7 @@ fn replay_block_instructions(
         SelectedTerminator::ConditionalBranch { instruction, .. }
         | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
         | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
+        | SelectedTerminator::Jump { instruction, .. }
         | SelectedTerminator::Return { instruction, .. } => instruction,
     });
     instructions

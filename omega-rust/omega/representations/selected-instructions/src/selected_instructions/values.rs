@@ -1,5 +1,5 @@
 //! Virtual values and instruction operand constraints; no assigned storage.
-use super::{SelectedInstructionId, VirtualRegisterId};
+use super::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
 use optimization_unit::ValueDefinitionSite;
 use register_model::{RegisterClassId, RegisterOperandAccess, RegisterViewId};
 use semantic_vocabulary::{ScalarType, ValueId};
@@ -19,6 +19,13 @@ pub struct VirtualRegister {
 pub enum VirtualRegisterOrigin {
     EntryParameter {
         source_value: ValueId,
+        parameter_index: usize,
+    },
+    /// Defined by the selected block's incoming edge bindings, not by any
+    /// instruction in a predecessor. Each edge retains its distinct argument.
+    BlockParameter {
+        source_value: ValueId,
+        block: SelectedBlockId,
         parameter_index: usize,
     },
     InstructionResult {

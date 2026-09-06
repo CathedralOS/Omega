@@ -43,10 +43,15 @@ fn scalar_conditional_fragments_reach_native_object_publication() {
             for selections in choices {
                 let plan = publish(&semantic, &proof, target, &selections);
                 let function = &plan.functions[0];
-                let machine_code::ScalarControlFlowEvidence::DirectConditional { branch } =
+                let machine_code::ScalarControlFlowEvidence::Acyclic { blocks } =
                     &function.scalar_stack.as_ref().unwrap().control_flow
                 else {
                     panic!("actual branch custody");
+                };
+                let machine_code::ScalarControlTerminatorEvidence::Conditional(branch) =
+                    &blocks[0].terminator
+                else {
+                    panic!("conditional entry");
                 };
                 assert_eq!(function.provenance.edges.len(), 4);
                 let bytes = function.bytes.len();
@@ -69,12 +74,17 @@ fn scalar_conditional_fragments_reach_native_object_publication() {
                 // Object construction independently decodes both paths. A
                 // plausible but redirected branch record cannot pass replay.
                 let mut corrupted = plan.clone();
-                let machine_code::ScalarControlFlowEvidence::DirectConditional { branch } =
-                    &mut corrupted.functions[0]
-                        .scalar_stack
-                        .as_mut()
-                        .unwrap()
-                        .control_flow
+                let machine_code::ScalarControlFlowEvidence::Acyclic { blocks } = &mut corrupted
+                    .functions[0]
+                    .scalar_stack
+                    .as_mut()
+                    .unwrap()
+                    .control_flow
+                else {
+                    unreachable!()
+                };
+                let machine_code::ScalarControlTerminatorEvidence::Conditional(branch) =
+                    &mut blocks[0].terminator
                 else {
                     unreachable!()
                 };
@@ -157,44 +167,92 @@ fn publish(
 }
 
 #[test]
-fn source_common_return_conditionals_keep_their_existing_route() {
-    let checked = crate::tests::fixtures::checked_source::checked(
-        "machine value(left: u64, right: u64) -> u64
-         requires true
-         ensures result == result
-         { transition left == right { true -> 1u64 _ -> 0u64 } }",
-    );
-    let artifact = terminal_production::produce_terminal_artifact(&checked, "value").unwrap();
-    let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
-        artifact.semantic_bytes(),
-        artifact.proof_bytes(),
-        &proof_admission::AdmissionProfile::default(),
-    )
-    .unwrap();
-    let optimized = crate::optimize_verified_abstract_input(
-        input,
-        crate::compiler_baseline_request_v1(&OptimizationSelections::default()),
-    )
-    .unwrap();
-    let target_program =
-        abstract_operations_to_target_operations::lower_optimized_to_target_operations(
-            optimized,
+fn source_common_return_conditionals_use_the_shared_native_pipeline() {
+    for (operand, comparison) in [
+        ("u64", "=="),
+        ("u64", "<"),
+        ("u64", "<="),
+        ("i64", "<"),
+        ("i64", "<="),
+    ] {
+        let checked = crate::tests::fixtures::checked_source::checked(&format!(
+            "machine value(left: {operand}, right: {operand}) -> u64\nrequires true\nensures result == result\n{{ transition left {comparison} right {{ true -> 1234605616436508552u64 _ -> 0u64 }} }}"
+        ));
+        let artifact = terminal_production::produce_terminal_artifact(&checked, "value").unwrap();
+        for target in [
+            target::NativeTarget::windows_x64(),
             target::NativeTarget::linux_x64(),
-        )
-        .unwrap();
-    assert_eq!(
-        target_program.optimized().plan().functions[0]
-            .block_entries
-            .len(),
-        4
-    );
-    assert!(!fragment_program(&target_program));
-    let assigned = target_operations_to_assigned_target_operations::assign_registers(
-        target_program.target_operations(),
-    )
-    .unwrap();
-    let plan = machine_emission::emit_machine_code(&assigned).unwrap();
-    image_emission::build_object_artifact(&plan).unwrap();
+            target::NativeTarget::linux_arm64(),
+            target::NativeTarget::macos_arm64(),
+        ] {
+            let selections = [
+                OptimizationSelections::default(),
+                OptimizationSelections::new([Optimization::SelectedIncomingU12ExactAddImmediate])
+                    .unwrap(),
+                OptimizationSelections::new([
+                    if target.architecture == target::Architecture::X86_64 {
+                        Optimization::X86RelaxConditionalBranchesToRel8V1
+                    } else {
+                        Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1
+                    },
+                ])
+                .unwrap(),
+            ];
+            for selection in selections {
+                let plan = publish(
+                    artifact.semantic_bytes(),
+                    artifact.proof_bytes(),
+                    target,
+                    &selection,
+                );
+                let function = &plan.functions[0];
+                let machine_code::ScalarControlFlowEvidence::Acyclic { blocks } =
+                    &function.scalar_stack.as_ref().unwrap().control_flow
+                else {
+                    panic!("common graph");
+                };
+                assert_eq!(blocks.len(), 4);
+                assert_eq!(function.provenance.edges.len(), 5);
+                assert_eq!(
+                    blocks
+                        .iter()
+                        .filter(|block| matches!(
+                            block.terminator,
+                            machine_code::ScalarControlTerminatorEvidence::Return { .. }
+                        ))
+                        .count(),
+                    1
+                );
+                assert_eq!(
+                    blocks
+                        .iter()
+                        .filter(|block| matches!(
+                            block.terminator,
+                            machine_code::ScalarControlTerminatorEvidence::Jump { .. }
+                        ))
+                        .count(),
+                    2
+                );
+                let mut stale = plan.clone();
+                let machine_code::ScalarControlFlowEvidence::Acyclic { blocks } = &mut stale
+                    .functions[0]
+                    .scalar_stack
+                    .as_mut()
+                    .unwrap()
+                    .control_flow
+                else {
+                    unreachable!()
+                };
+                let machine_code::ScalarControlTerminatorEvidence::Jump { target_offset, .. } =
+                    &mut blocks[1].terminator
+                else {
+                    panic!("jump arm")
+                };
+                *target_offset = 0;
+                assert!(image_emission::build_object_artifact(&stale).is_err());
+            }
+        }
+    }
 }
 
 #[test]

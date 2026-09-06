@@ -3,6 +3,7 @@
 use crate::*;
 
 pub(crate) mod compute;
+pub(crate) mod edge_values;
 pub(crate) mod identity;
 pub(crate) mod model;
 pub(crate) mod validate;

@@ -49,22 +49,28 @@ fn raw_fragment_replay_rejects_reauthenticated_bytes_rosters_and_provenance() {
                 .variant += 1
         }),
         ("branch displacement", |value| {
-            value.functions[0]
-                .blocks
-                .iter_mut()
-                .flat_map(|block| &mut block.instructions)
-                .find_map(|row| row.branch.as_mut())
-                .unwrap()
-                .byte_displacement += 1
+            let machine_code::FunctionFragmentBranchEvidence::Conditional(branch) = value.functions
+                [0]
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.instructions)
+            .find_map(|row| row.branch.as_deref_mut())
+            .unwrap() else {
+                panic!("conditional fixture must retain conditional evidence");
+            };
+            branch.byte_displacement += 1
         }),
         ("branch successor", |value| {
-            value.functions[0]
-                .blocks
-                .iter_mut()
-                .flat_map(|block| &mut block.instructions)
-                .find_map(|row| row.branch.as_mut())
-                .unwrap()
-                .when_taken_offset += 1
+            let machine_code::FunctionFragmentBranchEvidence::Conditional(branch) = value.functions
+                [0]
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.instructions)
+            .find_map(|row| row.branch.as_deref_mut())
+            .unwrap() else {
+                panic!("conditional fixture must retain conditional evidence");
+            };
+            branch.when_taken_offset += 1
         }),
         ("control provenance", |value| {
             let row = value.functions[0]

@@ -296,6 +296,7 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
             hasher.update(target.0.to_le_bytes());
         }
         Control::DirectRelativeCallV1 => hasher.update([4]),
+        Control::UnconditionalRelativeBranchV1 => hasher.update([5]),
     }
 }
 
@@ -315,6 +316,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::ConditionalBranchU64LessThan => 11,
         MachineAlternativeFamily::ConditionalBranchI64LessThan => 12,
         MachineAlternativeFamily::CallI64 => 13,
+        MachineAlternativeFamily::Jump => 14,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }

@@ -22,6 +22,7 @@ pub(super) fn encode_alternative(bytes: &mut Vec<u8>, alternative: &MachineAlter
         MachineAlternativeFamily::ConditionalBranchU64LessThan => 11,
         MachineAlternativeFamily::ConditionalBranchI64LessThan => 12,
         MachineAlternativeFamily::CallI64 => 13,
+        MachineAlternativeFamily::Jump => 14,
     });
     bytes.extend_from_slice(&alternative.key.variant.to_le_bytes());
     encode_applicability(bytes, alternative.applicability);
@@ -161,5 +162,6 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
             bytes.extend_from_slice(&target.0.to_le_bytes());
         }
         MachineEncodedControlEffect::DirectRelativeCallV1 => bytes.push(4),
+        MachineEncodedControlEffect::UnconditionalRelativeBranchV1 => bytes.push(5),
     }
 }

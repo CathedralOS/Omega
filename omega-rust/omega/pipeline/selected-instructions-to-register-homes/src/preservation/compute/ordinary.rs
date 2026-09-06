@@ -58,6 +58,7 @@ fn terminator_instruction(terminator: &SelectedTerminator) -> &SelectedInstructi
         SelectedTerminator::ConditionalBranch { instruction, .. }
         | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
         | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
+        | SelectedTerminator::Jump { instruction, .. }
         | SelectedTerminator::Return { instruction, .. } => instruction,
     }
 }

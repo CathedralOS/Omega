@@ -49,7 +49,7 @@ fn runtime_u64_parameter_less_than_selects_ordered_three_block_graph_on_both_isa
         .unwrap();
         validate_raw_selection(&staged, staged.selected().plan().clone()).unwrap();
 
-        let legalized = &staged.legalized().plan().functions[0];
+        let legalized = staged.legalized().plan().functions[0].conditional();
         assert_eq!(
             legalized.recipe,
             LegalizationRecipe::ReturnU64IntegerLessThanParametersConditionalV1

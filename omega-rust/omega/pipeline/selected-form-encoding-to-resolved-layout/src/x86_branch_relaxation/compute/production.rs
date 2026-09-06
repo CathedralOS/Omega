@@ -54,7 +54,11 @@ pub(super) fn compute_trace(
         'scan: for (function_index, function) in functions.iter().enumerate() {
             for (block_index, block) in function.blocks.iter().enumerate() {
                 for (instruction_index, row) in block.instructions.iter().enumerate() {
-                    let Some(branch) = row.branch.as_deref() else {
+                    let Some(branch) = row
+                        .branch
+                        .as_deref()
+                        .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
+                    else {
                         continue;
                     };
                     charge(
@@ -117,6 +121,7 @@ pub(super) fn compute_trace(
         let predicate = old
             .branch
             .as_deref()
+            .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
             .ok_or(OptimizedX86BranchRelaxationError::MalformedBranch(
                 old.instruction,
             ))?
@@ -170,6 +175,7 @@ pub(super) fn compute_trace(
         let old_displacement = old
             .branch
             .as_deref()
+            .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
             .ok_or(OptimizedX86BranchRelaxationError::MalformedBranch(
                 old.instruction,
             ))?
@@ -177,6 +183,7 @@ pub(super) fn compute_trace(
         let new_displacement = new
             .branch
             .as_deref()
+            .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
             .ok_or(OptimizedX86BranchRelaxationError::MalformedBranch(
                 new.instruction,
             ))?

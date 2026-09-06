@@ -25,12 +25,13 @@ pub(super) fn inspect_production_branch(
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<(X86BranchRelaxationAttemptOutcome, Option<i64>), OptimizedX86BranchRelaxationError> {
     let row = &function.blocks[block_index].instructions[instruction_index];
-    let branch =
-        row.branch
-            .as_deref()
-            .ok_or(OptimizedX86BranchRelaxationError::MalformedBranch(
-                row.instruction,
-            ))?;
+    let branch = row
+        .branch
+        .as_deref()
+        .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
+        .ok_or(OptimizedX86BranchRelaxationError::MalformedBranch(
+            row.instruction,
+        ))?;
     let already_short = match (branch.predicate, row.bytes.len()) {
         (ResolvedConditionalBranchPredicate::NonZeroV1, 2) => {
             validate_x86_64_selected_short_nonzero_branch_form(
@@ -106,12 +107,13 @@ pub(super) fn replay_inspect_branch(
         .get(block_index)
         .and_then(|block| block.instructions.get(instruction_index))
         .ok_or(OptimizedX86BranchRelaxationError::OffsetOverflow)?;
-    let branch =
-        row.branch
-            .as_deref()
-            .ok_or(OptimizedX86BranchRelaxationError::MalformedBranch(
-                row.instruction,
-            ))?;
+    let branch = row
+        .branch
+        .as_deref()
+        .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
+        .ok_or(OptimizedX86BranchRelaxationError::MalformedBranch(
+            row.instruction,
+        ))?;
     let already_short = match (branch.predicate, row.bytes.as_slice()) {
         (ResolvedConditionalBranchPredicate::NonZeroV1, [0x75, displacement]) => {
             let decoded = i64::from(*displacement as i8);

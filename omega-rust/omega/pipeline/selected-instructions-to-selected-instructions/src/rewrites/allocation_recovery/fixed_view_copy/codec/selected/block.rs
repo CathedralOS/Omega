@@ -23,6 +23,14 @@ pub(super) fn encode_block(bytes: &mut Vec<u8>, block: &SelectedBlock) {
         encode_instruction(bytes, instruction);
     }
     match &block.terminator {
+        SelectedTerminator::Jump {
+            instruction,
+            successor,
+        } => {
+            bytes.push(4);
+            encode_instruction(bytes, instruction);
+            encode_successor(bytes, successor);
+        }
         SelectedTerminator::ConditionalBranch {
             instruction,
             when_nonzero,
@@ -75,6 +83,10 @@ pub(super) fn decode_block(
         instructions.push(decode_instruction(cursor)?);
     }
     let terminator = match cursor.byte()? {
+        4 => SelectedTerminator::Jump {
+            instruction: decode_instruction(cursor)?,
+            successor: decode_successor(cursor)?,
+        },
         0 => SelectedTerminator::ConditionalBranch {
             instruction: decode_instruction(cursor)?,
             when_nonzero: decode_successor(cursor)?,

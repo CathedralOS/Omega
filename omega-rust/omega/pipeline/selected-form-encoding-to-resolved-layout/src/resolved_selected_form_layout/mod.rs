@@ -10,9 +10,9 @@ mod validation;
 
 pub use error::OptimizedResolvedSelectedFormLayoutError;
 pub use model::{
-    ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate,
-    ResolvedSelectedBlockLayout, ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFormRow,
-    ResolvedSelectedFunctionLayout, ResolvedStructuralUnitCallLayout,
+    ResolvedBranchEvidence, ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate,
+    ResolvedJumpEvidence, ResolvedSelectedBlockLayout, ResolvedSelectedFormLayoutIdentity,
+    ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout, ResolvedStructuralUnitCallLayout,
     ResolvedStructuralUnitFunctionLayout, SelectedFunctionLayoutPolicy,
     StagedOptimizedResolvedSelectedFormLayout,
 };

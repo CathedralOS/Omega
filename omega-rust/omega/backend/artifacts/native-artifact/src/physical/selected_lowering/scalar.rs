@@ -5,8 +5,7 @@
 
 use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
 use machine_code::{
-    FunctionFragmentConditionalBranchPredicate, MachineCodeFunction, ScalarControlFlowEvidence,
-    ScalarDirectConditionalBranchEvidence, SemanticCodeAttribution, SemanticCodeSite,
+    MachineCodeFunction, ScalarControlFlowEvidence, SemanticCodeAttribution, SemanticCodeSite,
 };
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, IntegerType, MachineId};
 use sha2::{Digest, Sha256};
@@ -69,7 +68,7 @@ pub(super) fn validate_machine_function(
     if stack.stack_alignment != 16
         || !matches!(
             stack.control_flow,
-            ScalarControlFlowEvidence::Linear | ScalarControlFlowEvidence::DirectConditional { .. }
+            ScalarControlFlowEvidence::Linear | ScalarControlFlowEvidence::Acyclic { .. }
         )
         || stack.cleanup_preservation.is_some()
     {
@@ -199,6 +198,26 @@ fn validate_attribution<'row>(
             _ => return Err(INVALID),
         }
     }
+    if matches!(control, Some(ScalarControlFlowEvidence::Acyclic { .. }))
+        || control.is_none() && provenance.edges.len() > 1
+    {
+        if edges.len() != provenance.edges.len() {
+            return Err(INVALID);
+        }
+        let reconstructed = image_emission::reconstruct_scalar_control_flow(
+            target.architecture,
+            machine,
+            bytes,
+            edges.iter().copied(),
+        )
+        .map_err(|_| INVALID)?;
+        if let Some(ScalarControlFlowEvidence::Acyclic { blocks }) = control
+            && *blocks != reconstructed
+        {
+            return Err(INVALID);
+        }
+        return Ok(());
+    }
     if provenance.edges.len() == 1 {
         let [returned] = edges.as_slice() else {
             return Err(INVALID);
@@ -210,107 +229,6 @@ fn validate_attribution<'row>(
             return Err(INVALID);
         }
         return Ok(());
-    }
-    if provenance.edges.len() != 4 || edges.len() != 4 {
-        return Err(INVALID);
-    }
-    let zero_width = edges
-        .iter()
-        .copied()
-        .filter(|row| row.byte_count == 0)
-        .collect::<Vec<_>>();
-    let [fallthrough] = zero_width.as_slice() else {
-        return Err(INVALID);
-    };
-    let branch_rows = edges
-        .iter()
-        .copied()
-        .filter(|row| row.byte_count != 0 && row.operation_ordinal == fallthrough.operation_ordinal)
-        .collect::<Vec<_>>();
-    let [branch] = branch_rows.as_slice() else {
-        return Err(INVALID);
-    };
-    if branch.code_offset.checked_add(branch.byte_count) != Some(fallthrough.code_offset) {
-        return Err(INVALID);
-    }
-    let mut returns = edges
-        .iter()
-        .copied()
-        .filter(|row| row.operation_ordinal != branch.operation_ordinal)
-        .collect::<Vec<_>>();
-    returns.sort_by_key(|row| row.code_offset);
-    let [fallthrough_return, taken_return] = returns.as_slice() else {
-        return Err(INVALID);
-    };
-    let taken_offset = fallthrough_return
-        .code_offset
-        .checked_add(fallthrough_return.byte_count)
-        .ok_or(INVALID)?;
-    if fallthrough_return.code_offset < fallthrough.code_offset
-        || taken_return.code_offset < taken_offset
-        || taken_return
-            .code_offset
-            .checked_add(taken_return.byte_count)
-            != Some(bytes.len())
-    {
-        return Err(INVALID);
-    }
-    let return_bytes: &[u8] = match target.architecture {
-        target::Architecture::X86_64 => &[0xc3],
-        target::Architecture::Aarch64 => &[0xc0, 0x03, 0x5f, 0xd6],
-    };
-    for returned in returns {
-        let end = returned
-            .code_offset
-            .checked_add(returned.byte_count)
-            .ok_or(INVALID)?;
-        if returned.byte_count < return_bytes.len()
-            || bytes.get(end - return_bytes.len()..end) != Some(return_bytes)
-        {
-            return Err(INVALID);
-        }
-    }
-    let mut expected = ScalarDirectConditionalBranchEvidence {
-        predicate: FunctionFragmentConditionalBranchPredicate::NonZeroV1,
-        branch_offset: branch.code_offset,
-        branch_byte_count: branch.byte_count,
-        taken_offset,
-        fallthrough_offset: fallthrough.code_offset,
-    };
-    if let Some(control) = control {
-        let ScalarControlFlowEvidence::DirectConditional { branch } = control else {
-            return Err(INVALID);
-        };
-        expected.predicate = branch.predicate;
-        if *branch != expected {
-            return Err(INVALID);
-        }
-        return image_emission::validate_direct_scalar_conditional_branch(
-            target.architecture,
-            machine,
-            bytes,
-            branch,
-        )
-        .map_err(|_| INVALID);
-    }
-    // The immutable object retains stack summaries, not producer control rows.
-    // Reconstruct the unique admitted predicate from its exact branch bytes.
-    for predicate in [
-        FunctionFragmentConditionalBranchPredicate::NonZeroV1,
-        FunctionFragmentConditionalBranchPredicate::U64LessThanV1,
-        FunctionFragmentConditionalBranchPredicate::I64LessThanV1,
-    ] {
-        expected.predicate = predicate;
-        if image_emission::validate_direct_scalar_conditional_branch(
-            target.architecture,
-            machine,
-            bytes,
-            &expected,
-        )
-        .is_ok()
-        {
-            return Ok(());
-        }
     }
     Err(INVALID)
 }

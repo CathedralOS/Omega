@@ -11,6 +11,30 @@ use selected_instructions::{
 };
 use semantic_vocabulary::{BlockId, MachineId};
 
+#[test]
+fn successor_parameter_replay_rejects_stale_argument_flow_and_missing_bindings() {
+    let mut selected = crate::analyses::liveness::tests::successor_parameter_function();
+    let expected = crate::analyses::liveness::compute::compute_function(0, &selected).unwrap();
+    assert_eq!(replay_function(0, &selected).unwrap(), expected);
+    let selected_instructions::SelectedTerminator::Jump { successor, .. } =
+        &mut selected.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    successor.bindings[0].argument = semantic_vocabulary::ValueId::new(2).unwrap();
+    let changed = replay_function(0, &selected).unwrap();
+    assert_ne!(changed, expected);
+    assert!(validate_function(0, &expected, &changed).is_err());
+    let selected_instructions::SelectedTerminator::Jump { successor, .. } =
+        &mut selected.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    successor.bindings.clear();
+    assert!(replay_function(0, &selected).is_err());
+    assert!(crate::analyses::liveness::compute::compute_function(0, &selected).is_err());
+}
+
 fn structural_liveness(machine: MachineId) -> crate::FunctionLiveness {
     crate::FunctionLiveness {
         machine,

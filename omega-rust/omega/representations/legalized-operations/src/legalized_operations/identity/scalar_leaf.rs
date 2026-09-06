@@ -20,12 +20,19 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarLeafFunction
         function.provenance.edges.iter().map(|value| value.get()),
     );
     bytes.extend_from_slice(&function.entry_block.get().to_le_bytes());
-    encode_call_plan(bytes, &function.abi.call_plan);
-    encode_len(bytes, function.abi.parameters.len());
-    for value in function.abi.parameters.iter().chain([&function.abi.result]) {
+    encode_abi(bytes, &function.abi);
+    encode_leaf(bytes, &function.leaf);
+}
+
+pub(super) fn encode_abi(
+    bytes: &mut Vec<u8>,
+    abi: &target_operations::FixedIntegerScalarFunctionAbi,
+) {
+    encode_call_plan(bytes, &abi.call_plan);
+    encode_len(bytes, abi.parameters.len());
+    for value in abi.parameters.iter().chain([&abi.result]) {
         bytes.extend_from_slice(&value.value.get().to_le_bytes());
         encode_integer_type(bytes, value.scalar_type);
         encode_placement(bytes, &value.placement);
     }
-    encode_leaf(bytes, &function.leaf);
 }

@@ -32,9 +32,22 @@ pub struct FunctionLiveRanges {
     pub block_domains: Vec<BlockPointDomain>,
     pub virtual_registers: Vec<VirtualLiveRange>,
     pub tied_pairs: Vec<DistinctUseDefTie>,
+    /// Explicit same-home edge transfers for the transition-free allocator.
+    /// These are not instruction use/def ties and retain the semantic edge.
+    pub edge_transfers: Vec<EdgeRegisterTransfer>,
     pub early_clobbers: Vec<EarlyClobberConstraint>,
     pub architectural_units: Vec<ArchitecturalUnitLiveRange>,
     pub interference: Vec<VirtualInterference>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct EdgeRegisterTransfer {
+    pub source: SelectedBlockId,
+    pub target: SelectedBlockId,
+    pub psi_edge: EdgeId,
+    pub argument: VirtualRegisterId,
+    pub parameter: VirtualRegisterId,
+    pub class: RegisterClassId,
 }
 
 /// One exact instruction phase where a definition writes at the before point

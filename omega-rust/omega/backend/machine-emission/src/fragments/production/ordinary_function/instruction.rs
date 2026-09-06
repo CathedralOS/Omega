@@ -35,29 +35,46 @@ pub(super) fn emit(
         offset: row.offset,
         bytes: row.bytes.clone(),
         branch: row.branch.as_deref().map(|branch| {
-            Box::new(FunctionFragmentConditionalBranchEvidence {
-                predicate: match branch.predicate {
-                    machine_code::ResolvedConditionalBranchPredicate::NonZeroV1 => {
-                        FunctionFragmentConditionalBranchPredicate::NonZeroV1
-                    }
-                    machine_code::ResolvedConditionalBranchPredicate::U64LessThanV1 => {
-                        FunctionFragmentConditionalBranchPredicate::U64LessThanV1
-                    }
-                    machine_code::ResolvedConditionalBranchPredicate::I64LessThanV1 => {
-                        FunctionFragmentConditionalBranchPredicate::I64LessThanV1
-                    }
+            let branch = match branch {
+                machine_code::ResolvedBranchEvidence::Conditional(branch) => branch,
+                machine_code::ResolvedBranchEvidence::Jump(jump) => {
+                    return Box::new(machine_code::FunctionFragmentBranchEvidence::Jump(
+                        machine_code::FunctionFragmentJumpEvidence {
+                            source_block: jump.source_block,
+                            target_edge: jump.target_edge,
+                            target_block: jump.target_block,
+                            target_offset: jump.target_offset,
+                            byte_displacement: jump.byte_displacement,
+                            decoded_effects: jump.decoded_effects.clone(),
+                        },
+                    ));
+                }
+            };
+            Box::new(machine_code::FunctionFragmentBranchEvidence::Conditional(
+                FunctionFragmentConditionalBranchEvidence {
+                    predicate: match branch.predicate {
+                        machine_code::ResolvedConditionalBranchPredicate::NonZeroV1 => {
+                            FunctionFragmentConditionalBranchPredicate::NonZeroV1
+                        }
+                        machine_code::ResolvedConditionalBranchPredicate::U64LessThanV1 => {
+                            FunctionFragmentConditionalBranchPredicate::U64LessThanV1
+                        }
+                        machine_code::ResolvedConditionalBranchPredicate::I64LessThanV1 => {
+                            FunctionFragmentConditionalBranchPredicate::I64LessThanV1
+                        }
+                    },
+                    source_block: branch.source_block,
+                    when_taken_edge: branch.when_taken_edge,
+                    when_taken_block: branch.when_taken_block,
+                    when_taken_offset: branch.when_taken_offset,
+                    when_fallthrough_edge: branch.when_fallthrough_edge,
+                    when_fallthrough_block: branch.when_fallthrough_block,
+                    when_fallthrough_offset: branch.when_fallthrough_offset,
+                    byte_displacement: branch.byte_displacement,
+                    decoded_register_reads: branch.decoded_register_reads.clone(),
+                    decoded_effects: branch.decoded_effects.clone(),
                 },
-                source_block: branch.source_block,
-                when_taken_edge: branch.when_taken_edge,
-                when_taken_block: branch.when_taken_block,
-                when_taken_offset: branch.when_taken_offset,
-                when_fallthrough_edge: branch.when_fallthrough_edge,
-                when_fallthrough_block: branch.when_fallthrough_block,
-                when_fallthrough_offset: branch.when_fallthrough_offset,
-                byte_displacement: branch.byte_displacement,
-                decoded_register_reads: branch.decoded_register_reads.clone(),
-                decoded_effects: branch.decoded_effects.clone(),
-            })
+            ))
         }),
         internal_machine_fixup,
         provenance: instruction.provenance.clone(),
@@ -115,6 +132,7 @@ fn selected<'a>(
             SelectedTerminator::ConditionalBranch { instruction, .. }
             | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
             | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
+            | SelectedTerminator::Jump { instruction, .. }
             | SelectedTerminator::Return { instruction, .. } => instruction,
         }))
         .find(|instruction| instruction.id == row.instruction)

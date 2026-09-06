@@ -4,8 +4,10 @@ use crate::FixedViewCopyPlan;
 
 use super::{
     LEGACY_V4_VERSION, LEGACY_V5_VERSION, LEGACY_V6_VERSION, LEGACY_V7_VERSION, LEGACY_V8_VERSION,
-    LEGACY_V9_VERSION, LEGACY_V10_VERSION, MAGIC, content,
-    envelope::{v5_identity, v6_identity, v7_identity, v8_identity, v9_identity, v10_identity},
+    LEGACY_V9_VERSION, LEGACY_V10_VERSION, LEGACY_V11_VERSION, MAGIC, content,
+    envelope::{
+        v5_identity, v6_identity, v7_identity, v8_identity, v9_identity, v10_identity, v11_identity,
+    },
 };
 use crate::rewrites::allocation_recovery::fixed_view_copy::identity::fixed_view_copy_identity_v3_legacy;
 
@@ -84,6 +86,17 @@ pub(super) fn encode_v10(plan: &FixedViewCopyPlan) -> Vec<u8> {
     encoded.extend_from_slice(MAGIC);
     encoded.extend_from_slice(&LEGACY_V10_VERSION.to_le_bytes());
     encoded.extend_from_slice(&v10_identity(plan, &content));
+    encoded.extend_from_slice(&content);
+    encoded
+}
+
+pub(super) fn encode_v11(plan: &FixedViewCopyPlan) -> Vec<u8> {
+    let mut content = Vec::new();
+    content::encode_v7(&mut content, plan);
+    let mut encoded = Vec::new();
+    encoded.extend_from_slice(MAGIC);
+    encoded.extend_from_slice(&LEGACY_V11_VERSION.to_le_bytes());
+    encoded.extend_from_slice(&v11_identity(plan, &content));
     encoded.extend_from_slice(&content);
     encoded
 }

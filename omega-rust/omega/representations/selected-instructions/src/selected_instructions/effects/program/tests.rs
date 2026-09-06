@@ -262,6 +262,28 @@ fn codec_round_trips_complete_effect_content() {
 }
 
 #[test]
+fn jump_effects_require_the_v10_wire_vocabulary() {
+    let mut source = plan();
+    let instruction = &mut source.functions[0].blocks[0].instructions[0];
+    instruction.kind = SelectedInstructionKind::Jump;
+    instruction.alternatives[0].key.family = MachineAlternativeFamily::Jump;
+    instruction.alternatives[0].encoded.control =
+        MachineEncodedControlEffect::UnconditionalRelativeBranchV1;
+    source.identity = pre_allocation_machine_effect_identity(&source);
+    let mut bytes = source.encode();
+    assert_eq!(&bytes[8..12], &10_u32.to_le_bytes());
+    assert_eq!(
+        PreAllocationMachineEffectPlan::decode(&bytes).unwrap(),
+        source
+    );
+    bytes[8..12].copy_from_slice(&9_u32.to_le_bytes());
+    assert_eq!(
+        PreAllocationMachineEffectPlan::decode(&bytes),
+        Err(PreAllocationMachineEffectDecodeError::InvalidField)
+    );
+}
+
+#[test]
 fn codec_v8_round_trips_signed_less_than_branch_vocabulary() {
     let mut source = plan();
     let instruction = &mut source.functions[0].blocks[0].instructions[0];

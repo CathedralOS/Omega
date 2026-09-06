@@ -5,12 +5,13 @@ use target_operations_to_selected_instructions::selected_instruction_plan_identi
 use super::super::identity::fixed_view_copy_identity_v3_legacy;
 use super::envelope::{
     v5_identity, v6_identity, v7_identity, v8_identity, v9_identity, v10_identity, v11_identity,
+    v12_identity,
 };
 use super::primitives::Cursor;
 use super::{
     FixedViewCopyDecodeError, FixedViewCopyPlan, LEGACY_V4_VERSION, LEGACY_V5_VERSION,
     LEGACY_V6_VERSION, LEGACY_V7_VERSION, LEGACY_V8_VERSION, LEGACY_V9_VERSION, LEGACY_V10_VERSION,
-    MAGIC, VERSION, content,
+    LEGACY_V11_VERSION, MAGIC, VERSION, content,
 };
 
 pub(super) fn decode(encoded: &[u8]) -> Result<FixedViewCopyPlan, FixedViewCopyDecodeError> {
@@ -28,6 +29,7 @@ pub(super) fn decode(encoded: &[u8]) -> Result<FixedViewCopyPlan, FixedViewCopyD
             | LEGACY_V8_VERSION
             | LEGACY_V9_VERSION
             | LEGACY_V10_VERSION
+            | LEGACY_V11_VERSION
             | VERSION
     ) {
         return Err(FixedViewCopyDecodeError::UnsupportedVersion(version));
@@ -39,11 +41,14 @@ pub(super) fn decode(encoded: &[u8]) -> Result<FixedViewCopyPlan, FixedViewCopyD
         LEGACY_V5_VERSION => content::decode_v5(&mut cursor)?,
         LEGACY_V6_VERSION | LEGACY_V7_VERSION | LEGACY_V8_VERSION | LEGACY_V9_VERSION
         | LEGACY_V10_VERSION => content::decode_v6(&mut cursor)?,
-        VERSION => content::decode_v7(&mut cursor)?,
+        LEGACY_V11_VERSION | VERSION => content::decode_v7(&mut cursor)?,
         _ => unreachable!("version admission is exhaustive"),
     };
     if cursor.remaining() != 0 {
         return Err(FixedViewCopyDecodeError::TrailingBytes);
+    }
+    if version < VERSION {
+        reject_legacy_transfer_vocabulary(&decoded.plan.transformed)?;
     }
     if matches!(
         version,
@@ -52,6 +57,7 @@ pub(super) fn decode(encoded: &[u8]) -> Result<FixedViewCopyPlan, FixedViewCopyD
             | LEGACY_V8_VERSION
             | LEGACY_V9_VERSION
             | LEGACY_V10_VERSION
+            | LEGACY_V11_VERSION
             | VERSION
     ) && !decoded.transformed_payload_matches
     {
@@ -83,7 +89,7 @@ pub(super) fn decode(encoded: &[u8]) -> Result<FixedViewCopyPlan, FixedViewCopyD
                 &decoded.plan.transformed,
             )
         }
-        LEGACY_V10_VERSION | VERSION => {
+        LEGACY_V10_VERSION | LEGACY_V11_VERSION | VERSION => {
             selected_instruction_plan_identity(&decoded.plan.transformed)
         }
         _ => unreachable!("version admission is exhaustive"),
@@ -99,7 +105,8 @@ pub(super) fn decode(encoded: &[u8]) -> Result<FixedViewCopyPlan, FixedViewCopyD
         LEGACY_V8_VERSION => v8_identity(&decoded.plan, &encoded[content_offset..]),
         LEGACY_V9_VERSION => v9_identity(&decoded.plan, &encoded[content_offset..]),
         LEGACY_V10_VERSION => v10_identity(&decoded.plan, &encoded[content_offset..]),
-        VERSION => v11_identity(&decoded.plan, &encoded[content_offset..]),
+        LEGACY_V11_VERSION => v11_identity(&decoded.plan, &encoded[content_offset..]),
+        VERSION => v12_identity(&decoded.plan, &encoded[content_offset..]),
         _ => unreachable!("version admission is exhaustive"),
     };
     if actual_identity != identity {
@@ -126,4 +133,50 @@ fn contains_i64_less_than(plan: &selected_instructions::SelectedInstructionPlan)
                 selected_instructions::SelectedTerminator::ConditionalBranchI64LessThan { .. }
             )
         })
+}
+
+fn reject_legacy_transfer_vocabulary(
+    plan: &selected_instructions::SelectedInstructionPlan,
+) -> Result<(), FixedViewCopyDecodeError> {
+    use selected_instructions::{
+        SelectedInstructionKind, SelectedTerminator, VirtualRegisterOrigin,
+    };
+    if plan
+        .structural_unit_functions
+        .iter()
+        .any(|function| function.terminator.instruction.kind == SelectedInstructionKind::Jump)
+    {
+        return Err(FixedViewCopyDecodeError::UnknownInstructionKind(14));
+    }
+    for function in &plan.functions {
+        if function.virtual_registers.iter().any(|register| {
+            matches!(
+                register.origin,
+                VirtualRegisterOrigin::BlockParameter { .. }
+            )
+        }) {
+            return Err(FixedViewCopyDecodeError::UnknownRegisterOrigin(3));
+        }
+        for block in &function.blocks {
+            if matches!(block.terminator, SelectedTerminator::Jump { .. }) {
+                return Err(FixedViewCopyDecodeError::UnknownTerminator(4));
+            }
+            let terminator = match &block.terminator {
+                SelectedTerminator::ConditionalBranch { instruction, .. }
+                | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
+                | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
+                | SelectedTerminator::Jump { instruction, .. }
+                | SelectedTerminator::Return { instruction, .. } => instruction,
+            };
+            if block
+                .instructions
+                .iter()
+                .chain(std::iter::once(terminator))
+                .any(|instruction| instruction.kind == SelectedInstructionKind::Jump)
+            {
+                return Err(FixedViewCopyDecodeError::UnknownInstructionKind(14));
+            }
+        }
+    }
+    Ok(())
 }

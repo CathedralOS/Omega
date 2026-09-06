@@ -22,12 +22,11 @@ pub struct RankedU32CountdownMachineCodeRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ScalarControlFlowEvidence {
     Linear,
-    /// One current selected decision followed physically by its fallthrough
-    /// return arm and then its taken return arm. A common prefix frame remains
-    /// live on both paths; each arm restores it independently. Calls, nested
-    /// decisions, shared returns and crash leaves are not part of this form.
-    DirectConditional {
-        branch: ScalarDirectConditionalBranchEvidence,
+    /// Complete forward control flow of a no-call scalar function. Blocks
+    /// partition the emitted bytes; jumps retain real edges and reconvergence
+    /// requires the same stack depth from every predecessor.
+    Acyclic {
+        blocks: Vec<ScalarControlBlockEvidence>,
     },
     /// A direct scalar return containing one or more compiler-generated x86-64
     /// signed division/remainder diamonds. Each branch selects the `-1`
@@ -68,6 +67,27 @@ pub enum ScalarControlFlowEvidence {
         structural_conditions: Vec<BooleanStructuralConditionEvidence>,
         merge_offset: usize,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScalarControlBlockEvidence {
+    pub offset: usize,
+    pub byte_count: usize,
+    pub terminator: ScalarControlTerminatorEvidence,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ScalarControlTerminatorEvidence {
+    Return {
+        offset: usize,
+        byte_count: usize,
+    },
+    Jump {
+        offset: usize,
+        byte_count: usize,
+        target_offset: usize,
+    },
+    Conditional(ScalarDirectConditionalBranchEvidence),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

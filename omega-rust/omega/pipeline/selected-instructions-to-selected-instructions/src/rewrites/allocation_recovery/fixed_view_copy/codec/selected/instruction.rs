@@ -80,6 +80,7 @@ pub(super) fn decode_instruction(
 
 fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
     let tag = match kind {
+        SelectedInstructionKind::Jump => 14,
         SelectedInstructionKind::CompareI64Zero => 0,
         SelectedInstructionKind::MaterializeI64 { .. } => 1,
         SelectedInstructionKind::ConditionalBranchNonZero => 2,
@@ -134,6 +135,7 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
     cursor: &mut Cursor<'_>,
 ) -> Result<SelectedInstructionKind, FixedViewCopyDecodeError> {
     Ok(match cursor.byte()? {
+        14 => SelectedInstructionKind::Jump,
         0 => SelectedInstructionKind::CompareI64Zero,
         1 => SelectedInstructionKind::MaterializeI64 {
             value: decode_integer(cursor)?,

@@ -27,7 +27,7 @@ fn legalization_identity_and_replay_reject_target_recipe_provenance_and_fuel_cor
             staged_conditional(target).legalized().receipt().identity()
         );
         assert_eq!(
-            original.functions[0].recipe,
+            original.functions[0].conditional().recipe,
             LegalizationRecipe::ReturnU64ImmediateConditionalV1
         );
 
@@ -53,7 +53,8 @@ fn legalization_identity_and_replay_reject_target_recipe_provenance_and_fuel_cor
         );
 
         let mut corrupted = original.clone();
-        corrupted.functions[0].recipe = LegalizationRecipe::ReturnU64ExactAddImmediateConditionalV1;
+        corrupted.functions[0].conditional_mut().recipe =
+            LegalizationRecipe::ReturnU64ExactAddImmediateConditionalV1;
         assert_ne!(legalized_operation_plan_identity(&corrupted), identity);
         assert_eq!(
             validate(corrupted),
@@ -62,6 +63,7 @@ fn legalization_identity_and_replay_reject_target_recipe_provenance_and_fuel_cor
 
         let mut corrupted = original.clone();
         corrupted.functions[0]
+            .conditional_mut()
             .provenance
             .operations
             .push(OperationId::new(9_601).unwrap());
@@ -72,7 +74,7 @@ fn legalization_identity_and_replay_reject_target_recipe_provenance_and_fuel_cor
         );
 
         let mut corrupted = original.clone();
-        corrupted.functions[0].branch_true_fuel[0].units += 1;
+        corrupted.functions[0].conditional_mut().branch_true_fuel[0].units += 1;
         assert_ne!(legalized_operation_plan_identity(&corrupted), identity);
         assert_eq!(
             validate(corrupted),
@@ -80,10 +82,10 @@ fn legalization_identity_and_replay_reject_target_recipe_provenance_and_fuel_cor
         );
 
         let mut corrupted = original.clone();
-        let entry_block = corrupted.functions[0].entry_block;
+        let entry_block = corrupted.functions[0].conditional().entry_block;
         let LegalizedCondition::DirectParameter {
             definition_site, ..
-        } = &mut corrupted.functions[0].condition
+        } = &mut corrupted.functions[0].conditional_mut().condition
         else {
             panic!("fixture must retain a direct condition")
         };
@@ -98,8 +100,10 @@ fn legalization_identity_and_replay_reject_target_recipe_provenance_and_fuel_cor
         );
 
         let mut corrupted = original.clone();
-        corrupted.functions[0].branch_true_fuel[0].site =
-            optimization_unit::PsiProvenance::Edge(corrupted.functions[0].branch_false_edge);
+        corrupted.functions[0].conditional_mut().branch_true_fuel[0].site =
+            optimization_unit::PsiProvenance::Edge(
+                corrupted.functions[0].conditional().branch_false_edge,
+            );
         assert_ne!(legalized_operation_plan_identity(&corrupted), identity);
         assert_eq!(
             validate(corrupted),
@@ -107,7 +111,11 @@ fn legalization_identity_and_replay_reject_target_recipe_provenance_and_fuel_cor
         );
 
         let mut corrupted = original.clone();
-        corrupted.functions[0].provenance.edges.swap(0, 1);
+        corrupted.functions[0]
+            .conditional_mut()
+            .provenance
+            .edges
+            .swap(0, 1);
         assert_ne!(legalized_operation_plan_identity(&corrupted), identity);
         assert!(matches!(
             validate(corrupted),

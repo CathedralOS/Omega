@@ -1,4 +1,4 @@
-//! Version-5 post-allocation machine-plan framing and content authentication.
+//! Version-6 post-allocation machine-plan framing and content authentication.
 //!
 //! The entrance owns the wire marker/version, canonical content boundary,
 //! trailing-byte rejection, and final identity authentication. Ordered content,
@@ -20,7 +20,8 @@ use selected_instructions::selected_instructions::effects::program::encoding as 
 const MAGIC: &[u8; 8] = b"OMGPMX\0\0";
 const LEGACY_V3_VERSION: u32 = 3;
 const LEGACY_V4_VERSION: u32 = 4;
-const VERSION: u32 = 5;
+const LEGACY_V5_VERSION: u32 = 5;
+const VERSION: u32 = 6;
 
 pub(crate) fn encode_terminal_post_allocation_machine_plan(
     plan: &PostAllocationMachinePlan,
@@ -42,7 +43,10 @@ pub(crate) fn decode_terminal_post_allocation_machine_plan(
         return Err(PostAllocationMachineDecodeError::WrongMagic);
     }
     let version = cursor::u32_field(&mut cursor)?;
-    if !matches!(version, LEGACY_V3_VERSION | LEGACY_V4_VERSION | VERSION) {
+    if !matches!(
+        version,
+        LEGACY_V3_VERSION | LEGACY_V4_VERSION | LEGACY_V5_VERSION | VERSION
+    ) {
         return Err(PostAllocationMachineDecodeError::UnsupportedVersion(
             version,
         ));
@@ -51,7 +55,8 @@ pub(crate) fn decode_terminal_post_allocation_machine_plan(
     let plan = v3::decode_content(
         &mut cursor,
         identity,
-        matches!(version, LEGACY_V4_VERSION | VERSION),
+        matches!(version, LEGACY_V4_VERSION | LEGACY_V5_VERSION | VERSION),
+        matches!(version, LEGACY_V5_VERSION | VERSION),
         version == VERSION,
     )?;
     if cursor.remaining() != 0 {
@@ -60,7 +65,7 @@ pub(crate) fn decode_terminal_post_allocation_machine_plan(
     let expected_identity = match version {
         LEGACY_V3_VERSION => super::identity::post_allocation_machine_identity_v4_legacy(&plan),
         LEGACY_V4_VERSION => super::identity::post_allocation_machine_identity_v5_legacy(&plan),
-        VERSION => post_allocation_machine_identity(&plan),
+        LEGACY_V5_VERSION | VERSION => post_allocation_machine_identity(&plan),
         _ => unreachable!("wire version admitted above"),
     };
     if plan.identity != expected_identity {

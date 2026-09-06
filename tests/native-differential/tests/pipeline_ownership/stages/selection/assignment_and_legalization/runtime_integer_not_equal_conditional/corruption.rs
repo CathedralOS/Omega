@@ -56,7 +56,7 @@ fn inequality_order_operation_fuel_and_condition_substitution_fail_closed() {
 
         let mut corrupted = original.clone();
         let LegalizedCondition::IntegerNotEqualParametersV1 { left, right, .. } =
-            &mut corrupted.functions[0].condition
+            &mut corrupted.functions[0].conditional_mut().condition
         else {
             panic!("fixture must retain inequality custody")
         };
@@ -71,7 +71,7 @@ fn inequality_order_operation_fuel_and_condition_substitution_fail_closed() {
             boolean_not_operation,
             boolean_not_fuel,
             ..
-        } = &mut corrupted.functions[0].condition
+        } = &mut corrupted.functions[0].conditional_mut().condition
         else {
             unreachable!()
         };
@@ -90,17 +90,18 @@ fn inequality_order_operation_fuel_and_condition_substitution_fail_closed() {
             left,
             right,
             ..
-        } = substituted.functions[0].condition.clone()
+        } = substituted.functions[0].conditional().condition.clone()
         else {
             unreachable!()
         };
-        substituted.functions[0].condition = LegalizedCondition::IntegerEqualParametersV1 {
-            operation: equality_operation,
-            result_definition_site: equality_result_definition_site,
-            fuel: equality_fuel,
-            left,
-            right,
-        };
+        substituted.functions[0].conditional_mut().condition =
+            LegalizedCondition::IntegerEqualParametersV1 {
+                operation: equality_operation,
+                result_definition_site: equality_result_definition_site,
+                fuel: equality_fuel,
+                left,
+                right,
+            };
         assert_eq!(
             validate(substituted),
             Err(LegalizationError::NonCanonicalLegalizedPlan)

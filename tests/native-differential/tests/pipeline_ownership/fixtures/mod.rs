@@ -2,6 +2,7 @@
 
 mod allocated_machine;
 mod common;
+mod conditional_access;
 mod control_flow;
 mod projected_structural_call_return;
 mod scalar_call_unit;
@@ -12,6 +13,7 @@ mod validation;
 
 pub(crate) use allocated_machine::*;
 pub(crate) use common::*;
+pub(crate) use conditional_access::*;
 pub(crate) use control_flow::*;
 pub(crate) use projected_structural_call_return::*;
 pub(crate) use scalar_call_unit::*;

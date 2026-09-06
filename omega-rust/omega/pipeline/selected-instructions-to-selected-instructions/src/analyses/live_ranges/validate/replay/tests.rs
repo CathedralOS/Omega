@@ -16,6 +16,25 @@ use crate::{
     OperandPosition, VirtualInterference, VirtualLiveRange,
 };
 
+#[test]
+fn edge_transfer_replay_retains_edge_and_both_value_identities() {
+    let selected = crate::analyses::liveness::tests::successor_parameter_function();
+    let live = crate::analyses::liveness::compute::compute_function(0, &selected).unwrap();
+    let expected = super::function::replay_function(0, &selected, &live).unwrap();
+    assert_eq!(expected.edge_transfers.len(), 1);
+    assert_eq!(expected.edge_transfers[0].argument, VirtualRegisterId(0));
+    assert_eq!(expected.edge_transfers[0].parameter, VirtualRegisterId(2));
+    let mut changed_argument = expected.clone();
+    changed_argument.edge_transfers[0].argument = VirtualRegisterId(1);
+    assert!(super::comparison::require_function(0, &changed_argument, &expected).is_err());
+    let mut changed_edge = expected.clone();
+    changed_edge.edge_transfers[0].psi_edge = semantic_vocabulary::EdgeId::new(3).unwrap();
+    assert!(super::comparison::require_function(0, &changed_edge, &expected).is_err());
+    let mut missing = expected.clone();
+    missing.edge_transfers.clear();
+    assert!(super::comparison::require_function(0, &missing, &expected).is_err());
+}
+
 fn function() -> FunctionLiveRanges {
     FunctionLiveRanges {
         machine: MachineId::new(1).unwrap(),
@@ -32,6 +51,7 @@ fn function() -> FunctionLiveRanges {
             }],
             edge_connectors: Vec::new(),
         }],
+        edge_transfers: Vec::new(),
         tied_pairs: Vec::new(),
         early_clobbers: Vec::new(),
         architectural_units: vec![ArchitecturalUnitLiveRange {

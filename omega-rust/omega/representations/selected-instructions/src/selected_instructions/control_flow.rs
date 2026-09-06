@@ -25,6 +25,12 @@ pub struct SelectedBlock {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SelectedTerminator {
+    /// An unconditional semantic edge. Argument transfers remain on the
+    /// successor and are not inferred from physical fallthrough placement.
+    Jump {
+        instruction: SelectedInstruction,
+        successor: SelectedSuccessor,
+    },
     ConditionalBranch {
         instruction: SelectedInstruction,
         when_nonzero: SelectedSuccessor,

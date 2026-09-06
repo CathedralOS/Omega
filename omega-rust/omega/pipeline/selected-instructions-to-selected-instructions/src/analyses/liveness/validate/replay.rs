@@ -33,7 +33,7 @@ pub(super) fn replay_function(
                     when_nonzero,
                     when_zero,
                     ..
-                } => vec![when_nonzero.block, when_zero.block],
+                } => vec![when_nonzero, when_zero],
                 SelectedTerminator::ConditionalBranchU64LessThan {
                     when_less,
                     when_not_less,
@@ -43,17 +43,24 @@ pub(super) fn replay_function(
                     when_less,
                     when_not_less,
                     ..
-                } => vec![when_less.block, when_not_less.block],
+                } => vec![when_less, when_not_less],
+                SelectedTerminator::Jump { successor, .. } => vec![successor],
                 SelectedTerminator::Return { .. } => Vec::new(),
             };
-            let vo = targets
-                .iter()
-                .filter_map(|target| v_in.get(target))
-                .flat_map(|set| set.iter().copied())
-                .collect::<BTreeSet<_>>();
+            let mut vo = BTreeSet::new();
+            for edge in &targets {
+                for destination in &v_in[&edge.block] {
+                    vo.insert(super::super::edge_values::incoming_argument(
+                        function_index,
+                        function,
+                        edge,
+                        *destination,
+                    )?);
+                }
+            }
             let uo = targets
                 .iter()
-                .filter_map(|target| u_in.get(target))
+                .filter_map(|target| u_in.get(&target.block))
                 .flat_map(|set| set.iter().copied())
                 .collect::<BTreeSet<_>>();
             let mut vi = vo.clone();
@@ -140,8 +147,19 @@ pub(super) fn replay_function(
     let blocks = function
         .blocks
         .iter()
-        .map(|block| replay_block(block, &position, &v_in, &v_out, &u_in, &u_out))
-        .collect();
+        .map(|block| {
+            replay_block(
+                function_index,
+                function,
+                block,
+                &position,
+                &v_in,
+                &v_out,
+                &u_in,
+                &u_out,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(FunctionLiveness {
         machine: function.machine,
         entry_definitions,
@@ -151,13 +169,15 @@ pub(super) fn replay_function(
 }
 
 fn replay_block(
+    function_index: usize,
+    function: &SelectedFunction,
     block: &SelectedBlock,
     position: &BTreeMap<selected_instructions::SelectedInstructionId, LivenessPosition>,
     v_in: &BTreeMap<selected_instructions::SelectedBlockId, BTreeSet<VirtualRegisterId>>,
     v_out: &BTreeMap<selected_instructions::SelectedBlockId, BTreeSet<VirtualRegisterId>>,
     u_in: &BTreeMap<selected_instructions::SelectedBlockId, BTreeSet<RegisterUnitId>>,
     u_out: &BTreeMap<selected_instructions::SelectedBlockId, BTreeSet<RegisterUnitId>>,
-) -> BlockLiveness {
+) -> Result<BlockLiveness, LivenessError> {
     let mut vl = v_out[&block.id].clone();
     let mut ul = u_out[&block.id].clone();
     let mut instructions = Vec::new();
@@ -203,7 +223,7 @@ fn replay_block(
         });
     }
     instructions.reverse();
-    let successors = match &block.terminator {
+    let successor_rows = match &block.terminator {
         SelectedTerminator::ConditionalBranch {
             instruction,
             when_nonzero,
@@ -242,8 +262,52 @@ fn replay_block(
             })
             .collect(),
         SelectedTerminator::Return { .. } => Vec::new(),
+        SelectedTerminator::Jump {
+            instruction,
+            successor,
+        } => vec![SuccessorLiveness {
+            terminator: instruction.id,
+            polarity_ordinal: 0,
+            psi_edge: successor.psi_edge,
+            target: successor.block,
+            virtual_live: collect(&v_in[&successor.block]),
+            unit_live: collect(&u_in[&successor.block]),
+        }],
     };
-    BlockLiveness {
+    let mut successors = Vec::new();
+    for mut row in successor_rows {
+        let edge = match &block.terminator {
+            SelectedTerminator::ConditionalBranch {
+                when_nonzero,
+                when_zero,
+                ..
+            } => [when_nonzero, when_zero][usize::from(row.polarity_ordinal)],
+            SelectedTerminator::ConditionalBranchU64LessThan {
+                when_less,
+                when_not_less,
+                ..
+            }
+            | SelectedTerminator::ConditionalBranchI64LessThan {
+                when_less,
+                when_not_less,
+                ..
+            } => [when_less, when_not_less][usize::from(row.polarity_ordinal)],
+            SelectedTerminator::Jump { successor, .. } => successor,
+            SelectedTerminator::Return { .. } => unreachable!("return has no successor rows"),
+        };
+        let mut incoming = BTreeSet::new();
+        for destination in row.virtual_live {
+            incoming.insert(super::super::edge_values::incoming_argument(
+                function_index,
+                function,
+                edge,
+                destination,
+            )?);
+        }
+        row.virtual_live = collect(&incoming);
+        successors.push(row);
+    }
+    Ok(BlockLiveness {
         block: block.id,
         source_block: block.source_block,
         virtual_live_in: collect(&v_in[&block.id]),
@@ -252,5 +316,5 @@ fn replay_block(
         unit_live_out: collect(&u_out[&block.id]),
         instructions,
         successors,
-    }
+    })
 }

@@ -49,6 +49,7 @@ pub(super) fn require_key_rows(
         keys.compare_i64_zero,
         keys.compare_i64,
         keys.conditional_branch,
+        keys.jump,
         keys.return_i64,
         keys.return_unit,
     ] {

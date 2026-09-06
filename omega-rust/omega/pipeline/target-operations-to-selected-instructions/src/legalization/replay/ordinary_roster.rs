@@ -92,6 +92,17 @@ pub(super) fn replay_remaining(
                 return Err(Error::NonCanonicalLegalizedPlan);
             }
             match legalized {
+                legalized_operations::LegalizedFunction::SharedReturnConditional(legalized) => {
+                    super::shared_return::validate(
+                        index,
+                        target.target,
+                        target_function,
+                        abstracted,
+                        optimized,
+                        legalized,
+                    )?;
+                    0
+                }
                 legalized_operations::LegalizedFunction::Leaf(leaf) => {
                     let abi = crate::legalization::scalar_leaf::validate_input(
                         index,

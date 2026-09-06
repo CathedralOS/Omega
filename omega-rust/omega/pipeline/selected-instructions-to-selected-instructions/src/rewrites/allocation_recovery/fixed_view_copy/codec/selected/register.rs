@@ -16,6 +16,16 @@ pub(super) fn encode_register(bytes: &mut Vec<u8>, register: &VirtualRegister) {
     encode_scalar(bytes, register.scalar_type);
     bytes.extend_from_slice(&register.class.0.to_le_bytes());
     match register.origin {
+        VirtualRegisterOrigin::BlockParameter {
+            source_value,
+            block,
+            parameter_index,
+        } => {
+            bytes.push(3);
+            bytes.extend_from_slice(&source_value.get().to_le_bytes());
+            bytes.extend_from_slice(&block.0.to_le_bytes());
+            length(bytes, parameter_index);
+        }
         VirtualRegisterOrigin::EntryParameter {
             source_value,
             parameter_index,
@@ -54,6 +64,11 @@ pub(super) fn decode_register(
     let scalar_type = decode_scalar(cursor)?;
     let class = RegisterClassId(cursor.u16()?);
     let origin = match cursor.byte()? {
+        3 => VirtualRegisterOrigin::BlockParameter {
+            source_value: decode_id(cursor, ValueId::new)?,
+            block: selected_instructions::SelectedBlockId(cursor.u32()?),
+            parameter_index: cursor.length()?,
+        },
         0 => VirtualRegisterOrigin::EntryParameter {
             source_value: decode_id(cursor, ValueId::new)?,
             parameter_index: cursor.length()?,

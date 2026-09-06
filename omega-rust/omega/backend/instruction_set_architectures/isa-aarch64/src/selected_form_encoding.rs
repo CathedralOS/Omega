@@ -8,7 +8,9 @@ use semantic_vocabulary::IntegerValue;
 
 use crate::aarch64_physical_register_model;
 
+mod jump;
 mod scalar_call;
+pub use jump::*;
 
 pub use scalar_call::*;
 
@@ -112,6 +114,7 @@ pub enum Aarch64SelectedFormEncodingError {
     ImmediateOutsideU12,
     BranchDisplacementMisaligned,
     BranchDisplacementOutsideImm19,
+    BranchDisplacementOutsideImm26,
     MovnMaterializationDoesNotShrink,
     MalformedEncoding,
     EncodedFormMismatch,
@@ -556,7 +559,7 @@ fn family_and_operand_count(
         SelectedInstructionKind::ConditionalBranchI64LessThan => {
             return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
         }
-        SelectedInstructionKind::CallI64 { .. } => {
+        SelectedInstructionKind::Jump | SelectedInstructionKind::CallI64 { .. } => {
             return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
         }
     })
@@ -675,7 +678,8 @@ fn encode_unchecked(
         }
         SelectedInstructionKind::ConditionalBranchNonZero
         | SelectedInstructionKind::ConditionalBranchU64LessThan
-        | SelectedInstructionKind::ConditionalBranchI64LessThan => {
+        | SelectedInstructionKind::ConditionalBranchI64LessThan
+        | SelectedInstructionKind::Jump => {
             return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
         }
         SelectedInstructionKind::CallI64 { .. } => {
@@ -964,6 +968,7 @@ fn validate_decoded(
         SelectedInstructionKind::ConditionalBranchNonZero
         | SelectedInstructionKind::ConditionalBranchU64LessThan
         | SelectedInstructionKind::ConditionalBranchI64LessThan
+        | SelectedInstructionKind::Jump
         | SelectedInstructionKind::CallI64 { .. } => false,
     };
     if valid {
@@ -1085,6 +1090,7 @@ fn footprint(
         SelectedInstructionKind::ConditionalBranchNonZero
         | SelectedInstructionKind::ConditionalBranchU64LessThan
         | SelectedInstructionKind::ConditionalBranchI64LessThan
+        | SelectedInstructionKind::Jump
         | SelectedInstructionKind::CallI64 { .. } => (vec![], vec![], false),
     };
     let physical = aarch64_physical_register_model();

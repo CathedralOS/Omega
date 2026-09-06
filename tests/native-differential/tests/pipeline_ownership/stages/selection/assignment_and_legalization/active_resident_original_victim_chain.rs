@@ -26,7 +26,7 @@ fn original_victim_graph_legalization_is_distinct_and_independently_replayed() {
             target.optimized().unit(),
         )
         .unwrap();
-        let function = &legalized.plan().functions[0];
+        let function = legalized.plan().functions[0].conditional();
         assert_eq!(
             function.recipe,
             LegalizationRecipe::ReturnU64ActiveResidentExactAddOriginalVictimChainConditionalV1,
@@ -41,7 +41,7 @@ fn original_victim_graph_legalization_is_distinct_and_independently_replayed() {
 
         let mut corrupted = legalized.plan().clone();
         let LegalizedLeafValue::ActiveResidentExactAddOriginalVictimChain(chain) =
-            &mut corrupted.functions[0].when_true.value
+            &mut corrupted.functions[0].conditional_mut().when_true.value
         else {
             unreachable!()
         };

@@ -218,9 +218,11 @@ fn post_allocation_codec_is_deterministic_and_round_trips_every_field() {
 
     use sha2::{Digest, Sha256};
     // Captured from the original optimizer-owned version-5 encoder.
+    let mut legacy = first.clone();
+    legacy[8..12].copy_from_slice(&5_u32.to_le_bytes());
     assert_eq!(first.len(), 1158);
     assert_eq!(
-        format!("{:x}", Sha256::digest(&first)),
+        format!("{:x}", Sha256::digest(&legacy)),
         "27ad65f5b9d1a58bc3972c51d65e25bd01ef242b3262de4ee430d7c603cb254d"
     );
     assert_eq!(
@@ -233,7 +235,24 @@ fn post_allocation_codec_is_deterministic_and_round_trips_every_field() {
     );
 
     assert_eq!(first, second);
+    assert_eq!(PostAllocationMachinePlan::decode(&legacy), Ok(plan.clone()));
     assert_eq!(PostAllocationMachinePlan::decode(&first), Ok(plan));
+}
+
+#[test]
+fn post_allocation_jump_requires_v6_vocabulary() {
+    let mut plan = plan();
+    let alternative = &mut plan.functions[0].blocks[0].instructions[0].alternative;
+    alternative.key.family = MachineAlternativeFamily::Jump;
+    alternative.encoded.control = MachineEncodedControlEffect::UnconditionalRelativeBranchV1;
+    plan.identity = post_allocation_machine_identity(&plan);
+    let mut encoded = plan.encode();
+    assert_eq!(PostAllocationMachinePlan::decode(&encoded), Ok(plan));
+    encoded[8..12].copy_from_slice(&5_u32.to_le_bytes());
+    assert_eq!(
+        PostAllocationMachinePlan::decode(&encoded),
+        Err(PostAllocationMachineDecodeError::InvalidField)
+    );
 }
 
 #[test]
@@ -280,10 +299,10 @@ fn post_allocation_codec_rejects_bad_framing_and_closed_field_tags() {
     );
 
     let mut unsupported_version = encoded.clone();
-    unsupported_version[8..12].copy_from_slice(&6_u32.to_le_bytes());
+    unsupported_version[8..12].copy_from_slice(&7_u32.to_le_bytes());
     assert_eq!(
         PostAllocationMachinePlan::decode(&unsupported_version),
-        Err(PostAllocationMachineDecodeError::UnsupportedVersion(6))
+        Err(PostAllocationMachineDecodeError::UnsupportedVersion(7))
     );
 
     for offset in [

@@ -101,9 +101,9 @@ pub fn resolved_machine_layout_identity(
                 hasher.update(instruction.offset.to_le_bytes());
                 hasher.update((instruction.bytes.len() as u64).to_le_bytes());
                 hasher.update(&instruction.bytes);
-                match &instruction.branch {
+                match instruction.branch.as_deref() {
                     None => hasher.update([0]),
-                    Some(branch) => {
+                    Some(super::ResolvedBranchEvidence::Conditional(branch)) => {
                         hasher.update([1]);
                         hasher.update([match branch.predicate {
                             ResolvedConditionalBranchPredicate::NonZeroV1 => 0,
@@ -120,6 +120,15 @@ pub fn resolved_machine_layout_identity(
                         hasher.update(branch.byte_displacement.to_le_bytes());
                         encode_views(&mut hasher, &branch.decoded_register_reads);
                         encode_effects(&mut hasher, &branch.decoded_effects);
+                    }
+                    Some(super::ResolvedBranchEvidence::Jump(jump)) => {
+                        hasher.update([2]);
+                        hasher.update(jump.source_block.0.to_le_bytes());
+                        hasher.update(jump.target_edge.get().to_le_bytes());
+                        hasher.update(jump.target_block.0.to_le_bytes());
+                        hasher.update(jump.target_offset.to_le_bytes());
+                        hasher.update(jump.byte_displacement.to_le_bytes());
+                        encode_effects(&mut hasher, &jump.decoded_effects);
                     }
                 }
                 encode_internal_fixup(&mut hasher, instruction.internal_machine_fixup);
@@ -260,6 +269,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         Family::ConditionalBranchU64LessThan => 11,
         Family::ConditionalBranchI64LessThan => 12,
         Family::CallI64 => 13,
+        Family::Jump => 14,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }
@@ -321,6 +331,7 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
             hasher.update(target.0.to_le_bytes());
         }
         MachineEncodedControlEffect::DirectRelativeCallV1 => hasher.update([4]),
+        MachineEncodedControlEffect::UnconditionalRelativeBranchV1 => hasher.update([5]),
     }
 }
 

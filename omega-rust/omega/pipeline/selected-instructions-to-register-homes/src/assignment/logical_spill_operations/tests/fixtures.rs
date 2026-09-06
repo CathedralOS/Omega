@@ -249,6 +249,7 @@ pub(super) fn raw_fixture() -> RawFixture {
                 7,
             ),
         ],
+        edge_transfers: Vec::new(),
         tied_pairs: Vec::new(),
         early_clobbers: Vec::new(),
         architectural_units: Vec::new(),

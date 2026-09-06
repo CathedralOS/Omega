@@ -128,7 +128,7 @@ fn widened_u8_exact_subtract_legalization_preserves_authored_order_and_exact_cus
                 .receipt()
                 .identity()
         );
-        let function = &legalized.plan().functions[0];
+        let function = legalized.plan().functions[0].conditional();
         assert_eq!(
             function.recipe,
             LegalizationRecipe::ReturnU64WidenedU8ExactSubtractImmediateConditionalV1

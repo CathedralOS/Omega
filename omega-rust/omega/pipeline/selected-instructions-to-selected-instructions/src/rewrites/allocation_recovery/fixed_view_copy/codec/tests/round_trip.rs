@@ -3,9 +3,81 @@ use selected_instructions::{SelectedInstructionKind, SelectedTerminator};
 use semantic_vocabulary::MachineId;
 
 use super::{
-    super::{encode_v4, encode_v6, encode_v7, encode_v8, encode_v9, encode_v10},
+    super::{
+        encode_v4, encode_v5, encode_v6, encode_v7, encode_v8, encode_v9, encode_v10, encode_v11,
+    },
     plan,
 };
+
+#[test]
+fn successor_transfer_vocabulary_requires_the_v12_envelope() {
+    use crate::FixedViewCopyDecodeError;
+    let mut transferred = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
+    std::sync::Arc::make_mut(&mut transferred.transformed).functions[0] =
+        crate::tests::successor_parameter_function();
+    // Decode returns plain content; this checks the wire vocabulary, not
+    // admission of a fixed-view-copy rewrite over this synthetic payload.
+    assert_eq!(
+        FixedViewCopyPlan::decode(&transferred.encode()).unwrap(),
+        transferred
+    );
+    for encoded in [
+        encode_v4(&transferred),
+        encode_v5(&transferred),
+        encode_v6(&transferred),
+        encode_v7(&transferred),
+        encode_v8(&transferred),
+        encode_v9(&transferred),
+        encode_v10(&transferred),
+        encode_v11(&transferred),
+    ] {
+        assert_eq!(
+            FixedViewCopyPlan::decode(&encoded),
+            Err(FixedViewCopyDecodeError::UnknownRegisterOrigin(3))
+        );
+    }
+
+    let mut jumped = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
+    let SelectedTerminator::ConditionalBranch {
+        mut instruction,
+        when_nonzero,
+        ..
+    } = jumped.transformed.functions[0].blocks[0].terminator.clone()
+    else {
+        unreachable!()
+    };
+    instruction.kind = SelectedInstructionKind::Jump;
+    std::sync::Arc::make_mut(&mut jumped.transformed).functions[0].blocks[0].terminator =
+        SelectedTerminator::Jump {
+            instruction,
+            successor: when_nonzero,
+        };
+    assert_eq!(FixedViewCopyPlan::decode(&jumped.encode()).unwrap(), jumped);
+    for encoded in [
+        encode_v4(&jumped),
+        encode_v5(&jumped),
+        encode_v6(&jumped),
+        encode_v7(&jumped),
+        encode_v8(&jumped),
+        encode_v9(&jumped),
+        encode_v10(&jumped),
+        encode_v11(&jumped),
+    ] {
+        assert_eq!(
+            FixedViewCopyPlan::decode(&encoded),
+            Err(FixedViewCopyDecodeError::UnknownTerminator(4))
+        );
+    }
+
+    let mut instruction_only = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
+    std::sync::Arc::make_mut(&mut instruction_only.transformed).functions[0].blocks[0]
+        .instructions[0]
+        .kind = SelectedInstructionKind::Jump;
+    assert_eq!(
+        FixedViewCopyPlan::decode(&encode_v11(&instruction_only)),
+        Err(FixedViewCopyDecodeError::UnknownInstructionKind(14))
+    );
+}
 
 #[test]
 fn artifact_round_trips_both_policies_and_full_transformed_custody() {
@@ -28,7 +100,7 @@ fn artifact_round_trips_both_policies_and_full_transformed_custody() {
 }
 
 #[test]
-fn artifact_v11_retains_segment_home_source_evidence_while_v10_decodes_legacy_authority() {
+fn artifact_v12_retains_segment_home_source_evidence_and_older_authority_decodes() {
     let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     plan.source_evidence = crate::FixedViewCopySourceEvidence::FixedPrecoloredSegmentHomesV1 {
         fixed_intervals: crate::FixedPrecoloredIntervalPlanIdentity::from_bytes([21; 32]),
@@ -38,8 +110,9 @@ fn artifact_v11_retains_segment_home_source_evidence_while_v10_decodes_legacy_au
         segment_homes: crate::FixedPrecoloredSegmentHomePlanIdentity::from_bytes([23; 32]),
     };
     let encoded = plan.encode();
-    assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 11);
+    assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 12);
     assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), plan);
+    assert_eq!(FixedViewCopyPlan::decode(&encode_v11(&plan)).unwrap(), plan);
 
     let legacy = FixedViewCopyPlan::decode(&encode_v10(&plan)).unwrap();
     assert_eq!(

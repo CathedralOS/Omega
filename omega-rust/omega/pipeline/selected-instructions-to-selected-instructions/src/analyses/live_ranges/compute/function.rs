@@ -25,6 +25,7 @@ pub(super) fn compute_structural_function(
         machine,
         block_domains,
         virtual_registers: Vec::new(),
+        edge_transfers: Vec::new(),
         tied_pairs: Vec::new(),
         early_clobbers: Vec::new(),
         architectural_units,
@@ -44,6 +45,7 @@ pub(super) fn compute_function(
         .map(|block| block_domain(function_index, block))
         .collect::<Result<Vec<_>, _>>()?;
     let tied_pairs = derive_tied_pairs(function_index, liveness)?;
+    let edge_transfers = super::edge_transfers::derive(function_index, selected, liveness)?;
     let early_clobbers = derive_early_clobbers(function_index, liveness)?;
 
     let mut virtual_rows = Vec::with_capacity(selected.virtual_registers.len());
@@ -134,6 +136,7 @@ pub(super) fn compute_function(
         block_domains,
         virtual_registers: virtual_rows,
         tied_pairs,
+        edge_transfers,
         early_clobbers,
         architectural_units,
         interference: interference.into_iter().collect(),
