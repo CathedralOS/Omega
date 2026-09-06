@@ -928,7 +928,7 @@ pub(super) fn validate_unit_operation_static(
                 &boundary.structural_parameters,
                 operation.id,
                 true,
-                StructuralArgumentSourcePolicy::ParametersOrByteSequenceLiterals,
+                StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals,
             )?;
             validate_service_reach(
                 operation.id,
@@ -1099,7 +1099,9 @@ fn unit_call_contract_propositions(callee: &TerminalMachine) -> impl Iterator<It
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum StructuralArgumentSourcePolicy {
     OnlyParameters,
-    ParametersOrByteSequenceLiterals,
+    /// Boundary calls accept borrowed byte literals and whole affine call results,
+    /// but not construction-local establishments.
+    ParametersOrBoundaryActuals,
     /// Unit and scalar-result calls retain construction locals and whole
     /// ordinary and boundary affine results.
     ParametersOrAffineLocalsAndCallResults,
@@ -1153,7 +1155,7 @@ pub(super) fn validate_structural_arguments(
                         StructuralPlaceKind::ByteSequenceLiteral {
                             structural_type, ..
                         } if source_policy
-                            == StructuralArgumentSourcePolicy::ParametersOrByteSequenceLiterals =>
+                            == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals =>
                         {
                             Some((
                                 structural_type,
@@ -1184,6 +1186,7 @@ pub(super) fn validate_structural_arguments(
                             source_policy,
                             StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
                                 | StructuralArgumentSourcePolicy::ParametersOrAffineOperationResults
+                                | StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
                         )
                             && argument.path.is_empty()
                             && caller
@@ -1191,21 +1194,22 @@ pub(super) fn validate_structural_arguments(
                                 .iter()
                                 .flat_map(|block| &block.operations)
                                 .any(|operation| {
-                                    operation.id == producer
-                                        && (matches!(
-                                            operation.kind,
-                                            OperationKind::EstablishAffineScalarRecord { .. }
-                                        ) || (matches!(
-                                                operation.kind,
-                                                OperationKind::CallStructuralWithScalarArguments { .. }
-                                                    | OperationKind::BoundaryCall { .. }
-                                            )
-                                            && argument.access == StructuralAccess::Owned
-                                            && expected.access == StructuralAccess::Owned
-                                            && expected.multiplicity == StructuralMultiplicity::Affine
-                                            && !expected.is_self
-                                            && expected.qualifications.is_empty()
-                                            && expected.projected_qualifications.is_empty()))
+                                    let admitted_producer = match operation.kind {
+                                        OperationKind::EstablishAffineScalarRecord { .. } => {
+                                            source_policy != StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
+                                        }
+                                        OperationKind::CallStructuralWithScalarArguments { .. }
+                                        | OperationKind::BoundaryCall { .. } => {
+                                            argument.access == StructuralAccess::Owned
+                                                && expected.access == StructuralAccess::Owned
+                                                && expected.multiplicity == StructuralMultiplicity::Affine
+                                                && !expected.is_self
+                                                && expected.qualifications.is_empty()
+                                                && expected.projected_qualifications.is_empty()
+                                        }
+                                        _ => false,
+                                    };
+                                    operation.id == producer && admitted_producer
                                         && operation.result.structural().is_some_and(|result| {
                                             result.place == argument.place
                                                 && result.structural_type == structural_type
@@ -1947,14 +1951,16 @@ fn validate_boundary_requirements(
         let actual = caller
             .structural_parameters
             .iter()
-            .find(|parameter| parameter.place == argument.place)
-            .expect("structural arguments were validated before requirements");
-        if !structural_occurrence_carries_qualification(
-            &actual.qualifications,
-            &actual.projected_qualifications,
-            &argument.path,
-            requirement.domain,
-        ) {
+            .find(|parameter| parameter.place == argument.place);
+        // Literal and claim-free result operands cannot supply domain evidence.
+        if actual.is_none_or(|actual| {
+            !structural_occurrence_carries_qualification(
+                &actual.qualifications,
+                &actual.projected_qualifications,
+                &argument.path,
+                requirement.domain,
+            )
+        }) {
             return Err(ModuleError::BoundaryArgumentMissingQualification {
                 operation,
                 argument_index: requirement.argument_index,

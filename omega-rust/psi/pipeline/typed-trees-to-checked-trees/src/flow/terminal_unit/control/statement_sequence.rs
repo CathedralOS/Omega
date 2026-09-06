@@ -307,6 +307,18 @@ fn consume_results(
     | CheckedUnitEffectOperationPlan::CallUnit {
         structural_arguments,
         ..
+    }
+    | CheckedUnitEffectOperationPlan::BoundaryCall {
+        structural_arguments,
+        ..
+    }
+    | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+        structural_arguments,
+        ..
+    }
+    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+        structural_arguments,
+        ..
     } = consumer
     {
         for binding_ordinal in structural_arguments

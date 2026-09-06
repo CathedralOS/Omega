@@ -3116,13 +3116,19 @@ in reverse production order on normal return. A later operand crash retains
 earlier results without creating a cleanup successor. The exact authored local,
 result carrier, and call occurrence rejoin independently of operand graphs.
 Whole, owned, claim-free affine boundary results may move once into a later
-ordinary Unit call, scalar-returning boundary wrapper, or affine-result call.
+ordinary Unit call, scalar-returning boundary wrapper, affine-result call, or
+direct boundary call. Direct boundaries accept established ordinary or boundary
+results across Unit, scalar, and structural return carriers, including nominal
+boundary requirements. Successful boundary completion consumes the input before
+establishing a replacement result; rejected or ill-typed provider responses
+leave the input available for retry.
 The call rejoins the exact authored local and transfer event; only that result
 loses caller cleanup. Boundary result signatures remain independently checked,
 without deriving facts from provider implementations. Unrestricted results do
-not enter this affine move route. Direct boundary consumers, borrowed or projected
-result operands, linear result claims, and sum-payload inspection remain separate
-work.
+not enter this affine move route. Borrowed or projected result operands, self
+consumers, linear result claims, and sum-payload inspection remain separate work.
+Boundary operands in this route name earlier locals, not anonymous nested
+structural-result calls.
 
 Scalar-returning boundary callers also use this evaluator for their existing
 two-statement body: an immutable boundary-result initializer followed by that

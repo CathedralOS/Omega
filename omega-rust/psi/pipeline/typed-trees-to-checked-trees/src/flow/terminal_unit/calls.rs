@@ -2,6 +2,7 @@
 
 use super::*;
 
+mod result_arguments;
 mod service_forward;
 
 #[cfg(test)]
@@ -750,6 +751,27 @@ pub(super) fn build_call_operation(
                 call.statement_index,
                 *argument,
             )?;
+            if let Some((result, _)) = caller_structural_results
+                .iter()
+                .find(|(_, root)| *root == place.root)
+            {
+                if !matches!(place.root, facts::PlaceRoot::Symbol(_)) {
+                    return None;
+                }
+                structural_arguments.push(result_arguments::argument(
+                    program,
+                    facts,
+                    machine.symbol,
+                    state.symbol,
+                    call,
+                    *argument,
+                    &place,
+                    result,
+                    parameter,
+                    &target_identity,
+                )?);
+                continue;
+            }
             let facts::PlaceRoot::Symbol(source_symbol) = place.root else {
                 return None;
             };
@@ -1848,29 +1870,11 @@ pub(super) fn structural_call_arguments(
             .iter()
             .find(|(_, root)| *root == place.root)
         {
-            let exact_transfer = facts.flow.ownership.permissions.iter().any(|(_, event)| {
-                event.machine_symbol == caller_machine.symbol
-                    && event.state_symbol == caller_state.symbol
-                    && event.source
-                        == PermissionEventSource::Call {
-                            statement_index: call.statement_index,
-                            call_ordinal: call.call_ordinal,
-                            target_symbol: call.target_symbol,
-                        }
-                    && event.kind == PermissionEventKind::Transfer
-                    && event.multiplicity == Multiplicity::Affine
-                    && event.access == PermissionAccess::Owned
-                    && event.claim_identity == PermissionClaimIdentity::Unknown
-                    && !event.obligation_live
-                    && event.root == place.root
-                    && facts
-                        .flow
-                        .ownership
-                        .segments
-                        .span_or_empty(event.segments)
-                        .is_empty()
-            });
-            if target_machine.supply_mode != MachineSupplyMode::CheckedBody
+            if target_machine.supply_mode.is_boundary_declaration() {
+                if !matches!(place.root, facts::PlaceRoot::Symbol(_)) {
+                    return None;
+                }
+            } else if target_machine.supply_mode != MachineSupplyMode::CheckedBody
                 || (!is_unit(program, target_state.return_type)
                     && facts
                         .flow
@@ -1887,26 +1891,22 @@ pub(super) fn structural_call_arguments(
                                 result,
                             )
                         }))
-                || usize::try_from(result.statement_index).ok()? > call.statement_index
-                || (matches!(place.root, facts::PlaceRoot::Symbol(_))
-                    && usize::try_from(result.statement_index).ok()? == call.statement_index)
-                || result.multiplicity != Multiplicity::Affine
-                || !place.segments.is_empty()
-                || result.type_identity != target_identity
-                || structural_access_for_type_reference(program, target.type_reference)?
-                    != CheckedStructuralAccess::Owned
-                || !exact_transfer
             {
                 return None;
             }
-            output.push(CheckedUnitStructuralArgumentPlan {
-                source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                    binding_ordinal: result.binding_ordinal,
-                },
-                path: Vec::new(),
-                type_identity: target_identity,
-                access: CheckedStructuralAccess::Owned,
-            });
+            let expression = *explicit_arguments.get(explicit_index.checked_sub(1)?)?;
+            output.push(result_arguments::argument(
+                program,
+                facts,
+                caller_machine.symbol,
+                caller_state.symbol,
+                call,
+                expression,
+                &place,
+                result,
+                target,
+                &target_identity,
+            )?);
             continue;
         }
         let facts::PlaceRoot::Symbol(source_symbol) = place.root else {

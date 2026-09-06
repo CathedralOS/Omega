@@ -4,7 +4,7 @@ use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
 use terminal_psi::{BoundaryMachineResult, OperationKind, OperationResult, Terminator};
 
-fn source(completion: &str) -> String {
+pub(super) fn source(completion: &str) -> String {
     let host = if completion.contains("Host::finish") {
         " + Host"
     } else {
@@ -41,10 +41,10 @@ fn source(completion: &str) -> String {
 }
 
 #[derive(Default)]
-struct ObserveMoves {
-    results: ObserveResults,
-    produced: Vec<u64>,
-    consumed: Vec<u64>,
+pub(super) struct ObserveMoves {
+    pub(super) results: ObserveResults,
+    pub(super) produced: Vec<u64>,
+    pub(super) consumed: Vec<u64>,
 }
 
 impl TerminalEffectHandler for ObserveMoves {
@@ -78,7 +78,7 @@ impl TerminalEffectHandler for ObserveMoves {
 }
 
 #[test]
-fn all_ordinary_consumer_routes_transfer_the_exact_boundary_value_once() {
+fn ordinary_and_direct_boundary_consumers_transfer_the_exact_result_once() {
     for (completion, names, expected_calls) in [
         (
             "Main::consume(first, identity16(prefix));",
@@ -97,6 +97,19 @@ fn all_ordinary_consumer_routes_transfer_the_exact_boundary_value_once() {
             "let moved: Token = forward(first, identity16(prefix)); Main::consume(moved, identity16(prefix));",
             vec!["prefix", "first", "spare", "moved"],
             vec![vec![unsigned(16, 5)]],
+        ),
+        (
+            "Sink::consume(first, identity16(prefix));",
+            vec!["prefix", "first", "spare"],
+            vec![vec![unsigned(16, 5)]],
+        ),
+        (
+            "let measured: u16 = Sink::measure(first, identity16(prefix), 17u16); Host::finish(measured);",
+            vec!["prefix", "first", "spare", "measured"],
+            vec![
+                vec![unsigned(16, 5), unsigned(16, 17)],
+                vec![unsigned(16, 17)],
+            ],
         ),
     ] {
         let checked = checked(&source(completion));
@@ -246,85 +259,87 @@ fn rejected_boundary_results_do_not_establish_or_transfer_before_retry() {
 
 #[test]
 fn a_crashing_consumer_operand_never_transfers_or_cleans_boundary_results() {
-    let source = format!(
-        "machine abort() -> u16 crashes Abort {{ crash Abort; }}\n{}",
-        source("Main::consume(first, abort());").replace(
-            "reaches Factory + Sink {",
-            "reaches Factory + Sink crashes Abort {"
-        )
-    );
-    let checked = checked(&source);
-    let artifact = encoded_locals(&checked, &["prefix", "first", "spare"]);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main").unwrap();
-    let state = checked.machine_states(main_machine(&checked))[0].symbol;
-    let operand = lowered
-        .source_call_occurrences
-        .iter()
-        .find(|occurrence| {
-            occurrence.source_state == state
-                && occurrence.statement_index == 3
-                && occurrence.call_ordinal == 1
-        })
-        .unwrap()
-        .terminal_operation;
-    let entry = lowered
-        .semantic_module
-        .machines
-        .iter()
-        .find(|machine| machine.id == lowered.semantic_module.entry)
-        .unwrap();
-    let mut execution = TerminalExecution::start_artifact(
-        &artifact.0,
-        &artifact.1,
-        &AdmissionProfile::default(),
-        &[],
-    )
-    .unwrap();
-    let mut observer = ObserveMoves::default();
-    let mut fuel = TerminalFuelMeter::with_allowance(0);
-    let mut reached_operand = false;
-    for _ in 0..1024 {
-        let TerminalExecutionStatus::SponsorExhausted(exhaustion) = execution
-            .resume_with_effect_handler(&mut fuel, &mut observer)
+    for consumer in ["Main::consume", "Sink::consume"] {
+        let source = format!(
+            "machine abort() -> u16 crashes Abort {{ crash Abort; }}\n{}",
+            source(&format!("{consumer}(first, abort());")).replace(
+                "reaches Factory + Sink {",
+                "reaches Factory + Sink crashes Abort {"
+            )
+        );
+        let checked = checked(&source);
+        let artifact = encoded_locals(&checked, &["prefix", "first", "spare"]);
+        let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main").unwrap();
+        let state = checked.machine_states(main_machine(&checked))[0].symbol;
+        let operand = lowered
+            .source_call_occurrences
+            .iter()
+            .find(|occurrence| {
+                occurrence.source_state == state
+                    && occurrence.statement_index == 3
+                    && occurrence.call_ordinal == 1
+            })
             .unwrap()
-        else {
-            panic!("expected pause before crashing operand")
-        };
-        if exhaustion.site == terminal_fuel::FuelChargeSite::Operation(operand) {
-            reached_operand = true;
-            break;
-        }
-        fuel.replenish(1).unwrap();
-    }
-    assert!(reached_operand);
-    assert_eq!(execution.live_affine_frontier().count(), 2);
-    fuel.replenish(1024).unwrap();
-    let status = execution
-        .resume_with_effect_handler(&mut fuel, &mut observer)
+            .terminal_operation;
+        let entry = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .find(|machine| machine.id == lowered.semantic_module.entry)
+            .unwrap();
+        let mut execution = TerminalExecution::start_artifact(
+            &artifact.0,
+            &artifact.1,
+            &AdmissionProfile::default(),
+            &[],
+        )
         .unwrap();
-    assert!(
-        matches!(&status, TerminalExecutionStatus::Crashed(crash) if crash.cause == terminal_psi::CrashCause::Abort)
-    );
-    assert_eq!(observer.produced, [700, 701]);
-    assert!(observer.consumed.is_empty());
-    for block in &entry.blocks {
-        if let Terminator::ReturnUnit { edge, .. } = block.terminator {
-            assert!(
-                fuel.usage()
-                    .at(terminal_fuel::FuelChargeSite::Edge(edge))
-                    .is_none(),
-                "crash has no cleanup successor"
-            );
+        let mut observer = ObserveMoves::default();
+        let mut fuel = TerminalFuelMeter::with_allowance(0);
+        let mut reached_operand = false;
+        for _ in 0..1024 {
+            let TerminalExecutionStatus::SponsorExhausted(exhaustion) = execution
+                .resume_with_effect_handler(&mut fuel, &mut observer)
+                .unwrap()
+            else {
+                panic!("expected pause before crashing operand")
+            };
+            if exhaustion.site == terminal_fuel::FuelChargeSite::Operation(operand) {
+                reached_operand = true;
+                break;
+            }
+            fuel.replenish(1).unwrap();
         }
-    }
-    let effects = execution.effects().to_vec();
-    assert_eq!(
-        execution
+        assert!(reached_operand);
+        assert_eq!(execution.live_affine_frontier().count(), 2);
+        fuel.replenish(1024).unwrap();
+        let status = execution
             .resume_with_effect_handler(&mut fuel, &mut observer)
-            .unwrap(),
-        status
-    );
-    assert_eq!(execution.effects(), effects);
+            .unwrap();
+        assert!(
+            matches!(&status, TerminalExecutionStatus::Crashed(crash) if crash.cause == terminal_psi::CrashCause::Abort)
+        );
+        assert_eq!(observer.produced, [700, 701]);
+        assert!(observer.consumed.is_empty());
+        for block in &entry.blocks {
+            if let Terminator::ReturnUnit { edge, .. } = block.terminator {
+                assert!(
+                    fuel.usage()
+                        .at(terminal_fuel::FuelChargeSite::Edge(edge))
+                        .is_none(),
+                    "crash has no cleanup successor"
+                );
+            }
+        }
+        let effects = execution.effects().to_vec();
+        assert_eq!(
+            execution
+                .resume_with_effect_handler(&mut fuel, &mut observer)
+                .unwrap(),
+            status
+        );
+        assert_eq!(execution.effects(), effects);
+    }
 }
 
 #[test]
