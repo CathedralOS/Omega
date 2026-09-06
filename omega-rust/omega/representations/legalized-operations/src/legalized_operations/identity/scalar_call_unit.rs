@@ -8,6 +8,7 @@ use super::structural::{encode_effect, encode_ownership_roster};
 pub(super) fn encode_scalar_call_unit_function(
     bytes: &mut Vec<u8>,
     function: &LegalizedScalarCallUnitFunction,
+    ordered: bool,
 ) {
     bytes.extend_from_slice(&function.machine.get().to_le_bytes());
     bytes.extend_from_slice(&function.attachment.get().to_le_bytes());
@@ -24,43 +25,36 @@ pub(super) fn encode_scalar_call_unit_function(
         function.provenance.edges.iter().map(|edge| edge.get()),
     );
     bytes.push(match function.recipe {
-        ScalarCallUnitLegalizationRecipe::U64EqualityConditionalThreeCallChainThenReturnUnitV1 => 0,
+        ScalarCallUnitLegalizationRecipe::OrderedU64PairCallsThenReturnUnitV1 => 0,
     });
     bytes.extend_from_slice(&function.entry_block.get().to_le_bytes());
-    for constant in &function.constants {
-        bytes.extend_from_slice(&constant.operation.get().to_le_bytes());
-        bytes.extend_from_slice(&constant.result.get().to_le_bytes());
-        encode_integer_type(bytes, constant.scalar_type);
-        encode_integer(bytes, constant.value);
-        encode_definition_site(bytes, constant.definition_site);
-        encode_fuel(bytes, &constant.fuel);
-        encode_effect(bytes, constant.effect);
-        encode_ownership_roster(bytes, &constant.ownership);
-    }
-    for call in &function.calls {
-        bytes.extend_from_slice(&call.operation.get().to_le_bytes());
-        bytes.extend_from_slice(&call.callee.get().to_le_bytes());
-        encode_call_plan(bytes, &call.call_plan);
-        encode_home(bytes, call.result_home);
-        encode_definition_site(bytes, call.result_definition_site);
-        for argument in &call.arguments {
-            bytes.extend_from_slice(&argument.parameter_index.to_le_bytes());
-            encode_argument_source(bytes, argument.source);
-            encode_placement(bytes, &argument.placement);
+    if ordered {
+        encode_len(bytes, function.operations.len());
+        for operation in &function.operations {
+            match operation {
+                LegalizedScalarCallUnitOperation::Constant(constant) => {
+                    bytes.push(0);
+                    encode_constant(bytes, constant);
+                }
+                LegalizedScalarCallUnitOperation::Call(call) => {
+                    bytes.push(1);
+                    encode_call(bytes, call);
+                }
+            }
         }
-        encode_ids(
-            bytes,
-            call.requirement_obligations
-                .iter()
-                .map(|obligation| obligation.get()),
-        );
-        let crash = terminal_codec::encode_crash_route_buckets(&call.crash_continuations)
-            .expect("legalized crash routes were admitted by Terminal validation");
-        encode_len(bytes, crash.len());
-        bytes.extend_from_slice(&crash);
-        encode_fuel(bytes, &call.fuel);
-        encode_effect(bytes, call.effect);
-        encode_ownership_roster(bytes, &call.ownership);
+    } else {
+        // Historical fingerprints retain their original two-roster encoding.
+        // Only the current ordered domain grants current legalization custody.
+        for operation in &function.operations {
+            if let LegalizedScalarCallUnitOperation::Constant(constant) = operation {
+                encode_constant(bytes, constant);
+            }
+        }
+        for operation in &function.operations {
+            if let LegalizedScalarCallUnitOperation::Call(call) = operation {
+                encode_call(bytes, call);
+            }
+        }
     }
     bytes.extend_from_slice(&function.return_edge.get().to_le_bytes());
     encode_fuel(bytes, &function.return_fuel);
@@ -117,4 +111,41 @@ fn encode_argument_source(
             encode_home(bytes, home);
         }
     }
+}
+
+fn encode_constant(bytes: &mut Vec<u8>, constant: &LegalizedScalarCallUnitConstant) {
+    bytes.extend_from_slice(&constant.operation.get().to_le_bytes());
+    bytes.extend_from_slice(&constant.result.get().to_le_bytes());
+    encode_integer_type(bytes, constant.scalar_type);
+    encode_integer(bytes, constant.value);
+    encode_definition_site(bytes, constant.definition_site);
+    encode_fuel(bytes, &constant.fuel);
+    encode_effect(bytes, constant.effect);
+    encode_ownership_roster(bytes, &constant.ownership);
+}
+
+fn encode_call(bytes: &mut Vec<u8>, call: &LegalizedScalarCallUnitCall) {
+    bytes.extend_from_slice(&call.operation.get().to_le_bytes());
+    bytes.extend_from_slice(&call.callee.get().to_le_bytes());
+    encode_call_plan(bytes, &call.call_plan);
+    encode_home(bytes, call.result_home);
+    encode_definition_site(bytes, call.result_definition_site);
+    for argument in &call.arguments {
+        bytes.extend_from_slice(&argument.parameter_index.to_le_bytes());
+        encode_argument_source(bytes, argument.source);
+        encode_placement(bytes, &argument.placement);
+    }
+    encode_ids(
+        bytes,
+        call.requirement_obligations
+            .iter()
+            .map(|obligation| obligation.get()),
+    );
+    let crash = terminal_codec::encode_crash_route_buckets(&call.crash_continuations)
+        .expect("legalized crash routes were admitted by Terminal validation");
+    encode_len(bytes, crash.len());
+    bytes.extend_from_slice(&crash);
+    encode_fuel(bytes, &call.fuel);
+    encode_effect(bytes, call.effect);
+    encode_ownership_roster(bytes, &call.ownership);
 }

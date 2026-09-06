@@ -18,6 +18,7 @@ pub(super) fn identity(
     retain_call_contract: bool,
     retain_scalar_call_unit_roster: bool,
     retain_scalar_body: bool,
+    retain_ordered_calls: bool,
 ) -> LegalizedOperationPlanIdentity {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
@@ -137,7 +138,7 @@ pub(super) fn identity(
     if retain_scalar_call_unit_roster {
         encode_len(&mut bytes, plan.scalar_call_unit_functions.len());
         for function in &plan.scalar_call_unit_functions {
-            encode_scalar_call_unit_function(&mut bytes, function);
+            encode_scalar_call_unit_function(&mut bytes, function, retain_ordered_calls);
         }
     }
     LegalizedOperationPlanIdentity::from_canonical_bytes(&bytes)

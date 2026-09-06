@@ -8,3 +8,4 @@ mod encoding_layout;
 mod fixture;
 mod machine_effects;
 mod publication;
+mod sequences;

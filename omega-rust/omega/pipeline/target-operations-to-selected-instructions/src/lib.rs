@@ -16,7 +16,8 @@ pub use legalization::{
     legalization_validator_identity, legalization_validator_identity_v17_legacy,
     legalization_validator_identity_v18_legacy, legalization_validator_identity_v19_legacy,
     legalization_validator_identity_v20_legacy, legalization_validator_identity_v21_legacy,
-    legalize_target_operations, validate_legalized_operations,
+    legalization_validator_identity_v22_legacy, legalize_target_operations,
+    validate_legalized_operations,
 };
 pub use optimized::{
     OptimizedSelectionCustodyError, OptimizedSelectionPipelineError,

@@ -5,7 +5,8 @@ pub(super) use legalized_operations::{
     LegalizedConditionalFunction as LegalizedFunction, LegalizedImmediate, LegalizedLeaf,
     LegalizedLeafValue, LegalizedOperationPlan, LegalizedScalarCallUnitArgument,
     LegalizedScalarCallUnitCall, LegalizedScalarCallUnitConstant, LegalizedScalarCallUnitFunction,
-    LegalizedStructuralUnitFunction, LegalizedTemporaryId, LegalizedUnitFunction,
+    LegalizedScalarCallUnitOperation, LegalizedStructuralUnitFunction, LegalizedTemporaryId,
+    LegalizedUnitFunction,
 };
 pub(super) use optimization_unit::{
     OptimizationFact, OwnershipEvent, PsiOptimizationUnit, PsiProvenance,

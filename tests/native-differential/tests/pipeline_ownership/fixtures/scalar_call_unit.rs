@@ -19,6 +19,12 @@ pub(crate) const SCALAR_CALL_UNIT_RETURN_EDGE: u64 = 21_014;
 pub(crate) const SCALAR_CALL_UNIT_CALLEE_BASE: u64 = 21_100;
 
 pub(crate) fn scalar_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
+    scalar_call_unit_artifact_with(|_| {})
+}
+
+pub(crate) fn scalar_call_unit_artifact_with(
+    edit: impl FnOnce(&mut TerminalModule),
+) -> (Vec<u8>, Vec<u8>) {
     let caller = MachineId::new(SCALAR_CALL_UNIT_CALLER).unwrap();
     let attachment = StructuralTypeId::new(SCALAR_CALL_UNIT_ATTACHMENT).unwrap();
     let entry = BlockId::new(SCALAR_CALL_UNIT_ENTRY).unwrap();
@@ -105,6 +111,7 @@ pub(crate) fn scalar_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
         identity: "test::ScalarCallUnitAttachment".into(),
         shape: StructuralTypeShape::Record { fields: Vec::new() },
     });
+    edit(&mut module);
     let proof = ProofBundle {
         recursive_components: Vec::new(),
         evidence_producers: Vec::new(),

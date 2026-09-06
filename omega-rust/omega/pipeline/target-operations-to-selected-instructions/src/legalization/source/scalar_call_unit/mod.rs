@@ -1,5 +1,5 @@
 //! Optimizer module role: executable entrance.
-//! Closed attached-Unit scalar-call legalization producer.
+//! Ordered attached-Unit scalar-call legalization producer.
 
 mod callee;
 mod grammar;
@@ -18,7 +18,7 @@ pub(super) fn derive_source_scalar_call_unit_function(
     abstract_plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarCallUnitFunction, LegalizationError> {
-    let matched = grammar::match_exact_chain(
+    let matched = grammar::match_sequence(
         function,
         target_function,
         abstracted,

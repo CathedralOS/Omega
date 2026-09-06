@@ -38,7 +38,9 @@ pub(super) fn encode_row(
     )?;
     let alternative = machine.alternative.key;
     let state = match (selected.kind, materialization) {
-        (kind @ SelectedInstructionKind::CallI64 { .. }, None) => {
+        (kind @ SelectedInstructionKind::CallI64 { .. }, materialization)
+            if materialization.is_none_or(MaterializationDisposition::is_retained) =>
+        {
             scalar_call::encode(target, selected.id, kind, machine, physical)?
         }
         (

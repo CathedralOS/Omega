@@ -33,7 +33,7 @@ pub(in crate::legalization) enum UnitLegalizationMatcherKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::legalization) enum ScalarCallUnitLegalizationMatcherKind {
-    U64EqualityConditionalThreeCallChain,
+    OrderedU64PairCalls,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -73,7 +73,7 @@ pub(in crate::legalization) enum UnitLegalizationValidatorKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::legalization) enum ScalarCallUnitLegalizationValidatorKind {
-    U64EqualityConditionalThreeCallChain,
+    OrderedU64PairCalls,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -127,8 +127,7 @@ pub(in crate::legalization) struct UnitShapeConstraints {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::legalization) struct ScalarCallUnitShapeConstraints {
     pub block_count: usize,
-    pub operation_count: usize,
-    pub node_count: usize,
+    pub minimum_call_count: usize,
     pub scalar_parameter_count: usize,
 }
 

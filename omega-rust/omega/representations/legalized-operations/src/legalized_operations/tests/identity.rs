@@ -30,29 +30,31 @@ fn scalar_call_unit_identity_binds_chain_custody_append_only() {
     corrupted.scalar_call_unit_functions[0].attachment = id(999);
     corruptions.push(corrupted);
     let mut corrupted = plan.clone();
-    corrupted.scalar_call_unit_functions[0].constants[0].value = IntegerValue::Unsigned(8);
+    constant_mut(&mut corrupted.scalar_call_unit_functions[0], 0).value = IntegerValue::Unsigned(8);
     corruptions.push(corrupted);
     let mut corrupted = plan.clone();
-    corrupted.scalar_call_unit_functions[0].constants.swap(0, 1);
+    corrupted.scalar_call_unit_functions[0]
+        .operations
+        .swap(0, 1);
     corruptions.push(corrupted);
     let mut corrupted = plan.clone();
-    corrupted.scalar_call_unit_functions[0].calls[0].callee = id(999);
+    call_mut(&mut corrupted.scalar_call_unit_functions[0], 0).callee = id(999);
     corruptions.push(corrupted);
     let mut corrupted = plan.clone();
-    corrupted.scalar_call_unit_functions[0].calls[0]
+    call_mut(&mut corrupted.scalar_call_unit_functions[0], 0)
         .arguments
         .swap(0, 1);
     corruptions.push(corrupted);
     let mut corrupted = plan.clone();
-    corrupted.scalar_call_unit_functions[0].calls[2]
+    call_mut(&mut corrupted.scalar_call_unit_functions[0], 2)
         .result_home
         .source_value = id(999);
     corruptions.push(corrupted);
     let mut corrupted = plan.clone();
-    corrupted.scalar_call_unit_functions[0].calls[1].fuel[0].units += 1;
+    call_mut(&mut corrupted.scalar_call_unit_functions[0], 1).fuel[0].units += 1;
     corruptions.push(corrupted);
     let mut corrupted = plan.clone();
-    corrupted.scalar_call_unit_functions[0].calls[1]
+    call_mut(&mut corrupted.scalar_call_unit_functions[0], 1)
         .effect
         .output += 1;
     corruptions.push(corrupted);
@@ -631,4 +633,36 @@ fn strict_less_than_condition_has_distinct_ordered_identity() {
         legalized_operation_plan_identity_v17_legacy(&plan),
         legalized_operation_plan_identity(&plan)
     );
+}
+
+fn call_mut(
+    function: &mut legalized_operations::LegalizedScalarCallUnitFunction,
+    index: usize,
+) -> &mut legalized_operations::LegalizedScalarCallUnitCall {
+    function
+        .operations
+        .iter_mut()
+        .filter_map(|operation| match operation {
+            legalized_operations::LegalizedScalarCallUnitOperation::Call(call) => Some(call),
+            _ => None,
+        })
+        .nth(index)
+        .expect("call fixture")
+}
+
+fn constant_mut(
+    function: &mut legalized_operations::LegalizedScalarCallUnitFunction,
+    index: usize,
+) -> &mut legalized_operations::LegalizedScalarCallUnitConstant {
+    function
+        .operations
+        .iter_mut()
+        .filter_map(|operation| match operation {
+            legalized_operations::LegalizedScalarCallUnitOperation::Constant(constant) => {
+                Some(constant)
+            }
+            _ => None,
+        })
+        .nth(index)
+        .expect("constant fixture")
 }

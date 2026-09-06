@@ -339,6 +339,23 @@ Calls, structural parameters, cleanup, callbacks and provider settlements remain
 outside this scalar migration. Direct-return controls start at separately
 authored, verified Terminal products; shared-return controls start at Omega
 source and pass through ordinary Terminal publication and resumed lowering.
+The shared selected call path accepts ordered straight-line attached-Unit
+sequences of U64 constants and pair-argument U64 calls to admitted, call-free
+scalar functions. Constant and call counts, constant equality, call target
+identity, and use of earlier results do not select a special graph recipe.
+Each call retains its exact ABI and source operation; allocation sees explicit
+argument/result copies and target-owned clobbers. These sequences reach framed
+fragment text and object publication on Linux x64 and Arm64 with empty physical
+phases, including builds retaining a selected Psi phase. Selected physical
+materialization preserves the same call encoding and independent replay, but
+its realization still assumes frameless functions and rejects required
+preserved-register writes. It must join ordinary frame realization before
+those selections can publish calling functions. The outer executable-publication
+join also remains unfinished:
+its Unit call records require stack-held results, whereas shared allocation
+can retain results in preserved registers. That join must consume the actual
+physical homes, not manufacture legacy stack records. Other call ABIs and
+targets remain explicit prerequisites of physical-route convergence.
 This boundary is checked before execution; a failure never
 selects the old route. Identity fragment publication preserves the original
 physical-evidence scope only after checking the retained empty selection identity.

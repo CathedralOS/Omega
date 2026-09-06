@@ -1,9 +1,9 @@
-use super::super::functions::derive_source_function;
 use super::super::shared::*;
 
 pub(super) fn validate_callee(
     function: usize,
     callee: semantic_vocabulary::MachineId,
+    call_plan: &calling_conventions::CallPlan,
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
@@ -13,7 +13,7 @@ pub(super) fn validate_callee(
         .iter()
         .enumerate()
         .filter(|(_, value)| value.machine == callee);
-    let Some((callee_index, target_callee)) = targets.next() else {
+    let Some((_callee_index, target_callee)) = targets.next() else {
         return Err(Error::UnsupportedSourceShape { function });
     };
     if targets.next().is_some() {
@@ -34,16 +34,13 @@ pub(super) fn validate_callee(
     if abstracts.next().is_some() || optimized.next().is_some() {
         return Err(Error::SourceCustodyMismatch);
     }
-    let legalized = derive_source_function(
-        callee_index,
+    if !crate::legalization::scalar_call_contract::accepts(
+        target.target,
         target_callee,
         abstract_callee,
         optimized_callee,
-        &unit.accepted_obligation_facts,
-    )?;
-    if legalized.recipe
-        != legalized_operations::LegalizationRecipe::ReturnU64IntegerEqualParametersConditionalV1
-    {
+        call_plan,
+    ) {
         return Err(Error::UnsupportedSourceShape { function });
     }
     Ok(())

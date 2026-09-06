@@ -11,6 +11,7 @@ pub(super) use legalized_operations::{
     LegalizedLeafValue as SourceLeafValue, LegalizedOperationPlan, LegalizedOperationPlanIdentity,
     LegalizedProjectedStructuralCallReturn,
     LegalizedScalarCallUnitFunction as SourceScalarCallUnitFunction,
+    LegalizedScalarCallUnitOperation,
     LegalizedStructuralUnitFunction as SourceStructuralUnitFunction,
     LegalizedUnitFunction as SourceUnitFunction,
 };

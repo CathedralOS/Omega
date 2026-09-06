@@ -319,14 +319,15 @@ recovery-machine pairs still reject. The join retains both phase-selection
 roots and independently replays source, machine, encoding, layout, and exit
 custody before publication.
 
-Call-aware allocation follows the same authority discipline. A closed
-attached-Unit U64 three-call form can enter mandatory legalization, selected
+Call-aware allocation follows the same authority discipline. Ordered
+attached-Unit U64 pair-call sequences enter mandatory legalization, selected
 CFG liveness, legality, and home assignment with exact target-owned fixed
-views and clobbers. That does not grant machine-call authority. In particular,
-a preserved allocation home is not an implemented callee-save protocol, and a
-selected call is not an encoded relocation. Machine effects reject the form
-until stack, memory, trap, preservation, and relocation semantics have their
-own validated carriers.
+views and clobbers. The source sequence is not restricted to a particular
+constant count, call count, or fork/join topology. The Linux x64 and Arm64
+paths retain independently validated machine effects, preservation, frame,
+call-fixup and object-publication evidence. A preserved allocation home alone
+still grants none of those later guarantees, and object publication does not
+complete the remaining ordinary executable-publication join.
 
 The first preservation fact is now explicit but still non-authoritative.
 `stage_allocated_callee_saved_requirements` consumes authenticated selected

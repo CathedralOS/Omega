@@ -45,7 +45,7 @@ const EXPECTED_RECIPES: [LegalizationFormRecipe; 23] = [
     LegalizationFormRecipe::Scalar(LegalizationRecipe::ReturnU64EqualZeroParameterConditionalV1),
     LegalizationFormRecipe::Scalar(LegalizationRecipe::ReturnU64NotEqualZeroParameterConditionalV1),
     LegalizationFormRecipe::ScalarCallUnit(
-        ScalarCallUnitLegalizationRecipe::U64EqualityConditionalThreeCallChainThenReturnUnitV1,
+        ScalarCallUnitLegalizationRecipe::OrderedU64PairCallsThenReturnUnitV1,
     ),
     LegalizationFormRecipe::Unit(UnitLegalizationRecipe::ReturnUnitV1),
     LegalizationFormRecipe::StructuralUnit(StructuralUnitLegalizationRecipe::ReturnUnitV1),
@@ -306,28 +306,27 @@ fn u64_not_equal_zero_catalog_row_freezes_the_exact_source_grammar() {
 }
 
 #[test]
-fn scalar_call_unit_catalog_row_freezes_the_exact_chain_grammar() {
+fn scalar_call_unit_catalog_row_requires_ordered_calls_without_fixed_counts() {
     let row = legalization_form_for_recipe(LegalizationFormRecipe::ScalarCallUnit(
-        ScalarCallUnitLegalizationRecipe::U64EqualityConditionalThreeCallChainThenReturnUnitV1,
+        ScalarCallUnitLegalizationRecipe::OrderedU64PairCallsThenReturnUnitV1,
     ))
     .expect("scalar-call Unit catalog row");
     assert_eq!(
         row.producer_matcher,
         LegalizationProducerMatcherKind::ScalarCallUnit(
-            ScalarCallUnitLegalizationMatcherKind::U64EqualityConditionalThreeCallChain,
+            ScalarCallUnitLegalizationMatcherKind::OrderedU64PairCalls,
         )
     );
     assert_eq!(
         row.validator,
         LegalizationValidatorKind::ScalarCallUnit(
-            ScalarCallUnitLegalizationValidatorKind::U64EqualityConditionalThreeCallChain,
+            ScalarCallUnitLegalizationValidatorKind::OrderedU64PairCalls,
         )
     );
     let LegalizationShapeConstraints::ScalarCallUnit(constraints) = row.constraints else {
         panic!("scalar-call Unit constraints")
     };
     assert_eq!(constraints.block_count, 1);
-    assert_eq!(constraints.operation_count, 6);
-    assert_eq!(constraints.node_count, 6);
+    assert_eq!(constraints.minimum_call_count, 1);
     assert_eq!(constraints.scalar_parameter_count, 0);
 }

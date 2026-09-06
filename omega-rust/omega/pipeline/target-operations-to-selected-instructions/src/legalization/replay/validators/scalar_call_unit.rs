@@ -15,7 +15,7 @@ pub(in crate::legalization::replay) fn validate_scalar_call_unit_form(
     };
     if form.validator
         != LegalizationValidatorKind::ScalarCallUnit(
-            ScalarCallUnitLegalizationValidatorKind::U64EqualityConditionalThreeCallChain,
+            ScalarCallUnitLegalizationValidatorKind::OrderedU64PairCalls,
         )
     {
         return false;
@@ -23,15 +23,18 @@ pub(in crate::legalization::replay) fn validate_scalar_call_unit_form(
     let TargetOperation::UnitBody(body) = &target.operation else {
         return false;
     };
-    matches!(
-        body.operations.as_slice(),
-        [
-            TargetUnitOperation::IntegerConstant { .. },
-            TargetUnitOperation::IntegerConstant { .. },
-            TargetUnitOperation::ScalarCall { .. },
-            TargetUnitOperation::ScalarCall { .. },
-            TargetUnitOperation::ScalarCall { .. },
-            TargetUnitOperation::Return { .. },
-        ]
-    )
+    let Some((TargetUnitOperation::Return { .. }, operations)) = body.operations.split_last()
+    else {
+        return false;
+    };
+    operations
+        .iter()
+        .any(|operation| matches!(operation, TargetUnitOperation::ScalarCall { .. }))
+        && operations.iter().all(|operation| {
+            matches!(
+                operation,
+                TargetUnitOperation::IntegerConstant { .. }
+                    | TargetUnitOperation::ScalarCall { .. }
+            )
+        })
 }

@@ -22,26 +22,10 @@ pub(super) fn replay(
     let TargetOperation::UnitBody(body) = &target_function.operation else {
         return Err(Error::UnsupportedSourceShape { function });
     };
-    let [
-        target_a,
-        target_b,
-        target_call1,
-        target_call2,
-        target_call3,
-        target_return,
-    ] = body.operations.as_slice()
-    else {
+    let Some((target_return, target_operations)) = body.operations.split_last() else {
         return Err(Error::UnsupportedSourceShape { function });
     };
-    let [
-        abstract_a,
-        abstract_b,
-        abstract_call1,
-        abstract_call2,
-        abstract_call3,
-        abstract_return,
-    ] = abstracted.operations.as_slice()
-    else {
+    let Some((abstract_return, abstract_operations)) = abstracted.operations.split_last() else {
         return Err(Error::UnsupportedSourceShape { function });
     };
     let [entry] = abstracted.block_entries.as_slice() else {
@@ -50,17 +34,15 @@ pub(super) fn replay(
     let [block] = optimized.blocks.as_slice() else {
         return Err(Error::UnsupportedSourceShape { function });
     };
-    let [
-        node_a,
-        node_b,
-        node_call1,
-        node_call2,
-        node_call3,
-        node_return,
-    ] = block.nodes.as_slice()
-    else {
+    let Some((node_return, nodes)) = block.nodes.split_last() else {
         return Err(Error::UnsupportedSourceShape { function });
     };
+    if target_operations.len() != abstract_operations.len()
+        || nodes.len() != target_operations.len()
+        || proposed.operations.len() != target_operations.len()
+    {
+        return Err(Error::NonCanonicalLegalizedPlan);
+    }
     let Some(attachment) = target_function.attachment else {
         return Err(Error::UnsupportedSourceShape { function });
     };
@@ -107,6 +89,7 @@ pub(super) fn replay(
         || body.structural_types != abstract_plan.structural_types
         || body.structural_types != unit.structural_types
         || !body.parameters.is_empty()
+        || !body.scalar_parameters.is_empty()
         || body.call_plan != empty_call_plan
         || !cleanup_actions.is_empty()
         || abstracted.operations
@@ -120,61 +103,85 @@ pub(super) fn replay(
         return Err(Error::UnsupportedSourceShape { function });
     }
 
-    let (a_op, a_result, a_type, a_value) = constant_parts(target_a, abstract_a, function)?;
-    let (b_op, b_result, b_type, b_value) = constant_parts(target_b, abstract_b, function)?;
-    if !is_u64(a_type)
-        || a_type != b_type
-        || a_value == b_value
-        || a_result == b_result
-        || a_op == b_op
-    {
-        return Err(Error::UnsupportedSourceShape { function });
+    let mut operation_ids = Vec::new();
+    let mut result_ids = Vec::new();
+    let mut call_count = 0;
+    for (index, proposed_operation) in proposed.operations.iter().enumerate() {
+        let native = &target_operations[index];
+        let abstract_operation = &abstract_operations[index];
+        let node = &nodes[index];
+        let ordinal = u32::try_from(index).map_err(|_| Error::NonCanonicalLegalizedPlan)?;
+        let (operation, result) = match proposed_operation {
+            LegalizedScalarCallUnitOperation::Constant(constant) => {
+                let (operation, result, integer, _) =
+                    constant_parts(native, abstract_operation, function)?;
+                if !is_u64(integer) {
+                    return Err(Error::NonCanonicalLegalizedPlan);
+                }
+                replay_constant(
+                    function, block.id, ordinal, native, node, operation, result, constant,
+                )?;
+                (operation, result)
+            }
+            LegalizedScalarCallUnitOperation::Call(call) => {
+                let (operation, result, callee, arguments) =
+                    call_parts(native, abstract_operation, function)?;
+                let [left, right] = arguments else {
+                    return Err(Error::NonCanonicalLegalizedPlan);
+                };
+                let source_for =
+                    |value: &ValueId| -> Result<TargetUnitScalarArgumentSource, LegalizationError> {
+                        let mut found =
+                            target_operations[..index]
+                                .iter()
+                                .filter(|prior| match prior {
+                                    TargetUnitOperation::IntegerConstant { result, .. } => {
+                                        result == value
+                                    }
+                                    TargetUnitOperation::ScalarCall { result_home, .. } => {
+                                        result_home.source_value == *value
+                                    }
+                                    _ => false,
+                                });
+                        let prior = found.next().ok_or(Error::NonCanonicalLegalizedPlan)?;
+                        if found.next().is_some() {
+                            return Err(Error::NonCanonicalLegalizedPlan);
+                        }
+                        match prior {
+                            TargetUnitOperation::IntegerConstant { .. } => immediate(prior),
+                            TargetUnitOperation::ScalarCall { .. } => home(prior),
+                            _ => Err(Error::NonCanonicalLegalizedPlan),
+                        }
+                    };
+                replay_call_sources(native, [source_for(left)?, source_for(right)?], function)?;
+                replay_call(
+                    function, block.id, ordinal, native, node, operation, result, call,
+                )?;
+                replay_callee(
+                    function,
+                    callee,
+                    &call.call_plan,
+                    target,
+                    abstract_plan,
+                    unit,
+                    proposed_plan,
+                )?;
+                call_count += 1;
+                (operation, result)
+            }
+        };
+        if operation_ids.contains(&operation) || result_ids.contains(&result) {
+            return Err(Error::NonCanonicalLegalizedPlan);
+        }
+        operation_ids.push(operation);
+        result_ids.push(result);
     }
-    let (call1_op, call1_result, callee, args1) =
-        call_parts(target_call1, abstract_call1, function)?;
-    let (call2_op, call2_result, callee2, args2) =
-        call_parts(target_call2, abstract_call2, function)?;
-    let (call3_op, call3_result, callee3, args3) =
-        call_parts(target_call3, abstract_call3, function)?;
-    if callee != callee2
-        || callee != callee3
-        || args1 != [a_result, b_result]
-        || args2 != [a_result, b_result]
-        || args3 != [call1_result, call2_result]
-        || [a_result, b_result, call1_result, call2_result, call3_result]
-            .into_iter()
-            .collect::<std::collections::BTreeSet<_>>()
-            .len()
-            != 5
-        || [a_op, b_op, call1_op, call2_op, call3_op]
-            .into_iter()
-            .collect::<std::collections::BTreeSet<_>>()
-            .len()
-            != 5
-    {
-        return Err(Error::UnsupportedSourceShape { function });
-    }
-    replay_call_sources(
-        target_call1,
-        [immediate(target_a)?, immediate(target_b)?],
-        function,
-    )?;
-    replay_call_sources(
-        target_call2,
-        [immediate(target_a)?, immediate(target_b)?],
-        function,
-    )?;
-    replay_call_sources(
-        target_call3,
-        [home(target_call1)?, home(target_call2)?],
-        function,
-    )?;
-
-    let expected_provenance = TerminalPsiProvenance {
-        operations: vec![a_op, b_op, call1_op, call2_op, call3_op],
-        edges: vec![*psi_edge],
-    };
-    if target_function.provenance != expected_provenance
+    if call_count == 0
+        || target_function.provenance
+            != (TerminalPsiProvenance {
+                operations: operation_ids,
+                edges: vec![*psi_edge],
+            })
         || proposed.machine != target_function.machine
         || proposed.attachment != attachment
         || proposed.provenance != target_function.provenance
@@ -183,44 +190,6 @@ pub(super) fn replay(
     {
         return Err(Error::NonCanonicalLegalizedPlan);
     }
-    for (index, (((target_constant, node), operation), result)) in [target_a, target_b]
-        .into_iter()
-        .zip([node_a, node_b])
-        .zip([a_op, b_op])
-        .zip([a_result, b_result])
-        .enumerate()
-    {
-        replay_constant(
-            function,
-            block.id,
-            index as u32,
-            target_constant,
-            node,
-            operation,
-            result,
-            &proposed.constants[index],
-        )?;
-    }
-    for (index, (((target_call, node), operation), result)) in
-        [target_call1, target_call2, target_call3]
-            .into_iter()
-            .zip([node_call1, node_call2, node_call3])
-            .zip([call1_op, call2_op, call3_op])
-            .zip([call1_result, call2_result, call3_result])
-            .enumerate()
-    {
-        replay_call(
-            function,
-            block.id,
-            (index + 2) as u32,
-            target_call,
-            node,
-            operation,
-            result,
-            &proposed.calls[index],
-        )?;
-    }
     replay_return(function, node_return, *psi_edge, proposed)?;
-    replay_callee(function, callee, target, abstract_plan, unit, proposed_plan)?;
     Ok(())
 }
