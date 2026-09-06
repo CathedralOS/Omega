@@ -54,8 +54,35 @@ fn assert_receiver_store(
     expected_value: u128,
     from_parameter: bool,
 ) {
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed_from_source(SOURCE))
-        .expect("ordinary mutable receiver stores check");
+    assert_receiver_store_with_access(
+        machine_name,
+        expected_path,
+        expected_value,
+        from_parameter,
+        StructuralAccess::MutableBorrow,
+    );
+}
+
+fn assert_receiver_store_with_access(
+    machine_name: &str,
+    expected_path: &[StructuralPathSegment],
+    expected_value: u128,
+    from_parameter: bool,
+    access: StructuralAccess,
+) {
+    let (source, checked_access) = match access {
+        StructuralAccess::MutableBorrow => (
+            SOURCE.to_owned(),
+            checked_trees::CheckedStructuralAccess::MutableBorrow,
+        ),
+        StructuralAccess::WriteOnlyBorrow => (
+            SOURCE.replace("&mut self", "&write self"),
+            checked_trees::CheckedStructuralAccess::WriteOnlyBorrow,
+        ),
+        _ => panic!("store fixture requires writable borrowed access"),
+    };
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed_from_source(&source))
+        .expect("ordinary writable receiver stores check");
     let machine = checked
         .machines()
         .iter()
@@ -75,10 +102,7 @@ fn assert_receiver_store(
     };
     assert!(receiver.is_self);
     assert_eq!(receiver.position, 0);
-    assert_eq!(
-        receiver.access,
-        checked_trees::CheckedStructuralAccess::MutableBorrow
-    );
+    assert_eq!(receiver.access, checked_access);
     let [
         CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store),
         CheckedUnitEffectOperationPlan::ReturnUnit { .. },
@@ -116,7 +140,7 @@ fn assert_receiver_store(
     };
     assert!(receiver.is_self);
     assert_eq!(receiver.position, 0);
-    assert_eq!(receiver.access, StructuralAccess::MutableBorrow);
+    assert_eq!(receiver.access, access);
     assert_eq!(receiver.multiplicity, StructuralMultiplicity::Affine);
     assert!(receiver.qualifications.is_empty());
     assert!(receiver.projected_qualifications.is_empty());
@@ -276,6 +300,37 @@ fn indexed_receiver_integer_literal_store_retains_exact_element() {
 #[test]
 fn receiver_store_retains_same_typed_scalar_parameter() {
     assert_receiver_store("Pair::parameter", &[], 37, true);
+}
+
+#[test]
+fn write_only_receiver_stores_retain_access_through_canonical_interpretation() {
+    for (machine, path, value, from_parameter) in [
+        ("Pair::direct", vec![], 17, false),
+        (
+            "Outer::nested",
+            vec![StructuralPathSegment::Field("inner".into())],
+            19,
+            false,
+        ),
+        (
+            "Matrix::indexed",
+            vec![
+                StructuralPathSegment::Field("cells".into()),
+                StructuralPathSegment::FixedIndex(2),
+            ],
+            29,
+            false,
+        ),
+        ("Pair::parameter", vec![], 37, true),
+    ] {
+        assert_receiver_store_with_access(
+            machine,
+            &path,
+            value,
+            from_parameter,
+            StructuralAccess::WriteOnlyBorrow,
+        );
+    }
 }
 
 #[test]

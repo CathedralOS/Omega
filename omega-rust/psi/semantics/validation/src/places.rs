@@ -344,6 +344,7 @@ mod exact_self_field;
 mod member_paths;
 mod projected_members;
 mod result_shape;
+pub(crate) use exact_self_field::exact_attached_field;
 pub use exact_self_field::exact_self_field;
 use member_paths::{collect_member_path, data_field_or_payload, data_field_or_payload_type};
 pub(crate) use member_paths::{

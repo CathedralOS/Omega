@@ -14,3 +14,4 @@ mod receiver_access;
 mod resources;
 mod temporary_results;
 mod write_only;
+mod write_only_receiver;

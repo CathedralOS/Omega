@@ -877,7 +877,7 @@ the machine namespace. Its checked source is one
 fixed-integer or Boolean literal, one exact same-typed scalar parameter, or the
 fixed-integer result of one immediately preceding ordinary scalar call or
 selected boundary-operator realization through the sole
-unrestricted-or-affine mutable/write-only record parameter or mutable receiver,
+unrestricted-or-affine mutable/write-only record parameter or receiver,
 with an exact
 field write frame or the indexed form's sole conservative containing-array
 frame and no claims or qualifications. An empty carrier path denotes a
