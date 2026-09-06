@@ -3281,6 +3281,22 @@ incoming parameter values, while executable guards read current storage.
 An incoming edge predicate over mutable owned scalar storage is not evidence
 about an invocation-entry crash route. Direct-site and call-route coverage
 exclude that predicate until its entry-value origin is retained independently.
+Checked coverage separately uses exact Boolean machine/entry-state requirements
+as invocation-snapshot hypotheses. Named-state requirements do not become
+ambient entry facts. Requirement names must agree both with their exact formal
+symbols and with the canonical entry ordinal; body reassignment does not change
+those hypotheses. All-crash scalar graphs retain their checked requirements
+instead of dropping the contract because no normal return exists.
+
+Independent call-ceiling validation can prove a same-cause published predicate
+from caller requirements using kernel-checked assumption and conjunction
+certificates. This sufficient coverage check does not rewrite callee routes or
+weaken exact continuation reconstruction, and it does not use body values or
+producer-supplied coverage evidence. Search is bounded to 4,096 steps and depth
+64. Equivalent Boolean spellings that need further proof rules and numeric entry
+coverage remain unfinished. Direct crash-site validation currently checks guard
+shape, scope, and published-route membership, not truth from reconstructed CFG
+facts; closing that independent verification gap remains explicit task-board work.
 
 Resolver operand preprocessing cannot move indexed reads or cast-wrapped calls
 out of guarded transition targets or selective Boolean right operands. These

@@ -556,10 +556,17 @@ Owners include
   effects and state transfers. Acceptance: the delivered value is materialized
   once, reassignment changes subsequent reads, and a final guarantee about that
   mutable formal cannot prove equality with its earlier argument value.
-  Use declared entry requirements to establish compatible crash-route coverage.
-  Acceptance: `requires flag` can cover an unconditional site under `crashes Trap
-  flag`, while changing a mutable body binding cannot establish a route that was
-  false at entry.
+  Extend entry-requirement crash coverage beyond exact Boolean hypotheses and
+  conjunction projection: retain numeric entry evidence through its totality
+  owner, and prove equivalent Boolean route spellings during Terminal call
+  coverage. Acceptance: `requires !flag` covers an unconditional callee under
+  `crashes Trap !flag` without changing the callee's exact continuation routes.
+  Reconstruct direct crash-site guard truth in Terminal verification from entry
+  requirements and per-site CFG facts; current shape, scope, and published-route
+  membership checks do not prove the asserted guard. Acceptance: changing an
+  unconditional site's claimed guard to an unestablished entry predicate, or
+  removing the requirement/branch that establishes it, rejects independently of
+  producer evidence while valid guarded crashes still verify.
   Retain exact entry-value origins for mutable scalar guard operands so unchanged
   entry values can establish published crash routes; a current storage predicate
   alone is not entry-snapshot evidence.
