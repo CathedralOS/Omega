@@ -766,6 +766,7 @@ pub(super) fn build_call_operation(
                     result,
                     parameter,
                     &target_identity,
+                    false,
                 )?);
                 continue;
             }
@@ -1419,22 +1420,40 @@ pub(super) fn ordinary_projected_call_is_supported(
 
     let caller_source_parameters = program.state_parameters(caller_state);
     let target_source_parameters = program.state_parameters(target_state);
-    if caller_parameters.len() != 1
-        || arguments.len() != 1
-        || arguments[0].source_parameter_index() != Some(0)
+    if arguments.len() != 1 {
+        return false;
+    }
+    // Only the partial-cleanup owner enables projections from its exact
+    // earlier result roster. Ordinary whole-value sequencing leaves it off.
+    let result_projection = allow_field_path_projection
+        && arguments[0]
+            .source_structural_result_binding_ordinal()
+            .is_some()
+        && arguments[0].access == CheckedStructuralAccess::Owned;
+    if !result_projection
+        && (caller_parameters.len() != 1 || arguments[0].source_parameter_index() != Some(0))
     {
         return false;
     }
-    let Some(_) = usize::try_from(caller_parameters[0].position)
-        .ok()
-        .and_then(|position| caller_source_parameters.get(position))
-    else {
+    let caller_parameter = caller_parameters.first();
+    if !result_projection
+        && caller_parameter
+            .and_then(|parameter| {
+                usize::try_from(parameter.position)
+                    .ok()
+                    .and_then(|position| caller_source_parameters.get(position))
+            })
+            .is_none()
+    {
         return false;
     };
 
     let owned_affine_projection = allow_field_path_projection
-        && caller_parameters[0].access == CheckedStructuralAccess::Owned
-        && caller_parameters[0].multiplicity == Multiplicity::Affine
+        && (result_projection
+            || caller_parameter.is_some_and(|parameter| {
+                parameter.access == CheckedStructuralAccess::Owned
+                    && parameter.multiplicity == Multiplicity::Affine
+            }))
         && arguments[0].access == CheckedStructuralAccess::Owned
         && !arguments[0].path.is_empty()
         && arguments[0].path.iter().all(|segment| {
@@ -1449,15 +1468,19 @@ pub(super) fn ordinary_projected_call_is_supported(
     let literal_index_path = literal_index_fields.is_some();
     let literal_indexed_field_path = literal_index_fields.is_some_and(|fields| !fields.is_empty());
     let write_only_subloan_path = (field_path || literal_index_path)
-        && caller_parameters[0].access == CheckedStructuralAccess::WriteOnlyBorrow
+        && !result_projection
+        && caller_parameter
+            .is_some_and(|parameter| parameter.access == CheckedStructuralAccess::WriteOnlyBorrow)
         && arguments[0].access == CheckedStructuralAccess::WriteOnlyBorrow;
     let shared_subloan_path = (field_path
         || literal_index_fields.is_some_and(|fields| {
             !fields.is_empty() && arguments[0].path.len() == fields.len() + 1
         }))
-        && caller_parameters[0].multiplicity == Multiplicity::Unrestricted
+        && !result_projection
+        && caller_parameter
+            .is_some_and(|parameter| parameter.multiplicity == Multiplicity::Unrestricted)
         && arguments[0].access == CheckedStructuralAccess::SharedBorrow;
-    if caller_source_parameters.len() != 1 && !write_only_subloan_path {
+    if caller_source_parameters.len() != 1 && !write_only_subloan_path && !result_projection {
         return false;
     }
     if field_path
@@ -1538,16 +1561,16 @@ pub(super) fn ordinary_projected_call_is_supported(
     }
 
     if field_path || owned_affine_projection {
-        let [caller_parameter] = caller_parameters else {
-            return false;
-        };
         let [target_parameter] = target_parameters.as_slice() else {
             return false;
         };
         return program.machine_states(caller_machine).len() == 1
             && program.machine_states(target_machine).len() == 1
-            && caller_parameter.multiplicity == Multiplicity::Affine
-            && caller_parameter.qualifications.is_empty()
+            && (result_projection
+                || caller_parameter.is_some_and(|parameter| {
+                    parameter.multiplicity == Multiplicity::Affine
+                        && parameter.qualifications.is_empty()
+                }))
             && !target_parameter.is_self
             && crate::checks::type_multiplicity(program, target_parameter.type_reference)
                 == Multiplicity::Affine
@@ -1900,6 +1923,9 @@ pub(super) fn structural_call_arguments(
                 result,
                 target,
                 &target_identity,
+                allow_field_path_projection
+                    && target_machine.supply_mode == MachineSupplyMode::CheckedBody
+                    && is_unit(program, target_state.return_type),
             )?);
             continue;
         }
@@ -2465,7 +2491,11 @@ pub(super) fn call_claim_transfers(
                 && argument
                     .source_structural_result_binding_ordinal()
                     .is_none())
-                || !argument.path.is_empty()
+                || (!argument.path.is_empty()
+                    && !(argument
+                        .source_structural_result_binding_ordinal()
+                        .is_some()
+                        && argument.access == CheckedStructuralAccess::Owned))
                 || (argument.access != CheckedStructuralAccess::Owned
                     && !(argument
                         .source_structural_result_binding_ordinal()

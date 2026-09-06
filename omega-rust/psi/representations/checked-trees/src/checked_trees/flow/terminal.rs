@@ -1262,11 +1262,12 @@ impl CheckedUnitStructuralArgumentPlan {
 
 /// One claim-free affine structural leaf that remains live after a projected
 /// transfer and is disposed on the enclosing Unit-return edge. The root is a
-/// dense structural-parameter coordinate; the path is canonical semantic
-/// identity rather than a retained source handle.
+/// structural parameter or call-result binding; the path is canonical semantic
+/// identity rather than a retained source handle. Other argument-source kinds
+/// do not yet admit partial cleanup.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitPartialAffineDiscardPlan {
-    pub source_parameter_index: u32,
+    pub source: CheckedUnitStructuralArgumentSourcePlan,
     pub path: Vec<CheckedUnitStructuralPathSegment>,
     pub type_identity: String,
 }

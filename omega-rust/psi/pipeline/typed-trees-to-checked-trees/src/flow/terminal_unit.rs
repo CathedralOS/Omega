@@ -498,8 +498,8 @@ pub(crate) fn build_checked_unit_effect_plans(
 /// Build the checked front of direct-record path-sensitive affine cleanup.
 ///
 /// This plan is deliberately parallel to `CheckedUnitEffectPlans`: current
-/// terminal Psi still has a root-only affine frontier, so publishing the
-/// machine through that older lane would silently erase its live sibling.
+/// ordinary Unit production has root-only cleanup, so publishing partial
+/// moves through that lane would silently erase the live sibling.
 pub(crate) fn build_checked_partial_affine_unit_cleanup_plans(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -537,6 +537,19 @@ pub(crate) fn build_checked_partial_affine_unit_cleanup_plans(
                     plan.residual_affine_discards
                         .iter()
                         .map(|discard| discard.type_identity.as_str()),
+                )
+                .chain(
+                    plan.machine
+                        .operations
+                        .iter()
+                        .filter_map(|operation| match operation {
+                            CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
+                            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                                result,
+                                ..
+                            } => Some(result.type_identity.as_str()),
+                            _ => None,
+                        }),
                 )
         })
         .collect::<BTreeSet<_>>();

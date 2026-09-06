@@ -14,6 +14,8 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use crate::flow::FlowOwnershipEventSource;
 
+mod projected_affine;
+
 #[derive(Debug, Clone)]
 struct LinearPlace {
     symbol: SymbolHandle,
@@ -2908,6 +2910,16 @@ fn apply_statement_permission_production(
             })
             .collect::<Vec<_>>();
         if matching.is_empty() {
+            projected_affine::append_transfer(
+                program,
+                facts,
+                machine_symbol,
+                state_symbol,
+                event,
+                &event_path,
+                places,
+                permission_events,
+            );
             continue;
         }
         let kind = permission_kind_for_move(program, facts, machine_symbol, state_symbol, event);

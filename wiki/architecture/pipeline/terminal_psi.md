@@ -1621,7 +1621,18 @@ Reordered production, overlapping moves, whole-root cleanup after a partial move
 and residual type/order drift reject. A crash retains the abandoned residual
 frontier and carries no cleanup successor. This does not admit construction-local
 partial moves, mixed-root cleanup ordering, scalar-return residuals, or authored
-projected helper-result expressions.
+anonymous projected helper-result expressions.
+
+Checked-source production carries this result-root schedule for one leading
+immutable local initialized by a whole-value ordinary call or structural boundary
+call, followed by ordinary Unit disposers. Named field and literal-index operands
+rejoin the local's exact producer binding, canonical source path, and captured
+projected Transfer. The exit discard retains the local's actual establishment
+provenance; a field transfer does not retire the whole root. Residual rows reuse
+the structural argument's parameter/result source identity instead of treating a
+result ordinal as a parameter index. The ordinary root-only sequencer does not
+accept these partial moves. Boundary production retains its declared service
+reach; it does not make the subsequent disposers effectful.
 
 Lowering and Terminal verification independently reconstruct that complement
 from the types and moves, rejecting overlaps, missing or extra residuals, and
@@ -1652,9 +1663,9 @@ For an array root, call metadata retains that root's length and element stride;
 record-root paths carry neither, even when they pass through an array.
 ABI-required indirect argument copies materialize only the transferred subtree.
 Cleanup itself emits no instruction, runtime bitmap, or liveness-dependent loop.
-Checked-source production and native replay remain parameter-rooted. The Terminal
-call-result extension above does not admit authored projected helper-result
-operands, claims, nominal destruction, or partial construction in those producers.
+Native replay remains parameter-rooted. The source/Terminal call-result extension
+above does not admit result-root cleanup in native production, anonymous projected
+helper-result operands, claims, nominal destruction, or partial construction.
 
 The straight-line Unit return slice carries explicit no-code cleanup for owned
 affine structural parameters that have no claim rows. The checked plan derives

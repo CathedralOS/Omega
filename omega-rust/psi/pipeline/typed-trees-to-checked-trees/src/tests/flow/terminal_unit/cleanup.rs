@@ -2,6 +2,8 @@
 
 use super::*;
 
+mod results;
+
 #[test]
 fn retains_exact_fixed_array_construction_prefix_and_reverse_cleanup() {
     let checked = checked(
@@ -2876,7 +2878,12 @@ fn retains_source_ordered_direct_field_transfers_with_exact_residual_affine_clea
         plan.residual_affine_discards
             .iter()
             .map(|discard| {
-                assert_eq!(discard.source_parameter_index, 0);
+                assert_eq!(
+                    discard.source,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        parameter_index: 0
+                    }
+                );
                 assert!(discard.type_identity.contains("Token"));
                 discard.path.clone()
             })
@@ -3068,7 +3075,9 @@ fn assert_token_cleanup_partition(
         .iter()
         .map(
             |(path, type_identity)| checked_trees::CheckedUnitPartialAffineDiscardPlan {
-                source_parameter_index: 0,
+                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index: 0,
+                },
                 path: path.clone(),
                 type_identity: type_identity.clone(),
             },

@@ -2083,7 +2083,7 @@ fn bind_scalar_call_result(
 
 /// Keep the checked call's exact target, source coordinate, operands and
 /// completion receipts while attaching its independently checked result local.
-fn bind_structural_call_result(
+pub(super) fn bind_structural_call_result(
     operation: CheckedUnitEffectOperationPlan,
     result: CheckedUnitStructuralResultBindingPlan,
 ) -> Option<CheckedUnitEffectOperationPlan> {

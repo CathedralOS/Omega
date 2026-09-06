@@ -1,7 +1,7 @@
 //! Partial-affine cleanup lowering and maximal residual reconstruction.
 
 use super::*;
-use checked_trees::CheckedStructuralAccess;
+use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan};
 
 mod residuals;
 
@@ -20,9 +20,6 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
     {
         return unsupported("partial affine Unit machine is also published in the root-only lane");
     }
-    let [parameter] = plan.structural_parameters.as_slice() else {
-        return unsupported("partial affine Unit cleanup requires one structural parameter");
-    };
     let Some((return_operation, call_operations)) = plan.operations.split_last() else {
         return unsupported("partial affine Unit cleanup operation sequence drifted");
     };
@@ -37,12 +34,60 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
     if call_operations.is_empty() {
         return unsupported("partial affine Unit cleanup requires projected calls");
     }
+    let (root_source, root_type, producer_count) = match &call_operations[0] {
+        CheckedUnitEffectOperationPlan::StructuralCall {
+            coordinate,
+            result,
+            discard_result_on_return,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+            coordinate,
+            result,
+            discard_result_on_return,
+            ..
+        } => {
+            if coordinate.statement_index != 0
+                || coordinate.call_ordinal != 0
+                || result.binding_ordinal != 0
+                || result.statement_index != 0
+                || result.multiplicity != Multiplicity::Affine
+                || *discard_result_on_return
+                || plan.structural_parameters.len() > 1
+            {
+                return unsupported("partial affine result producer custody drifted");
+            }
+            (
+                CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    binding_ordinal: result.binding_ordinal,
+                },
+                result.type_identity.as_str(),
+                1,
+            )
+        }
+        _ => {
+            let [parameter] = plan.structural_parameters.as_slice() else {
+                return unsupported(
+                    "partial affine Unit cleanup requires one structural parameter",
+                );
+            };
+            (
+                CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 },
+                parameter.type_identity.as_str(),
+                0,
+            )
+        }
+    };
+    let projected_calls = &call_operations[producer_count..];
+    if projected_calls.is_empty() {
+        return unsupported("partial affine Unit cleanup requires projected calls");
+    }
     let mut moved_paths = Vec::<(
         &[CheckedUnitStructuralPathSegment],
         &str,
         symbols::SymbolHandle,
     )>::new();
-    for (operation_ordinal, operation) in call_operations.iter().enumerate() {
+    for (operation_ordinal, operation) in projected_calls.iter().enumerate() {
         let CheckedUnitEffectOperationPlan::CallUnit {
             coordinate,
             target_machine,
@@ -60,11 +105,11 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
             return unsupported("partial affine Unit transfer is not an exact field path");
         }
         if coordinate.statement_index
-            != u32::try_from(operation_ordinal)
+            != u32::try_from(operation_ordinal + producer_count)
                 .map_err(|_| LoweringError::Unsupported("partial affine call count exceeds u32"))?
             || coordinate.call_ordinal != 0
             || !claim_transfers.is_empty()
-            || argument.source_parameter_index() != Some(0)
+            || argument.source != root_source
             || argument.access != CheckedStructuralAccess::Owned
             || moved_paths.iter().any(|(earlier, _, _)| {
                 earlier.starts_with(&argument.path) || argument.path.starts_with(earlier)
@@ -85,12 +130,13 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
     {
         return unsupported("partial affine Unit cleanup is not an exact field path");
     }
-    if parameter.position != 0
-        || parameter.is_self
-        || parameter.access != CheckedStructuralAccess::Owned
-        || !plan.scalar_parameters.is_empty()
-        || parameter.multiplicity != Multiplicity::Affine
-        || !parameter.qualifications.is_empty()
+    if plan.structural_parameters.iter().any(|parameter| {
+        parameter.position != 0
+            || parameter.is_self
+            || parameter.access != CheckedStructuralAccess::Owned
+            || parameter.multiplicity != Multiplicity::Affine
+            || !parameter.qualifications.is_empty()
+    }) || !plan.scalar_parameters.is_empty()
         || !plan.trivial_affine_locals.is_empty()
         || !plan.entry_claims.is_empty()
         || !plan.body_qualifications.is_empty()
@@ -98,7 +144,7 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
         || partial
             .residual_affine_discards
             .iter()
-            .any(|residual| residual.source_parameter_index != 0)
+            .any(|residual| residual.source != root_source)
         || !trivial_affine_local_discard_ordinals.is_empty()
         || !trivial_affine_discards.is_empty()
     {
@@ -123,7 +169,8 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
     }
     let expected_residuals = checked_partial_affine_residuals(
         partial_plans,
-        &parameter.type_identity,
+        &root_source,
+        root_type,
         &moved_paths
             .iter()
             .map(|(path, moved_type, _)| (*path, *moved_type))
@@ -180,9 +227,22 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
         .ok_or(LoweringError::Unsupported(
             "partial affine Unit entry machine was not lowered",
         ))?;
-    let [terminal_parameter] = entry.structural_parameters.as_slice() else {
-        return unsupported("partial affine Unit terminal parameter drifted");
-    };
+    let root_place = match &root_source {
+        CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => entry
+            .structural_parameters
+            .get(*parameter_index as usize)
+            .map(|parameter| parameter.place),
+        CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. } => entry
+            .blocks
+            .first()
+            .and_then(|block| block.operations.first())
+            .and_then(|operation| operation.result.structural())
+            .map(|result| result.place),
+        _ => None,
+    }
+    .ok_or(LoweringError::Unsupported(
+        "partial affine Unit terminal root drifted",
+    ))?;
     let [block] = entry.blocks.as_mut_slice() else {
         return unsupported("partial affine Unit terminal control drifted");
     };
@@ -210,7 +270,7 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
         .iter()
         .map(|residual| {
             Ok(StructuralAffineDiscard {
-                place: terminal_parameter.place,
+                place: root_place,
                 path: lower_structural_path(&residual.path),
                 structural_type: lookup_type_id(&terminal_type_ids, &residual.type_identity)?,
             })
@@ -226,11 +286,12 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
 
 fn checked_partial_affine_residuals(
     types: &[CheckedUnitStructuralTypePlan],
+    source: &CheckedUnitStructuralArgumentSourcePlan,
     root_type: &str,
     moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
     max_residuals: usize,
 ) -> Result<Vec<CheckedUnitPartialAffineDiscardPlan>, LoweringError> {
-    residuals::reconstruct(types, root_type, moved_paths, max_residuals)
+    residuals::reconstruct(types, source, root_type, moved_paths, max_residuals)
 }
 
 fn checked_partial_affine_path(path: &[CheckedUnitStructuralPathSegment]) -> bool {

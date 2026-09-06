@@ -262,7 +262,12 @@ fn attached_unit_direct_record_projection_retains_transfer_and_maximal_sibling()
         let [sibling] = edge.residual_affine_discards.as_slice() else {
             panic!("exactly one maximal sibling residual should remain")
         };
-        assert_eq!(sibling.source_parameter_index, 0);
+        assert_eq!(
+            sibling.source,
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: 0
+            }
+        );
         assert_eq!(sibling.path.len(), 1);
         assert!(matches!(
             &sibling.path[0],

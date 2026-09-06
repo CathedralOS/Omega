@@ -4,6 +4,8 @@
 use super::*;
 
 mod service_forward;
+mod source_path;
+pub(crate) use source_path::source_path;
 
 /// Rejoin direct Unit scalar parameters and routed-Service receipts to the
 /// exact typed state signature before raw checked-to-Terminal lowering erases
@@ -513,9 +515,11 @@ pub(crate) fn validate_transfer_shape(
             else {
                 return unsupported("Unit structural result source has no producer operation");
             };
-            if !argument.path.is_empty()
+            if (!argument.path.is_empty()
+                && argument.access != checked_trees::CheckedStructuralAccess::Owned)
                 || argument.type_identity != target.type_identity
-                || structural_type != lookup_type_id(type_ids, &argument.type_identity)?
+                || (argument.path.is_empty()
+                    && structural_type != lookup_type_id(type_ids, &argument.type_identity)?)
                 || !matches!(
                     argument.access,
                     checked_trees::CheckedStructuralAccess::Owned
@@ -706,7 +710,8 @@ pub(crate) fn lower_structural_arguments(
             }
             if let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() {
                 let source = structural_result_source(structural_results, binding_ordinal, argument.access)?;
-                if !argument.path.is_empty()
+                if (!argument.path.is_empty()
+                    && argument.access != checked_trees::CheckedStructuralAccess::Owned)
                     || !matches!(argument.access,
                         checked_trees::CheckedStructuralAccess::Owned
                             | checked_trees::CheckedStructuralAccess::SharedBorrow)
@@ -715,7 +720,7 @@ pub(crate) fn lower_structural_arguments(
                 }
                 return Ok(StructuralArgument {
                     place: source.id,
-                    path: Vec::new(),
+                    path: lower_structural_path(&argument.path),
                     access: if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
                         StructuralAccess::SharedBorrow
                     } else {
