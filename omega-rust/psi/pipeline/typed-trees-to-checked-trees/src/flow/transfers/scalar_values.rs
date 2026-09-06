@@ -95,8 +95,8 @@ pub(super) fn capture_statement(
     )
 }
 
-// Only a selected, single scalar return is evaluated. Calls, local execution,
-// machine storage and boundary implementations need their own effect evidence.
+// Evaluate selected immutable scalar locals followed by one return. Calls,
+// mutable storage and boundary implementations need their own effect evidence.
 fn capture_call(
     program: &typed_trees::TypedTrees,
     semantic: &FactPlan,
@@ -129,11 +129,7 @@ fn capture_call(
     let [state] = program.machine_states(machine) else {
         return None;
     };
-    let [StatementNode::Expression(result)] =
-        program.statement_table.statements(state.statement_nodes)
-    else {
-        return None;
-    };
+    let statements = program.statement_table.statements(state.statement_nodes);
     let parameters = program.state_parameters(state);
     let arguments = program.expression_table.expression_handles(call.arguments);
     if arguments.len() != parameters.len()
@@ -148,35 +144,7 @@ fn capture_call(
     {
         return None;
     }
-    let plans = context.scalar_expressions;
-    let mut bindings = plans.source_bindings.iter().filter(|(_, binding)| {
-        binding.state == state.symbol
-            && binding.statement_ordinal == 0
-            && binding.role == CheckedScalarExpressionRole::Return
-            && binding.expression == *result
-            && !binding.destination.is_valid()
-    });
-    let (_, binding) = bindings.next()?;
-    if bindings.next().is_some()
-        || !plans
-            .binding_symbols
-            .span_or_empty(binding.symbols)
-            .iter()
-            .copied()
-            .eq(parameters.iter().map(|parameter| parameter.symbol))
-    {
-        return None;
-    }
-    let mut expressions = plans.expressions.iter().filter(|expression| {
-        expression.state == state.symbol
-            && expression.statement_ordinal == 0
-            && expression.role == CheckedScalarExpressionRole::Return
-    });
-    let expression = &expressions.next()?.expression;
-    if expressions.next().is_some() {
-        return None;
-    }
-    let values = arguments
+    let mut values = arguments
         .iter()
         .map(|argument| {
             match program.expression_table.expression(*argument) {
@@ -215,7 +183,58 @@ fn capture_call(
             )
         })
         .collect::<Option<Vec<_>>>()?;
-    crate::values::evaluate_checked_scalar(expression, &mut |position| {
-        values.get(position).cloned()
-    })
+    let plans = context.scalar_expressions;
+    let mut symbols: Vec<_> = parameters
+        .iter()
+        .map(|parameter| parameter.symbol)
+        .collect();
+    for (statement_index, statement) in statements.iter().enumerate() {
+        let statement_ordinal = u32::try_from(statement_index).ok()?;
+        let (source, destination, role) = match statement {
+            StatementNode::LocalData(local) if !local.is_mutable => (
+                local.initial_value,
+                local.symbol,
+                CheckedScalarExpressionRole::LocalInitializer {
+                    binding_ordinal: statement_ordinal,
+                },
+            ),
+            StatementNode::Expression(result) if statement_index + 1 == statements.len() => (
+                *result,
+                SymbolHandle::invalid(),
+                CheckedScalarExpressionRole::Return,
+            ),
+            _ => return None,
+        };
+        let mut bindings = plans.source_bindings.iter().filter(|(_, binding)| {
+            binding.state == state.symbol
+                && binding.statement_ordinal == statement_ordinal
+                && binding.role == role
+                && binding.expression == source
+                && binding.destination == destination
+        });
+        let (_, binding) = bindings.next()?;
+        if bindings.next().is_some()
+            || plans.binding_symbols.span_or_empty(binding.symbols) != symbols
+        {
+            return None;
+        }
+        let mut expressions = plans.expressions.iter().filter(|expression| {
+            expression.state == state.symbol
+                && expression.statement_ordinal == statement_ordinal
+                && expression.role == role
+        });
+        let expression = &expressions.next()?.expression;
+        if expressions.next().is_some() {
+            return None;
+        }
+        let value = crate::values::evaluate_checked_scalar(expression, &mut |position| {
+            values.get(position).cloned()
+        })?;
+        if role == CheckedScalarExpressionRole::Return {
+            return Some(value);
+        }
+        symbols.push(destination);
+        values.push(value);
+    }
+    None
 }

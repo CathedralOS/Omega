@@ -157,6 +157,31 @@ fn selected_scalar_call_result_preserves_byte_class() {
 }
 
 #[test]
+fn selected_scalar_call_result_evaluates_immutable_locals() {
+    for callee in [
+        "let byte: u8 = value as u8; byte",
+        "let byte: u8 = value as u8; let half: u8 = byte / 2; half",
+    ] {
+        let source = format!(
+            r#"
+            domain [u8; 2]::Utf8 requires valid_utf8(self);
+            machine narrow(value: i32 [0..=255]) -> u8 {{ {callee} }}
+            machine establish(line: &mut [u8; 2]) ensures line in Utf8 {{
+                let mut value: i32 = 65;
+                let byte: u8 = narrow(value);
+                value = 200;
+                line = "AB";
+                line[0] = byte;
+                line[1] = narrow(66);
+            }}
+        "#
+        );
+        lower_typed_trees(parse_typed_trees(&source))
+            .unwrap_or_else(|diagnostics| panic!("{callee}: {diagnostics:#?}"));
+    }
+}
+
+#[test]
 fn selected_scalar_call_result_captures_projected_assignment() {
     let source = r#"
         data Holder { input: i32; byte: u8; }
@@ -193,7 +218,19 @@ fn selected_scalar_call_result_rejects_unproved_or_replaced_bytes() {
             "let mut byte: u8 = narrow(65); corrupt(&mut byte); line[0] = byte;",
         ),
         (
+            "let byte: u8 = value as u8; let replaced: u8 = 200; replaced",
+            "let byte: u8 = narrow(65); line[0] = byte;",
+        ),
+        (
             "let byte: u8 = value as u8; byte",
+            "let byte: u8 = narrow(200); line[0] = byte;",
+        ),
+        (
+            "let byte: u8 = value as u8; byte",
+            "let byte: u8 = narrow(unknown); line[0] = byte;",
+        ),
+        (
+            "let ignored: u8 = other(); let byte: u8 = value as u8; byte",
             "let byte: u8 = narrow(65); line[0] = byte;",
         ),
         (
@@ -210,6 +247,7 @@ fn selected_scalar_call_result_rejects_unproved_or_replaced_bytes() {
             domain [u8; 2]::Utf8 requires valid_utf8(self);
             machine narrow(value: i32 [0..=255]) -> u8 {{ {callee} }}
             machine corrupt(value: &mut u8) {{ value = 200; }}
+            machine other() -> u8 {{ 200 }}
             machine establish(line: &mut [u8; 2], unknown: i32 [0..=255])
             ensures line in Utf8 {{ line = "AB"; {body} }}
         "#
