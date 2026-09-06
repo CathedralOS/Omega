@@ -25,7 +25,7 @@
         imm r91 0x1
         imm r92 0x100000
         imm r93 0x1100000
-        imm r94 0x1200000
+        imm r94 0x4000000
         imm r95 0x1300000
         imm r96 0x1500000
         imm r97 0x1d00000
@@ -564,7 +564,7 @@
         call 0x492 ; -> need_token:
         call 0x8b5 ; -> find_function:
         jnz r0 0x19e6 ; -> invalid:
-        imm r0 0x1000
+        imm r0 0x10000
         jeq r88 r0 0x19fe ; -> incomplete:
         mov r0 r88
         call 0x840 ; -> function_row:
@@ -1500,15 +1500,15 @@
         call 0x1890 ; -> validate_pair:
         ret
 
-; The 4096 authored-order five-word function rows end at
-; 0x01228000. Sorted row pointers occupy 0x01228000..0x01230000,
-; inside the existing function partition. Rows retain authored order.
+; The 65536 authored-order five-word function rows end at
+; 0x04280000. Sorted row pointers occupy 0x04280000..0x04300000,
+; inside the selected function partition. Rows retain authored order.
 ; Search bounds are [r10, r11); r12 is the midpoint, r13 the index base.
 ; All new low registers are caller-clobbered; comparator preserves r10..r14.
 0x1e9b: ; indexed_find_function:
         mov r10 r90
         mov r11 r88
-        imm r13 0x1228000
+        imm r13 0x4280000
 0x1eab: ; indexed_find_loop:
         jlt r10 r11 0x1eba ; -> indexed_find_probe:
         mov r0 r90
@@ -1571,7 +1571,7 @@
         ret
 
 ; Census has finished the new row, checked the declaration close, and advanced
-; r88 after the unchanged 4096-row preflight. Only the first r88-1 pointers
+; r88 after the selected 65536-row preflight. Only the first r88-1 pointers
 ; exist until this hook commits. r8c still identifies the new physical row.
 0x1f9d: ; index_completed_function:
         mov r14 r8c
@@ -1583,7 +1583,7 @@
         mov r10 r90
         mov r11 r88
         sub r11 r91
-        imm r13 0x1228000
+        imm r13 0x4280000
 0x1fc9: ; function_index_position_loop:
         jlt r10 r11 0x1fdd ; -> function_index_position_probe:
         jmp 0x203f ; -> function_index_shift_begin:

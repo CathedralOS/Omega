@@ -58,11 +58,11 @@ The current evaluator uses these Alpha memory regions:
 
 ```text
 0x00100000..0x01100000   request bytes
-0x01200000..0x01300000   function rows and lookup index
 0x01300000..0x01500000   lexical environment rows
 0x01500000..0x01d00000   temporary value stack
 0x01e00000..0x01f00000   function activation rows
 0x01f00000..0x02000000   nested-call context rows
+0x04000000..0x04300000   function rows and lookup index
 0x0e000000..0x0efffffc   buffered output bytes
 0x10000000..0x70000000   immutable pair nodes
 ```
@@ -70,8 +70,9 @@ The current evaluator uses these Alpha memory regions:
 The selected AlphaBootstrapV4 realization provides 1.75 GiB of memory. The Alpha
 tape occupies low memory and the hidden Alpha call stack still grows down
 from `0x10000000`. Pairs grow upward from that boundary, without overlapping
-the stack or moving the output buffer. The former pair region
-`0x02000000..0x0e000000` is unused. Every evaluator-owned extent is preflighted
+the stack or moving the output buffer. The function partition occupies part of
+the former pair region; the old function partition at
+`0x01200000..0x01300000` is unused. Every evaluator-owned extent is preflighted
 before use; the hidden Alpha stack is discharged by the containment argument
 below.
 
@@ -85,7 +86,7 @@ only an extent beyond the end is refused.
 | Resource | Retained representation | Maximum |
 | --- | --- | ---: |
 | complete request | bytes at `0x00100000` | 16,777,216 bytes |
-| function census | five-word rows, with an explicit logical cap | 4,096 functions |
+| function census | five-word rows, with an explicit logical cap | 65,536 functions |
 | active lexical environment | four-word `(name span, value, kind)` rows | 65,536 bindings |
 | temporary values and arguments | two-word `(value, kind)` entries | 524,288 values |
 | nested expression lists | evaluator recursion, prechecked during census | 255 lists |
@@ -107,16 +108,21 @@ bytes after the maximum whole-node count. Output preflights each buffered byte.
 A scalar transformer may emit at most 16,777,211 bytes with `write` before its
 final byte. An application result may publish all 16,777,212 buffered bytes.
 
-The 4,096 five-word function rows occupy `0x01200000..0x01228000` in
-authored declaration order. A separate sorted index of 4,096 eight-byte row
-pointers occupies `0x01228000..0x01230000`, inside the same function partition.
+The 65,536 five-word function rows occupy `0x04000000..0x04280000` in
+authored declaration order. A separate sorted index of 65,536 eight-byte row
+pointers occupies `0x04280000..0x04300000`, inside the same function partition.
 Lookup compares name length and then exact name bytes by binary search; it
 does not change declaration order, the retained `main` row, or first-declaration
-application-marker ownership. Census checks duplicates before the existing
+application-marker ownership. Census checks duplicates before the selected
 function-count preflight. After admitting and completing a row, insertion
 shifts only initialized index entries and stores its pointer at an index no
-greater than 4,095. Lookup reads only the initialized prefix. There is no new
-capacity, source representation, or AST.
+greater than 65,535. Lookup reads only the initialized prefix. The last row's
+last word starts at `0x0427fff8`; the last index slot starts at `0x042ffff8`.
+Both writes end exactly at their respective region boundaries. This private
+capacity admits Delta-generated helpers beyond the former 4,096-function
+ceiling without changing source representation or introducing an AST.
+Sorted-index insertion still has quadratic worst-case pointer movement for
+reverse-ordered names; the enlarged capacity does not remove that cost.
 
 The 256-context cap is stronger than the physical function-frame arena: `main`
 owns one frame and each live non-tail context can own one more, so at most 257
@@ -158,12 +164,12 @@ outcome. Gamma has no time or fuel bound; a nonterminating program diverges.
 
 The selected implementation is
 [`evaluator/gamma_evaluator.beta`](evaluator/gamma_evaluator.beta), a 1,632-line,
-46,482-byte addressed Beta program assembling to an 8,355-byte Alpha tape. Its
+46,484-byte addressed Beta program assembling to an 8,355-byte Alpha tape. Its
 current SHA-256 identities are:
 
 ```text
-Beta source  9ccd93e07a3baa00bba34133e91d15df6f3cc4d670688d06ff3febf82b304904
-Alpha tape   f08544faee5ee3a7aa5969f17004fa708326c38f9fb8ab27dfa9c97cb44ac2e8
+Beta source  29d0a5e7d8960d456bf6905b776a984d0e371d1e4cd260a6b6a81b7e086fc1de
+Alpha tape   90cb720c980e859588179cdef59ed615ecd1bb053b09601b01964dc0a05571fc
 ```
 
 Proper-tail execution, static validation of unreachable bodies, exact resource

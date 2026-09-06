@@ -162,7 +162,7 @@ body checking. Census also provisions D30's 32,768 authored `function_rows`:
 duplicate lookup precedes each fresh row, and a fresh 32,769th declaration
 returns `Incomplete` resource code 4 at its name, before row insertion or any
 declaration-type resolution. This count excludes metadata copies and generated
-helpers; it is not Gamma's separate 4,096-function generated-program limit.
+helpers; it is not Gamma's separate 65,536-function generated-program limit.
 The census also counts fresh authored constructors across all data declarations.
 D30 admits 65,536 rows; a fresh 65,537th name returns `Incomplete` resource
 code 3 at that name, with limit/requested 65,536/65,537. Duplicate lookup

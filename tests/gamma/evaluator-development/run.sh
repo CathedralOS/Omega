@@ -34,11 +34,14 @@ import signal
 import struct
 import subprocess
 from pathlib import Path
-from function_lookup import fixtures as function_lookup_fixtures
+from function_lookup import (
+    fixtures as function_lookup_fixtures,
+    upper_capacity_fixtures,
+)
 
 artifacts = (
-    ("BETA", 46482, "9ccd93e07a3baa00bba34133e91d15df6f3cc4d670688d06ff3febf82b304904"),
-    ("TAPE", 8355, "f08544faee5ee3a7aa5969f17004fa708326c38f9fb8ab27dfa9c97cb44ac2e8"),
+    ("BETA", 46484, "29d0a5e7d8960d456bf6905b776a984d0e371d1e4cd260a6b6a81b7e086fc1de"),
+    ("TAPE", 8355, "90cb720c980e859588179cdef59ed615ecd1bb053b09601b01964dc0a05571fc"),
 )
 for name, size, digest in artifacts:
     data = Path(os.environ[name]).read_bytes()
@@ -243,15 +246,30 @@ def function_census(count):
     )
 
 if run(function_census(4096)) != (0, b"\x00"):
-    raise SystemExit("exact function-census capacity did not complete")
-if run(function_census(4097)) != (3, b""):
-    raise SystemExit("adjacent function-census capacity was not incomplete")
+    raise SystemExit("former function-census capacity did not complete")
+if run(function_census(4097)) != (0, b"\x00"):
+    raise SystemExit("function census did not cross the former capacity")
 
 lookup_cases = function_lookup_fixtures()
 for name, source, expected in lookup_cases:
     if run(source) != expected:
         raise SystemExit(f"{name} changed function lookup or failure ownership")
 print(f"Direct Beta Gamma evaluator: {len(lookup_cases)} exact function-lookup controls passed")
+
+try:
+    upper_timeout = int(os.environ.get("OMEGA_GAMMA_FUNCTION_UPPER_SECONDS", "20"))
+except ValueError:
+    raise SystemExit("OMEGA_GAMMA_FUNCTION_UPPER_SECONDS must be a positive integer")
+if upper_timeout <= 0:
+    raise SystemExit("OMEGA_GAMMA_FUNCTION_UPPER_SECONDS must be a positive integer")
+upper_cases = upper_capacity_fixtures()
+for name, source, expected in upper_cases:
+    if run(source, timeout=upper_timeout) != expected:
+        raise SystemExit(f"{name} changed expanded function census behavior")
+print(
+    f"Direct Beta Gamma evaluator: {len(upper_cases)} expanded function-census "
+    "controls passed"
+)
 
 def nested_add(depth):
     return b"(def main () Int " + b"(+ 0 " * depth + b"0" + b")" * depth + b")\n"

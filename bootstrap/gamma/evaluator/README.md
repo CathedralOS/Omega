@@ -12,12 +12,18 @@ observation, memory partition, and current gaps are fixed by
 
 Function rows remain in authored order. A separate sorted row-pointer index
 supports exact-name binary search for census, validation, and execution.
-Its 32,768 bytes fit beside the rows inside the existing function partition;
-the 4,096-function preflight, duplicate precedence, `main` pointer, and
-first-declaration application marker are unchanged. The index adds neither an
-AST nor a Gamma operation or resource capacity. The addressed Beta source and
+Its 524,288 bytes fit beside 65,536 rows in the private
+`0x04000000..0x04300000` function partition. The enlarged census admits
+Delta's authored definitions together with generated runtime helpers beyond
+the former 4,096-row ceiling. Duplicate precedence, the `main` pointer, and
+first-declaration application ownership are unchanged. The index adds neither
+an AST nor a Gamma operation. The addressed Beta source and
 selected Beta compiler are the only reconstruction route; no host label
 resolver participates.
+
+The [Delta-generated census gate](../../../tests/delta/generated-function-census/README.md)
+retains the source that compiled successfully but could not execute under the
+former census, and executes a receipt at Delta's full authored-function allowance.
 
 | Retained child | Direct role | Deletion condition |
 | --- | --- | --- |

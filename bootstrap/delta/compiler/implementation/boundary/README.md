@@ -224,7 +224,7 @@ raw roots still supply declaration custody checks. Only the completed phase
 publishes typed roots to body checking. Reusing an identical resolved row adds
 no shortcut around an annotation or a compiler-owned provision.
 
-This is not Gamma's separate 4,096-function limit on an executable generated
+This is not Gamma's separate 65,536-function limit on an executable generated
 program. Authored functions, fixed runtime helpers, adapters, and extracted
 normalization helpers all consume that later evaluator limit. Census admission
 at 32,768 therefore does not claim successful generated-program admission.

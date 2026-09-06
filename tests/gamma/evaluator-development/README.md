@@ -19,7 +19,7 @@ emits no Gamma or Alpha code.
 ## Measurements
 
 ```text
-1,632-line / 46,482-byte canonical addressed Beta with named control targets
+1,632-line / 46,484-byte canonical addressed Beta with named control targets
 8,355-byte evaluator tape
 ```
 
@@ -44,7 +44,7 @@ The direct evaluator runs the unchanged 85-line Gamma `const` augmenter,
 requires its exact 51-byte Gamma receipt, and evaluates that receipt to byte 42.
 It also covers literals, lexical bindings, every scalar operator, true/false
 branches, forward and parameterized calls, recursion, compiler I/O, and quiet
-invalid/trap outcomes. Exact and adjacent gates pin the 4,096-function census,
+invalid/trap outcomes. Exact and adjacent gates pin the 65,536-function census,
 255-list syntax depth, and 256-context ordinary-call limits without inflating
 the routine gate with multi-megabyte output or heap witnesses.
 The separate [heap-boundary gate](../heap-boundary/README.md) owns full selected
@@ -58,16 +58,23 @@ function results are called in one fixed order while declaration and `main`
 placement vary. Missing exact names cover shorter prefixes, extensions, and
 equal-length neighbors. Marker controls distinguish first-declaration
 application ownership from a later declaration with the same spelling. Reverse
-declaration order reaches all 4,096 rows, then distinguishes a duplicate name
-from a fresh 4,097th function before provision. The fixtures construct source
+declaration order reaches the former 4,096-row ceiling, rejects a duplicate name,
+and now admits a fresh 4,097th function. Three further controls reach 65,536
+rows, call the first and last generated names, reject a duplicate at capacity,
+and refuse a fresh 65,537th function before provision. Their names are ordered
+for index insertion; they do not measure worst-case reverse insertion at the
+expanded limit. The fixtures construct source
 bytes and expected observations; they do not model evaluator lookup.
 
 The evaluator keeps physical function rows in authored order and searches a
 sorted pointer index by exact name. The index occupies
-`0x01228000..0x01230000` inside the existing function partition, under the
-unchanged 4,096-row preflight. The 16 controls pin lookup, row payloads, and
+`0x04280000..0x04300000` inside the function partition, under the selected
+65,536-row preflight. The 19 lookup/census controls pin row payloads and
 failure ownership independently of this implementation. The complete gate
-runs 73 evaluator invocations, including the augmentation and capacity pairs.
+runs 76 evaluator invocations, including the augmentation and capacity pairs.
+`OMEGA_GAMMA_FUNCTION_UPPER_SECONDS` optionally changes only the upper-census
+host watchdog (default 20 seconds, positive integer); a timeout is not a
+language judgment.
 
 ## Limitations
 

@@ -72,7 +72,7 @@ duplicates reject before provision, and a fresh 32,769th name produces
 `Incomplete` resource code 4 at its name-token start, limit/requested
 32,768/32,769. Complete grammar/depth checks run earlier; declaration types run
 later. This logical count excludes generated helpers and does not establish
-admission under Gamma's separate 4,096-function bound.
+admission under Gamma's separate 65,536-function bound.
 Declaration traversal follows authored order; each parameter
 conflict precedes its own annotation, parameters precede the result type, and
 the whole declaration phase precedes all bodies. Grammar also owns D30's
