@@ -5,7 +5,7 @@ use super::*;
 pub(super) fn lower(
     checked: &CheckedTrees,
     plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
-) -> Result<LoweredPsi, LoweringError> {
+) -> Result<ComposedLowered, LoweringError> {
     let admitted = admit(checked, plan)?;
     let catalogs = catalogs::lower_composed_catalogs(checked, plan, &admitted)?;
     emit(checked, plan, admitted, catalogs)
@@ -171,7 +171,7 @@ fn emit(
     plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
     admitted: admission::AdmittedComposedUnit<'_>,
     mut catalogs: catalogs::ComposedCatalogs,
-) -> Result<LoweredPsi, LoweringError> {
+) -> Result<ComposedLowered, LoweringError> {
     let entry = admitted.entry;
     let CheckedComposedUnitControlTerminatorPlan::ClosedSum { result, cases } = &entry.terminator
     else {
@@ -346,7 +346,7 @@ fn emit(
         .zip(leaf_parameters)
         .zip(&state_ids[1..])
     {
-        let (fragment, mut occurrences) = emission::emit_boundary_leaf(
+        let (fragment, mut occurrences) = emission::emit_call_leaf(
             checked,
             plan.machine,
             leaf,
@@ -420,5 +420,5 @@ fn emit(
             outcome_specific_ensures: Vec::new(),
         },
     };
-    emission::finish_module(vec![machine], catalogs, source_calls)
+    emission::finish_module(plan.machine, vec![machine], catalogs, source_calls)
 }

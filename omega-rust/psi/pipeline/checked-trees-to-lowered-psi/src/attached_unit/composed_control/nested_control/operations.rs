@@ -39,36 +39,3 @@ pub(super) fn validate(state: &checked_trees::CheckedComposedUnitControlStatePla
             }
         })
 }
-
-pub(super) fn emit(
-    state: &checked_trees::CheckedComposedUnitControlStatePlan,
-    catalogs: &super::super::catalogs::ComposedCatalogs,
-    operations: &mut OperationBuffer,
-) -> Result<(), LoweringError> {
-    for operation in &state.operations {
-        match operation {
-            CheckedUnitEffectOperationPlan::CallUnit { .. } => {
-                super::super::internal_calls::emission::emit_call_operation(
-                    operation,
-                    &catalogs.internal_targets,
-                    operations,
-                )?;
-            }
-            CheckedUnitEffectOperationPlan::BoundaryCall { .. } => {
-                super::super::emission::emit_boundary_call_operation(
-                    state,
-                    operation,
-                    &catalogs.lowered_boundaries,
-                    &catalogs.type_ids,
-                    &catalogs.structural_types,
-                    &[],
-                    &[],
-                    Some(&[]),
-                    operations,
-                )?;
-            }
-            _ => return unsupported("nested control operation escaped exact call custody"),
-        }
-    }
-    Ok(())
-}

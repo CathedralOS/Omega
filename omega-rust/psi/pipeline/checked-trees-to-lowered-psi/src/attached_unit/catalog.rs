@@ -118,8 +118,23 @@ pub(super) fn lower_unit_structural_types(
     ),
     LoweringError,
 > {
+    lower_unit_structural_types_including(checked, closure, boundaries, &[])
+}
+
+pub(super) fn lower_unit_structural_types_including(
+    checked: &CheckedTrees,
+    closure: &[symbols::SymbolHandle],
+    boundaries: &[(&CheckedBoundaryMachinePlan, String)],
+    additional_roots: &[String],
+) -> Result<
+    (
+        Vec<StructuralTypeDeclaration>,
+        Vec<(String, StructuralTypeId)>,
+    ),
+    LoweringError,
+> {
     let plans = &checked.facts.flow.terminal_unit_effects;
-    let mut roots = Vec::new();
+    let mut roots = additional_roots.to_vec();
     for symbol in closure {
         let machine = unique_unit_machine(plans, *symbol)?;
         roots.extend(machine.attachment_type_identity.iter().cloned());
@@ -570,9 +585,19 @@ pub(super) fn lower_unit_services(
     boundaries: &[(&CheckedBoundaryMachinePlan, String)],
     provider_candidates: &[CheckedUnitProviderCandidate],
 ) -> Result<(Vec<ServiceDeclaration>, Vec<(ServiceReachId, ServiceId)>), LoweringError> {
+    lower_unit_services_including(checked, closure, boundaries, provider_candidates, &[])
+}
+
+pub(super) fn lower_unit_services_including(
+    checked: &CheckedTrees,
+    closure: &[symbols::SymbolHandle],
+    boundaries: &[(&CheckedBoundaryMachinePlan, String)],
+    provider_candidates: &[CheckedUnitProviderCandidate],
+    additional_roots: &[ServiceReachId],
+) -> Result<(Vec<ServiceDeclaration>, Vec<(ServiceReachId, ServiceId)>), LoweringError> {
     let facts = &checked.facts.service_reaches;
     let plans = &checked.facts.flow.terminal_unit_effects;
-    let mut selected = Vec::<ServiceReachId>::new();
+    let mut selected = additional_roots.to_vec();
     for symbol in closure {
         let machine = unique_unit_machine(plans, *symbol)?;
         if let Some(provider) = provider_candidates

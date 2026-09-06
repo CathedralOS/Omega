@@ -472,9 +472,12 @@ Owners include
   operator calls and borrowed/projected operands and writes.
   Extend computed scalar call operands beyond the first immutable result
   initializer in a single-state Unit caller to later result initializers,
-  returned calls, and ordinary internal Unit calls in composed control. Retain exact
+  returned calls, internal Unit calls in dynamic-result and closed-sum continuations,
+  and structural arguments on composed internal calls. Retain exact
   evaluation order across guards and other argument effects, including projected
   and borrowed operand staging.
+  Lower scalar-dependent Unit crash predicates using the same retained argument
+  values; the callee route must not reread caller storage or keep callee-local IDs.
   Complete nonliteral contract arithmetic and callee-result bounds requiring
   caller-specific snapshots beyond immutable scalar formal comparisons; carry
   those facts into nested exact-cast obligations without rereading arguments.

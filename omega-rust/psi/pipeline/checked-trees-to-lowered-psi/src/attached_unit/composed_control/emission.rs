@@ -7,15 +7,15 @@ pub(super) fn emit_composed_unit_control(
     plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
     admitted: admission::AdmittedComposedUnit<'_>,
     mut catalogs: catalogs::ComposedCatalogs,
-) -> Result<LoweredPsi, LoweringError> {
+) -> Result<ComposedLowered, LoweringError> {
     let entry = admitted.entry;
+    let mut next_value = catalogs.next_value;
     let entry_parameters = entry
         .scalar_parameters
         .iter()
-        .enumerate()
-        .map(|(index, parameter)| {
+        .map(|parameter| {
             Ok(ValueDeclaration {
-                id: value_id(dense_identity(index)?),
+                id: value_id(allocate_dense(&mut next_value)?),
                 scalar_type: terminal_scalar_type(parameter.primitive_type)?,
             })
         })
@@ -29,7 +29,7 @@ pub(super) fn emit_composed_unit_control(
     let structural_parameters = lower_unit_parameters(
         &entry.structural_parameters,
         &catalogs.type_ids,
-        &[],
+        &catalogs.domain_ids,
         &mut next_place,
     )?;
     let claims = super::super::claims::lower_unit_entry_claims(
@@ -63,13 +63,12 @@ pub(super) fn emit_composed_unit_control(
     else {
         unreachable!("admission retained one conditional entry")
     };
-    let state_ids = [block_id(1), block_id(2), block_id(3)];
-    let mut next_block = 4_u64;
-    let mut next_value = u64::try_from(entry_parameters.len())
-        .map_err(|_| LoweringError::Unsupported("composed Unit scalar arity exceeds u64"))?
-        + 1;
-    let mut next_edge = 1_u64;
-    let mut entry_operations = OperationBuffer::new(0);
+    let mut next_block = catalogs.next_block;
+    let state_ids = (0..3)
+        .map(|_| Ok(block_id(allocate_dense(&mut next_block)?)))
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let mut next_edge = catalogs.next_edge;
+    let mut entry_operations = OperationBuffer::new(catalogs.next_operation - 1);
     for (binding_index, binding) in entry.bindings.iter().enumerate() {
         let ordinal = u32::try_from(binding_index)
             .map_err(|_| LoweringError::Unsupported("composed Unit binding index exceeds u32"))?;
@@ -125,33 +124,20 @@ pub(super) fn emit_composed_unit_control(
     }];
     let mut source_call_occurrences = Vec::new();
     for (state, block) in admitted.leaves.into_iter().zip(&state_ids[1..]) {
-        let (lowered_block, mut occurrences) = match &state.operations[0] {
-            CheckedUnitEffectOperationPlan::BoundaryCall { .. } => emit_boundary_leaf(
-                checked,
-                plan.machine,
-                state,
-                *block,
-                &mut catalogs,
-                &structural_parameters,
-                &claim_bindings,
-                &[],
-                &mut next_value,
-                &mut next_block,
-                &mut next_operation,
-                &mut next_edge,
-            )?,
-            CheckedUnitEffectOperationPlan::CallUnit { .. } => {
-                let (block, occurrences) = internal_calls::emission::emit_leaf(
-                    state,
-                    *block,
-                    &catalogs.internal_targets,
-                    &mut next_operation,
-                    &mut next_edge,
-                )?;
-                (vec![block], occurrences)
-            }
-            _ => unreachable!("admission retained one exact leaf call"),
-        };
+        let (lowered_block, mut occurrences) = emit_call_leaf(
+            checked,
+            plan.machine,
+            state,
+            *block,
+            &mut catalogs,
+            &structural_parameters,
+            &claim_bindings,
+            &[],
+            &mut next_value,
+            &mut next_block,
+            &mut next_operation,
+            &mut next_edge,
+        )?;
         blocks.extend(lowered_block);
         source_call_occurrences.append(&mut occurrences);
     }
@@ -212,20 +198,15 @@ pub(super) fn emit_composed_unit_control(
             outcome_specific_ensures: Vec::new(),
         },
     };
-    let mut machines = vec![machine];
-    machines.extend(internal_calls::emission::emit_targets(
-        checked,
-        &catalogs.internal_targets,
-        &catalogs.type_ids,
-        &catalogs.service_ids,
-        &mut next_operation,
-        &mut next_block,
-        &mut next_edge,
-    )?);
-    finish_module(machines, catalogs, source_call_occurrences)
+    finish_module(
+        plan.machine,
+        vec![machine],
+        catalogs,
+        source_call_occurrences,
+    )
 }
 
-pub(crate) fn emit_boundary_leaf(
+pub(crate) fn emit_call_leaf(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: &checked_trees::CheckedComposedUnitControlStatePlan,
@@ -248,33 +229,20 @@ pub(crate) fn emit_boundary_leaf(
         blocks: Vec::new(),
     };
     let mut values = scalar_parameters.to_vec();
-    for operation in &state.operations {
-        let mut calls = catalogs.scalar_calls.emission_context();
-        let arguments = evaluation.arguments(
-            checked,
-            machine,
-            state.state,
-            operation,
-            &mut values,
-            next_value,
-            next_block,
-            next_edge,
-            &mut operations,
-            &mut calls,
-        )?;
-        catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
-        emit_boundary_call_operation(
-            state,
-            operation,
-            &catalogs.lowered_boundaries,
-            &catalogs.type_ids,
-            &catalogs.structural_types,
-            parameters,
-            claim_bindings,
-            arguments.as_deref(),
-            &mut operations,
-        )?;
-    }
+    emit_call_operations(
+        checked,
+        machine,
+        state,
+        catalogs,
+        parameters,
+        claim_bindings,
+        &mut evaluation,
+        &mut values,
+        next_value,
+        next_block,
+        next_edge,
+        &mut operations,
+    )?;
     *next_operation = operations.next_identity;
     evaluation.blocks.push(Block {
         id: evaluation.current,
@@ -286,6 +254,63 @@ pub(crate) fn emit_boundary_leaf(
         },
     });
     Ok((evaluation.blocks, operations.source_calls))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn emit_call_operations(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: &checked_trees::CheckedComposedUnitControlStatePlan,
+    catalogs: &mut catalogs::ComposedCatalogs,
+    parameters: &[StructuralParameterDeclaration],
+    claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
+    evaluation: &mut super::super::argument_evaluation::Evaluation,
+    values: &mut Vec<ValueDeclaration>,
+    next_value: &mut u64,
+    next_block: &mut u64,
+    next_edge: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<(), LoweringError> {
+    for operation in &state.operations {
+        let mut calls = catalogs.scalar_calls.emission_context();
+        let arguments = evaluation.arguments(
+            checked,
+            machine,
+            state.state,
+            operation,
+            values,
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+            &mut calls,
+        )?;
+        catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+        match operation {
+            CheckedUnitEffectOperationPlan::BoundaryCall { .. } => emit_boundary_call_operation(
+                state,
+                operation,
+                &catalogs.lowered_boundaries,
+                &catalogs.type_ids,
+                &catalogs.structural_types,
+                parameters,
+                claim_bindings,
+                arguments.as_deref(),
+                operations,
+            )?,
+            CheckedUnitEffectOperationPlan::CallUnit { .. } => {
+                internal_calls::emission::emit_call_operation(
+                    state,
+                    operation,
+                    &catalogs.internal_targets,
+                    arguments.as_deref(),
+                    operations,
+                )?
+            }
+            _ => return unsupported("composed Unit operation escaped exact call custody"),
+        }
+    }
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -411,10 +436,18 @@ fn empty_successor(target: BlockId, next_edge: &mut u64) -> Result<SuccessorEdge
 }
 
 pub(super) fn finish_module(
+    source_root: symbols::SymbolHandle,
     mut machines: Vec<TerminalMachine>,
-    catalogs: catalogs::ComposedCatalogs,
-    source_call_occurrences: Vec<LoweredSourceCallOccurrence>,
-) -> Result<LoweredPsi, LoweringError> {
+    mut catalogs: catalogs::ComposedCatalogs,
+    mut source_call_occurrences: Vec<LoweredSourceCallOccurrence>,
+) -> Result<ComposedLowered, LoweringError> {
+    let mut source_machine_ids = catalogs.scalar_calls.machine_ids.clone();
+    if !source_machine_ids
+        .iter()
+        .any(|(source, _)| *source == source_root)
+    {
+        source_machine_ids.push((source_root, machine_id(1)));
+    }
     for machine in &mut machines {
         machine.blocks.sort_by_key(|block| block.id);
     }
@@ -429,6 +462,17 @@ pub(super) fn finish_module(
         .ok_or(LoweringError::Unsupported(
             "composed Unit emission produced no entry machine",
         ))?;
+    if let Some(mut lowered) = catalogs.shared_units.take() {
+        if lowered.semantic_module.entry != entry {
+            return unsupported("shared Unit module lost its reserved composed entry");
+        }
+        machines.append(&mut lowered.semantic_module.machines);
+        lowered.semantic_module.machines = machines;
+        source_call_occurrences.append(&mut lowered.source_call_occurrences);
+        lowered.source_call_occurrences = source_call_occurrences;
+        finalize_operation_proofs(&mut lowered)?;
+        return retain_source_owners(lowered, source_machine_ids);
+    }
     let mut lowered = LoweredPsi {
         semantic_module: TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
@@ -465,5 +509,41 @@ pub(super) fn finish_module(
     };
     catalogs.scalar_calls.append_to(&mut lowered)?;
     finalize_operation_proofs(&mut lowered)?;
-    Ok(lowered)
+    retain_source_owners(lowered, source_machine_ids)
+}
+
+fn retain_source_owners(
+    terminal: LoweredPsi,
+    source_machine_ids: Vec<(symbols::SymbolHandle, MachineId)>,
+) -> Result<ComposedLowered, LoweringError> {
+    if source_machine_ids.len() != terminal.semantic_module.machines.len()
+        || source_machine_ids
+            .iter()
+            .enumerate()
+            .any(|(index, (source, id))| {
+                source_machine_ids[..index]
+                    .iter()
+                    .any(|(prior_source, prior_id)| prior_source == source || prior_id == id)
+            })
+    {
+        return unsupported("composed source owners do not match its exact machine catalog");
+    }
+    let source_machine_ids = terminal
+        .semantic_module
+        .machines
+        .iter()
+        .map(|machine| {
+            source_machine_ids
+                .iter()
+                .find(|(_, id)| *id == machine.id)
+                .copied()
+                .ok_or(LoweringError::Unsupported(
+                    "composed emitted machine has no exact source owner",
+                ))
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    Ok(ComposedLowered {
+        terminal,
+        source_machine_ids,
+    })
 }

@@ -3074,10 +3074,30 @@ dynamic-realization machines. Operation proofs are completed on the assembled
 module. Closed-sum payload execution still requires interpreter case inspection;
 operand support does not supply that missing runtime carrier.
 
-Later result initializers, returned calls, and ordinary internal Unit calls in
-composed control still need connections to that shared evaluator. Existing
-control-state signature restrictions remain; operand evaluation does not itself
-add general scalar state-argument transport or computed dispatch guards.
+Ordinary Unit-call leaves in the three-state, prefixed, and nested acyclic
+control routes use that evaluator too. A control-state Unit-call prefix completes
+before its guard; the guard and successors use the retained source values after
+operand evaluation. The callee's parameters, statements, transitive calls,
+providers, and normal cleanup come from the same complete Unit-body lowering as
+standalone Unit machines. Free callees keep no attachment; a static data
+qualifier does not manufacture a receiver.
+
+The composed root and its ordinary callees select one type, boundary, service,
+and helper catalog before assigning identities. Scalar helpers shared by root
+operands and callee bodies have one machine identity. The root graph consumes the
+shared identity counters and is inserted before proof finalization; independently
+lowered modules are not concatenated or relocated. Complete Unit-body lowering
+replaces the former parameterless-only composed target emitter.
+The exact source-to-machine map survives dispatch, so callee suspension,
+conformance, and float-source metadata are selected with their actual owners
+rather than treating the composed root as the entire source closure.
+
+Later result initializers and returned calls still need connections to the shared
+evaluator. Internal Unit calls in dynamic-result and closed-sum continuations,
+structural arguments on composed internal calls, and scalar-dependent Unit crash
+predicates remain separate implementation work. Existing control-state signature
+restrictions remain; operand evaluation does not itself add general scalar
+state-argument transport or computed dispatch guards.
 
 Computed Boolean guards complete before either branch destination starts. A
 private dispatch block consumes the completed Boolean and retains the source

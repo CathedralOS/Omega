@@ -11,6 +11,19 @@ pub(crate) struct ComposedScalarCalls {
 }
 
 impl ComposedScalarCalls {
+    pub(super) fn from_shared(
+        machine_ids: Vec<(symbols::SymbolHandle, MachineId)>,
+        requirement_counts: Vec<(symbols::SymbolHandle, usize)>,
+        next_call_obligation: u64,
+    ) -> Self {
+        Self {
+            machine_ids,
+            requirement_counts,
+            next_call_obligation,
+            prepared: Vec::new(),
+        }
+    }
+
     pub(crate) fn emission_context(&self) -> CallEmissionContext<'_> {
         CallEmissionContext {
             machine_ids: &self.machine_ids,
@@ -178,7 +191,7 @@ fn selected_roots(
     Ok(pending)
 }
 
-fn selected_targets(
+pub(super) fn selected_targets(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     states: &[checked_trees::CheckedComposedUnitControlStatePlan],

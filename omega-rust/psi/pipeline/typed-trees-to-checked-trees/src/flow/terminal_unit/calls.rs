@@ -2441,6 +2441,36 @@ pub(super) fn fused_service_scalar_signature(
     )
 }
 
+fn scalar_parameter_signature(
+    program: &TypedTrees,
+    position: usize,
+    parameter: &StateParameter,
+) -> Option<CheckedStructuralScalarParameterPlan> {
+    if parameter.is_self || parameter.is_const || parameter.is_mutable {
+        return None;
+    }
+    Some(CheckedStructuralScalarParameterPlan {
+        source_position: u32::try_from(position).ok()?,
+        primitive_type: program.primitive_type_reference(parameter.type_reference)?,
+    })
+}
+
+pub(super) fn free_scalar_signature(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    binders: &[(SymbolHandle, String)],
+) -> Option<Vec<CheckedStructuralScalarParameterPlan>> {
+    if !binders.is_empty() {
+        return None;
+    }
+    program
+        .state_parameters(state)
+        .iter()
+        .enumerate()
+        .map(|(position, parameter)| scalar_parameter_signature(program, position, parameter))
+        .collect()
+}
+
 pub(super) fn free_fused_service_scalar_signature(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
@@ -2460,11 +2490,11 @@ pub(super) fn free_fused_service_scalar_signature(
             return None;
         }
         let source_position = u32::try_from(position).ok()?;
-        if let Some(primitive_type) = program.primitive_type_reference(parameter.type_reference) {
-            scalar_parameters.push(CheckedStructuralScalarParameterPlan {
-                source_position,
-                primitive_type,
-            });
+        if program
+            .primitive_type_reference(parameter.type_reference)
+            .is_some()
+        {
+            scalar_parameters.push(scalar_parameter_signature(program, position, parameter)?);
             continue;
         }
         if typed_trees::service::exact_bound_service_requirement(program, parameter.type_reference)
@@ -2727,14 +2757,11 @@ pub(super) fn structural_scalar_signature(
     let mut scalar_parameters = Vec::new();
     for (position, parameter) in parameters.iter().enumerate() {
         let source_position = u32::try_from(position).ok()?;
-        if let Some(primitive_type) = program.primitive_type_reference(parameter.type_reference) {
-            if parameter.is_self || parameter.is_const || parameter.is_mutable {
-                return None;
-            }
-            scalar_parameters.push(CheckedStructuralScalarParameterPlan {
-                source_position,
-                primitive_type,
-            });
+        if program
+            .primitive_type_reference(parameter.type_reference)
+            .is_some()
+        {
+            scalar_parameters.push(scalar_parameter_signature(program, position, parameter)?);
             continue;
         }
         if parameter.is_const {

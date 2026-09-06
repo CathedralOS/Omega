@@ -219,7 +219,7 @@ fn multi_prefixed_control_rejects_second_edge_corruption() {
 }
 
 #[test]
-fn multi_prefixed_control_retains_its_internal_target_after_all_root_blocks() {
+fn multi_prefixed_control_retains_its_internal_target_with_disjoint_root_blocks() {
     let checked = checked_multi_prefixed_internal_control();
     let lowered = lower_machine(&checked, "Root::enter")
         .expect("multi-prefix internal-call graph should lower");
@@ -228,7 +228,16 @@ fn multi_prefixed_control_retains_its_internal_target_after_all_root_blocks() {
     };
     assert_eq!(root.blocks.len(), 5);
     assert_eq!(target.blocks.len(), 1);
-    assert_eq!(target.blocks[0].id.get(), 6);
+    let mut block_ids = root
+        .blocks
+        .iter()
+        .chain(&target.blocks)
+        .map(|block| block.id.get())
+        .collect::<Vec<_>>();
+    block_ids.sort_unstable();
+    assert_eq!(block_ids, vec![1, 2, 3, 4, 5, 6]);
+    assert_eq!(target.blocks[0].id.get(), 1);
+    assert_eq!(root.entry, root.blocks[0].id);
     for leaf in &root.blocks[3..] {
         assert!(matches!(
             leaf.operations.as_slice(),

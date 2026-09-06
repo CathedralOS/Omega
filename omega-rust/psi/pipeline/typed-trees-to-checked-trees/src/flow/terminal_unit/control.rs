@@ -1058,7 +1058,11 @@ fn build_checked_machine_with(
                     free_selected_operator_structural_signature(program, shapes, state, &binders)?;
                 (None, structural, Vec::new())
             } else {
-                return None;
+                (
+                    None,
+                    Vec::new(),
+                    free_scalar_signature(program, state, &binders)?,
+                )
             }
         } else if carries_fused_service_parameter {
             let (attachment, structural, scalar) = fused_service_scalar_signature(
