@@ -1031,17 +1031,28 @@ pub(super) fn build_call_operation(
         let [argument] = structural_arguments.as_slice() else {
             return None;
         };
-        let source =
-            caller_parameters.get(usize::try_from(argument.source_parameter_index()?).ok()?)?;
+        let source_matches = if let Some(index) = argument.source_parameter_index() {
+            let source = caller_parameters.get(usize::try_from(index).ok()?)?;
+            source.type_identity == argument.type_identity
+                && source.multiplicity == Multiplicity::Affine
+                && source.access == CheckedStructuralAccess::Owned
+                && source.qualifications.is_empty()
+        } else if let Some(ordinal) = argument.source_structural_result_binding_ordinal() {
+            caller_structural_results.iter().any(|(source, _)| {
+                source.binding_ordinal == ordinal
+                    && source.statement_index < coordinate.statement_index
+                    && source.type_identity == argument.type_identity
+                    && source.multiplicity == Multiplicity::Affine
+            })
+        } else {
+            false
+        };
         if target.state != target_state.symbol
             || target.result.type_identity != result.type_identity
             || result.multiplicity != Multiplicity::Affine
             || target.scalar_parameters != scalar_parameters
             || target.structural_parameter.type_identity != argument.type_identity
-            || source.type_identity != argument.type_identity
-            || source.multiplicity != Multiplicity::Affine
-            || source.access != CheckedStructuralAccess::Owned
-            || !source.qualifications.is_empty()
+            || !source_matches
             || argument.access != CheckedStructuralAccess::Owned
             || !argument.path.is_empty()
             || !transfers.is_empty()
@@ -1867,7 +1878,12 @@ pub(super) fn structural_call_arguments(
                         .is_empty()
             });
             if target_machine.supply_mode != MachineSupplyMode::CheckedBody
-                || !is_unit(program, target_state.return_type)
+                || (!is_unit(program, target_state.return_type)
+                    && facts
+                        .flow
+                        .terminal_structural_returns
+                        .claim_free_affine_for_machine(target_machine.symbol)
+                        .is_none())
                 || usize::try_from(result.statement_index).ok()? >= call.statement_index
                 || result.multiplicity != Multiplicity::Affine
                 || !place.segments.is_empty()

@@ -500,7 +500,13 @@ fn assemble_unit_closure(
                             "Unit call does not match the exact checked target state, contract, and reach",
                         );
                     }
-                    structural_calls::validate_consumer(checked, machine, operation, target)?;
+                    structural_calls::validate_consumer(
+                        checked,
+                        machine,
+                        operation,
+                        &target.structural_parameters,
+                        &target.entry_claims,
+                    )?;
                 }
                 CheckedUnitEffectOperationPlan::StructuralCall { .. } => {
                     structural_calls::validate(checked, machine, operation)?;
@@ -1863,7 +1869,7 @@ fn assemble_unit_closure(
                         &structural_types,
                         &type_ids,
                         &machine_ids,
-                        structural_result_places.len(),
+                        &structural_result_places,
                         &mut next_place,
                         &mut operations,
                     )?;

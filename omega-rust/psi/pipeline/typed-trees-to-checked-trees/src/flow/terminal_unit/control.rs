@@ -7,7 +7,7 @@ use checked_trees::{
 };
 
 mod call_occurrences;
-mod scalar_sequence;
+mod statement_sequence;
 pub(super) use call_occurrences::{outer_calls, tail_call};
 
 pub(crate) fn build_checked_structural_unit_control_plans(
@@ -1034,6 +1034,9 @@ fn build_checked_machine_with(
         .then(|| checked_unit_structural_result_local(program, shapes, statements, &binders))
         .flatten();
     let structural_result_symbol = structural_result_local.as_ref().map(|(_, symbol)| *symbol);
+    let has_ordinary_structural_result = statements
+        .iter()
+        .any(|statement| statement_sequence::has_structural_result(program, facts, statement));
     let carries_fused_service_parameter = program.state_parameters(state).iter().any(|parameter| {
         typed_trees::service::exact_bound_service_requirement(program, parameter.type_reference)
             .is_some()
@@ -1052,7 +1055,8 @@ fn build_checked_machine_with(
                 (None, structural, scalar)
             } else if (selected_scalar_result_local.is_some()
                 || selected_structural_result_local.is_some()
-                || structural_result_local.is_some())
+                || structural_result_local.is_some()
+                || has_ordinary_structural_result)
                 && !carries_scalar_parameter
             {
                 let structural =
@@ -1179,19 +1183,19 @@ fn build_checked_machine_with(
             )
         })
         .flatten();
-    let scalar_sequence = if selected_scalar_result_local.is_none()
+    let statement_sequence = if selected_scalar_result_local.is_none()
         && selected_structural_result_local.is_none()
-        && structural_result_local.is_none()
         && selected_ieee_float_fma_result_locals.is_none()
         && construction.is_none()
         && affine_scalar_record_local.is_none()
         && write_only_store.is_none()
         && structural_scalar_field_store.is_none()
-        && scalar_sequence::has_scalar_statement_shape(program, state)
+        && statement_sequence::has_statement_shape(program, facts, state)
     {
-        Some(scalar_sequence::build(
+        Some(statement_sequence::build(
             program,
             facts,
+            shapes,
             machine,
             state,
             &structural_parameters,
@@ -1201,7 +1205,7 @@ fn build_checked_machine_with(
     } else {
         None
     };
-    let scalar_expression_locals = if scalar_sequence.is_some() {
+    let scalar_expression_locals = if statement_sequence.is_some() {
         Vec::new()
     } else if selected_scalar_result_local.is_some() || scalar_result_local.is_some() {
         scalar_expression_local_suffix(program, facts, state, statements)?
@@ -1209,7 +1213,7 @@ fn build_checked_machine_with(
         super::scalar_locals::scalar_expression_local_prefix(program, facts, state, statements)
             .unwrap_or_default()
     };
-    let scalar_result_local_count = scalar_sequence
+    let scalar_result_local_count = statement_sequence
         .as_ref()
         .map(|sequence| sequence.local_count)
         .unwrap_or_else(|| {
@@ -1276,7 +1280,7 @@ fn build_checked_machine_with(
         let expected_call_count = call_statements.len().checked_add(usize::from(
             scalar_result_local.is_some() || structural_result_local.is_some(),
         ))?;
-        if scalar_sequence.is_none()
+        if statement_sequence.is_none()
             && (calls.len() != expected_call_count
                 || call_statements
                     .iter()
@@ -1379,6 +1383,9 @@ fn build_checked_machine_with(
     );
     admitted_local_symbols.extend(selected_structural_result_symbol);
     admitted_local_symbols.extend(structural_result_symbol);
+    if let Some(sequence) = &statement_sequence {
+        admitted_local_symbols.extend(&sequence.structural_local_symbols);
+    }
 
     let mut operations = trivial_affine_locals
         .iter()
@@ -1406,7 +1413,7 @@ fn build_checked_machine_with(
             },
         );
     }
-    if scalar_sequence.is_none()
+    if statement_sequence.is_none()
         && scalar_result_local.is_none()
         && selected_scalar_result_local.is_none()
     {
@@ -1423,7 +1430,7 @@ fn build_checked_machine_with(
         );
     }
     operations.reserve(calls.len() + 1);
-    if let Some(sequence) = scalar_sequence {
+    if let Some(sequence) = statement_sequence {
         operations.extend(sequence.operations);
     } else if let Some(store) = write_only_store {
         if let Some((application, result)) = selected_scalar_result_local {

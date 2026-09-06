@@ -3808,8 +3808,8 @@ input at `ReturnStructural`, preserving its opaque identity across fuel
 exhaustion. Independent verification follows the complete owned type graph;
 native fragment width does not determine whole-value transfer validity.
 
-An ordinary call to that producer can initialize the first immutable structural
-local in a free or attached Unit body. The checked `StructuralCall` retains its
+An ordinary call to that producer can initialize an immutable structural local
+in a free or attached Unit body. The checked `StructuralCall` retains its
 authored occurrence, exact target contract, scalar argument evaluations, and
 whole owned input separately from boundary and selected-operator calls. Its
 callee joins the shared Unit closure's type and machine catalogs, including
@@ -3823,9 +3823,10 @@ analysis counts both the invocation and callee body; suspended execution resumes
 without replaying the transfer. Whole affine results can also feed this Terminal
 operation directly.
 
-The first ordinary structural initializer can pass its result to a later
-ordinary Unit call. Its checked argument names the exact result-binding ordinal,
-not a parameter or construction-local substitute. Call-initialized affine
+Ordinary structural initializers can pass their results to later ordinary Unit
+calls or further claim-free affine producers. Their checked arguments name the
+exact result-binding ordinal, not a parameter or construction-local substitute.
+Call-initialized affine
 locals participate in the source permission timeline: establishment precedes
 the consuming move, and a second move is rejected. Lowering rejoins the authored
 local, producer, target parameter, and operation-result place. A transferred
@@ -3835,9 +3836,19 @@ verifier rejects forged producers, uses before production, duplicate moves,
 and conflicting cleanup. Result types and crash-route roots use the same
 shared catalog and storage identities as the calls.
 
+One statement sequencer preserves authored order across ordinary structural
+initializers, primitive locals, and Unit calls. Scalar and structural bindings
+have independent dense ordinals; statement coordinates remain the authored
+positions, including calls before or between initializers. A result-bearing
+consumer reads only an earlier live result place and establishes a distinct
+result place after its callee returns. Several unconsumed results are disposed
+in reverse production order before older live parameters. Lowering checks the
+exact authored source even when substituting a different same-typed live value
+would satisfy Terminal ownership rules.
+
 This does not widen the native call ABI or admit nested structural operands,
-later structural initializers, result projections, or borrowed/qualified/linear
-result obligations. Those source uses still need complete evaluator, storage,
+result projections, or borrowed/qualified/linear result obligations. Those
+source uses still need complete evaluator, storage,
 loan, and claim-transfer plans before their gates can be removed.
 
 The first internal structural-call slice composes two such checked machines. A

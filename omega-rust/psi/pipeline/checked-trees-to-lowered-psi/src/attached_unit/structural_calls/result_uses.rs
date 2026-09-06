@@ -39,11 +39,16 @@ pub(crate) fn validate_usage(
     }
     let mut consumed = false;
     for operation in &caller.operations {
-        let CheckedUnitEffectOperationPlan::CallUnit {
+        let (CheckedUnitEffectOperationPlan::CallUnit {
             coordinate,
             structural_arguments,
             ..
-        } = operation
+        }
+        | CheckedUnitEffectOperationPlan::StructuralCall {
+            coordinate,
+            structural_arguments,
+            ..
+        }) = operation
         else {
             continue;
         };
@@ -78,18 +83,28 @@ pub(crate) fn validate_consumer(
     checked: &CheckedTrees,
     caller: &CheckedUnitEffectMachinePlan,
     operation: &CheckedUnitEffectOperationPlan,
-    target: &CheckedUnitEffectMachinePlan,
+    target_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
+    target_entry_claims: &[checked_trees::CheckedUnitEntryClaimPlan],
 ) -> Result<(), LoweringError> {
-    let CheckedUnitEffectOperationPlan::CallUnit {
-        coordinate,
-        structural_arguments,
-        claim_transfers,
-        ..
-    } = operation
-    else {
-        return unsupported("ordinary structural result use requires a Unit call");
+    let (coordinate, structural_arguments, claim_transfers) = match operation {
+        CheckedUnitEffectOperationPlan::CallUnit {
+            coordinate,
+            structural_arguments,
+            claim_transfers,
+            ..
+        } => (coordinate, structural_arguments, claim_transfers.as_slice()),
+        CheckedUnitEffectOperationPlan::StructuralCall {
+            coordinate,
+            structural_arguments,
+            ..
+        } => (coordinate, structural_arguments, &[][..]),
+        _ => {
+            return unsupported(
+                "ordinary structural result use requires a Unit or structural call",
+            );
+        }
     };
-    if structural_arguments.len() != target.structural_parameters.len() {
+    if structural_arguments.len() != target_parameters.len() {
         return unsupported("Unit structural argument arity disagrees with its target");
     }
     let authored =
@@ -98,7 +113,7 @@ pub(crate) fn validate_consumer(
     let statements = checked.statement_table.statements(state.statement_nodes);
     for (index, (argument, parameter)) in structural_arguments
         .iter()
-        .zip(&target.structural_parameters)
+        .zip(target_parameters)
         .enumerate()
     {
         let expression = authored
@@ -119,6 +134,18 @@ pub(crate) fn validate_consumer(
             else {
                 return unsupported("Unit structural result producer has no authored local");
             };
+            if local.is_mutable
+                || !local.symbol.is_valid()
+                || checked
+                    .typed
+                    .normalized_type_identity(local.type_reference)
+                    .into_string()
+                    != result.type_identity
+            {
+                return unsupported(
+                    "Unit structural result producer disagrees with its immutable authored local",
+                );
+            }
             let names_result = expression.is_some_and(|expression| matches!(
                 checked.expression_table.expression(expression),
                 ExpressionNode::Name(name) if local.symbol.is_valid() && name.symbol == local.symbol
@@ -145,8 +172,7 @@ pub(crate) fn validate_consumer(
             || parameter.is_self
             || !parameter.qualifications.is_empty()
             || parameter.fused_service_erasure.is_some()
-            || target
-                .entry_claims
+            || target_entry_claims
                 .iter()
                 .any(|claim| claim.parameter_index as usize == index)
             || claim_transfers

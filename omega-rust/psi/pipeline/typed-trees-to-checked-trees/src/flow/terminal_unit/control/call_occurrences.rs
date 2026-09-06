@@ -93,7 +93,10 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
                     && (call.statement_index == 0
                         || program
                             .primitive_type_reference(local.type_reference)
-                            .is_some()) =>
+                            .is_some()
+                        || statement_sequence::has_structural_result(
+                            program, facts, statement,
+                        )) =>
             {
                 if !program
                     .expression_table
