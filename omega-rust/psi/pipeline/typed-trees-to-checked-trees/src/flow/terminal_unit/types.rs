@@ -25,6 +25,10 @@ pub(super) fn return_unit_affine_discards(
                 structural_arguments,
                 ..
             }
+            | CheckedUnitEffectOperationPlan::ScalarCall {
+                structural_arguments,
+                ..
+            }
             | CheckedUnitEffectOperationPlan::BoundaryCall {
                 structural_arguments,
                 ..
@@ -53,7 +57,6 @@ pub(super) fn return_unit_affine_discards(
                 .filter_map(|argument| argument.source_parameter_index())
                 .collect::<Vec<_>>(),
             CheckedUnitEffectOperationPlan::PortWrite { .. }
-            | CheckedUnitEffectOperationPlan::ScalarCall { .. }
             | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
             | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
             | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }

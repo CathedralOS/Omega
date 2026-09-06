@@ -12,6 +12,21 @@ impl<'checked> CheckedScalarCallee<'checked> {
         checked: &'checked CheckedTrees,
         source: symbols::SymbolHandle,
     ) -> Result<Self, LoweringError> {
+        let callee = Self::find_for_unit_call(checked, source)?;
+        if let Self::Boundary(boundary) = &callee
+            && (!boundary.structural_parameters.is_empty() || !boundary.entry_claims.is_empty())
+        {
+            return unsupported("scalar boundary callee requires structural call custody");
+        }
+        Ok(callee)
+    }
+
+    /// Unit operations retain an explicit structural transfer lane. Scalar
+    /// computation edges must continue to use the scalar-only `find` entry.
+    pub(crate) fn find_for_unit_call(
+        checked: &'checked CheckedTrees,
+        source: symbols::SymbolHandle,
+    ) -> Result<Self, LoweringError> {
         let mut graphs = checked
             .facts
             .flow
@@ -33,11 +48,6 @@ impl<'checked> CheckedScalarCallee<'checked> {
         match selected {
             (Some(graph), None) => Ok(Self::Graph(graph)),
             (None, Some(boundary)) => {
-                // Ordinary scalar calls have no structural-argument or claim
-                // lane. A static attachment is metadata, not an erased receiver.
-                if !boundary.structural_parameters.is_empty() || !boundary.entry_claims.is_empty() {
-                    return unsupported("scalar boundary callee requires structural call custody");
-                }
                 crate::boundary_scalar_return::validate_boundary_scalar_return(checked, boundary)?;
                 Ok(Self::Boundary(boundary))
             }

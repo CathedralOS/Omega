@@ -3119,9 +3119,8 @@ returned scalar. Source validation rejoins the initializer, its captured call,
 the declared result carrier, and the returned local independently of operand
 graphs. The emitted root and scalar helpers retain their exact source owners.
 
-Ordinary Unit closures also retain these boundary-return bodies as callees when
-their authored entry signature contains only immutable scalar values (or is
-empty). The body remains a boundary-return
+Ordinary Unit closures also retain these boundary-return bodies as callees with
+immutable scalar values and structural parameters. The body remains a boundary-return
 plan, not a manufactured scalar graph. Its attachment, bodyless boundary,
 service ceiling, nested scalar helpers, result, and crash contract join the same
 module before identities and proofs are finalized. Repeated calls share the
@@ -3136,9 +3135,20 @@ that conjunction against its evaluated actuals before entering the wrapper.
 Missing predicates and range rows reject rather than disappear. Named-root
 lowering also retains mixed scalar/structural signatures, including whole-root
 claim settlement and scalar-only entry relations. Structural qualifications
-remain in the structural signature, not scalar proof slots. Structural parameters
-and claims cannot yet enter the ordinary scalar-call lane; requirements over
-structural observations and broader result guarantees remain separate work.
+remain in the structural signature, not scalar proof slots. Direct checked scalar
+calls retain structural arguments and exact claim transfers, emitting the existing
+`CallStructuralScalar` operation. Their source parameter identities, projection
+paths, and transfer events rejoin the authored call; scalar result production
+does not discard structural custody. Callee claims use machine-local dense IDs,
+independent of the module-wide value and operation identity ranges.
+Scalar-only computed edges still reject structural signatures, even when another
+direct call has retained that same callee in the module. Previously established
+affine structural results use their existing result owner and single-consumer
+cleanup rules; this does not introduce linear result claims. Provider rejection
+retains custody for retry, and an operand crash invokes neither the boundary nor
+cleanup. Construction locals and nested structural-result expressions as wrapper
+arguments, structural-observation requirements, broader result guarantees, and
+mixed structural-field crash predicates remain separate work.
 
 Composed-control boundary leaves use the same evaluator, including the existing
 three-state, prefixed, nested acyclic, dynamic-result continuation, and closed-sum
@@ -3857,7 +3867,8 @@ without replaying the transfer. Whole affine results can also feed this Terminal
 operation directly.
 
 Ordinary structural initializers can pass their results to later ordinary Unit
-calls or further claim-free affine producers. Their checked arguments name the
+calls, scalar-returning boundary wrappers, or further claim-free affine producers.
+Their checked arguments name the
 exact result-binding ordinal, not a parameter or construction-local substitute.
 Call-initialized affine locals participate in the source permission timeline:
 establishment precedes the consuming move, and a second move is rejected.

@@ -18,9 +18,10 @@ pub(super) fn is_supported(
         || !program.expression_table.expression_is_valid(value)
         || program.state_parameters(state).iter().any(|parameter| {
             parameter.is_const
-                || program
+                || (program
                     .primitive_type_reference(parameter.type_reference)
                     .is_some()
+                    && (parameter.is_self || parameter.is_mutable))
         })
     {
         return false;

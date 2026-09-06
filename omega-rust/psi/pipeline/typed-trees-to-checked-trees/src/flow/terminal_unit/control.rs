@@ -1702,6 +1702,10 @@ fn build_checked_machine_with(
                 structural_arguments,
                 ..
             }
+            | CheckedUnitEffectOperationPlan::ScalarCall {
+                structural_arguments,
+                ..
+            }
             | CheckedUnitEffectOperationPlan::BoundaryCall {
                 structural_arguments,
                 ..
@@ -1734,7 +1738,6 @@ fn build_checked_machine_with(
                 })
                 .collect::<Vec<_>>(),
             CheckedUnitEffectOperationPlan::PortWrite { .. }
-            | CheckedUnitEffectOperationPlan::ScalarCall { .. }
             | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
             | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
             | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
@@ -2031,21 +2034,21 @@ fn bind_scalar_call_result(
             scalar_arguments,
             structural_arguments,
             claim_transfers,
-        } if structural_arguments.is_empty() && claim_transfers.is_empty() => {
-            Some(CheckedUnitEffectOperationPlan::ScalarCall {
-                coordinate,
-                result,
-                target_machine,
-                target_state,
-                target_contract_report_fingerprint,
-                target_contract_commitment: facts
-                    .contract_plans
-                    .for_machine(target_machine)?
-                    .commitment,
-                service_reach,
-                scalar_arguments,
-            })
-        }
+        } => Some(CheckedUnitEffectOperationPlan::ScalarCall {
+            coordinate,
+            result,
+            target_machine,
+            target_state,
+            target_contract_report_fingerprint,
+            target_contract_commitment: facts
+                .contract_plans
+                .for_machine(target_machine)?
+                .commitment,
+            service_reach,
+            scalar_arguments,
+            structural_arguments,
+            claim_transfers,
+        }),
         _ => None,
     }
 }

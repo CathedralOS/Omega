@@ -10,6 +10,14 @@ pub(crate) fn checked_scalar_call_closure(
     checked: &CheckedTrees,
     roots: &[symbols::SymbolHandle],
 ) -> Result<Vec<symbols::SymbolHandle>, LoweringError> {
+    checked_scalar_call_closure_with_structural_roots(checked, roots, &[])
+}
+
+pub(crate) fn checked_scalar_call_closure_with_structural_roots(
+    checked: &CheckedTrees,
+    roots: &[symbols::SymbolHandle],
+    structural_roots: &[symbols::SymbolHandle],
+) -> Result<Vec<symbols::SymbolHandle>, LoweringError> {
     let mut closure = Vec::new();
     for root in roots {
         if !closure.contains(root) {
@@ -46,8 +54,13 @@ pub(crate) fn checked_scalar_call_closure(
         if selection.signature == CheckedTerminalSignatureEligibility::Attached {
             attached_members.push(machine);
         }
-        let callee =
-            crate::scalar_call_closure::callee::CheckedScalarCallee::find(checked, machine)?;
+        let callee = if structural_roots.contains(&machine) {
+            crate::scalar_call_closure::callee::CheckedScalarCallee::find_for_unit_call(
+                checked, machine,
+            )?
+        } else {
+            crate::scalar_call_closure::callee::CheckedScalarCallee::find(checked, machine)?
+        };
         let direct_targets = match callee {
             crate::scalar_call_closure::callee::CheckedScalarCallee::Graph(graph) => graph
                 .states
@@ -69,6 +82,9 @@ pub(crate) fn checked_scalar_call_closure(
             }
         }
         for target in direct_targets.into_iter().chain(computed) {
+            // An independently authorized direct structural root must not make
+            // another caller's scalar-only computation edge discard custody.
+            crate::scalar_call_closure::callee::CheckedScalarCallee::find(checked, target)?;
             if !closure.contains(&target) {
                 closure.push(target);
             }

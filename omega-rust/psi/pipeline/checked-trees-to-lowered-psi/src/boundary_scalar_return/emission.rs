@@ -73,7 +73,9 @@ pub(crate) fn emit_boundary_scalar_return(
             .ok_or(LoweringError::Unsupported(
                 "boundary-return identity range has no first identity",
             ))?;
-    let mut next_claim = first_identity;
+    // Entry claims are machine-local, even when this body is embedded beside
+    // other machines whose operation/value identities use disjoint ranges.
+    let mut next_claim = 1_u64;
     let mut entry_claims = Vec::with_capacity(plan.entry_claims.len());
     let mut claim_bindings = Vec::with_capacity(plan.entry_claims.len());
     for claim in &plan.entry_claims {

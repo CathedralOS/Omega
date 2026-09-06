@@ -471,6 +471,24 @@ pub(super) enum ExpectedCallValueResult<'result> {
     Structural(&'result CheckedUnitStructuralResultBindingPlan),
 }
 
+fn is_registered_boundary_scalar_target(
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    result: PrimitiveType,
+) -> bool {
+    let mut targets = facts
+        .flow
+        .terminal_boundary_scalar_returns
+        .machines
+        .iter()
+        .filter(|plan| plan.machine == machine);
+    targets
+        .next()
+        .is_some_and(|plan| plan.state == state && plan.result_type == result)
+        && targets.next().is_none()
+}
+
 fn boundary_value_result_matches(
     program: &TypedTrees,
     return_type: typed_trees::types::TypeReferenceHandle,
@@ -1075,6 +1093,9 @@ pub(super) fn build_call_operation(
         })
     } else if expected_call_result.is_some()
         && (!structural_arguments.is_empty() || !transfers.is_empty())
+        && !matches!(expected_call_result, Some(ExpectedCallValueResult::Scalar(result))
+            if is_registered_boundary_scalar_target(
+                facts, target_machine.symbol, target_state.symbol, result))
     {
         None
     } else {
@@ -1852,7 +1873,17 @@ pub(super) fn structural_call_arguments(
                         .flow
                         .terminal_structural_returns
                         .claim_free_affine_for_machine(target_machine.symbol)
-                        .is_none())
+                        .is_none()
+                    && !program
+                        .primitive_type_reference(target_state.return_type)
+                        .is_some_and(|result| {
+                            is_registered_boundary_scalar_target(
+                                facts,
+                                target_machine.symbol,
+                                target_state.symbol,
+                                result,
+                            )
+                        }))
                 || usize::try_from(result.statement_index).ok()? > call.statement_index
                 || (matches!(place.root, facts::PlaceRoot::Symbol(_))
                     && usize::try_from(result.statement_index).ok()? == call.statement_index)

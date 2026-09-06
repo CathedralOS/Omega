@@ -57,6 +57,11 @@ pub(crate) fn validate_usage(
             structural_arguments,
             ..
         }
+        | CheckedUnitEffectOperationPlan::ScalarCall {
+            coordinate,
+            structural_arguments,
+            ..
+        }
         | CheckedUnitEffectOperationPlan::StructuralCall {
             coordinate,
             structural_arguments,
@@ -107,6 +112,12 @@ pub(crate) fn validate_consumer(
 ) -> Result<(), LoweringError> {
     let (coordinate, structural_arguments, claim_transfers) = match operation {
         CheckedUnitEffectOperationPlan::CallUnit {
+            coordinate,
+            structural_arguments,
+            claim_transfers,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::ScalarCall {
             coordinate,
             structural_arguments,
             claim_transfers,

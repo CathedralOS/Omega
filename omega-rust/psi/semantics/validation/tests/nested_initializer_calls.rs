@@ -33,6 +33,38 @@ fn free_scalar_initializers_admit_nested_call_evaluation() {
 }
 
 #[test]
+fn mixed_boundary_return_initializers_admit_nested_calls_with_immutable_scalar_formals() {
+    for boundary_crash in ["", "crashes Abort"] {
+        let source = format!(
+            r#"
+            machine abort() -> u16 crashes Abort {{ crash Abort; }}
+            boundary trait PortIo {{}}
+            pub data Receipt [linear] {{ value: u64; }}
+            boundary machine Receipt::settle(self, first: u16, second: u16) -> u16
+            reaches PortIo {boundary_crash} ensures true;
+            data Wrapper {{}}
+            machine Wrapper::measure(receipt: Receipt, value: u16) -> u16
+            reaches PortIo crashes Abort
+            {{ let accepted: u16 = receipt.settle(abort(), value); accepted }}
+        "#
+        );
+        let messages = diagnostics(&source);
+        assert!(messages.is_empty(), "{boundary_crash}: {messages:?}");
+        let messages = diagnostics(&source.replace(
+            "measure(receipt: Receipt, value: u16)",
+            "measure(receipt: Receipt, mut value: u16)",
+        ));
+        assert!(
+            messages
+                .iter()
+                .any(|message| message
+                    .contains("value-call argument cannot itself be a machine call")),
+            "mutable scalar formal remains outside this source family: {messages:?}"
+        );
+    }
+}
+
+#[test]
 fn free_scalar_local_assignments_admit_nested_call_evaluation() {
     let diagnostics = diagnostics(
         "machine identity(input: bool) -> bool { input }

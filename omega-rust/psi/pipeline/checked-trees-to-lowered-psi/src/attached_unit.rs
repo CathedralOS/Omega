@@ -27,8 +27,8 @@ use parameters::lower_unit_scalar_parameter_types;
 pub(super) use parameters::validate_direct_unit_parameter_custody;
 
 use call_closure::{
-    checked_scalar_call_closure, checked_terminal_machine_name, reject_recursive_unit_closure,
-    unique_unit_boundary, validate_unit_operation_sequence,
+    checked_scalar_call_closure_with_structural_roots, checked_terminal_machine_name,
+    reject_recursive_unit_closure, unique_unit_boundary, validate_unit_operation_sequence,
 };
 pub(super) use call_closure::{
     checked_unit_boundary_identity, checked_unit_call_closure_including, unique_unit_machine,
@@ -42,7 +42,7 @@ pub(super) use catalog::{
 };
 use catalog::{
     lower_program_local_root_introductions, lower_provider_candidate_service_ceiling,
-    lower_unit_structural_domains, require_valid_service_row,
+    require_valid_service_row,
 };
 use claims::lower_unit_entry_claims;
 pub(super) use composed_control::dynamic_result::{
@@ -321,17 +321,29 @@ fn assemble_unit_closure(
         .as_ref()
         .map_or_else(Vec::new, |roots| roots.scalar_roots.to_vec());
     let mut selected_scalar_roots = Vec::new();
+    let mut structural_scalar_roots = Vec::new();
     for machine_symbol in &closure {
         for target in crate::scalar_computations::call_targets(checked, *machine_symbol)? {
+            CheckedScalarCallee::find(checked, target)?;
             if !ordinary_scalar_roots.contains(&target) {
                 ordinary_scalar_roots.push(target);
             }
         }
         for operation in &unique_unit_machine(plans, *machine_symbol)?.operations {
             match operation {
-                CheckedUnitEffectOperationPlan::ScalarCall { target_machine, .. } => {
+                CheckedUnitEffectOperationPlan::ScalarCall {
+                    target_machine,
+                    structural_arguments,
+                    claim_transfers,
+                    ..
+                } => {
                     if !ordinary_scalar_roots.contains(target_machine) {
                         ordinary_scalar_roots.push(*target_machine);
+                    }
+                    if (!structural_arguments.is_empty() || !claim_transfers.is_empty())
+                        && !structural_scalar_roots.contains(target_machine)
+                    {
+                        structural_scalar_roots.push(*target_machine);
                     }
                 }
                 CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
@@ -354,7 +366,11 @@ fn assemble_unit_closure(
             }
             roots
         });
-    let scalar_closure = checked_scalar_call_closure(checked, &scalar_roots)?;
+    let scalar_closure = checked_scalar_call_closure_with_structural_roots(
+        checked,
+        &scalar_roots,
+        &structural_scalar_roots,
+    )?;
     if scalar_closure
         .iter()
         .any(|machine| closure.contains(machine) || (external.is_some() && *machine == entry))
@@ -364,8 +380,10 @@ fn assemble_unit_closure(
     let prepared_scalar_machines = scalar_closure
         .iter()
         .map(|machine| {
-            crate::scalar_call_closure::callee::CheckedScalarCallee::find(checked, *machine)?
-                .prepare(checked, *machine, scalar_roots.contains(machine))
+            crate::scalar_call_closure::callee::CheckedScalarCallee::find_for_unit_call(
+                checked, *machine,
+            )?
+            .prepare(checked, *machine, scalar_roots.contains(machine))
         })
         .collect::<Result<Vec<_>, _>>()?;
 
@@ -501,9 +519,26 @@ fn assemble_unit_closure(
                     target_contract_commitment,
                     service_reach,
                     scalar_arguments,
+                    structural_arguments,
+                    claim_transfers,
                 } => {
                     retain_exact_checked_flow_call(checked, machine, *coordinate, *target_state)?;
-                    let target = CheckedScalarCallee::find(checked, *target_machine)?;
+                    let target = CheckedScalarCallee::find_for_unit_call(checked, *target_machine)?;
+                    match &target {
+                        CheckedScalarCallee::Boundary(target) => {
+                            scalar_boundaries::validate_call_source(
+                                checked, machine, operation, target,
+                            )?
+                        }
+                        CheckedScalarCallee::Graph(_)
+                            if !structural_arguments.is_empty() || !claim_transfers.is_empty() =>
+                        {
+                            return unsupported(
+                                "scalar graph call cannot discard structural arguments or claims",
+                            );
+                        }
+                        CheckedScalarCallee::Graph(_) => {}
+                    }
                     let prepared = prepared_scalar_machines
                         .iter()
                         .find(|prepared| prepared.source_machine() == *target_machine)
@@ -778,8 +813,23 @@ fn assemble_unit_closure(
     } else {
         catalog::lower_unit_structural_types(checked, &closure, &boundaries)?
     };
-    let (structural_domains, domain_ids) =
-        lower_unit_structural_domains(checked, &closure, &boundaries, &type_ids)?;
+    let wrapper_domains = prepared_scalar_machines
+        .iter()
+        .filter_map(|callee| match callee {
+            PreparedScalarCallee::Boundary { plan, .. } => Some(plan),
+            _ => None,
+        })
+        .flat_map(|plan| &plan.structural_parameters)
+        .flat_map(|parameter| &parameter.qualifications)
+        .copied()
+        .collect::<Vec<_>>();
+    let (structural_domains, domain_ids) = catalog::lower_unit_structural_domains_including(
+        checked,
+        &closure,
+        &boundaries,
+        &type_ids,
+        &wrapper_domains,
+    )?;
     let (services, service_ids) = if !additional_service_roots.is_empty() {
         catalog::lower_unit_services_including(
             checked,
@@ -1627,7 +1677,12 @@ fn assemble_unit_closure(
                         .ok_or(LoweringError::Unsupported(
                             "Unit scalar call target is absent from the prepared closure",
                         ))?;
-                    let target = CheckedScalarCallee::find(checked, *realization_machine)?;
+                    let target = match operation {
+                        CheckedUnitEffectOperationPlan::ScalarCall { .. } => {
+                            CheckedScalarCallee::find_for_unit_call(checked, *realization_machine)?
+                        }
+                        _ => CheckedScalarCallee::find(checked, *realization_machine)?,
+                    };
                     let target_parameter_types = target.parameter_types()?;
                     if target.entry_state()? != *realization_state
                         || prepared_target.result_type()
@@ -1733,15 +1788,74 @@ fn assemble_unit_closure(
                         operation_id,
                         source_target,
                     )?;
+                    let callee = lookup_machine_id(&machine_ids, *realization_machine)?;
+                    let arguments = arguments.iter().map(|argument| argument.id).collect();
+                    let kind = if let CheckedUnitEffectOperationPlan::ScalarCall {
+                        structural_arguments,
+                        claim_transfers,
+                        ..
+                    } = operation
+                        && (!structural_arguments.is_empty() || !claim_transfers.is_empty())
+                    {
+                        let CheckedScalarCallee::Boundary(target) = &target else {
+                            return unsupported(
+                                "structural scalar call has no structural checked body",
+                            );
+                        };
+                        validate_transfer_shape(
+                            structural_arguments,
+                            claim_transfers,
+                            parameters,
+                            &local_places,
+                            &affine_scalar_record_places,
+                            &structural_result_places,
+                            &target.structural_parameters,
+                            &type_ids,
+                            &structural_types,
+                            &target
+                                .entry_claims
+                                .iter()
+                                .map(|claim| claim.parameter_index)
+                                .collect::<Vec<_>>(),
+                        )?;
+                        OperationKind::CallStructuralScalar {
+                            callee,
+                            arguments,
+                            structural_arguments: lower_structural_arguments(
+                                structural_arguments,
+                                parameters,
+                                &local_places,
+                                &affine_scalar_record_places,
+                                &structural_result_places,
+                                &[],
+                            )?,
+                            claim_transfers: claim_transfers
+                                .iter()
+                                .map(|transfer| {
+                                    Ok(ClaimTransfer {
+                                        claim: lookup_claim_id(
+                                            claim_bindings,
+                                            transfer.claim_identity,
+                                        )?,
+                                        argument_index: transfer.argument_index,
+                                    })
+                                })
+                                .collect::<Result<Vec<_>, LoweringError>>()?,
+                            requirement_obligations,
+                            crash_continuations,
+                        }
+                    } else {
+                        OperationKind::Call {
+                            callee,
+                            arguments,
+                            requirement_obligations,
+                            crash_continuations,
+                        }
+                    };
                     operations.push(Operation {
                         id: operation_id,
                         result: terminal_psi::OperationResult::Scalar(value),
-                        kind: OperationKind::Call {
-                            callee: lookup_machine_id(&machine_ids, *realization_machine)?,
-                            arguments: arguments.iter().map(|argument| argument.id).collect(),
-                            requirement_obligations,
-                            crash_continuations,
-                        },
+                        kind,
                     });
                     scalar_result_values.push(value);
                     continue;
@@ -2998,7 +3112,12 @@ fn assemble_unit_closure(
             let mut emitted = crate::boundary_scalar_return::emit_boundary_scalar_return(
                 checked,
                 plan,
-                Vec::new(),
+                lower_unit_parameters(
+                    &plan.structural_parameters,
+                    &type_ids,
+                    &domain_ids,
+                    &mut next_place,
+                )?,
                 crate::boundary_scalar_return::BoundaryScalarReturnCatalogs {
                     structural_types: &structural_types,
                     type_ids: &type_ids,

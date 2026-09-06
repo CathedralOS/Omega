@@ -508,7 +508,7 @@ pub(super) fn validate_unit_operation_static(
                 &callee.structural_parameters,
                 operation.id,
                 true,
-                StructuralArgumentSourcePolicy::OnlyParameters,
+                StructuralArgumentSourcePolicy::ParametersOrAffineCallResults,
             )?;
             validate_unit_call_contract_places(callee, operation.id)?;
             validate_service_reach(
@@ -1077,6 +1077,9 @@ fn unit_call_contract_propositions(callee: &TerminalMachine) -> impl Iterator<It
 pub(super) enum StructuralArgumentSourcePolicy {
     OnlyParameters,
     ParametersOrByteSequenceLiterals,
+    /// Scalar-result consumers may move a whole claim-free affine call result.
+    /// Construction locals and record establishments are not part of this lane.
+    ParametersOrAffineCallResults,
     /// Unit calls retain construction locals and whole ordinary affine results.
     ParametersOrAffineLocalsAndCallResults,
     /// Whole record establishments and claim-free affine identity call results.
@@ -1158,7 +1161,8 @@ pub(super) fn validate_structural_arguments(
                             structural_type,
                         } if matches!(
                             source_policy,
-                            StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
+                            StructuralArgumentSourcePolicy::ParametersOrAffineCallResults
+                                | StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
                                 | StructuralArgumentSourcePolicy::ParametersOrAffineOperationResults
                         )
                             && argument.path.is_empty()
@@ -1168,10 +1172,12 @@ pub(super) fn validate_structural_arguments(
                                 .flat_map(|block| &block.operations)
                                 .any(|operation| {
                                     operation.id == producer
-                                        && (matches!(
-                                            operation.kind,
-                                            OperationKind::EstablishAffineScalarRecord { .. }
-                                        ) || (matches!(
+                                        && ((source_policy
+                                            != StructuralArgumentSourcePolicy::ParametersOrAffineCallResults
+                                            && matches!(
+                                                operation.kind,
+                                                OperationKind::EstablishAffineScalarRecord { .. }
+                                            )) || (matches!(
                                                 operation.kind,
                                                 OperationKind::CallStructuralWithScalarArguments { .. }
                                             )
