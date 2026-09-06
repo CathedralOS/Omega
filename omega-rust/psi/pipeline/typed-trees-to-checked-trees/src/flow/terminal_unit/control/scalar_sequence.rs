@@ -9,15 +9,23 @@ pub(super) struct ScalarSequence {
 
 pub(super) fn has_scalar_statement_shape(
     program: &TypedTrees,
-    statements: &[StatementNode],
+    state: &typed_trees::state::State,
 ) -> bool {
-    statements.iter().all(|statement| match statement {
-        StatementNode::Call(_) => true,
-        StatementNode::LocalData(local) => program
-            .primitive_type_reference(local.type_reference)
-            .is_some(),
-        _ => false,
-    })
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .enumerate()
+        .all(|(index, statement)| match statement {
+            StatementNode::Call(_) => true,
+            StatementNode::Expression(_) => {
+                call_occurrences::tail_call(program, state, index).is_some()
+            }
+            StatementNode::LocalData(local) => program
+                .primitive_type_reference(local.type_reference)
+                .is_some(),
+            _ => false,
+        })
 }
 
 pub(super) fn build(
@@ -76,6 +84,11 @@ pub(super) fn build(
                 })
             }
             StatementNode::Call(_) => None,
+            StatementNode::Expression(_)
+                if call_occurrences::tail_call(program, state, index).is_some() =>
+            {
+                None
+            }
             _ => return None,
         };
         let mut matching = calls
@@ -86,13 +99,17 @@ pub(super) fn build(
         if matching.next().is_some() {
             return None;
         }
-        if let StatementNode::LocalData(local) = statement {
-            let ExpressionNode::Call(authored) =
-                program.expression_table.expression(local.initial_value)
+        let authored_expression = match statement {
+            StatementNode::LocalData(local) => Some(local.initial_value),
+            StatementNode::Expression(expression) => Some(*expression),
+            _ => None,
+        };
+        if let Some(expression) = authored_expression {
+            let ExpressionNode::Call(authored) = program.expression_table.expression(expression)
             else {
                 return None;
             };
-            if call.authored_expression != local.initial_value
+            if call.authored_expression != expression
                 || call.target_symbol != authored.target_symbol
             {
                 return None;

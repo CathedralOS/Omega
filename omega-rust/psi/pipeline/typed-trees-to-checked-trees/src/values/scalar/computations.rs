@@ -147,6 +147,24 @@ pub(crate) fn build_checked_scalar_computation_plans(
                     );
                     continue;
                 }
+                if let StatementNode::Expression(expression) = statement
+                    && validation::unit_return_call_is_supported(
+                        program,
+                        machine,
+                        state,
+                        *expression,
+                    )
+                    && let ExpressionNode::Call(call) =
+                        program.expression_table.expression(*expression)
+                {
+                    builder.record_call_arguments(
+                        pure,
+                        statement_ordinal,
+                        call.target_symbol,
+                        program.expression_table.expression_handles(call.arguments),
+                    );
+                    continue;
+                }
                 if let StatementNode::Assignment(assignment) = statement {
                     if let ExpressionNode::Name(name) =
                         program.expression_table.expression(assignment.target)

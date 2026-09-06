@@ -3,6 +3,30 @@
 use super::*;
 use checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind};
 
+pub(in crate::flow::terminal_unit) fn tail_call<'a>(
+    program: &'a TypedTrees,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+) -> Option<(
+    typed_trees::expression::ExpressionHandle,
+    &'a typed_trees::expression::TableCallExpression,
+)> {
+    let statements = program.statement_table.statements(state.statement_nodes);
+    if !is_unit(program, state.return_type) || statement_index.checked_add(1)? != statements.len() {
+        return None;
+    }
+    let StatementNode::Expression(expression) = statements.get(statement_index)? else {
+        return None;
+    };
+    if !program.expression_table.expression_is_valid(*expression) {
+        return None;
+    }
+    let ExpressionNode::Call(call) = program.expression_table.expression(*expression) else {
+        return None;
+    };
+    Some((*expression, call))
+}
+
 pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
     program: &TypedTrees,
     facts: &'a CheckFacts,
@@ -19,6 +43,18 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
             return None;
         }
         outer.push(call);
+        let statement = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(call.statement_index)?;
+        if matches!(statement, StatementNode::Expression(_)) {
+            let (expression, authored) = tail_call(program, state, call.statement_index)?;
+            if call.authored_expression != expression
+                || call.target_symbol != authored.target_symbol
+            {
+                return None;
+            }
+        }
         if !facts
             .values
             .scalar_computations
@@ -36,10 +72,6 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
         {
             continue;
         }
-        let statement = program
-            .statement_table
-            .statements(state.statement_nodes)
-            .get(call.statement_index)?;
         let (target, arguments) = match statement {
             StatementNode::Call(authored) => (
                 authored.target_symbol,
@@ -47,6 +79,15 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
                     .statement_table
                     .expression_handles(authored.arguments),
             ),
+            StatementNode::Expression(_) => {
+                let (_, authored) = tail_call(program, state, call.statement_index)?;
+                (
+                    authored.target_symbol,
+                    program
+                        .expression_table
+                        .expression_handles(authored.arguments),
+                )
+            }
             StatementNode::LocalData(local)
                 if !local.is_mutable
                     && (call.statement_index == 0

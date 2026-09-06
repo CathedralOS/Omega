@@ -720,12 +720,35 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             .iter()
             .map(|(place, _, _, _)| *place)
             .collect::<Vec<_>>();
+        // The supported local prefix is established once, in declaration
+        // order, before control leaves entry. Operand evaluation may split the
+        // remaining body into blocks. Structural-frontier validation carries
+        // those live locals through every edge and checks normal-exit cleanup;
+        // a crash does not run cleanup.
+        let entry_establishments = machine
+            .blocks
+            .iter()
+            .find(|block| block.id == machine.entry)
+            .into_iter()
+            .flat_map(|block| &block.operations)
+            .filter_map(|operation| match operation.kind {
+                OperationKind::EstablishTrivialAffineLocal { destination } => Some(destination),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
         if !trivial_affine_locals.is_empty()
-            && (machine.blocks.len() != 1
-                || !matches!(
-                    machine.blocks[0].terminator,
-                    Terminator::ReturnStructural { .. } | Terminator::ReturnUnit { .. }
-                )
+            && (entry_establishments != expected_establishments
+                || machine.blocks.iter().any(|block| {
+                    !matches!(
+                        block.terminator,
+                        Terminator::Jump { .. }
+                            | Terminator::Conditional { .. }
+                            | Terminator::StructuralCase { .. }
+                            | Terminator::Crash { .. }
+                            | Terminator::ReturnStructural { .. }
+                            | Terminator::ReturnUnit { .. }
+                    )
+                })
                 || establishments != expected_establishments)
         {
             return Err(ModuleError::TrivialAffineLocalEstablishmentMismatch(

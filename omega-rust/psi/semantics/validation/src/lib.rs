@@ -3,7 +3,10 @@ mod bound_expression_meaning;
 mod call_cycles;
 mod callable_overloads;
 mod calls;
-pub use calls::{result_initializer_call_is_supported, unit_result_initializer_call_is_supported};
+pub use calls::{
+    result_initializer_call_is_supported, unit_result_initializer_call_is_supported,
+    unit_return_call_is_supported,
+};
 mod cleanup;
 mod content_conservation;
 mod content_projections;
@@ -1250,6 +1253,20 @@ fn validate_state_statement_node(
                 return;
             };
 
+            if calls::unit_return_call_is_supported(program, machine, state, *expression) {
+                // Value-position call validation already checked the callee and
+                // its operands. Retain cast obligations inside those operands;
+                // Unit itself has no scalar return range or landing.
+                arithmetic_domains::collect_exact_integer_cast_facts(
+                    program,
+                    machine,
+                    Some(state),
+                    *expression,
+                    value_env,
+                    exact_integer_casts,
+                );
+                return;
+            }
             if !state.return_type.is_valid() {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` state `{state_name}` has a terminal expression but no return type",

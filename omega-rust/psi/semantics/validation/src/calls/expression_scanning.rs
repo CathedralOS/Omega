@@ -118,6 +118,20 @@ fn validate_expression_call_bounds(
     boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if super::unit_returns::call_returns_unit(program, current_machine, expression)
+        && !crate::calls::unit_return_call_is_supported(
+            program,
+            current_machine,
+            current_state,
+            expression,
+        )
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` state `{}`: `{}(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local",
+            current_machine.name, current_state.name, call.target,
+        )));
+        return;
+    }
     if crate::proof_embeddings::is_exact_embed_call(program, call) {
         // Embedding is a proof term, not a value-machine invocation. Its
         // dedicated whole-program gate validates the exact unary carrier
@@ -310,7 +324,14 @@ fn validate_expression_call_bounds(
         if let Some(signature) =
             program.machine_parameter_signature_in(current_machine, call.target_symbol)
         {
-            if !signature.return_type.is_valid() {
+            if !signature.return_type.is_valid()
+                && !crate::calls::unit_return_call_is_supported(
+                    program,
+                    current_machine,
+                    current_state,
+                    expression,
+                )
+            {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` state `{}`: machine parameter `{}` does not return a value but is used in a VALUE position",
                     current_machine.name,
@@ -343,7 +364,7 @@ fn validate_expression_call_bounds(
                 current_machine,
                 current_state,
                 callee_state,
-                call.target.as_str(),
+                expression,
                 diagnostics,
             );
             fence_generic_value_callee(
@@ -385,7 +406,7 @@ fn validate_expression_call_bounds(
                 current_machine,
                 current_state,
                 callee_state,
-                call.target.as_str(),
+                expression,
                 diagnostics,
             );
             validate_machine_call_type_parameter_bounds(
@@ -435,7 +456,7 @@ fn validate_expression_call_bounds(
                 current_machine,
                 current_state,
                 callee_state,
-                call.target.as_str(),
+                expression,
                 diagnostics,
             );
             fence_generic_value_callee(
@@ -480,7 +501,7 @@ fn validate_expression_call_bounds(
                 current_machine,
                 current_state,
                 callee_state,
-                call.target.as_str(),
+                expression,
                 diagnostics,
             );
             fence_generic_value_callee(
@@ -660,7 +681,7 @@ fn validate_expression_call_bounds(
                 current_machine,
                 current_state,
                 callee_state,
-                call.target.as_str(),
+                expression,
                 diagnostics,
             );
             fence_generic_value_callee(
@@ -717,7 +738,7 @@ fn validate_expression_call_bounds(
             current_machine,
             current_state,
             callee_state,
-            call.target.as_str(),
+            expression,
             diagnostics,
         );
         fence_generic_value_callee(

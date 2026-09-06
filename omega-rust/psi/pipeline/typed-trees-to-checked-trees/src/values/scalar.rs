@@ -223,7 +223,12 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 &parameter_types,
                                 &locals,
                                 exact_integer_casts,
-                                false,
+                                validation::unit_return_call_is_supported(
+                                    program,
+                                    machine,
+                                    state,
+                                    *expression,
+                                ),
                             )
                         {
                             retain_call_arguments(

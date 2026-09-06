@@ -500,10 +500,17 @@ pub(super) fn report_void_value_callee(
     current_machine: &Machine,
     current_state: &State,
     callee_state: &State,
-    callee_display: &str,
+    expression: ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if callee_state.return_type.is_valid() {
+    if callee_state.return_type.is_valid()
+        || crate::calls::unit_return_call_is_supported(
+            program,
+            current_machine,
+            current_state,
+            expression,
+        )
+    {
         return;
     }
     let produces_value = program.machine_states(callee_machine).iter().any(|state| {
@@ -530,6 +537,10 @@ pub(super) fn report_void_value_callee(
     if produces_value {
         return;
     }
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return;
+    };
+    let callee_display = call.target.as_str();
     diagnostics.push(Diagnostic::error(format!(
         "machine `{}` state `{}`: `{callee_display}(..)` does not return a value but is \
          used in a VALUE position -- it would silently bind 0 (ZII) at runtime. Declare \

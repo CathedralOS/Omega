@@ -81,6 +81,24 @@ pub(crate) fn locate_source(
             expression_call(checked, local.initial_value)?
         }
         StatementNode::Expression(expression) if coordinate.call_ordinal == 0 => {
+            if validation::unit_return_call_is_supported(program, machine, state, *expression) {
+                super::occurrences::validate(
+                    checked,
+                    machine.symbol,
+                    state.symbol,
+                    coordinate,
+                    *expression,
+                )?;
+            } else if !state.return_type.is_valid()
+                || matches!(
+                    program
+                        .type_reference_table
+                        .type_reference(state.return_type),
+                    checked_trees::types::TypeReferenceNode::Unit
+                )
+            {
+                return unsupported("Unit call source custody has no exact authored Unit tail");
+            }
             expression_call(checked, *expression)?
         }
         _ => return unsupported("call source custody has no supported authored call root"),

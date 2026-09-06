@@ -8,7 +8,7 @@ use checked_trees::{
 
 mod call_occurrences;
 mod scalar_sequence;
-pub(super) use call_occurrences::outer_calls;
+pub(super) use call_occurrences::{outer_calls, tail_call};
 
 pub(crate) fn build_checked_structural_unit_control_plans(
     program: &TypedTrees,
@@ -1183,7 +1183,7 @@ fn build_checked_machine_with(
         && affine_scalar_record_local.is_none()
         && write_only_store.is_none()
         && structural_scalar_field_store.is_none()
-        && scalar_sequence::has_scalar_statement_shape(program, statements)
+        && scalar_sequence::has_scalar_statement_shape(program, state)
     {
         Some(scalar_sequence::build(
             program,
@@ -1276,7 +1276,14 @@ fn build_checked_machine_with(
             && (calls.len() != expected_call_count
                 || call_statements
                     .iter()
-                    .any(|statement| !matches!(statement, StatementNode::Call(_))))
+                    .enumerate()
+                    .any(|(index, statement)| {
+                        !matches!(statement, StatementNode::Call(_))
+                            && local_count
+                                .checked_add(index)
+                                .and_then(|index| tail_call(program, state, index))
+                                .is_none()
+                    }))
         {
             return None;
         }

@@ -242,7 +242,19 @@ fn lower_statement_node(
             // (`state go(..) -> f64 { ..; self.sin(x) }`) hoists into the
             // let-bound spelling, exactly as the transition-value face.
             // Trailing returns are unconditional, so no guard gate applies.
-            let expression = hoist_terminal_value_machine_call(lowerer, expression, &mut hoisted);
+            let expression = if matches!(
+                lowerer.current_state_return_type,
+                None | Some(TypeReference::Unit)
+            ) {
+                // Preserve the authored terminal expression in a Unit context.
+                // This does not classify the callee or discard its result:
+                // checking must still require an actual Unit-producing call.
+                // A synthetic local would instead require value storage and
+                // return-type inference for a call that may have no value.
+                expression
+            } else {
+                hoist_terminal_value_machine_call(lowerer, expression, &mut hoisted)
+            };
             hoisted.push(Statement::Expression(expression));
             Ok(hoisted)
         }
