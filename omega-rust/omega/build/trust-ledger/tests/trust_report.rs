@@ -1187,7 +1187,7 @@ machine Main::exercise(&mut self) {}
         .iter()
         .find(|definition| definition.name.as_str() == "Tick")
         .expect("Tick boundary trait");
-    let schema = effects::provider_plan::ServiceSchema::from_typed(&checked.typed, tick)
+    let schema = provider_planning::service_schema::from_typed(&checked.typed, tick)
         .expect("Tick service schema");
     let method = &schema.methods[0];
     let expected = method

@@ -1582,13 +1582,13 @@ fn psi_owned_plan_adapters_are_retired() {
 #[test]
 fn omega_provider_selection_consumes_psi_frontend_directly() {
     let graph = load_graph();
-    let effects = graph
-        .get("effects")
-        .expect("effects must remain in the governed workspace graph");
+    let planning = graph
+        .get("provider-planning")
+        .expect("provider-planning must remain in the governed workspace graph");
 
     for stale_adapter in ["omega-syntax-trees", "omega-typed-trees"] {
         assert!(
-            !effects
+            !planning
                 .deps
                 .iter()
                 .any(|dependency| dependency == stale_adapter),
@@ -1596,13 +1596,25 @@ fn omega_provider_selection_consumes_psi_frontend_directly() {
         );
     }
 
-    for psi_input in ["syntax-trees", "typed-trees"] {
+    for psi_input in ["typed-trees", "validation"] {
         assert!(
-            effects
+            planning
                 .deps
                 .iter()
                 .any(|dependency| dependency == psi_input),
             "Omega provider selection must consume Psi-owned input {psi_input} directly"
+        );
+    }
+    let records = graph.get("effects").unwrap();
+    for producer in [
+        "syntax-trees",
+        "flow-effects",
+        "validation",
+        "provider-planning",
+    ] {
+        assert!(
+            !records.deps.iter().any(|dependency| dependency == producer),
+            "provider records must not regain the schema producer dependency {producer}"
         );
     }
 }

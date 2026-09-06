@@ -13,5 +13,6 @@ trust-model = { path = "../trust-model" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 
 [dev-dependencies]
+provider-planning = { path = "../provider-planning" }
 compiler = { path = "../../compiler/compiler" }
 effects = { path = "../../representations/effects" }

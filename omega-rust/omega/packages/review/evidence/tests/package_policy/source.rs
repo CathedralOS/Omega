@@ -95,7 +95,7 @@ impl Fixture {
             .find(|value| value.name.as_str() == "FilesystemHost")
             .unwrap();
         let schema =
-            effects::provider_plan::ServiceSchema::from_typed(&self.checked.typed, declaration)
+            provider_planning::service_schema::from_typed(&self.checked.typed, declaration)
                 .unwrap();
         let requirement = &schema
             .methods

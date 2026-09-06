@@ -597,7 +597,7 @@ mod tests {
                     .is_some_and(|name| name.as_str() == "same")
             })
             .expect("named operator declaration");
-        let operational = flow_effects::infer_operational_may(&typed);
+        let operational = validation::infer_operational_may(&typed);
         let selected_call = operational
             .machines()
             .iter()
@@ -636,7 +636,7 @@ mod tests {
             "#,
         );
         let expression = named_call(&typed, "same");
-        let operational = flow_effects::infer_operational_may(&typed);
+        let operational = validation::infer_operational_may(&typed);
         let selected_call = operational
             .machines()
             .iter()

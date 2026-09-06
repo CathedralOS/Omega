@@ -39,7 +39,7 @@ fn checked_machine_service_reach<'a>(
     let declared = derive_declared_service_reach(
         compilation,
         authored,
-        &flow_effects::declared_machine_invocations(compilation, machine),
+        &validation::declared_machine_invocations(compilation, machine),
         parameters,
         machine.name.as_str(),
     )?;
@@ -99,7 +99,7 @@ pub(crate) fn project_signature_service_reach_source_locations(
     let declared = derive_declared_service_reach(
         compilation,
         authored,
-        &flow_effects::declared_signature_invocations(compilation, signature),
+        &validation::declared_signature_invocations(compilation, signature),
         compilation.state_signature_parameters(signature),
         signature.name.as_str(),
     )?;

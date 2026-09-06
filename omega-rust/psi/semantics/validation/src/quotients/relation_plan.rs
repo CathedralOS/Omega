@@ -437,8 +437,8 @@ pub(super) fn derive_direct_terminal_plan(
     let representative_termination =
         unconditional_representative_termination(program, &representative);
     validate_theorem_role_collection(request)?;
-    let theorem_operational = flow_effects::infer_operational_may(program);
-    let theorem_reaches = flow_effects::infer_service_reaches(program, &theorem_operational);
+    let theorem_operational = crate::infer_operational_may(program);
+    let theorem_reaches = crate::infer_service_reaches(program, &theorem_operational);
     let theorem_evidence = request
         .theorem_evidence
         .iter()

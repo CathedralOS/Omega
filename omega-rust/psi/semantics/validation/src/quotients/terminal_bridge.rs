@@ -19,8 +19,8 @@ pub(super) fn extract(
         return Ok(Vec::new());
     }
 
-    let operational = flow_effects::infer_operational_may(program);
-    let service_reaches = flow_effects::infer_service_reaches(program, &operational);
+    let operational = crate::infer_operational_may(program);
+    let service_reaches = crate::infer_service_reaches(program, &operational);
     let mut rows = Vec::with_capacity(requests.len());
     let mut errors = Vec::new();
     for request_expression in requests {

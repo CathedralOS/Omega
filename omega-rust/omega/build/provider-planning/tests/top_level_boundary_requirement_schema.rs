@@ -1,4 +1,3 @@
-use effects::provider_plan::ServiceSchema;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
@@ -46,8 +45,9 @@ fn exact_top_level_requirement_schema_retains_its_typed_operational_shape() {
         "#,
     );
     let requirement = requirement(&typed, "InterruptAcknowledgement::complete");
-    let schema = ServiceSchema::from_typed_boundary_requirement(&typed, requirement)
-        .expect("public non-generic requirement schema");
+    let schema =
+        provider_planning::service_schema::from_typed_boundary_requirement(&typed, requirement)
+            .expect("public non-generic requirement schema");
 
     assert_eq!(schema.trait_name, "InterruptAcknowledgement::complete");
     assert_eq!(schema.trait_package_identity, None);
@@ -109,13 +109,16 @@ fn top_level_requirement_schema_fences_non_public_and_generic_declarations() {
         "LifetimeGeneric::complete",
     ] {
         assert!(
-            ServiceSchema::from_typed_boundary_requirement(&typed, requirement(&typed, name))
-                .is_none(),
+            provider_planning::service_schema::from_typed_boundary_requirement(
+                &typed,
+                requirement(&typed, name)
+            )
+            .is_none(),
             "{name} must remain outside the first planning rung"
         );
     }
     assert!(
-        ServiceSchema::from_typed_boundary_requirement(
+        provider_planning::service_schema::from_typed_boundary_requirement(
             &typed,
             requirement(&typed, "Plain::complete")
         )
@@ -135,7 +138,7 @@ fn top_level_requirement_schema_rejects_wrong_supply_and_unpublished_termination
         .expect("mutable requirement")
         .supply_mode = language_semantics::MachineSupplyMode::Boundary;
     assert!(
-        ServiceSchema::from_typed_boundary_requirement(
+        provider_planning::service_schema::from_typed_boundary_requirement(
             &typed,
             requirement(&typed, "Carrier::operation")
         )
@@ -151,7 +154,7 @@ fn top_level_requirement_schema_rejects_wrong_supply_and_unpublished_termination
         .expect("mutable requirement")
         .body_is_present = true;
     assert!(
-        ServiceSchema::from_typed_boundary_requirement(
+        provider_planning::service_schema::from_typed_boundary_requirement(
             &typed,
             requirement(&typed, "Carrier::operation")
         )
@@ -168,7 +171,7 @@ fn top_level_requirement_schema_rejects_wrong_supply_and_unpublished_termination
         .termination_plan
         .interface = language_semantics::TerminationInterface::InternalDerived;
     assert!(
-        ServiceSchema::from_typed_boundary_requirement(
+        provider_planning::service_schema::from_typed_boundary_requirement(
             &typed,
             requirement(&typed, "Carrier::operation")
         )

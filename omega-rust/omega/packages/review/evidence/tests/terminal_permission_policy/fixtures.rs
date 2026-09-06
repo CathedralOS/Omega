@@ -1,5 +1,4 @@
 use super::*;
-use effects::provider_plan::ServiceSchema;
 use package_compilation::AcceptedSemanticBinding;
 
 pub(super) const FILESYSTEM: &str = r#"pub boundary trait FilesystemHost {
@@ -121,7 +120,8 @@ machine build(builder: &mut Build) {
                         == Some(owner)
             })
             .unwrap();
-        let schema = ServiceSchema::from_typed(&candidate.typed, declaration).unwrap();
+        let schema =
+            provider_planning::service_schema::from_typed(&candidate.typed, declaration).unwrap();
         let requirement = schema
             .methods
             .iter()

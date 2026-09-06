@@ -86,8 +86,8 @@ impl BuildTimeAdmissionPlan {
         program: &TypedTrees,
         selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     ) -> Self {
-        let operational = flow_effects::infer_operational_may(program);
-        let service_reaches = flow_effects::infer_service_reaches(program, &operational);
+        let operational = validation::infer_operational_may(program);
+        let service_reaches = validation::infer_service_reaches(program, &operational);
         let (suspension, blocking, call_edges) = project_operational_axes(&operational);
         Self {
             service_reaches,

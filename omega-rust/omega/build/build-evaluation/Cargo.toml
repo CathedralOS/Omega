@@ -12,6 +12,7 @@ path = "src/lib.rs"
 test-support = []
 
 [dependencies]
+validation = { path = "../../../psi/semantics/validation" }
 build-output = { path = "../build-output" }
 calling-conventions = { path = "../../representations/calling-conventions" }
 effects = { path = "../../representations/effects" }

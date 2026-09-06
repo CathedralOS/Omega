@@ -367,8 +367,12 @@ keeps the compiler-owned build protocol independent of whether std exists.
   the Psi vocabulary. Checked semantic trees do not retain that Omega
   realization sidecar.
 - `validation` answers target-neutral cross-semantic obligations, including
-  who may read or mutate and what a callable requires or promises. Provider
-  installation and approval remain in Omega.
+  who may read or mutate and what a callable requires or promises. It derives
+  operational, reach and invocation summaries with private fixed-point work;
+  `flow-effects` stores those summaries without depending on typed trees.
+  Omega `provider-planning` derives service schemas from the checked declaration
+  surface. The `effects` representation stores the schemas and their identities;
+  provider installation and approval remain in Omega.
 - `proof` plans and discharges source-level obligations.
 - `compiler` invokes the Psi-owned frontend and canonical terminal-Psi
   producer directly. Production native realization begins from that immutable

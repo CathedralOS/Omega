@@ -53,6 +53,7 @@ name = "anchor_headers"
 path = "anchor_headers.rs"
 
 [dev-dependencies]
+provider-planning = { path = "../../omega-rust/omega/build/provider-planning" }
 arena = { path = "../../omega-rust/psi/foundation/arena" }
 symbols = { path = "../../omega-rust/psi/foundation/symbols" }
 effects = { path = "../../omega-rust/omega/representations/effects" }

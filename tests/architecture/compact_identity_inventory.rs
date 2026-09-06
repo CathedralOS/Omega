@@ -647,7 +647,12 @@ fn provider_service_calling_plan_reports_retain_strong_commitments() {
     assert!(
         provider.contains("pub calling_plan_commitment: Option<BoundaryCallingPlanCommitment>")
     );
-    assert!(provider.contains("boundary_calling_plan_identity_for_arguments"));
+    let derivation = fs::read_to_string(
+        root.join("omega-rust/omega/build/provider-planning/src/service_schema.rs"),
+    )
+    .unwrap();
+    assert!(derivation.contains("boundary_calling_plan_identity_for_arguments"));
+    assert!(!provider.contains("boundary_calling_plan_identity_for_arguments"));
     assert!(provider.contains("self.bytes(&commitment.as_bytes())"));
     assert!(!provider.contains("pub calling_plan_fingerprint: Option<u64>"));
 }

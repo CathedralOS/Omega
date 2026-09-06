@@ -31,7 +31,7 @@ pub(crate) fn validate_typed_program<'program>(
     let proof_plan = proof::obligations::build_proof_plan(program);
     proof::checker::check_proof_plan(&proof_plan)?;
 
-    let operational = flow_effects::infer_operational_may(program);
+    let operational = validation::infer_operational_may(program);
     validation::validate_behavior_plan(program, &operational)?;
     crate::call_acknowledgements::validate_call_acknowledgements(program, &operational)?;
 

@@ -1429,8 +1429,8 @@ fn generic_body_inherits_machine_parameter_service_ceiling() {
         .iter()
         .find(|machine| machine.name.as_str() == "apply")
         .expect("apply machine");
-    let operations = flow_effects::infer_operational_may(&typed);
-    let service_reaches = flow_effects::infer_service_reaches(&typed, &operations);
+    let operations = validation::infer_operational_may(&typed);
+    let service_reaches = validation::infer_service_reaches(&typed, &operations);
     let apply_reach = service_reaches
         .for_machine(apply.symbol)
         .expect("apply service-reach summary");

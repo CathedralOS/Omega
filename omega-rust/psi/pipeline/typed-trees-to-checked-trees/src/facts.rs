@@ -80,7 +80,7 @@ pub(crate) fn build_check_facts(
     let mut semantic = build_semantic_facts(program, &proof);
     let domains = build_domain_facts(program, &semantic);
     let dynamic_conformances = build_dynamic_conformance_facts(program)?;
-    let service_reach_inference = flow_effects::infer_service_reaches(program, &operational);
+    let service_reach_inference = validation::infer_service_reaches(program, &operational);
     // Meaning selection depends only on declarations and signatures. Complete
     // selected scalar plans before flow captures their evaluated local values.
     select_pending_domain_operator_meanings(program, &mut operators);
@@ -598,7 +598,7 @@ fn build_suspension_facts(
 fn build_synchronous_invocation_facts(
     program: &TypedTrees,
 ) -> checked_trees::SynchronousInvocationFacts {
-    let inference = flow_effects::infer_synchronous_invocations(program);
+    let inference = validation::infer_synchronous_invocations(program);
     let machines = program
         .machines()
         .iter()
@@ -1371,7 +1371,7 @@ fn build_crash_contract_capsules(
                 .map(|definition| definition.name.clone())
                 .collect::<Vec<_>>();
             let published_invocations =
-                flow_effects::declared_signature_invocations(program, signature)
+                validation::declared_signature_invocations(program, signature)
                     .into_iter()
                     .map(|invocation| match invocation {
                         flow_effects::InvocationTarget::Parameter(index) => {

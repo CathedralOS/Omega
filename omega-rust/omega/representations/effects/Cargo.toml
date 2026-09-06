@@ -17,13 +17,5 @@ diagnostics = { path = "../../../psi/foundation/diagnostics" }
 language-core = { path = "../../../psi/foundation/language-core" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }
 numerics = { path = "../../../psi/foundation/numerics" }
-flow-effects = { path = "../../../psi/representations/flow-effects" }
-syntax-trees = { path = "../../../psi/representations/syntax-trees" }
 typed-trees = { path = "../../../psi/representations/typed-trees" }
 sha2 = "0.10.9"
-
-[dev-dependencies]
-source-files-to-tokens = { path = "../../../psi/pipeline/source-files-to-tokens" }
-tokens-to-syntax-trees = { path = "../../../psi/pipeline/tokens-to-syntax-trees" }
-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/syntax-trees-to-symbol-resolved-trees" }
-symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/symbol-resolved-trees-to-typed-trees" }

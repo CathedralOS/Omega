@@ -57,8 +57,8 @@ pub(crate) fn validate_fact_call_projections(
     if !has_projection {
         return Vec::new();
     }
-    let operational = flow_effects::infer_operational_may(program);
-    let service_reaches = flow_effects::infer_service_reaches(program, &operational);
+    let operational = crate::infer_operational_may(program);
+    let service_reaches = crate::infer_service_reaches(program, &operational);
     let mut visited = Vec::new();
     let mut admitted = Vec::new();
     for root in roots {

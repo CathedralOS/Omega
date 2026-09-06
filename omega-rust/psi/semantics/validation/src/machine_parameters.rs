@@ -92,12 +92,12 @@ fn validate_static_machine_arguments_with_facts(
     nominal_uses: &mut Vec<ValidatedNominalMachineUse>,
 ) {
     let (service_reaches, suspensions, blockings) = {
-        let operational = flow_effects::infer_operational_may(program);
-        let service_reaches = flow_effects::infer_service_reaches(program, &operational);
+        let operational = crate::infer_operational_may(program);
+        let service_reaches = crate::infer_service_reaches(program, &operational);
         let (suspensions, blockings) = project_operational_rows(&operational);
         (service_reaches, suspensions, blockings)
     };
-    let invocations = flow_effects::infer_synchronous_invocations(program);
+    let invocations = crate::infer_synchronous_invocations(program);
     for (handle, expression) in program.expression_table.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
             // Named operators own their complete static telescope in the
@@ -388,12 +388,12 @@ pub(crate) fn validate_data_machine_selection(
     }
     let requirement = machine_parameter_signature(program, requirement);
     let (service_reaches, suspensions, blockings) = {
-        let operational = flow_effects::infer_operational_may(program);
-        let service_reaches = flow_effects::infer_service_reaches(program, &operational);
+        let operational = crate::infer_operational_may(program);
+        let service_reaches = crate::infer_service_reaches(program, &operational);
         let (suspensions, blockings) = project_operational_rows(&operational);
         (service_reaches, suspensions, blockings)
     };
-    let invocations = flow_effects::infer_synchronous_invocations(program);
+    let invocations = crate::infer_synchronous_invocations(program);
     validate_selected_callable_shape(
         program,
         &suspensions,

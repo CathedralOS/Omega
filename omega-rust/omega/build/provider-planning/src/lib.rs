@@ -13,6 +13,7 @@ pub mod component_progress;
 pub mod evaluated_via_bindings;
 pub mod plans;
 mod selection;
+pub mod service_schema;
 pub mod task_plans;
 
 pub use selection::{

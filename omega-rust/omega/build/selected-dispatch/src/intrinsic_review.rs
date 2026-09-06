@@ -66,8 +66,7 @@ pub fn resolve_accepted_service_binding(
             {
                 return None;
             }
-            let schema =
-                effects::provider_plan::ServiceSchema::from_typed(&checked.typed, definition)?;
+            let schema = provider_planning::service_schema::from_typed(&checked.typed, definition)?;
             (schema.trait_package_identity == Some(binding.package())
                 && package_compilation::accepted_service_schema_digest(binding.role(), &schema)
                     == binding.normalized_schema_digest())
@@ -262,8 +261,7 @@ fn resolve_terminal_authority_permissions_for_symbol(
             declarations.len(),
         )));
     };
-    let Some(schema) =
-        effects::provider_plan::ServiceSchema::from_typed(&checked.typed, definition)
+    let Some(schema) = provider_planning::service_schema::from_typed(&checked.typed, definition)
     else {
         return Err(Diagnostic::error(format!(
             "accepted semantic binding {:?} cannot reconstruct its exact service schema for terminal-authority permission custody",

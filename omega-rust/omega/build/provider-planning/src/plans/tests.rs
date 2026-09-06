@@ -3316,7 +3316,7 @@ fn canonical_schema_accepts_exact_inherited_requirement() {
         .iter()
         .find(|definition| definition.name.as_str() == "Child")
         .expect("Child boundary schema");
-    plan.schema = ServiceSchema::from_typed(&typed, child).expect("typed child schema");
+    plan.schema = crate::service_schema::from_typed(&typed, child).expect("typed child schema");
 
     assert!(
         validate_provider_plan_candidates(&typed, &[plan]).is_empty(),

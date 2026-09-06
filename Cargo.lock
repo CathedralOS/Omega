@@ -201,6 +201,7 @@ dependencies = [
  "trust-model",
  "typed-trees",
  "typed-trees-to-checked-trees",
+ "validation",
 ]
 
 [[package]]
@@ -236,6 +237,7 @@ dependencies = [
  "tokens-to-syntax-trees",
  "typed-trees",
  "typed-trees-to-checked-trees",
+ "validation",
 ]
 
 [[package]]
@@ -582,20 +584,14 @@ name = "effects"
 version = "0.1.0"
 dependencies = [
  "diagnostics",
- "flow-effects",
  "installation-evidence",
  "language-core",
  "language-semantics",
  "numerics",
  "semantic-vocabulary",
  "sha2",
- "source-files-to-tokens",
- "symbol-resolved-trees-to-typed-trees",
  "symbols",
- "syntax-trees",
- "syntax-trees-to-symbol-resolved-trees",
  "target",
- "tokens-to-syntax-trees",
  "typed-trees",
 ]
 
@@ -667,7 +663,6 @@ dependencies = [
  "arena",
  "language-semantics",
  "symbols",
- "typed-trees",
 ]
 
 [[package]]
@@ -1231,6 +1226,7 @@ dependencies = [
  "flow-effects",
  "language-core",
  "language-semantics",
+ "provider-planning",
  "serde_json",
  "source-files-to-tokens",
  "symbol-resolved-trees-to-typed-trees",
@@ -1464,6 +1460,7 @@ dependencies = [
  "package-source",
  "platform-custody",
  "proof-admission",
+ "provider-planning",
  "semantic-vocabulary",
  "sha2",
  "source",
@@ -2282,6 +2279,7 @@ dependencies = [
  "compiler",
  "diagnostics",
  "effects",
+ "provider-planning",
  "trust-model",
 ]
 
