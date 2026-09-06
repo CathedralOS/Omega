@@ -105,9 +105,18 @@ resource fields:
 | 17 | duplicate match case | Later constructor token |
 | 18 | nonexhaustive match | Match expression start |
 
-Malformed retained metadata and impossible continuation states remain internal
-assertions, not guessed source rejections. Generated Delta execution traps are
-separate observations and are never remapped into these compiler diagnostics.
+An unknown continuation kind after the frame's pair projections succeed, at
+positive depth, returns `InternalFailure` code 1
+(`retained_frontend_contradiction`). Coordinate space 3 identifies the current
+active continuation row: zero-based from the bottom, hence `depth - 1` for the
+top. Limit and requested are zero. It is not a source coordinate, pair address,
+or lifetime allocation ordinal. A negative-depth unknown frame still asserts;
+it cannot publish a negative internal-row coordinate. Depth zero still completes
+without projecting a frame. Malformed nonpair frames retain their raw Gamma
+failure; this branch does not catch or reinterpret evaluator failures.
+Other malformed retained metadata remains internal assertions, not guessed
+source rejections. Generated Delta execution traps are separate observations
+and are never remapped into these compiler diagnostics.
 
 ## Remaining boundaries
 
@@ -115,7 +124,7 @@ Explicit continuations remove source-nesting-dependent Gamma return contexts
 from expression typing. Their ordinary immutable pair allocations still belong
 to the selected Gamma evaluator's finite resources. The active-binding count
 does not account for those continuation allocations or implement other
-compiler-owned storage bounds or canonical internal-failure publication.
+compiler-owned storage bounds or general canonical internal-failure coverage.
 
 The [lowering phase](../../lowering/README.md) consumes the completed typing
 judgment and builds every expanded Gamma body before publication under

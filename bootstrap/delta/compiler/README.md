@@ -335,8 +335,11 @@ Missing `main` has no source coordinate; a schema mismatch
 anchors at the entry name. Source-byte, total `type_rows`, authored
 `function_rows` and `constructor_rows`, active environment, syntax storage,
 payload bytes, and expression `parse_depth` refusals
-have owned resource frames; other compiler-owned resource accounting and
-internal failure publication remain open. Lowering records expanded expression
+have owned resource frames. An unknown retained typing-continuation kind at
+positive depth returns InternalFailure code 1 with its zero-based active-stack
+row, through the ordinary phase outcome and canonical publisher. Malformed
+nonpair frames retain raw Gamma failures; other compiler-owned resource
+accounting and internal failure publication remain open. Lowering records expanded expression
 heights, including generated wrappers. Normalization uses the selected Gamma
 evaluator's 255-list body budget, reusing fitting subtrees and extracting whole
 over-height fragments into helpers with free established values as arguments.
@@ -364,7 +367,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-3,381-line / 154,591-byte canonical entry plus shared Gamma implementation
+3,388-line / 154,972-byte canonical entry plus shared Gamma implementation
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9

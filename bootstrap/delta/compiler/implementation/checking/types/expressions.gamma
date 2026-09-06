@@ -48,4 +48,6 @@
                           (if (eq kind 7)
                             (typing_resume_arm
                               type payload next_depth previous globals)
-                            (fail)))))))))))))))
+                            (if (lt 0 depth)
+                              (compiler_retained_frontend_contradiction next_depth)
+                              (fail))))))))))))))))
