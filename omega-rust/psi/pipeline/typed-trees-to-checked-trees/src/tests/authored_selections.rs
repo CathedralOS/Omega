@@ -8,6 +8,7 @@ use language_semantics::declaration_selection::{
 };
 
 mod indexed_operators;
+mod projected_receivers;
 
 #[test]
 fn successful_checking_rejects_any_unresolved_authored_selection() {

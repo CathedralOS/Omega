@@ -78,6 +78,63 @@ fn earlier_operand_empty_mutable_ancestor_method_rejects_requires() {
 
 #[test]
 fn a_disjoint_referent_method_preserves_the_input_subject() {
+    assert_disjoint_referent_method("carrier.context.increment_counter();", "0");
+}
+
+#[test]
+fn an_operand_referent_method_preserves_the_input_subject() {
+    assert_disjoint_referent_method("", "carrier.context.increment_counter()");
+}
+
+fn assert_disjoint_referent_method(preceding: &str, operand: &str) {
+    let source = referent_method_source(preceding, operand, "self.counter = 1;");
+    // The endpoint receiver borrows the referent. Its counter write neither
+    // replaces the containing reference slot nor overlaps the scheduler.
+    let checked = check_source(&source);
+    assert_input_subject(&checked);
+}
+
+fn referent_method_source(preceding: &str, operand: &str, mutation: &str) -> String {
+    fixture_source(
+        "mut ",
+        &format!(
+            "{preceding}
+                 transition {{ _ -> waiting({operand}, carrier.context) }}
+                 state waiting(ignored: u64, selected: &Context) -> u64
+                 requires selected.scheduler in WeakFair
+                 {{ wait_context(selected) }}"
+        ),
+        &format!(
+            "machine Context::increment_counter(&mut self) terminates; -> u64 {{
+                 {mutation}
+                 0
+             }}"
+        ),
+    )
+}
+
+#[test]
+fn a_referent_scheduler_write_retires_the_input_qualification() {
+    for (preceding, operand) in [
+        ("carrier.context.increment_counter();", "0"),
+        ("", "carrier.context.increment_counter()"),
+    ] {
+        let source =
+            referent_method_source(preceding, operand, "self.scheduler = SchedulerHandle {};");
+        let Err(diagnostics) = lower_typed_trees(typed_source(&source)) else {
+            panic!("{preceding} / {operand}: a replaced scheduler has no qualification");
+        };
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("cannot prove requires contract for call waiting")),
+            "{diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
+fn a_referent_method_does_not_replace_a_saved_reference_binding() {
     for (preceding, operand) in [
         ("carrier.context.increment_counter();", "0"),
         ("", "carrier.context.increment_counter()"),
@@ -92,17 +149,12 @@ fn a_disjoint_referent_method_preserves_the_input_subject() {
                  requires selected.scheduler in WeakFair
                  {{ wait_context(selected) }}"
             ),
-            "machine Context::increment_counter(&mut self) -> u64 {
-                 self.counter = 1;
-                 0
+            "machine Context::increment_counter(&mut self) terminates; -> u64 {
+                 self.counter = 1; 0
              }",
         );
-        // The endpoint receiver borrows the referent. Its counter write neither
-        // replaces the containing reference slot nor overlaps the scheduler.
-        // Full checking currently has an independent unresolved authored-call
-        // selection fence for this projected receiver shape. Exercise the
-        // binding and prefix queries without bypassing that source fence.
-        let program = typed_source(&source);
+        let mut program = typed_source(&source);
+        crate::lookup::resolve_projected_receiver_calls(&mut program).unwrap();
         let machine = program
             .machines()
             .iter()
@@ -120,7 +172,7 @@ fn a_disjoint_referent_method_preserves_the_input_subject() {
                 statements.last().unwrap(),
                 borrowed.symbol,
             )
-            .expect("disjoint referent write retains identity");
+            .expect("referent writes do not replace the reference slot");
         assert_eq!(root, program.state_parameters(state)[0].symbol);
         let [facts::PlaceSegment::Field { symbol }] = segments.as_slice() else {
             panic!("input reference field: {segments:?}")
@@ -129,12 +181,19 @@ fn a_disjoint_referent_method_preserves_the_input_subject() {
             program.symbols.display_path(*symbol, "::"),
             "Carrier::context"
         );
-        for (expression, node) in program.expression_table.iter_expressions() {
-            if matches!(node, typed_trees::expression::ExpressionNode::Call(call) if call.target.as_str() == "increment_counter")
-            {
-                assert!(resolver.expression_reference_bindings_are_stable(machine, expression));
-            }
-        }
+        // Reference identity is not permission to mutate through the parent
+        // while the saved exclusive loan remains live.
+        let Err(diagnostics) = lower_typed_trees(program) else {
+            panic!("{preceding} / {operand}: a live exclusive loan must reject mutation");
+        };
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic
+                    .message
+                    .contains("while local borrow `borrowed` is still active")
+            }),
+            "{diagnostics:#?}"
+        );
     }
 }
 

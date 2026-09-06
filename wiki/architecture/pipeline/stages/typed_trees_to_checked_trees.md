@@ -530,6 +530,19 @@ Must own:
   source target span, and inferred generic conformances attach there. Closed
   compiler-owned build markers and lowered assembly operations finalize as
   typed intrinsic selections rather than invalid declaration symbols.
+  `lookup/receivers.rs` resolves ordinary field-projected statement and
+  expression receivers from their exact current-state input or preceding local
+  declaration, before specialization and again after concrete substitution.
+  `lookup/receivers/projections.rs` owns that field walk. A unique attached
+  method is selected beneath the endpoint's nominal data symbol; a conflicting
+  retained endpoint or method identity rejects. Subsequent attached dispatch
+  preserves that identity even when nominal spellings collide. An unresolved
+  target is not an empty effect frame. Indexed, case-selected, and unresolved generic paths
+  remain with their existing resolution owners.
+  Statement-call mutation analysis retains the lexical root plus every field
+  selector, not the endpoint field declaration as a storage root. Consequently
+  a counter-only receiver write preserves an unrelated scheduler qualification
+  but still conflicts with a live exclusive loan of the whole referent.
 - Exact carried-semantic-dependency custody assembled after successful checking
   from machine heads, checked call targets, ownership places, and automatic
   cleanup. Cleanup machine selection joins the exact attached nominal symbol;

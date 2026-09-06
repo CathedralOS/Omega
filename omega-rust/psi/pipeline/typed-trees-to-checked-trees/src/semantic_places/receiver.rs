@@ -54,7 +54,14 @@ pub(crate) fn receiver_place_for_call(
                     return Some(place);
                 }
 
-                if let Some(path) = statement_call_receiver_path(program, statement) {
+                let state = super::find_state_in_machine(
+                    program,
+                    call.caller_machine_symbol,
+                    call.caller_state_symbol,
+                )?;
+                if let Some(path) =
+                    statement_call_receiver_path(program, state, call.statement_index, statement)
+                {
                     return Some(super::append_place_from_name_path(facts, &path));
                 }
             }

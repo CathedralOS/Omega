@@ -60,6 +60,10 @@ fn lower_typed_trees_with_policy(
     // generic-value-call fence still rejects any emitted concrete caller whose
     // callee remains generic (an incomplete specialization).
     let mut program = program;
+    // Projected statement receivers retain their lexical root before their
+    // field endpoint is known. Resolve both call forms before specialization
+    // and effect inference, not only when finalizing authored selections.
+    crate::lookup::resolve_projected_receiver_calls(&mut program)?;
     // MP2b must judge the authored requirement -> selected implementation edge
     // before MP4 consumes the call-site selections and clears the template's
     // parameter list.
@@ -105,6 +109,8 @@ fn lower_typed_trees_with_policy(
     // overload pass below starts in the correct trait family rather than from
     // an ambient same-named machine.
     validation::resolve_dynamic_call_targets(&mut program)?;
+    // Concrete substitutions may make previously open field types selectable.
+    crate::lookup::resolve_projected_receiver_calls(&mut program)?;
     // Named-machine result overloads are provisionally bound to the first
     // same-named symbol during early resolution. Rebind them now, after domain
     // normalization and destination typing, before validation/backend facts

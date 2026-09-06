@@ -35,13 +35,28 @@ pub(crate) fn statement_call_receiver_members<'a>(
 
 pub(crate) fn statement_call_receiver_path(
     program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
+    before: usize,
     call: &TableCall,
 ) -> Option<NamePath> {
     let members = statement_call_receiver_members(program, call)?;
 
+    if let Some((root, segments)) =
+        super::projected_statement_receiver_place(program, state, before, call)
+    {
+        let mut path = NamePath::resolved_from_iter(members[..1].iter().cloned(), root, root);
+        for (member, segment) in members[1..].iter().zip(segments) {
+            let facts::PlaceSegment::Field { symbol } = segment else {
+                return None;
+            };
+            path.push_resolved(member.clone(), symbol);
+        }
+        return Some(path);
+    }
+
     Some(NamePath::resolved_from_iter(
         members.iter().cloned(),
-        call.receiver_symbol,
+        call.receiver_root_symbol,
         call.receiver_symbol,
     ))
 }
@@ -197,6 +212,17 @@ pub(crate) fn resolve_state_call_target(
         return attached;
     }
 
+    // A known data receiver cannot fall through to a state of an unrelated
+    // machine. Trait requirements remain a separate checked dispatch family.
+    if program
+        .data_definitions()
+        .iter()
+        .any(|data| data.symbol == type_symbol)
+        && !trait_machine_signature_symbol(program, target_symbol).is_valid()
+    {
+        return SymbolHandle::invalid();
+    }
+
     if state_symbol_in_any_machine(program, target_symbol).is_valid() {
         return target_symbol;
     }
@@ -269,7 +295,7 @@ pub(crate) fn trait_machine_signature_symbol(
     SymbolHandle::invalid()
 }
 
-/// The state symbol of method `target_state` (matched by symbol or NAME) in the
+/// The state symbol of method `target_state` in the
 /// machine ATTACHED to data type `data_symbol`, or invalid. Resolves a method call
 /// on a data-typed reference receiver (a `&mut Data` param, or a devirtualized
 /// `dyn Trait`) to the implementing machine's state.
@@ -282,21 +308,21 @@ fn attached_machine_state_symbol(
     if !data_symbol.is_valid() {
         return SymbolHandle::invalid();
     }
-    let Some(data) = program
+    if !program
         .data_definitions()
         .iter()
-        .find(|data| data.symbol == data_symbol)
-    else {
+        .any(|data| data.symbol == data_symbol)
+    {
         return SymbolHandle::invalid();
-    };
+    }
     for candidate in program
         .machines()
         .iter()
-        .filter(|candidate| candidate.attached_data.as_ref() == Some(&data.name))
+        .filter(|candidate| candidate.attached_data_symbol == data_symbol)
     {
         for state in program.machine_states(candidate) {
             if (target_symbol.is_valid() && state.symbol == target_symbol)
-                || state.name == *target_state
+                || (!target_symbol.is_valid() && state.name == *target_state)
             {
                 return state.symbol;
             }

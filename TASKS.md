@@ -476,15 +476,6 @@ Owners include
   input's exact premise, while unknown writes and reference aliases without
   exact provenance retain no checked guarantee.
 
-- **PROJECTED-REFERENCE-RECEIVERS.** Retain authored call selections for methods
-  on reference fields of owned input carriers in checked-tree receiver
-  resolution and `authored_selections.rs`. The
-  `progress_mutation/aliases/carriers/inputs/exposure.rs` endpoint fixture
-  reaches an unresolved authored Call selection at finalization. Acceptance:
-  preceding-statement and value-operand forms pass full checking with exact
-  callees and preserved disjoint qualifications; typed frame queries alone
-  are insufficient. Missing or foreign callee identities still reject.
-
 - **NOMINAL-FIELD-FLOW.** Complete declared-field domain evidence in Psi
   semantic facts, flow transfer, and contract consumption. Collection elements
   need explicit live coverage for their declared field predicates, transported
