@@ -232,6 +232,7 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
             bytes.extend_from_slice(&target.0.to_le_bytes());
         }
         MachineEncodedControlEffect::DirectRelativeCallV1 => bytes.push(4),
+        MachineEncodedControlEffect::UnconditionalRelativeBranchV1 => bytes.push(5),
     }
 }
 
@@ -298,6 +299,7 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
         MachineSemanticKind::ConditionalBranchU64LessThan => 11,
         MachineSemanticKind::ConditionalBranchI64LessThan => 12,
         MachineSemanticKind::CallI64 => 13,
+        MachineSemanticKind::Jump => 14,
     }
 }
 
@@ -317,6 +319,7 @@ pub(crate) const fn alternative_family_tag(family: MachineAlternativeFamily) -> 
         MachineAlternativeFamily::ConditionalBranchU64LessThan => 11,
         MachineAlternativeFamily::ConditionalBranchI64LessThan => 12,
         MachineAlternativeFamily::CallI64 => 13,
+        MachineAlternativeFamily::Jump => 14,
     }
 }
 
@@ -368,6 +371,7 @@ mod tests {
             compare_i64_zero: instruction(5),
             compare_i64: instruction(15),
             conditional_branch: instruction(6),
+            jump: instruction(16),
             return_i64: RegisterConstraintKey {
                 family: RegisterConstraintFamily::Return,
                 variant: 0,

@@ -26,6 +26,7 @@ pub(super) fn replay_structural_function(
         machine,
         block_domains,
         virtual_registers: Vec::new(),
+        edge_transfers: Vec::new(),
         tied_pairs: Vec::new(),
         early_clobbers: Vec::new(),
         architectural_units,
@@ -40,6 +41,7 @@ pub(super) fn replay_function(
 ) -> Result<FunctionLiveRanges, LiveRangeError> {
     constraints::reject_unsupported(function, live)?;
     let tied_pairs = constraints::derive_ties(function, live)?;
+    let edge_transfers = replay_edge_transfers(function, selected, live)?;
     let early_clobbers = constraints::derive_early_clobbers(function, live)?;
     let block_domains = fragments::block_domains(function, live)?;
 
@@ -138,8 +140,75 @@ pub(super) fn replay_function(
         block_domains,
         virtual_registers,
         tied_pairs,
+        edge_transfers,
         early_clobbers,
         architectural_units,
         interference,
     })
+}
+
+fn replay_edge_transfers(
+    function: usize,
+    selected: &selected_instructions::SelectedFunction,
+    live: &crate::FunctionLiveness,
+) -> Result<Vec<crate::EdgeRegisterTransfer>, LiveRangeError> {
+    use selected_instructions::{SelectedTerminator, VirtualRegisterOrigin};
+    let mut transfers = BTreeSet::new();
+    for predecessor in &selected.blocks {
+        let edges = match &predecessor.terminator {
+            SelectedTerminator::Return { .. } => Vec::new(),
+            SelectedTerminator::Jump { successor, .. } => vec![successor],
+            SelectedTerminator::ConditionalBranch {
+                when_nonzero,
+                when_zero,
+                ..
+            } => vec![when_nonzero, when_zero],
+            SelectedTerminator::ConditionalBranchU64LessThan {
+                when_less,
+                when_not_less,
+                ..
+            }
+            | SelectedTerminator::ConditionalBranchI64LessThan {
+                when_less,
+                when_not_less,
+                ..
+            } => vec![when_less, when_not_less],
+        };
+        for edge in edges {
+            let successor = live
+                .blocks
+                .iter()
+                .find(|row| row.block == edge.block)
+                .ok_or(LiveRangeError::FunctionMismatch { function })?;
+            for destination in &successor.virtual_live_in {
+                let parameter = selected
+                    .virtual_registers
+                    .iter()
+                    .find(|row| row.id == *destination)
+                    .ok_or(LiveRangeError::FunctionMismatch { function })?;
+                if !matches!(parameter.origin, VirtualRegisterOrigin::BlockParameter { block, .. } if block == edge.block)
+                {
+                    continue;
+                }
+                let argument = crate::analyses::liveness::edge_values::incoming_argument(
+                    function,
+                    selected,
+                    edge,
+                    *destination,
+                )
+                .map_err(LiveRangeError::LivenessRevalidation)?;
+                if !transfers.insert(crate::EdgeRegisterTransfer {
+                    source: predecessor.id,
+                    target: edge.block,
+                    psi_edge: edge.psi_edge,
+                    argument,
+                    parameter: *destination,
+                    class: parameter.class,
+                }) {
+                    return Err(LiveRangeError::FunctionMismatch { function });
+                }
+            }
+        }
+    }
+    Ok(transfers.into_iter().collect())
 }

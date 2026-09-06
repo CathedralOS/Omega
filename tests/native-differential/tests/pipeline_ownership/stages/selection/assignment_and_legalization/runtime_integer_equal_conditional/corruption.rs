@@ -56,7 +56,7 @@ fn equality_condition_custody_corruption_fails_closed_on_both_isas() {
 
         let mut corrupted = original.clone();
         let LegalizedCondition::IntegerEqualParametersV1 { operation, .. } =
-            &mut corrupted.functions[0].condition
+            &mut corrupted.functions[0].conditional_mut().condition
         else {
             panic!("fixture must retain equality custody")
         };
@@ -68,7 +68,7 @@ fn equality_condition_custody_corruption_fails_closed_on_both_isas() {
 
         let mut corrupted = original.clone();
         let LegalizedCondition::IntegerEqualParametersV1 { left, right, .. } =
-            &mut corrupted.functions[0].condition
+            &mut corrupted.functions[0].conditional_mut().condition
         else {
             panic!("fixture must retain equality custody")
         };
@@ -80,7 +80,7 @@ fn equality_condition_custody_corruption_fails_closed_on_both_isas() {
 
         let mut corrupted = original.clone();
         let LegalizedCondition::IntegerEqualParametersV1 { fuel, .. } =
-            &mut corrupted.functions[0].condition
+            &mut corrupted.functions[0].conditional_mut().condition
         else {
             panic!("fixture must retain equality custody")
         };

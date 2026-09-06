@@ -7,7 +7,7 @@ fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let staged = staged_exact_subtract_conditional(target);
         assert_eq!(
-            staged.legalized().plan().functions[0].recipe,
+            staged.legalized().plan().functions[0].conditional().recipe,
             LegalizationRecipe::ReturnU64ExactSubtractImmediateConditionalV1
         );
         let plan = staged.selected().plan();
@@ -241,7 +241,12 @@ fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
             .blocks
             .iter()
             .flat_map(|block| &block.instructions)
-            .find_map(|row| row.branch.as_deref().map(|branch| (row, branch)))
+            .find_map(|row| {
+                row.branch
+                    .as_deref()
+                    .and_then(|branch| branch.as_conditional())
+                    .map(|branch| (row, branch))
+            })
             .expect("one resolved branch");
         assert_eq!(branch.1.when_fallthrough_block, when_zero.block);
         assert_eq!(branch.1.when_taken_block, when_nonzero.block);
@@ -292,14 +297,18 @@ fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
             Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
         );
         let mut corrupted_layout = layout.clone();
-        corrupted_layout.functions_mut()[0].blocks[0]
-            .instructions
-            .last_mut()
-            .unwrap()
-            .branch
-            .as_mut()
-            .unwrap()
-            .byte_displacement += 1;
+        let machine_code::ResolvedBranchEvidence::Conditional(branch) =
+            corrupted_layout.functions_mut()[0].blocks[0]
+                .instructions
+                .last_mut()
+                .unwrap()
+                .branch
+                .as_deref_mut()
+                .unwrap()
+        else {
+            panic!("conditional fixture must retain conditional evidence");
+        };
+        branch.byte_displacement += 1;
         assert_eq!(
             validate_optimized_resolved_selected_form_layout(
                 selected_stage.selected(),

@@ -19,7 +19,9 @@ use crate::{
     x86_64_register_constraint_catalog,
 };
 
+mod jump;
 mod scalar_call;
+pub use jump::*;
 
 pub use scalar_call::*;
 
@@ -591,7 +593,7 @@ fn family_and_operand_count(
         SelectedInstructionKind::ConditionalBranchI64LessThan => {
             return Err(X86_64SelectedFormEncodingError::LayoutDependentForm);
         }
-        SelectedInstructionKind::CallI64 { .. } => {
+        SelectedInstructionKind::Jump | SelectedInstructionKind::CallI64 { .. } => {
             return Err(X86_64SelectedFormEncodingError::LayoutDependentForm);
         }
     })
@@ -791,7 +793,8 @@ fn encode_unchecked(
         }
         SelectedInstructionKind::ConditionalBranchNonZero
         | SelectedInstructionKind::ConditionalBranchU64LessThan
-        | SelectedInstructionKind::ConditionalBranchI64LessThan => {
+        | SelectedInstructionKind::ConditionalBranchI64LessThan
+        | SelectedInstructionKind::Jump => {
             return Err(X86_64SelectedFormEncodingError::LayoutDependentForm);
         }
         SelectedInstructionKind::CallI64 { .. } => {
@@ -1621,6 +1624,7 @@ fn validate_decoded(
         SelectedInstructionKind::ConditionalBranchNonZero
         | SelectedInstructionKind::ConditionalBranchU64LessThan
         | SelectedInstructionKind::ConditionalBranchI64LessThan
+        | SelectedInstructionKind::Jump
         | SelectedInstructionKind::CallI64 { .. } => false,
     };
     if valid {
@@ -1659,6 +1663,7 @@ fn footprint(
         SelectedInstructionKind::ConditionalBranchNonZero
         | SelectedInstructionKind::ConditionalBranchU64LessThan
         | SelectedInstructionKind::ConditionalBranchI64LessThan
+        | SelectedInstructionKind::Jump
         | SelectedInstructionKind::CallI64 { .. } => (vec![], vec![], false),
     };
     let physical = x86_64_physical_register_model();

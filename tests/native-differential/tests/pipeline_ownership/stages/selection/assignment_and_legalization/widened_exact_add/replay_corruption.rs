@@ -14,7 +14,7 @@ fn widened_u8_exact_add_independent_replay_rejects_corrupted_bridge_custody() {
             plan,
         )
     };
-    let false_fact = match original.functions[0].when_false.value {
+    let false_fact = match original.functions[0].conditional().when_false.value {
         LegalizedLeafValue::WidenedExactAdd { accepted_fact, .. } => accepted_fact,
         _ => panic!("fixture must retain its false-arm proof fact"),
     };
@@ -22,7 +22,7 @@ fn widened_u8_exact_add_independent_replay_rejects_corrupted_bridge_custody() {
     macro_rules! corrupt_true_leaf {
         (|$value:ident| $body:block) => {{
             let mut corrupted = original.clone();
-            let $value = &mut corrupted.functions[0].when_true.value;
+            let $value = &mut corrupted.functions[0].conditional_mut().when_true.value;
             $body
             assert_eq!(
                 validate(corrupted),

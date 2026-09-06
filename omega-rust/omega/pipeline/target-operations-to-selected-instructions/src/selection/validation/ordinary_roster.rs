@@ -32,6 +32,18 @@ pub(super) fn validate(
             unit.as_slice(),
             scalar_call_unit.as_slice(),
         ) {
+            (
+                [legalized_operations::LegalizedFunction::SharedReturnConditional(source)],
+                [],
+                [],
+            ) => super::shared_return::validate(
+                function_index,
+                source,
+                selected,
+                constraints,
+                physical,
+                catalog,
+            )?,
             ([legalized_operations::LegalizedFunction::Conditional(source)], [], []) => {
                 validate_function(
                     function_index,

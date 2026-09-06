@@ -21,7 +21,7 @@ fn signed_inclusive_family_rejects_unsigned_strict_and_operand_substitution() {
 
         let mut swapped = original.clone();
         let LegalizedCondition::I64LessOrEqualParametersV1 { left, right, .. } =
-            &mut swapped.functions[0].condition
+            &mut swapped.functions[0].conditional_mut().condition
         else {
             panic!("fixture must retain authored signed inclusive order")
         };
@@ -37,31 +37,33 @@ fn signed_inclusive_family_rejects_unsigned_strict_and_operand_substitution() {
             fuel,
             left,
             right,
-        } = original.functions[0].condition.clone()
+        } = original.functions[0].conditional().condition.clone()
         else {
             unreachable!()
         };
         let mut strict = original.clone();
-        strict.functions[0].condition = LegalizedCondition::I64LessThanParametersV1 {
-            operation,
-            result_definition_site,
-            fuel: fuel.clone(),
-            left: left.clone(),
-            right: right.clone(),
-        };
+        strict.functions[0].conditional_mut().condition =
+            LegalizedCondition::I64LessThanParametersV1 {
+                operation,
+                result_definition_site,
+                fuel: fuel.clone(),
+                left: left.clone(),
+                right: right.clone(),
+            };
         assert_eq!(
             validate(strict),
             Err(LegalizationError::NonCanonicalLegalizedPlan)
         );
 
         let mut unsigned = original.clone();
-        unsigned.functions[0].condition = LegalizedCondition::IntegerLessOrEqualParametersV1 {
-            operation,
-            result_definition_site,
-            fuel,
-            left,
-            right,
-        };
+        unsigned.functions[0].conditional_mut().condition =
+            LegalizedCondition::IntegerLessOrEqualParametersV1 {
+                operation,
+                result_definition_site,
+                fuel,
+                left,
+                right,
+            };
         assert_eq!(
             validate(unsigned),
             Err(LegalizationError::UnsupportedCondition { function: 0 })

@@ -205,6 +205,7 @@ fn validate_dense_identifiers(
                     SelectedTerminator::ConditionalBranch { instruction, .. }
                     | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
                     | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
+                    | SelectedTerminator::Jump { instruction, .. }
                     | SelectedTerminator::Return { instruction, .. } => instruction.id.0,
                 }))
         })
@@ -338,7 +339,8 @@ fn redensify(
                 *instruction =
                     lower_instruction(function_index, *instruction, removed_instruction)?;
             }
-            VirtualRegisterOrigin::EntryParameter { .. } => {}
+            VirtualRegisterOrigin::EntryParameter { .. }
+            | VirtualRegisterOrigin::BlockParameter { .. } => {}
         }
     }
     for block in &mut function.blocks {
@@ -354,6 +356,7 @@ fn redensify(
             SelectedTerminator::ConditionalBranch { instruction, .. }
             | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
             | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
+            | SelectedTerminator::Jump { instruction, .. }
             | SelectedTerminator::Return { instruction, .. } => {
                 lower_selected_instruction(
                     function_index,

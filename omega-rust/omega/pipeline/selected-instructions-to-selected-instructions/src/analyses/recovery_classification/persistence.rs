@@ -22,7 +22,7 @@ use crate::{
 };
 
 const RECOVERY_CLASSIFICATION_MAGIC: &[u8; 8] = b"OMGRCV\0\0";
-const RECOVERY_CLASSIFICATION_VERSION: u32 = 3;
+const RECOVERY_CLASSIFICATION_VERSION: u32 = 4;
 
 impl RecoveryClassificationPlan {
     /// Canonical transport only. Decoding returns an unchecked plain plan; only
@@ -287,6 +287,11 @@ impl<'encoded> RecoveryClassificationCursor<'encoded> {
 
     fn origin(&mut self) -> Result<VirtualRegisterOrigin, RecoveryClassificationDecodeError> {
         match self.byte()? {
+            3 => Ok(VirtualRegisterOrigin::BlockParameter {
+                source_value: self.value_id()?,
+                block: selected_instructions::SelectedBlockId(u32::from_le_bytes(self.array()?)),
+                parameter_index: self.length()?,
+            }),
             0 => Ok(VirtualRegisterOrigin::EntryParameter {
                 source_value: self.value_id()?,
                 parameter_index: self.length()?,

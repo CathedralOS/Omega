@@ -154,7 +154,7 @@ fn selected_payload_offset(encoded: &[u8]) -> usize {
 }
 
 #[test]
-fn artifact_v11_round_trips_structural_functions_call_plans_and_semantic_call_rows() {
+fn artifact_v12_round_trips_structural_functions_call_plans_and_semantic_call_rows() {
     let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     std::sync::Arc::make_mut(&mut plan.transformed)
         .structural_unit_functions
@@ -181,7 +181,7 @@ fn artifact_v5_decodes_with_empty_semantic_call_rows() {
 }
 
 #[test]
-fn artifact_v11_payload_digest_and_outer_envelope_close_call_plan_blind_spots() {
+fn artifact_v12_payload_digest_and_outer_envelope_close_call_plan_blind_spots() {
     let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     std::sync::Arc::make_mut(&mut plan.transformed)
         .structural_unit_functions

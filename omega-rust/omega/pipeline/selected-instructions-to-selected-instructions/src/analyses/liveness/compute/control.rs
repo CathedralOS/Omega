@@ -7,6 +7,7 @@ pub(super) fn instruction(terminator: &SelectedTerminator) -> &SelectedInstructi
         SelectedTerminator::ConditionalBranch { instruction, .. }
         | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
         | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
+        | SelectedTerminator::Jump { instruction, .. }
         | SelectedTerminator::Return { instruction, .. } => instruction,
     }
 }
@@ -29,6 +30,7 @@ pub(super) fn successors(terminator: &SelectedTerminator) -> Vec<&SelectedSucces
             when_not_less,
             ..
         } => vec![when_less, when_not_less],
+        SelectedTerminator::Jump { successor, .. } => vec![successor],
         SelectedTerminator::Return { .. } => Vec::new(),
     }
 }

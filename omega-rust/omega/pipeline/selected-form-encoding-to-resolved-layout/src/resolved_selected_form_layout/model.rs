@@ -12,9 +12,9 @@ use physical_instructions::{Aarch64CbnzFusionIdentity, Aarch64MovnMaterializatio
 use target::NativeTarget;
 
 pub use machine_code::{
-    ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate,
-    ResolvedSelectedBlockLayout, ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFormRow,
-    ResolvedSelectedFunctionLayout, ResolvedStructuralUnitCallLayout,
+    ResolvedBranchEvidence, ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate,
+    ResolvedJumpEvidence, ResolvedSelectedBlockLayout, ResolvedSelectedFormLayoutIdentity,
+    ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout, ResolvedStructuralUnitCallLayout,
     ResolvedStructuralUnitFunctionLayout, SelectedFunctionLayoutPolicy,
 };
 

@@ -4,6 +4,14 @@ use super::*;
 
 pub(super) fn encode_terminator(bytes: &mut Vec<u8>, terminator: &SelectedTerminator) {
     match terminator {
+        SelectedTerminator::Jump {
+            instruction,
+            successor,
+        } => {
+            bytes.push(4);
+            encode_instruction(bytes, instruction);
+            encode_successor(bytes, successor);
+        }
         SelectedTerminator::ConditionalBranch {
             instruction,
             when_nonzero,

@@ -59,6 +59,9 @@ pub(super) fn validate_initial_roots(
         .map(|source| {
             let source = match source {
                 legalized_operations::LegalizedFunction::Conditional(source) => source,
+                legalized_operations::LegalizedFunction::SharedReturnConditional(source) => {
+                    return source.abi.parameters.len();
+                }
                 legalized_operations::LegalizedFunction::Leaf(source) => {
                     return usize::from(matches!(
                         source.leaf.value,

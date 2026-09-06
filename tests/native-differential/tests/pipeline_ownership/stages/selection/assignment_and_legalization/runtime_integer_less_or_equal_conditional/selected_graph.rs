@@ -49,7 +49,7 @@ fn runtime_u64_parameter_less_or_equal_selects_reversed_compare_on_both_isas() {
         .unwrap();
         validate_raw_selection(&staged, staged.selected().plan().clone()).unwrap();
 
-        let legalized = &staged.legalized().plan().functions[0];
+        let legalized = staged.legalized().plan().functions[0].conditional();
         assert_eq!(
             legalized.recipe,
             LegalizationRecipe::ReturnU64IntegerLessOrEqualParametersConditionalV1

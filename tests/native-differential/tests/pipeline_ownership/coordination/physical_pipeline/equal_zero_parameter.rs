@@ -239,6 +239,9 @@ fn explicit_aarch64_cbnz_selection_crosses_allocation_and_elides_the_compare() {
                     when_fallthrough,
                     ..
                 } => when_taken.fuel.len() + when_fallthrough.fuel.len(),
+                machine_code::FunctionFragmentControlProvenance::Jump { .. } => {
+                    panic!("equal-zero direct-return fixture contains no jump")
+                }
                 machine_code::FunctionFragmentControlProvenance::None
                 | machine_code::FunctionFragmentControlProvenance::DirectInternalCall { .. }
                 | machine_code::FunctionFragmentControlProvenance::Return { .. } => 0,

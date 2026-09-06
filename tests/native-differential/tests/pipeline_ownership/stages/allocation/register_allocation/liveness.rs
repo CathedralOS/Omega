@@ -104,7 +104,9 @@ fn forwarded_parameter_conditional_retains_cross_edge_liveness() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let selected = staged_forwarded_conditional(target);
         assert_eq!(
-            selected.legalized().plan().functions[0].recipe,
+            selected.legalized().plan().functions[0]
+                .conditional()
+                .recipe,
             LegalizationRecipe::ReturnU64EntryParameterConditionalV1
         );
         let selected_plan = selected.selected().plan();

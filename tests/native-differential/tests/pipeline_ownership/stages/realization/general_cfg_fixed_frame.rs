@@ -43,7 +43,12 @@ fn nonzero_frames_reflow_three_block_returns_through_callable_publication() {
             .flat_map(|block| &block.instructions)
             .find(|row| row.branch.is_some())
             .unwrap();
-        let branch = branch_row.branch.as_deref().unwrap();
+        let branch = branch_row
+            .branch
+            .as_deref()
+            .unwrap()
+            .as_conditional()
+            .unwrap();
         assert_eq!(
             branch.when_fallthrough_offset,
             branch_row.offset + branch_row.bytes.len() as u64
@@ -306,7 +311,11 @@ fn staged_application(
         .blocks
         .iter()
         .flat_map(|block| &block.instructions)
-        .find_map(|row| row.branch.as_deref())
+        .find_map(|row| {
+            row.branch
+                .as_deref()
+                .and_then(|branch| branch.as_conditional())
+        })
         .unwrap()
         .byte_displacement;
     let source_byte_count = source_function.byte_count;

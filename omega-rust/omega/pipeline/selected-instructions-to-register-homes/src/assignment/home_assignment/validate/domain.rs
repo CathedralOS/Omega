@@ -67,6 +67,31 @@ pub(super) fn reconstruct(
             components[keep].extend(removed);
         }
     }
+    for transfer in &ranges.edge_transfers {
+        let error = || RegisterHomeError::UnsupportedEdgeTransfer {
+            function,
+            edge: transfer.psi_edge.get(),
+        };
+        let (Some(&argument), Some(&parameter)) = (
+            positions.get(&transfer.argument),
+            positions.get(&transfer.parameter),
+        ) else {
+            return Err(error());
+        };
+        if legality.virtual_registers[argument].class != transfer.class
+            || legality.virtual_registers[parameter].class != transfer.class
+        {
+            return Err(error());
+        }
+        let argument_component = component_containing(&components, transfer.argument);
+        let parameter_component = component_containing(&components, transfer.parameter);
+        if argument_component != parameter_component {
+            let keep = argument_component.min(parameter_component);
+            let remove = argument_component.max(parameter_component);
+            let removed = components.remove(remove);
+            components[keep].extend(removed);
+        }
+    }
     components.sort_by_key(|component| component.first().copied());
     components
         .into_iter()
@@ -125,6 +150,16 @@ fn build(
     }
     let shared = shared.expect("replay component is nonempty");
     if shared.is_empty() {
+        if let Some(edge) = ranges
+            .edge_transfers
+            .iter()
+            .find(|edge| registers.contains(&edge.parameter))
+        {
+            return Err(RegisterHomeError::UnsupportedEdgeTransfer {
+                function,
+                edge: edge.psi_edge.get(),
+            });
+        }
         if members.len() > 1 {
             return Err(RegisterHomeError::NoCommonTiedComponent {
                 function,
@@ -152,9 +187,35 @@ fn reject_internal_interference(
     registers: &[VirtualRegisterId],
     ranges: &crate::FunctionLiveRanges,
 ) -> Result<(), RegisterHomeError> {
+    for edge in &ranges.edge_transfers {
+        if registers.contains(&edge.parameter)
+            && ranges.early_clobbers.iter().any(|early| {
+                registers.contains(&early.def_virtual_register)
+                    && early
+                        .uses
+                        .iter()
+                        .any(|used| registers.contains(&used.virtual_register))
+            })
+        {
+            return Err(RegisterHomeError::UnsupportedEdgeTransfer {
+                function,
+                edge: edge.psi_edge.get(),
+            });
+        }
+    }
     for (left_index, left) in registers.iter().enumerate() {
         for right in registers.iter().skip(left_index + 1) {
             if conflicts::interferes(*left, *right, &ranges.interference) {
+                if let Some(edge) = ranges
+                    .edge_transfers
+                    .iter()
+                    .find(|edge| registers.contains(&edge.parameter))
+                {
+                    return Err(RegisterHomeError::UnsupportedEdgeTransfer {
+                        function,
+                        edge: edge.psi_edge.get(),
+                    });
+                }
                 return Err(RegisterHomeError::TiedRegistersInterfere {
                     function,
                     lower: left.0.min(right.0),

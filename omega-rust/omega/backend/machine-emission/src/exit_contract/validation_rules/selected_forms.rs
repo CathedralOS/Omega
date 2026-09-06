@@ -53,6 +53,7 @@ pub(in crate::exit_contract) fn unique_encoding_rows<'a>(
                         instruction,
                         ..
                     }
+                    | selected_instructions::SelectedTerminator::Jump { instruction, .. }
                     | selected_instructions::SelectedTerminator::Return { instruction, .. } => {
                         instruction
                     }
@@ -157,10 +158,20 @@ pub(in crate::exit_contract) fn transformed_implicit_writes_any(
 
 pub(in crate::exit_contract) fn validate_non_return(
     instruction: SelectedInstructionId,
-    conditional_terminator: bool,
+    kind: SelectedInstructionKind,
     encoding: &post_allocation_machine_to_selected_form_encoding::SelectedFormEncodingRow,
     layout: &machine_code::ResolvedSelectedFormRow,
 ) -> Result<(), WholeFunctionExitContractError> {
+    let expected_control = match kind {
+        SelectedInstructionKind::Jump => MachineEncodedControlEffect::UnconditionalRelativeBranchV1,
+        SelectedInstructionKind::ConditionalBranchNonZero
+        | SelectedInstructionKind::ConditionalBranchU64LessThan
+        | SelectedInstructionKind::ConditionalBranchI64LessThan => {
+            MachineEncodedControlEffect::ConditionalRelativeBranchV1
+        }
+        _ => MachineEncodedControlEffect::FallThroughV1,
+    };
+    let branch_terminator = expected_control != MachineEncodedControlEffect::FallThroughV1;
     let effects = match &encoding.state {
         SelectedFormEncodingState::Encoded { footprint, bytes }
         | SelectedFormEncodingState::UnresolvedInternalMachineCall {
@@ -174,7 +185,7 @@ pub(in crate::exit_contract) fn validate_non_return(
                 }
                 SelectedFormMachineDisposition::Aarch64FusedBranchNonZeroToCbnzV1 { .. } => false,
             };
-            if conditional_terminator || !disposition_matches || layout.branch.is_some() {
+            if branch_terminator || !disposition_matches || layout.branch.is_some() {
                 return Err(WholeFunctionExitContractError::InstructionRosterMismatch(
                     instruction,
                 ));
@@ -182,7 +193,7 @@ pub(in crate::exit_contract) fn validate_non_return(
             &footprint.encoded
         }
         SelectedFormEncodingState::DeferredControl { .. } => {
-            if !conditional_terminator {
+            if !branch_terminator {
                 return Err(WholeFunctionExitContractError::InstructionRosterMismatch(
                     instruction,
                 ));
@@ -190,7 +201,12 @@ pub(in crate::exit_contract) fn validate_non_return(
             layout
                 .branch
                 .as_ref()
-                .map(|branch| &branch.decoded_effects)
+                .map(|branch| match branch.as_ref() {
+                    machine_code::ResolvedBranchEvidence::Conditional(branch) => {
+                        &branch.decoded_effects
+                    }
+                    machine_code::ResolvedBranchEvidence::Jump(branch) => &branch.decoded_effects,
+                })
                 .ok_or(WholeFunctionExitContractError::InstructionRosterMismatch(
                     instruction,
                 ))?
@@ -206,11 +222,6 @@ pub(in crate::exit_contract) fn validate_non_return(
             instruction,
         ));
     }
-    let expected_control = if conditional_terminator {
-        MachineEncodedControlEffect::ConditionalRelativeBranchV1
-    } else {
-        MachineEncodedControlEffect::FallThroughV1
-    };
     if effects.control != expected_control {
         return Err(WholeFunctionExitContractError::NonReturnControlEffect(
             instruction,

@@ -127,9 +127,8 @@ pub(super) fn check(
                 } => (instruction, Some(*psi_return_edge)),
                 SelectedTerminator::ConditionalBranch { instruction, .. }
                 | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-                | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. } => {
-                    (instruction, None)
-                }
+                | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
+                | SelectedTerminator::Jump { instruction, .. } => (instruction, None),
             };
             for (index, (instruction, actual)) in block
                 .instructions
@@ -229,7 +228,7 @@ pub(super) fn check(
                             instruction.id,
                         ));
                     }
-                    validate_non_return(instruction.id, terminal, encoded, resolved)?;
+                    validate_non_return(instruction.id, instruction.kind, encoded, resolved)?;
                 }
             }
         }

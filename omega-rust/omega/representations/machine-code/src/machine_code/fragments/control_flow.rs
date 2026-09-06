@@ -7,8 +7,36 @@ use selected_instructions::{MachineEncodedEffects, SelectedBlockId};
 use semantic_vocabulary::{BlockId, EdgeId, MachineId};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FunctionFragmentBranchEvidence {
+    Conditional(FunctionFragmentConditionalBranchEvidence),
+    Jump(FunctionFragmentJumpEvidence),
+}
+
+impl FunctionFragmentBranchEvidence {
+    pub const fn as_conditional(&self) -> Option<&FunctionFragmentConditionalBranchEvidence> {
+        match self {
+            Self::Conditional(value) => Some(value),
+            Self::Jump(_) => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FunctionFragmentJumpEvidence {
+    pub source_block: SelectedBlockId,
+    pub target_edge: EdgeId,
+    pub target_block: SelectedBlockId,
+    pub target_offset: u64,
+    pub byte_displacement: i64,
+    pub decoded_effects: MachineEncodedEffects,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunctionFragmentControlProvenance {
     None,
+    Jump {
+        successor: FunctionFragmentSuccessorProvenance,
+    },
     DirectInternalCall {
         callee: MachineId,
     },

@@ -37,11 +37,12 @@ mod scalar_conditional_call_paths;
 mod scalar_conditional_regions;
 mod scalar_conditional_stack;
 mod scalar_control_cleanup;
-mod scalar_direct_conditional;
+mod scalar_control_flow;
 mod scalar_division_stack;
 mod scalar_shared_convergence;
 mod scalar_stack;
 mod scalar_stack_mutation;
+mod scalar_stack_regions;
 mod scalar_structural_scalar_field_store;
 mod stack_demand;
 mod structural_condition_layout;
@@ -78,7 +79,7 @@ pub use installed_artifact::{
 };
 pub use machine_code::BoundaryExecutionRecord;
 pub(crate) use partial_cleanup_partition::exact_partial_cleanup_partition;
-pub use scalar_direct_conditional::validate_direct_scalar_conditional_branch;
+pub use scalar_control_flow::reconstruct_scalar_control_flow;
 pub use stack_demand::{derive_stack_demand, derive_unit_stack_demand};
 
 use affine_projected_calls::{

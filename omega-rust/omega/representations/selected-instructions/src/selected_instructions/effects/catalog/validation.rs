@@ -66,6 +66,7 @@ pub(super) fn validate_declaration(
     let expected_barrier = if matches!(
         semantic,
         MachineSemanticKind::ConditionalBranchNonZero
+            | MachineSemanticKind::Jump
             | MachineSemanticKind::ConditionalBranchU64LessThan
             | MachineSemanticKind::ConditionalBranchI64LessThan
             | MachineSemanticKind::ReturnI64
@@ -225,6 +226,7 @@ fn validate_encoded_effects(
         MachineEncodedControlEffect::FallThroughV1 => MachineBarrier::None,
         MachineEncodedControlEffect::DirectRelativeCallV1 => MachineBarrier::Call,
         MachineEncodedControlEffect::ConditionalRelativeBranchV1
+        | MachineEncodedControlEffect::UnconditionalRelativeBranchV1
         | MachineEncodedControlEffect::ReturnFromActivationStackV1
         | MachineEncodedControlEffect::ReturnIndirectRegisterV1 { .. } => {
             MachineBarrier::ControlFlow

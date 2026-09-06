@@ -65,7 +65,13 @@ pub(crate) fn function_relative_statistics(
         .iter()
         .flat_map(|function| &function.blocks)
         .flat_map(|block| &block.instructions)
-        .filter(|instruction| instruction.branch.is_some())
+        .filter(|instruction| {
+            instruction
+                .branch
+                .as_deref()
+                .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
+                .is_some()
+        })
         .try_fold(0_u64, |total, _| {
             total
                 .checked_add(1)

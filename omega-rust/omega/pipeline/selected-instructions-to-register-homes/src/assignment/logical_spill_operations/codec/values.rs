@@ -80,6 +80,16 @@ pub(super) fn decode_scalar_type(
 
 pub(super) fn encode_origin(bytes: &mut Vec<u8>, origin: VirtualRegisterOrigin) {
     match origin {
+        VirtualRegisterOrigin::BlockParameter {
+            source_value,
+            block,
+            parameter_index,
+        } => {
+            bytes.push(3);
+            bytes.extend_from_slice(&source_value.get().to_le_bytes());
+            bytes.extend_from_slice(&block.0.to_le_bytes());
+            encode_len(bytes, parameter_index);
+        }
         VirtualRegisterOrigin::EntryParameter {
             source_value,
             parameter_index,
@@ -141,6 +151,11 @@ pub(super) fn decode_origin(
                 source_value: value(raw)?,
             })
         }
+        3 => Ok(VirtualRegisterOrigin::BlockParameter {
+            source_value: value(u64::from_le_bytes(cursor.array()?))?,
+            block: selected_instructions::SelectedBlockId(u32::from_le_bytes(cursor.array()?)),
+            parameter_index: cursor.length()?,
+        }),
         tag => Err(LogicalSpillOperationDecodeError::UnknownOrigin(tag)),
     }
 }

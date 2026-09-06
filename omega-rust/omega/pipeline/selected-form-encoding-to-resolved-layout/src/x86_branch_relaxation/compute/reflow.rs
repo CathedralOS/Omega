@@ -27,8 +27,40 @@ pub(super) fn reflow_production_functions(
         let offsets = assign_dense_offsets(function)?;
         for block in &mut function.blocks {
             for row in &mut block.instructions {
-                let Some(branch) = row.branch.as_mut() else {
+                let Some(branch) = row.branch.as_deref_mut() else {
                     continue;
+                };
+                let branch = match branch {
+                    machine_code::ResolvedBranchEvidence::Conditional(branch) => branch,
+                    machine_code::ResolvedBranchEvidence::Jump(jump) => {
+                        let target = *offsets.get(&jump.target_block).ok_or(
+                            OptimizedX86BranchRelaxationError::MissingTargetBlock(
+                                jump.target_block,
+                            ),
+                        )?;
+                        let end = row
+                            .offset
+                            .checked_add(5)
+                            .ok_or(OptimizedX86BranchRelaxationError::OffsetOverflow)?;
+                        let displacement = checked_delta(target, end)?;
+                        let encoded = isa_x86_64::encode_x86_64_selected_jump_form(
+                            physical,
+                            row.alternative,
+                            displacement,
+                        )
+                        .map_err(OptimizedX86BranchRelaxationError::X86_64)?;
+                        if row.bytes.len() != 5
+                            || encoded.footprint().encoded != jump.decoded_effects
+                        {
+                            return Err(OptimizedX86BranchRelaxationError::MalformedBranch(
+                                row.instruction,
+                            ));
+                        }
+                        jump.target_offset = target;
+                        jump.byte_displacement = displacement;
+                        row.bytes = encoded.bytes().to_vec();
+                        continue;
+                    }
                 };
                 rewrite_branch_offsets(
                     branch,
@@ -116,8 +148,51 @@ pub(super) fn reflow_replay_functions(
         function.byte_count = next;
         for block in &mut function.blocks {
             for row in &mut block.instructions {
-                let Some(branch) = row.branch.as_mut() else {
+                let Some(branch) = row.branch.as_deref_mut() else {
                     continue;
+                };
+                let branch = match branch {
+                    machine_code::ResolvedBranchEvidence::Conditional(branch) => branch,
+                    machine_code::ResolvedBranchEvidence::Jump(jump) => {
+                        let target = *offsets.get(&jump.target_block).ok_or(
+                            OptimizedX86BranchRelaxationError::MissingTargetBlock(
+                                jump.target_block,
+                            ),
+                        )?;
+                        let end = row
+                            .offset
+                            .checked_add(5)
+                            .ok_or(OptimizedX86BranchRelaxationError::OffsetOverflow)?;
+                        let displacement = checked_delta(target, end)?;
+                        let mut bytes = vec![0xe9];
+                        bytes.extend_from_slice(
+                            &i32::try_from(displacement)
+                                .map_err(|_| {
+                                    OptimizedX86BranchRelaxationError::MalformedBranch(
+                                        row.instruction,
+                                    )
+                                })?
+                                .to_le_bytes(),
+                        );
+                        let encoded = isa_x86_64::validate_x86_64_selected_jump_form(
+                            physical,
+                            row.alternative,
+                            displacement,
+                            &bytes,
+                        )
+                        .map_err(OptimizedX86BranchRelaxationError::X86_64)?;
+                        if row.bytes.len() != 5
+                            || encoded.footprint().encoded != jump.decoded_effects
+                        {
+                            return Err(OptimizedX86BranchRelaxationError::MalformedBranch(
+                                row.instruction,
+                            ));
+                        }
+                        jump.target_offset = target;
+                        jump.byte_displacement = displacement;
+                        row.bytes = encoded.bytes().to_vec();
+                        continue;
+                    }
                 };
                 let taken = offsets.get(&branch.when_taken_block).copied().ok_or(
                     OptimizedX86BranchRelaxationError::MissingTargetBlock(branch.when_taken_block),

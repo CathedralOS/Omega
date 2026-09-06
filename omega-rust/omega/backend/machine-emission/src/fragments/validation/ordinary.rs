@@ -50,6 +50,7 @@ pub(super) fn check(
                     SelectedTerminator::ConditionalBranch { instruction, .. }
                     | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
                     | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
+                    | SelectedTerminator::Jump { instruction, .. }
                     | SelectedTerminator::Return { instruction, .. } => instruction,
                 };
                 let selected_instruction = selected_block

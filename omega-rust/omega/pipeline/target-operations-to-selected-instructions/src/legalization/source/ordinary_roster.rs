@@ -117,6 +117,18 @@ pub(super) fn derive_remaining(
                         leaf,
                     },
                 ));
+        } else if abstracted.block_entries.len() == 4 {
+            rosters.functions.push(
+                legalized_operations::LegalizedFunction::SharedReturnConditional(
+                    super::shared_return::derive(
+                        index,
+                        target.target,
+                        target_function,
+                        abstracted,
+                        optimized,
+                    )?,
+                ),
+            );
         } else {
             rosters
                 .functions

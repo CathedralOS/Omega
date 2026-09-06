@@ -266,6 +266,9 @@ fn source_value(
         .iter()
         .find(|register| register.id == virtual_register)
         .map(|register| match register.origin {
+            selected_instructions::VirtualRegisterOrigin::BlockParameter {
+                source_value, ..
+            } => source_value,
             selected_instructions::VirtualRegisterOrigin::EntryParameter {
                 source_value, ..
             }

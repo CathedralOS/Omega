@@ -168,6 +168,16 @@ fn selected_instruction_plan_identity_with_schema(
             encode_scalar_type(&mut bytes, register.scalar_type);
             bytes.extend_from_slice(&register.class.0.to_le_bytes());
             match register.origin {
+                VirtualRegisterOrigin::BlockParameter {
+                    source_value,
+                    block,
+                    parameter_index,
+                } => {
+                    bytes.push(3);
+                    bytes.extend_from_slice(&source_value.get().to_le_bytes());
+                    bytes.extend_from_slice(&block.0.to_le_bytes());
+                    bytes.extend_from_slice(&(parameter_index as u64).to_le_bytes());
+                }
                 VirtualRegisterOrigin::EntryParameter {
                     source_value,
                     parameter_index,
@@ -305,6 +315,7 @@ fn encode_definition_site(bytes: &mut Vec<u8>, site: ValueDefinitionSite) {
 fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
     bytes.extend_from_slice(&instruction.id.0.to_le_bytes());
     bytes.push(match instruction.kind {
+        SelectedInstructionKind::Jump => 14,
         SelectedInstructionKind::CompareI64Zero => 0,
         SelectedInstructionKind::MaterializeI64 { .. } => 1,
         SelectedInstructionKind::ConditionalBranchNonZero => 2,
@@ -375,7 +386,8 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         | SelectedInstructionKind::ConditionalBranchU64LessThan
         | SelectedInstructionKind::ConditionalBranchI64LessThan
         | SelectedInstructionKind::ReturnI64
-        | SelectedInstructionKind::ReturnUnit => {}
+        | SelectedInstructionKind::ReturnUnit
+        | SelectedInstructionKind::Jump => {}
         SelectedInstructionKind::CallI64 { callee } => {
             bytes.extend_from_slice(&callee.get().to_le_bytes());
         }

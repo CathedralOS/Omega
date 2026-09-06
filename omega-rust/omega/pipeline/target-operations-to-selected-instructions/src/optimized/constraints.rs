@@ -14,6 +14,28 @@ pub fn selection_constraints(
     for function in &legalized.plan().functions {
         let function = match function {
             legalized_operations::LegalizedFunction::Conditional(function) => function,
+            legalized_operations::LegalizedFunction::SharedReturnConditional(function) => {
+                for (index, parameter) in function.abi.parameters.iter().enumerate() {
+                    if let [
+                        calling_conventions::ValueLocation::Register {
+                            register,
+                            value_byte_offset: 0,
+                            byte_size: 8,
+                        },
+                    ] = parameter.placement.locations.as_slice()
+                    {
+                        push_fixed_input(
+                            &mut fixed_inputs,
+                            environment,
+                            function.machine,
+                            parameter.value,
+                            index,
+                            *register,
+                        );
+                    }
+                }
+                continue;
+            }
             legalized_operations::LegalizedFunction::Leaf(function) => {
                 if let LegalizedLeafValue::EntryParameter {
                     parameter_index,

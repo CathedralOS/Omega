@@ -335,10 +335,8 @@ fn compute_inner<S: ValidatedSelectedAnalysis>(
                 ));
             }
             for (index, machine_instruction) in machine_block.instructions.iter().enumerate() {
-                let (instruction, return_edge, conditional_terminator) = if index
-                    < block.instructions.len()
-                {
-                    (&block.instructions[index], None, false)
+                let (instruction, return_edge) = if index < block.instructions.len() {
+                    (&block.instructions[index], None)
                 } else {
                     match &block.terminator {
                         SelectedTerminator::ConditionalBranch { instruction, .. }
@@ -347,11 +345,12 @@ fn compute_inner<S: ValidatedSelectedAnalysis>(
                         }
                         | SelectedTerminator::ConditionalBranchI64LessThan {
                             instruction, ..
-                        } => (instruction, None, true),
+                        }
+                        | SelectedTerminator::Jump { instruction, .. } => (instruction, None),
                         SelectedTerminator::Return {
                             instruction,
                             psi_return_edge,
-                        } => (instruction, Some(*psi_return_edge), false),
+                        } => (instruction, Some(*psi_return_edge)),
                     }
                 };
                 if machine_instruction.instruction != instruction.id {
@@ -449,7 +448,7 @@ fn compute_inner<S: ValidatedSelectedAnalysis>(
                     }
                     validate_non_return(
                         instruction.id,
-                        conditional_terminator,
+                        instruction.kind,
                         encoding_row,
                         resolved_row,
                     )?;

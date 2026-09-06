@@ -15,7 +15,7 @@ fn widened_u8_exact_subtract_independent_replay_rejects_corrupted_order_and_cust
             plan,
         )
     };
-    let false_fact = match original.functions[0].when_false.value {
+    let false_fact = match original.functions[0].conditional().when_false.value {
         LegalizedLeafValue::WidenedExactSubtract { accepted_fact, .. } => accepted_fact,
         _ => panic!("fixture must retain its false-arm proof fact"),
     };
@@ -23,7 +23,7 @@ fn widened_u8_exact_subtract_independent_replay_rejects_corrupted_order_and_cust
     macro_rules! corrupt_true_subtract_leaf {
         (|$value:ident| $body:block) => {{
             let mut corrupted = original.clone();
-            let $value = &mut corrupted.functions[0].when_true.value;
+            let $value = &mut corrupted.functions[0].conditional_mut().when_true.value;
             $body
             assert_ne!(legalized_operation_plan_identity(&corrupted), identity);
             assert_eq!(
@@ -122,7 +122,7 @@ fn widened_u8_exact_subtract_independent_replay_rejects_corrupted_order_and_cust
     });
 
     let mut corrupted = original.clone();
-    corrupted.functions[0].recipe =
+    corrupted.functions[0].conditional_mut().recipe =
         LegalizationRecipe::ReturnU64WidenedU8ExactAddImmediateConditionalV1;
     assert_ne!(legalized_operation_plan_identity(&corrupted), identity);
     assert_eq!(

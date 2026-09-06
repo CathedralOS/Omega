@@ -1,7 +1,7 @@
 //! Deterministic baseline and active-resident-rematerialized register homes.
 
 use crate::tests::{
-    IntegerValue, LegalizationRecipe, NativeTarget, OptimizationWorkBudget,
+    ConditionalFixture, IntegerValue, LegalizationRecipe, NativeTarget, OptimizationWorkBudget,
     PostAllocationSelectedTransformation, PressureRematerializationPolicy, RecoveryClassification,
     RecoveryClassificationPolicy, RecoveryVictimRole, SelectedInstructionKind, SpillChoicePolicy,
     ValueId, VirtualInterference, VirtualRegisterId, choose_spill_victims,
@@ -182,6 +182,7 @@ fn active_resident_multi_use_rematerialization_reaches_fresh_homes_on_both_archi
                 .legalized()
                 .plan()
                 .functions[0]
+                .conditional()
                 .recipe,
             LegalizationRecipe::ReturnU64ActiveResidentExactAddChainConditionalV1
         );

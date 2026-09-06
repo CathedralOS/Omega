@@ -113,6 +113,7 @@ fn selected_keys(
         compare_i64_zero: AARCH64_COMPARE_I64_ZERO,
         compare_i64: AARCH64_COMPARE_I64,
         conditional_branch: AARCH64_CONDITIONAL_BRANCH,
+        jump: crate::AARCH64_JUMP,
         return_i64,
         return_unit,
     })
@@ -139,6 +140,7 @@ fn declaration(
                 | MachineSemanticKind::ConditionalBranchU64LessThan
                 | MachineSemanticKind::ConditionalBranchI64LessThan
                 | MachineSemanticKind::ReturnI64
+                | MachineSemanticKind::Jump
                 | MachineSemanticKind::ReturnUnit
         ) {
             MachineBarrier::ControlFlow
@@ -189,6 +191,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::ConditionalBranchU64LessThan
         | MachineSemanticKind::ConditionalBranchI64LessThan
         | MachineSemanticKind::ReturnI64
+        | MachineSemanticKind::Jump
         | MachineSemanticKind::ReturnUnit => (vec![], vec![]),
         MachineSemanticKind::CallI64 => {
             panic!("scalar calls use their dedicated declaration")
@@ -200,6 +203,12 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
             units("nzcv"),
             MachineEncodedTrapBehavior::NeverV1,
             MachineEncodedControlEffect::FallThroughV1,
+        ),
+        MachineSemanticKind::Jump => (
+            units("pc"),
+            units("pc"),
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+            MachineEncodedControlEffect::UnconditionalRelativeBranchV1,
         ),
         MachineSemanticKind::ConditionalBranchNonZero
         | MachineSemanticKind::ConditionalBranchU64LessThan

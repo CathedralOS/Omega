@@ -115,6 +115,12 @@ pub enum RegisterHomeError {
         function: usize,
         instruction: u32,
     },
+    /// The transition-free allocator cannot realize this exact successor
+    /// binding without a physical edge move. It never drops the transfer.
+    UnsupportedEdgeTransfer {
+        function: usize,
+        edge: u64,
+    },
     TiedRegistersInterfere {
         function: usize,
         lower: u32,

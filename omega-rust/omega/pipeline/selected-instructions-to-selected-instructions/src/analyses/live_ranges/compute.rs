@@ -2,6 +2,7 @@
 
 mod architectural_units;
 mod constraints;
+mod edge_transfers;
 mod fragments;
 mod function;
 

@@ -66,7 +66,7 @@ fn equal_zero_legalization_and_selected_corruption_fail_closed() {
         };
 
         let mut corrupted = staged.legalized().plan().clone();
-        corrupted.functions[0].recipe =
+        corrupted.functions[0].conditional_mut().recipe =
             LegalizationRecipe::ReturnU64IntegerEqualParametersConditionalV1;
         assert_eq!(
             validate(corrupted),
@@ -75,7 +75,7 @@ fn equal_zero_legalization_and_selected_corruption_fail_closed() {
 
         let mut corrupted = staged.legalized().plan().clone();
         let LegalizedCondition::U64EqualZeroParameterV1 { zero, .. } =
-            &mut corrupted.functions[0].condition
+            &mut corrupted.functions[0].conditional_mut().condition
         else {
             panic!("fixture must retain equal-zero custody")
         };

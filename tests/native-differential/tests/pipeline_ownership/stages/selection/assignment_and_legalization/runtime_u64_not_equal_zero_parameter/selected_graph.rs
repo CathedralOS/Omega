@@ -25,7 +25,7 @@ fn u64_parameter_not_equal_zero_selects_exact_compare_zero_graph_on_both_isas() 
         .unwrap();
         validate_raw_selection(&staged, staged.selected().plan().clone()).unwrap();
 
-        let legalized = &staged.legalized().plan().functions[0];
+        let legalized = staged.legalized().plan().functions[0].conditional();
         assert_eq!(
             legalized.recipe,
             LegalizationRecipe::ReturnU64NotEqualZeroParameterConditionalV1

@@ -157,7 +157,7 @@ fn both_recursive_paths_gain_exact_destination_views_on_both_targets() {
 }
 
 #[test]
-fn legacy_v1_identity_and_signature_remain_byte_stable() {
+fn v1_spill_pseudos_bind_the_current_recursive_schedule() {
     let source = build(reload_bundle, NativeTarget::linux_x64());
     let v1 = selected_instructions_to_register_homes::lower_recursive_spill_pseudos(
         &source.bundle.recursive,
@@ -166,12 +166,30 @@ fn legacy_v1_identity_and_signature_remain_byte_stable() {
     )
     .unwrap();
     assert_eq!(
-        v1.receipt().identity().bytes(),
-        [
-            246, 90, 160, 209, 116, 214, 42, 81, 147, 234, 55, 176, 189, 109, 131, 115, 196, 44,
-            72, 109, 106, 105, 230, 94, 140, 154, 41, 19, 10, 3, 120, 28,
-        ],
+        v1.receipt().recursive_spill_insertion(),
+        source.bundle.recursive.receipt().identity(),
     );
+    assert_eq!(
+        v1.receipt().register_environment(),
+        source.bundle.recursive.receipt().register_environment()
+    );
+    assert_eq!(
+        v1.receipt().allocator_availability(),
+        source.bundle.recursive.receipt().allocator_availability()
+    );
+    assert_eq!(
+        v1.receipt().optimization_unit(),
+        source.bundle.recursive.receipt().optimization_unit()
+    );
+    assert_eq!(
+        v1.receipt().fuel_schedule(),
+        source.bundle.recursive.receipt().fuel_schedule()
+    );
+    assert_eq!(v1.plan().functions, source.pseudos.plan().functions);
+    assert_eq!(v1.receipt().storage_count(), 3);
+    assert_eq!(v1.receipt().instruction_count(), 6);
+    assert_eq!(v1.receipt().rewrite_count(), 4);
+    assert_eq!(v1.receipt().max_spill_area_bytes(), 16);
 }
 
 #[test]

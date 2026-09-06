@@ -11,10 +11,10 @@ fn codec_rejects_envelope_corruption() {
         Err(LogicalSpillOperationDecodeError::WrongMagic)
     );
     let mut wrong_version = encoded.clone();
-    wrong_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
+    wrong_version[8..12].copy_from_slice(&1_u32.to_le_bytes());
     assert_eq!(
         LogicalSpillOperationPlan::decode(&wrong_version),
-        Err(LogicalSpillOperationDecodeError::UnsupportedVersion(2))
+        Err(LogicalSpillOperationDecodeError::UnsupportedVersion(1))
     );
     let mut identity = encoded.clone();
     identity[12] ^= 1;

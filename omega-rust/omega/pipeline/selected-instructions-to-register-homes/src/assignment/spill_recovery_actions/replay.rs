@@ -441,6 +441,7 @@ fn instruction_index(
         SelectedTerminator::ConditionalBranch { instruction, .. }
         | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
         | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
+        | SelectedTerminator::Jump { instruction, .. }
         | SelectedTerminator::Return { instruction, .. } => {
             index.insert(instruction.id, instruction);
         }

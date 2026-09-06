@@ -22,7 +22,7 @@ pub fn decode_terminal_pre_allocation_machine_effect_plan(
     let version = cursor.u32()?;
     if !matches!(
         version,
-        LEGACY_V6_VERSION | LEGACY_V7_VERSION | LEGACY_V8_VERSION | VERSION
+        LEGACY_V6_VERSION | LEGACY_V7_VERSION | LEGACY_V8_VERSION | LEGACY_V9_VERSION | VERSION
     ) {
         return Err(PreAllocationMachineEffectDecodeError::UnsupportedVersion(
             version,
@@ -51,7 +51,8 @@ pub fn decode_terminal_pre_allocation_machine_effect_plan(
             for _ in 0..instruction_count {
                 instructions.push(decode_instruction(
                     &mut cursor,
-                    matches!(version, LEGACY_V8_VERSION | VERSION),
+                    matches!(version, LEGACY_V8_VERSION | LEGACY_V9_VERSION | VERSION),
+                    matches!(version, LEGACY_V9_VERSION | VERSION),
                     version == VERSION,
                 )?);
             }
@@ -68,7 +69,7 @@ pub fn decode_terminal_pre_allocation_machine_effect_plan(
     for _ in 0..structural_count {
         structural_unit_functions.push(decode_structural_function(
             &mut cursor,
-            matches!(version, LEGACY_V8_VERSION | VERSION),
+            matches!(version, LEGACY_V8_VERSION | LEGACY_V9_VERSION | VERSION),
         )?);
     }
     if cursor.remaining() != 0 {
@@ -90,7 +91,7 @@ pub fn decode_terminal_pre_allocation_machine_effect_plan(
         LEGACY_V6_VERSION => crate::selected_instructions::effects::program::identity::pre_allocation_machine_effect_identity_v5_legacy(&plan),
         LEGACY_V7_VERSION => crate::selected_instructions::effects::program::identity::pre_allocation_machine_effect_identity_v6_legacy(&plan),
         LEGACY_V8_VERSION => crate::selected_instructions::effects::program::identity::pre_allocation_machine_effect_identity_v7_legacy(&plan),
-        VERSION => pre_allocation_machine_effect_identity(&plan),
+        LEGACY_V9_VERSION | VERSION => pre_allocation_machine_effect_identity(&plan),
         _ => unreachable!("wire version admitted above"),
     };
     if plan.identity != expected_identity {

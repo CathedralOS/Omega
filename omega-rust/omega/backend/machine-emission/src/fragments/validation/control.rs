@@ -21,6 +21,19 @@ pub(super) fn check(
         );
     }
     let (terminal, predicate, successors) = match &block.terminator {
+        SelectedTerminator::Jump {
+            instruction: terminal,
+            successor: target,
+        } => {
+            return if terminal.id == instruction.id {
+                let Control::Jump { successor: actual } = actual else {
+                    return Err(ResolvedFragmentEmissionError::ArtifactMismatch);
+                };
+                successor(target, actual)
+            } else {
+                require(matches!(actual, Control::None))
+            };
+        }
         SelectedTerminator::ConditionalBranch {
             instruction,
             when_nonzero,

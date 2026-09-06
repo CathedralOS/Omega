@@ -37,10 +37,11 @@ pub enum MachineSemanticKind {
     ConditionalBranchU64LessThan,
     ConditionalBranchI64LessThan,
     CallI64,
+    Jump,
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 15] = [
         Self::CompareI64Zero,
         Self::MaterializeI64,
         Self::CopyI64,
@@ -55,6 +56,7 @@ impl MachineSemanticKind {
         Self::ConditionalBranchU64LessThan,
         Self::ConditionalBranchI64LessThan,
         Self::CallI64,
+        Self::Jump,
     ];
 }
 
@@ -74,6 +76,7 @@ pub enum MachineAlternativeFamily {
     ConditionalBranchU64LessThan,
     ConditionalBranchI64LessThan,
     CallI64,
+    Jump,
 }
 
 impl From<MachineSemanticKind> for MachineAlternativeFamily {
@@ -93,6 +96,7 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::ConditionalBranchU64LessThan => Self::ConditionalBranchU64LessThan,
             MachineSemanticKind::ConditionalBranchI64LessThan => Self::ConditionalBranchI64LessThan,
             MachineSemanticKind::CallI64 => Self::CallI64,
+            MachineSemanticKind::Jump => Self::Jump,
         }
     }
 }
@@ -298,6 +302,7 @@ pub enum MachineEncodedControlEffect {
     ReturnFromActivationStackV1,
     ReturnIndirectRegisterV1 { target: RegisterViewId },
     DirectRelativeCallV1,
+    UnconditionalRelativeBranchV1,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -25,7 +25,7 @@ pub(super) fn derive<'a>(
         }
         return Ok(vec![block]);
     }
-    if function.blocks.len() != 3 {
+    if !matches!(function.blocks.len(), 3 | 4) {
         return unsupported(function);
     }
     let entry = find(function, function.entry_block)?;
@@ -61,6 +61,27 @@ pub(super) fn derive<'a>(
     }
     let fallthrough = find(function, fallthrough.block)?;
     let taken = find(function, taken.block)?;
+    if function.blocks.len() == 4 {
+        let (
+            SelectedTerminator::Jump {
+                successor: left, ..
+            },
+            SelectedTerminator::Jump {
+                successor: right, ..
+            },
+        ) = (&fallthrough.terminator, &taken.terminator)
+        else {
+            return unsupported(function);
+        };
+        if left.block != right.block || [entry.id, fallthrough.id, taken.id].contains(&left.block) {
+            return unsupported(function);
+        }
+        let joined = find(function, left.block)?;
+        if !matches!(joined.terminator, SelectedTerminator::Return { .. }) {
+            return unsupported(function);
+        }
+        return Ok(vec![entry, fallthrough, taken, joined]);
+    }
     if !matches!(fallthrough.terminator, SelectedTerminator::Return { .. })
         || !matches!(taken.terminator, SelectedTerminator::Return { .. })
     {

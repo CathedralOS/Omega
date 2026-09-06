@@ -11,7 +11,12 @@ pub(super) fn ordered_branch_locations(
     for (function_index, function) in functions.iter().enumerate() {
         for (block_index, block) in function.blocks.iter().enumerate() {
             for (instruction_index, row) in block.instructions.iter().enumerate() {
-                if row.branch.is_some() {
+                if row
+                    .branch
+                    .as_deref()
+                    .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
+                    .is_some()
+                {
                     locations.push((function_index, block_index, instruction_index));
                 }
             }

@@ -38,6 +38,7 @@ pub(in crate::tests) fn microsoft_selection_environment() -> (
             compare_i64_zero: X86_64_COMPARE_I64_ZERO,
             compare_i64: X86_64_COMPARE_I64,
             conditional_branch: X86_64_CONDITIONAL_BRANCH,
+            jump: isa_x86_64::X86_64_JUMP,
             return_i64: X86_64_MICROSOFT_RETURN,
             return_unit: X86_64_MICROSOFT_RETURN_UNIT,
         },

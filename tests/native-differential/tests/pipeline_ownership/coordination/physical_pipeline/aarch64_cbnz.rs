@@ -185,13 +185,21 @@ fn compiler_facing_physical_pipeline_routes_aarch64_cbnz_through_the_generic_pos
         0xb500_0000 | source_register
     );
     assert_eq!(
-        branch.branch.as_ref().unwrap().decoded_register_reads,
+        branch
+            .branch
+            .as_ref()
+            .unwrap()
+            .as_conditional()
+            .unwrap()
+            .decoded_register_reads,
         [action.source_read.view]
     );
     assert!(
         branch
             .branch
             .as_ref()
+            .unwrap()
+            .as_conditional()
             .unwrap()
             .decoded_effects
             .implicit_unit_uses
@@ -295,17 +303,19 @@ fn compiler_facing_physical_pipeline_routes_aarch64_cbnz_through_the_generic_pos
         Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
     );
     let mut corrupt_layout = fused_layout.clone();
-    corrupt_layout.functions_mut()[0]
-        .blocks
-        .iter_mut()
-        .flat_map(|block| &mut block.instructions)
-        .find(|row| row.instruction == action.branch)
-        .unwrap()
-        .branch
-        .as_mut()
-        .unwrap()
-        .decoded_register_reads
-        .clear();
+    let machine_code::ResolvedBranchEvidence::Conditional(branch) = corrupt_layout.functions_mut()
+        [0]
+    .blocks
+    .iter_mut()
+    .flat_map(|block| &mut block.instructions)
+    .find(|row| row.instruction == action.branch)
+    .unwrap()
+    .branch
+    .as_deref_mut()
+    .unwrap() else {
+        panic!("conditional fixture must retain conditional evidence");
+    };
+    branch.decoded_register_reads.clear();
     assert_eq!(
         validate_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion(
             selected_stage.selected(),

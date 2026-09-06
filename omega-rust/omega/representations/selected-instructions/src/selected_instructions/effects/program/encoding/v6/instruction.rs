@@ -4,9 +4,10 @@ pub(super) fn decode_instruction(
     cursor: &mut Cursor<'_>,
     allow_i64_less_than: bool,
     allow_scalar_call: bool,
+    allow_jump: bool,
 ) -> Result<InstructionMachineEffects, PreAllocationMachineEffectDecodeError> {
     let instruction = SelectedInstructionId(cursor.u32()?);
-    let kind = decode_kind(cursor, allow_i64_less_than, allow_scalar_call)?;
+    let kind = decode_kind(cursor, allow_i64_less_than, allow_scalar_call, allow_jump)?;
     let constraint = decode_constraint_key(cursor)?;
     let unit_uses = decode_units(cursor)?;
     let unit_defs = decode_units(cursor)?;
@@ -44,6 +45,7 @@ pub(super) fn decode_instruction(
             cursor,
             allow_i64_less_than,
             allow_scalar_call,
+            allow_jump,
         )?);
     }
     Ok(InstructionMachineEffects {
@@ -67,6 +69,7 @@ fn decode_kind(
     cursor: &mut Cursor<'_>,
     allow_i64_less_than: bool,
     allow_scalar_call: bool,
+    allow_jump: bool,
 ) -> Result<SelectedInstructionKind, PreAllocationMachineEffectDecodeError> {
     Ok(match cursor.byte()? {
         0 => SelectedInstructionKind::CompareI64Zero,
@@ -98,6 +101,7 @@ fn decode_kind(
         10 => SelectedInstructionKind::CompareI64,
         11 => SelectedInstructionKind::ConditionalBranchU64LessThan,
         12 if allow_i64_less_than => SelectedInstructionKind::ConditionalBranchI64LessThan,
+        14 if allow_jump => SelectedInstructionKind::Jump,
         13 if allow_scalar_call => SelectedInstructionKind::CallI64 {
             callee: MachineId::new(cursor.u64()?)
                 .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
@@ -154,25 +158,32 @@ pub fn decode_provenance(
 pub fn decode_alternative(
     cursor: &mut Cursor<'_>,
 ) -> Result<MachineAlternative, PreAllocationMachineEffectDecodeError> {
-    decode_alternative_for_version(cursor, true, true)
+    decode_alternative_for_version(cursor, true, true, true)
 }
 
 pub fn decode_alternative_legacy(
     cursor: &mut Cursor<'_>,
 ) -> Result<MachineAlternative, PreAllocationMachineEffectDecodeError> {
-    decode_alternative_for_version(cursor, false, false)
+    decode_alternative_for_version(cursor, false, false, false)
+}
+
+pub fn decode_alternative_without_jump(
+    cursor: &mut Cursor<'_>,
+) -> Result<MachineAlternative, PreAllocationMachineEffectDecodeError> {
+    decode_alternative_for_version(cursor, true, true, false)
 }
 
 pub fn decode_alternative_without_scalar_call(
     cursor: &mut Cursor<'_>,
 ) -> Result<MachineAlternative, PreAllocationMachineEffectDecodeError> {
-    decode_alternative_for_version(cursor, true, false)
+    decode_alternative_for_version(cursor, true, false, false)
 }
 
 fn decode_alternative_for_version(
     cursor: &mut Cursor<'_>,
     allow_i64_less_than: bool,
     allow_scalar_call: bool,
+    allow_jump: bool,
 ) -> Result<MachineAlternative, PreAllocationMachineEffectDecodeError> {
     let family = match cursor.byte()? {
         0 => MachineAlternativeFamily::CompareI64Zero,
@@ -189,6 +200,7 @@ fn decode_alternative_for_version(
         11 => MachineAlternativeFamily::ConditionalBranchU64LessThan,
         12 if allow_i64_less_than => MachineAlternativeFamily::ConditionalBranchI64LessThan,
         13 if allow_scalar_call => MachineAlternativeFamily::CallI64,
+        14 if allow_jump => MachineAlternativeFamily::Jump,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
     let key = MachineAlternativeKey {
@@ -242,7 +254,7 @@ fn decode_alternative_for_version(
     if cursor.byte()? != 0 {
         return Err(PreAllocationMachineEffectDecodeError::InvalidField);
     }
-    let encoded = decode_encoded_effects(cursor, allow_scalar_call)?;
+    let encoded = decode_encoded_effects(cursor, allow_scalar_call, allow_jump)?;
     Ok(MachineAlternative {
         key,
         applicability,
@@ -255,6 +267,7 @@ fn decode_alternative_for_version(
 fn decode_encoded_effects(
     cursor: &mut Cursor<'_>,
     allow_scalar_call: bool,
+    allow_jump: bool,
 ) -> Result<MachineEncodedEffects, PreAllocationMachineEffectDecodeError> {
     let external_operand_reads = decode_u16s(cursor)?;
     let external_operand_writes = decode_u16s(cursor)?;
@@ -300,6 +313,7 @@ fn decode_encoded_effects(
             target: register_model::RegisterViewId(cursor.u16()?),
         },
         4 if allow_scalar_call => MachineEncodedControlEffect::DirectRelativeCallV1,
+        5 if allow_jump => MachineEncodedControlEffect::UnconditionalRelativeBranchV1,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
     Ok(MachineEncodedEffects {

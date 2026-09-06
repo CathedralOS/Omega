@@ -249,6 +249,9 @@ fn replayed_source_value(
     by_id
         .get(&virtual_register)
         .map(|register| match register.origin {
+            selected_instructions::VirtualRegisterOrigin::BlockParameter {
+                source_value, ..
+            } => source_value,
             selected_instructions::VirtualRegisterOrigin::EntryParameter {
                 source_value, ..
             }

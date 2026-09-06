@@ -1,7 +1,7 @@
 //! Optimizer module role: executable entrance. Versioned fixed-view-copy artifact envelope.
 //!
-//! Owns admission and authentication order. Public V11 carries authenticated
-//! source-segmentation authority while retaining V4 through V10 decode.
+//! Owns admission and authentication order. Public V12 adds scalar successor
+//! transfers; older envelopes retain their closed pre-transfer vocabulary.
 
 mod content;
 mod copy;
@@ -15,12 +15,12 @@ mod values;
 #[cfg(test)]
 mod test_support;
 
-use self::envelope::v11_identity;
+use self::envelope::v12_identity;
 use crate::{FixedViewCopyDecodeError, FixedViewCopyPlan};
 
 #[cfg(test)]
 use self::test_support::{
-    encode_v4, encode_v5, encode_v6, encode_v7, encode_v8, encode_v9, encode_v10,
+    encode_v4, encode_v5, encode_v6, encode_v7, encode_v8, encode_v9, encode_v10, encode_v11,
 };
 
 const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
@@ -31,7 +31,8 @@ const LEGACY_V7_VERSION: u32 = 7;
 const LEGACY_V8_VERSION: u32 = 8;
 const LEGACY_V9_VERSION: u32 = 9;
 const LEGACY_V10_VERSION: u32 = 10;
-const VERSION: u32 = 11;
+const LEGACY_V11_VERSION: u32 = 11;
+const VERSION: u32 = 12;
 impl FixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;
     /// independent fixed-view-copy validation is still required for custody.
@@ -41,7 +42,7 @@ impl FixedViewCopyPlan {
         let mut encoded = Vec::new();
         encoded.extend_from_slice(MAGIC);
         encoded.extend_from_slice(&VERSION.to_le_bytes());
-        encoded.extend_from_slice(&v11_identity(self, &content));
+        encoded.extend_from_slice(&v12_identity(self, &content));
         encoded.extend_from_slice(&content);
         encoded
     }

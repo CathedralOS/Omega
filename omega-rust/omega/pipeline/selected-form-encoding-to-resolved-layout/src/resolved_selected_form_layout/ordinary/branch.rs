@@ -21,8 +21,8 @@ use selected_instructions::{
 use target::Architecture;
 
 use super::super::{
-    OptimizedResolvedSelectedFormLayoutError, ResolvedConditionalBranchEvidence,
-    ResolvedConditionalBranchPredicate,
+    OptimizedResolvedSelectedFormLayoutError, ResolvedBranchEvidence,
+    ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate, ResolvedJumpEvidence,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -35,11 +35,71 @@ pub(super) fn resolve(
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
     fused: Option<(&QualifiedPhysicalRead, &Aarch64CbnzFusionAction)>,
-) -> Result<
-    (Vec<u8>, Option<Box<ResolvedConditionalBranchEvidence>>),
-    OptimizedResolvedSelectedFormLayoutError,
-> {
+) -> Result<(Vec<u8>, Option<Box<ResolvedBranchEvidence>>), OptimizedResolvedSelectedFormLayoutError>
+{
     let (predicate, terminator, when_taken, when_fallthrough) = match &block.terminator {
+        SelectedTerminator::Jump {
+            instruction: jump,
+            successor,
+        } => {
+            if fused.is_some() || jump.id != instruction.id {
+                return unexpected(instruction.id);
+            }
+            let target_offset = *block_offsets.get(&successor.block).ok_or(
+                OptimizedResolvedSelectedFormLayoutError::BranchFallthroughMismatch(instruction.id),
+            )?;
+            let (bytes, displacement, effects) = match architecture {
+                Architecture::X86_64 => {
+                    let end = instruction_offset
+                        .checked_add(5)
+                        .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+                    let displacement = checked_delta(target_offset, end)?;
+                    let result = isa_x86_64::encode_x86_64_selected_jump_form(
+                        physical,
+                        machine.alternative.key,
+                        displacement,
+                    )
+                    .map_err(OptimizedResolvedSelectedFormLayoutError::X86_64)?;
+                    (
+                        result.bytes().to_vec(),
+                        displacement,
+                        result.footprint().encoded.clone(),
+                    )
+                }
+                Architecture::Aarch64 => {
+                    let displacement = checked_delta(target_offset, instruction_offset)?;
+                    let result = isa_aarch64::encode_aarch64_selected_jump_form(
+                        physical,
+                        machine.alternative.key,
+                        displacement,
+                    )
+                    .map_err(OptimizedResolvedSelectedFormLayoutError::Aarch64)?;
+                    (
+                        result.bytes().to_vec(),
+                        displacement,
+                        result.footprint().encoded.clone(),
+                    )
+                }
+            };
+            if effects != machine.alternative.encoded
+                || !declared_size_matches(machine.alternative.size, bytes.len() as u64)
+            {
+                return unexpected(instruction.id);
+            }
+            return Ok((
+                bytes,
+                Some(Box::new(ResolvedBranchEvidence::Jump(
+                    ResolvedJumpEvidence {
+                        source_block: block.id,
+                        target_edge: successor.psi_edge,
+                        target_block: successor.block,
+                        target_offset,
+                        byte_displacement: displacement,
+                        decoded_effects: effects,
+                    },
+                ))),
+            ));
+        }
         SelectedTerminator::ConditionalBranch {
             instruction,
             when_nonzero,
@@ -126,19 +186,21 @@ pub(super) fn resolve(
     }
     Ok((
         bytes,
-        Some(Box::new(ResolvedConditionalBranchEvidence {
-            predicate,
-            source_block: block.id,
-            when_taken_edge: when_taken.psi_edge,
-            when_taken_block: when_taken.block,
-            when_taken_offset: taken_offset,
-            when_fallthrough_edge: when_fallthrough.psi_edge,
-            when_fallthrough_block: when_fallthrough.block,
-            when_fallthrough_offset: fallthrough_offset,
-            byte_displacement: displacement,
-            decoded_register_reads: register_reads,
-            decoded_effects: effects,
-        })),
+        Some(Box::new(ResolvedBranchEvidence::Conditional(
+            ResolvedConditionalBranchEvidence {
+                predicate,
+                source_block: block.id,
+                when_taken_edge: when_taken.psi_edge,
+                when_taken_block: when_taken.block,
+                when_taken_offset: taken_offset,
+                when_fallthrough_edge: when_fallthrough.psi_edge,
+                when_fallthrough_block: when_fallthrough.block,
+                when_fallthrough_offset: fallthrough_offset,
+                byte_displacement: displacement,
+                decoded_register_reads: register_reads,
+                decoded_effects: effects,
+            },
+        ))),
     ))
 }
 

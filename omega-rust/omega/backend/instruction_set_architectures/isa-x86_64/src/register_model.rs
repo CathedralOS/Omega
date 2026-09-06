@@ -174,13 +174,19 @@ pub const X86_64_COMPARE_I64: RegisterConstraintKey = RegisterConstraintKey {
     variant: 8,
 };
 
+/// Unconditional relative control without a condition-register dependency.
+pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 9,
+};
+
 /// Closed v1 inventory owned by the x86-64 target.
 ///
 /// The ordinary rows are deliberately limited to the baseline operations
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 19] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 20] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR,
@@ -200,6 +206,7 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 19] = [
     X86_64_SUBTRACT_I64,
     X86_64_SUBTRACT_I64_IMMEDIATE,
     X86_64_COMPARE_I64,
+    X86_64_JUMP,
 ];
 
 struct ModelBuilder {
@@ -789,6 +796,14 @@ pub fn x86_64_register_constraint_catalog(
             implicit_uses: structural_unit_call_uses,
             implicit_defs: control_defs,
             clobbers: structural_unit_call_clobbers,
+        },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(0),
+            key: X86_64_JUMP,
+            operands: Vec::new(),
+            implicit_uses: view("rip").units.clone(),
+            implicit_defs: view("rip").units.clone(),
+            clobbers: Vec::new(),
         },
     ];
 

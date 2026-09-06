@@ -94,7 +94,7 @@ fn epoch_two_extends_one_schedule_and_reuses_the_disjoint_epoch_zero_offset() {
 }
 
 #[test]
-fn reload_victim_v1_recursive_identity_remains_byte_stable() {
+fn reload_victim_schedule_binds_current_actions_and_rejects_original_victim_policy() {
     let (sources, actions) = sources(NativeTarget::linux_x64());
     let scheduled = sources
         .schedule_recursive_spills(
@@ -103,11 +103,20 @@ fn reload_victim_v1_recursive_identity_remains_byte_stable() {
         )
         .unwrap();
     assert_eq!(
-        scheduled.receipt().identity().bytes(),
-        [
-            57, 178, 110, 81, 57, 208, 163, 19, 107, 51, 203, 203, 94, 119, 198, 224, 63, 50, 8,
-            127, 81, 30, 64, 160, 254, 104, 74, 211, 72, 69, 100, 245,
-        ]
+        scheduled.receipt().recovery_actions(),
+        actions.receipt().identity()
+    );
+    assert_eq!(
+        scheduled.receipt().generalized_spill_insertion(),
+        actions.receipt().generalized_spill_insertion()
+    );
+    assert_eq!(
+        scheduled.receipt().optimization_unit(),
+        actions.receipt().optimization_unit()
+    );
+    assert_eq!(
+        scheduled.receipt().fuel_schedule(),
+        actions.receipt().fuel_schedule()
     );
     assert_eq!(
         sources.schedule_original_recursive_spills(

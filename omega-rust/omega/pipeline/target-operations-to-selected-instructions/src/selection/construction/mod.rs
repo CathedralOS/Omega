@@ -7,6 +7,7 @@ mod projected_structural_call_return;
 mod scalar;
 mod scalar_call_unit;
 mod scalar_leaf;
+mod shared_return;
 mod structural_unit;
 mod unit;
 
@@ -26,6 +27,9 @@ pub(super) fn build_plan(
         .iter()
         .enumerate()
         .map(|(index, source)| match source {
+            legalized_operations::LegalizedFunction::SharedReturnConditional(source) => {
+                shared_return::build(index, source, constraints, physical, catalog)
+            }
             legalized_operations::LegalizedFunction::Conditional(source) => {
                 scalar::build(index, source, constraints, physical, catalog)
             }

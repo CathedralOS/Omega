@@ -1,11 +1,13 @@
 //! Canonical legalized-plan roster encoding shared by current and legacy identities.
 
+use super::condition::encode_condition;
+
 use super::projected_structural_call_return::encode_projected_structural_call_return;
 use super::scalar_call_unit::encode_scalar_call_unit_function;
 use super::{
     plan::encode_structural_unit_function,
     scalar::{
-        encode_bindings, encode_definition_site, encode_immediate, encode_leaf, encode_register,
+        encode_bindings, encode_definition_site, encode_immediate, encode_leaf, encode_scalar_type,
     },
     shared::*,
 };
@@ -39,6 +41,11 @@ pub(super) fn identity(
                 // and complete payload are retained even under legacy domains.
                 bytes.push(1);
                 super::scalar_leaf::encode(&mut bytes, function);
+                continue;
+            }
+            LegalizedFunction::SharedReturnConditional(function) => {
+                bytes.push(2);
+                encode_shared_return(&mut bytes, function);
                 continue;
             }
         };
@@ -80,182 +87,7 @@ pub(super) fn identity(
             LegalizationRecipe::ReturnU64NotEqualZeroParameterConditionalV1 => 15,
             LegalizationRecipe::ReturnU64I64LessOrEqualParametersConditionalV1 => 16,
         });
-        bytes.extend_from_slice(&function.condition_source.get().to_le_bytes());
-        match &function.condition {
-            LegalizedCondition::DirectParameter {
-                parameter_index,
-                register,
-                definition_site,
-            } => {
-                // Preserve the exact pre-V13 byte layout for every existing
-                // direct-condition recipe.
-                bytes.extend_from_slice(&(*parameter_index as u64).to_le_bytes());
-                encode_register(&mut bytes, *register);
-                encode_definition_site(&mut bytes, *definition_site);
-            }
-            LegalizedCondition::IntegerEqualParametersV1 {
-                operation,
-                result_definition_site,
-                fuel,
-                left,
-                right,
-            } => {
-                bytes.push(0xff);
-                bytes.extend_from_slice(&operation.get().to_le_bytes());
-                encode_definition_site(&mut bytes, *result_definition_site);
-                encode_fuel(&mut bytes, fuel);
-                for parameter in [left, right] {
-                    bytes.extend_from_slice(&parameter.source_value.get().to_le_bytes());
-                    bytes.extend_from_slice(&(parameter.parameter_index as u64).to_le_bytes());
-                    encode_register(&mut bytes, parameter.register);
-                    encode_definition_site(&mut bytes, parameter.definition_site);
-                }
-            }
-            LegalizedCondition::IntegerLessThanParametersV1 {
-                operation,
-                result_definition_site,
-                fuel,
-                left,
-                right,
-            } => {
-                bytes.push(0xfe);
-                bytes.extend_from_slice(&operation.get().to_le_bytes());
-                encode_definition_site(&mut bytes, *result_definition_site);
-                encode_fuel(&mut bytes, fuel);
-                for parameter in [left, right] {
-                    bytes.extend_from_slice(&parameter.source_value.get().to_le_bytes());
-                    bytes.extend_from_slice(&(parameter.parameter_index as u64).to_le_bytes());
-                    encode_register(&mut bytes, parameter.register);
-                    encode_definition_site(&mut bytes, parameter.definition_site);
-                }
-            }
-            LegalizedCondition::IntegerLessOrEqualParametersV1 {
-                operation,
-                result_definition_site,
-                fuel,
-                left,
-                right,
-            } => {
-                bytes.push(0xfd);
-                bytes.extend_from_slice(&operation.get().to_le_bytes());
-                encode_definition_site(&mut bytes, *result_definition_site);
-                encode_fuel(&mut bytes, fuel);
-                for parameter in [left, right] {
-                    bytes.extend_from_slice(&parameter.source_value.get().to_le_bytes());
-                    bytes.extend_from_slice(&(parameter.parameter_index as u64).to_le_bytes());
-                    encode_register(&mut bytes, parameter.register);
-                    encode_definition_site(&mut bytes, parameter.definition_site);
-                }
-            }
-            LegalizedCondition::IntegerNotEqualParametersV1 {
-                equality_operation,
-                equality_result,
-                equality_result_definition_site,
-                equality_fuel,
-                boolean_not_operation,
-                boolean_not_result,
-                boolean_not_result_definition_site,
-                boolean_not_fuel,
-                left,
-                right,
-            } => {
-                bytes.push(0xfc);
-                bytes.extend_from_slice(&equality_operation.get().to_le_bytes());
-                bytes.extend_from_slice(&equality_result.get().to_le_bytes());
-                encode_definition_site(&mut bytes, *equality_result_definition_site);
-                encode_fuel(&mut bytes, equality_fuel);
-                bytes.extend_from_slice(&boolean_not_operation.get().to_le_bytes());
-                bytes.extend_from_slice(&boolean_not_result.get().to_le_bytes());
-                encode_definition_site(&mut bytes, *boolean_not_result_definition_site);
-                encode_fuel(&mut bytes, boolean_not_fuel);
-                for parameter in [left, right] {
-                    bytes.extend_from_slice(&parameter.source_value.get().to_le_bytes());
-                    bytes.extend_from_slice(&(parameter.parameter_index as u64).to_le_bytes());
-                    encode_register(&mut bytes, parameter.register);
-                    encode_definition_site(&mut bytes, parameter.definition_site);
-                }
-            }
-            LegalizedCondition::I64LessThanParametersV1 {
-                operation,
-                result_definition_site,
-                fuel,
-                left,
-                right,
-            } => {
-                bytes.push(0xfb);
-                bytes.extend_from_slice(&operation.get().to_le_bytes());
-                encode_definition_site(&mut bytes, *result_definition_site);
-                encode_fuel(&mut bytes, fuel);
-                for parameter in [left, right] {
-                    bytes.extend_from_slice(&parameter.source_value.get().to_le_bytes());
-                    bytes.extend_from_slice(&(parameter.parameter_index as u64).to_le_bytes());
-                    encode_register(&mut bytes, parameter.register);
-                    encode_definition_site(&mut bytes, parameter.definition_site);
-                }
-            }
-            LegalizedCondition::U64EqualZeroParameterV1 {
-                operation,
-                result_definition_site,
-                fuel,
-                parameter,
-                zero,
-            } => {
-                bytes.push(0xfa);
-                bytes.extend_from_slice(&operation.get().to_le_bytes());
-                encode_definition_site(&mut bytes, *result_definition_site);
-                encode_fuel(&mut bytes, fuel);
-                bytes.extend_from_slice(&parameter.source_value.get().to_le_bytes());
-                bytes.extend_from_slice(&(parameter.parameter_index as u64).to_le_bytes());
-                encode_register(&mut bytes, parameter.register);
-                encode_definition_site(&mut bytes, parameter.definition_site);
-                encode_immediate(&mut bytes, zero);
-            }
-            LegalizedCondition::U64NotEqualZeroParameterV1 {
-                equality_operation,
-                equality_result,
-                equality_result_definition_site,
-                equality_fuel,
-                boolean_not_operation,
-                boolean_not_result,
-                boolean_not_result_definition_site,
-                boolean_not_fuel,
-                parameter,
-                zero,
-            } => {
-                bytes.push(0xf9);
-                bytes.extend_from_slice(&equality_operation.get().to_le_bytes());
-                bytes.extend_from_slice(&equality_result.get().to_le_bytes());
-                encode_definition_site(&mut bytes, *equality_result_definition_site);
-                encode_fuel(&mut bytes, equality_fuel);
-                bytes.extend_from_slice(&boolean_not_operation.get().to_le_bytes());
-                bytes.extend_from_slice(&boolean_not_result.get().to_le_bytes());
-                encode_definition_site(&mut bytes, *boolean_not_result_definition_site);
-                encode_fuel(&mut bytes, boolean_not_fuel);
-                bytes.extend_from_slice(&parameter.source_value.get().to_le_bytes());
-                bytes.extend_from_slice(&(parameter.parameter_index as u64).to_le_bytes());
-                encode_register(&mut bytes, parameter.register);
-                encode_definition_site(&mut bytes, parameter.definition_site);
-                encode_immediate(&mut bytes, zero);
-            }
-            LegalizedCondition::I64LessOrEqualParametersV1 {
-                operation,
-                result_definition_site,
-                fuel,
-                left,
-                right,
-            } => {
-                bytes.push(0xf8);
-                bytes.extend_from_slice(&operation.get().to_le_bytes());
-                encode_definition_site(&mut bytes, *result_definition_site);
-                encode_fuel(&mut bytes, fuel);
-                for parameter in [left, right] {
-                    bytes.extend_from_slice(&parameter.source_value.get().to_le_bytes());
-                    bytes.extend_from_slice(&(parameter.parameter_index as u64).to_le_bytes());
-                    encode_register(&mut bytes, parameter.register);
-                    encode_definition_site(&mut bytes, parameter.definition_site);
-                }
-            }
-        }
+        encode_condition(&mut bytes, function.condition_source, &function.condition);
         bytes.extend_from_slice(&function.entry_block.get().to_le_bytes());
         bytes.extend_from_slice(&function.true_block.get().to_le_bytes());
         bytes.extend_from_slice(&function.false_block.get().to_le_bytes());
@@ -309,4 +141,46 @@ pub(super) fn identity(
         }
     }
     LegalizedOperationPlanIdentity::from_canonical_bytes(&bytes)
+}
+
+fn encode_shared_return(bytes: &mut Vec<u8>, function: &LegalizedSharedReturnConditionalFunction) {
+    bytes.extend_from_slice(&function.machine.get().to_le_bytes());
+    encode_option_id(bytes, function.attachment.map(|value| value.get()));
+    encode_ids(
+        bytes,
+        function
+            .provenance
+            .operations
+            .iter()
+            .map(|value| value.get()),
+    );
+    encode_ids(
+        bytes,
+        function.provenance.edges.iter().map(|value| value.get()),
+    );
+    super::scalar_leaf::encode_abi(bytes, &function.abi);
+    encode_condition(bytes, function.condition_source, &function.condition);
+    bytes.extend_from_slice(&function.entry_block.get().to_le_bytes());
+    for arm in [&function.when_true, &function.when_false] {
+        bytes.extend_from_slice(&arm.block.get().to_le_bytes());
+        encode_len(bytes, arm.parameters.len());
+        for parameter in &arm.parameters {
+            bytes.extend_from_slice(&parameter.value.get().to_le_bytes());
+            encode_scalar_type(bytes, parameter.scalar_type);
+            encode_definition_site(bytes, parameter.site);
+        }
+        bytes.extend_from_slice(&arm.branch_edge.get().to_le_bytes());
+        encode_bindings(bytes, &arm.branch_bindings);
+        encode_fuel(bytes, &arm.branch_fuel);
+        encode_immediate(bytes, &arm.constant);
+        bytes.extend_from_slice(&arm.transfer_edge.get().to_le_bytes());
+        encode_bindings(bytes, &[arm.transfer_binding]);
+        encode_fuel(bytes, &arm.transfer_fuel);
+    }
+    bytes.extend_from_slice(&function.return_block.get().to_le_bytes());
+    bytes.extend_from_slice(&function.return_parameter.value.get().to_le_bytes());
+    encode_scalar_type(bytes, function.return_parameter.scalar_type);
+    encode_definition_site(bytes, function.return_parameter.site);
+    bytes.extend_from_slice(&function.return_edge.get().to_le_bytes());
+    encode_fuel(bytes, &function.return_fuel);
 }

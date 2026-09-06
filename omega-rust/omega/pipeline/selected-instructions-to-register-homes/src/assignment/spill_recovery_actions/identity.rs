@@ -101,6 +101,16 @@ fn scalar(bytes: &mut Vec<u8>, value: ScalarType) {
 
 fn origin(bytes: &mut Vec<u8>, value: VirtualRegisterOrigin) {
     match value {
+        VirtualRegisterOrigin::BlockParameter {
+            source_value,
+            block,
+            parameter_index,
+        } => {
+            bytes.push(3);
+            bytes.extend_from_slice(&source_value.get().to_le_bytes());
+            bytes.extend_from_slice(&block.0.to_le_bytes());
+            length(bytes, parameter_index);
+        }
         VirtualRegisterOrigin::EntryParameter {
             source_value,
             parameter_index,

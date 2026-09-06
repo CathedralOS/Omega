@@ -43,24 +43,30 @@ pub(super) fn validate_scalar_stack(
             alignment: evidence.stack_alignment,
         });
     }
-    if let ScalarControlFlowEvidence::DirectConditional { branch } = &evidence.control_flow {
+    if let ScalarControlFlowEvidence::Acyclic { blocks } = &evidence.control_flow {
         if !calls.is_empty()
             || !dynamic_parameter_calls.is_empty()
             || scalar_affine_cleanup.is_some()
             || !scalar_control_affine_cleanups.is_empty()
             || !scalar_structural_parameter_homes.is_empty()
         {
-            return Err(ObjectError::InvalidScalarConditionalEvidence {
-                machine,
-                offset: branch.branch_offset,
-            });
+            return Err(ObjectError::InvalidScalarConditionalEvidence { machine, offset: 0 });
         }
-        return super::scalar_direct_conditional::validate_stack(
+        let reconstructed = super::scalar_control_flow::reconstruct_scalar_control_flow(
+            architecture,
+            machine,
+            bytes,
+            attribution.iter(),
+        )?;
+        if reconstructed != *blocks {
+            return Err(ObjectError::InvalidScalarConditionalEvidence { machine, offset: 0 });
+        }
+        return super::scalar_control_flow::validate_stack(
             architecture,
             machine,
             bytes,
             evidence,
-            branch,
+            blocks,
         )
         .map(|stack| (stack, Vec::new()));
     }

@@ -313,6 +313,7 @@ fn instruction(
         .find(|row| row.id == id)
         .or_else(|| match &block.terminator {
             SelectedTerminator::ConditionalBranch { instruction, .. }
+            | SelectedTerminator::Jump { instruction, .. }
             | SelectedTerminator::Return { instruction, .. }
                 if instruction.id == id =>
             {

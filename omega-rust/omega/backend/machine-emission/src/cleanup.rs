@@ -93,7 +93,7 @@ pub(super) fn emit_scalar_return_with_cleanup(
                 ..
             } => retained != &return_edges,
             ScalarControlFlowEvidence::LinearWithDivisionBranches { .. }
-            | ScalarControlFlowEvidence::DirectConditional { .. }
+            | ScalarControlFlowEvidence::Acyclic { .. }
             | ScalarControlFlowEvidence::ConditionalTree { .. } => true,
         }
     {

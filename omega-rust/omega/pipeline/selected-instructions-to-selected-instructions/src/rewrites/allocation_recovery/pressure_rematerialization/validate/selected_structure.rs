@@ -30,6 +30,7 @@ pub(super) fn find_instruction(
         .find(|instruction| instruction.id == id)
         .or_else(|| match &block.terminator {
             SelectedTerminator::ConditionalBranch { instruction, .. }
+            | SelectedTerminator::Jump { instruction, .. }
             | SelectedTerminator::Return { instruction, .. }
                 if instruction.id == id =>
             {
@@ -64,6 +65,7 @@ pub(super) fn validate_dense(
                     SelectedTerminator::ConditionalBranch { instruction, .. }
                     | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
                     | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
+                    | SelectedTerminator::Jump { instruction, .. }
                     | SelectedTerminator::Return { instruction, .. } => instruction.id.0,
                 }))
         })

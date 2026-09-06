@@ -60,12 +60,13 @@ pub(super) fn replay_trace(
             )?;
             let row =
                 &functions[function_index].blocks[block_index].instructions[instruction_index];
-            let branch =
-                row.branch
-                    .as_deref()
-                    .ok_or(OptimizedX86BranchRelaxationError::MalformedBranch(
-                        row.instruction,
-                    ))?;
+            let branch = row
+                .branch
+                .as_deref()
+                .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
+                .ok_or(OptimizedX86BranchRelaxationError::MalformedBranch(
+                    row.instruction,
+                ))?;
             let (outcome, displacement) = replay_inspect_branch(
                 &functions[function_index],
                 block_index,
@@ -113,6 +114,7 @@ pub(super) fn replay_trace(
         let predicate = old
             .branch
             .as_deref()
+            .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
             .ok_or(OptimizedX86BranchRelaxationError::MalformedBranch(
                 old.instruction,
             ))?
@@ -180,6 +182,7 @@ pub(super) fn replay_trace(
             old_displacement: old
                 .branch
                 .as_deref()
+                .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
                 .ok_or(OptimizedX86BranchRelaxationError::MalformedBranch(
                     old.instruction,
                 ))?
@@ -187,6 +190,7 @@ pub(super) fn replay_trace(
             new_displacement: new
                 .branch
                 .as_deref()
+                .and_then(machine_code::ResolvedBranchEvidence::as_conditional)
                 .ok_or(OptimizedX86BranchRelaxationError::MalformedBranch(
                     new.instruction,
                 ))?

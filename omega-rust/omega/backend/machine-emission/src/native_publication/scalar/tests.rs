@@ -6,10 +6,10 @@ use abstract_operations::{
     AbstractParameter, AbstractResult, AbstractSuccessor,
 };
 use machine_code::{
-    FunctionFragment, FunctionFragmentBlockSpan, FunctionFragmentConditionalBranchEvidence,
-    FunctionFragmentConditionalBranchPredicate, FunctionFragmentControlProvenance,
-    FunctionFragmentInstructionSpan, FunctionFragmentSuccessorProvenance,
-    ScalarControlFlowEvidence,
+    FunctionFragment, FunctionFragmentBlockSpan, FunctionFragmentBranchEvidence,
+    FunctionFragmentConditionalBranchEvidence, FunctionFragmentConditionalBranchPredicate,
+    FunctionFragmentControlProvenance, FunctionFragmentInstructionSpan,
+    FunctionFragmentSuccessorProvenance, ScalarControlFlowEvidence,
 };
 use selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
@@ -132,19 +132,21 @@ fn fragment() -> FunctionFragment {
     };
     let mut effects = MachineEncodedEffects::fallthrough_v1(Vec::new(), Vec::new());
     effects.control = MachineEncodedControlEffect::ConditionalRelativeBranchV1;
-    branch.branch = Some(Box::new(FunctionFragmentConditionalBranchEvidence {
-        predicate: FunctionFragmentConditionalBranchPredicate::U64LessThanV1,
-        source_block: SelectedBlockId(0),
-        when_taken_edge: EdgeId::new(1).unwrap(),
-        when_taken_block: SelectedBlockId(1),
-        when_taken_offset: 11,
-        when_fallthrough_edge: EdgeId::new(2).unwrap(),
-        when_fallthrough_block: SelectedBlockId(2),
-        when_fallthrough_offset: 5,
-        byte_displacement: 6,
-        decoded_register_reads: Vec::new(),
-        decoded_effects: effects,
-    }));
+    branch.branch = Some(Box::new(FunctionFragmentBranchEvidence::Conditional(
+        FunctionFragmentConditionalBranchEvidence {
+            predicate: FunctionFragmentConditionalBranchPredicate::U64LessThanV1,
+            source_block: SelectedBlockId(0),
+            when_taken_edge: EdgeId::new(1).unwrap(),
+            when_taken_block: SelectedBlockId(1),
+            when_taken_offset: 11,
+            when_fallthrough_edge: EdgeId::new(2).unwrap(),
+            when_fallthrough_block: SelectedBlockId(2),
+            when_fallthrough_offset: 5,
+            byte_displacement: 6,
+            decoded_register_reads: Vec::new(),
+            decoded_effects: effects,
+        },
+    )));
     let mut returned_true = span(3, MachineAlternativeFamily::ReturnI64, 16, 1, None);
     returned_true.control = FunctionFragmentControlProvenance::Return {
         psi_return_edge: EdgeId::new(3).unwrap(),
@@ -205,10 +207,14 @@ fn fragment() -> FunctionFragment {
 fn selected_conditional_preserves_taken_polarity_and_current_operation_ordinals() {
     let fragment = fragment();
     let source = source();
-    let ScalarControlFlowEvidence::DirectConditional { branch } =
+    let ScalarControlFlowEvidence::Acyclic { blocks } =
         control::project(&fragment, &source).unwrap()
     else {
         panic!("selected predicate custody")
+    };
+    let machine_code::ScalarControlTerminatorEvidence::Conditional(branch) = &blocks[0].terminator
+    else {
+        panic!("conditional entry");
     };
     assert_eq!(
         (
@@ -244,18 +250,22 @@ fn selected_conditional_preserves_taken_polarity_and_current_operation_ordinals(
 fn selected_conditional_rejects_changed_successors_and_foreign_sites() {
     let source = source();
     let mut wrong_offset = fragment();
-    wrong_offset.blocks[0].instructions[1]
-        .branch
-        .as_mut()
-        .unwrap()
-        .when_taken_offset = 5;
+    let Some(FunctionFragmentBranchEvidence::Conditional(branch)) =
+        wrong_offset.blocks[0].instructions[1].branch.as_deref_mut()
+    else {
+        unreachable!()
+    };
+    branch.when_taken_offset = 5;
     assert!(control::project(&wrong_offset, &source).is_err());
     let mut wrong_predicate = fragment();
-    wrong_predicate.blocks[0].instructions[1]
+    let Some(FunctionFragmentBranchEvidence::Conditional(branch)) = wrong_predicate.blocks[0]
+        .instructions[1]
         .branch
-        .as_mut()
-        .unwrap()
-        .predicate = FunctionFragmentConditionalBranchPredicate::NonZeroV1;
+        .as_deref_mut()
+    else {
+        unreachable!()
+    };
+    branch.predicate = FunctionFragmentConditionalBranchPredicate::NonZeroV1;
     assert!(control::project(&wrong_predicate, &source).is_err());
     let mut foreign_operation = fragment();
     foreign_operation.blocks[1].instructions[0]

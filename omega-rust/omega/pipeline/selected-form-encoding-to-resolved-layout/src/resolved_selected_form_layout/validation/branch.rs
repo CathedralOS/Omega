@@ -23,8 +23,8 @@ use selected_instructions::{
 use target::Architecture;
 
 use super::super::{
-    OptimizedResolvedSelectedFormLayoutError, ResolvedConditionalBranchEvidence,
-    ResolvedConditionalBranchPredicate, ResolvedSelectedFormRow,
+    OptimizedResolvedSelectedFormLayoutError, ResolvedBranchEvidence,
+    ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate, ResolvedSelectedFormRow,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -40,6 +40,68 @@ pub(super) fn validate(
     candidate: &ResolvedSelectedFormRow,
 ) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
     let (predicate, terminator, when_taken, when_fallthrough) = match &block.terminator {
+        SelectedTerminator::Jump {
+            instruction: jump,
+            successor,
+        } => {
+            if fused.is_some() || jump.id != instruction.id {
+                return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+            }
+            let Some(ResolvedBranchEvidence::Jump(actual)) = candidate.branch.as_deref() else {
+                return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+            };
+            let target = *block_offsets
+                .get(&successor.block)
+                .ok_or(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)?;
+            let effects = match architecture {
+                Architecture::X86_64 => {
+                    let end = instruction_offset
+                        .checked_add(5)
+                        .ok_or(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)?;
+                    let displacement = checked_delta(target, end)?;
+                    if displacement != actual.byte_displacement {
+                        return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+                    }
+                    isa_x86_64::validate_x86_64_selected_jump_form(
+                        physical,
+                        machine.alternative.key,
+                        displacement,
+                        &candidate.bytes,
+                    )
+                    .map_err(|_| OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)?
+                    .footprint()
+                    .encoded
+                    .clone()
+                }
+                Architecture::Aarch64 => {
+                    let displacement = checked_delta(target, instruction_offset)?;
+                    if displacement != actual.byte_displacement {
+                        return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+                    }
+                    isa_aarch64::validate_aarch64_selected_jump_form(
+                        physical,
+                        machine.alternative.key,
+                        displacement,
+                        &candidate.bytes,
+                    )
+                    .map_err(|_| OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)?
+                    .footprint()
+                    .encoded
+                    .clone()
+                }
+            };
+            if actual.source_block != block.id
+                || actual.target_edge != successor.psi_edge
+                || actual.target_block != successor.block
+                || actual.target_offset != target
+                || actual.decoded_effects != effects
+                || effects != machine.alternative.encoded
+                || !declared_size_matches(machine.alternative.size, candidate.bytes.len() as u64)
+            {
+                return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+            }
+            return Ok(());
+        }
         SelectedTerminator::ConditionalBranch {
             instruction,
             when_nonzero,
@@ -134,7 +196,7 @@ pub(super) fn validate(
         decoded_register_reads: register_reads,
         decoded_effects: effects,
     };
-    if candidate.branch.as_deref() != Some(&evidence) {
+    if candidate.branch.as_deref() != Some(&ResolvedBranchEvidence::Conditional(evidence)) {
         return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
     }
     Ok(())

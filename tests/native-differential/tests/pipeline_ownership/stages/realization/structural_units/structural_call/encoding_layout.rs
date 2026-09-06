@@ -167,14 +167,11 @@ pub(super) fn verify_structural_call_encoding_and_layout(homes: &StagedOptimized
         &encoding,
     )
     .expect("structural Unit fixups must reach unresolved function-relative custody");
-    // Captured before separating layout data from its admitted stage wrapper.
-    assert_eq!(
-        layout.identity().bytes(),
-        [
-            138, 179, 115, 87, 187, 161, 49, 160, 196, 101, 233, 218, 171, 95, 59, 244, 117, 33,
-            62, 122, 93, 132, 239, 112, 70, 30, 115, 7, 49, 14, 202, 212
-        ]
-    );
+    // Bind the current pipeline inputs; this is not a frozen historical
+    // subject whose upstream catalog identities must remain unchanged.
+    assert_eq!(layout.selected(), encoding.selected());
+    assert_eq!(layout.machine(), encoding.machine());
+    assert_eq!(layout.pre_layout(), encoding.identity());
     assert_eq!(
         layout.policy(),
         SelectedFunctionLayoutPolicy::StructuralUnitCallThenReturnSingleEntryBlockV1

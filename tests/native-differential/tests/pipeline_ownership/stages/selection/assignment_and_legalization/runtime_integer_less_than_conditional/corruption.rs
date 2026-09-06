@@ -56,7 +56,7 @@ fn ordered_less_than_custody_and_successor_corruption_fail_closed() {
 
         let mut swapped = original.clone();
         let LegalizedCondition::IntegerLessThanParametersV1 { left, right, .. } =
-            &mut swapped.functions[0].condition
+            &mut swapped.functions[0].conditional_mut().condition
         else {
             panic!("fixture must retain ordered less-than custody")
         };
@@ -73,18 +73,22 @@ fn ordered_less_than_custody_and_successor_corruption_fail_closed() {
             fuel,
             left,
             right,
-        } = equality_substitution.functions[0].condition.clone()
+        } = equality_substitution.functions[0]
+            .conditional()
+            .condition
+            .clone()
         else {
             unreachable!()
         };
-        equality_substitution.functions[0].condition =
-            LegalizedCondition::IntegerEqualParametersV1 {
-                operation,
-                result_definition_site,
-                fuel,
-                left,
-                right,
-            };
+        equality_substitution.functions[0]
+            .conditional_mut()
+            .condition = LegalizedCondition::IntegerEqualParametersV1 {
+            operation,
+            result_definition_site,
+            fuel,
+            left,
+            right,
+        };
         assert_eq!(
             validate(equality_substitution),
             Err(LegalizationError::NonCanonicalLegalizedPlan)

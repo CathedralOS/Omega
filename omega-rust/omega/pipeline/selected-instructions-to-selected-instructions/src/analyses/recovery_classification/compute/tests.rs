@@ -157,6 +157,7 @@ fn fixture() -> (
                 edge_connectors: Vec::new(),
             })
             .collect(),
+        edge_transfers: Vec::new(),
         tied_pairs: Vec::new(),
         early_clobbers: Vec::new(),
         architectural_units: Vec::new(),

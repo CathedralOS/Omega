@@ -131,6 +131,7 @@ fn selected_keys(
         compare_i64_zero: X86_64_COMPARE_I64_ZERO,
         compare_i64: X86_64_COMPARE_I64,
         conditional_branch: X86_64_CONDITIONAL_BRANCH,
+        jump: crate::X86_64_JUMP,
         return_i64,
         return_unit,
     })
@@ -220,6 +221,7 @@ fn declaration(
                 | MachineSemanticKind::ConditionalBranchU64LessThan
                 | MachineSemanticKind::ConditionalBranchI64LessThan
                 | MachineSemanticKind::ReturnI64
+                | MachineSemanticKind::Jump
                 | MachineSemanticKind::ReturnUnit
         ) {
             MachineBarrier::ControlFlow
@@ -279,6 +281,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::ConditionalBranchU64LessThan
         | MachineSemanticKind::ConditionalBranchI64LessThan
         | MachineSemanticKind::ReturnI64
+        | MachineSemanticKind::Jump
         | MachineSemanticKind::ReturnUnit => (vec![], vec![]),
         MachineSemanticKind::CallI64 => {
             unreachable!("scalar calls use their dedicated declaration")
@@ -303,6 +306,15 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
                 MachineEncodedStackEffect::UnchangedV1,
                 MachineEncodedTrapBehavior::NeverV1,
                 MachineEncodedControlEffect::FallThroughV1,
+            ),
+            MachineSemanticKind::Jump => (
+                units("rip"),
+                units("rip"),
+                vec![],
+                MachineEncodedMemoryEffect::NoneV1,
+                MachineEncodedStackEffect::UnchangedV1,
+                MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+                MachineEncodedControlEffect::UnconditionalRelativeBranchV1,
             ),
             MachineSemanticKind::ConditionalBranchNonZero
             | MachineSemanticKind::ConditionalBranchU64LessThan
@@ -368,6 +380,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
 
 fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
     match semantic {
+        MachineSemanticKind::Jump => MachineSizeKnowledge::ExactBytes(5),
         MachineSemanticKind::CompareI64Zero
         | MachineSemanticKind::CompareI64
         | MachineSemanticKind::CopyI64 => MachineSizeKnowledge::ExactBytes(3),
@@ -527,6 +540,7 @@ mod tests {
                             | MachineSemanticKind::ConditionalBranchU64LessThan
                             | MachineSemanticKind::ConditionalBranchI64LessThan
                             | MachineSemanticKind::ReturnI64
+                            | MachineSemanticKind::Jump
                             | MachineSemanticKind::ReturnUnit
                     ) {
                         MachineBarrier::ControlFlow

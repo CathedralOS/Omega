@@ -301,17 +301,24 @@ non-optional function-relative manifest. The remaining transitional split is one
 layer out: `NativePhysicalStageResult` still carries assigned operations for
 ranked programs and ordinary identity programs beyond the supported fragment
 publication shape. Return-only Unit programs, free `u64` constant/parameter
-leaves, and direct-return scalar comparisons use the shared fragment stages
+leaves, and direct- or shared-return scalar comparisons use the shared fragment stages
 even with empty selections. The conditional migration covers two distinct
 register parameters compared with unsigned equality or signed/unsigned
-less-than and less-or-equal, returning `u64` constants from two separate arms.
+less-than and less-or-equal, returning `u64` constants from two arms.
+Source-generated common-return functions retain all four blocks, both jumps,
+the shared result parameter, and every authored successor binding. Selection
+does not duplicate the return or manufacture a different source graph.
+Liveness substitutes incoming arguments for live destination parameters;
+allocation independently checks the same-home constraints that currently
+realize those transfers without copies. Conflicting home constraints reject
+until edge-copy scheduling exists. Unused incoming parameters retain their
+semantic bindings without requiring physical registers.
 Scalar leaves retain their target ABI, keep incoming parameter precolors, and explicitly
 copy a returned parameter into a separate return-constrained virtual value.
 Calls, structural parameters, cleanup, callbacks and provider settlements remain
-outside this scalar migration. So do common-return blocks and successor argument
-transfers: the source frontend currently produces that richer shape for scalar
-conditionals. The direct-return controls therefore start at separately authored,
-verified Terminal products, not a claim of source-conditional coverage.
+outside this scalar migration. Direct-return controls start at separately
+authored, verified Terminal products; shared-return controls start at Omega
+source and pass through ordinary Terminal publication and resumed lowering.
 This boundary is checked before execution; a failure never
 selects the old route. Identity fragment publication preserves the original
 physical-evidence scope only after checking the retained empty selection identity.
@@ -319,10 +326,11 @@ Every optimizer-owned arm then enters one function-fragment
 emission stage. Native projection admits Unit returns and the scalar bodies above;
 it does not inspect which physical optimization variant produced them. Scalar
 publication binds the exact ABI, bytes and semantic intervals, with independent
-object/stack replay. Conditional evidence retains the actual taken predicate and
-both physical successors rather than borrowing the older emitter's false-taken
-layout. Replay decodes the branch independently and carries common-prefix stack
-depth into each returning arm. Both arms must restore the incoming stack. The
+object/stack replay. Forward scalar graphs retain actual conditional predicates,
+unconditional targets and returns. Byte-level replay reconstructs block boundaries
+and transfers independently; it rejects hidden branches, backward edges, missing
+blocks and inconsistent incoming stack depths at joins. A shared frame is restored
+at the actual return, not at each jump. The
 taken edge owns the branch interval; the fallthrough edge has a zero-width
 coordinate at the next instruction. Both retain their one semantic conditional
 ordinal. Microsoft-x64 leaf frames retain the incoming stack when
