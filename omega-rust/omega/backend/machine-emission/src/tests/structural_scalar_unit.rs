@@ -3,6 +3,7 @@ use assigned_target_operations::{
     AssignedAggregateCopy, AssignedCallDestination, AssignedFunction, AssignedIntegerExpression,
     AssignedOperation, AssignedOperationPlan, AssignedUnitBody, AssignedUnitOperation,
     AssignedUnitScalarArgumentSource, AssignedUnitScalarCallArgument, ExpressionFrame,
+    UnitScalarTransportPlan,
 };
 use calling_conventions::{
     CallSignature, CallingPolicy, ValueLocation, ValuePlacement, ValueShape, evaluate_call_plan,
@@ -11,7 +12,7 @@ use semantic_vocabulary::{
     EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId, PlaceId, ScalarType,
     StructuralFieldId, StructuralTypeId, ValueId,
 };
-use target::NativeTarget;
+use target::{Architecture, NativeTarget, ObjectFormat};
 use target_operations::{
     AbstractResult, FixedIntegerScalarAbiValue, TargetStructuralParameter, TerminalPsiProvenance,
 };
@@ -149,6 +150,18 @@ fn assigned_direct_plan(target: NativeTarget) -> AssignedOperationPlan {
                             callee,
                             call_plan: callee_plan.clone(),
                             scalar_arguments: Vec::new(),
+                            transport: UnitScalarTransportPlan {
+                                // One register aggregate argument; no scalar
+                                // source register can require a snapshot.
+                                call_stack_bytes: match (target.architecture, target.object_format)
+                                {
+                                    (Architecture::X86_64, ObjectFormat::Coff) => 40,
+                                    (Architecture::X86_64, ObjectFormat::Elf) => 8,
+                                    (Architecture::Aarch64, _) => 0,
+                                    _ => panic!("fixture target"),
+                                },
+                                snapshot_slots: Vec::new(),
+                            },
                             copies: vec![AssignedAggregateCopy {
                                 place: root,
                                 access: StructuralAccess::SharedBorrow,
@@ -214,6 +227,7 @@ fn assigned_structural_scalar_return_plan(target: NativeTarget) -> AssignedOpera
         callee,
         call_plan: _,
         scalar_arguments: _,
+        transport: _,
         copies,
         claim_transfers,
         requirement_obligations,
@@ -357,6 +371,18 @@ fn assigned_mixed_call_plan(target: NativeTarget) -> AssignedOperationPlan {
         callee,
         call_plan: mixed_call_plan,
         scalar_arguments,
+        transport: UnitScalarTransportPlan {
+            // Nine four-byte arguments occupy five Windows stack slots after
+            // shadow space, three System V slots, or one AAPCS64 slot.
+            // Every scalar source is an immediate, so snapshots are absent.
+            call_stack_bytes: match (target.architecture, target.object_format) {
+                (Architecture::X86_64, ObjectFormat::Coff) => 72,
+                (Architecture::X86_64, ObjectFormat::Elf) => 24,
+                (Architecture::Aarch64, _) => 16,
+                _ => panic!("fixture target"),
+            },
+            snapshot_slots: Vec::new(),
+        },
         copies: vec![copy],
         claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),
@@ -551,6 +577,64 @@ fn mixed_fixed_integer_and_aggregate_call_emits_one_exact_outbound_area() {
         assert!(outbound.release_offset > relocation.offset);
         assert_eq!(relocation.owner, call.owner);
         assert_eq!(relocation.target, call.target);
+    }
+}
+
+#[test]
+fn projected_and_mixed_calls_reject_retained_transport_corruption_on_every_native_target() {
+    for target in [
+        NativeTarget::windows_x64(),
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        for (name, fixture) in [
+            (
+                "projected aggregate",
+                assigned_direct_plan as fn(NativeTarget) -> AssignedOperationPlan,
+            ),
+            ("mixed scalar aggregate", assigned_mixed_call_plan),
+        ] {
+            let source = fixture(target);
+            emit_machine_code(&source)
+                .unwrap_or_else(|error| panic!("{name} on {target:?}: {error:?}"));
+
+            let mut padded = source.clone();
+            let AssignedUnitOperation::StructuralScalarCall { transport, .. } =
+                mixed_call_mut(&mut padded)
+            else {
+                unreachable!()
+            };
+            // Alignment alone is insufficient: retained storage must be the
+            // exact minimal geometry for this already assigned ABI transfer.
+            transport.call_stack_bytes += 16;
+            assert!(
+                matches!(
+                    emit_machine_code(&padded),
+                    Err(EmissionError::UnitCallStackAreaNotEncodable)
+                ),
+                "extra outbound padding accepted for {name} on {target:?}"
+            );
+
+            let mut unnecessary_snapshot = source;
+            let AssignedUnitOperation::StructuralScalarCall { transport, .. } =
+                mixed_call_mut(&mut unnecessary_snapshot)
+            else {
+                unreachable!()
+            };
+            let register = match target.architecture {
+                Architecture::X86_64 => target_operations::MachineRegister::X86Rdi,
+                Architecture::Aarch64 => target_operations::MachineRegister::Aarch64X(0),
+            };
+            transport.snapshot_slots.push((register, 0));
+            assert!(
+                matches!(
+                    emit_machine_code(&unnecessary_snapshot),
+                    Err(EmissionError::UnitCallStackAreaNotEncodable)
+                ),
+                "unnecessary snapshot accepted for {name} on {target:?}"
+            );
+        }
     }
 }
 

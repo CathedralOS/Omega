@@ -145,6 +145,15 @@ fn mixed_plan(target: NativeTarget) -> AssignedOperationPlan {
                             value: IntegerValue::Signed(17),
                         },
                         AssignedUnitOperation::StructuralScalarCall {
+                            transport: assigned_target_operations::UnitScalarTransportPlan {
+                                call_stack_bytes: match target.architecture {
+                                    target::Architecture::X86_64 => {
+                                        u32::from(mixed_call_plan.shadow_bytes) + 8
+                                    }
+                                    target::Architecture::Aarch64 => 0,
+                                },
+                                snapshot_slots: Vec::new(),
+                            },
                             psi_operation: call_operation,
                             result: AbstractResult {
                                 value: call_result,

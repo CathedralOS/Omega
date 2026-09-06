@@ -44,6 +44,7 @@ pub(super) fn emit(
                     result: Some(*scalar_type),
                     call_plan: call_plan.clone(),
                     scalar_arguments: Vec::new(),
+                    transport: None,
                     copies: copies.clone(),
                     claim_transfers: claim_transfers.clone(),
                     requirement_obligations: requirement_obligations.clone(),

@@ -403,6 +403,12 @@ pub(super) fn assign_call(
         result,
         callee,
         call_plan: call_plan.clone(),
+        transport: super::scalar_transport::assign(
+            call_plan,
+            &assigned_scalar_arguments,
+            target,
+            super::scalar_transport::CallTransportKind::Mixed,
+        )?,
         scalar_arguments: assigned_scalar_arguments,
         copies,
         claim_transfers: claim_transfers.to_vec(),
@@ -534,6 +540,12 @@ pub(super) fn assign_result_call(
         callee,
         callee_result: callee_result.clone(),
         call_plan: call_plan.clone(),
+        transport: super::scalar_transport::assign(
+            call_plan,
+            std::slice::from_ref(&assigned_scalar_argument),
+            target,
+            super::scalar_transport::CallTransportKind::Mixed,
+        )?,
         scalar_arguments: vec![assigned_scalar_argument],
         copies: vec![AssignedAggregateCopy {
             place: argument.place,

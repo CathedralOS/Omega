@@ -92,6 +92,7 @@ fn fixture(
         .unwrap();
         let callee_place = PlaceId::new(u64::try_from(ordinal).unwrap() + 2).unwrap();
         body.operations.push(AssignedUnitOperation::Call {
+            transport: None,
             psi_operation: operation,
             callee: machine,
             result: None,

@@ -76,6 +76,15 @@ the supported behavior of both routes, then delete the alternate route.
 Empty selection is identity execution within that sequence, not a different
 compiler. A wrapper around both implementations is not convergence.
 
+Use the existing selected and post-allocation program roots. Migrate the finite
+assigned operation roster into ordered instructions with explicit call ABI,
+memory, frame, relocation and semantic records. Move scratch preservation,
+argument snapshots and copy scheduling out of byte emission before retargeting
+its ISA encoders. Recursive assigned expressions and complete assigned Unit
+bodies must not survive as opaque executable payloads in the shared graph.
+Unmatched instructions may remain unchanged by a selected rewrite; they may
+not skip common allocation, effect validation, layout or encoding.
+
 Preserve ordinary, ranked-countdown, callback and Unit structural-scalar
 behavior through selection, allocation, machine optimization, layout and
 emission. Missing selected-control or ABI support is a prerequisite inside

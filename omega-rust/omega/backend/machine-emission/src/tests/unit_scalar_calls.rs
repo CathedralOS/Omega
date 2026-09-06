@@ -118,6 +118,27 @@ fn attached_unit_scalar_chain_emits_real_calls_and_durable_homes_on_every_native
         let assigned = target_operations_to_assigned_target_operations::assign_registers(&selected)
             .expect("assign attached scalar chain");
         let emitted = emit_machine_code(&assigned).expect("emit attached scalar chain");
+        let mut substituted = assigned.clone();
+        let assigned_target_operations::AssignedOperation::UnitBody(body) =
+            &mut substituted.functions[0].operation
+        else {
+            panic!("attached Unit body")
+        };
+        let transport = body
+            .operations
+            .iter_mut()
+            .find_map(|operation| match operation {
+                assigned_target_operations::AssignedUnitOperation::ScalarCall {
+                    transport, ..
+                } => Some(transport),
+                _ => None,
+            })
+            .expect("retained scalar call transport");
+        transport.call_stack_bytes += 16;
+        assert!(
+            emit_machine_code(&substituted).is_err(),
+            "a substituted plan rejects even when the larger stack is aligned"
+        );
         let caller = &emitted.functions[0];
         let callee = &emitted.functions[1];
 

@@ -1,6 +1,6 @@
 use assigned_target_operations::{
     AssignedUnitOperation, AssignedUnitScalarArgumentSource, AssignedUnitScalarCallArgument,
-    AssignedUnitScalarHome,
+    AssignedUnitScalarHome, UnitScalarTransportPlan,
 };
 use calling_conventions::{
     CallSignature, CallingPolicy, MachineRegister, ValueLocation, ValuePlacement,
@@ -17,117 +17,12 @@ use target_operations::CallSiteOwner;
 
 use super::{
     EmissionError, aarch64_load_base, aarch64_store_base, aarch64_unit_register,
-    aarch64_unit_stack_access, align_u32, append_aarch64_instructions, emit_aarch64_adjust_sp,
+    aarch64_unit_stack_access, append_aarch64_instructions, emit_aarch64_adjust_sp,
     emit_x86_64_adjust_sp, emit_x86_64_stack_load_width, emit_x86_64_stack_store_width,
-    outgoing_placement_extent, outgoing_placement_extent_with_copy, stack_adjustment_pair,
-    unit_scalar_home_record, unit_scalar_shape, x86_unit_register,
+    stack_adjustment_pair, unit_scalar_home_record, unit_scalar_shape, x86_unit_register,
 };
 
-#[derive(Debug, Clone)]
-pub(super) struct UnitScalarTransportPlan {
-    pub(super) call_stack_bytes: u32,
-    snapshot_slots: Vec<(MachineRegister, u32)>,
-}
-
-fn scalar_snapshot_registers(arguments: &[AssignedUnitScalarCallArgument]) -> Vec<MachineRegister> {
-    let source_registers = arguments
-        .iter()
-        .filter_map(|argument| match argument.source {
-            AssignedUnitScalarArgumentSource::Parameter {
-                location: assigned_target_operations::AssignedScalarLocation::Register(register),
-                ..
-            } => Some(register),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let needs_snapshot = arguments.iter().any(|argument| {
-        let assigned_target_operations::AssignedCallDestination::Register(destination) =
-            argument.destination
-        else {
-            return false;
-        };
-        source_registers.contains(&destination)
-            && !matches!(
-                argument.source,
-                AssignedUnitScalarArgumentSource::Parameter {
-                    location:
-                        assigned_target_operations::AssignedScalarLocation::Register(source),
-                    ..
-                } if source == destination
-            )
-    });
-    if !needs_snapshot {
-        return Vec::new();
-    }
-    source_registers
-        .into_iter()
-        .fold(Vec::new(), |mut registers, register| {
-            if !registers.contains(&register) {
-                registers.push(register);
-            }
-            registers
-        })
-}
-
-fn scalar_transport_extent(
-    outgoing_bytes: u32,
-    arguments: &[AssignedUnitScalarCallArgument],
-) -> Result<(u32, Vec<(MachineRegister, u32)>), EmissionError> {
-    let registers = scalar_snapshot_registers(arguments);
-    if registers.is_empty() {
-        return Ok((outgoing_bytes, Vec::new()));
-    }
-    let mut cursor = align_u32(outgoing_bytes, 8)?;
-    let mut slots = Vec::with_capacity(registers.len());
-    for register in registers {
-        slots.push((register, cursor));
-        cursor = cursor
-            .checked_add(8)
-            .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
-    }
-    Ok((cursor, slots))
-}
-
-pub(super) fn x86_unit_scalar_transport_plan(
-    call_plan: &calling_conventions::CallPlan,
-    arguments: &[AssignedUnitScalarCallArgument],
-    minimum_outgoing_bytes: u32,
-) -> Result<UnitScalarTransportPlan, EmissionError> {
-    let outgoing_bytes = call_plan
-        .parameters
-        .iter()
-        .map(outgoing_placement_extent)
-        .try_fold(
-            u32::from(call_plan.shadow_bytes).max(minimum_outgoing_bytes),
-            |extent, candidate| candidate.map(|value| extent.max(value)),
-        )?;
-    let (transport_bytes, snapshot_slots) = scalar_transport_extent(outgoing_bytes, arguments)?;
-    let padding = (8 + 16 - (transport_bytes % 16)) % 16;
-    Ok(UnitScalarTransportPlan {
-        call_stack_bytes: transport_bytes
-            .checked_add(padding)
-            .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?,
-        snapshot_slots,
-    })
-}
-
-pub(super) fn aarch64_unit_scalar_transport_plan(
-    call_plan: &calling_conventions::CallPlan,
-    arguments: &[AssignedUnitScalarCallArgument],
-) -> Result<UnitScalarTransportPlan, EmissionError> {
-    let outgoing_bytes = call_plan
-        .parameters
-        .iter()
-        .map(outgoing_placement_extent_with_copy)
-        .try_fold(u32::from(call_plan.shadow_bytes), |extent, candidate| {
-            candidate.map(|value| extent.max(value))
-        })?;
-    let (transport_bytes, snapshot_slots) = scalar_transport_extent(outgoing_bytes, arguments)?;
-    Ok(UnitScalarTransportPlan {
-        call_stack_bytes: align_u32(transport_bytes, 16)?,
-        snapshot_slots,
-    })
-}
+use super::scalar_transport::validate_scalar_transport;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit_unit_scalar_call(
@@ -138,6 +33,7 @@ pub(super) fn emit_unit_scalar_call(
     call_plan: &calling_conventions::CallPlan,
     result_home: AssignedUnitScalarHome,
     arguments: &[AssignedUnitScalarCallArgument],
+    transport: &UnitScalarTransportPlan,
     caller_parameters: &[target_operations::UnitScalarAbiValue],
     frame_bytes: u32,
     preceding_operations: &[AssignedUnitOperation],
@@ -178,6 +74,7 @@ pub(super) fn emit_unit_scalar_call(
             call_plan,
             result_home,
             arguments,
+            transport,
             caller_parameters,
             frame_bytes,
             preceding_operations,
@@ -190,6 +87,7 @@ pub(super) fn emit_unit_scalar_call(
             call_plan,
             result_home,
             arguments,
+            transport,
             caller_parameters,
             frame_bytes,
             preceding_operations,
@@ -217,6 +115,7 @@ fn emit_x86_64_unit_scalar_call(
     call_plan: &calling_conventions::CallPlan,
     result_home: AssignedUnitScalarHome,
     arguments: &[AssignedUnitScalarCallArgument],
+    transport: &UnitScalarTransportPlan,
     caller_parameters: &[target_operations::UnitScalarAbiValue],
     frame_bytes: u32,
     preceding_operations: &[AssignedUnitOperation],
@@ -228,7 +127,8 @@ fn emit_x86_64_unit_scalar_call(
     ),
     EmissionError,
 > {
-    let transport = x86_unit_scalar_transport_plan(
+    validate_scalar_transport(
+        Architecture::X86_64,
         call_plan,
         arguments,
         if target.object_format == ObjectFormat::Coff {
@@ -236,6 +136,7 @@ fn emit_x86_64_unit_scalar_call(
         } else {
             0
         },
+        transport,
     )?;
     let call_stack_bytes = transport.call_stack_bytes;
     let mut allocation = None;
@@ -256,14 +157,14 @@ fn emit_x86_64_unit_scalar_call(
         )?;
         let code_offset = bytes.len();
         if parameter_index == 0 {
-            emit_x86_64_scalar_snapshots(bytes, &transport)?;
+            emit_x86_64_scalar_snapshots(bytes, transport)?;
         }
         emit_x86_64_unit_scalar_argument(
             bytes,
             argument,
             frame_bytes,
             call_stack_bytes,
-            &transport,
+            transport,
         )?;
         argument_records.push(InternalUnitScalarCallArgumentRecord {
             parameter_index: argument.parameter_index,
@@ -313,6 +214,7 @@ fn emit_aarch64_unit_scalar_call(
     call_plan: &calling_conventions::CallPlan,
     result_home: AssignedUnitScalarHome,
     arguments: &[AssignedUnitScalarCallArgument],
+    transport: &UnitScalarTransportPlan,
     caller_parameters: &[target_operations::UnitScalarAbiValue],
     frame_bytes: u32,
     preceding_operations: &[AssignedUnitOperation],
@@ -324,7 +226,7 @@ fn emit_aarch64_unit_scalar_call(
     ),
     EmissionError,
 > {
-    let transport = aarch64_unit_scalar_transport_plan(call_plan, arguments)?;
+    validate_scalar_transport(Architecture::Aarch64, call_plan, arguments, 0, transport)?;
     let call_stack_bytes = transport.call_stack_bytes;
     let mut allocation = None;
     if call_stack_bytes != 0 {
@@ -345,14 +247,14 @@ fn emit_aarch64_unit_scalar_call(
         )?;
         let code_offset = bytes.len();
         if parameter_index == 0 {
-            emit_aarch64_scalar_snapshots(bytes, &transport)?;
+            emit_aarch64_scalar_snapshots(bytes, transport)?;
         }
         emit_aarch64_unit_scalar_argument(
             bytes,
             argument,
             frame_bytes,
             call_stack_bytes,
-            &transport,
+            transport,
         )?;
         argument_records.push(InternalUnitScalarCallArgumentRecord {
             parameter_index: argument.parameter_index,

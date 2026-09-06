@@ -126,6 +126,7 @@ fn unit_assignment_retains_typed_structural_argument_paths() {
     };
     let AssignedUnitOperation::Call {
         copies,
+        transport,
         requirement_obligations,
         crash_continuations,
         ..
@@ -134,6 +135,10 @@ fn unit_assignment_retains_typed_structural_argument_paths() {
         panic!("Unit call")
     };
     assert_eq!(copies[0].path, path);
+    assert!(
+        transport.is_none(),
+        "aggregate-only calls have no scalar transport"
+    );
     assert_eq!(requirement_obligations, &[ObligationId::new(1).unwrap()]);
     assert_eq!(
         crash_continuations,

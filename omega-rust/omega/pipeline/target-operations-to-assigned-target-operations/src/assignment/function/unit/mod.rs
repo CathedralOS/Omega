@@ -10,6 +10,7 @@ mod foreign_call;
 mod installed_provider;
 mod operation;
 mod scalar_call;
+mod scalar_transport;
 pub(super) mod structural_scalar;
 mod write_only_primitive_store;
 
