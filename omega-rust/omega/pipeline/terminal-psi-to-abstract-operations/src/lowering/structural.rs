@@ -3,7 +3,7 @@ use crate::shared::*;
 
 /// Lower the exact admitted structural-return families: the established
 /// whole-root linear/claim-bearing return and one claim-free affine return with
-/// a fixed-integer scalar prefix. Wider verified Terminal programs remain
+/// an optional fixed-integer scalar prefix. Wider verified Terminal programs remain
 /// fenced until their target-neutral carrier and Omega realization land
 /// together.
 pub(super) fn lower_structural_machine(
@@ -320,15 +320,24 @@ fn lower_claim_free_affine_mixed_machine(
     result: &StructuralResultDeclaration,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Option<AbstractFunction>, LoweringError> {
-    let ([scalar_parameter], [structural_parameter], [block]) = (
-        machine.parameters.as_slice(),
+    let ([structural_parameter], [block]) = (
         machine.structural_parameters.as_slice(),
         machine.blocks.as_slice(),
     ) else {
         return Ok(None);
     };
-    let ScalarType::Integer(integer) = scalar_parameter.scalar_type else {
-        return Ok(None);
+    let parameters = match machine.parameters.as_slice() {
+        [] => Vec::new(),
+        [scalar_parameter]
+            if matches!(scalar_parameter.scalar_type, ScalarType::Integer(integer)
+                if !integer.is_address() && matches!(integer.bits(), 8 | 16 | 32 | 64)) =>
+        {
+            vec![AbstractParameter {
+                value: scalar_parameter.id,
+                scalar_type: scalar_parameter.scalar_type,
+            }]
+        }
+        _ => return Ok(None),
     };
     let Terminator::ReturnStructural {
         edge,
@@ -339,10 +348,20 @@ fn lower_claim_free_affine_mixed_machine(
     else {
         return Ok(None);
     };
-    let exact_record = structural_types
+    let supported_shape = structural_types
         .iter()
         .find(|declaration| declaration.id == result.structural_type)
         .is_some_and(|declaration| {
+            if parameters.is_empty() {
+                // Terminal has checked the identity transfer and full type
+                // catalog. No scalar ABI restriction applies to this carrier;
+                // native realization still validates its own layout limits.
+                return matches!(
+                    &declaration.shape,
+                    terminal_psi::StructuralTypeShape::Record { .. }
+                        | terminal_psi::StructuralTypeShape::FixedArray { length: 1.., .. }
+                );
+            }
             matches!(
                 &declaration.shape,
                 terminal_psi::StructuralTypeShape::Record { fields }
@@ -366,9 +385,7 @@ fn lower_claim_free_affine_mixed_machine(
         .structural_places
         .iter()
         .find(|place| place.id == result.place);
-    if integer.is_address()
-        || !matches!(integer.bits(), 8 | 16 | 32 | 64)
-        || !exact_record
+    if !supported_shape
         || !machine.entry_claims.is_empty()
         || !machine.content_entry_claims.is_empty()
         || !machine.published_service_ceiling.is_empty()
@@ -406,22 +423,18 @@ fn lower_claim_free_affine_mixed_machine(
     {
         return Ok(None);
     }
-    let parameter = AbstractParameter {
-        value: scalar_parameter.id,
-        scalar_type: scalar_parameter.scalar_type,
-    };
     Ok(Some(AbstractFunction {
         machine: machine.id,
         attachment: machine.attachment,
         entry: machine.entry,
-        parameters: vec![parameter],
+        parameters: parameters.clone(),
         structural_parameters: vec![structural_parameter.clone()],
         result: AbstractFunctionResult::Structural(result.clone()),
         entry_claims: Vec::new(),
         published_service_ceiling: Vec::new(),
         block_entries: vec![AbstractBlockEntry {
             block: block.id,
-            parameters: vec![parameter],
+            parameters,
             operation_offset: 0,
         }],
         operations: vec![AbstractOperation::ReturnStructural {

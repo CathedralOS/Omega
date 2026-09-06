@@ -233,7 +233,8 @@ pub(crate) fn operation_structural_call_contract_matches(
             ) && validate_structural_call_result(
                 result,
                 callee,
-                exact_payloadless_structural_call(operation, callee, types),
+                exact_payloadless_structural_call(operation, callee, types)
+                    || exact_plain_affine_structural_call(operation, callee, types),
                 claim_transfers,
                 returned_claim_transfers,
                 types,

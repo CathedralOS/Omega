@@ -1663,8 +1663,14 @@ For an array root, call metadata retains that root's length and element stride;
 record-root paths carry neither, even when they pass through an array.
 ABI-required indirect argument copies materialize only the transferred subtree.
 Cleanup itself emits no instruction, runtime bitmap, or liveness-dependent loop.
-Native replay remains parameter-rooted. The source/Terminal call-result extension
-above does not admit result-root cleanup in native production, anonymous projected
+Omega's abstract entrance and current ownership replay also carry the ordinary
+identity-call result schedule without scalar arguments. The exact producer
+transfers its sole owned affine input unchanged, with no claims, qualifications,
+contracts, or effects. Replay joins the result declaration to that actual producer
+and reconstructs the same complement; an unrelated live result cannot disappear
+at Unit return. Boundary-result producer metadata and ownership replay remain
+unfinished. Target assignment and native replay remain parameter-rooted. This
+does not admit result-root cleanup in native production, anonymous projected
 helper-result operands, claims, nominal destruction, or partial construction.
 
 The straight-line Unit return slice carries explicit no-code cleanup for owned

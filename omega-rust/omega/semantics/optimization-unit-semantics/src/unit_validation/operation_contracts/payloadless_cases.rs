@@ -250,7 +250,7 @@ pub(crate) fn payloadless_selected_evidence_surface_matches(
 pub(crate) fn validate_structural_call_result(
     result: &terminal_psi::StructuralOperationResult,
     callee: &PsiOptimizationFunction,
-    exact_payloadless: bool,
+    exact_claim_free: bool,
     claim_transfers: &[terminal_psi::ClaimTransfer],
     returned: &[terminal_psi::StructuralResultClaimTransfer],
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
@@ -278,7 +278,7 @@ pub(crate) fn validate_structural_call_result(
     {
         return false;
     }
-    if exact_payloadless {
+    if exact_claim_free {
         return true;
     }
     if callee.entry_claim_declarations.is_empty()

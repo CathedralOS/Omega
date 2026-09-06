@@ -6,6 +6,7 @@
 
 use super::*;
 
+mod affine_calls;
 mod boundaries;
 mod claim_transfers;
 mod node_contracts;
@@ -15,6 +16,7 @@ mod service_calls;
 mod structural_access;
 mod values;
 
+pub(crate) use affine_calls::*;
 pub(crate) use boundaries::*;
 pub(crate) use claim_transfers::*;
 pub(crate) use payloadless_cases::*;
