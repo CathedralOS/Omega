@@ -107,7 +107,7 @@ pub(in crate::flow::terminal_unit) fn outer_calls<'a>(
                             .primitive_type_reference(local.type_reference)
                             .is_some()
                         || statement_sequence::has_structural_result(
-                            program, facts, statement,
+                            program, facts, owner, statement,
                         )) =>
             {
                 if !program

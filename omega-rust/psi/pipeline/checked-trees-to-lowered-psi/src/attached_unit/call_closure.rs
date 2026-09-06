@@ -253,7 +253,7 @@ pub(super) fn validate_unit_operation_sequence(
             } => {
                 if result.statement_index != coordinate.statement_index
                     || coordinate.call_ordinal != 0
-                    || result.binding_ordinal != 0
+                    || result.binding_ordinal != next_structural_binding
                     || *discard_result_on_return != (result.multiplicity == Multiplicity::Affine)
                 {
                     return unsupported(

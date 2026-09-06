@@ -3107,10 +3107,16 @@ successive operand graphs. The result operation owns the outer call, so no
 duplicate whole-initializer computation is emitted. Source eligibility and
 lowering rejoin the exact local initializer, result carrier, declaration namespace,
 callee, static qualifier, and captured outer flow occurrence independently from
-the nested operand occurrences. A boundary structural result still uses the
-first-initializer route and retains its existing normal cleanup; later structural
-initializers, forwarding those locals to later calls, and inspecting sum payloads
-remain separate work.
+the nested operand occurrences. Boundary structural-result initializers share
+the authored statement sequence and may follow scalar locals, scalar results,
+ordinary calls, and earlier structural results. Scalar and structural result
+bindings retain independent dense ordinals. Each boundary result is installed
+only after its operands and provider complete; unused affine results are cleaned
+in reverse production order on normal return. A later operand crash retains
+earlier results without creating a cleanup successor. The exact authored local,
+result carrier, and call occurrence rejoin independently of operand graphs.
+Forwarding boundary-produced locals to later calls and inspecting their sum
+payloads remain separate work.
 
 Scalar-returning boundary callers also use this evaluator for their existing
 two-statement body: an immutable boundary-result initializer followed by that
@@ -3315,8 +3321,8 @@ independent call. Producer, codec, and verifier each require exact equality
 between the root's actual direct boundary calls and its attachment requirements;
 neither transitive reach nor a retained field supplies a missing requirement.
 
-Later structural-result initializers and returned calls still need connections
-to the shared evaluator. Structural arguments on composed internal calls,
+Structural returned calls still need connections to the shared evaluator.
+Structural arguments on composed internal calls,
 mixed runtime requirement proofs for call-bearing arguments, other arithmetic
 policies, and mutable snapshots,
 and caller-ceiling proofs for computed-argument

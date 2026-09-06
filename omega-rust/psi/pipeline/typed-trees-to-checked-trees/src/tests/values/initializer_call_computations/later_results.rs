@@ -267,16 +267,138 @@ fn later_result_eligibility_rejects_mutability_receivers_and_semantic_modifiers(
     }
 }
 
-#[test]
-fn later_structural_results_do_not_inherit_scalar_sequence_eligibility() {
-    let source = "pub data Packet { value: u32; } pub data Sink {} data Root {}
+const BOUNDARY_STRUCTURAL_SEQUENCE: &str =
+    "pub data Packet { value: u32; } pub data Sink {} data Root {}
         machine numeric(input: u32) -> u32 { input }
-        boundary machine Sink::produce(input: u32) -> Packet ensures true;
+        boundary machine Sink::produce(input: u32, prior: u32) -> Packet ensures true;
         machine Root::enter(input: u32) {
             let prior: u32 = input;
-            let result: Packet = Sink::produce(numeric(prior));
+            let result: Packet = Sink::produce(numeric(prior), prior);
         }";
-    let program = typed_trees(source);
+
+#[test]
+fn later_boundary_structural_results_keep_operand_roots_and_scalar_namespace() {
+    for unrestricted in [false, true] {
+        let source = if unrestricted {
+            BOUNDARY_STRUCTURAL_SEQUENCE.replace("Packet {", "Packet [copy] {")
+        } else {
+            BOUNDARY_STRUCTURAL_SEQUENCE.to_owned()
+        };
+        let checked = lower_typed_trees(typed_trees(&source)).expect("later boundary result");
+        let machine = caller(&checked);
+        let [state] = checked.machine_states(machine) else {
+            panic!("one authored state")
+        };
+        let [
+            StatementNode::LocalData(prior),
+            StatementNode::LocalData(local),
+        ] = checked.statement_table.statements(state.statement_nodes)
+        else {
+            panic!("no synthetic source statements")
+        };
+        assert!(validation::unit_result_initializer_call_is_supported(
+            &checked.typed,
+            machine,
+            local.initial_value
+        ));
+        let plan = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine.symbol)
+            .unwrap();
+        let [
+            CheckedUnitEffectOperationPlan::EstablishScalarLocal {
+                result: prior_result,
+                ..
+            },
+            CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                coordinate,
+                result,
+                scalar_arguments,
+                discard_result_on_return,
+                ..
+            },
+            CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+        ] = plan.operations.as_slice()
+        else {
+            panic!("one scalar prefix and one structural result")
+        };
+        assert_eq!(
+            (prior_result.statement_index, prior_result.binding_ordinal),
+            (0, 0)
+        );
+        assert_eq!((result.statement_index, result.binding_ordinal), (1, 0));
+        assert_eq!(
+            (coordinate.statement_index, coordinate.call_ordinal),
+            (1, 0)
+        );
+        assert_eq!(*discard_result_on_return, !unrestricted);
+        let ExpressionNode::Call(call) = checked.expression_table.expression(local.initial_value)
+        else {
+            unreachable!()
+        };
+        let authored = checked.expression_table.expression_handles(call.arguments);
+        let computations = &checked.facts.values.scalar_computations;
+        let roots = computations
+            .roots
+            .iter()
+            .map(|(_, root)| root)
+            .filter(|root| root.state == state.symbol && root.statement_ordinal == 1)
+            .collect::<Vec<_>>();
+        assert_eq!(roots.len(), 1, "no duplicate whole-initializer computation");
+        assert_eq!(roots[0].role, role(ResultKind::BoundaryStructural, 0));
+        assert_eq!(
+            scalar_arguments[0],
+            CheckedCallScalarArgument::Computation(roots[0].root)
+        );
+        let node = computations.nodes.get(roots[0].root);
+        assert_eq!(node.authored_root, authored[0]);
+        let CheckedScalarComputationKind::Call {
+            source_call,
+            call_ordinal,
+            arguments,
+            ..
+        } = node.kind
+        else {
+            panic!("nested numeric invocation")
+        };
+        assert_eq!(call_ordinal, 1);
+        let occurrence = checked.facts.flow.control.calls.get(source_call);
+        assert_eq!(occurrence.statement_index, 1);
+        assert_eq!(occurrence.authored_expression, authored[0]);
+        let [argument] = computations.operands.span_or_empty(arguments) else {
+            panic!("one numeric operand")
+        };
+        assert!(matches!(
+            computations.nodes.get(*argument).kind,
+            CheckedScalarComputationKind::Value(checked_trees::CheckedScalarExpression::Local {
+                position: 1,
+                primitive_type: typed_trees::types::PrimitiveType::U32
+            })
+        ));
+        let pure = &checked.facts.values.scalar_expressions;
+        let (binding, _) = pure
+            .bound_expression_at(state.symbol, 1, role(ResultKind::BoundaryStructural, 1))
+            .unwrap();
+        assert_eq!(binding.expression, authored[1]);
+        assert_eq!(
+            pure.binding_symbols.span_or_empty(binding.symbols),
+            [checked.state_parameters(state)[0].symbol, prior.symbol]
+        );
+        assert!(
+            !pure
+                .binding_symbols
+                .span_or_empty(binding.symbols)
+                .contains(&local.symbol)
+        );
+    }
+}
+
+#[test]
+fn later_boundary_structural_eligibility_keeps_ownership_and_target_fences() {
+    use typed_trees::types::{DomainConstraint, TypeConstraintNode, TypeReferenceNode};
+    let program = typed_trees(BOUNDARY_STRUCTURAL_SEQUENCE);
     let machine = program
         .machines()
         .iter()
@@ -288,13 +410,77 @@ fn later_structural_results_do_not_inherit_scalar_sequence_eligibility() {
     else {
         panic!("later structural initializer")
     };
+    for mutation in 0..4 {
+        let mut changed = program.clone();
+        let reference = match mutation {
+            1 => changed
+                .type_reference_table
+                .insert(TypeReferenceNode::Reference {
+                    referee: local.type_reference,
+                    access: language_semantics::ReferenceAccess::Shared,
+                    lifetime: None,
+                }),
+            2 => {
+                let constraints =
+                    changed
+                        .type_reference_table
+                        .insert_constraints([TypeConstraintNode::Domain(DomainConstraint {
+                            name: typed_trees::name::Identifier::generated("Unestablished"),
+                            ..DomainConstraint::default()
+                        })]);
+                changed
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Constrained {
+                        base_type: local.type_reference,
+                        constraints,
+                    })
+            }
+            _ => local.type_reference,
+        };
+        let StatementNode::LocalData(changed_local) = &mut changed
+            .statement_table
+            .statements_mut(state.statement_nodes)[1]
+        else {
+            unreachable!()
+        };
+        changed_local.type_reference = reference;
+        if mutation == 0 {
+            changed_local.is_mutable = true;
+        } else if mutation == 3 {
+            changed
+                .machines_mut()
+                .iter_mut()
+                .find(|target| target.name.as_str() == "Sink::produce")
+                .unwrap()
+                .supply_mode = language_semantics::MachineSupplyMode::Requirement;
+        }
+        assert!(
+            !validation::unit_result_initializer_call_is_supported(
+                &changed,
+                machine,
+                local.initial_value
+            ),
+            "unsupported later structural result mutation {mutation}"
+        );
+    }
+    let linear =
+        typed_trees(&BOUNDARY_STRUCTURAL_SEQUENCE.replace("Packet {", "Packet [linear] {"));
+    let machine = linear
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Root::enter")
+        .unwrap();
+    let [state] = linear.machine_states(machine) else {
+        unreachable!()
+    };
+    let StatementNode::LocalData(local) =
+        &linear.statement_table.statements(state.statement_nodes)[1]
+    else {
+        unreachable!()
+    };
     assert!(!validation::unit_result_initializer_call_is_supported(
-        &program,
+        &linear,
         machine,
         local.initial_value
     ));
-    assert!(
-        lower_typed_trees(program).is_err(),
-        "nested structural result route remains closed"
-    );
 }

@@ -11,6 +11,7 @@ pub(super) struct StatementSequence {
 pub(super) fn has_structural_result(
     program: &TypedTrees,
     facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
     statement: &StatementNode,
 ) -> bool {
     let StatementNode::LocalData(local) = statement else {
@@ -29,11 +30,21 @@ pub(super) fn has_structural_result(
         .claim_free_affine_machines
         .iter()
         .any(|plan| plan.state == call.target_symbol)
+        || (program
+            .primitive_type_reference(local.type_reference)
+            .is_none()
+            && validation::has_plain_owned_contents(program, local.type_reference)
+            && validation::unit_result_initializer_call_is_supported(
+                program,
+                machine,
+                local.initial_value,
+            ))
 }
 
 pub(super) fn has_statement_shape(
     program: &TypedTrees,
     facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     construction_statement_count: usize,
 ) -> bool {
@@ -52,7 +63,7 @@ pub(super) fn has_statement_shape(
                 program
                     .primitive_type_reference(local.type_reference)
                     .is_some()
-                    || has_structural_result(program, facts, statement)
+                    || has_structural_result(program, facts, machine, statement)
             }
             _ => false,
         })
@@ -74,6 +85,10 @@ pub(super) fn build(
     let mut operations = Vec::new();
     let mut local_count = construction_statement_count;
     let mut scalar_count = 0_usize;
+    let mut structural_count = 0_usize;
+    let mut structural_local_symbols = Vec::new();
+    // Only ordinary affine producers participate in the existing result
+    // forwarding rules. Boundary results still own their normal cleanup.
     let mut structural_results = Vec::new();
     let mut call_count = 0_usize;
     let binders = machine_binders(program, machine);
@@ -131,7 +146,7 @@ pub(super) fn build(
                         &binders,
                     )?;
                     result.statement_index = statement_index;
-                    result.binding_ordinal = u32::try_from(structural_results.len()).ok()?;
+                    result.binding_ordinal = u32::try_from(structural_count).ok()?;
                     structural_result = Some((result, facts::PlaceRoot::Symbol(symbol)));
                     None
                 }
@@ -178,7 +193,7 @@ pub(super) fn build(
                 .find(|target| target.state == nested.target_symbol)?;
             let result = CheckedUnitStructuralResultBindingPlan {
                 statement_index,
-                binding_ordinal: u32::try_from(structural_results.len()).ok()?,
+                binding_ordinal: u32::try_from(structural_count).ok()?,
                 type_identity: target.result.type_identity.clone(),
                 multiplicity: Multiplicity::Affine,
             };
@@ -208,11 +223,12 @@ pub(super) fn build(
                 result,
                 facts::PlaceRoot::Expression(nested.authored_expression),
             ));
+            structural_count = structural_count.checked_add(1)?;
         }
         if let Some((result, _)) = &mut structural_result {
-            result.binding_ordinal = u32::try_from(structural_results.len()).ok()?;
+            result.binding_ordinal = u32::try_from(structural_count).ok()?;
         }
-        let operation = build_call_operation(
+        let mut operation = build_call_operation(
             program,
             facts,
             machine,
@@ -234,13 +250,19 @@ pub(super) fn build(
             &structural_results,
         )?;
         if let Some((result, symbol)) = structural_result {
-            if !matches!(
-                operation,
-                CheckedUnitEffectOperationPlan::StructuralCall { .. }
-            ) {
+            operation = bind_structural_call_result(operation, result.clone())?;
+            if let facts::PlaceRoot::Symbol(symbol) = symbol {
+                structural_local_symbols.push(symbol);
+                if matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::StructuralCall { .. }
+                ) {
+                    structural_results.push((result, facts::PlaceRoot::Symbol(symbol)));
+                }
+            } else {
                 return None;
             }
-            structural_results.push((result, symbol));
+            structural_count = structural_count.checked_add(1)?;
         }
         consume_results(&mut operations, &operation)?;
         operations.push(match result {
@@ -263,13 +285,7 @@ pub(super) fn build(
     (call_count == calls.len()).then_some(StatementSequence {
         operations,
         local_count,
-        structural_local_symbols: structural_results
-            .into_iter()
-            .filter_map(|(_, root)| match root {
-                facts::PlaceRoot::Symbol(symbol) => Some(symbol),
-                _ => None,
-            })
-            .collect(),
+        structural_local_symbols,
     })
 }
 
