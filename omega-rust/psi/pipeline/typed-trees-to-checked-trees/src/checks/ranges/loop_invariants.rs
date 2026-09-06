@@ -152,7 +152,7 @@ pub(super) fn collect_loop_invariant_facts(
                 if let StatementNode::Assignment(assignment) = statement
                     && let Some(field) = assignment_counter_field(program, assignment)
                     && matches!(
-                        classify_counter_write(program, field, assignment),
+                        classify_counter_write(program, machine, state, field, assignment),
                         CounterWrite::Decrement | CounterWrite::Increment
                     )
                     && !candidates.contains(&field)
@@ -233,6 +233,7 @@ pub(super) fn collect_loop_invariant_facts(
             if matches!(direction, Direction::Increasing)
                 && let Some(bound) = back_edge_counter_upper_bound(
                     program,
+                    machine,
                     states,
                     &back_sources,
                     head.symbol,
@@ -259,6 +260,7 @@ pub(super) fn collect_loop_invariant_facts(
             if matches!(direction, Direction::Increasing)
                 && let Some(collection) = loop_head_index_collection(
                     program,
+                    machine,
                     states,
                     &edges,
                     &loop_states,
@@ -294,6 +296,7 @@ pub(super) fn collect_loop_invariant_facts(
             if matches!(direction, Direction::Increasing)
                 && let Some((bound, edge_strict)) = loop_head_upper_place(
                     program,
+                    machine,
                     states,
                     &edges,
                     &loop_states,
@@ -471,9 +474,19 @@ fn assignment_counter_field(
 /// integer literal), or anything else. A literal `c` is deliberately required.
 fn classify_counter_write(
     program: &typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
     counter: SymbolHandle,
     assignment: &TableAssignment,
 ) -> CounterWrite {
+    if !validation::has_builtin_bound_expression_meaning(
+        program,
+        machine,
+        Some(state),
+        assignment.value,
+    ) {
+        return CounterWrite::Other;
+    }
     let ExpressionNode::Binary(binary) = program.expression_table.expression(assignment.value)
     else {
         return CounterWrite::Other;
@@ -511,6 +524,7 @@ fn classify_counter_write(
 /// holds on every incoming loop path.
 fn back_edge_counter_upper_bound(
     program: &typed_trees::TypedTrees,
+    machine: &Machine,
     states: &[State],
     back_sources: &[SymbolHandle],
     head: SymbolHandle,
@@ -519,7 +533,7 @@ fn back_edge_counter_upper_bound(
     let mut bound: Option<i64> = None;
     for &source in back_sources {
         let state = find_state(states, source)?;
-        let edge_bound = source_arm_to_head_upper_bound(program, state, head, counter)?;
+        let edge_bound = source_arm_to_head_upper_bound(program, machine, state, head, counter)?;
         bound = Some(bound.map_or(edge_bound, |current| current.max(edge_bound)));
     }
     bound
@@ -533,13 +547,14 @@ fn back_edge_counter_upper_bound(
 /// machine place.
 fn loop_head_index_collection(
     program: &typed_trees::TypedTrees,
+    machine: &Machine,
     states: &[State],
     edges: &[Edge],
     loop_states: &[SymbolHandle],
     head: SymbolHandle,
     counter: SymbolHandle,
 ) -> Option<String> {
-    match loop_head_relational_upper(program, states, edges, loop_states, head, counter)? {
+    match loop_head_relational_upper(program, machine, states, edges, loop_states, head, counter)? {
         RelationalUpper {
             term: UpperTerm::CollectionLength(collection),
             strict: true,
@@ -552,13 +567,14 @@ fn loop_head_index_collection(
 /// `counter < B`, under the same all-entry/all-back-edge rule.
 fn loop_head_upper_place(
     program: &typed_trees::TypedTrees,
+    machine: &Machine,
     states: &[State],
     edges: &[Edge],
     loop_states: &[SymbolHandle],
     head: SymbolHandle,
     counter: SymbolHandle,
 ) -> Option<(String, bool)> {
-    match loop_head_relational_upper(program, states, edges, loop_states, head, counter)? {
+    match loop_head_relational_upper(program, machine, states, edges, loop_states, head, counter)? {
         RelationalUpper {
             term: UpperTerm::Place(bound),
             strict,
@@ -572,6 +588,7 @@ fn loop_head_upper_place(
 
 fn loop_head_relational_upper(
     program: &typed_trees::TypedTrees,
+    machine: &Machine,
     states: &[State],
     edges: &[Edge],
     loop_states: &[SymbolHandle],
@@ -584,7 +601,8 @@ fn loop_head_relational_upper(
 
     for edge in edges.iter().filter(|edge| edge.target == head) {
         let source = find_state(states, edge.source)?;
-        let edge_upper = source_arm_to_head_relational_upper(program, source, head, counter)?;
+        let edge_upper =
+            source_arm_to_head_relational_upper(program, machine, source, head, counter)?;
         match &mut upper {
             Some(known) if known.term != edge_upper.term => return None,
             Some(known) => known.strict &= edge_upper.strict,
@@ -609,6 +627,7 @@ fn loop_head_relational_upper(
 /// as for the constant upper-bound candidate.
 fn source_arm_to_head_relational_upper(
     program: &typed_trees::TypedTrees,
+    machine: &Machine,
     source: &State,
     head: SymbolHandle,
     counter: SymbolHandle,
@@ -630,6 +649,12 @@ fn source_arm_to_head_relational_upper(
         let TransitionGuardNode::When(guard) = transition.guard else {
             return None;
         };
+        // Validate the original expression, including generated Boolean arm
+        // equality, before the relation reader peels any wrapper or operands.
+        if !validation::has_builtin_bound_expression_meaning(program, machine, Some(source), guard)
+        {
+            return None;
+        }
         let edge_upper = parse_counter_relational_upper(program, guard, counter)?;
         if found.is_some() {
             return None;
@@ -715,7 +740,7 @@ fn machine_bound_collection_chains(
             let ProofFact::Expression(expression) = fact else {
                 continue;
             };
-            collect_authored_upper_relations(program, *expression, &mut relations);
+            collect_authored_upper_relations(program, machine, *expression, &mut relations);
         }
     }
     relations.sort();
@@ -762,20 +787,29 @@ fn machine_bound_collection_chains(
 
 fn collect_authored_upper_relations(
     program: &typed_trees::TypedTrees,
+    machine: &Machine,
     expression: ExpressionHandle,
     relations: &mut Vec<AuthoredUpperRelation>,
 ) {
+    if !validation::has_builtin_decomposed_guard_meaning(
+        program,
+        machine,
+        program.machine_states(machine).first(),
+        expression,
+    ) {
+        return;
+    }
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => {
-            collect_authored_upper_relations(program, atomic.value, relations);
+            collect_authored_upper_relations(program, machine, atomic.value, relations);
         }
         ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::And => {
-            collect_authored_upper_relations(program, binary.left, relations);
-            collect_authored_upper_relations(program, binary.right, relations);
+            collect_authored_upper_relations(program, machine, binary.left, relations);
+            collect_authored_upper_relations(program, machine, binary.right, relations);
         }
         ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Equal => {
             if let Some(inner) = boolean_equality_inner(program, binary.left, binary.right) {
-                collect_authored_upper_relations(program, inner, relations);
+                collect_authored_upper_relations(program, machine, inner, relations);
             }
         }
         ExpressionNode::Binary(binary) => {
@@ -888,6 +922,7 @@ fn state_preserves_path(
 /// bound), or via more than one transition (ambiguous).
 fn source_arm_to_head_upper_bound(
     program: &typed_trees::TypedTrees,
+    machine: &Machine,
     source: &State,
     head: SymbolHandle,
     counter: SymbolHandle,
@@ -910,6 +945,10 @@ fn source_arm_to_head_upper_bound(
         let TransitionGuardNode::When(guard) = transition.guard else {
             return None;
         };
+        if !validation::has_builtin_bound_expression_meaning(program, machine, Some(source), guard)
+        {
+            return None;
+        }
         let edge_bound = parse_counter_upper_bound(program, guard, counter)?;
         if found.is_some() {
             return None; // more than one arm to head
@@ -1042,11 +1081,12 @@ fn loop_modifications_direction(
                 if assignment_counter_field(program, assignment) != Some(counter) {
                     continue;
                 }
-                let observed = match classify_counter_write(program, counter, assignment) {
-                    CounterWrite::Decrement => Direction::Decreasing,
-                    CounterWrite::Increment => Direction::Increasing,
-                    CounterWrite::Other => return None,
-                };
+                let observed =
+                    match classify_counter_write(program, machine, state, counter, assignment) {
+                        CounterWrite::Decrement => Direction::Decreasing,
+                        CounterWrite::Increment => Direction::Increasing,
+                        CounterWrite::Other => return None,
+                    };
                 match direction {
                     Some(existing) if existing != observed => return None,
                     _ => direction = Some(observed),
@@ -1173,6 +1213,17 @@ fn probe_state_init(
         }
         if let StatementNode::Assignment(assignment) = statement {
             if assignment_counter_field(program, assignment) != Some(counter) {
+                continue;
+            }
+            // Check the original RHS before interpreting an initializer as a
+            // constant entry bound, just as for the in-loop arithmetic writes.
+            if !validation::has_builtin_bound_expression_meaning(
+                program,
+                machine,
+                Some(state),
+                assignment.value,
+            ) {
+                probe = InitProbe::Unknown;
                 continue;
             }
             probe = match program.expression_table.expression(assignment.value) {

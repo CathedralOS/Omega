@@ -1,0 +1,8 @@
+operator < u64::custom(left: u64, right: u64) -> bool;
+
+machine read(items: &[u8], index: u64) -> u8 {
+    transition {
+        index < items.len -> (items[index])
+        _ -> 0
+    }
+}

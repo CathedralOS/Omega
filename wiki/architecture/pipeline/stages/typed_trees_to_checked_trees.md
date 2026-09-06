@@ -140,6 +140,17 @@ symbols, preserves guard polarity, intersects the subject's declared range,
 and checks selected operator meaning. Mutable operands and same-spelled
 foreign parameters cannot supply immutable bounds.
 
+Arithmetic requirements, Boolean guard wrappers, and index/loop-bound readers
+retain selected operator meaning before interpreting primitive comparisons or
+bound arithmetic. The shared `validation/src/bound_expression_meaning.rs` query
+uses the original expression handle and declared operand types; a false branch
+does not substitute the complemented token when checking operator identity.
+Boolean and explicitly landed integer literals retain their actual builtin
+types. Unknown computed operand types remain conservative candidates. This
+meaning check grants no range, effect, or lifetime evidence by itself.
+Boolean decomposition checks each consumed child independently: an authored
+comparison in one conjunct does not erase a sufficient builtin bound in another.
+
 Scalar exit proof binds the synthetic `result` to the exact final expression
 or selected returning arm. Authored output parameters instead follow retained
 per-contract reference origins into that state. Domain and scalar proof share
