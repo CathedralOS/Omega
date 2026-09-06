@@ -13,6 +13,7 @@ use typed_trees::{
 };
 
 pub(super) struct Projection {
+    pub root_symbol: SymbolHandle,
     pub symbol: SymbolHandle,
     pub type_reference: TypeReferenceHandle,
     pub depth: usize,
@@ -31,7 +32,18 @@ pub(super) fn root(
     let type_reference = program
         .state_parameters(state)
         .iter()
-        .find(|parameter| parameter.symbol == symbol && parameter.name == *name)
+        .find(|parameter| {
+            parameter.name == *name
+                && (parameter.symbol == symbol
+                    || (parameter.is_self
+                        && program.machines().iter().any(|machine| {
+                            machine.symbol == symbol
+                                && program
+                                    .machine_states(machine)
+                                    .iter()
+                                    .any(|candidate| candidate.symbol == state.symbol)
+                        })))
+        })
         .map(|parameter| parameter.type_reference)
         .or_else(|| {
             program.statement_table.statements(state.statement_nodes)[..before]
@@ -46,6 +58,7 @@ pub(super) fn root(
                 })
         })?;
     Some(Projection {
+        root_symbol: symbol,
         symbol,
         type_reference,
         depth: 0,
@@ -57,8 +70,24 @@ pub(super) fn field(
     receiver: Projection,
     name: &Identifier,
 ) -> Option<Projection> {
-    let nominal =
+    let mut nominal =
         super::super::machine_symbol_from_type_reference_handle(program, receiver.type_reference);
+    // A self reference names its attached machine, not the data declaration.
+    // Rejoin only that machine's actual self root before walking record fields;
+    // ordinary values cannot borrow a same-spelled machine's attachment.
+    if receiver.depth == 0
+        && let Some(machine) = program.machines().iter().find(|machine| {
+            machine.symbol == nominal
+                && (receiver.symbol == machine.symbol
+                    || program.machine_states(machine).iter().any(|state| {
+                        program.state_parameters(state).iter().any(|parameter| {
+                            parameter.is_self && parameter.symbol == receiver.symbol
+                        })
+                    }))
+        })
+    {
+        nominal = machine.attached_data_symbol;
+    }
     let definition = program
         .data_definitions()
         .iter()
@@ -76,6 +105,7 @@ pub(super) fn field(
         return None;
     }
     Some(Projection {
+        root_symbol: receiver.root_symbol,
         symbol: selected.symbol,
         type_reference: selected.type_reference,
         depth: receiver.depth + 1,
@@ -117,15 +147,16 @@ pub(super) fn expression(
                 }
                 check_symbol(
                     program,
+                    state,
                     handle,
                     symbols
                         .get(index)
                         .copied()
                         .unwrap_or_else(SymbolHandle::invalid),
-                    selected.symbol,
+                    &selected,
                 )?;
             }
-            check_symbol(program, handle, path.symbol, selected.symbol)?;
+            check_symbol(program, state, handle, path.symbol, &selected)?;
             Some(selected)
         }
         ExpressionNode::Member(member) if member.case_variant.is_none() => {
@@ -136,7 +167,7 @@ pub(super) fn expression(
             let Some(selected) = field(program, receiver, &member.member) else {
                 return Ok(None);
             };
-            check_symbol(program, handle, member.member_symbol, selected.symbol)?;
+            check_symbol(program, state, handle, member.member_symbol, &selected)?;
             Some(selected)
         }
         _ => None,
@@ -146,15 +177,52 @@ pub(super) fn expression(
 
 fn check_symbol(
     program: &TypedTrees,
+    state: &State,
     expression: ExpressionHandle,
     authored: SymbolHandle,
-    selected: SymbolHandle,
+    selected: &Projection,
 ) -> Result<(), Vec<Diagnostic>> {
-    if authored.is_valid() && authored != selected {
+    if authored.is_valid()
+        && !matches_symbol(
+            program,
+            state,
+            selected.root_symbol,
+            authored,
+            selected.symbol,
+        )
+    {
         return Err(vec![
             Diagnostic::error("projected call receiver disagrees with its exact declared field")
                 .with_source_span(program.expression_table.source_span(expression)),
         ]);
     }
     Ok(())
+}
+
+/// Original data fields and their inherited self slots identify the same
+/// declaration only beneath this state's exact attached receiver root.
+pub(super) fn matches_symbol(
+    program: &TypedTrees,
+    state: &State,
+    root: SymbolHandle,
+    authored: SymbolHandle,
+    selected: SymbolHandle,
+) -> bool {
+    authored == selected
+        || program.machines().iter().any(|machine| {
+            program
+                .machine_states(machine)
+                .iter()
+                .any(|candidate| candidate.symbol == state.symbol)
+                && program.state_parameters(state).iter().any(|parameter| {
+                    parameter.is_self && (root == machine.symbol || root == parameter.symbol)
+                })
+                && validation::exact_attached_field(
+                    program,
+                    machine,
+                    authored,
+                    program.symbols.name(authored),
+                )
+                .is_some_and(|field| field.symbol == selected)
+        })
 }

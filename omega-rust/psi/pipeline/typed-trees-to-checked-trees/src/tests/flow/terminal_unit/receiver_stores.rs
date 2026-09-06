@@ -3,6 +3,45 @@
 use super::*;
 
 #[test]
+fn projected_mutable_receiver_call_retains_its_exact_field_path() {
+    let checked = checked(
+        r#"
+        data Record { value: u16; }
+        data Container { record: Record; }
+        machine Record::replace(&mut self) { self.value = 17; }
+        machine invoke(container: &mut Container) { container.record.replace(); }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "invoke"))
+        .expect("the caller retains its projected mutable receiver call");
+    let [
+        CheckedUnitEffectOperationPlan::CallUnit {
+            structural_arguments,
+            ..
+        },
+        CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+    ] = plan.operations.as_slice()
+    else {
+        panic!("one retained receiver call and return")
+    };
+    let [argument] = structural_arguments.as_slice() else {
+        panic!("one retained projected receiver")
+    };
+    assert_eq!(argument.source_parameter_index(), Some(0));
+    assert_eq!(
+        argument.access,
+        checked_trees::CheckedStructuralAccess::MutableBorrow
+    );
+    assert!(matches!(argument.path.as_slice(),
+        [checked_trees::CheckedUnitStructuralPathSegment::Field(identity)]
+            if identity == "record"));
+}
+
+#[test]
 fn retains_mutable_receiver_field_stores() {
     let checked = checked(
         r#"

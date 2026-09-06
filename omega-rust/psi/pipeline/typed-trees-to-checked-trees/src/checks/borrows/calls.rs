@@ -28,7 +28,7 @@ pub(super) fn check_call_borrows(
         &target_name,
         diagnostics,
     );
-    receiver::check_write_only_receiver_conflicts(
+    receiver::check_exclusive_receiver_conflicts(
         program,
         facts,
         state_flow,
