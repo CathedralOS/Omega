@@ -1,7 +1,112 @@
 //! Guard facts require the current expression's builtin comparison meaning.
 
-use super::*;
+use crate::places::declared_place_type_raw;
 use language_core::OperatorSpelling;
+use typed_trees::TypedTrees;
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::machine::Machine;
+use typed_trees::state::State;
+use typed_trees::types::TypeReferenceHandle;
+
+/// Preserve selected operator meaning before interpreting an expression as a
+/// primitive bound. This grants no value, effect, or lifetime proof: callers
+/// must still establish their own range and evaluation-snapshot obligations.
+pub fn has_builtin_bound_expression_meaning(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+) -> bool {
+    bound_subtree_meaning(program, machine, state, expression, 0)
+}
+
+/// Check a guard node whose Boolean children the caller decomposes and checks
+/// separately. A true conjunction (or false disjunction) can contribute an
+/// independent builtin fact even when another child selects an authored
+/// operator. Boolean wrappers still owe their own exact equality meaning.
+pub fn has_builtin_decomposed_guard_meaning(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+) -> bool {
+    if let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) {
+        match binary.operator {
+            BinaryOperator::And | BinaryOperator::Or => return true,
+            BinaryOperator::Equal | BinaryOperator::NotEqual
+                if [binary.left, binary.right].into_iter().any(|operand| {
+                    matches!(
+                        program.expression_table.expression(operand),
+                        ExpressionNode::Boolean(_)
+                    )
+                }) =>
+            {
+                return builtin_boolean_equality(program, machine, state, expression, binary);
+            }
+            _ => {}
+        }
+    }
+    has_builtin_bound_expression_meaning(program, machine, state, expression)
+}
+
+fn bound_subtree_meaning(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+    depth: usize,
+) -> bool {
+    if !expression.is_valid() || depth >= 128 {
+        return false;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary) => {
+            let meaning = match binary.operator {
+                BinaryOperator::Equal | BinaryOperator::NotEqual => {
+                    builtin_boolean_equality(program, machine, state, expression, binary)
+                }
+                BinaryOperator::Less
+                | BinaryOperator::LessOrEqual
+                | BinaryOperator::Greater
+                | BinaryOperator::GreaterOrEqual => {
+                    builtin_ordering(program, machine, state, expression, binary)
+                }
+                BinaryOperator::Add
+                | BinaryOperator::Subtract
+                | BinaryOperator::Multiply
+                | BinaryOperator::Divide
+                | BinaryOperator::Modulo => {
+                    builtin_arithmetic_node(program, machine, state, expression, binary)
+                }
+                // These operations have no overloadable operator spelling.
+                BinaryOperator::And
+                | BinaryOperator::Or
+                | BinaryOperator::BitwiseAnd
+                | BinaryOperator::BitwiseOr
+                | BinaryOperator::BitwiseXor
+                | BinaryOperator::ShiftLeft
+                | BinaryOperator::ShiftRight => true,
+            };
+            meaning
+                && bound_subtree_meaning(program, machine, state, binary.left, depth + 1)
+                && bound_subtree_meaning(program, machine, state, binary.right, depth + 1)
+        }
+        ExpressionNode::Borrow(borrow) => {
+            bound_subtree_meaning(program, machine, state, borrow.target, depth + 1)
+        }
+        ExpressionNode::Atomic(atomic) => {
+            bound_subtree_meaning(program, machine, state, atomic.value, depth + 1)
+        }
+        ExpressionNode::Unary(unary) => {
+            bound_subtree_meaning(program, machine, state, unary.operand, depth + 1)
+        }
+        ExpressionNode::Cast(cast) => {
+            bound_subtree_meaning(program, machine, state, cast.value, depth + 1)
+        }
+        // Places and calls are symbolic leaves, not interpreted arithmetic.
+        _ => true,
+    }
+}
 
 pub(super) fn builtin_ordering(
     program: &TypedTrees,

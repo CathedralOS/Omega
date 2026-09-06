@@ -158,7 +158,7 @@ pub(super) fn check_statement<'program>(
                             .into_complete_paths()
                             .is_some_and(|paths| paths.is_empty())
                     }) {
-                        seed_guard_facts(program, &mut guarded_facts, guard);
+                        seed_guard_facts(program, machine, state, &mut guarded_facts, guard);
                         super::guards::seed_value_vs_value_endpoints(
                             program,
                             machine,
@@ -166,7 +166,13 @@ pub(super) fn check_statement<'program>(
                             &mut guarded_facts,
                             guard,
                         );
-                        seed_negated_guard_facts(program, &mut negated_facts, guard);
+                        seed_negated_guard_facts(
+                            program,
+                            machine,
+                            state,
+                            &mut negated_facts,
+                            guard,
+                        );
                     }
                     (guarded_facts, negated_facts)
                 }

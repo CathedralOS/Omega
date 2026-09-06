@@ -705,9 +705,9 @@ pub(super) fn seed_incoming_guard_facts(
             continue;
         }
         if entry.negated {
-            seed_negated_guard_facts(program, facts, entry.guard);
+            seed_negated_guard_facts(program, machine, state, facts, entry.guard);
         } else {
-            seed_guard_facts(program, facts, entry.guard);
+            seed_guard_facts(program, machine, state, facts, entry.guard);
             // R1 endpoint mints ride the positive incoming guards too
             // (fields resolve machine-wide; a source-scope name that does
             // not resolve here simply yields no fact).

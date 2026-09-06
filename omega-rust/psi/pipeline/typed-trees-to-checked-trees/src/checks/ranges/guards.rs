@@ -26,7 +26,7 @@ pub(super) fn seed_value_vs_value_endpoints(
     facts: &mut RangeFacts<'_>,
     guard: ExpressionHandle,
 ) {
-    if !guard.is_valid() {
+    if !validation::has_builtin_decomposed_guard_meaning(program, machine, Some(state), guard) {
         return;
     }
     let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
@@ -78,10 +78,12 @@ pub(super) fn seed_value_vs_value_endpoints(
 
 pub(super) fn seed_guard_facts(
     program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
     guard: ExpressionHandle,
 ) {
-    if !guard.is_valid() {
+    if !validation::has_builtin_decomposed_guard_meaning(program, machine, Some(state), guard) {
         return;
     }
 
@@ -94,7 +96,7 @@ pub(super) fn seed_guard_facts(
         if let Some(alias_guard) = facts.boolean_guard_local(path.symbol, name)
             && alias_guard != guard
         {
-            seed_guard_facts(program, facts, alias_guard);
+            seed_guard_facts(program, machine, state, facts, alias_guard);
         }
         return;
     }
@@ -103,11 +105,13 @@ pub(super) fn seed_guard_facts(
         return;
     };
 
-    seed_binary_guard_facts(program, facts, binary, binary.operator);
+    seed_binary_guard_facts(program, machine, state, facts, binary, binary.operator);
 }
 
 fn seed_binary_guard_facts(
     program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
     binary: &TableBinaryExpression,
     operator: BinaryOperator,
@@ -143,19 +147,47 @@ fn seed_binary_guard_facts(
             seed_non_negative_fact(program, facts, binary.left, binary.right, true);
         }
         BinaryOperator::And => {
-            seed_guard_facts(program, facts, binary.left);
-            seed_guard_facts(program, facts, binary.right);
+            seed_guard_facts(program, machine, state, facts, binary.left);
+            seed_guard_facts(program, machine, state, facts, binary.right);
         }
         BinaryOperator::Equal => {
             seed_length_equality_fact(program, facts, binary.left, binary.right);
-            seed_boolean_equality_guard_facts(program, facts, binary.left, binary.right);
-            seed_boolean_equality_guard_facts(program, facts, binary.right, binary.left);
+            seed_boolean_equality_guard_facts(
+                program,
+                machine,
+                state,
+                facts,
+                binary.left,
+                binary.right,
+            );
+            seed_boolean_equality_guard_facts(
+                program,
+                machine,
+                state,
+                facts,
+                binary.right,
+                binary.left,
+            );
         }
         BinaryOperator::NotEqual => {
             seed_length_not_zero_fact(program, facts, binary.left, binary.right);
             seed_length_not_zero_fact(program, facts, binary.right, binary.left);
-            seed_boolean_inequality_guard_facts(program, facts, binary.left, binary.right);
-            seed_boolean_inequality_guard_facts(program, facts, binary.right, binary.left);
+            seed_boolean_inequality_guard_facts(
+                program,
+                machine,
+                state,
+                facts,
+                binary.left,
+                binary.right,
+            );
+            seed_boolean_inequality_guard_facts(
+                program,
+                machine,
+                state,
+                facts,
+                binary.right,
+                binary.left,
+            );
         }
         BinaryOperator::Add
         | BinaryOperator::BitwiseAnd
@@ -173,35 +205,50 @@ fn seed_binary_guard_facts(
 
 fn seed_boolean_equality_guard_facts(
     program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
     possible_boolean: ExpressionHandle,
     guard: ExpressionHandle,
 ) {
     match program.expression_table.expression(possible_boolean) {
-        ExpressionNode::Boolean(true) => seed_guard_facts(program, facts, guard),
-        ExpressionNode::Boolean(false) => seed_negated_guard_facts(program, facts, guard),
+        ExpressionNode::Boolean(true) => seed_guard_facts(program, machine, state, facts, guard),
+        ExpressionNode::Boolean(false) => {
+            seed_negated_guard_facts(program, machine, state, facts, guard)
+        }
         _ => {}
     }
 }
 
 fn seed_boolean_inequality_guard_facts(
     program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
     possible_boolean: ExpressionHandle,
     guard: ExpressionHandle,
 ) {
     match program.expression_table.expression(possible_boolean) {
-        ExpressionNode::Boolean(true) => seed_negated_guard_facts(program, facts, guard),
-        ExpressionNode::Boolean(false) => seed_guard_facts(program, facts, guard),
+        ExpressionNode::Boolean(true) => {
+            seed_negated_guard_facts(program, machine, state, facts, guard)
+        }
+        ExpressionNode::Boolean(false) => seed_guard_facts(program, machine, state, facts, guard),
         _ => {}
     }
 }
 
 pub(super) fn seed_negated_guard_facts(
     program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
     guard: ExpressionHandle,
 ) {
+    // Test the actual selected operation, not the complement used below to
+    // represent its false branch.
+    if !validation::has_builtin_decomposed_guard_meaning(program, machine, Some(state), guard) {
+        return;
+    }
     let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
         return;
     };
@@ -216,11 +263,11 @@ pub(super) fn seed_negated_guard_facts(
         // Refuting a disjunction refutes both operands. Refuting a conjunction
         // does not identify a failed operand and cannot seed either complement.
         BinaryOperator::Or => {
-            seed_negated_guard_facts(program, facts, binary.left);
-            seed_negated_guard_facts(program, facts, binary.right);
+            seed_negated_guard_facts(program, machine, state, facts, binary.left);
+            seed_negated_guard_facts(program, machine, state, facts, binary.right);
             return;
         }
         _ => return,
     };
-    seed_binary_guard_facts(program, facts, binary, complement);
+    seed_binary_guard_facts(program, machine, state, facts, binary, complement);
 }

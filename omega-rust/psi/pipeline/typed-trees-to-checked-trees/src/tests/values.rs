@@ -5,6 +5,7 @@ mod call_computations;
 mod guard_boolean_custody;
 mod guard_operator_custody;
 mod guard_parameter_bounds;
+mod index_guard_custody;
 mod initializer_call_computations;
 mod requires_operator_custody;
 mod source_bindings;

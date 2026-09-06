@@ -106,7 +106,13 @@ pub(super) fn collect_state_argument_facts_from_statement(
                             .into_complete_paths()
                             .is_some_and(|paths| paths.is_empty())
                     }) {
-                        guards::seed_guard_facts(program, &mut narrowed, guard);
+                        guards::seed_guard_facts(
+                            program,
+                            machine,
+                            context.state,
+                            &mut narrowed,
+                            guard,
+                        );
                     }
                     Some(narrowed)
                 }

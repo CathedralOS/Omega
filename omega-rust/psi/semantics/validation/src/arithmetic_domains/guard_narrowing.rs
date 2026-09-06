@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 use super::*;
 
 mod arrivals;
-mod meaning;
+use crate::bound_expression_meaning as meaning;
 mod parameter_bounds;
 pub use arrivals::arrival_integer_expression_bounds;
 

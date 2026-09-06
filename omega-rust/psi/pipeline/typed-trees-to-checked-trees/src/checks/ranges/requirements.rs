@@ -32,7 +32,7 @@ pub(super) fn seed_state_requires(
         for fact in program.proof_facts.span_or_empty(contract.facts) {
             match fact {
                 typed_trees::domain::ProofFact::Expression(expression) => {
-                    seed_guard_facts(program, facts, *expression);
+                    seed_guard_facts(program, machine, state, facts, *expression);
                     seed_index_proofs_from_expression(program, facts, *expression);
                 }
                 typed_trees::domain::ProofFact::Membership(membership) => {
