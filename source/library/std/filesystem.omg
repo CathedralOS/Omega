@@ -1305,13 +1305,12 @@ invokes
 // `std::fs::canonicalize`). On `Ok` the NUL-terminated absolute path is in
 // `buffer` (provide >= 1024 bytes -- the posix PATH_MAX floor the raw
 // realpath writes to with no cap arg at all). Implemented PER TARGET: posix
-// binds the `realpath` raw op; windows -- msvcrt has no realpath -- COMPOSES
-// open / get_osfhandle / final_path_name_by_handle / close (the handle
-// bridge), whose resolved spelling is the \\?\-prefixed DOS path (exactly
-// Rust's windows canonicalize). KNOWN LIMIT (recorded, not hidden): the
-// windows composition opens with msvcrt `_open`, which refuses DIRECTORIES,
-// so canonicalizing a directory reports Error on windows until a designed
-// directory-open op exists; posix realpath serves both.
+// binds the `realpath` raw op; windows -- msvcrt has no realpath -- composes
+// open_path_handle / final_path_name_by_handle / close_handle, whose resolved
+// spelling is the \\?\-prefixed DOS path (exactly Rust's windows canonicalize).
+// CreateFileA with FILE_FLAG_BACKUP_SEMANTICS accepts files and directories.
+// Failed acquisition returns its captured error without querying or closing;
+// successful acquisition queries and closes before returning the query verdict.
 //
 //   machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult
 // ---------------------------------------------------------------------------

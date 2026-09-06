@@ -1051,12 +1051,9 @@ fn windows_wrapper_lock_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
-// The WRAPPER canonicalize contract on windows (session slice 4a): msvcrt
-// has no realpath, so the windows impl composes the HANDLE BRIDGE -- open,
-// _get_osfhandle, GetFinalPathNameByHandleA (the \\?\-prefixed DOS path),
-// close. The canary discriminates per-model first bytes ('\\' native / 'o'
-// hermetic) and pins the NotFound leg (the open's errno is captured before
-// the trailing close can clobber it). Interp + native.
+// The same portable contract can be checked without selecting a target entry.
+// This uses the host-default implementation; the explicit Windows regression
+// below exercises CreateFileA/GetFinalPathNameByHandleA/CloseHandle on every host.
 #[test]
 fn windows_canonicalize_canary_is_targetless_and_interprets() {
     let canary = pass_canary(fixture_roster::WINDOWS_CANONICALIZE_EXIT);
@@ -1104,6 +1101,43 @@ fn windows_canonicalize_exit_canary_runs() {
     );
 
     let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn windows_canonicalize_failed_open_neither_queries_nor_closes() {
+    let canary = pass_canary(fixture_roster::WINDOWS_CANONICALIZE_EXIT);
+    let checked = compile_to_checked(&canary.join("main.omg"), Some("windows_x86_64"))
+        .expect("windows canonicalize canary should compile to checked trees");
+    let filesystem = checked
+        .resolved_semantic_binding(AcceptedSemanticBindingRole::FilesystemHostService)
+        .expect("fixture admits its filesystem service");
+    let binding = FilesystemServiceBinding::from_compiler_resolved_declaration(
+        &checked,
+        filesystem.declaration_symbol(),
+    )
+    .expect("fixture filesystem binding resolves");
+    let outcome = interpret_entry_with_options(
+        &checked,
+        "FailedOpen::main",
+        &[],
+        InterpretOptions::default().with_filesystem_service_binding(binding),
+    );
+    assert_eq!(outcome.error, None);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "failed acquisition preserves NotFound"
+    );
+    assert_eq!(
+        outcome.usage.filesystem_operation_attempts(),
+        2,
+        "only CreateFileA and GetLastError may run after failed acquisition"
+    );
+    let successful_paths = interpret(&checked, &[]);
+    assert_eq!(successful_paths.error, None);
+    assert_eq!(
+        successful_paths.exit_code, 70,
+        "Windows query state must still resolve files/directories and preserve NotFound"
+    );
 }
 
 // The WRAPPER hard-link contract on windows (session slice 3): msvcrt has

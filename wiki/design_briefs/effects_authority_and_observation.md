@@ -727,9 +727,9 @@ The first customer is the open/query/close sequence in the Windows
 Its control arguments are literals: access zero, `OPEN_EXISTING`, and
 `BACKUP_SEMANTICS` without `DELETE_ON_CLOSE`; the path is not constant. These
 are useful proof inputs, not proof of the entire sequence or object kind.
-The current source performs query and close before testing acquisition success.
-Repair that ordering using the target's actual success predicate before
-admitting an ordinary-release proof. Preserve legitimate sharing behavior.
+The source tests the returned handle against `INVALID_HANDLE_VALUE` before
+entering its query/close state and preserves read/write/delete sharing. This
+ordering is necessary but does not itself establish an ordinary-release proof.
 
 The checker must retain a replayable derivation establishing:
 

@@ -825,12 +825,12 @@ invokes
 // FILE_FLAG_BACKUP_SEMANTICS), then resolves it to its final DOS path
 // (GetFinalPathNameByHandleA, flags 0 =
 // VOLUME_NAME_DOS, the \\?\-prefixed spelling Rust's windows canonicalize
-// returns), and closes it with CloseHandle. All host calls live in the ENTRY
-// (the value-call fence), followed by chained pure verdicts; capacity is the
-// contract's 1024 floor
+// returns), and closes it with CloseHandle. Only a successful acquisition
+// enters the query/close state. Capacity is the contract's 1024 floor
 // (the posix realpath writes up to PATH_MAX=1024 with no cap arg at all).
 // A too-small buffer returns the REQUIRED size (>= 1024 fails the fit
-// check). Both failure legs capture and classify GetLastError before close.
+// check). Failed acquisition preserves its open error; the query error is
+// captured before close can overwrite it.
 // FILE_FLAG_BACKUP_SEMANTICS makes files and directories equally valid inputs.
 pub windows_x86_64 machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult
 reaches
@@ -842,12 +842,6 @@ invokes
     // Capture the OPEN leg's GetLastError IMMEDIATELY: any trailing Win32
     // call may overwrite the thread-local value.
     let open_error: i32 = self.host.get_last_error();
-    let len: i64 = self.host.final_path_name_by_handle(handle, buffer, 1024, 0);
-    let resolve_error: i32 = self.host.get_last_error();
-    let closed: i32 = self.host.close_handle(handle);
-    // Map both captured Win32 values in the ENTRY (the value-call fence bans
-    // arm-state mutations, and field-store-then-match is the required desugar
-    // idiom) -- harmless on the success path.
     self.err_kind = match open_error {
         2 -> ErrorKind::NotFound,
         3 -> ErrorKind::NotFound,
@@ -859,20 +853,26 @@ invokes
         183 -> ErrorKind::AlreadyExists,
         _ -> ErrorKind::Other
     };
-    self.win32_error_kind = match resolve_error {
-        2 -> ErrorKind::NotFound,
-        3 -> ErrorKind::NotFound,
-        5 -> ErrorKind::PermissionDenied,
-        6 -> ErrorKind::BadDescriptor,
-        32 -> ErrorKind::WouldBlock,
-        33 -> ErrorKind::WouldBlock,
-        80 -> ErrorKind::AlreadyExists,
-        183 -> ErrorKind::AlreadyExists,
-        _ -> ErrorKind::Other
-    };
-    transition handle >= 0 { true -> wc_len(len) _ -> err_open() }
-    state wc_len(&mut self, len: i64) -> UnitResult {
-        transition len > 0 { true -> wc_fit(len) _ -> err_resolve() }
+    // CreateFileA fails with INVALID_HANDLE_VALUE, not with every signed
+    // negative value. Do not query or close that failed-acquisition sentinel.
+    transition handle != -1 { true -> resolve(handle, buffer) _ -> err_open() }
+    state resolve(&mut self, handle: i64, buffer: &mut [u8]) -> UnitResult {
+        let length: i64 = self.host.final_path_name_by_handle(handle, buffer, 1024, 0);
+        let resolve_error: i32 = self.host.get_last_error();
+        let closed: i32 = self.host.close_handle(handle);
+        // Capture the query error before close can change GetLastError.
+        self.win32_error_kind = match resolve_error {
+            2 -> ErrorKind::NotFound,
+            3 -> ErrorKind::NotFound,
+            5 -> ErrorKind::PermissionDenied,
+            6 -> ErrorKind::BadDescriptor,
+            32 -> ErrorKind::WouldBlock,
+            33 -> ErrorKind::WouldBlock,
+            80 -> ErrorKind::AlreadyExists,
+            183 -> ErrorKind::AlreadyExists,
+            _ -> ErrorKind::Other
+        };
+        transition length > 0 { true -> wc_fit(length) _ -> err_resolve() }
     }
     state wc_fit(&mut self, len: i64) -> UnitResult {
         transition len < 1024 { true -> ok() _ -> err_resolve() }
