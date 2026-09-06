@@ -242,7 +242,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                     target_machine, ..
                 } => boundary_symbols.contains(target_machine),
                 CheckedUnitEffectOperationPlan::ScalarCall { .. } => {
-                    scalar_targets::is_available(program, facts, operation)
+                    scalar_targets::is_available(program, facts, plan, operation)
                 }
                 CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. } => facts
                     .flow

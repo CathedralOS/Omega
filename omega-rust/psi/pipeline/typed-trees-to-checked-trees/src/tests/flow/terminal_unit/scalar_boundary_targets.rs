@@ -464,7 +464,7 @@ fn unit_scalar_call_rejects_missing_or_drifted_boundary_return_registration() {
 }
 
 #[test]
-fn scalar_boundary_wrapper_does_not_discard_structural_call_custody() {
+fn scalar_boundary_wrapper_retains_structural_call_custody() {
     let source = SOURCE
         .replace(
             "boundary trait Host",
@@ -493,13 +493,162 @@ fn scalar_boundary_wrapper_does_not_discard_structural_call_custody() {
         .find(|plan| plan.machine == target)
         .expect("structural wrapper keeps its existing body plan");
     assert_eq!(wrapper.structural_parameters.len(), 1);
+    let caller = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(root)
+        .expect("ordinary scalar invocation retains the owned structural argument");
+    let CheckedUnitEffectOperationPlan::ScalarCall {
+        structural_arguments,
+        claim_transfers,
+        ..
+    } = &caller.operations[0]
+    else {
+        panic!("ordinary scalar call")
+    };
+    assert_eq!(structural_arguments.len(), 1);
+    assert_eq!(structural_arguments[0].source_parameter_index(), Some(0));
+    assert!(claim_transfers.is_empty());
     assert!(
-        checked
+        matches!(caller.operations.last(), Some(CheckedUnitEffectOperationPlan::ReturnUnit {
+        trivial_affine_discards, ..
+    }) if trivial_affine_discards.is_empty()),
+        "transferred affine parameter is not discarded twice"
+    );
+}
+
+#[test]
+fn scalar_boundary_wrapper_transfers_exact_linear_claim_with_mixed_signature() {
+    let source = r#"
+        pub data Receipt [linear] { value: u64; }
+        boundary machine Receipt::settle(self, value: u16) -> u16
+        reaches PortIo ensures true;
+        data Wrapper {}
+        machine Wrapper::measure(value: u16, receipt: Receipt) -> u16
+        reaches PortIo
+        { let result: u16 = receipt.settle(value); result }
+        data Root {}
+        machine Root::run(receipt: Receipt) reaches PortIo
+        { let result: u16 = Wrapper::measure(70u16, receipt); }
+    "#;
+    let original = checked(source);
+    let root = machine_named(&original, "run");
+    let target = machine_named(&original, "Wrapper::measure");
+    let wrapper = original
+        .facts
+        .flow
+        .terminal_boundary_scalar_returns
+        .for_machine(target)
+        .expect("real scalar boundary-return body");
+    assert_eq!(wrapper.scalar_parameters[0].source_position, 0);
+    assert_eq!(wrapper.structural_parameters[0].position, 1);
+    assert_eq!(wrapper.entry_claims.len(), 1);
+    let caller = original
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(root)
+        .expect("Unit call transfers linear custody to scalar wrapper");
+    let CheckedUnitEffectOperationPlan::ScalarCall {
+        structural_arguments,
+        claim_transfers,
+        scalar_arguments,
+        ..
+    } = &caller.operations[0]
+    else {
+        panic!("ordinary scalar call with custody")
+    };
+    assert_eq!(structural_arguments.len(), 1);
+    assert_eq!(scalar_arguments.len(), 1);
+    assert_eq!(claim_transfers.len(), 1);
+    assert_eq!(claim_transfers[0].argument_index, 0);
+    assert_eq!(
+        claim_transfers[0].claim_identity,
+        caller.entry_claims[0].claim_identity
+    );
+    assert_ne!(
+        claim_transfers[0].claim_identity,
+        wrapper.entry_claims[0].claim_identity
+    );
+    assert!(
+        matches!(caller.operations.last(), Some(CheckedUnitEffectOperationPlan::ReturnUnit {
+        trivial_affine_discards, trivial_affine_local_discard_ordinals, ..
+    }) if trivial_affine_discards.is_empty() && trivial_affine_local_discard_ordinals.is_empty())
+    );
+    for mutation in 0..4 {
+        let mut changed = original.clone();
+        let wrapper = changed
             .facts
             .flow
-            .terminal_unit_effects
-            .for_machine(root)
-            .is_none(),
-        "ordinary ScalarCall cannot silently erase an owned structural argument"
+            .terminal_boundary_scalar_returns
+            .machines
+            .iter_mut()
+            .find(|plan| plan.machine == target)
+            .unwrap();
+        match mutation {
+            0 => wrapper.entry_claims.clear(),
+            1 => wrapper.entry_claims[0].parameter_index = 1,
+            2 => wrapper.structural_parameters[0].position = 0,
+            _ => wrapper.structural_parameters[0]
+                .type_identity
+                .push_str("-foreign"),
+        }
+        let rebuilt =
+            crate::flow::build_checked_unit_effect_plans(&changed.typed, &changed.facts, &[], &[]);
+        assert!(
+            rebuilt.for_machine(root).is_none(),
+            "mixed target custody mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn scalar_boundary_wrapper_consumes_established_affine_result_once() {
+    let source = r#"
+        data Metrics { current: i32; }
+        boundary trait Host { machine measure(metrics: Metrics, value: i32) -> i32; }
+        machine forward(metrics: Metrics) -> Metrics { metrics }
+        data Wrapper {}
+        machine Wrapper::measure(metrics: Metrics, value: i32) -> i32
+        reaches Host
+        { let result: i32 = Host::measure(metrics, value); result }
+        data Root {}
+        machine Root::run(metrics: Metrics) reaches Host {
+            let moved: Metrics = forward(metrics);
+            let result: i32 = Wrapper::measure(moved, 70);
+        }
+    "#;
+    let checked = checked(source);
+    let root = machine_named(&checked, "run");
+    let caller = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(root)
+        .expect("established affine result feeds the scalar wrapper");
+    assert!(
+        matches!(&caller.operations[0], CheckedUnitEffectOperationPlan::StructuralCall {
+        discard_result_on_return: false, result, ..
+    } if result.binding_ordinal == 0)
+    );
+    let CheckedUnitEffectOperationPlan::ScalarCall {
+        structural_arguments,
+        claim_transfers,
+        ..
+    } = &caller.operations[1]
+    else {
+        panic!("scalar result consumer")
+    };
+    assert_eq!(structural_arguments.len(), 1);
+    assert_eq!(
+        structural_arguments[0].source_structural_result_binding_ordinal(),
+        Some(0)
+    );
+    assert!(claim_transfers.is_empty());
+    assert!(
+        matches!(caller.operations.last(), Some(CheckedUnitEffectOperationPlan::ReturnUnit {
+        trivial_affine_discards, trivial_affine_local_discard_ordinals, ..
+    }) if trivial_affine_discards.is_empty() && trivial_affine_local_discard_ordinals.is_empty())
     );
 }

@@ -4,7 +4,9 @@ use super::*;
 use checked_trees::CheckedScalarComputationKind;
 
 mod discovery;
-pub(crate) use discovery::checked_scalar_call_closure;
+pub(crate) use discovery::{
+    checked_scalar_call_closure, checked_scalar_call_closure_with_structural_roots,
+};
 
 pub(crate) struct EmbeddedScalarCalls {
     pub(crate) machine_ids: Vec<(symbols::SymbolHandle, MachineId)>,

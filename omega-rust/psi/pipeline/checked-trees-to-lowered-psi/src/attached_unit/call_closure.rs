@@ -38,7 +38,7 @@ pub(crate) fn checked_unit_call_closure_including(
     Ok(closure)
 }
 
-pub(super) use crate::scalar_call_closure::embedded::checked_scalar_call_closure;
+pub(super) use crate::scalar_call_closure::embedded::checked_scalar_call_closure_with_structural_roots;
 
 pub(crate) fn unique_unit_machine(
     plans: &checked_trees::CheckedUnitEffectPlans,

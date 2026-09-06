@@ -516,20 +516,26 @@ pub(crate) fn lower_unit_structural_type_roots(
     Ok((declarations, type_ids))
 }
 
-pub(super) fn lower_unit_structural_domains(
+pub(super) fn lower_unit_structural_domains_including(
     checked: &CheckedTrees,
     closure: &[symbols::SymbolHandle],
     boundaries: &[(&CheckedBoundaryMachinePlan, String)],
     type_ids: &[(String, StructuralTypeId)],
+    additional_domains: &[SemanticDomainId],
 ) -> Result<
     (
         Vec<StructuralDomainDeclaration>,
-        Vec<(language_semantics::SemanticDomainId, StructuralDomainId)>,
+        Vec<(SemanticDomainId, StructuralDomainId)>,
     ),
     LoweringError,
 > {
     let plans = &checked.facts.flow.terminal_unit_effects;
     let mut selected = Vec::new();
+    for domain in additional_domains {
+        if !selected.contains(domain) {
+            selected.push(*domain);
+        }
+    }
     for symbol in closure {
         let machine = unique_unit_machine(plans, *symbol)?;
         for domain in machine
@@ -567,11 +573,27 @@ pub(super) fn lower_unit_structural_domains(
                 .structural_domains
                 .iter()
                 .filter(|plan| plan.domain == domain);
-            let plan = matches.next().ok_or(LoweringError::Unsupported(
+            let unit = matches.next();
+            let mut wrappers = checked
+                .facts
+                .flow
+                .terminal_boundary_scalar_returns
+                .structural_domains
+                .iter()
+                .filter(|plan| additional_domains.contains(&domain) && plan.domain == domain);
+            let wrapper = wrappers.next();
+            if matches.next().is_some() || wrappers.next().is_some() {
+                return unsupported("Unit closure has duplicate structural domain ownership");
+            }
+            if let (Some(unit), Some(wrapper)) = (unit, wrapper)
+                && unit != wrapper
+            {
+                return unsupported("Unit and boundary-wrapper structural domains disagree");
+            }
+            let plan = unit.or(wrapper).ok_or(LoweringError::Unsupported(
                 "Unit closure references a missing structural domain",
             ))?;
-            if matches.next().is_some()
-                || !domain.is_valid()
+            if !domain.is_valid()
                 || plan.identity.is_empty()
                 || plan.carrier_type_identity.is_empty()
             {

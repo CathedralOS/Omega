@@ -1470,8 +1470,8 @@ pub enum CheckedUnitEffectOperationPlan {
     },
     /// Invoke one ordinary checked scalar machine from an attached Unit body
     /// and bind its primitive result into the dense local scalar namespace.
-    /// The bounded first rung admits scalar-only callees; structural transfer
-    /// remains represented by the distinct structural-scalar call families.
+    /// Scalar graphs remain scalar-only; boundary-return bodies may also
+    /// receive exact structural arguments and their existing linear claims.
     ScalarCall {
         coordinate: CheckedUnitCallCoordinate,
         result: CheckedUnitScalarResultBindingPlan,
@@ -1481,6 +1481,8 @@ pub enum CheckedUnitEffectOperationPlan {
         target_contract_commitment: crate::MachineContractCommitment,
         service_reach: ServiceReachSummary,
         scalar_arguments: Vec<CheckedCallScalarArgument>,
+        structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
+        claim_transfers: Vec<CheckedUnitClaimTransferPlan>,
     },
     /// Invoke an ordinary checked whole owned-affine result producer and retain
     /// its exact result binding. This is neither a boundary invocation nor a
