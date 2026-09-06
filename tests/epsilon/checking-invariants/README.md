@@ -31,7 +31,7 @@ This codec is neither a final evaluator envelope nor source admission.
 
 [checking_invariants.delta.sources](checking_invariants.delta.sources) binds
 the three authored members. [receipt.tsv](receipt.tsv) binds the measured
-702,126-byte Gamma receipt; the gate verifies that exact reconstruction before
+701,234-byte Gamma receipt; the gate verifies that exact reconstruction before
 execution.
 Both subprocesses require status zero and empty stderr under separate
 300-second watchdogs. Generated sources and receipts remain temporary.

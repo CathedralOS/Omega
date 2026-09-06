@@ -18,8 +18,7 @@
                   store output)))))))
     ((EpsilonEvaluatorBlockExit code output) (EpsilonEvaluatorExit code output))
     ((EpsilonEvaluatorBlockTrap kind output) (EpsilonEvaluatorTrap kind output))
-    ((EpsilonEvaluatorBlockInternal offset) (EpsilonEvaluatorInternal offset))
-    (EpsilonEvaluatorBlockUnsupported EpsilonEvaluatorUnsupported)))
+    ((EpsilonEvaluatorBlockInternal offset) (EpsilonEvaluatorInternal offset))))
 
 (def epsilon_evaluate_invocation ((context EpsilonEvaluatorInvocation)
   (bindings EpsilonEvaluatorBindings)
@@ -49,8 +48,7 @@
     ((EpsilonEvaluatorValue value place store output) (EpsilonEvaluatorSliceInternal 0))
     ((EpsilonEvaluatorExit code output) (EpsilonEvaluatorSliceExit code output))
     ((EpsilonEvaluatorTrap kind output) (EpsilonEvaluatorSliceTrap kind output))
-    ((EpsilonEvaluatorInternal offset) (EpsilonEvaluatorSliceInternal offset))
-    (EpsilonEvaluatorUnsupported EpsilonEvaluatorSliceUnsupported)))
+    ((EpsilonEvaluatorInternal offset) (EpsilonEvaluatorSliceInternal offset))))
 
 (def epsilon_evaluator_start_entry ((source EpsilonSourceView) (machineValue EpsilonDeclaration)
   (references EpsilonResolvedLocalReferenceList)

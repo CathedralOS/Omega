@@ -91,5 +91,4 @@
               (EpsilonEvaluatorExit code nextOutput))
             ((EpsilonEvaluatorTrap kind nextOutput)
               (EpsilonEvaluatorTrap kind nextOutput))
-            ((EpsilonEvaluatorInternal offset) (EpsilonEvaluatorInternal offset))
-            (EpsilonEvaluatorUnsupported EpsilonEvaluatorUnsupported)))))))
+            ((EpsilonEvaluatorInternal offset) (EpsilonEvaluatorInternal offset))))))))

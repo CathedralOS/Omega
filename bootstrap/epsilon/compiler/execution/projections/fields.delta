@@ -95,5 +95,4 @@
         (EpsilonEvaluatorInternal (epsilon_expression_start base)))
       ((EpsilonEvaluatorExit code nextOutput) outcome)
       ((EpsilonEvaluatorTrap kind nextOutput) outcome)
-      ((EpsilonEvaluatorInternal offset) outcome)
-      (EpsilonEvaluatorUnsupported outcome))))
+      ((EpsilonEvaluatorInternal offset) outcome))))

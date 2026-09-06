@@ -37,8 +37,7 @@
         (EpsilonEvaluatorInternal (epsilon_expression_start receiver)))
       ((EpsilonEvaluatorExit code nextOutput) outcome)
       ((EpsilonEvaluatorTrap kind nextOutput) outcome)
-      ((EpsilonEvaluatorInternal offset) outcome)
-      (EpsilonEvaluatorUnsupported outcome))))
+      ((EpsilonEvaluatorInternal offset) outcome))))
 
 (def epsilon_evaluate_receiver_call ((context EpsilonEvaluatorInvocation)
   (callable EpsilonResolvedCallable) (base EpsilonExpression)

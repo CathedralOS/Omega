@@ -94,9 +94,9 @@ This test transport is
 not the final evaluator request or observation profile. Its result has an
 explicit private tag: exit carries the full signed `i32` code and stdout;
 trap carries the closed trap kind and exact output prefix; rejection carries
-the closed reason and exact source offset. Internal failure, unsupported
-staging, and malformed private input have separate tags. This avoids collapsing
-exits modulo 256 or discarding checking evidence. The
+the closed reason and exact source offset. Internal failure and malformed
+private input have separate tags; the retired staging tag 4 stays unassigned.
+This avoids collapsing exits modulo 256 or discarding checking evidence. The
 [execution gate](../../../tests/epsilon/interpreted-omega-experiment/README.md#private-execution-observations)
 documents the exact byte layout. Outer Gamma failures are not converted into
 these diagnostic results.
@@ -158,8 +158,9 @@ scalar helper. Control failures identify the normalized core's start; missing
 field facts identify the complete projection's start; malformed aggregate views
 identify their type's start. The pure scalar helper has no source coordinate
 and uses the existing internal-offset fallback of zero. These failures carry no
-buffered stdout into the private observation. No admitted execution branch
-creates `Unsupported`; remaining matches propagate that private carrier only.
+buffered stdout into the private observation. Execution outcomes retain no
+`Unsupported` constructor or propagation arm: every implemented branch returns
+an ordinary value/control outcome, exit, trap, or detected internal failure.
 
 These storage, view, sum, and call operations also do not establish that the
 complete Omega D source executes. Every

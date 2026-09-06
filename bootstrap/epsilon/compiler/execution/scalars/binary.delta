@@ -54,8 +54,7 @@
         (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
       ((EpsilonEvaluatorExit code nextOutput) outcome)
       ((EpsilonEvaluatorTrap kind nextOutput) outcome)
-      ((EpsilonEvaluatorInternal offset) outcome)
-      (EpsilonEvaluatorUnsupported outcome))))
+      ((EpsilonEvaluatorInternal offset) outcome))))
 
 (def epsilon_evaluate_binary_right ((context EpsilonEvaluatorInvocation)
   (operator EpsilonBinaryOperator) (leftValue Int)
@@ -84,8 +83,7 @@
         (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
       ((EpsilonEvaluatorExit code nextOutput) outcome)
       ((EpsilonEvaluatorTrap kind nextOutput) outcome)
-      ((EpsilonEvaluatorInternal offset) outcome)
-      (EpsilonEvaluatorUnsupported outcome))))
+      ((EpsilonEvaluatorInternal offset) outcome))))
 
 (def epsilon_evaluate_binary_left ((context EpsilonEvaluatorInvocation)
   (operator EpsilonBinaryOperator) (leftValue Int) (right EpsilonExpression)
@@ -124,5 +122,4 @@
         (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
       ((EpsilonEvaluatorExit code nextOutput) outcome)
       ((EpsilonEvaluatorTrap kind nextOutput) outcome)
-      ((EpsilonEvaluatorInternal offset) outcome)
-      (EpsilonEvaluatorUnsupported outcome))))
+      ((EpsilonEvaluatorInternal offset) outcome))))

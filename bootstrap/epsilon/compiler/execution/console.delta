@@ -23,7 +23,6 @@
                   (EpsilonEvaluatorInternal (epsilon_expression_start item)))
                 ((EpsilonEvaluatorExit code nextOutput) outcome)
                 ((EpsilonEvaluatorTrap trapKind nextOutput) outcome)
-                ((EpsilonEvaluatorInternal offset) outcome)
-                (EpsilonEvaluatorUnsupported outcome))))
+                ((EpsilonEvaluatorInternal offset) outcome))))
           ((MoreEpsilonExpressions nextItem nextRest)
             (EpsilonEvaluatorInternal (epsilon_expression_start nextItem))))))))

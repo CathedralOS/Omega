@@ -24,7 +24,6 @@
       (bytes_concat (bytes_single 1) (bytes_concat (bytes_single kind) output)))
     ((EpsilonEvaluatorInternal offset)
       (invariant_tagged_integer 3 offset (bytes_empty)))
-    (EpsilonEvaluatorUnsupported (bytes_single 4))
     ((EpsilonEvaluatorResultless store output) (bytes_concat (bytes_single 5) output))
     ((EpsilonEvaluatorExit code output) (invariant_tagged_integer 6 code output))))
 
@@ -32,7 +31,6 @@
   (match outcome
     ((EpsilonEvaluatorBlockInternal offset)
       (invariant_observe (EpsilonEvaluatorInternal offset)))
-    (EpsilonEvaluatorBlockUnsupported (bytes_single 4))
     ((EpsilonEvaluatorBlockFalloff bindings store output)
       (invariant_observe (EpsilonEvaluatorResultless store output)))
     ((EpsilonEvaluatorBlockReturn value store output)

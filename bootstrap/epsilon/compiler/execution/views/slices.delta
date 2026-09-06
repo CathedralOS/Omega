@@ -69,8 +69,7 @@
             (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
           ((EpsilonEvaluatorExit code nextOutput) outcome)
           ((EpsilonEvaluatorTrap kind nextOutput) outcome)
-          ((EpsilonEvaluatorInternal offset) outcome)
-          (EpsilonEvaluatorUnsupported outcome))))))
+          ((EpsilonEvaluatorInternal offset) outcome))))))
 
 ; Complete both present bound expressions before the range judgment. Effects
 ; and traps follow base, low, high order, even when the low value is negative.
@@ -100,8 +99,7 @@
             (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
           ((EpsilonEvaluatorExit code nextOutput) outcome)
           ((EpsilonEvaluatorTrap kind nextOutput) outcome)
-          ((EpsilonEvaluatorInternal offset) outcome)
-          (EpsilonEvaluatorUnsupported outcome))))))
+          ((EpsilonEvaluatorInternal offset) outcome))))))
 
 (def epsilon_evaluate_slice_from_value ((context EpsilonEvaluatorInvocation)
   (value EpsilonRuntimeValue) (place EpsilonRuntimeOptionalPlace)
@@ -122,8 +120,7 @@
       ((EpsilonEvaluatorResultless nextStore nextOutput) (EpsilonEvaluatorInternal 0))
       ((EpsilonEvaluatorExit code nextOutput) outcome)
       ((EpsilonEvaluatorTrap kind nextOutput) outcome)
-      ((EpsilonEvaluatorInternal offset) outcome)
-      (EpsilonEvaluatorUnsupported outcome))))
+      ((EpsilonEvaluatorInternal offset) outcome))))
 
 (def epsilon_evaluate_slice ((context EpsilonEvaluatorInvocation)
   (base EpsilonExpression) (low EpsilonOptionalExpression)
@@ -139,5 +136,4 @@
         (EpsilonEvaluatorInternal (epsilon_expression_start base)))
       ((EpsilonEvaluatorExit code nextOutput) outcome)
       ((EpsilonEvaluatorTrap kind nextOutput) outcome)
-      ((EpsilonEvaluatorInternal offset) outcome)
-      (EpsilonEvaluatorUnsupported outcome))))
+      ((EpsilonEvaluatorInternal offset) outcome))))

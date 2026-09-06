@@ -11,8 +11,7 @@
       (EpsilonEvaluatorResultless (epsilon_runtime_release_since floor store) output))
     ((EpsilonEvaluatorExit code output) outcome)
     ((EpsilonEvaluatorTrap kind output) outcome)
-    ((EpsilonEvaluatorInternal offset) outcome)
-    (EpsilonEvaluatorUnsupported outcome)))
+    ((EpsilonEvaluatorInternal offset) outcome)))
 
 (def epsilon_evaluator_enter_call ((context EpsilonEvaluatorInvocation)
   (targetMachine EpsilonDeclaration) (receiver EpsilonRuntimeOptionalPlace)

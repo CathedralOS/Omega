@@ -29,15 +29,16 @@ not establish source-language conformance.
 Every tested runtime call receives an existing stdout prefix `A`. The private
 codec in [`observations.delta`](observations.delta) encodes helper variants:
 `00 + u32 value + stdout` for scalar values, `01 + kind + stdout` for traps,
-`03 + u32 offset` for internal failure, and `04` for unsupported execution.
+and `03 + u32 offset` for internal failure. The retired staging tag `04`
+remains unassigned.
 Resultless completion is `05 + stdout`; other variants have distinct tags.
-All integers encoded here are nonnegative and little-endian. Internal and
-unsupported variants carry no output. These are helper-outcome observations,
+All integers encoded here are nonnegative and little-endian. Internal failures
+carry no output. These are helper-outcome observations,
 not a test of the production final observation adapter or a RunEpsilon envelope.
 
 [`expected.hex`](expected.hex) independently specifies 152 bytes for the 31
 outcomes, in source order. The exact test source membership is recorded in
 [`runtime_invariants.delta.sources`](runtime_invariants.delta.sources).
-[`receipt.tsv`](receipt.tsv) binds the measured 709,234-byte Gamma receipt;
+[`receipt.tsv`](receipt.tsv) binds the measured 708,282-byte Gamma receipt;
 reconstruction must match its exact length and digest before execution.
 Generated source and receipts remain outside the repository.

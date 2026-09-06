@@ -20,8 +20,7 @@
       (EpsilonEvaluatorBlockExit code nextOutput))
     ((EpsilonEvaluatorBlockTrap kind nextOutput)
       (EpsilonEvaluatorBlockTrap kind nextOutput))
-    ((EpsilonEvaluatorBlockInternal offset) (EpsilonEvaluatorBlockInternal offset))
-    (EpsilonEvaluatorBlockUnsupported EpsilonEvaluatorBlockUnsupported)))
+    ((EpsilonEvaluatorBlockInternal offset) (EpsilonEvaluatorBlockInternal offset))))
 
 (def epsilon_evaluator_stopped_block ((outcome EpsilonEvaluatorOutcome)
   (offset Int)) EpsilonEvaluatorBlockOutcome
@@ -33,5 +32,4 @@
     ((EpsilonEvaluatorExit code output) (EpsilonEvaluatorBlockExit code output))
     ((EpsilonEvaluatorTrap kind output) (EpsilonEvaluatorBlockTrap kind output))
     ((EpsilonEvaluatorInternal coordinate)
-      (EpsilonEvaluatorBlockInternal coordinate))
-    (EpsilonEvaluatorUnsupported EpsilonEvaluatorBlockUnsupported)))
+      (EpsilonEvaluatorBlockInternal coordinate))))

@@ -15,8 +15,7 @@
           ((EpsilonEvaluatorBlockReturn value nextStore nextOutput) outcome)
           ((EpsilonEvaluatorBlockExit code nextOutput) outcome)
           ((EpsilonEvaluatorBlockTrap kind nextOutput) outcome)
-          ((EpsilonEvaluatorBlockInternal offset) outcome)
-          (EpsilonEvaluatorBlockUnsupported outcome))))))
+          ((EpsilonEvaluatorBlockInternal offset) outcome))))))
 
 (def epsilon_evaluate_one_statement ((context EpsilonEvaluatorInvocation)
   (statementValue EpsilonStatement) (bindings EpsilonEvaluatorBindings)
@@ -30,8 +29,7 @@
           (EpsilonEvaluatorBlockFalloff bindings nextStore nextOutput))
         ((EpsilonEvaluatorExit code nextOutput) (EpsilonEvaluatorBlockExit code nextOutput))
         ((EpsilonEvaluatorTrap kind nextOutput) (EpsilonEvaluatorBlockTrap kind nextOutput))
-        ((EpsilonEvaluatorInternal offset) (EpsilonEvaluatorBlockInternal offset))
-        (EpsilonEvaluatorUnsupported EpsilonEvaluatorBlockUnsupported)))
+        ((EpsilonEvaluatorInternal offset) (EpsilonEvaluatorBlockInternal offset))))
     ((EpsilonLetStatement start end name typeValue initializer)
       (match (epsilon_evaluate_expression context initializer bindings store output)
         ((EpsilonEvaluatorValue value place nextStore nextOutput)
@@ -45,8 +43,7 @@
           (EpsilonEvaluatorBlockInternal (epsilon_expression_start initializer)))
         ((EpsilonEvaluatorExit code nextOutput) (EpsilonEvaluatorBlockExit code nextOutput))
         ((EpsilonEvaluatorTrap kind nextOutput) (EpsilonEvaluatorBlockTrap kind nextOutput))
-        ((EpsilonEvaluatorInternal offset) (EpsilonEvaluatorBlockInternal offset))
-        (EpsilonEvaluatorUnsupported EpsilonEvaluatorBlockUnsupported)))
+        ((EpsilonEvaluatorInternal offset) (EpsilonEvaluatorBlockInternal offset))))
     ((EpsilonAssignmentStatement start end placeValue assignedValue)
       (epsilon_evaluate_assignment context placeValue assignedValue bindings store output))
     ((EpsilonAssertStatement start end expressionValue)
@@ -69,8 +66,7 @@
           (EpsilonEvaluatorBlockInternal (epsilon_expression_start expressionValue)))
         ((EpsilonEvaluatorExit code nextOutput) (EpsilonEvaluatorBlockExit code nextOutput))
         ((EpsilonEvaluatorTrap kind nextOutput) (EpsilonEvaluatorBlockTrap kind nextOutput))
-        ((EpsilonEvaluatorInternal offset) (EpsilonEvaluatorBlockInternal offset))
-        (EpsilonEvaluatorUnsupported EpsilonEvaluatorBlockUnsupported)))))
+        ((EpsilonEvaluatorInternal offset) (EpsilonEvaluatorBlockInternal offset))))))
 
 ; Selecting the place evaluates the entire LHS exactly once. Its effects and
 ; bounds checks precede the RHS; the write uses the store after both operands.
@@ -90,8 +86,7 @@
       (EpsilonEvaluatorBlockInternal (epsilon_expression_start placeValue)))
     ((EpsilonEvaluatorExit code nextOutput) (EpsilonEvaluatorBlockExit code nextOutput))
     ((EpsilonEvaluatorTrap kind nextOutput) (EpsilonEvaluatorBlockTrap kind nextOutput))
-    ((EpsilonEvaluatorInternal offset) (EpsilonEvaluatorBlockInternal offset))
-    (EpsilonEvaluatorUnsupported EpsilonEvaluatorBlockUnsupported)))
+    ((EpsilonEvaluatorInternal offset) (EpsilonEvaluatorBlockInternal offset))))
 
 (def epsilon_evaluate_assignment_value ((context EpsilonEvaluatorInvocation)
   (target EpsilonRuntimePlace) (assignedValue EpsilonExpression)
@@ -109,5 +104,4 @@
       (EpsilonEvaluatorBlockInternal (epsilon_expression_start assignedValue)))
     ((EpsilonEvaluatorExit code nextOutput) (EpsilonEvaluatorBlockExit code nextOutput))
     ((EpsilonEvaluatorTrap kind nextOutput) (EpsilonEvaluatorBlockTrap kind nextOutput))
-    ((EpsilonEvaluatorInternal offset) (EpsilonEvaluatorBlockInternal offset))
-    (EpsilonEvaluatorUnsupported EpsilonEvaluatorBlockUnsupported)))
+    ((EpsilonEvaluatorInternal offset) (EpsilonEvaluatorBlockInternal offset))))
