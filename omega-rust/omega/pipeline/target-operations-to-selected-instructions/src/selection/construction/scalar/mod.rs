@@ -4,15 +4,13 @@
 //! virtual-register roster and blocks together so those projections cannot
 //! drift through separate source-shape matches.
 
-mod active_resident_exact_add_bridge_chain;
-mod active_resident_exact_add_chain;
-mod active_resident_exact_add_original_victim_chain;
 mod blocks;
 mod catalog;
 mod comparison_immediate_pair;
 mod context;
 mod exact_binary_pair;
 mod immediate_pair;
+mod integer_sequence;
 mod model;
 mod parameter_pair;
 mod registers;

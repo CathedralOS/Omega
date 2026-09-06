@@ -7,3 +7,6 @@ mod conditions;
 pub use conditions::*;
 mod leaves;
 pub use leaves::*;
+
+mod integer_sequences;
+pub use integer_sequences::*;

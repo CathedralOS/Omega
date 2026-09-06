@@ -207,7 +207,7 @@ const fn structural_unit_form(
 }
 
 /// The sole precedence, shape, and planning inventory for all current forms.
-pub(super) const LEGALIZATION_FORMS: [LegalizationFormDescriptor; 23] = [
+pub(super) const LEGALIZATION_FORMS: [LegalizationFormDescriptor; 21] = [
     scalar_form(
         LegalizationRecipe::ReturnU64ImmediateConditionalV1,
         ScalarLegalizationMatcherKind::Immediate,
@@ -274,39 +274,23 @@ pub(super) const LEGALIZATION_FORMS: [LegalizationFormDescriptor; 23] = [
         4,
         ScalarLegalizationValidatorKind::WidenedU8ExactSubtractImmediate,
     ),
-    scalar_form(
-        LegalizationRecipe::ReturnU64ActiveResidentExactAddChainConditionalV1,
-        ScalarLegalizationMatcherKind::ActiveResidentExactAddChain,
-        [0, 1, 8],
-        10,
-        [7, 2],
-        1,
-        11,
-        0,
-        ScalarLegalizationValidatorKind::ActiveResidentExactAddChain,
-    ),
-    scalar_form(
-        LegalizationRecipe::ReturnU64ActiveResidentExactAddBridgeChainConditionalV1,
-        ScalarLegalizationMatcherKind::ActiveResidentExactAddBridgeChain,
-        [0, 1, 9],
-        11,
-        [8, 2],
-        1,
-        12,
-        0,
-        ScalarLegalizationValidatorKind::ActiveResidentExactAddBridgeChain,
-    ),
-    scalar_form(
-        LegalizationRecipe::ReturnU64ActiveResidentExactAddOriginalVictimChainConditionalV1,
-        ScalarLegalizationMatcherKind::ActiveResidentExactAddOriginalVictimChain,
-        [0, 1, 10],
-        12,
-        [9, 2],
-        1,
-        13,
-        0,
-        ScalarLegalizationValidatorKind::ActiveResidentExactAddOriginalVictimChain,
-    ),
+    LegalizationFormDescriptor {
+        recipe: LegalizationFormRecipe::Scalar(
+            LegalizationRecipe::ReturnU64ExactIntegerSequenceConditionalV1,
+        ),
+        producer_matcher: LegalizationProducerMatcherKind::Scalar(
+            ScalarLegalizationMatcherKind::ExactIntegerSequence,
+        ),
+        constraints: LegalizationShapeConstraints::ScalarSequence,
+        // Lower bound only; actual ordered operations determine emitted size.
+        cost: LegalizationStructuralCost {
+            projected_selected_instruction_count: 5,
+            introduced_temporary_count: 0,
+        },
+        validator: LegalizationValidatorKind::Scalar(
+            ScalarLegalizationValidatorKind::ExactIntegerSequence,
+        ),
+    },
     integer_comparison_scalar_form(
         LegalizationRecipe::ReturnU64IntegerEqualParametersConditionalV1,
         ScalarConditionShape::IntegerEqualU64Parameters,

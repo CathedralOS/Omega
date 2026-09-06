@@ -418,7 +418,7 @@ fn lower_only_suite_reaches_prephysical_custody_without_claiming_psi_work() {
 }
 
 #[test]
-fn unsupported_target_shape_fails_at_legalization_boundary() {
+fn non_u64_expression_fails_at_named_integer_legalization_boundary() {
     let (semantic, proof) = artifact();
     let optimized = optimize_artifact_sections(
         &semantic,
@@ -432,7 +432,7 @@ fn unsupported_target_shape_fails_at_legalization_boundary() {
     assert!(matches!(
         stage_optimized_instruction_selection(target),
         Err(OptimizedSelectionPipelineError::Legalization(
-            LegalizationError::UnsupportedSourceShape { function: 0 }
+            LegalizationError::UnsupportedIntegerShape { function: 0 }
         ))
     ));
 }

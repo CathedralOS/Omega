@@ -6,6 +6,8 @@ use crate::selection::constraints::{fixed_input_constraint, row};
 use crate::selection::shared::*;
 use legalized_operations::LegalizedScalarLeafFunction;
 
+mod sequence;
+
 pub(super) fn validate(
     function: usize,
     source: &LegalizedScalarLeafFunction,
@@ -57,6 +59,19 @@ pub(super) fn validate(
         || return_operand.fixed_view != environment.fixed_register_view(*register)
     {
         return Err(invalid());
+    }
+    if matches!(source.leaf.value, SourceLeafValue::ExactIntegerSequence(_)) {
+        sequence::validate(
+            function,
+            source,
+            selected,
+            constraints,
+            physical,
+            catalog,
+            &environment,
+        )?;
+        validate_block_constraints(function, block, selected, catalog)?;
+        return validate_def_use(function, selected, catalog);
     }
     let source_value = source.leaf.source_value;
     let result_register = match &source.leaf.value {

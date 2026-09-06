@@ -28,23 +28,66 @@ fn bridge_chain_legalization_is_independently_validated_on_both_architectures() 
         let function = legalized.plan().functions[0].conditional();
         assert_eq!(
             function.recipe,
-            LegalizationRecipe::ReturnU64ActiveResidentExactAddBridgeChainConditionalV1,
+            LegalizationRecipe::ReturnU64ExactIntegerSequenceConditionalV1,
         );
-        let LegalizedLeafValue::ActiveResidentExactAddBridgeChain(chain) =
-            &function.when_true.value
-        else {
-            panic!("bridge source must retain its distinct legalized carrier")
+        let LegalizedLeafValue::ExactIntegerSequence(sequence) = &function.when_true.value else {
+            panic!("bridge source must use the ordinary ordered sequence")
         };
-        assert_ne!(chain.bridge.source_value, chain.middle.source_value);
-        assert_ne!(chain.bridge.operation, chain.result.operation);
+        assert_eq!(sequence.steps.len(), 7);
+        let legalized_operations::LegalizedIntegerStep::ExactBinary(bridge) = &sequence.steps[5]
+        else {
+            panic!("the bridge is the sixth source definition")
+        };
+        let legalized_operations::LegalizedIntegerStep::ExactBinary(result) = &sequence.steps[6]
+        else {
+            panic!("the result follows the bridge")
+        };
+        assert_eq!(result.right, bridge.source_value);
+        assert_ne!(bridge.operation, result.operation);
 
         let mut corrupted = legalized.plan().clone();
-        let LegalizedLeafValue::ActiveResidentExactAddBridgeChain(chain) =
+        let LegalizedLeafValue::ExactIntegerSequence(sequence) =
             &mut corrupted.functions[0].conditional_mut().when_true.value
         else {
             unreachable!()
         };
-        std::mem::swap(&mut chain.bridge.operation, &mut chain.middle.operation);
+        sequence.steps.swap(4, 5);
+        assert!(
+            validate_legalized_operations(
+                target.target_operations(),
+                target.optimized().plan(),
+                target.optimized().unit(),
+                corrupted,
+            )
+            .is_err()
+        );
+
+        // Equivalent arithmetic does not authorize a second representation of
+        // the same catalog role: its false arm remains the canonical immediate.
+        let mut corrupted = legalized.plan().clone();
+        let leaf = &mut corrupted.functions[0].conditional_mut().when_false;
+        let LegalizedLeafValue::Immediate {
+            value,
+            constant_operation,
+            definition_site,
+            constant_fuel,
+        } = &leaf.value
+        else {
+            unreachable!()
+        };
+        leaf.value = LegalizedLeafValue::ExactIntegerSequence(
+            legalized_operations::LegalizedExactIntegerSequence {
+                steps: vec![legalized_operations::LegalizedIntegerStep::Immediate(
+                    legalized_operations::LegalizedImmediate {
+                        source_value: leaf.source_value,
+                        value: *value,
+                        constant_operation: *constant_operation,
+                        definition_site: *definition_site,
+                        fuel: constant_fuel.clone(),
+                    },
+                )],
+            },
+        );
         assert!(
             validate_legalized_operations(
                 target.target_operations(),

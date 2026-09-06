@@ -4726,7 +4726,7 @@ fn selected_construction_has_one_visible_scalar_family_catalog() {
         "exact-subtract-pair",
         "widened-exact-add-pair",
         "widened-exact-subtract-pair",
-        "active-resident-exact-add-chain",
+        "exact-integer-sequence",
     ] {
         assert!(
             catalog.contains(family),
@@ -4743,7 +4743,7 @@ fn selected_construction_has_one_visible_scalar_family_catalog() {
     );
 
     for leaf in [
-        "active_resident_exact_add_chain.rs",
+        "integer_sequence.rs",
         "exact_binary_pair.rs",
         "immediate_pair.rs",
         "parameter_pair.rs",

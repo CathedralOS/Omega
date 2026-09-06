@@ -74,11 +74,7 @@ pub(super) fn identity(
             LegalizationRecipe::ReturnU64ExactSubtractImmediateConditionalV1 => 3,
             LegalizationRecipe::ReturnU64WidenedU8ExactAddImmediateConditionalV1 => 4,
             LegalizationRecipe::ReturnU64WidenedU8ExactSubtractImmediateConditionalV1 => 5,
-            LegalizationRecipe::ReturnU64ActiveResidentExactAddChainConditionalV1 => 6,
-            LegalizationRecipe::ReturnU64ActiveResidentExactAddBridgeChainConditionalV1 => 7,
-            LegalizationRecipe::ReturnU64ActiveResidentExactAddOriginalVictimChainConditionalV1 => {
-                8
-            }
+            LegalizationRecipe::ReturnU64ExactIntegerSequenceConditionalV1 => 17,
             LegalizationRecipe::ReturnU64IntegerEqualParametersConditionalV1 => 9,
             LegalizationRecipe::ReturnU64IntegerLessThanParametersConditionalV1 => 10,
             LegalizationRecipe::ReturnU64IntegerLessOrEqualParametersConditionalV1 => 11,

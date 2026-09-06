@@ -141,46 +141,35 @@ pub(super) fn encode_leaf(bytes: &mut Vec<u8>, leaf: &LegalizedLeaf) {
             encode_immediate(bytes, left);
             encode_immediate(bytes, right);
         }
-        LegalizedLeafValue::ActiveResidentExactAddChain(chain) => {
-            bytes.push(6);
-            encode_immediate(bytes, &chain.resident);
-            encode_immediate(bytes, &chain.left);
-            encode_immediate(bytes, &chain.right);
-            encode_exact_add(bytes, &chain.inner);
-            encode_exact_add(bytes, &chain.middle);
-            encode_exact_add(bytes, &chain.result);
-        }
-        LegalizedLeafValue::ActiveResidentExactAddBridgeChain(chain) => {
-            bytes.push(7);
-            encode_immediate(bytes, &chain.resident);
-            encode_immediate(bytes, &chain.left);
-            encode_immediate(bytes, &chain.right);
-            encode_exact_add(bytes, &chain.inner);
-            encode_exact_add(bytes, &chain.middle);
-            encode_exact_add(bytes, &chain.bridge);
-            encode_exact_add(bytes, &chain.result);
-        }
-        LegalizedLeafValue::ActiveResidentExactAddOriginalVictimChain(chain) => {
-            bytes.push(8);
-            encode_immediate(bytes, &chain.resident);
-            encode_immediate(bytes, &chain.left);
-            encode_immediate(bytes, &chain.right);
-            encode_exact_add(bytes, &chain.inner);
-            encode_exact_add(bytes, &chain.middle);
-            encode_exact_add(bytes, &chain.bridge);
-            encode_exact_add(bytes, &chain.join);
-            encode_exact_add(bytes, &chain.result);
+        LegalizedLeafValue::ExactIntegerSequence(sequence) => {
+            // Tags 6, 7, and 8 belonged to retired graph-specific carriers.
+            bytes.push(9);
+            encode_len(bytes, sequence.steps.len());
+            for step in &sequence.steps {
+                match step {
+                    LegalizedIntegerStep::Immediate(immediate) => {
+                        bytes.push(0);
+                        encode_immediate(bytes, immediate);
+                    }
+                    LegalizedIntegerStep::ExactBinary(binary) => {
+                        bytes.push(1);
+                        bytes.push(match binary.operator {
+                            LegalizedExactIntegerOperator::Add => 0,
+                            LegalizedExactIntegerOperator::Subtract => 1,
+                        });
+                        bytes.extend_from_slice(&binary.source_value.get().to_le_bytes());
+                        bytes.extend_from_slice(&binary.obligation.get().to_le_bytes());
+                        bytes.extend_from_slice(&binary.accepted_fact.bytes());
+                        bytes.extend_from_slice(&binary.operation.get().to_le_bytes());
+                        encode_definition_site(bytes, binary.definition_site);
+                        encode_fuel(bytes, &binary.fuel);
+                        bytes.extend_from_slice(&binary.left.get().to_le_bytes());
+                        bytes.extend_from_slice(&binary.right.get().to_le_bytes());
+                    }
+                }
+            }
         }
     }
-}
-
-pub(super) fn encode_exact_add(bytes: &mut Vec<u8>, add: &LegalizedExactAdd) {
-    bytes.extend_from_slice(&add.source_value.get().to_le_bytes());
-    bytes.extend_from_slice(&add.obligation.get().to_le_bytes());
-    bytes.extend_from_slice(&add.accepted_fact.bytes());
-    bytes.extend_from_slice(&add.operation.get().to_le_bytes());
-    encode_definition_site(bytes, add.definition_site);
-    encode_fuel(bytes, &add.fuel);
 }
 
 pub(super) fn encode_immediate(bytes: &mut Vec<u8>, immediate: &LegalizedImmediate) {

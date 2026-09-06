@@ -103,148 +103,65 @@ pub(super) fn validate_virtual_registers(
     }
     match (&source.when_true.value, &source.when_false.value) {
         (
-            SourceLeafValue::ActiveResidentExactAddChain(chain),
+            SourceLeafValue::ExactIntegerSequence(sequence),
             SourceLeafValue::Immediate {
                 definition_site: false_site,
                 ..
             },
         ) => {
-            let binary = row(catalog, constraints.keys.add_i64)?;
-            let materialize = row(catalog, constraints.keys.materialize_i64)?;
-            if binary.operands.len() != 3
-                || materialize.operands.len() != 1
-                || binary
-                    .operands
-                    .iter()
-                    .any(|operand| operand.class != binary.operands[2].class)
-                || materialize.operands[0].class != binary.operands[2].class
-            {
-                return Err(SelectedInstructionError::ConstraintOperandMismatch {
+            if !matches!(source.condition, LegalizedCondition::DirectParameter { .. }) {
+                return Err(SelectedInstructionError::UnsupportedSourceShape {
                     function: function_index,
-                    instruction: 5,
                 });
             }
-            for (instruction, source_value, definition_site) in [
-                (
-                    2,
-                    chain.resident.source_value,
-                    chain.resident.definition_site,
-                ),
-                (3, chain.left.source_value, chain.left.definition_site),
-                (4, chain.right.source_value, chain.right.definition_site),
-                (5, chain.inner.source_value, chain.inner.definition_site),
-                (6, chain.middle.source_value, chain.middle.definition_site),
-                (7, chain.result.source_value, chain.result.definition_site),
-                (9, source.when_false.source_value, *false_site),
-            ] {
+            for (position, step) in sequence.steps.iter().enumerate() {
+                let (source_value, definition_site, key) = match step {
+                    legalized_operations::LegalizedIntegerStep::Immediate(value) => (
+                        value.source_value,
+                        value.definition_site,
+                        constraints.keys.materialize_i64,
+                    ),
+                    legalized_operations::LegalizedIntegerStep::ExactBinary(value) => (
+                        value.source_value,
+                        value.definition_site,
+                        match value.operator {
+                            legalized_operations::LegalizedExactIntegerOperator::Add => {
+                                constraints.keys.add_i64
+                            }
+                            legalized_operations::LegalizedExactIntegerOperator::Subtract => {
+                                constraints.keys.subtract_i64
+                            }
+                        },
+                    ),
+                };
+                let class = row(catalog, key)?
+                    .operands
+                    .last()
+                    .ok_or(SelectedInstructionError::UnsupportedSourceShape {
+                        function: function_index,
+                    })?
+                    .class;
                 expected.push((
                     u64_type,
-                    binary.operands[2].class,
+                    class,
                     VirtualRegisterOrigin::InstructionResult {
-                        instruction: SelectedInstructionId(instruction),
+                        instruction: SelectedInstructionId(2 + position as u32),
                         source_value,
                     },
                     definition_site,
                     None,
                 ));
             }
-        }
-        (
-            SourceLeafValue::ActiveResidentExactAddBridgeChain(chain),
-            SourceLeafValue::Immediate {
-                definition_site: false_site,
-                ..
-            },
-        ) => {
-            let binary = row(catalog, constraints.keys.add_i64)?;
-            let materialize = row(catalog, constraints.keys.materialize_i64)?;
-            if binary.operands.len() != 3
-                || materialize.operands.len() != 1
-                || binary
-                    .operands
-                    .iter()
-                    .any(|operand| operand.class != binary.operands[2].class)
-                || materialize.operands[0].class != binary.operands[2].class
-            {
-                return Err(SelectedInstructionError::ConstraintOperandMismatch {
-                    function: function_index,
-                    instruction: 5,
-                });
-            }
-            for (instruction, source_value, definition_site) in [
-                (
-                    2,
-                    chain.resident.source_value,
-                    chain.resident.definition_site,
-                ),
-                (3, chain.left.source_value, chain.left.definition_site),
-                (4, chain.right.source_value, chain.right.definition_site),
-                (5, chain.inner.source_value, chain.inner.definition_site),
-                (6, chain.middle.source_value, chain.middle.definition_site),
-                (7, chain.bridge.source_value, chain.bridge.definition_site),
-                (8, chain.result.source_value, chain.result.definition_site),
-                (10, source.when_false.source_value, *false_site),
-            ] {
-                expected.push((
-                    u64_type,
-                    binary.operands[2].class,
-                    VirtualRegisterOrigin::InstructionResult {
-                        instruction: SelectedInstructionId(instruction),
-                        source_value,
-                    },
-                    definition_site,
-                    None,
-                ));
-            }
-        }
-        (
-            SourceLeafValue::ActiveResidentExactAddOriginalVictimChain(chain),
-            SourceLeafValue::Immediate {
-                definition_site: false_site,
-                ..
-            },
-        ) => {
-            let binary = row(catalog, constraints.keys.add_i64)?;
-            let materialize = row(catalog, constraints.keys.materialize_i64)?;
-            if binary.operands.len() != 3
-                || materialize.operands.len() != 1
-                || binary
-                    .operands
-                    .iter()
-                    .any(|operand| operand.class != binary.operands[2].class)
-                || materialize.operands[0].class != binary.operands[2].class
-            {
-                return Err(SelectedInstructionError::ConstraintOperandMismatch {
-                    function: function_index,
-                    instruction: 5,
-                });
-            }
-            for (instruction, source_value, definition_site) in [
-                (
-                    2,
-                    chain.resident.source_value,
-                    chain.resident.definition_site,
-                ),
-                (3, chain.left.source_value, chain.left.definition_site),
-                (4, chain.right.source_value, chain.right.definition_site),
-                (5, chain.inner.source_value, chain.inner.definition_site),
-                (6, chain.middle.source_value, chain.middle.definition_site),
-                (7, chain.bridge.source_value, chain.bridge.definition_site),
-                (8, chain.join.source_value, chain.join.definition_site),
-                (9, chain.result.source_value, chain.result.definition_site),
-                (11, source.when_false.source_value, *false_site),
-            ] {
-                expected.push((
-                    u64_type,
-                    binary.operands[2].class,
-                    VirtualRegisterOrigin::InstructionResult {
-                        instruction: SelectedInstructionId(instruction),
-                        source_value,
-                    },
-                    definition_site,
-                    None,
-                ));
-            }
+            expected.push((
+                u64_type,
+                row(catalog, constraints.keys.materialize_i64)?.operands[0].class,
+                VirtualRegisterOrigin::InstructionResult {
+                    instruction: SelectedInstructionId(3 + sequence.steps.len() as u32),
+                    source_value: source.when_false.source_value,
+                },
+                *false_site,
+                None,
+            ));
         }
         (
             SourceLeafValue::Immediate {

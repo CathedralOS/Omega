@@ -3,6 +3,7 @@
 //! This entrance owns the complete function-roster join. Scalar, plain Unit,
 //! and structural Unit mechanics descend into their named family entrances.
 
+mod integer_sequence;
 mod projected_structural_call_return;
 mod scalar;
 mod scalar_call_unit;

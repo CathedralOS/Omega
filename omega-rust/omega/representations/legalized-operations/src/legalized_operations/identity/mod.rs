@@ -23,5 +23,5 @@ pub use legacy::*;
 pub fn legalized_operation_plan_identity(
     plan: &LegalizedOperationPlan,
 ) -> LegalizedOperationPlanIdentity {
-    identity(plan, IdentitySchema::V23)
+    identity(plan, IdentitySchema::V24)
 }

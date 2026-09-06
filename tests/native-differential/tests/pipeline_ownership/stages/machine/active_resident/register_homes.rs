@@ -184,7 +184,7 @@ fn active_resident_multi_use_rematerialization_reaches_fresh_homes_on_both_archi
                 .functions[0]
                 .conditional()
                 .recipe,
-            LegalizationRecipe::ReturnU64ActiveResidentExactAddChainConditionalV1
+            LegalizationRecipe::ReturnU64ExactIntegerSequenceConditionalV1
         );
         let source_selected = source
             .live_range_stage()

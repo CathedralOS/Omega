@@ -3,10 +3,6 @@ use crate::legalization::catalog::{
     LegalizationShapeConstraints, ScalarConditionShape, ScalarLegalizationMatcherKind,
 };
 
-use super::super::leaves::{
-    is_active_resident_exact_add_bridge_chain, is_active_resident_exact_add_chain,
-    is_active_resident_exact_add_original_victim_chain,
-};
 use super::super::shared::*;
 
 pub(crate) fn match_scalar_form(
@@ -15,10 +11,13 @@ pub(crate) fn match_scalar_form(
     when_false: &TargetIntegerControl,
 ) -> Option<&'static LegalizationFormDescriptor> {
     let mut matches = LEGALIZATION_FORMS.iter().filter(|descriptor| {
-        if !matches!(
-            descriptor.constraints,
-            LegalizationShapeConstraints::Scalar(constraints) if constraints.condition == condition
-        ) {
+        if !match descriptor.constraints {
+            LegalizationShapeConstraints::Scalar(constraints) => constraints.condition == condition,
+            LegalizationShapeConstraints::ScalarSequence => {
+                condition == ScalarConditionShape::DirectBooleanParameter
+            }
+            _ => false,
+        } {
             return false;
         }
         let LegalizationProducerMatcherKind::Scalar(matcher) = descriptor.producer_matcher else {
@@ -84,35 +83,12 @@ fn matcher_accepts(
         ScalarLegalizationMatcherKind::WidenedU8ExactSubtractImmediate => [when_true, when_false]
             .iter()
             .all(|arm| widened_immediate_binary(arm, false)),
-        ScalarLegalizationMatcherKind::ActiveResidentExactAddChain => matches!(
+        ScalarLegalizationMatcherKind::ExactIntegerSequence => matches!(
             (when_true, when_false),
-            (
-                TargetIntegerControl::Return { expression, .. },
-                TargetIntegerControl::Return {
-                    expression: TargetIntegerExpression::Immediate { .. },
-                    ..
-                }
-            ) if is_active_resident_exact_add_chain(expression)
-        ),
-        ScalarLegalizationMatcherKind::ActiveResidentExactAddBridgeChain => matches!(
-            (when_true, when_false),
-            (
-                TargetIntegerControl::Return { expression, .. },
-                TargetIntegerControl::Return {
-                    expression: TargetIntegerExpression::Immediate { .. },
-                    ..
-                }
-            ) if is_active_resident_exact_add_bridge_chain(expression)
-        ),
-        ScalarLegalizationMatcherKind::ActiveResidentExactAddOriginalVictimChain => matches!(
-            (when_true, when_false),
-            (
-                TargetIntegerControl::Return { expression, .. },
-                TargetIntegerControl::Return {
-                    expression: TargetIntegerExpression::Immediate { .. },
-                    ..
-                }
-            ) if is_active_resident_exact_add_original_victim_chain(expression)
+            (TargetIntegerControl::Return { expression, .. },
+             TargetIntegerControl::Return { expression: TargetIntegerExpression::Immediate { .. }, .. })
+            if matches!(expression, TargetIntegerExpression::ExactAdd { .. } | TargetIntegerExpression::ExactSubtract { .. })
+                && crate::legalization::integer_sequence_input::expression_shape(expression)
         ),
     }
 }
