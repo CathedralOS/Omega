@@ -32,6 +32,7 @@ mod parameter_aliases;
 mod path_instantiation;
 mod place_paths;
 mod reference_origins;
+mod reference_subjects;
 mod state_paths;
 mod stored_origins;
 mod transition_equations;
@@ -371,6 +372,7 @@ struct StateWritePrefix {
 
 enum StateWriteQuery<'statement> {
     Before(&'statement StatementNode),
+    ReferenceBefore(&'statement StatementNode),
     Assignment(&'statement StatementNode),
 }
 
@@ -414,6 +416,7 @@ fn walk_state_write_prefix_inner(
     let mut local_alias_origins = Vec::<(String, FramePlaceOrigin)>::new();
     let mut stored = Vec::new();
     let mut written = Vec::new();
+    let include_shared = matches!(query, Some(StateWriteQuery::ReferenceBefore(_)));
 
     let mut nested_diagnostics = Vec::new();
     let machine_symbols = MachineSymbols::build(program, machine, &mut nested_diagnostics);
@@ -422,7 +425,7 @@ fn walk_state_write_prefix_inner(
     }
 
     for statement in program.statement_table.statements(state.statement_nodes) {
-        if matches!(query, Some(StateWriteQuery::Before(before)) if std::ptr::eq(before, statement))
+        if matches!(query, Some(StateWriteQuery::Before(before) | StateWriteQuery::ReferenceBefore(before)) if std::ptr::eq(before, statement))
         {
             return Some(StateWritePrefix {
                 written,
@@ -435,10 +438,12 @@ fn walk_state_write_prefix_inner(
             Some(StateWriteQuery::Assignment(candidate)) if std::ptr::eq(candidate, statement));
         let declared_local_alias_origin = match statement {
             StatementNode::LocalData(local)
-                if type_may_carry_write(program, local.type_reference)
-                    && !type_is_caller_isolated_local(program, local.type_reference) =>
+                if (type_may_carry_write(program, local.type_reference)
+                    && !type_is_caller_isolated_local(program, local.type_reference))
+                    || (include_shared
+                        && type_reference_is_reference(program, local.type_reference)) =>
             {
-                stable_local_mutable_alias_origin(
+                stable_local_reference_alias_origin(
                     program,
                     machine,
                     &machine_symbols,
@@ -449,6 +454,7 @@ fn walk_state_write_prefix_inner(
                     &local_alias_origins,
                     symbols,
                     &stored,
+                    include_shared,
                 )
             }
             _ => None,
@@ -464,6 +470,13 @@ fn walk_state_write_prefix_inner(
                         assignment.value,
                         &local_alias_origins,
                         |aliases| {
+                            if include_shared {
+                                reference_subjects::validate_initializer(
+                                    program,
+                                    machine,
+                                    assignment.value,
+                                )?;
+                            }
                             stable_alias_initializer_origin(
                                 program,
                                 machine,
@@ -557,6 +570,13 @@ fn walk_state_write_prefix_inner(
                         assignment.value,
                         &mut local_alias_origins,
                         |aliases| {
+                            if include_shared {
+                                reference_subjects::validate_initializer(
+                                    program,
+                                    machine,
+                                    assignment.value,
+                                )?;
+                            }
                             stable_alias_initializer_origin(
                                 program,
                                 machine,
@@ -728,8 +748,10 @@ fn walk_state_write_prefix_inner(
             }
             StatementNode::Expression(_) => {}
             StatementNode::LocalData(local) => {
-                if type_may_carry_write(program, local.type_reference)
-                    && !type_is_caller_isolated_local(program, local.type_reference)
+                if (type_may_carry_write(program, local.type_reference)
+                    && !type_is_caller_isolated_local(program, local.type_reference))
+                    || (include_shared
+                        && type_reference_is_reference(program, local.type_reference))
                 {
                     if let Some(origin) = declared_local_alias_origin {
                         local_alias_origins.push((local.name.as_str().to_owned(), origin));
@@ -755,7 +777,11 @@ fn walk_state_write_prefix_inner(
                     inference.record_local(&origins);
                     stored.push(origins);
                 }
-                if type_is_caller_isolated_local(program, local.type_reference) {
+                if type_is_caller_isolated_local(program, local.type_reference)
+                    && !local_alias_origins
+                        .iter()
+                        .any(|(name, _)| name == local.name.as_str())
+                {
                     isolated_local_roots.push(local.name.as_str().to_owned());
                 }
                 locals.push(local.name.as_str().to_owned());
@@ -784,7 +810,7 @@ fn walk_state_write_prefix_inner(
 /// address identity, so an effect-free recast source preserves the same origin.
 /// Direct parameter-relative member and effect-free indexed projections compose
 /// the same exact/coarse path algebra. Other computed results stay opaque.
-fn stable_local_mutable_alias_origin(
+fn stable_local_reference_alias_origin(
     program: &TypedTrees,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
@@ -795,15 +821,24 @@ fn stable_local_mutable_alias_origin(
     aliases: &[(String, FramePlaceOrigin)],
     symbols: &TopLevelSymbols<'_>,
     stored: &[StoredLocalOrigins],
+    include_shared: bool,
 ) -> Option<FramePlaceOrigin> {
-    let TypeReferenceNode::Reference { access, .. } = program
-        .type_reference_table
-        .type_reference(local.type_reference)
+    let mut reference = local.type_reference;
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(reference)
+    {
+        reference = *base_type;
+    }
+    let TypeReferenceNode::Reference { access, .. } =
+        program.type_reference_table.type_reference(reference)
     else {
         return None;
     };
-    if !access.is_exclusive() {
+    if !access.is_exclusive() && !include_shared {
         return None;
+    }
+    if include_shared {
+        reference_subjects::validate_initializer(program, current_machine, local.initial_value)?;
     }
     stable_alias_initializer_origin(
         program,
@@ -2039,7 +2074,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                 if type_may_carry_write(program, local.type_reference)
                     && !type_is_caller_isolated_local(program, local.type_reference) =>
             {
-                stable_local_mutable_alias_origin(
+                stable_local_reference_alias_origin(
                     program,
                     machine,
                     machine_symbols,
@@ -2050,6 +2085,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                     &local_alias_origins,
                     symbols,
                     &stored,
+                    false,
                 )
             }
             _ => None,

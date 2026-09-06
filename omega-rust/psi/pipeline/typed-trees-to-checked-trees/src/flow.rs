@@ -21,6 +21,10 @@ mod operator_calls;
 mod ownership;
 mod place;
 mod reach;
+mod reference_places;
+pub(crate) use reference_places::{
+    local_reference_storage_at_call, local_reference_storage_before_statement,
+};
 mod state;
 mod state_values;
 mod statements;

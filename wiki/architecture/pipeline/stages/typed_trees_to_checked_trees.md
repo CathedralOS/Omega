@@ -972,6 +972,16 @@ Current ownership is:
   shared live origins to invalidate copied facts on overlapping aliases. This
   closure retains structured selectors and does not alter borrow access routes
   or publish private alias spellings in caller-visible state summaries.
+  `calls/write_frames/reference_subjects.rs` separately queries exact bare-local
+  reference identity at a statement prefix. It reuses binding transfer with
+  shared-reference discovery enabled only for this demand; shared access never
+  gains write capability. Initializers and rebindings require declared nominal
+  roots and owned Field/Case projections. Name-only, loaded-reference-slot,
+  coarse, and unresolved helper origins cannot supply exact identity.
+  `flow/reference_places.rs` adapts that structural origin and checks earlier
+  operand writes against both the local binding and its referent. Contract
+  domain checking may then match an existing call-entry fact for the exact
+  referent; it neither reconstructs a declaration-time fact nor mints a domain.
   Arithmetic validation checks the right-hand side against pre-store facts,
   invalidates all overlapping owner/alias spellings, then records the new
   target value. Scalar reference reads retain their pointee's numeric type even
@@ -1862,7 +1872,11 @@ Current ownership is:
   constrained references and reference-containing copies are not snapshots of
   their referents. Local-state field transfers use this same origin query;
   disjoint fields retain independent origins even when the aggregate's whole-value
-  correspondence is unknown. Arrivals through opaque leaves and helper-output
+  correspondence is unknown. Bare local shared and mutable references resolve
+  their live referent before value tracing, including after an owned capture
+  moves the query to an earlier point. A local reference-binding replacement
+  does not count as a store to its previous referent. Arrivals through stored
+  reference carriers, opaque leaves, and helper-output
   correspondence remain conservative. Exact live receipts and build-bound
   provider subjects retain their existing separate handling.
   `checks/termination/progress/components.rs` closes private summaries within
