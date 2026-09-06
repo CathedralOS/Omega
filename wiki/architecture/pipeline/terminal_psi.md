@@ -161,7 +161,12 @@ machine retains `attachment: Some(Main)`, its relevant `console` field retains
 the exact erased provider identity, and sorted `ProviderAttachment` roots bind
 that field to precisely the bodyless boundaries called through it. Validation
 requires exact root/call equality and rejects missing attachments, duplicate or
-orphan roots, runtime `self`, and provider roots forwarded as arguments.
+orphan roots, and provider roots forwarded as runtime arguments. An unused
+provider field retains its relevant opaque type identity and its attachment
+declaration with no `ProviderAttachment` roots. An empty requirement set is
+valid only when that machine makes no direct boundary calls; ordinary callees
+retain their own requirements. Field retention alone grants neither service
+reach nor a boundary binding. No new field kind or special empty root is needed.
 
 The adjacent first Fused Service-parameter slice uses the same zero-payload
 structural vocabulary without treating an authored boundary-opaque value as an
@@ -3240,9 +3245,11 @@ not renamed. The caller's blocks, values, places, edges, and descriptor
 establishment operation use the shared counters. Dynamic root conformance rows
 remain separate from selected callee applications, with exact source owners
 retained for the whole published module. Only the selected leaf runs its operand
-computations and ordinary body. The existing attachment specialization still
-cannot represent a wholly unused provider-backed field: it rejects without
-inventing a direct boundary requirement from a callee's independent call.
+computations and ordinary body. An unused provider-backed field remains in the
+root attachment without inventing a direct boundary requirement from a callee's
+independent call. Producer, codec, and verifier each require exact equality
+between the root's actual direct boundary calls and its attachment requirements;
+neither transitive reach nor a retained field supplies a missing requirement.
 
 Later structural-result initializers and returned calls still need connections
 to the shared evaluator. Structural arguments on composed internal calls,

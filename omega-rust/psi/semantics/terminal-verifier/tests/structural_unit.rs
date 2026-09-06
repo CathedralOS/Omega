@@ -29,6 +29,310 @@ use terminal_verifier::{
 };
 
 #[test]
+fn unused_provider_attachment_verifies_without_roots_calls_or_codec() {
+    let mut module = unused_provider_attachment_module();
+    module.boundary_machines.clear();
+    assert!(module.machines[0].structural_places.is_empty());
+    assert!(module.machines[0].blocks[0].operations.is_empty());
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("an unused relevant opaque attachment needs no specialization roots");
+}
+
+#[test]
+fn provider_attachment_verifier_keeps_callee_requirements_independent() {
+    let mut module = unused_provider_attachment_module();
+    let mut callee = module.machines[0].clone();
+    callee.id = machine_id(3);
+    callee.entry = block_id(3);
+    callee.contract = empty_contract(contract_id(3));
+    callee.blocks[0].id = block_id(3);
+    callee.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(3),
+        trivial_affine_discards: Vec::new(),
+    };
+    callee.structural_places.push(provider_attachment_root());
+    callee.blocks[0].operations.push(provider_boundary_call());
+    module.machines[0].blocks[0].operations.push(Operation {
+        id: operation_id(2),
+        result: OperationResult::Unit,
+        kind: OperationKind::CallUnit {
+            callee: callee.id,
+            arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    });
+    module.machines.push(callee);
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("the callee owns its boundary requirement and the caller has no direct calls");
+
+    let mut missing = module.clone();
+    missing.machines[1].structural_places.clear();
+    assert_eq!(
+        validate_module(&missing).map(|_| ()),
+        Err(ModuleError::InvalidProviderAttachmentSpecialization(
+            machine_id(3)
+        )),
+    );
+
+    let mut orphan = provider_attachment_root();
+    orphan.id = place_id(2);
+    module.machines[0].structural_places.push(orphan);
+    assert_eq!(
+        validate_module(&module).map(|_| ()),
+        Err(ModuleError::InvalidProviderAttachmentSpecialization(
+            machine_id(2)
+        )),
+        "a callee boundary call cannot justify a caller root",
+    );
+}
+
+#[test]
+fn provider_attachment_verifier_requires_exact_direct_call_roots() {
+    let mut module = unused_provider_attachment_module();
+    module.machines[0].blocks[0]
+        .operations
+        .push(provider_boundary_call());
+    let invalid = Err(ModuleError::InvalidProviderAttachmentSpecialization(
+        machine_id(2),
+    ));
+    assert_eq!(
+        validate_module(&module).map(|_| ()),
+        invalid,
+        "actual direct requirement is missing"
+    );
+
+    module.machines[0]
+        .structural_places
+        .push(provider_attachment_root());
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("one direct boundary call and its exact root verify independently");
+
+    for kind in [
+        StructuralPlaceKind::ProviderAttachment {
+            attachment: structural_type_id(9),
+            field: provider_field_id(),
+            boundary: boundary_id(1),
+        },
+        StructuralPlaceKind::ProviderAttachment {
+            attachment: structural_type_id(1),
+            field: semantic_vocabulary::StructuralFieldId::new(9).unwrap(),
+            boundary: boundary_id(1),
+        },
+        StructuralPlaceKind::ProviderAttachment {
+            attachment: structural_type_id(1),
+            field: provider_field_id(),
+            boundary: boundary_id(9),
+        },
+    ] {
+        let mut wrong = module.clone();
+        wrong.machines[0].structural_places[0].kind = kind;
+        assert_eq!(validate_module(&wrong).map(|_| ()), invalid);
+    }
+
+    let mut duplicate = module.clone();
+    let mut root = provider_attachment_root();
+    root.id = place_id(2);
+    duplicate.machines[0].structural_places.push(root);
+    assert_eq!(validate_module(&duplicate).map(|_| ()), invalid);
+
+    let mut attached_boundary = module.clone();
+    attached_boundary.boundary_machines[0].attachment = Some(structural_type_id(1));
+    assert_eq!(validate_module(&attached_boundary).map(|_| ()), invalid);
+
+    module.machines[0].blocks[0].operations.clear();
+    assert_eq!(
+        validate_module(&module).map(|_| ()),
+        invalid,
+        "orphan provider root rejects"
+    );
+}
+
+#[test]
+fn provider_attachment_verifier_rejects_runtime_provider_arguments() {
+    let mut module = unused_provider_attachment_module();
+    module.machines[0]
+        .structural_places
+        .push(provider_attachment_root());
+    let mut call = provider_boundary_call();
+    let OperationKind::BoundaryCall {
+        structural_arguments,
+        ..
+    } = &mut call.kind
+    else {
+        unreachable!()
+    };
+    structural_arguments.push(StructuralArgument {
+        place: place_id(1),
+        access: StructuralAccess::SharedBorrow,
+        path: Vec::new(),
+    });
+    module.machines[0].blocks[0].operations.push(call);
+    assert_eq!(
+        validate_module(&module).map(|_| ()),
+        Err(ModuleError::InvalidProviderAttachmentSpecialization(
+            machine_id(2)
+        )),
+    );
+}
+
+#[test]
+fn unused_provider_attachment_verifier_rejects_runtime_scalar_field_projection() {
+    let mut module = unused_provider_attachment_module();
+    module.machines[0]
+        .structural_parameters
+        .push(StructuralParameterDeclaration {
+            place: place_id(2),
+            position: 0,
+            is_self: true,
+            structural_type: structural_type_id(1),
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::SharedBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        });
+    module.machines[0]
+        .structural_places
+        .push(StructuralPlaceDeclaration {
+            id: place_id(2),
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: true,
+            },
+        });
+    module.machines[0].blocks[0].operations.push(Operation {
+        id: operation_id(1),
+        result: OperationResult::Scalar(ValueDeclaration {
+            id: value_id(1),
+            scalar_type: ScalarType::Boolean,
+        }),
+        kind: OperationKind::BooleanStructuralField {
+            source: place_id(2),
+            field: provider_field_id(),
+        },
+    });
+    assert_eq!(
+        validate_module(&module).map(|_| ()),
+        Err(ModuleError::InvalidBooleanStructuralField {
+            operation: operation_id(1),
+            source: place_id(2),
+            field: provider_field_id(),
+        }),
+    );
+
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
+        unreachable!()
+    };
+    fields[0].field_type = StructuralFieldType::Scalar(ScalarType::Boolean);
+    validate_module(&module).expect("the corresponding ordinary scalar field remains readable");
+}
+
+#[test]
+fn unused_provider_attachment_verifier_rejects_nonattachment_and_multiple_fields() {
+    let mut unattached = unused_provider_attachment_module();
+    unattached.machines[0].attachment = None;
+    let invalid_field = Err(ModuleError::InvalidErasedStructuralField {
+        structural_type: structural_type_id(1),
+        field: provider_field_id(),
+    });
+    assert_eq!(validate_module(&unattached).map(|_| ()), invalid_field);
+    unattached.machines[0]
+        .structural_places
+        .push(provider_attachment_root());
+    assert_eq!(
+        validate_module(&unattached).map(|_| ()),
+        invalid_field,
+        "a forged root cannot authorize a type"
+    );
+
+    let mut multiple = unused_provider_attachment_module();
+    let StructuralTypeShape::Record { fields } = &mut multiple.structural_types[0].shape else {
+        unreachable!()
+    };
+    let mut second = fields[0].clone();
+    second.id = semantic_vocabulary::StructuralFieldId::new(2).unwrap();
+    second.identity = "second".into();
+    fields.push(second);
+    assert_eq!(
+        validate_module(&multiple).map(|_| ()),
+        Err(ModuleError::InvalidProviderAttachmentSpecialization(
+            machine_id(2)
+        )),
+    );
+}
+
+fn provider_field_id() -> semantic_vocabulary::StructuralFieldId {
+    semantic_vocabulary::StructuralFieldId::new(1).unwrap()
+}
+
+fn unused_provider_attachment_module() -> TerminalModule {
+    let mut module = nominal_affine_module();
+    module.machines.remove(0);
+    module.entry = machine_id(2);
+    module.structural_types[0].shape = StructuralTypeShape::Record {
+        fields: vec![StructuralFieldDeclaration {
+            id: provider_field_id(),
+            identity: "console".into(),
+            relevance: terminal_psi::BindingRelevance::Relevant,
+            field_type: StructuralFieldType::Erased {
+                type_identity: "named(name(example::ConsoleProvider))".into(),
+            },
+        }],
+    };
+    module.boundary_machines.push(BoundaryMachineDeclaration {
+        id: boundary_id(1),
+        identity: "example::Console::write".into(),
+        attachment: None,
+        scalar_parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        result: terminal_psi::BoundaryMachineResult::Unit,
+        requires: Vec::new(),
+        program_local_root_introductions: Vec::new(),
+        content_guarantees: Vec::new(),
+        published_service_ceiling: Vec::new(),
+    });
+    module
+}
+
+fn provider_attachment_root() -> StructuralPlaceDeclaration {
+    StructuralPlaceDeclaration {
+        id: place_id(1),
+        kind: StructuralPlaceKind::ProviderAttachment {
+            attachment: structural_type_id(1),
+            field: provider_field_id(),
+            boundary: boundary_id(1),
+        },
+    }
+}
+
+fn provider_boundary_call() -> Operation {
+    Operation {
+        id: operation_id(1),
+        result: OperationResult::Unit,
+        kind: OperationKind::BoundaryCall {
+            boundary: boundary_id(1),
+            arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            completion_receipts: Vec::new(),
+        },
+    }
+}
+
+#[test]
 fn direct_write_only_primitive_store_is_total_and_preserves_custody() {
     let module = write_only_primitive_store_module();
     validate_module(&module).expect("exact whole primitive write-only stores should validate");

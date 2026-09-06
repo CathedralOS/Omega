@@ -487,11 +487,6 @@ fn provider_attachment_specialization_rejects_ambiguous_or_unrouted_fields() {
             Console::exit_process(0);
         }
         "#,
-        r#"
-        boundary trait Console { machine exit_process(return_code: i32) reaches Console; }
-        data Main { console: Console; }
-        machine Main::main(&mut self) {}
-        "#,
     ] {
         let checked = checked(source);
         assert!(
@@ -504,6 +499,28 @@ fn provider_attachment_specialization_rejects_ambiguous_or_unrouted_fields() {
             "unsupported provider-backed attachment shapes must fail closed"
         );
     }
+}
+
+#[test]
+fn unused_provider_attachment_has_an_empty_requirement_set() {
+    let checked = checked(
+        r#"
+        boundary trait Console { machine exit_process(return_code: i32) reaches Console; }
+        data Main { console: Console; }
+        machine Main::main(&mut self) {}
+    "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "main"))
+        .expect("an unused provider field still has a checked machine plan");
+    assert!(plan.provider_attachment_requirements.is_empty());
+    assert_eq!(
+        plan.attachment_type_identity.as_deref(),
+        Some("named(name(Main))")
+    );
 }
 
 #[test]

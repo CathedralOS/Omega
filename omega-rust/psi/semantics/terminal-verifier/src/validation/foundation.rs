@@ -103,18 +103,10 @@ fn validate_structural_fields(
             });
         }
         let is_provider_attachment = permit_provider_attachment
-            && module.machines.iter().any(|machine| {
-                machine.structural_places.iter().any(|place| {
-                    matches!(
-                        place.kind,
-                        StructuralPlaceKind::ProviderAttachment {
-                            attachment,
-                            field: provider_field,
-                            ..
-                        } if attachment == structural_type && provider_field == field.id
-                    )
-                })
-            });
+            && module
+                .machines
+                .iter()
+                .any(|machine| machine.attachment == Some(structural_type));
         match &field.field_type {
             StructuralFieldType::Erased { type_identity } if type_identity.is_empty() => {
                 return Err(ModuleError::InvalidErasedStructuralField {
@@ -1254,10 +1246,7 @@ fn validate_provider_attachment_specialization(
         [parameter] => parameter.position != 0 || parameter.structural_type != attachment,
         _ => true,
     };
-    if provider_roots.is_empty()
-        || provider_roots.windows(2).any(|pair| pair[0].3 >= pair[1].3)
-        || invalid_self
-    {
+    if provider_roots.windows(2).any(|pair| pair[0].3 >= pair[1].3) || invalid_self {
         return Err(invalid());
     }
     let mut specialized_boundaries = BTreeSet::new();
