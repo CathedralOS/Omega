@@ -2,7 +2,7 @@
 
 use super::*;
 
-pub(crate) use super::emission::emit_boundary_leaf;
+pub(crate) use super::emission::emit_call_leaf as emit_boundary_leaf;
 
 pub(crate) fn lower_control_catalogs(
     checked: &CheckedTrees,

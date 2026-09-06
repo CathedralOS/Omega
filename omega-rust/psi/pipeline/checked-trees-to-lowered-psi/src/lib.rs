@@ -938,95 +938,103 @@ pub fn lower_machine(
     let LoweredSelectedMachine {
         terminal: mut lowered,
         route,
+        exact_sources,
     } = lower_selected_machine(checked, selection)?;
-    let source_machines = match route {
-        SelectedMachineRoute::GuardedPayloadlessCallReturn { target_machine } => {
-            vec![selection.machine, target_machine]
-        }
-        SelectedMachineRoute::TraitOperatorScalarReturn {
-            realization_machine,
-        } => vec![selection.machine, realization_machine],
-        SelectedMachineRoute::SelectedOperatorStructuralScalarReturn {
-            realization_machine,
-        } => vec![selection.machine, realization_machine],
-        SelectedMachineRoute::DirectDynamicComposedUnit {
-            realization_machine,
-        } => vec![selection.machine, realization_machine],
-        SelectedMachineRoute::ReboundDynamicComposedUnit {
-            realization_machine,
-        } => vec![selection.machine, realization_machine],
-        SelectedMachineRoute::StoredDynamicComposedUnit {
-            realization_machine,
-        } => vec![selection.machine, realization_machine],
-        SelectedMachineRoute::JoinedDynamicComposedUnit {
-            realization_machines,
-        } => {
-            let mut machines = vec![selection.machine];
-            machines.extend(realization_machines);
-            machines.sort_by_key(|machine| (machine.arena_index(), machine.generation()));
-            machines.dedup();
-            machines
-        }
-        SelectedMachineRoute::UnitEffect => {
-            let mut closure = checked_unit_call_closure_including(checked, selection.machine, &[])?;
-            let mut structural_realizations = Vec::new();
-            for source in &closure {
-                let plan = unique_unit_machine(&checked.facts.flow.terminal_unit_effects, *source)?;
-                for realization in plan
-                    .operations
-                    .iter()
-                    .filter_map(|operation| match operation {
+    let source_machines =
+        if let Some(sources) = &exact_sources {
+            sources.iter().map(|(source, _)| *source).collect()
+        } else {
+            match route {
+                SelectedMachineRoute::GuardedPayloadlessCallReturn { target_machine } => {
+                    vec![selection.machine, target_machine]
+                }
+                SelectedMachineRoute::TraitOperatorScalarReturn {
+                    realization_machine,
+                } => vec![selection.machine, realization_machine],
+                SelectedMachineRoute::SelectedOperatorStructuralScalarReturn {
+                    realization_machine,
+                } => vec![selection.machine, realization_machine],
+                SelectedMachineRoute::DirectDynamicComposedUnit {
+                    realization_machine,
+                } => vec![selection.machine, realization_machine],
+                SelectedMachineRoute::ReboundDynamicComposedUnit {
+                    realization_machine,
+                } => vec![selection.machine, realization_machine],
+                SelectedMachineRoute::StoredDynamicComposedUnit {
+                    realization_machine,
+                } => vec![selection.machine, realization_machine],
+                SelectedMachineRoute::JoinedDynamicComposedUnit {
+                    realization_machines,
+                } => {
+                    let mut machines = vec![selection.machine];
+                    machines.extend(realization_machines);
+                    machines.sort_by_key(|machine| (machine.arena_index(), machine.generation()));
+                    machines.dedup();
+                    machines
+                }
+                SelectedMachineRoute::UnitEffect => {
+                    let mut closure =
+                        checked_unit_call_closure_including(checked, selection.machine, &[])?;
+                    let mut structural_realizations = Vec::new();
+                    for source in &closure {
+                        let plan = unique_unit_machine(
+                            &checked.facts.flow.terminal_unit_effects,
+                            *source,
+                        )?;
+                        for realization in plan.operations.iter().filter_map(|operation| {
+                            match operation {
                         CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
                             realization_machine,
                             ..
                         } => Some(*realization_machine),
                         _ => None,
-                    })
-                {
-                    if !structural_realizations.contains(&realization) {
-                        structural_realizations.push(realization);
+                    }
+                        }) {
+                            if !structural_realizations.contains(&realization) {
+                                structural_realizations.push(realization);
+                            }
+                        }
+                    }
+                    let requires_complete_unit_closure =
+                        !structural_realizations.is_empty()
+                            || checked.facts.proof.proof_output_calls.iter().any(
+                                |(_, invocation)| {
+                                    invocation.caller_machine_symbol == selection.machine
+                                        && invocation.static_requirement_dispatch.is_some()
+                                },
+                            )
+                            || (lowered.semantic_module.machines.len() > 1
+                                && checked
+                                    .machine_specializations
+                                    .iter()
+                                    .any(|specialization| {
+                                        specialization.instance == selection.machine
+                                            && !specialization.conformance_applications.is_empty()
+                                    }));
+                    if requires_complete_unit_closure {
+                        closure.extend(structural_realizations);
+                        closure
+                    } else {
+                        vec![selection.machine]
                     }
                 }
+                SelectedMachineRoute::ScalarGraph => {
+                    checked_scalar_call_closure(checked, selection.machine)?
+                }
+                SelectedMachineRoute::StructuralScalarReturn
+                | SelectedMachineRoute::NominalAffineUnitCleanup
+                | SelectedMachineRoute::PartialAffineUnitCleanup
+                | SelectedMachineRoute::BoundaryScalarReturn
+                | SelectedMachineRoute::StructuralCallReturn
+                | SelectedMachineRoute::PayloadlessCaseReturn
+                | SelectedMachineRoute::StructuralReturn
+                | SelectedMachineRoute::ComposedAttachedUnit
+                | SelectedMachineRoute::StructuralUnitControl => vec![selection.machine],
             }
-            let requires_complete_unit_closure = !structural_realizations.is_empty()
-                || checked
-                    .facts
-                    .proof
-                    .proof_output_calls
-                    .iter()
-                    .any(|(_, invocation)| {
-                        invocation.caller_machine_symbol == selection.machine
-                            && invocation.static_requirement_dispatch.is_some()
-                    })
-                || (lowered.semantic_module.machines.len() > 1
-                    && checked
-                        .machine_specializations
-                        .iter()
-                        .any(|specialization| {
-                            specialization.instance == selection.machine
-                                && !specialization.conformance_applications.is_empty()
-                        }));
-            if requires_complete_unit_closure {
-                closure.extend(structural_realizations);
-                closure
-            } else {
-                vec![selection.machine]
-            }
-        }
-        SelectedMachineRoute::ScalarGraph => {
-            checked_scalar_call_closure(checked, selection.machine)?
-        }
-        SelectedMachineRoute::StructuralScalarReturn
-        | SelectedMachineRoute::NominalAffineUnitCleanup
-        | SelectedMachineRoute::PartialAffineUnitCleanup
-        | SelectedMachineRoute::BoundaryScalarReturn
-        | SelectedMachineRoute::StructuralCallReturn
-        | SelectedMachineRoute::PayloadlessCaseReturn
-        | SelectedMachineRoute::StructuralReturn
-        | SelectedMachineRoute::ComposedAttachedUnit
-        | SelectedMachineRoute::StructuralUnitControl => vec![selection.machine],
-    };
-    let direct_float_source_machines = if route == SelectedMachineRoute::ScalarGraph {
+        };
+    let direct_float_source_machines = if let Some(sources) = exact_sources {
+        sources
+    } else if route == SelectedMachineRoute::ScalarGraph {
         if source_machines.len() != lowered.semantic_module.machines.len() {
             return unsupported(
                 "scalar call closure source and Terminal machine tables must correspond exactly",

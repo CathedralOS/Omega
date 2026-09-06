@@ -530,7 +530,7 @@ fn nested_control_rejects_outer_handoff_and_inner_topology_corruption() {
 }
 
 #[test]
-fn nested_control_deduplicates_one_internal_target_after_five_root_blocks() {
+fn nested_control_deduplicates_one_internal_target_with_disjoint_root_blocks() {
     let checked = checked_source(
         r#"
             data Root {}
@@ -557,7 +557,16 @@ fn nested_control_deduplicates_one_internal_target_after_five_root_blocks() {
         panic!("nested root and one deduplicated target form the closure")
     };
     assert_eq!(root.blocks.len(), 5);
-    assert_eq!(target.blocks[0].id.get(), 6);
+    let mut block_ids = root
+        .blocks
+        .iter()
+        .chain(&target.blocks)
+        .map(|block| block.id.get())
+        .collect::<Vec<_>>();
+    block_ids.sort_unstable();
+    assert_eq!(block_ids, vec![1, 2, 3, 4, 5, 6]);
+    assert_eq!(target.blocks[0].id.get(), 1);
+    assert_eq!(root.entry, root.blocks[0].id);
     for leaf in &root.blocks[2..] {
         assert!(matches!(
             leaf.operations.as_slice(),

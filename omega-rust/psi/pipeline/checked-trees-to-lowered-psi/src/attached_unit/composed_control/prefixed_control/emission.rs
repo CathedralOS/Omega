@@ -7,20 +7,21 @@ pub(super) fn emit(
     plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
     admitted: super::admission::AdmittedPrefixed<'_>,
     mut catalogs: super::super::catalogs::ComposedCatalogs,
-) -> Result<LoweredPsi, LoweringError> {
+) -> Result<ComposedLowered, LoweringError> {
+    let mut next_value = catalogs.next_value;
+    let mut next_block = catalogs.next_block;
     let control_parameters = (0..admitted.controls.len())
-        .map(|index| {
+        .map(|_| {
             Ok(ValueDeclaration {
-                id: value_id(dense_identity(index)?),
+                id: value_id(allocate_dense(&mut next_value)?),
                 scalar_type: ScalarType::Boolean,
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let state_ids = (0..plan.states.len())
-        .map(|index| Ok(block_id(dense_identity(index)?)))
+        .map(|_| Ok(block_id(allocate_dense(&mut next_block)?)))
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    let mut next_edge = 1_u64;
-    let mut next_block = dense_identity(plan.states.len())?;
+    let mut next_edge = catalogs.next_edge;
     let mut blocks = (0..admitted.controls.len() - 1)
         .map(|index| {
             Ok(Block {
@@ -48,13 +49,7 @@ pub(super) fn emit(
     validate_direct_parameter_types(&guard, &[ScalarType::Boolean])?;
     let dispatch_index = admitted.controls.len() - 1;
     let dispatch_parameter = control_parameters[dispatch_index];
-    let mut next_value = u64::try_from(control_parameters.len())
-        .map_err(|_| LoweringError::Unsupported("prefixed scalar chain exceeds u64"))?
-        .checked_add(1)
-        .ok_or(LoweringError::Unsupported(
-            "prefixed scalar value identity space is exhausted",
-        ))?;
-    let mut dispatch_operations = OperationBuffer::new(0);
+    let mut dispatch_operations = OperationBuffer::new(catalogs.next_operation - 1);
     let condition = emit_direct_expression(
         &guard,
         std::slice::from_ref(&dispatch_parameter),
@@ -80,35 +75,20 @@ pub(super) fn emit(
         .into_iter()
         .zip(&state_ids[dispatch_index + 1..])
     {
-        let (leaf, mut occurrences) = match &state.operations[0] {
-            CheckedUnitEffectOperationPlan::BoundaryCall { .. } => {
-                super::super::emission::emit_boundary_leaf(
-                    checked,
-                    plan.machine,
-                    state,
-                    *block,
-                    &mut catalogs,
-                    &[],
-                    &[],
-                    &[],
-                    &mut next_value,
-                    &mut next_block,
-                    &mut next_operation,
-                    &mut next_edge,
-                )?
-            }
-            CheckedUnitEffectOperationPlan::CallUnit { .. } => {
-                let (block, occurrences) = super::super::internal_calls::emission::emit_leaf(
-                    state,
-                    *block,
-                    &catalogs.internal_targets,
-                    &mut next_operation,
-                    &mut next_edge,
-                )?;
-                (vec![block], occurrences)
-            }
-            _ => unreachable!("prefixed admission retained one exact leaf call"),
-        };
+        let (leaf, mut occurrences) = super::super::emission::emit_call_leaf(
+            checked,
+            plan.machine,
+            state,
+            *block,
+            &mut catalogs,
+            &[],
+            &[],
+            &[],
+            &mut next_value,
+            &mut next_block,
+            &mut next_operation,
+            &mut next_edge,
+        )?;
         blocks.extend(leaf);
         source_call_occurrences.append(&mut occurrences);
     }
@@ -161,17 +141,12 @@ pub(super) fn emit(
             outcome_specific_ensures: Vec::new(),
         },
     };
-    let mut machines = vec![machine];
-    machines.extend(super::super::internal_calls::emission::emit_targets(
-        checked,
-        &catalogs.internal_targets,
-        &catalogs.type_ids,
-        &catalogs.service_ids,
-        &mut next_operation,
-        &mut next_block,
-        &mut next_edge,
-    )?);
-    super::super::emission::finish_module(machines, catalogs, source_call_occurrences)
+    super::super::emission::finish_module(
+        plan.machine,
+        vec![machine],
+        catalogs,
+        source_call_occurrences,
+    )
 }
 
 fn empty_successor(target: BlockId, next_edge: &mut u64) -> Result<SuccessorEdge, LoweringError> {

@@ -67,6 +67,7 @@ pub(super) enum SelectedMachineRoute {
 pub(super) struct LoweredSelectedMachine {
     pub(super) terminal: LoweredPsi,
     pub(super) route: SelectedMachineRoute,
+    pub(super) exact_sources: Option<Vec<(symbols::SymbolHandle, semantic_vocabulary::MachineId)>>,
 }
 
 pub fn select_terminal_machine<'checked>(
@@ -96,6 +97,7 @@ fn routed_machine(
     Ok(LoweredSelectedMachine {
         terminal: terminal?,
         route,
+        exact_sources: None,
     })
 }
 
@@ -440,10 +442,12 @@ pub(super) fn lower_selected_machine(
         if selection.signature != CheckedTerminalSignatureEligibility::Attached {
             return unsupported("composed Unit control requires an attached signature");
         }
-        return routed_machine(
-            lower_composed_unit_control_machine(checked, plan),
-            SelectedMachineRoute::ComposedAttachedUnit,
-        );
+        let composed = lower_composed_unit_control_machine(checked, plan)?;
+        return Ok(LoweredSelectedMachine {
+            terminal: composed.terminal,
+            route: SelectedMachineRoute::ComposedAttachedUnit,
+            exact_sources: Some(composed.source_machine_ids),
+        });
     }
     if let Some(plan) = checked
         .facts

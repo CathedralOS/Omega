@@ -10,6 +10,7 @@ use crate::attached_unit::catalog::{
 pub(crate) struct ComposedCatalogs {
     pub(crate) structural_types: Vec<StructuralTypeDeclaration>,
     pub(crate) type_ids: Vec<(String, StructuralTypeId)>,
+    pub(crate) domain_ids: Vec<(SemanticDomainId, StructuralDomainId)>,
     pub(crate) services: Vec<ServiceDeclaration>,
     pub(crate) root_service_reach: terminal_psi::TerminalRootServiceReach,
     pub(crate) boundary_machines: Vec<BoundaryMachineDeclaration>,
@@ -19,6 +20,11 @@ pub(crate) struct ComposedCatalogs {
     pub(crate) next_place: u64,
     pub(crate) scalar_calls: scalar_calls::ComposedScalarCalls,
     pub(crate) root_crash_routes: Vec<checked_trees::CrashRouteBucket>,
+    pub(crate) shared_units: Option<LoweredPsi>,
+    pub(crate) next_value: u64,
+    pub(crate) next_block: u64,
+    pub(crate) next_operation: u64,
+    pub(crate) next_edge: u64,
 }
 
 fn lower_composed_services(
@@ -71,10 +77,8 @@ fn lower_composed_services(
 pub(crate) struct LoweredComposedInternalTarget {
     pub(super) source: symbols::SymbolHandle,
     pub(super) id: MachineId,
-    pub(super) attachment_type_identity: String,
-    pub(super) contract_service_reach: ServiceReachPlan,
-    pub(super) service_reach: ServiceReachSummary,
-    pub(super) nested_call_target: Option<symbols::SymbolHandle>,
+    pub(super) scalar_parameters: Vec<ScalarType>,
+    pub(super) crash_routes: Vec<terminal_psi::CrashRouteBucket>,
 }
 
 pub(crate) struct LoweredComposedBoundary {
@@ -139,6 +143,18 @@ fn lower_catalogs(
     boundaries: &[(&CheckedBoundaryMachinePlan, String)],
     admitted_internal_targets: &[(&checked_trees::CheckedUnitEffectMachinePlan, String)],
 ) -> Result<ComposedCatalogs, LoweringError> {
+    if !admitted_internal_targets.is_empty() {
+        return internal_calls::catalogs::lower(
+            checked,
+            machine,
+            attachment_type_identity,
+            contract_service_reach,
+            service_reach,
+            states,
+            boundaries,
+            admitted_internal_targets,
+        );
+    }
     let mut type_roots = vec![attachment_type_identity.to_owned()];
     type_roots.extend(
         states
@@ -176,42 +192,7 @@ fn lower_catalogs(
     let root_service_reach = lower_root_service_reach(checked, machine, &service_ids)?;
     let mut boundary_machines = Vec::with_capacity(boundaries.len());
     let mut lowered_boundaries = Vec::with_capacity(boundaries.len());
-    let internal_targets = admitted_internal_targets
-        .iter()
-        .enumerate()
-        .map(|(index, (target, _))| {
-            Ok(LoweredComposedInternalTarget {
-                source: target.machine,
-                id: machine_id(
-                    u64::try_from(index)
-                        .map_err(|_| {
-                            LoweringError::Unsupported(
-                                "composed Unit internal target count exceeds u64",
-                            )
-                        })?
-                        .checked_add(2)
-                        .ok_or(LoweringError::Unsupported(
-                            "composed Unit internal machine identity space is exhausted",
-                        ))?,
-                ),
-                attachment_type_identity: target.attachment_type_identity.clone().ok_or(
-                    LoweringError::Unsupported(
-                        "composed Unit internal target is not an attached machine",
-                    ),
-                )?,
-                contract_service_reach: target.contract_service_reach,
-                service_reach: target.service_reach,
-                nested_call_target: target.operations.iter().find_map(
-                    |operation| match operation {
-                        CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. } => {
-                            Some(*target_machine)
-                        }
-                        _ => None,
-                    },
-                ),
-            })
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let internal_targets = Vec::new();
     let mut next_place = 1_u64;
     for (index, (boundary, identity)) in boundaries.iter().enumerate() {
         let scalar_parameters = boundary
@@ -295,6 +276,7 @@ fn lower_catalogs(
     Ok(ComposedCatalogs {
         structural_types,
         type_ids,
+        domain_ids: Vec::new(),
         services,
         root_service_reach,
         boundary_machines,
@@ -304,5 +286,10 @@ fn lower_catalogs(
         next_place,
         scalar_calls,
         root_crash_routes,
+        shared_units: None,
+        next_value: 1,
+        next_block: 1,
+        next_operation: 1,
+        next_edge: 1,
     })
 }

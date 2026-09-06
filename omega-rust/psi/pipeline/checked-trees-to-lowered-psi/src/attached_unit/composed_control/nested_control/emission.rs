@@ -7,12 +7,13 @@ pub(super) fn emit(
     plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
     admitted: super::admission::AdmittedNested<'_>,
     mut catalogs: super::super::catalogs::ComposedCatalogs,
-) -> Result<LoweredPsi, LoweringError> {
+) -> Result<ComposedLowered, LoweringError> {
     let control_count = admitted.controls.len();
+    let mut next_block = catalogs.next_block;
     let state_ids = (0..plan.states.len())
-        .map(|index| Ok(block_id(dense_identity(index)?)))
+        .map(|_| Ok(block_id(allocate_dense(&mut next_block)?)))
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    let mut next_value = 1_u64;
+    let mut next_value = catalogs.next_value;
     let control_parameters = admitted
         .controls
         .iter()
@@ -27,9 +28,8 @@ pub(super) fn emit(
                 .collect::<Result<Vec<_>, LoweringError>>()
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    let mut next_edge = 1_u64;
-    let mut next_block = dense_identity(plan.states.len())?;
-    let mut next_operation = 1_u64;
+    let mut next_edge = catalogs.next_edge;
+    let mut next_operation = catalogs.next_operation;
     let mut blocks = Vec::with_capacity(plan.states.len());
     let mut source_call_occurrences = Vec::new();
     for index in 0..control_count {
@@ -45,44 +45,44 @@ pub(super) fn emit(
         let parameter_types = vec![ScalarType::Boolean; control_parameters[index].len()];
         validate_direct_parameter_types(&guard, &parameter_types)?;
         let mut operations = OperationBuffer::new(next_operation - 1);
-        super::operations::emit(&admitted.controls[index], &catalogs, &mut operations)?;
-        let condition = emit_direct_expression(
-            &guard,
-            &control_parameters[index],
-            &mut next_value,
-            &mut operations,
-        );
-        next_operation = operations.next_identity;
-        let OperationBuffer {
-            operations,
-            mut source_calls,
-            ..
-        } = operations;
-        source_call_occurrences.append(&mut source_calls);
-        blocks.push(Block {
-            id: state_ids[index],
-            parameters: if index != 0 {
-                control_parameters[index].clone()
+        let mut evaluation = crate::attached_unit::argument_evaluation::Evaluation {
+            entry: state_ids[index],
+            current: state_ids[index],
+            parameters: if index == 0 {
+                Vec::new()
             } else {
-                Default::default()
+                control_parameters[index].clone()
             },
-            operations,
+            operation_start: 0,
+            blocks: Vec::new(),
+        };
+        let mut values = control_parameters[index].clone();
+        super::super::emission::emit_call_operations(
+            checked,
+            plan.machine,
+            &admitted.controls[index],
+            &mut catalogs,
+            &[],
+            &[],
+            &mut evaluation,
+            &mut values,
+            &mut next_value,
+            &mut next_block,
+            &mut next_edge,
+            &mut operations,
+        )?;
+        let condition = emit_direct_expression(&guard, &values, &mut next_value, &mut operations);
+        next_operation = operations.next_identity;
+        source_call_occurrences.append(&mut operations.source_calls);
+        blocks.append(&mut evaluation.blocks);
+        blocks.push(Block {
+            id: evaluation.current,
+            parameters: evaluation.parameters,
+            operations: operations[evaluation.operation_start..].to_vec(),
             terminator: Terminator::Conditional {
                 condition,
-                when_true: lower_successor(
-                    plan,
-                    &state_ids,
-                    &control_parameters[index],
-                    when_true,
-                    &mut next_edge,
-                )?,
-                when_false: lower_successor(
-                    plan,
-                    &state_ids,
-                    &control_parameters[index],
-                    when_false,
-                    &mut next_edge,
-                )?,
+                when_true: lower_successor(plan, &state_ids, &values, when_true, &mut next_edge)?,
+                when_false: lower_successor(plan, &state_ids, &values, when_false, &mut next_edge)?,
             },
         });
     }
@@ -92,35 +92,20 @@ pub(super) fn emit(
         .into_iter()
         .zip(&state_ids[control_count..])
     {
-        let (leaf, mut occurrences) = match &state.operations[0] {
-            CheckedUnitEffectOperationPlan::BoundaryCall { .. } => {
-                super::super::emission::emit_boundary_leaf(
-                    checked,
-                    plan.machine,
-                    state,
-                    *block,
-                    &mut catalogs,
-                    &[],
-                    &[],
-                    &[],
-                    &mut next_value,
-                    &mut next_block,
-                    &mut next_operation,
-                    &mut next_edge,
-                )?
-            }
-            CheckedUnitEffectOperationPlan::CallUnit { .. } => {
-                let (block, occurrences) = super::super::internal_calls::emission::emit_leaf(
-                    state,
-                    *block,
-                    &catalogs.internal_targets,
-                    &mut next_operation,
-                    &mut next_edge,
-                )?;
-                (vec![block], occurrences)
-            }
-            _ => unreachable!("nested admission retained exact call leaves"),
-        };
+        let (leaf, mut occurrences) = super::super::emission::emit_call_leaf(
+            checked,
+            plan.machine,
+            state,
+            *block,
+            &mut catalogs,
+            &[],
+            &[],
+            &[],
+            &mut next_value,
+            &mut next_block,
+            &mut next_operation,
+            &mut next_edge,
+        )?;
         blocks.extend(leaf);
         source_call_occurrences.append(&mut occurrences);
     }
@@ -173,17 +158,12 @@ pub(super) fn emit(
             outcome_specific_ensures: Vec::new(),
         },
     };
-    let mut machines = vec![machine];
-    machines.extend(super::super::internal_calls::emission::emit_targets(
-        checked,
-        &catalogs.internal_targets,
-        &catalogs.type_ids,
-        &catalogs.service_ids,
-        &mut next_operation,
-        &mut next_block,
-        &mut next_edge,
-    )?);
-    super::super::emission::finish_module(machines, catalogs, source_call_occurrences)
+    super::super::emission::finish_module(
+        plan.machine,
+        vec![machine],
+        catalogs,
+        source_call_occurrences,
+    )
 }
 
 fn successor(

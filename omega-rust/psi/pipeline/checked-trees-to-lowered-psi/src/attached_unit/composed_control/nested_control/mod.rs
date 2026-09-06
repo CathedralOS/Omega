@@ -9,7 +9,7 @@ mod operations;
 pub(super) fn lower(
     checked: &CheckedTrees,
     plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
-) -> Result<LoweredPsi, LoweringError> {
+) -> Result<ComposedLowered, LoweringError> {
     let admitted = admission::admit(checked, plan)?;
     let catalogs = super::catalogs::lower_composed_catalogs(checked, plan, &admitted.leaf_calls)?;
     emission::emit(checked, plan, admitted, catalogs)

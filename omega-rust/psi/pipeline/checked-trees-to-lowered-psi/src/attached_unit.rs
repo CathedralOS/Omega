@@ -16,6 +16,7 @@ mod provider_attachments;
 mod providers;
 mod scalar_locals;
 mod selected_operator;
+pub(super) mod shared_closure;
 
 use parameters::lower_unit_scalar_parameter_types;
 pub(super) use parameters::validate_direct_unit_parameter_custody;
@@ -36,8 +37,7 @@ pub(super) use catalog::{
 };
 use catalog::{
     lower_program_local_root_introductions, lower_provider_candidate_service_ceiling,
-    lower_unit_services, lower_unit_structural_domains, lower_unit_structural_types,
-    require_valid_service_row,
+    lower_unit_structural_domains, require_valid_service_row,
 };
 use claims::lower_unit_entry_claims;
 pub(super) use composed_control::dynamic_result::{
@@ -225,10 +225,32 @@ pub(super) fn lower_attached_unit_closure_including(
     entry: symbols::SymbolHandle,
     additional_roots: &[symbols::SymbolHandle],
 ) -> Result<LoweredPsi, LoweringError> {
+    let mut roots = vec![entry];
+    roots.extend_from_slice(additional_roots);
+    lower_shared_unit_closure(checked, entry, &roots, None).map(|closure| closure.lowered)
+}
+
+pub(super) fn lower_shared_unit_closure(
+    checked: &CheckedTrees,
+    entry: symbols::SymbolHandle,
+    unit_roots: &[symbols::SymbolHandle],
+    external: Option<shared_closure::ExternalUnitRoots<'_>>,
+) -> Result<shared_closure::SharedUnitClosure, LoweringError> {
     let plans = &checked.facts.flow.terminal_unit_effects;
-    let mut retained_roots = additional_roots.to_vec();
+    let reserved_prefix = usize::from(external.is_some());
+    let ordinary_entry = unit_roots.first().copied();
+    if external.is_none() && ordinary_entry != Some(entry) {
+        return unsupported("ordinary Unit closure must begin with its exact entry");
+    }
+    let mut retained_roots = unit_roots.get(1..).unwrap_or_default().to_vec();
     let (closure, provider_candidate_plans) = loop {
-        let closure = checked_unit_call_closure_including(checked, entry, &retained_roots)?;
+        let closure = match ordinary_entry {
+            Some(root) => checked_unit_call_closure_including(checked, root, &retained_roots)?,
+            None => Vec::new(),
+        };
+        if external.is_some() && closure.contains(&entry) {
+            return unsupported("external composed entry overlaps its ordinary Unit closure");
+        }
         let candidates = checked_unit_provider_candidates(checked, &closure)?;
         for candidate in &candidates {
             if unique_unit_machine(plans, candidate.candidate)?
@@ -249,7 +271,9 @@ pub(super) fn lower_attached_unit_closure_including(
         let new_roots = candidates
             .iter()
             .map(|candidate| candidate.candidate)
-            .filter(|candidate| !retained_roots.contains(candidate) && *candidate != entry)
+            .filter(|candidate| {
+                !retained_roots.contains(candidate) && Some(*candidate) != ordinary_entry
+            })
             .collect::<Vec<_>>();
         if new_roots.is_empty() {
             break (closure, candidates);
@@ -258,7 +282,9 @@ pub(super) fn lower_attached_unit_closure_including(
     };
     reject_recursive_unit_closure(plans, &closure)?;
 
-    let mut ordinary_scalar_roots = Vec::new();
+    let mut ordinary_scalar_roots = external
+        .as_ref()
+        .map_or_else(Vec::new, |roots| roots.scalar_roots.to_vec());
     let mut selected_scalar_roots = Vec::new();
     for machine_symbol in &closure {
         for target in crate::scalar_computations::call_targets(checked, *machine_symbol)? {
@@ -296,7 +322,7 @@ pub(super) fn lower_attached_unit_closure_including(
     let scalar_closure = checked_scalar_call_closure(checked, &scalar_roots)?;
     if scalar_closure
         .iter()
-        .any(|machine| closure.contains(machine))
+        .any(|machine| closure.contains(machine) || (external.is_some() && *machine == entry))
     {
         return unsupported("embedded scalar call overlaps the attached Unit machine closure");
     }
@@ -375,6 +401,21 @@ pub(super) fn lower_attached_unit_closure_including(
     }
 
     let mut boundaries = Vec::<(&CheckedBoundaryMachinePlan, String)>::new();
+    if let Some(external) = &external {
+        for symbol in external.boundary_roots {
+            let boundary = unique_unit_boundary(plans, *symbol)?;
+            retain_exact_unit_boundary(
+                checked,
+                plans,
+                &mut boundaries,
+                *symbol,
+                boundary.state,
+                boundary.contract_report_fingerprint,
+                boundary.service_reach,
+                boundary.result.clone(),
+            )?;
+        }
+    }
     for machine_symbol in &closure {
         let machine = unique_unit_machine(plans, *machine_symbol)?;
         if machine.contract_report_fingerprint == 0 {
@@ -683,11 +724,29 @@ pub(super) fn lower_attached_unit_closure_including(
         return unsupported("boundary Unit closure contains duplicate canonical identities");
     }
 
-    let (structural_types, type_ids) = lower_unit_structural_types(checked, &closure, &boundaries)?;
+    let (structural_types, type_ids) = if let Some(external) = &external {
+        catalog::lower_unit_structural_types_including(
+            checked,
+            &closure,
+            &boundaries,
+            external.structural_type_roots,
+        )?
+    } else {
+        catalog::lower_unit_structural_types(checked, &closure, &boundaries)?
+    };
     let (structural_domains, domain_ids) =
         lower_unit_structural_domains(checked, &closure, &boundaries, &type_ids)?;
-    let (services, service_ids) =
-        lower_unit_services(checked, &closure, &boundaries, &provider_candidate_plans)?;
+    let (services, service_ids) = if let Some(external) = &external {
+        catalog::lower_unit_services_including(
+            checked,
+            &closure,
+            &boundaries,
+            &provider_candidate_plans,
+            external.service_roots,
+        )?
+    } else {
+        catalog::lower_unit_services(checked, &closure, &boundaries, &provider_candidate_plans)?
+    };
     let root_service_reach = lower_root_service_reach(checked, entry, &service_ids)?;
 
     let mut next_place = 1_u64;
@@ -850,8 +909,11 @@ pub(super) fn lower_attached_unit_closure_including(
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
 
-    let machine_ids = closure
-        .iter()
+    let machine_ids = external
+        .as_ref()
+        .map(|_| &entry)
+        .into_iter()
+        .chain(closure.iter())
         .chain(&scalar_closure)
         .chain(&selected_structural_scalar_roots)
         .chain(&selected_structural_result_roots)
@@ -2710,6 +2772,10 @@ pub(super) fn lower_attached_unit_closure_including(
         let terminal_machine = lookup_machine_id(&machine_ids, machine.source_machine)?;
         let machine_index = closure
             .len()
+            .checked_add(reserved_prefix)
+            .ok_or(LoweringError::Unsupported(
+                "shared Unit reserved machine count overflows usize",
+            ))?
             .checked_add(index)
             .ok_or(LoweringError::Unsupported(
                 "selected scalar closure machine count overflows usize",
@@ -2747,7 +2813,7 @@ pub(super) fn lower_attached_unit_closure_including(
         &selected_structural_scalar_roots,
         &structural_types,
         &machine_ids,
-        closure.len() + scalar_closure.len(),
+        reserved_prefix + closure.len() + scalar_closure.len(),
     )?;
     machines.append(&mut lowered_structural_realizations.machines);
     call_evidence.append(&mut lowered_structural_realizations.evidence);
@@ -2759,7 +2825,10 @@ pub(super) fn lower_attached_unit_closure_including(
         &structural_types,
         &type_ids,
         &machine_ids,
-        closure.len() + scalar_closure.len() + selected_structural_scalar_roots.len(),
+        reserved_prefix
+            + closure.len()
+            + scalar_closure.len()
+            + selected_structural_scalar_roots.len(),
     )?;
     machines.append(&mut lowered_structural_result_realizations);
 
@@ -2884,7 +2953,21 @@ pub(super) fn lower_attached_unit_closure_including(
         source_call_occurrences,
         selected_ieee_float_fma_occurrences,
     };
-    Ok(lowered)
+    Ok(shared_closure::SharedUnitClosure {
+        lowered,
+        machine_ids,
+        type_ids,
+        domain_ids,
+        service_ids,
+        boundary_parameters: lowered_boundary_parameters,
+        scalar_requirement_counts,
+        next_place,
+        next_value,
+        next_block,
+        next_operation,
+        next_edge,
+        next_call_obligation,
+    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
