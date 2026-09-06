@@ -141,11 +141,6 @@ pub(crate) fn anonymous_integer_value(
 }
 
 pub fn has_anonymous_operator_meaning(program: &TypedTrees, expression: ExpressionHandle) -> bool {
-    use language_semantics::declaration_selection::{
-        AuthoredDeclarationSelectionIntrinsic as Intrinsic,
-        AuthoredDeclarationSelectionLateBinding as LateBinding,
-        AuthoredDeclarationSelectionTarget as Target,
-    };
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return false;
     };
@@ -156,6 +151,19 @@ pub fn has_anonymous_operator_meaning(program: &TypedTrees, expression: Expressi
         BinaryOperator::Multiply => OperatorSpelling::Multiply,
         BinaryOperator::Divide => OperatorSpelling::Divide,
         _ => return false,
+    };
+    has_builtin_anonymous_operands(program, expression, spelling)
+}
+
+pub(super) fn has_builtin_anonymous_operands(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    spelling: language_core::OperatorSpelling,
+) -> bool {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionIntrinsic as Intrinsic,
+        AuthoredDeclarationSelectionLateBinding as LateBinding,
+        AuthoredDeclarationSelectionTarget as Target,
     };
     typed_trees::operator::resolve_spelling_for_operands(program, spelling, &[None, None])
         .is_empty()

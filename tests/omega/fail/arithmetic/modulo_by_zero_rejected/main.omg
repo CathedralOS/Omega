@@ -2,4 +2,4 @@
 // compile time (mirror of divide_by_zero_rejected).
 use omega::language::std::console;
 data Main { console: Console; }
-machine Main::main(&mut self) { let x: i32 = 5 % 0; self.console.exit_process(x); }
+machine Main::main(&mut self) { let x: i32 = 5i32 % 0; self.console.exit_process(x); }

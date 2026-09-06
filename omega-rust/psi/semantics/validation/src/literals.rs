@@ -72,8 +72,10 @@ pub(crate) fn validate_suffix_magnitudes(program: &TypedTrees, diagnostics: &mut
 mod float_landing;
 pub use float_landing::land_float_literal_destinations;
 mod integer_landing;
+mod integer_remainder;
 pub(crate) use integer_landing::{anonymous_integer_value, land_integer_value};
 pub use integer_landing::{has_anonymous_operator_meaning, land_anonymous_integer_expression};
+pub(crate) use integer_remainder::validate_anonymous_remainders;
 
 /// Check an already-landed literal against one exact declared destination.
 /// Explicit casts are conversions, not transparent literal wrappers.

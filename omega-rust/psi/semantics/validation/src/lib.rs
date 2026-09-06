@@ -418,6 +418,10 @@ fn validate_program_internal(
     allow_pending_opaque_copy: bool,
 ) -> Result<ProgramValidationFacts, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    literals::validate_anonymous_remainders(program, &mut diagnostics);
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
     let mut boundary_operator_applications = Vec::new();
     let mut exact_integer_casts = Vec::new();
     callable_overloads::validate_named_callable_overload_declarations(program, &mut diagnostics);

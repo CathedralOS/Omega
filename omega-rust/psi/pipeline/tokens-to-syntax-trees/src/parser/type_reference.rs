@@ -11,6 +11,9 @@ use syntax_trees::types::{
 };
 use tokens::{KeywordKind, PunctuationKind};
 
+#[cfg(test)]
+mod remainder_tests;
+
 pub(super) fn parse_type_reference_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
@@ -194,7 +197,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
                 let expression_start = input;
                 let (expression, rest) =
                     parse_const_integer_expression_handle(syntax_trees, input)?;
-                if const_expression_requires_declared_width(syntax_trees, expression) {
+                if const_expression_requires_semantic_admission(syntax_trees, expression) {
                     (
                         syntax_trees
                             .type_references
@@ -341,11 +344,10 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
     Ok((type_reference, input))
 }
 
-/// Shifts and bitwise operations depend on the const parameter's declared
-/// width and signedness. Preserve those expression trees until generic
-/// matching can supply that declaration instead of folding them as `u64` in
-/// the parser.
-fn const_expression_requires_declared_width(
+/// Shifts and bitwise operations need declared width; remainder needs operand
+/// type admission. Preserve these expressions for the semantic owner rather
+/// than erasing the operation while parsing a constant argument.
+fn const_expression_requires_semantic_admission(
     syntax_trees: &SyntaxTrees,
     expression: syntax_trees::expression::ExpressionHandle,
 ) -> bool {
@@ -354,13 +356,14 @@ fn const_expression_requires_declared_width(
     };
     matches!(
         binary.operator,
-        BinaryOperator::ShiftLeft
+        BinaryOperator::Modulo
+            | BinaryOperator::ShiftLeft
             | BinaryOperator::ShiftRight
             | BinaryOperator::BitwiseAnd
             | BinaryOperator::BitwiseOr
             | BinaryOperator::BitwiseXor
-    ) || const_expression_requires_declared_width(syntax_trees, binary.left)
-        || const_expression_requires_declared_width(syntax_trees, binary.right)
+    ) || const_expression_requires_semantic_admission(syntax_trees, binary.left)
+        || const_expression_requires_semantic_admission(syntax_trees, binary.right)
 }
 
 fn const_expression_contains_name(
@@ -574,7 +577,7 @@ pub(super) fn parse_domain_argument_handles<'tokens, 'source>(
                     .insert_named(Identifier::generated(name))
             }
             _ if const_expression_contains_name(syntax_trees, expression)
-                || const_expression_requires_declared_width(syntax_trees, expression) =>
+                || const_expression_requires_semantic_admission(syntax_trees, expression) =>
             {
                 syntax_trees
                     .type_references

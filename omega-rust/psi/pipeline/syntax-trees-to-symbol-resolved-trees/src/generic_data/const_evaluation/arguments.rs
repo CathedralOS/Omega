@@ -249,6 +249,7 @@ pub(in crate::generic_data) fn evaluate_const_argument_expression(
             }
         }
         ExpressionNode::Binary(binary) => {
+            validate_anonymous_remainder(syntax, binary)?;
             let left = evaluate_const_argument_expression(
                 syntax,
                 binary.left,

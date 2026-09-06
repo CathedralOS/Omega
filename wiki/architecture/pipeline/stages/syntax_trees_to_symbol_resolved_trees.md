@@ -15,6 +15,12 @@ Output: `SymbolResolvedTrees`.
 Primary responsibility: attach symbol identity to definitions and references
 after Psi-owned closed-instance normalization.
 
+The existing closed-const normalization checks known-builtin anonymous `%`
+formation before reducing arguments or discharging const facts. An authored
+operator spelling makes this narrow check decline: pre-resolution normalization
+has no exact selected-operator authority. This does not establish the meaning
+of authored const operations; that selection remains unfinished work.
+
 ## Semantic Ownership
 
 This stage owns symbol identity only. It may say which declaration or member a
