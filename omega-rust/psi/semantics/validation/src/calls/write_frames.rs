@@ -16,7 +16,6 @@ use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TableCall, TransitionTargetNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-mod aggregate_results;
 mod alias_bindings;
 mod assignment_targets;
 mod boundary_calls;
@@ -33,6 +32,7 @@ mod path_instantiation;
 mod place_paths;
 mod reference_origins;
 mod reference_subjects;
+mod result_origins;
 mod state_paths;
 mod stored_origins;
 mod transition_equations;
@@ -554,9 +554,27 @@ fn walk_state_write_prefix_inner(
             return None;
         }
         for expression in statement_value_expression_roots(program, statement) {
-            if expression_reborrows_local_alias_binding(program, expression, &local_alias_origins)
+            let exposes_reference_binding = if include_shared {
+                local_aliases::expression_reborrows_stable_alias_binding(
+                    program,
+                    expression,
+                    parameters,
+                    &local_alias_origins,
+                )
+            } else {
+                expression_reborrows_local_alias_binding(program, expression, &local_alias_origins)
+            };
+            if exposes_reference_binding
                 && declared_local_alias_origin.is_none()
                 && !representable_alias_rebinding
+                && !(include_shared
+                    && declared_stored_origins.is_some()
+                    && !reference_subjects::bindings::calls_expose_bindings(
+                        program,
+                        expression,
+                        parameters,
+                        &local_alias_origins,
+                    ))
                 && !alias_bindings::statement_returns_reference_without_effects(
                     program, state, statement,
                 )

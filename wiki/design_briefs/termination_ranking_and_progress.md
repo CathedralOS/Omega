@@ -384,7 +384,10 @@ Reference-returning helpers may transport an exact subject through a checked
 body relationship, including shared-reference copies and rebindings. Lifetime
 elision or a result qualification alone does not establish that relationship.
 The same relationship applies when references are returned inside owned
-carriers. An input carrier's declared reference boundary must be checked before
+carriers. Direct reference results and references inside owned results use the
+same frozen-prefix relation; wrapping a reference in a record cannot add or
+remove its provenance requirements. An input carrier's declared reference
+boundary must be checked before
 substituting the caller's actual leaf; an empty write frame cannot establish
 its identity. Reconstructing an owned result from a borrowed input carrier
 checks the loaded reference against the helper's complete binding history before

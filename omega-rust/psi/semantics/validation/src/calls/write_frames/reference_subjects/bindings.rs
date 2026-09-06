@@ -4,6 +4,33 @@
 use super::super::caller_aliases::{CallerWriteSite, caller_statement_at_site};
 use super::super::*;
 
+/// A checked local carrier can capture a reference binding without exposing
+/// it to another machine. Every call operand inside that initializer still
+/// needs its own exposure fence, independently of the call's write frame.
+pub(in crate::calls::write_frames) fn calls_expose_bindings(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    parameters: &[StateParameter],
+    aliases: &[(String, FramePlaceOrigin)],
+) -> bool {
+    caller_aliases::expression_any(program, expression, |expression| {
+        let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+            return false;
+        };
+        program
+            .expression_table
+            .expression_handles(call.arguments)
+            .iter()
+            .copied()
+            .chain(call.receiver.is_valid().then_some(call.receiver))
+            .any(|operand| {
+                local_aliases::expression_reborrows_stable_alias_binding(
+                    program, operand, parameters, aliases,
+                )
+            })
+    })
+}
+
 pub(in crate::calls::write_frames) fn are_stable_at_site(
     program: &TypedTrees,
     machine: &Machine,

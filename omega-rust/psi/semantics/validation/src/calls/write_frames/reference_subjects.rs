@@ -4,6 +4,8 @@ use super::*;
 use facts::PlaceSegment;
 
 pub(super) mod bindings;
+mod projections;
+mod results;
 
 /// The input's own readable reference can expose carrier storage. This is a
 /// type walk only: selecting a reference field still requires a seeded leaf
@@ -170,7 +172,7 @@ pub(super) fn value_origin(
     stored: &[StoredLocalOrigins],
     implicit_borrow: bool,
 ) -> Option<FramePlaceOrigin> {
-    declared_initializer_origin(
+    let declared = declared_initializer_origin(
         program,
         machine,
         expression,
@@ -185,36 +187,40 @@ pub(super) fn value_origin(
         machine,
         caller_aliases::CallerWriteSite::Expression(expression),
     )?;
-    let isolated = program.statement_table.statements(state.statement_nodes)[..index]
-        .iter()
-        .filter_map(|statement| match statement {
-            StatementNode::LocalData(local)
-                if type_is_caller_isolated_local(program, local.type_reference)
-                    && !type_reference_is_reference(program, local.type_reference) =>
-            {
-                Some(local.name.as_str().to_owned())
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let mut diagnostics = Vec::new();
-    let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
-    if !diagnostics.is_empty() {
-        return None;
-    }
-    let origin = stable_alias_initializer_origin(
-        program,
-        machine,
-        &machine_symbols,
-        inference,
-        expression,
-        program.state_parameters(state),
-        &isolated,
-        aliases,
-        symbols,
-        true,
-        stored,
-    )?;
+    let origin = if results::call_expression(program, expression).is_some() {
+        declared
+    } else {
+        let isolated = program.statement_table.statements(state.statement_nodes)[..index]
+            .iter()
+            .filter_map(|statement| match statement {
+                StatementNode::LocalData(local)
+                    if type_is_caller_isolated_local(program, local.type_reference)
+                        && !type_reference_is_reference(program, local.type_reference) =>
+                {
+                    Some(local.name.as_str().to_owned())
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let mut diagnostics = Vec::new();
+        let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
+        if !diagnostics.is_empty() {
+            return None;
+        }
+        stable_alias_initializer_origin(
+            program,
+            machine,
+            &machine_symbols,
+            inference,
+            expression,
+            program.state_parameters(state),
+            &isolated,
+            aliases,
+            symbols,
+            true,
+            stored,
+        )?
+    };
     let mut origins =
         stored_origins::canonical_reference_origins(program, &origin, aliases, stored).into_iter();
     let origin = origins.next()?;
@@ -242,45 +248,20 @@ fn declared_initializer_origin(
     while let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) {
         expression = borrow.target;
     }
-    if let ExpressionNode::Call(call) = program.expression_table.expression(expression) {
+    if let ExpressionNode::Call(_) = program.expression_table.expression(expression) {
         let (state, _, index) = caller_aliases::caller_statement_at_site(
             program,
             machine,
             caller_aliases::CallerWriteSite::Expression(expression),
         )?;
-        // A selected returned-place relation does not establish the state of
-        // a binding exposed by some other operand. Reject that exposure before
-        // the known-origin result can exempt this initializer from the prefix
-        // walker's direct-borrow guard.
-        if local_aliases::expression_has_exclusive_borrow(program, expression, &|target| {
-            crate::places::declared_place_type_raw(program, machine, Some(state), target)
-                .is_some_and(|reference| type_reference_is_reference(program, reference))
-        }) {
-            return None;
-        }
-        let origin = transparent_call_result_origin(
-            program,
-            call,
-            symbols,
-            inference,
-            |_, parameter, relative, actual, inference| {
-                if relative.precision != FramePathPrecision::Exact {
-                    return None;
-                }
-                validate_owned_projection(
-                    program,
-                    parameter.type_reference,
-                    &relative.source.segments,
-                )?;
-                declared_initializer_origin(
-                    program, machine, actual, symbols, inference, true, aliases, stored,
-                )
-            },
+        let origin = results::call_origin(
+            program, machine, expression, symbols, inference, aliases, stored,
         )?;
         validate_source_projection(program, machine, state, index, &origin.source, stored)?;
         return (origin.precision == FramePathPrecision::Exact).then_some(origin);
     }
     reference_origins::declared_origin_root(program, machine, expression)?;
+    projections::validate_selectors(program, machine, expression)?;
     let (state, _, index) = caller_aliases::caller_statement_at_site(
         program,
         machine,
@@ -297,7 +278,7 @@ fn declared_initializer_origin(
     }
     let source = FrameSourcePlace::from_expression(program, expression);
     let reference = source_root_type(program, machine, state, index, source.root)?;
-    if validate_owned_projection(program, reference, &source.segments).is_none() {
+    if projections::validate_owned_source(program, machine, reference, &source).is_none() {
         return frozen_reference_origin(
             program, machine, state, index, expression, aliases, stored,
         );
@@ -376,7 +357,7 @@ pub(super) fn validate_source_projection(
     stored: &[StoredLocalOrigins],
 ) -> Option<()> {
     let reference = source_root_type(program, machine, state, index, source.root)?;
-    if validate_owned_projection(program, reference, &source.segments).is_some() {
+    if projections::validate_owned_source(program, machine, reference, source).is_some() {
         return Some(());
     }
     let reference = carrier_storage_type(program, reference)?;

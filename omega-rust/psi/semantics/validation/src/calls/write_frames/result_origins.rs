@@ -1,4 +1,4 @@
-//! Body-derived reference leaves in an owned helper result. A return type
+//! Body-derived reference leaves in a direct or owned helper result. A return type
 //! supplies structure, never a caller storage origin or permission to borrow it.
 
 use super::path_instantiation::aggregate_arguments::{
@@ -115,19 +115,21 @@ pub(super) fn call_result_origins(
         super::statement_value_expression_roots(program, statement)
             .into_iter()
             .any(|expression| {
-                super::local_aliases::expression_reborrows_stable_alias_binding(
-                    program,
-                    expression,
-                    parameters,
-                    &[],
-                ) || super::local_aliases::expression_has_exclusive_borrow(
-                    program,
-                    expression,
-                    &|target| {
-                        super::reference_origins::declared_origin_root(program, machine, target)
-                            .is_none()
-                    },
-                )
+                (!include_shared
+                    && super::local_aliases::expression_reborrows_stable_alias_binding(
+                        program,
+                        expression,
+                        parameters,
+                        &[],
+                    ))
+                    || super::local_aliases::expression_has_exclusive_borrow(
+                        program,
+                        expression,
+                        &|target| {
+                            super::reference_origins::declared_origin_root(program, machine, target)
+                                .is_none()
+                        },
+                    )
             })
     }) {
         return None;
