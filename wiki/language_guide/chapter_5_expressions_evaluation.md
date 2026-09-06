@@ -771,16 +771,32 @@ integer-typed operand requests integer division before the fraction arises.
 
 When an anonymous expression instead has a fractional intermediate but an
 integral final value that successfully lands in an integer, emit a default-on,
-suppressible warning. For `7 / 2 * 2`, point to the fractional subexpression and
-explain that division preserves `7/2` and the complete expression lands as `7`;
-an explicitly typed operand requests integer division if that was intended.
-This remains a valid expression, not a type error.
+suppressible warning. Alignment calculations illustrate why this matters:
+
+```omega
+let base: u32 = (4097 / 4096) * 4096;        // 4097; warning, not align-down
+let aligned: u32 = (4097u32 / 4096) * 4096; // 4096; explicit integer division
+```
+
+The first expression can look like integer align-down while calculating an
+exact cancellation. Point to `4097 / 4096`, explain that its fractional value
+is preserved and the complete expression lands as `4097`, and suggest typing
+an operand if integer division was intended. The smaller `7 / 2 * 2` example
+likewise lands as `7` with a warning. Both are valid expressions, not type
+errors or miscompilations.
 
 The trigger is the exact intermediate value in the authored anonymous
 calculation, not a comparison against a hypothetical C evaluation. Retain that
 diagnostic origin through simplification so cancellation cannot erase the
 warning. Already-typed integer division and floating-point landing do not
 trigger this warning. Suppressing it changes no arithmetic or landing rule.
+
+This is a correctness warning about likely author intent, not a style lint.
+There is no fractional-landing error when the final value is integral, so
+blanket suppression removes this diagnostic assistance for cases such as
+align-down. It does not weaken compiler or proof soundness: the specified
+exact value is unchanged. Ordinary suppression remains allowed; there is no
+expression-only suppression restriction.
 
 This decision does not define anonymous `%`; its remaining semantics are an
 [open owner question](../../OWNER_QUESTIONS.md#anonymous-integer-remainder).
