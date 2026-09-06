@@ -790,10 +790,14 @@ pub(super) fn build_static_boundary_requirements(
                 abi_position += 1;
                 // `is_mutable` is set by a `mut` binding and by an exclusive
                 // borrow alike. An exclusive borrow is already carried exactly
-                // by the parameter's structural access below, so only an owned
-                // mutable binding stays outside this requirement surface.
+                // by the parameter's structural access below. Owned mutable
+                // primitive destinations need no storage inside this caller;
+                // other owned mutable carriers remain unsupported.
                 if parameter.is_const
-                    || (parameter.is_mutable && !is_reference(program, parameter.type_reference))
+                    || (parameter.is_mutable
+                        && !is_reference(program, parameter.type_reference)
+                        && crate::values::mutable_scalar_parameter_type(program, parameter)
+                            .is_none())
                 {
                     supported = false;
                     break;

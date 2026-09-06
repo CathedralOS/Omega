@@ -51,7 +51,10 @@ pub(super) fn locate(
         || parameters.iter().any(|parameter| {
             parameter.is_self
                 || parameter.is_const
-                || parameter.is_mutable
+                || (parameter.is_mutable
+                    && !program
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_some_and(super::supported_mutable_parameter))
                 || program
                     .primitive_type_reference(parameter.type_reference)
                     .is_none()

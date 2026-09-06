@@ -11,6 +11,7 @@ use checked_trees::{CheckFacts, CrashRouteGuard};
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 
+mod entry_guards;
 mod source_fallthrough;
 
 pub(crate) fn infer_path_conditioned_guard_coverage(
@@ -54,6 +55,9 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                 let applicable_guards = incoming
                     .iter()
                     .filter(|guard| guard.applies_at(site.location().state()))
+                    .filter(|guard| {
+                        entry_guards::retains_entry_meaning(program, machine, guard.guard())
+                    })
                     .collect::<Vec<_>>();
                 let mut path_guard_conjuncts = applicable_guards
                     .iter()
@@ -157,6 +161,9 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                 let applicable_guards = incoming
                     .iter()
                     .filter(|guard| guard.applies_at(call.location().state()))
+                    .filter(|guard| {
+                        entry_guards::retains_entry_meaning(program, machine, guard.guard())
+                    })
                     .collect::<Vec<_>>();
                 let path_guard_conjuncts = applicable_guards
                     .iter()

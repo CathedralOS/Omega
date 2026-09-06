@@ -8,7 +8,24 @@ use checked_trees::statement::{
 
 mod computation_calls;
 pub(super) mod direct_calls;
+mod parameters;
 pub(crate) use computation_calls::validate_computation_calls;
+pub(super) use parameters::parameter_storage;
+
+pub(crate) fn supported_mutable_parameter(primitive: PrimitiveType) -> bool {
+    matches!(
+        primitive,
+        PrimitiveType::Bool
+            | PrimitiveType::I8
+            | PrimitiveType::I16
+            | PrimitiveType::I32
+            | PrimitiveType::I64
+            | PrimitiveType::U8
+            | PrimitiveType::U16
+            | PrimitiveType::U32
+            | PrimitiveType::U64
+    )
+}
 
 pub(super) struct SourceRoot {
     pub machine: symbols::SymbolHandle,
@@ -129,16 +146,39 @@ pub(super) fn locate(
                             .len()
                             == 1 =>
                 {
-                    preceding.iter().find_map(|statement| match statement {
-                        StatementNode::LocalData(local)
-                            if local.is_mutable && local.symbol == path.symbol =>
-                        {
+                    preceding
+                        .iter()
+                        .find_map(|statement| match statement {
+                            StatementNode::LocalData(local)
+                                if local.is_mutable && local.symbol == path.symbol =>
+                            {
+                                program
+                                    .primitive_type_reference(local.type_reference)
+                                    .map(|primitive| (assignment.value, local.symbol, primitive))
+                            }
+                            _ => None,
+                        })
+                        .or_else(|| {
                             program
-                                .primitive_type_reference(local.type_reference)
-                                .map(|primitive| (assignment.value, local.symbol, primitive))
-                        }
-                        _ => None,
-                    })
+                                .state_parameters(state)
+                                .iter()
+                                .find_map(|parameter| {
+                                    if !parameter.is_mutable
+                                        || parameter.is_self
+                                        || parameter.is_const
+                                        || parameter.symbol != path.symbol
+                                    {
+                                        return None;
+                                    }
+                                    let primitive = program
+                                        .primitive_type_reference(parameter.type_reference)?;
+                                    supported_mutable_parameter(primitive).then_some((
+                                        assignment.value,
+                                        parameter.symbol,
+                                        primitive,
+                                    ))
+                                })
+                        })
                 }
                 _ => None,
             }

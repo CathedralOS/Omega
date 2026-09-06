@@ -135,7 +135,12 @@ pub(crate) fn validate_computation_calls(
                     || authored_arguments.len() != parameters.len()
                     || authored_arguments.len() != arguments.len()
                     || parameters.iter().any(|parameter| {
-                        parameter.is_self || parameter.is_const || parameter.is_mutable
+                        parameter.is_self
+                            || parameter.is_const
+                            || (parameter.is_mutable
+                                && !checked
+                                    .primitive_type_reference(parameter.type_reference)
+                                    .is_some_and(super::supported_mutable_parameter))
                     })
                     || parameters
                         .iter()

@@ -31,6 +31,15 @@ pub(super) fn prepare(
     let mut prefixes = Vec::new();
     let mut value_types = parameter_types.clone();
     let mut scalar_bindings = storage::ScalarBindings::new(parameter_types.len());
+    for parameter in source_custody::parameter_storage(checked, machine, state)? {
+        scalar_bindings.initialize_parameter(
+            parameter.symbol,
+            terminal_scalar_type(parameter.primitive_type)?,
+            usize::try_from(parameter.parameter_ordinal).map_err(|_| {
+                LoweringError::Unsupported("scalar parameter ordinal exceeds the entry namespace")
+            })?,
+        )?;
+    }
     let mut immutable_ordinal = 0u32;
     let mut bindings = Vec::with_capacity(state.bindings.len());
     for (binding_index, binding) in state.bindings.iter().enumerate() {

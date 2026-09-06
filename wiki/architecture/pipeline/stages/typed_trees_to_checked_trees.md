@@ -358,6 +358,15 @@ Must own:
   source evaluation. Overwrites retire the provenance; runtime argument snapshots,
   mutable-formal identities, and more general result contracts need their own
   retained value evidence.
+  Free scalar state graphs retain mutable owned Boolean/fixed-integer entry
+  bindings in an arena, with exact parameter ordinals, symbols, and carriers.
+  Executable reads use current storage, and assignments update that storage
+  only after completing their right-hand sides. These rows are independent of
+  immutable formal-value evidence: admitting a mutable destination for an
+  argument does not identify the formal's final value with its entry value.
+  Declared requirements and published crash predicates retain exact incoming
+  parameter snapshots through a separate contract-entry query. It cannot turn
+  body-local storage or another state's symbol into an entry operand.
 - Landed float values retain their format at scalar destinations, including
   parameters, storage, and returns. Named values, field/index projections,
   resolved call results, and explicit cast outputs cannot implicitly change

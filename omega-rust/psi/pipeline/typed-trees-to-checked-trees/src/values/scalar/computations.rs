@@ -168,9 +168,22 @@ pub(crate) fn build_checked_scalar_computation_plans(
                 if let StatementNode::Assignment(assignment) = statement {
                     if let ExpressionNode::Name(name) =
                         program.expression_table.expression(assignment.target)
-                        && let Some(local) = locals
+                        && name.symbol.is_valid()
+                        && name.head_symbol == name.symbol
+                        && let Some(primitive_type) = locals
                             .iter()
                             .find(|local| local.symbol == name.symbol && local.is_mutable)
+                            .map(|local| local.primitive_type)
+                            .or_else(|| {
+                                parameters
+                                    .iter()
+                                    .find(|parameter| parameter.symbol == name.symbol)
+                                    .and_then(|parameter| {
+                                        crate::values::mutable_scalar_parameter_type(
+                                            program, parameter,
+                                        )
+                                    })
+                            })
                     {
                         // The completed RHS replaces storage only after evaluation.
                         // Reads here retain the existing destination symbol; assignments
@@ -180,7 +193,7 @@ pub(crate) fn build_checked_scalar_computation_plans(
                             statement_ordinal,
                             CheckedScalarExpressionRole::AssignmentValue,
                             assignment.value,
-                            local.primitive_type,
+                            primitive_type,
                         );
                     }
                     continue;
@@ -310,9 +323,12 @@ fn has_pure_call_arguments(
     };
     let arguments = program.expression_table.expression_handles(call.arguments);
     arguments.len() == parameters.len()
-        && !parameters
-            .iter()
-            .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
+        && !parameters.iter().any(|parameter| {
+            parameter.is_self
+                || parameter.is_const
+                || (parameter.is_mutable
+                    && crate::values::mutable_scalar_parameter_type(program, parameter).is_none())
+        })
         && arguments.iter().enumerate().all(|(index, _)| {
             u32::try_from(index).ok().is_some_and(|argument_ordinal| {
                 pure.expression_at(
@@ -451,7 +467,14 @@ impl Builder<'_, '_> {
                 }
                 let target_parameters = self.program.state_parameters(target_state);
                 if target_parameters.iter().any(|parameter| {
-                    parameter.is_self || parameter.is_const || parameter.is_mutable
+                    parameter.is_self
+                        || parameter.is_const
+                        || (parameter.is_mutable
+                            && crate::values::mutable_scalar_parameter_type(
+                                self.program,
+                                parameter,
+                            )
+                            .is_none())
                 }) {
                     return None;
                 }

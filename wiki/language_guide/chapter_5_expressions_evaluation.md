@@ -814,7 +814,7 @@ expression-only suppression restriction.
 > builtin `result == immutable_parameter` guarantee from retained closed
 > fixed-integer operands, without replaying their source expressions. General runtime argument
 > snapshots, generic/evidence-adapted and boundary destination custody, aggregate
-> elements, mutable owned parameter execution, remaining numeric policies, float
+> elements, remaining mutable parameter carriers and Unit-body storage, numeric policies, float
 > and constant-argument consumers, and ordinary warning suppression/report
 > transport remain on [the execution board](../../TASKS.md).
 

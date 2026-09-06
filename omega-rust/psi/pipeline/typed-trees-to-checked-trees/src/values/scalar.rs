@@ -18,8 +18,10 @@ use typed_trees::{
 };
 
 mod computations;
+mod contract_entry;
 mod result_contract;
 pub(crate) use computations::build_checked_scalar_computation_plans;
+pub(crate) use contract_entry::lower_machine_entry_boolean_expression;
 pub(crate) use result_contract::{
     lower_integer_contract_predicate, lower_integer_parameter_range_requirements,
 };
@@ -706,7 +708,11 @@ fn lower_boundary_call_arguments(
         let Some(expected_type) = program.primitive_type_reference(target.type_reference) else {
             continue;
         };
-        if target.is_self || target.is_const || target.is_mutable {
+        if target.is_self
+            || target.is_const
+            || (target.is_mutable
+                && crate::values::mutable_scalar_parameter_type(program, target).is_none())
+        {
             return None;
         }
         let lowered = lower_return_expression(
@@ -771,10 +777,12 @@ fn lower_direct_call_binding_arguments(
             .is_some_and(|entry| entry.symbol == call.target_symbol)
     })?;
     let target_parameters = crate::call_target_parameters(program, call.target_symbol)?;
-    if target_parameters
-        .iter()
-        .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
-    {
+    if target_parameters.iter().any(|parameter| {
+        parameter.is_self
+            || parameter.is_const
+            || (parameter.is_mutable
+                && crate::values::mutable_scalar_parameter_type(program, parameter).is_none())
+    }) {
         return None;
     }
     let arguments = program.expression_table.expression_handles(call.arguments);
@@ -1920,6 +1928,15 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                         || name_text.is_some_and(|text| parameter.name == *text)
                 })?;
                 let parameter = parameters.get(source_position)?;
+                if parameter.is_mutable {
+                    return (crate::values::mutable_scalar_parameter_type(program, parameter)
+                        == Some(PrimitiveType::Bool)
+                        && name.symbol == parameter.symbol
+                        && name.head_symbol == parameter.symbol)
+                        .then_some(CheckedBooleanExpression::StorageRead {
+                            symbol: parameter.symbol,
+                        });
+                }
                 (program.primitive_type_reference(parameter.type_reference)
                     == Some(PrimitiveType::Bool))
                 .then(|| CheckedBooleanExpression::Parameter {
@@ -2376,6 +2393,21 @@ fn lower_scalar_expression(
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
             if let Some(position) = parameter_position(program, path, parameters) {
+                let parameter = &parameters[position];
+                if parameter.is_mutable {
+                    let primitive_type =
+                        crate::values::mutable_scalar_parameter_type(program, parameter)?;
+                    if path.symbol != parameter.symbol || path.head_symbol != parameter.symbol {
+                        return None;
+                    }
+                    return Some((
+                        CheckedScalarExpression::StorageRead {
+                            symbol: parameter.symbol,
+                            primitive_type,
+                        },
+                        program.arithmetic_domain_for_type_reference(parameter.type_reference),
+                    ));
+                }
                 return Some((
                     CheckedScalarExpression::Parameter {
                         position,
@@ -2797,6 +2829,16 @@ fn lower_boolean_expression(
         ExpressionNode::Boolean(value) => Some(CheckedBooleanExpression::Constant(*value)),
         ExpressionNode::Name(path) => {
             if let Some(position) = parameter_position(program, path, parameters) {
+                let parameter = &parameters[position];
+                if parameter.is_mutable {
+                    return (crate::values::mutable_scalar_parameter_type(program, parameter)
+                        == Some(PrimitiveType::Bool)
+                        && path.symbol == parameter.symbol
+                        && path.head_symbol == parameter.symbol)
+                        .then_some(CheckedBooleanExpression::StorageRead {
+                            symbol: parameter.symbol,
+                        });
+                }
                 return (parameter_types[position] == PrimitiveType::Bool)
                     .then_some(CheckedBooleanExpression::Parameter { position });
             }
