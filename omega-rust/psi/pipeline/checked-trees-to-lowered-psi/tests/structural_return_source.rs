@@ -1407,7 +1407,7 @@ impl TerminalEffectHandler for ResultBoundaryHandler {
     fn handle_effect_result(
         &mut self,
         effect: &TerminalEffect,
-    ) -> Result<Option<TerminalScalarValue>, TerminalEffectRejection> {
+    ) -> Result<terminal_interpreter::TerminalEffectResult, TerminalEffectRejection> {
         if self.reject {
             return Err(TerminalEffectRejection::new("provider rejected settlement"));
         }
@@ -1420,7 +1420,9 @@ impl TerminalEffectHandler for ResultBoundaryHandler {
                 ..
             }
         ));
-        Ok(Some(TerminalScalarValue::Boolean(true)))
+        Ok(terminal_interpreter::TerminalEffectResult::Scalar(
+            TerminalScalarValue::Boolean(true),
+        ))
     }
 }
 

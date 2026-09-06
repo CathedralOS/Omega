@@ -135,9 +135,9 @@ fn type_reference_contains_dynamic_trait(
     }
 }
 
-/// Free scalar initializers use checked computation lowering, which retains
-/// nested results before invoking their consumer. Other value destinations keep
-/// the older realization fence until they use that same evaluation path.
+/// Free scalar initializers and the first immutable result call in a Unit body
+/// retain nested operands through checked computation lowering. Other value
+/// destinations keep the realization fence until they use that evaluation path.
 pub(crate) fn report_nested_call_in_local_initializer(
     program: &TypedTrees,
     machine: &Machine,
@@ -145,13 +145,122 @@ pub(crate) fn report_nested_call_in_local_initializer(
     value: ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if free_scalar_computation_call(program, machine, value) {
+    if free_scalar_computation_call(program, machine, value)
+        || unit_result_initializer_call_is_supported(program, machine, value)
+    {
         // This exempts a destination, not its semantics. Ordinary call checks
         // still validate every argument; unsupported computation nodes or call
         // custody fail lowering before any Terminal artifact can be published.
         return;
     }
     report_nested_call_in_bound_value_call(program, machine, state_name, value, diagnostics);
+}
+
+/// Source-family eligibility for the existing Unit result-local call path.
+/// Typing and ordinary call validation still own result, argument and contract
+/// compatibility; this predicate does not supply those semantic judgments.
+pub fn unit_result_initializer_call_is_supported(
+    program: &TypedTrees,
+    machine: &Machine,
+    value: ExpressionHandle,
+) -> bool {
+    let [state] = program.machine_states(machine) else {
+        return false;
+    };
+    if !unit_type(program, state.return_type)
+        || !program.expression_table.expression_is_valid(value)
+    {
+        return false;
+    }
+    let Some(StatementNode::LocalData(local)) = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .first()
+    else {
+        return false;
+    };
+    if local.is_mutable || local.initial_value != value {
+        return false;
+    }
+    let ExpressionNode::Call(call) = program.expression_table.expression(value) else {
+        return false;
+    };
+    if !call.target_symbol.is_valid()
+        || !call.machine_arguments.is_empty()
+        || !call.evidence_arguments.is_empty()
+        || call.static_requirement_dispatch.is_some()
+        || call.quotient_operation.is_some()
+        || call.private_layout_operation.is_some()
+    {
+        return false;
+    }
+    let mut targets = program.machines().iter().filter_map(|owner| {
+        let entry = program.machine_states(owner).first()?;
+        (entry.symbol == call.target_symbol).then_some((owner, entry))
+    });
+    if let Some((owner, target)) = targets.next() {
+        return targets.next().is_none()
+            && program.call_has_no_runtime_receiver(call, owner, target)
+            && !unit_type(program, target.return_type)
+            && (owner.supply_mode.is_boundary_declaration()
+                || (program
+                    .primitive_type_reference(local.type_reference)
+                    .is_some()
+                    && program
+                        .primitive_type_reference(target.return_type)
+                        .is_some()));
+    }
+
+    let selected_parameter = program.machine_parameter_signature(call.target_symbol);
+    let requirement = match selected_parameter {
+        Some((owner, signature)) if owner.symbol == machine.symbol => signature.symbol,
+        Some(_) => return false,
+        None => call.target_symbol,
+    };
+    let mut requirements = program
+        .traits()
+        .iter()
+        .filter(|definition| definition.is_boundary)
+        .flat_map(|definition| {
+            program
+                .trait_machine_signatures(definition)
+                .iter()
+                .filter(move |signature| signature.symbol == requirement)
+                .map(move |signature| (definition, signature))
+        });
+    let Some((definition, signature)) = requirements.next() else {
+        return false;
+    };
+    if requirements.next().is_some()
+        || unit_type(program, signature.return_type)
+        || program
+            .state_signature_parameters(signature)
+            .iter()
+            .any(|parameter| parameter.is_self)
+    {
+        return false;
+    }
+    if selected_parameter.is_some() {
+        return !call.receiver.is_valid();
+    }
+    program.expression_table.expression_is_valid(call.receiver)
+        && matches!(program.expression_table.expression(call.receiver),
+            ExpressionNode::Name(path) if path.symbol == definition.symbol)
+}
+
+fn unit_type(
+    program: &TypedTrees,
+    mut type_reference: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    loop {
+        match program.type_reference_table.type_reference(type_reference) {
+            typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                type_reference = *base_type
+            }
+            typed_trees::types::TypeReferenceNode::Unit => return true,
+            _ => return false,
+        }
+    }
 }
 
 /// Only an exact mutable scalar local is an assignment computation destination.

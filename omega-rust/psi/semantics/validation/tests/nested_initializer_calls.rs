@@ -91,7 +91,7 @@ fn unserved_assignment_destinations_keep_nested_call_realization_fence() {
 }
 
 #[test]
-fn attached_and_unit_initializers_keep_nested_call_realization_fence() {
+fn unserved_initializers_keep_nested_call_realization_fence() {
     for source in [
         "data Container { flag: bool; }
          machine Container::identity(&self, input: bool) -> bool { input }
@@ -101,8 +101,29 @@ fn attached_and_unit_initializers_keep_nested_call_realization_fence() {
          }",
         "machine identity(input: bool) -> bool { input }
          machine value(input: bool) {
-             let saved: bool = identity(identity(input));
+             let mut saved: bool = identity(identity(input));
          }",
+        "machine identity(input: bool) -> bool { input }
+         machine value(input: bool) {
+             let before: bool = input;
+             let saved: bool = identity(identity(before));
+         }",
+        "data Container { flag: bool; }
+         machine identity(input: bool) -> bool { input }
+         machine Container::read(&self, input: bool) -> bool { input }
+         machine value(container: &Container, input: bool) {
+             let saved: bool = container.read(identity(input));
+         }",
+        "data Packet { flag: bool; }
+         machine identity(input: bool) -> bool { input }
+         machine packet(input: bool) -> Packet { Packet { flag: input } }
+         machine value(input: bool) {
+             let saved: Packet = packet(identity(input));
+         }",
+        "machine identity(input: bool) -> bool { input }
+         machine value<machine Read>(input: bool)
+         where machine Read(value: bool) -> bool;
+         { let saved: bool = Read(identity(input)); }",
     ] {
         let diagnostics = diagnostics(source);
         assert!(
@@ -110,6 +131,79 @@ fn attached_and_unit_initializers_keep_nested_call_realization_fence() {
                 .iter()
                 .any(|message| message
                     .contains("value-call argument cannot itself be a machine call")),
+            "{source}: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn first_immutable_unit_result_initializers_admit_computed_scalar_operands() {
+    for source in [
+        "machine identity(input: bool) -> bool { input }
+         machine value(input: bool) {
+             let saved: bool = identity(identity(input));
+         }",
+        "data Scalar {}
+         machine identity(input: bool) -> bool { input }
+         machine Scalar::read(input: bool) -> bool { input }
+         data Root {}
+         machine Root::value(&mut self, input: bool) {
+             let saved: bool = Scalar::read(identity(input));
+         }",
+        "pub data Host {}
+         machine identity(input: bool) -> bool { input }
+         boundary machine Host::read(input: bool) -> bool;
+         machine value(input: bool) {
+             let saved: bool = Host::read(identity(input));
+         }",
+        "boundary trait Host { machine read(input: bool) -> bool reaches Host; }
+         machine identity(input: bool) -> bool { input }
+         machine value(input: bool) reaches Host {
+             let saved: bool = Host::read(identity(input));
+         }",
+        "pub data Packet { flag: bool; }
+         boundary trait Host { machine read(input: bool) -> Packet reaches Host; }
+         machine identity(input: bool) -> bool { input }
+         machine value(input: bool) reaches Host {
+             let saved: Packet = Host::read(identity(input));
+         }",
+    ] {
+        let diagnostics = diagnostics(source);
+        assert!(diagnostics.is_empty(), "{source}: {diagnostics:?}");
+    }
+}
+
+#[test]
+fn nominal_boundary_parameter_result_initializers_keep_exact_requirement_eligibility() {
+    for (declaration, result) in [("", "bool"), ("pub data Packet { flag: bool; }", "Packet")] {
+        let source = format!(
+            "{declaration}
+             boundary trait Host {{ machine read(input: bool) -> {result} reaches Host; }}
+             machine identity(input: bool) -> bool {{ input }}
+             machine value<machine Read>(input: bool)
+             where machine Read satisfies Host::read;
+             reaches Host {{
+                 let saved: {result} = Read(identity(input));
+             }}"
+        );
+        let diagnostics = diagnostics(&source);
+        assert!(diagnostics.is_empty(), "{source}: {diagnostics:?}");
+    }
+}
+
+#[test]
+fn unit_result_initializer_operands_still_validate_arity_and_types() {
+    for (argument, expected) in [
+        ("identity()", "expects 1 argument"),
+        ("identity(7)", "bool"),
+    ] {
+        let source = format!(
+            "machine identity(input: bool) -> bool {{ input }}
+             machine value(input: bool) {{ let saved: bool = identity({argument}); }}"
+        );
+        let diagnostics = diagnostics(&source);
+        assert!(
+            diagnostics.iter().any(|message| message.contains(expected)),
             "{source}: {diagnostics:?}"
         );
     }

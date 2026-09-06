@@ -157,7 +157,7 @@ impl TerminalEffectHandler for ObserveArguments {
     fn handle_effect_result(
         &mut self,
         effect: &TerminalEffect,
-    ) -> Result<Option<TerminalScalarValue>, TerminalEffectRejection> {
+    ) -> Result<terminal_interpreter::TerminalEffectResult, TerminalEffectRejection> {
         self.handle_effect(effect)?;
         let TerminalEffect::BoundaryCall {
             arguments, result, ..
@@ -166,8 +166,12 @@ impl TerminalEffectHandler for ObserveArguments {
             unreachable!();
         };
         Ok(match result {
-            terminal_psi::BoundaryMachineResult::Scalar(_) => Some(arguments[1]),
-            terminal_psi::BoundaryMachineResult::Unit => None,
+            terminal_psi::BoundaryMachineResult::Scalar(_) => {
+                terminal_interpreter::TerminalEffectResult::Scalar(arguments[1])
+            }
+            terminal_psi::BoundaryMachineResult::Unit => {
+                terminal_interpreter::TerminalEffectResult::Unit
+            }
             _ => panic!("scalar or Unit boundary result"),
         })
     }

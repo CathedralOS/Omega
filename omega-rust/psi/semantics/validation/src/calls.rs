@@ -29,6 +29,7 @@ mod write_frames;
 
 use argument_bounds::report_argument_bounds;
 use expression_scanning::receiver_member_chain;
+pub use expression_scanning::unit_result_initializer_call_is_supported;
 pub(crate) use expression_scanning::{
     declared_receiver_type_reference, report_local_receiver_value_call,
     report_nested_call_in_local_assignment, report_nested_call_in_local_initializer,
