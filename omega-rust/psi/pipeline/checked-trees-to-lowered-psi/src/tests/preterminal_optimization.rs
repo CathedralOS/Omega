@@ -5,8 +5,8 @@ use optimization::{PsiOptimization, PsiOptimizationSelections};
 
 #[test]
 fn empty_selection_executes_validated_identity_before_publication() {
-    let lowered = lower_machine(&hard_root_checked_fixture(), "example::Root::enter")
-        .expect("fixture lowers");
+    let lowered =
+        lower_machine(&hard_root_checked_fixture(), "Root::enter").expect("fixture lowers");
     let expected = lowered.clone();
     let selections = PsiOptimizationSelections::default();
     let selection_identity = selections.identity();
@@ -44,8 +44,8 @@ fn empty_selection_executes_validated_identity_before_publication() {
 
 #[test]
 fn every_unported_nonempty_selection_fails_closed() {
-    let lowered = lower_machine(&hard_root_checked_fixture(), "example::Root::enter")
-        .expect("fixture lowers");
+    let lowered =
+        lower_machine(&hard_root_checked_fixture(), "Root::enter").expect("fixture lowers");
 
     for optimization in PsiOptimization::ALL {
         if optimization == PsiOptimization::DeadPureScalarElimination {
@@ -209,8 +209,8 @@ fn dead_scalar_selection_preserves_proof_questions_and_rejects_unchecked_context
 
 #[test]
 fn invalid_input_fails_before_selected_rule_dispatch() {
-    let mut lowered = lower_machine(&hard_root_checked_fixture(), "example::Root::enter")
-        .expect("fixture lowers");
+    let mut lowered =
+        lower_machine(&hard_root_checked_fixture(), "Root::enter").expect("fixture lowers");
     lowered.semantic_module.machines.clear();
     let selections = PsiOptimizationSelections::new([PsiOptimization::ControlFlowCleanup]).unwrap();
 
@@ -224,7 +224,7 @@ fn invalid_input_fails_before_selected_rule_dispatch() {
 
 #[test]
 fn dead_scalar_check_keeps_effects_and_rejects_their_removal_or_reordering() {
-    let lowered = lower_machine(&hard_root_checked_fixture(), "example::Root::enter").unwrap();
+    let lowered = lower_machine(&hard_root_checked_fixture(), "Root::enter").unwrap();
     let optimized = run_psi_optimization(
         lowered.clone(),
         PsiOptimizationSelections::new([PsiOptimization::DeadPureScalarElimination]).unwrap(),

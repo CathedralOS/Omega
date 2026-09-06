@@ -21,6 +21,7 @@ mod fact_call_projections;
 mod float_projection_bindings;
 mod float_projection_invocations;
 mod immutable_integer_bounds;
+mod intrinsic_boundaries;
 mod invocations;
 mod literals;
 mod locals;
@@ -50,6 +51,8 @@ mod transitions;
 mod type_references;
 mod wire;
 mod write_only_borrows;
+
+pub use intrinsic_boundaries::exact_compiler_intrinsic_boundary_requirement;
 
 pub use crate::call_cycles::{
     ValidatedProofRankingRelation, ValidatedProofRecursiveCallSite,

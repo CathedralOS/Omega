@@ -382,6 +382,12 @@ pub(super) fn lower_attached_unit_closure_including(
         }
         validate_unit_operation_sequence(machine)?;
         for operation in &machine.operations {
+            crate::call_source_custody::validate_operation(
+                checked,
+                machine.machine,
+                machine.state,
+                operation,
+            )?;
             match operation {
                 CheckedUnitEffectOperationPlan::CallUnit {
                     target_machine,
@@ -459,36 +465,6 @@ pub(super) fn lower_attached_unit_closure_including(
                     {
                         return unsupported(
                             "ordinary Unit scalar call disagrees with its checked target signature, contract, or reach",
-                        );
-                    }
-                    let exact_arguments = scalar_arguments.iter().enumerate().all(
-                        |(argument_ordinal, argument)| {
-                            u32::try_from(argument_ordinal).ok().is_some_and(|argument_ordinal| {
-                                let matches = checked
-                                    .facts
-                                    .values
-                                    .scalar_expressions
-                                    .expressions
-                                    .iter()
-                                    .filter(|candidate| {
-                                        candidate.state == machine.state
-                                            && candidate.statement_ordinal
-                                                == coordinate.statement_index
-                                            && candidate.role
-                                                == checked_trees::CheckedScalarExpressionRole::UnitCallArgument {
-                                                    call_ordinal: coordinate.call_ordinal,
-                                                    argument_ordinal,
-                                                }
-                                    })
-                                    .collect::<Vec<_>>();
-                                matches!(matches.as_slice(), [candidate]
-                                    if &candidate.expression == argument)
-                            })
-                        },
-                    );
-                    if !exact_arguments {
-                        return unsupported(
-                            "ordinary Unit scalar call arguments drifted from checked value facts",
                         );
                     }
                     if !checked

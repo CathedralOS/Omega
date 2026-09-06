@@ -3448,289 +3448,37 @@ fn unit_claim_at(
     }
 }
 
-fn unit_claim(machine: SymbolHandle, state: SymbolHandle) -> PermissionClaimIdentity {
-    unit_claim_at(machine, state, 0)
-}
-
 fn hard_root_checked_fixture() -> CheckedTrees {
-    let root = SymbolHandle::from_arena_index(1);
-    let helper = SymbolHandle::from_arena_index(2);
-    let boundary = SymbolHandle::from_arena_index(3);
-    let root_state = SymbolHandle::from_arena_index(11);
-    let helper_state = SymbolHandle::from_arena_index(12);
-    let boundary_state = SymbolHandle::from_arena_index(13);
-    let port_service_symbol = SymbolHandle::from_arena_index(20);
-    let domain = SemanticDomainId(9);
+    checked_source(
+        r#"
+        boundary trait PortIo {}
+        pub data Evidence { case Only; }
+        pub data Acknowledgement [linear] {
+            sequence: u64;
+        }
+        pub domain Acknowledgement::Pending;
 
-    let mut checked = CheckedTrees::default();
-    let port_service = checked
-        .facts
-        .service_reaches
-        .services
-        .intern(port_service_symbol, "PortIo");
-    let empty_reach = checked.facts.service_reaches.rows.intern(Vec::new());
-    assert_eq!(
-        empty_reach,
-        language_semantics::ServiceReachRowTable::EMPTY_ROW
-    );
-    let port_reach = checked
-        .facts
-        .service_reaches
-        .rows
-        .intern(vec![port_service]);
-    let reach = ServiceReachSummary {
-        direct: port_reach,
-        transitive: port_reach,
-    };
-    let contract_reach = ServiceReachPlan {
-        interface: ServiceReachInterface::PublishedCeiling(port_reach),
-        checked_inferred: port_reach,
-    };
-    checked.facts.service_reaches.machines.append_to_span(
-        &mut checked.facts.service_reaches.root_machines,
-        checked_trees::MachineServiceReachRows {
-            machine: root,
-            interface: ServiceReachInterface::PublishedCeiling(port_reach),
-            published_ceiling: port_reach,
-            inferred_direct: port_reach,
-            inferred_transitive: port_reach,
-            effective: port_reach,
-            concrete_effective: port_reach,
-            ..Default::default()
-        },
-    );
-    checked.facts.flow.terminal_machines = checked_trees::CheckedTerminalMachineSelections {
-        machines: vec![
-            CheckedTerminalMachineSelection {
-                machine: root,
-                name: "example::Root::enter".to_owned(),
-                signature: CheckedTerminalSignatureEligibility::Attached,
-            },
-            CheckedTerminalMachineSelection {
-                machine: helper,
-                name: "example::Helper::run".to_owned(),
-                signature: CheckedTerminalSignatureEligibility::Attached,
-            },
-            CheckedTerminalMachineSelection {
-                machine: boundary,
-                name: "example::Acknowledgement::settle".to_owned(),
-                signature: CheckedTerminalSignatureEligibility::Attached,
-            },
-        ],
-    };
-    let structural_parameter = |position| checked_trees::CheckedUnitStructuralParameterPlan {
-        position,
-        is_self: false,
-        type_identity: "example::Acknowledgement".to_owned(),
-        multiplicity: Multiplicity::Linear,
-        access: checked_trees::CheckedStructuralAccess::Owned,
-        qualifications: vec![domain],
-        fused_service_erasure: None,
-    };
-    let entry_claim = |machine, state| checked_trees::CheckedUnitEntryClaimPlan {
-        claim_identity: unit_claim(machine, state),
-        parameter_index: 0,
-        path: Vec::new(),
-        carry: CarryPolicy::STRICT,
-    };
-    checked.facts.flow.terminal_unit_effects = checked_trees::CheckedUnitEffectPlans {
-        structural_types: vec![
-            checked_trees::CheckedUnitStructuralTypePlan {
-                identity: "example::Acknowledgement".to_owned(),
-                shape: CheckedUnitStructuralTypeShape::Record {
-                    fields: vec![
-                        checked_trees::CheckedUnitStructuralFieldPlan {
-                            identity: "sequence".to_owned(),
-                            relevance: terminal_psi::BindingRelevance::Relevant,
-                            field_type: CheckedUnitStructuralFieldType::Scalar(PrimitiveType::U64),
-                        },
-                        checked_trees::CheckedUnitStructuralFieldPlan {
-                            identity: "proof".to_owned(),
-                            relevance: terminal_psi::BindingRelevance::Erased,
-                            field_type: CheckedUnitStructuralFieldType::Erased {
-                                type_identity: "named(name(example::Evidence))".to_owned(),
-                            },
-                        },
-                    ],
-                },
-            },
-            checked_trees::CheckedUnitStructuralTypePlan {
-                identity: "example::Helper".to_owned(),
-                shape: CheckedUnitStructuralTypeShape::Record { fields: Vec::new() },
-            },
-            checked_trees::CheckedUnitStructuralTypePlan {
-                identity: "example::Root".to_owned(),
-                shape: CheckedUnitStructuralTypeShape::Record { fields: Vec::new() },
-            },
-        ],
-        structural_domains: vec![checked_trees::CheckedUnitStructuralDomainPlan {
-            domain,
-            identity: "example::Acknowledgement::Pending".to_owned(),
-            carrier_type_identity: "example::Acknowledgement".to_owned(),
-        }],
-        boundary_machines: vec![CheckedBoundaryMachinePlan {
-            machine: boundary,
-            state: boundary_state,
-            contract_owner: boundary,
-            attachment_type_identity: Some("example::Acknowledgement".to_owned()),
-            structural_parameters: vec![checked_trees::CheckedUnitStructuralParameterPlan {
-                is_self: true,
-                ..structural_parameter(0)
-            }],
-            scalar_parameters: Vec::new(),
-            result: CheckedBoundaryMachineResultPlan::Unit,
-            domain_requirements: vec![
-                checked_trees::CheckedUnitStructuralDomainRequirementPlan {
-                    argument_index: 0,
-                    domain,
-                },
-            ],
-            contract_report_fingerprint: 0x303,
-            contract_commitment: checked_trees::MachineContractCommitment::from_digest(
-                [0x03; 32],
-            ),
-            contract_service_reach: contract_reach,
-            service_reach: reach,
-        }],
-        dynamic_dispatch: checked_trees::CheckedDynamicDispatchPlans::default(),
-        composed_machines: Vec::new(),
-        machines: vec![
-            CheckedUnitEffectMachinePlan {
-                machine: root,
-                state: root_state,
-                attachment_type_identity: Some("example::Root".to_owned()),
-                structural_parameters: vec![structural_parameter(7)],
-                scalar_parameters: Vec::new(),
-                provider_attachment_requirements: Vec::new(),
-                trivial_affine_locals: Vec::new(),
-                entry_claims: vec![entry_claim(root, root_state)],
-                body_qualifications: vec![domain],
-                contract_report_fingerprint: 0x101,
-                contract_commitment: checked_trees::MachineContractCommitment::from_digest(
-                    [0x01; 32],
-                ),
-                contract_service_reach: contract_reach,
-                service_reach: reach,
-                operations: vec![
-                    CheckedUnitEffectOperationPlan::CallUnit {
-                        coordinate: checked_trees::CheckedUnitCallCoordinate {
-                            statement_index: 0,
-                            call_ordinal: 0,
-                        },
-                        target_machine: helper,
-                        target_state: helper_state,
-                        target_contract_report_fingerprint: 0x202,
-                        scalar_arguments: Vec::new(),
-                        service_reach: reach,
-                        structural_arguments: vec![
-                            checked_trees::CheckedUnitStructuralArgumentPlan {
-                                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                                    parameter_index: 0,
-                                },
-                                type_identity: "example::Acknowledgement".to_owned(),
-                                access: checked_trees::CheckedStructuralAccess::Owned,
-                                path: Vec::new(),
-                            },
-                        ],
-                        claim_transfers: vec![checked_trees::CheckedUnitClaimTransferPlan {
-                            claim_identity: unit_claim(root, root_state),
-                            argument_index: 0,
-                        }],
-                    },
-                    CheckedUnitEffectOperationPlan::ReturnUnit {
-                        statement_index: 1,
-                        trivial_affine_local_discard_ordinals: Vec::new(),
-                        trivial_affine_discards: Vec::new(),
-                    },
-                ],
-            },
-            CheckedUnitEffectMachinePlan {
-                machine: helper,
-                state: helper_state,
-                attachment_type_identity: Some("example::Helper".to_owned()),
-                structural_parameters: vec![structural_parameter(3)],
-                scalar_parameters: Vec::new(),
-                provider_attachment_requirements: Vec::new(),
-                trivial_affine_locals: Vec::new(),
-                entry_claims: vec![entry_claim(helper, helper_state)],
-                body_qualifications: vec![domain],
-                contract_report_fingerprint: 0x202,
-                contract_commitment: checked_trees::MachineContractCommitment::from_digest(
-                    [0x02; 32],
-                ),
-                contract_service_reach: contract_reach,
-                service_reach: reach,
-                operations: vec![
-                    CheckedUnitEffectOperationPlan::PortWrite {
-                        coordinate: checked_trees::CheckedUnitCallCoordinate {
-                            statement_index: 0,
-                            call_ordinal: 0,
-                        },
-                        port: 0x3f8,
-                        value: 0x5a,
-                        service_reach: reach,
-                    },
-                    CheckedUnitEffectOperationPlan::BoundaryCall {
-                        coordinate: checked_trees::CheckedUnitCallCoordinate {
-                            statement_index: 1,
-                            call_ordinal: 0,
-                        },
-                        source_site: None,
-                        target_machine: boundary,
-                        target_state: boundary_state,
-                        target_contract_report_fingerprint: 0x303,
-                        service_reach: reach,
-                        scalar_arguments: Vec::new(),
-                        structural_arguments: vec![
-                            checked_trees::CheckedUnitStructuralArgumentPlan {
-                                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                                    parameter_index: 0,
-                                },
-                                type_identity: "example::Acknowledgement".to_owned(),
-                                access: checked_trees::CheckedStructuralAccess::Owned,
-                                path: Vec::new(),
-                            },
-                        ],
-                        completion_receipts: vec![
-                            checked_trees::CheckedUnitClaimTransferPlan {
-                                claim_identity: unit_claim(helper, helper_state),
-                                argument_index: 0,
-                            },
-                        ],
-                    },
-                    CheckedUnitEffectOperationPlan::ReturnUnit {
-                        statement_index: 2,
-                        trivial_affine_local_discard_ordinals: Vec::new(),
-                        trivial_affine_discards: Vec::new(),
-                    },
-                ],
-            },
-        ],
-    };
-    checked.facts.contract_plans.machines = vec![
-        checked_trees::MachineContractPlan {
-            machine: root,
-            closed_scalar_values: Default::default(),
-            crash: Default::default(),
-            report_fingerprint: 0x101,
-            commitment: checked_trees::MachineContractCommitment::from_digest([0x01; 32]),
-        },
-        checked_trees::MachineContractPlan {
-            machine: helper,
-            closed_scalar_values: Default::default(),
-            crash: Default::default(),
-            report_fingerprint: 0x202,
-            commitment: checked_trees::MachineContractCommitment::from_digest([0x02; 32]),
-        },
-        checked_trees::MachineContractPlan {
-            machine: boundary,
-            closed_scalar_values: Default::default(),
-            crash: Default::default(),
-            report_fingerprint: 0x303,
-            commitment: checked_trees::MachineContractCommitment::from_digest([0x03; 32]),
-        },
-    ];
-    checked
+        boundary machine Acknowledgement::settle(self)
+        reaches PortIo
+        requires self in Acknowledgement::Pending
+        ensures true;
+
+        data Root { proof [erased]: Evidence; }
+        machine Root::enter(acknowledgement: Acknowledgement in Pending)
+        reaches PortIo
+        {
+            Helper::run(acknowledgement);
+        }
+
+        pub data Helper {}
+        machine Helper::run(acknowledgement: Acknowledgement in Pending)
+        reaches PortIo
+        {
+            asm { out 1016, 90 }
+            acknowledgement.settle();
+        }
+        "#,
+    )
 }
 
 fn source_projection(

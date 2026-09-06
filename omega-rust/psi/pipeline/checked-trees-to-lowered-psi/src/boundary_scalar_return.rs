@@ -6,6 +6,12 @@ pub(super) fn lower_boundary_scalar_return_machine(
     checked: &CheckedTrees,
     plan: &CheckedBoundaryScalarReturnMachinePlan,
 ) -> Result<LoweredPsi, LoweringError> {
+    crate::call_source_custody::validate_operation(
+        checked,
+        plan.machine,
+        plan.state,
+        &plan.boundary_call,
+    )?;
     let plans = &checked.facts.flow.terminal_boundary_scalar_returns;
     let CheckedUnitEffectOperationPlan::BoundaryCall {
         coordinate,

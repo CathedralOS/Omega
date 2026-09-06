@@ -10,6 +10,7 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
     plans: &'a checked_trees::CheckedUnitEffectPlans,
     targets: &mut Vec<(&'a checked_trees::CheckedUnitEffectMachinePlan, String)>,
 ) -> Result<(), LoweringError> {
+    crate::call_source_custody::validate_operation(checked, root, state.state, operation)?;
     let CheckedUnitEffectOperationPlan::CallUnit {
         coordinate,
         target_machine,
@@ -154,6 +155,14 @@ fn validate_target<'a>(
         }
     };
     validate_unit_operation_sequence(target)?;
+    if let Some(call) = nested_call {
+        crate::call_source_custody::validate_operation(
+            checked,
+            target.machine,
+            target.state,
+            call,
+        )?;
+    }
     let contract = checked
         .facts
         .contract_plans

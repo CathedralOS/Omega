@@ -8,16 +8,14 @@ use checked_trees::statement::{
 
 pub(super) mod direct_calls;
 
-pub(super) struct SourceRoot<'a> {
+pub(super) struct SourceRoot {
     pub machine: symbols::SymbolHandle,
     pub expression: ExpressionHandle,
     pub destination: symbols::SymbolHandle,
     pub primitive_type: PrimitiveType,
-    state: &'a checked_trees::state::State,
-    preceding: &'a [StatementNode],
 }
 
-fn authored_state(
+pub(crate) fn authored_state(
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
 ) -> Result<
@@ -50,7 +48,7 @@ pub(super) fn locate(
     state: symbols::SymbolHandle,
     statement: u32,
     role: CheckedScalarExpressionRole,
-) -> Result<SourceRoot<'_>, LoweringError> {
+) -> Result<SourceRoot, LoweringError> {
     let program = &checked.typed;
     let (machine, state) = authored_state(checked, state)?;
     let statements = program.statement_table.statements(state.statement_nodes);
@@ -217,8 +215,6 @@ pub(super) fn locate(
         expression,
         destination,
         primitive_type,
-        state,
-        preceding,
     })
 }
 
@@ -241,9 +237,24 @@ pub(super) fn validate_pure(
             "pure scalar plan disagrees with its authored expression or destination",
         );
     }
+    validate_namespace(checked, binding)
+}
+
+pub(crate) fn validate_namespace(
+    checked: &CheckedTrees,
+    binding: &checked_trees::CheckedScalarExpressionBindings,
+) -> Result<(), LoweringError> {
     let program = &checked.typed;
+    let (_, state) = authored_state(checked, binding.state)?;
+    let preceding = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(..binding.statement_ordinal as usize)
+        .ok_or(LoweringError::Unsupported(
+            "scalar source custody has no authored statement prefix",
+        ))?;
     let expected = program
-        .state_parameters(source.state)
+        .state_parameters(state)
         .iter()
         .filter(|parameter| {
             program
@@ -251,7 +262,7 @@ pub(super) fn validate_pure(
                 .is_some()
         })
         .map(|parameter| parameter.symbol)
-        .chain(source.preceding.iter().filter_map(|statement| {
+        .chain(preceding.iter().filter_map(|statement| {
             match statement {
                 StatementNode::LocalData(local)
                     if !local.is_mutable

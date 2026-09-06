@@ -72,6 +72,35 @@ pub(crate) fn build_checked_scalar_expression_plans(
                 };
                 match statement {
                     StatementNode::LocalData(local) if local.initial_value.is_valid() => {
+                        if !local.is_mutable
+                            && let ExpressionNode::Call(call) =
+                                program.expression_table.expression(local.initial_value)
+                            && let Some(arguments) = lower_boundary_call_arguments(
+                                program,
+                                operators,
+                                state,
+                                statement_ordinal,
+                                0,
+                                &crate::CallSite::Expression {
+                                    expression: local.initial_value,
+                                    call,
+                                },
+                                &scalar_parameters,
+                                &parameter_types,
+                                &locals,
+                                exact_integer_casts,
+                                true,
+                            )
+                        {
+                            retain_call_arguments(
+                                arguments,
+                                &scalar_parameters,
+                                &locals,
+                                &mut expressions,
+                                &mut source_bindings,
+                                &mut binding_symbols,
+                            );
+                        }
                         let Some(primitive_type) =
                             program.primitive_type_reference(local.type_reference)
                         else {
@@ -91,28 +120,6 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 CheckedScalarExpressionRole::LocalInitializer { binding_ordinal }
                             };
                             if !local.is_mutable
-                                && let ExpressionNode::Call(call) =
-                                    program.expression_table.expression(local.initial_value)
-                                && let Some(arguments) = lower_boundary_call_arguments(
-                                    program,
-                                    operators,
-                                    state,
-                                    statement_ordinal,
-                                    0,
-                                    &crate::CallSite::Expression {
-                                        expression: local.initial_value,
-                                        call,
-                                    },
-                                    &scalar_parameters,
-                                    &parameter_types,
-                                    &locals,
-                                    exact_integer_casts,
-                                    true,
-                                )
-                            {
-                                expressions.extend(arguments);
-                            }
-                            if !local.is_mutable
                                 && let Some(arguments) = lower_direct_call_binding_arguments(
                                     program,
                                     operators,
@@ -126,27 +133,14 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                     exact_integer_casts,
                                 )
                             {
-                                for (authored_argument, argument) in arguments {
-                                    source_bindings.append(CheckedScalarExpressionBindings {
-                                        destination: symbols::SymbolHandle::invalid(),
-                                        state: state.symbol,
-                                        statement_ordinal,
-                                        role: argument.role,
-                                        expression: authored_argument,
-                                        symbols: binding_symbols.insert_many(
-                                            scalar_parameters
-                                                .iter()
-                                                .map(|parameter| parameter.symbol)
-                                                .chain(
-                                                    locals
-                                                        .iter()
-                                                        .filter(|local| !local.is_mutable)
-                                                        .map(|local| local.symbol),
-                                                ),
-                                        ),
-                                    });
-                                    expressions.push(argument);
-                                }
+                                retain_call_arguments(
+                                    arguments,
+                                    &scalar_parameters,
+                                    &locals,
+                                    &mut expressions,
+                                    &mut source_bindings,
+                                    &mut binding_symbols,
+                                );
                             } else if let Some(initializer) = lower_return_expression(
                                 program,
                                 operators,
@@ -232,7 +226,14 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 false,
                             )
                         {
-                            expressions.extend(arguments);
+                            retain_call_arguments(
+                                arguments,
+                                &scalar_parameters,
+                                &locals,
+                                &mut expressions,
+                                &mut source_bindings,
+                                &mut binding_symbols,
+                            );
                         }
                         if let Some(result_type) = result_type
                             && let Some(return_expression) = lower_return_expression(
@@ -347,7 +348,14 @@ pub(crate) fn build_checked_scalar_expression_plans(
                             exact_integer_casts,
                             true,
                         ) {
-                            expressions.extend(arguments);
+                            retain_call_arguments(
+                                arguments,
+                                &scalar_parameters,
+                                &locals,
+                                &mut expressions,
+                                &mut source_bindings,
+                                &mut binding_symbols,
+                            );
                         }
                     }
                     StatementNode::Transition(transition) => {
@@ -602,6 +610,34 @@ fn assignment_target_primitive_type(
     }
 }
 
+fn retain_call_arguments(
+    arguments: Vec<(ExpressionHandle, CheckedLocatedScalarExpression)>,
+    parameters: &[StateParameter],
+    locals: &[ScalarLocal],
+    expressions: &mut Vec<CheckedLocatedScalarExpression>,
+    source_bindings: &mut arena::Arena<CheckedScalarExpressionBindings>,
+    binding_symbols: &mut arena::Arena<symbols::SymbolHandle>,
+) {
+    for (authored_argument, argument) in arguments {
+        source_bindings.append(CheckedScalarExpressionBindings {
+            destination: symbols::SymbolHandle::invalid(),
+            state: argument.state,
+            statement_ordinal: argument.statement_ordinal,
+            role: argument.role,
+            expression: authored_argument,
+            symbols: binding_symbols.insert_many(
+                parameters.iter().map(|parameter| parameter.symbol).chain(
+                    locals
+                        .iter()
+                        .filter(|local| !local.is_mutable)
+                        .map(|local| local.symbol),
+                ),
+            ),
+        });
+        expressions.push(argument);
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn lower_boundary_call_arguments(
     program: &TypedTrees,
@@ -615,25 +651,30 @@ fn lower_boundary_call_arguments(
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
     admit_internal_unit: bool,
-) -> Option<Vec<CheckedLocatedScalarExpression>> {
+) -> Option<Vec<(ExpressionHandle, CheckedLocatedScalarExpression)>> {
     let target_symbol = match call_site {
         crate::CallSite::Statement(call) => call.target_symbol,
         crate::CallSite::Expression { call, .. } => call.target_symbol,
         crate::CallSite::TransitionNamed { .. } => return None,
     };
-    let is_boundary = program.machines().iter().any(|machine| {
-        machine.supply_mode.is_boundary_declaration()
-            && program
-                .machine_states(machine)
-                .iter()
-                .any(|candidate| candidate.symbol == target_symbol)
-    }) || program.traits().iter().any(|definition| {
-        definition.is_boundary
-            && program
-                .trait_machine_signatures(definition)
-                .iter()
-                .any(|signature| signature.symbol == target_symbol)
-    });
+    let requirement_symbol = program
+        .machine_parameter_signature(target_symbol)
+        .map_or(target_symbol, |(_, signature)| signature.symbol);
+    let is_boundary =
+        program.machines().iter().any(|machine| {
+            machine.supply_mode.is_boundary_declaration()
+                && program
+                    .machine_states(machine)
+                    .iter()
+                    .any(|candidate| candidate.symbol == target_symbol)
+        }) || program.traits().iter().any(|definition| {
+            definition.is_boundary
+                && program
+                    .trait_machine_signatures(definition)
+                    .iter()
+                    .any(|signature| signature.symbol == requirement_symbol)
+        }) || validation::exact_compiler_intrinsic_boundary_requirement(program, target_symbol)
+            .is_some();
     if !is_boundary && !admit_internal_unit {
         return None;
     }
@@ -670,22 +711,25 @@ fn lower_boundary_call_arguments(
             expected_type,
             exact_integer_casts,
         );
-        output.push(CheckedLocatedScalarExpression {
-            state: state.symbol,
-            statement_ordinal,
-            role: if is_boundary {
-                CheckedScalarExpressionRole::BoundaryCallArgument {
-                    call_ordinal: u32::try_from(call_ordinal).ok()?,
-                    argument_ordinal: u32::try_from(scalar_index).ok()?,
-                }
-            } else {
-                CheckedScalarExpressionRole::UnitCallArgument {
-                    call_ordinal: u32::try_from(call_ordinal).ok()?,
-                    argument_ordinal: u32::try_from(scalar_index).ok()?,
-                }
+        output.push((
+            argument,
+            CheckedLocatedScalarExpression {
+                state: state.symbol,
+                statement_ordinal,
+                role: if is_boundary {
+                    CheckedScalarExpressionRole::BoundaryCallArgument {
+                        call_ordinal: u32::try_from(call_ordinal).ok()?,
+                        argument_ordinal: u32::try_from(scalar_index).ok()?,
+                    }
+                } else {
+                    CheckedScalarExpressionRole::UnitCallArgument {
+                        call_ordinal: u32::try_from(call_ordinal).ok()?,
+                        argument_ordinal: u32::try_from(scalar_index).ok()?,
+                    }
+                },
+                expression: lowered?,
             },
-            expression: lowered?,
-        });
+        ));
         scalar_index = scalar_index.checked_add(1)?;
     }
     (explicit_index == explicit_arguments.len()).then_some(output)

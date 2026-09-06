@@ -214,13 +214,19 @@ fn lowers_one_compile_known_u64_binding_and_rejects_checked_drift() {
 }
 
 fn install_structural_unit_control_fixture(checked: &mut CheckedTrees) {
-    let root = SymbolHandle::from_arena_index(1);
-    let entry = SymbolHandle::from_arena_index(11);
+    let source = &checked.facts.flow.terminal_unit_effects.machines[0];
+    let root = source.machine;
+    let entry = source.state;
+    let acknowledgement_identity = source.structural_parameters[0].type_identity.clone();
+    let attachment_identity = source
+        .attachment_type_identity
+        .clone()
+        .expect("root attachment");
     let leaf = SymbolHandle::from_arena_index(14);
     let affine_parameter = |position| checked_trees::CheckedUnitStructuralParameterPlan {
         position,
         is_self: false,
-        type_identity: "example::Acknowledgement".to_owned(),
+        type_identity: acknowledgement_identity.clone(),
         multiplicity: Multiplicity::Affine,
         access: checked_trees::CheckedStructuralAccess::Owned,
         qualifications: Vec::new(),
@@ -236,7 +242,7 @@ fn install_structural_unit_control_fixture(checked: &mut CheckedTrees) {
                 .clone(),
             machines: vec![CheckedStructuralUnitControlMachinePlan {
                 machine: root,
-                attachment_type_identity: "example::Root".to_owned(),
+                attachment_type_identity: attachment_identity,
                 ranked_scc: None,
                 states: vec![
                     checked_trees::CheckedStructuralUnitControlStatePlan {
@@ -285,14 +291,20 @@ fn install_structural_unit_control_fixture(checked: &mut CheckedTrees) {
 }
 
 fn install_structural_unit_conditional_fixture(checked: &mut CheckedTrees) {
-    let root = SymbolHandle::from_arena_index(1);
-    let entry = SymbolHandle::from_arena_index(11);
+    let source = &checked.facts.flow.terminal_unit_effects.machines[0];
+    let root = source.machine;
+    let entry = source.state;
+    let acknowledgement_identity = source.structural_parameters[0].type_identity.clone();
+    let attachment_identity = source
+        .attachment_type_identity
+        .clone()
+        .expect("root attachment");
     let true_leaf = SymbolHandle::from_arena_index(12);
     let false_leaf = SymbolHandle::from_arena_index(13);
     let affine_parameter = |position| checked_trees::CheckedUnitStructuralParameterPlan {
         position,
         is_self: false,
-        type_identity: "example::Acknowledgement".to_owned(),
+        type_identity: acknowledgement_identity.clone(),
         multiplicity: Multiplicity::Affine,
         access: checked_trees::CheckedStructuralAccess::Owned,
         qualifications: Vec::new(),
@@ -319,7 +331,7 @@ fn install_structural_unit_conditional_fixture(checked: &mut CheckedTrees) {
                 .clone(),
             machines: vec![CheckedStructuralUnitControlMachinePlan {
                 machine: root,
-                attachment_type_identity: "example::Root".to_owned(),
+                attachment_type_identity: attachment_identity,
                 ranked_scc: None,
                 states: vec![
                     checked_trees::CheckedStructuralUnitControlStatePlan {
@@ -441,10 +453,13 @@ fn install_structural_unit_two_conditional_fixture(checked: &mut CheckedTrees) {
         .terminal_structural_unit_controls
         .machines[0];
     let nested_state = plan.states[1].state;
+    let acknowledgement_identity = plan.states[0].structural_parameters[0]
+        .type_identity
+        .clone();
     let affine_parameter = |position| checked_trees::CheckedUnitStructuralParameterPlan {
         position,
         is_self: false,
-        type_identity: "example::Acknowledgement".to_owned(),
+        type_identity: acknowledgement_identity.clone(),
         multiplicity: Multiplicity::Affine,
         access: checked_trees::CheckedStructuralAccess::Owned,
         qualifications: Vec::new(),
@@ -525,10 +540,13 @@ fn install_structural_unit_join_fixture(checked: &mut CheckedTrees) {
         .flow
         .terminal_structural_unit_controls
         .machines[0];
+    let acknowledgement_identity = plan.states[0].structural_parameters[0]
+        .type_identity
+        .clone();
     let affine_parameter = |position| checked_trees::CheckedUnitStructuralParameterPlan {
         position,
         is_self: false,
-        type_identity: "example::Acknowledgement".to_owned(),
+        type_identity: acknowledgement_identity.clone(),
         multiplicity: Multiplicity::Affine,
         access: checked_trees::CheckedStructuralAccess::Owned,
         qualifications: Vec::new(),
@@ -586,7 +604,7 @@ fn structural_unit_control_lowers_exact_transfer_and_edge_cleanup() {
     let mut checked = hard_root_checked_fixture();
     install_structural_unit_control_fixture(&mut checked);
 
-    let lowered = lower_machine(&checked, "example::Root::enter")
+    let lowered = lower_machine(&checked, "Root::enter")
         .expect("exact structural custody chain should lower");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("structural control slice lowers one attached machine")
@@ -650,7 +668,12 @@ fn structural_unit_control_lowers_exact_transfer_and_edge_cleanup() {
 fn static_requirement_evidence_does_not_preempt_exact_structural_unit_control() {
     let mut checked = hard_root_checked_fixture();
     install_structural_unit_control_fixture(&mut checked);
-    let root = SymbolHandle::from_arena_index(1);
+    let root = checked
+        .facts
+        .flow
+        .terminal_structural_unit_controls
+        .machines[0]
+        .machine;
     checked
         .facts
         .proof
@@ -663,8 +686,8 @@ fn static_requirement_evidence_does_not_preempt_exact_structural_unit_control() 
             ..Default::default()
         });
 
-    let selection = select_terminal_machine(&checked, "example::Root::enter")
-        .expect("fixture has one selected root");
+    let selection =
+        select_terminal_machine(&checked, "Root::enter").expect("fixture has one selected root");
     let routed = lower_selected_machine(&checked, selection)
         .expect("retained structural control wins before attached-Unit fallback");
 
@@ -680,7 +703,7 @@ fn structural_unit_conditional_lowers_independent_transfer_cleanup_frontiers() {
     let mut checked = hard_root_checked_fixture();
     install_structural_unit_conditional_fixture(&mut checked);
 
-    let lowered = lower_machine(&checked, "example::Root::enter")
+    let lowered = lower_machine(&checked, "Root::enter")
         .expect("exact structural conditional frontiers should lower");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("structural conditional slice lowers one attached machine")
@@ -777,7 +800,7 @@ fn structural_unit_conditional_lowers_independent_transfer_cleanup_frontiers() {
     };
     when_true.scalar_arguments[0].source_scalar_parameter_index = 0;
     assert!(matches!(
-        lower_machine(&checked, "example::Root::enter"),
+        lower_machine(&checked, "Root::enter"),
         Err(LoweringError::Unsupported(
             "structural Unit scalar successor map changes its checked signature"
         ))
@@ -804,7 +827,7 @@ fn structural_unit_conditional_lowers_independent_transfer_cleanup_frontiers() {
         &mut when_false.statement_ordinal,
     );
     assert!(matches!(
-        lower_machine(&checked, "example::Root::enter"),
+        lower_machine(&checked, "Root::enter"),
         Err(LoweringError::Unsupported(
             "structural Unit conditional successors are not in canonical order"
         ))
@@ -816,7 +839,7 @@ fn structural_unit_conditional_lowers_after_an_unconditional_prefix() {
     let mut checked = hard_root_checked_fixture();
     install_structural_unit_nonentry_conditional_fixture(&mut checked);
 
-    let lowered = lower_machine(&checked, "example::Root::enter")
+    let lowered = lower_machine(&checked, "Root::enter")
         .expect("one structural conditional may follow an unconditional prefix");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("prefixed structural conditional lowers one attached machine")
@@ -907,7 +930,7 @@ fn structural_unit_conditional_lowers_after_an_unconditional_prefix() {
         .states[3]
         .terminator = second_conditional;
     assert!(matches!(
-        lower_machine(&checked, "example::Root::enter"),
+        lower_machine(&checked, "Root::enter"),
         Err(LoweringError::Unsupported(
             "structural Unit control supports at most two checked conditional states"
         ))
@@ -919,7 +942,7 @@ fn structural_unit_two_conditional_tree_lowers_exact_edge_maps() {
     let mut checked = hard_root_checked_fixture();
     install_structural_unit_two_conditional_fixture(&mut checked);
 
-    let lowered = lower_machine(&checked, "example::Root::enter")
+    let lowered = lower_machine(&checked, "Root::enter")
         .expect("two checked structural conditionals should lower");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("two-decision structural tree lowers one attached machine")
@@ -1006,8 +1029,8 @@ fn structural_unit_diamond_requires_one_exact_join_frontier() {
     let mut checked = hard_root_checked_fixture();
     install_structural_unit_join_fixture(&mut checked);
 
-    let lowered = lower_machine(&checked, "example::Root::enter")
-        .expect("one exact structural diamond should lower");
+    let lowered =
+        lower_machine(&checked, "Root::enter").expect("one exact structural diamond should lower");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("structural diamond lowers one attached machine")
     };
@@ -1099,7 +1122,7 @@ fn structural_unit_diamond_requires_one_exact_join_frontier() {
     when_false.transfers[0].source_parameter_index = 1;
     when_false.trivial_affine_discard_parameter_positions = vec![0];
     assert!(matches!(
-        lower_machine(&checked, "example::Root::enter"),
+        lower_machine(&checked, "Root::enter"),
         Err(LoweringError::Unsupported(
             "structural Unit join predecessors reconstruct different custody frontiers"
         ))
@@ -1130,7 +1153,7 @@ fn structural_unit_diamond_requires_one_exact_join_frontier() {
         trivial_affine_discard_parameter_positions: Vec::new(),
     };
     assert!(matches!(
-        lower_machine(&checked, "example::Root::enter"),
+        lower_machine(&checked, "Root::enter"),
         Err(LoweringError::Unsupported(
             "structural Unit control entry has an incoming edge"
         ))
@@ -1155,7 +1178,7 @@ fn structural_unit_control_fails_closed_on_stale_cleanup_or_signature() {
     };
     trivial_affine_discard_parameter_positions.clear();
     assert!(matches!(
-        lower_machine(&checked, "example::Root::enter"),
+        lower_machine(&checked, "Root::enter"),
         Err(LoweringError::Unsupported(
             "structural Unit jump transfer and cleanup do not partition its exact frontier"
         ))
@@ -1176,13 +1199,20 @@ fn structural_unit_control_fails_closed_on_stale_cleanup_or_signature() {
     };
     scalar_arguments[0].source_scalar_parameter_index = 1;
     assert!(matches!(
-        lower_machine(&checked, "example::Root::enter"),
+        lower_machine(&checked, "Root::enter"),
         Err(LoweringError::Unsupported(
             "structural Unit scalar successor map changes its checked signature"
         ))
     ));
 
     install_structural_unit_control_fixture(&mut checked);
+    let wrong_type = checked
+        .facts
+        .flow
+        .terminal_structural_unit_controls
+        .machines[0]
+        .attachment_type_identity
+        .clone();
     checked
         .facts
         .flow
@@ -1190,8 +1220,8 @@ fn structural_unit_control_fails_closed_on_stale_cleanup_or_signature() {
         .machines[0]
         .states[1]
         .structural_parameters[0]
-        .type_identity = "example::Root".to_owned();
-    let stale_signature = lower_machine(&checked, "example::Root::enter");
+        .type_identity = wrong_type;
+    let stale_signature = lower_machine(&checked, "Root::enter");
     assert!(
         matches!(
             &stale_signature,
