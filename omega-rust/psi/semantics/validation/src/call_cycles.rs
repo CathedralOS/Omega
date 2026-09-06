@@ -23,6 +23,8 @@ use typed_trees::machine::Machine;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use typed_trees::types::TypeReferenceHandle;
 
+mod runtime_ranking;
+
 /// The one closed ranking relation currently admitted for a proof-only call
 /// SCC. The ranked value must have one common normalized type across every
 /// member and each internal call must pass a nonempty member path rooted at
@@ -350,6 +352,11 @@ pub(crate) fn validate_machine_call_cycles(
         edges.push(targets);
     }
 
+    // Include resolved free/qualified calls as well as the legacy spelling
+    // walk. Proof-only induction retains its existing exact-edge owner.
+    runtime_ranking::extend_runtime_adjacency(program, &proof_only, &mut edges);
+    let joint_components = runtime_ranking::admitted_components(program, &proof_only, &edges);
+
     // DFS with an explicit path; each distinct cycle (as a machine SET) is
     // reported once, naming the path in call order.
     let mut color = vec![0u8; machines.len()]; // 0 unvisited, 1 on-stack, 2 done
@@ -362,6 +369,7 @@ pub(crate) fn validate_machine_call_cycles(
                 &edge_is_tail,
                 &edge_decreases,
                 &proof_only,
+                &joint_components,
                 start,
                 &mut color,
                 &mut Vec::new(),
@@ -848,6 +856,7 @@ fn dfs_report_cycles(
     edge_is_tail: &HashMap<(usize, usize), bool>,
     edge_decreases: &HashMap<(usize, usize), bool>,
     proof_only: &typed_trees::proof_only::ProofOnlyClassification,
+    joint_components: &[Vec<usize>],
     node: usize,
     color: &mut [u8],
     path: &mut Vec<usize>,
@@ -936,6 +945,15 @@ fn dfs_report_cycles(
                     )));
                     continue;
                 }
+                // A common authored rank may be forwarded on an edge, but
+                // the equality-only subgraph must be acyclic. The component
+                // judgment checked every occurrence, not just this DFS path.
+                if joint_components
+                    .iter()
+                    .any(|component| cycle.iter().all(|member| component.contains(member)))
+                {
+                    continue;
+                }
                 // MR4 ADMISSION (2026-07-20): a cycle whose every edge is a
                 // tail transition arm target, every member measured, and
                 // every edge PROVEN to strictly decrease the callee's
@@ -944,10 +962,21 @@ fn dfs_report_cycles(
                 // every transition as a SetDispatchState jump over ONE
                 // overlaid frame region, so the cycle runs on constant
                 // stack (probe: 40M alternations, constant memory).
-                if non_tail.is_empty() && unmeasured.is_empty() && undecreasing.is_empty() {
+                let scalar_ranks = cycle.iter().all(|member| {
+                    runtime_ranking::has_scalar_legacy_rank(program, &machines[*member])
+                });
+                if non_tail.is_empty()
+                    && unmeasured.is_empty()
+                    && undecreasing.is_empty()
+                    && scalar_ranks
+                {
                     continue;
                 }
-                let qualification = if non_tail.is_empty() && unmeasured.is_empty() {
+                let qualification = if non_tail.is_empty() && unmeasured.is_empty() && !scalar_ranks
+                {
+                    " The declared joint ranking is unproven; legacy scalar admission requires an exact unsigned parameter under Nat::Descending."
+                        .to_owned()
+                } else if non_tail.is_empty() && unmeasured.is_empty() {
                     format!(
                         " MR4 shape check: every edge is a tail transition and every \
                          member is measured, but the strict measure DECREASE is \
@@ -987,6 +1016,7 @@ fn dfs_report_cycles(
                 edge_is_tail,
                 edge_decreases,
                 proof_only,
+                joint_components,
                 next,
                 color,
                 path,
@@ -1485,7 +1515,16 @@ fn exact_member_field<'program>(
     case_variant: Option<&str>,
 ) -> Option<&'program typed_trees::data::DataField> {
     let data = crate::places::data_definition_for_type(program, receiver_type)?;
+    exact_data_member_field(program, data, member_symbol, member_name, case_variant)
+}
 
+fn exact_data_member_field<'program>(
+    program: &'program TypedTrees,
+    data: &'program typed_trees::data::DataDefinition,
+    member_symbol: SymbolHandle,
+    member_name: &str,
+    case_variant: Option<&str>,
+) -> Option<&'program typed_trees::data::DataField> {
     if let Some(case_variant) = case_variant {
         let mut matches = program.data_members(data).iter().filter_map(|member| {
             let typed_trees::data::DataMember::Variant(variant) = member else {
