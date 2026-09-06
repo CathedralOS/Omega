@@ -1716,20 +1716,48 @@ pub(super) fn checked_boolean_proposition(
     expression: &CheckedBooleanExpression,
     values: &[ValueDeclaration],
 ) -> Result<Proposition, LoweringError> {
+    let mut remaining = 4096;
+    // Bound logical input traversal before recursive connective discovery.
+    // Expansion below consumes this same budget across the whole predicate.
+    let mut pending = vec![(expression, 0)];
+    while let Some((expression, depth)) = pending.pop() {
+        charge_boolean_expansion(&mut remaining, depth)?;
+        match expression {
+            CheckedBooleanExpression::Not(operand) => pending.push((operand, depth + 1)),
+            CheckedBooleanExpression::And { left, right }
+            | CheckedBooleanExpression::Or { left, right }
+            | CheckedBooleanExpression::Equal { left, right } => {
+                pending.extend([(left.as_ref(), depth + 1), (right.as_ref(), depth + 1)]);
+            }
+            _ => {}
+        }
+    }
+    checked_boolean_proposition_with_budget(expression, values, &mut remaining, 0)
+}
+
+fn charge_boolean_expansion(remaining: &mut usize, depth: usize) -> Result<(), LoweringError> {
+    if depth >= 64 {
+        return unsupported("scalar crash Boolean expansion exceeds its depth limit");
+    }
+    *remaining = remaining.checked_sub(1).ok_or(LoweringError::Unsupported(
+        "scalar crash Boolean expansion exceeds its lowering budget",
+    ))?;
+    Ok(())
+}
+
+fn checked_boolean_proposition_with_budget(
+    expression: &CheckedBooleanExpression,
+    values: &[ValueDeclaration],
+    remaining: &mut usize,
+    depth: usize,
+) -> Result<Proposition, LoweringError> {
+    charge_boolean_expansion(remaining, depth)?;
     match expression {
         CheckedBooleanExpression::Not(operand) if contains_boolean_connective(operand) => {
-            checked_boolean_connective_polarity(operand, values, false)
+            checked_boolean_connective_polarity(operand, values, false, remaining, depth + 1)
         }
-        CheckedBooleanExpression::Equal { left, right }
-            if contains_boolean_connective(expression) =>
-        {
-            match (left.as_ref(), right.as_ref()) {
-                (CheckedBooleanExpression::Constant(value), operand)
-                | (operand, CheckedBooleanExpression::Constant(value)) => {
-                    checked_boolean_connective_polarity(operand, values, *value)
-                }
-                _ => unsupported("compound Boolean crash equality requires logical lowering"),
-            }
+        CheckedBooleanExpression::Equal { .. } if contains_boolean_connective(expression) => {
+            checked_boolean_connective_polarity(expression, values, true, remaining, depth + 1)
         }
         CheckedBooleanExpression::Constant(_) => {
             unsupported("constant crash predicates must normalize before terminal lowering")
@@ -1742,7 +1770,9 @@ pub(super) fn checked_boolean_proposition(
             flatten_checked_boolean_connective(right, conjunction, &mut leaves);
             let mut propositions = leaves
                 .into_iter()
-                .map(|leaf| checked_boolean_proposition(leaf, values))
+                .map(|leaf| {
+                    checked_boolean_proposition_with_budget(leaf, values, remaining, depth + 1)
+                })
                 .collect::<Result<Vec<_>, _>>()?
                 .into_iter()
                 .map(|proposition| {
@@ -1799,20 +1829,46 @@ fn checked_boolean_connective_polarity(
     expression: &CheckedBooleanExpression,
     values: &[ValueDeclaration],
     positive: bool,
+    remaining: &mut usize,
+    depth: usize,
 ) -> Result<Proposition, LoweringError> {
+    charge_boolean_expansion(remaining, depth)?;
     match expression {
         CheckedBooleanExpression::Constant(_) => {
             unsupported("constant crash predicates must normalize before terminal lowering")
         }
         CheckedBooleanExpression::Not(operand) => {
-            checked_boolean_connective_polarity(operand, values, !positive)
+            checked_boolean_connective_polarity(operand, values, !positive, remaining, depth + 1)
         }
         CheckedBooleanExpression::Equal { left, right } => match (left.as_ref(), right.as_ref()) {
             (CheckedBooleanExpression::Constant(value), operand)
             | (operand, CheckedBooleanExpression::Constant(value)) => {
-                checked_boolean_connective_polarity(operand, values, *value == positive)
+                checked_boolean_connective_polarity(
+                    operand,
+                    values,
+                    *value == positive,
+                    remaining,
+                    depth + 1,
+                )
             }
-            _ => checked_boolean_atom_polarity(expression, values, positive),
+            _ if contains_boolean_connective(expression) => {
+                crate::contract_predicates::equality_from_polarities(
+                    left,
+                    right,
+                    positive,
+                    remaining,
+                    |operand, polarity, budget| {
+                        checked_boolean_connective_polarity(
+                            operand,
+                            values,
+                            polarity,
+                            budget,
+                            depth + 1,
+                        )
+                    },
+                )
+            }
+            _ => checked_boolean_atom_polarity(expression, values, positive, remaining, depth + 1),
         },
         CheckedBooleanExpression::And { left, right }
         | CheckedBooleanExpression::Or { left, right } => {
@@ -1820,7 +1876,13 @@ fn checked_boolean_connective_polarity(
                 matches!(expression, CheckedBooleanExpression::And { .. }) == positive;
             let mut flattened = Vec::new();
             for operand in [left.as_ref(), right.as_ref()] {
-                let proposition = checked_boolean_connective_polarity(operand, values, positive)?;
+                let proposition = checked_boolean_connective_polarity(
+                    operand,
+                    values,
+                    positive,
+                    remaining,
+                    depth + 1,
+                )?;
                 match proposition {
                     Proposition::Conjunction(children) if conjunction => flattened.extend(children),
                     Proposition::Disjunction(children) if !conjunction => {
@@ -1856,7 +1918,7 @@ fn checked_boolean_connective_polarity(
                 Proposition::Disjunction(children)
             })
         }
-        _ => checked_boolean_atom_polarity(expression, values, positive),
+        _ => checked_boolean_atom_polarity(expression, values, positive, remaining, depth + 1),
     }
 }
 
@@ -1864,9 +1926,12 @@ fn checked_boolean_atom_polarity(
     expression: &CheckedBooleanExpression,
     values: &[ValueDeclaration],
     positive: bool,
+    remaining: &mut usize,
+    depth: usize,
 ) -> Result<Proposition, LoweringError> {
+    charge_boolean_expansion(remaining, depth)?;
     if positive {
-        return checked_boolean_proposition(expression, values);
+        return checked_boolean_proposition_with_budget(expression, values, remaining, depth + 1);
     }
     let mut left = ScalarTerm::boolean_not(checked_boolean_scalar_term(expression, values)?)
         .map_err(LoweringError::InvalidCrashPredicate)?;
@@ -2252,6 +2317,126 @@ fn checked_boolean_scalar_term_from_lowered(
 #[cfg(test)]
 mod boolean_connective_tests {
     use super::*;
+
+    fn compound_equality() -> CheckedBooleanExpression {
+        CheckedBooleanExpression::Equal {
+            left: Box::new(CheckedBooleanExpression::And {
+                left: Box::new(CheckedBooleanExpression::Parameter { position: 0 }),
+                right: Box::new(CheckedBooleanExpression::Parameter { position: 1 }),
+            }),
+            right: Box::new(CheckedBooleanExpression::Or {
+                left: Box::new(CheckedBooleanExpression::Parameter { position: 0 }),
+                right: Box::new(CheckedBooleanExpression::Parameter { position: 1 }),
+            }),
+        }
+    }
+
+    #[test]
+    fn compound_expansion_shares_its_budget_across_branches_and_conjuncts() {
+        let values = [7, 19].map(|identity| ValueDeclaration {
+            id: value_id(identity),
+            scalar_type: ScalarType::Boolean,
+        });
+        let predicate = compound_equality();
+        assert!(checked_boolean_proposition(&predicate, &values).is_ok());
+        let mut nested = predicate.clone();
+        for _ in 0..7 {
+            nested = CheckedBooleanExpression::Equal {
+                left: Box::new(nested.clone()),
+                right: Box::new(nested),
+            };
+        }
+        let mut wide = predicate.clone();
+        for _ in 0..8 {
+            wide = CheckedBooleanExpression::And {
+                left: Box::new(wide.clone()),
+                right: Box::new(wide),
+            };
+        }
+        for expression in [nested, wide] {
+            assert!(matches!(
+                checked_boolean_proposition(&expression, &values),
+                Err(LoweringError::Unsupported(
+                    "scalar crash Boolean expansion exceeds its lowering budget"
+                ))
+            ));
+        }
+        let mut deep = predicate;
+        for _ in 0..64 {
+            deep = CheckedBooleanExpression::Not(Box::new(deep));
+        }
+        assert!(matches!(
+            checked_boolean_proposition(&deep, &values),
+            Err(LoweringError::Unsupported(
+                "scalar crash Boolean expansion exceeds its depth limit"
+            ))
+        ));
+    }
+
+    #[test]
+    fn compound_equality_cannot_hide_unnormalized_constants_or_foreign_leaves() {
+        let values = [7, 19].map(|identity| ValueDeclaration {
+            id: value_id(identity),
+            scalar_type: ScalarType::Boolean,
+        });
+        for invalid in [
+            CheckedBooleanExpression::Constant(false),
+            CheckedBooleanExpression::Parameter { position: 2 },
+        ] {
+            let predicate = CheckedBooleanExpression::Equal {
+                left: Box::new(CheckedBooleanExpression::And {
+                    left: Box::new(CheckedBooleanExpression::Parameter { position: 0 }),
+                    right: Box::new(invalid),
+                }),
+                right: Box::new(CheckedBooleanExpression::Parameter { position: 1 }),
+            };
+            for expression in [
+                predicate.clone(),
+                CheckedBooleanExpression::Not(Box::new(predicate)),
+            ] {
+                assert!(checked_boolean_proposition(&expression, &values).is_err());
+            }
+        }
+    }
+
+    #[test]
+    fn scalar_atoms_keep_their_existing_crash_predicate_encoding() {
+        let values = [ValueDeclaration {
+            id: value_id(7),
+            scalar_type: integer_scalar_type(PrimitiveType::U64).unwrap(),
+        }];
+        let parameter = CheckedScalarExpression::Parameter {
+            position: 0,
+            primitive_type: PrimitiveType::U64,
+        };
+        for kind in [
+            CheckedIntegerComparisonKind::Equal,
+            CheckedIntegerComparisonKind::LessThan,
+            CheckedIntegerComparisonKind::LessOrEqual,
+        ] {
+            let comparison = CheckedBooleanExpression::IntegerComparison {
+                kind,
+                left: Box::new(parameter.clone()),
+                right: Box::new(parameter.clone()),
+            };
+            for expression in [
+                comparison.clone(),
+                CheckedBooleanExpression::Not(Box::new(comparison)),
+            ] {
+                let mut terms = [
+                    checked_boolean_scalar_term(&expression, &values).unwrap(),
+                    ScalarTerm::boolean(true),
+                ];
+                terms.sort();
+                let expected = Proposition::Equal(terms[0].clone(), terms[1].clone());
+                let actual = checked_boolean_proposition(&expression, &values).unwrap();
+                assert_eq!(
+                    terminal_codec::canonical_proposition_order_key(&actual).unwrap(),
+                    terminal_codec::canonical_proposition_order_key(&expected).unwrap()
+                );
+            }
+        }
+    }
 
     #[test]
     fn connective_constant_children_still_require_prior_normalization() {

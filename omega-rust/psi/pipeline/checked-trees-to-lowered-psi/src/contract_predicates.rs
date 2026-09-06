@@ -90,22 +90,46 @@ fn proposition_with_polarity(
             // Equality selects equal polarities; inequality selects opposite
             // polarities. Keep logical facts in the proposition language so
             // calls can prove them from their evaluated argument equations.
-            connective(
-                connective(
-                    proposition_with_polarity(left, terms, true, remaining)?,
-                    proposition_with_polarity(right, terms, positive, remaining)?,
-                    true,
-                )?,
-                connective(
-                    proposition_with_polarity(left, terms, false, remaining)?,
-                    proposition_with_polarity(right, terms, !positive, remaining)?,
-                    true,
-                )?,
-                false,
+            equality_from_polarities(
+                left,
+                right,
+                positive,
+                remaining,
+                |operand, polarity, budget| {
+                    proposition_with_polarity(operand, terms, polarity, budget)
+                },
             )
         }
         _ => unsupported("result contract has an unsupported scalar predicate"),
     }
+}
+
+/// Share the Boolean equivalence law without sharing atomic namespaces or
+/// denotations. Every expanded operand uses the caller's same work budget.
+pub(super) fn equality_from_polarities(
+    left: &CheckedBooleanExpression,
+    right: &CheckedBooleanExpression,
+    positive: bool,
+    remaining: &mut usize,
+    mut lower: impl FnMut(
+        &CheckedBooleanExpression,
+        bool,
+        &mut usize,
+    ) -> Result<Proposition, LoweringError>,
+) -> Result<Proposition, LoweringError> {
+    connective(
+        connective(
+            lower(left, true, remaining)?,
+            lower(right, positive, remaining)?,
+            true,
+        )?,
+        connective(
+            lower(left, false, remaining)?,
+            lower(right, !positive, remaining)?,
+            true,
+        )?,
+        false,
+    )
 }
 
 pub(super) fn canonical_equality(
