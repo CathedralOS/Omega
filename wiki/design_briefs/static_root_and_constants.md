@@ -50,6 +50,14 @@ an ordinary machine; the constant position requests semantic evaluation, and
 the concrete invocation contract decides whether it is legal. No parallel
 `const machine` species exists.
 
+Compile-time evaluation does not make an already-typed value anonymous again.
+An anonymous numeric initializer uses
+[exact arithmetic before landing](../language_guide/chapter_5_expressions_evaluation.md#exact-anonymous-division-and-landing),
+including rational division. A typed constant declaration or ordinary machine
+parameter is a landing boundary: integer landing requires an integral value in
+range, while a floating format rounds once. The declaration's destination does
+not silently select integer division inside its anonymous initializer.
+
 A target-semantic observation is an ordinary canonical constant input. It may
 flow through normal constant computation and may occupy any existing const
 position, including fixed-array length and const-generic application. A target-

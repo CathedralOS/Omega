@@ -199,32 +199,24 @@ receipt pair. It does not block flat Mach-O emission, the ad-hoc code signature,
 the sealed-container and installation-replay custody the flat receipt already
 exercises, or any non-Darwin target.
 
-<a id="anonymous-integer-division-and-remainder"></a>
+<a id="anonymous-integer-remainder"></a>
 
-## Q6 — Anonymous integer division and remainder
+## Q6 — Anonymous integer remainder
 
-Systems code uses compile-time arithmetic to size buffers and partition capacity.
-For an odd capacity, `let half: u32 = 4097 / 2;` needs one language-defined
-result before landing. The compiler must know whether to truncate, retain a
-fraction, or reject rather than infer a rule from the destination's width.
+Systems code uses compile-time remainder to partition capacity and normalize
+indexes. For `(0 - 3) % 2`, should the anonymous result be `-1`, `1`, or require
+an explicit integer landing before remainder is defined?
 
-Chapter 5 defines fixed-width `/` as truncation toward zero and `%` as the
-corresponding dividend-sign remainder. Its separate two-phase constant rule
-defines anonymous arithmetic as exact unbounded integer arithmetic, with `Rat`
-for decimals, but does not specify a non-integral anonymous quotient or the
-sign convention for anonymous remainder.
+Chapter 5 defines fixed-width `%` as dividend-sign remainder. Its
+[exact anonymous division and landing rule](wiki/language_guide/chapter_5_expressions_evaluation.md#exact-anonymous-division-and-landing)
+does not choose an anonymous remainder convention: rational division has no
+implicit truncated quotient from which to derive one.
 
-Should `3 / 2` truncate to the unbounded integer `1`, produce exact rational
-`3/2` which cannot land in an integer destination, or reject until an operand
-is explicitly landed? For `(0 - 3) % 2`, should the anonymous result be `-1`,
-`1`, or require an explicit landing before remainder is defined?
-
-These are existing arithmetic spellings, not a proposed new surface. Current
+This is an existing arithmetic spelling, not a proposed new surface. Current
 context-free integer evaluators use truncating `BigInt::div_rem`; that
-implementation is not a ruling. The shared anonymous landing evaluator admits
-only exactly divisible `/` and does not choose signed remainder semantics.
+implementation is not a ruling on anonymous signed remainder.
 
-Only expansion of those ambiguous anonymous operations is owner-blocked.
-Fixed-width division/remainder, exactly divisible anonymous division, and
-anonymous addition, subtraction, multiplication, and their destination coverage
-remain implementable under the existing rules.
+Only the ambiguous anonymous remainder behavior remains owner-blocked.
+Fixed-width division/remainder and exact anonymous addition, subtraction,
+multiplication, division, and their landing diagnostics are implementation work
+under the existing rules.
