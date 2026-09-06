@@ -6,6 +6,11 @@
 (def compiler_source_rejection ((code Int) (coordinate Int)) Int
   (compiler_failure 1 1 code coordinate 0 0))
 
+; Internal code 1: retained_frontend_contradiction. The caller supplies a
+; nonnegative zero-based active continuation row, not a Gamma pair address.
+(def compiler_retained_frontend_contradiction ((row Int)) Int
+  (compiler_failure 3 3 1 row 0 0))
+
 (def compiler_failure ((tag Int) (space Int) (code Int) (coordinate Int)
   (limit Int) (requested Int)) Int
   (pair tag (pair space (pair code (pair coordinate (pair limit requested))))))

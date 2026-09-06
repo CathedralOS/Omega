@@ -11,7 +11,7 @@ The normative contract is
 [`bootstrap/delta/LANGUAGE.md`](../../../../bootstrap/delta/LANGUAGE.md). The canonical
 compiler must be written in Gamma and emit canonical Gamma source. The selected
 Beta-authored Gamma evaluator executes that compiler over Delta source and can
-execute the resulting canonical Gamma receipt. The selected 3,381-line source
+execute the resulting canonical Gamma receipt. The selected 3,388-line source
 is one canonical request entry plus 64 manifested shared implementation members.
 It enforces Delta's textual-ASCII byte envelope, identifier and
 reserved-name grammar, signed-literal range, and exact global function
@@ -37,7 +37,10 @@ Gamma's finite arena. Its
 immutable exact-name environments reject unknown locals and
 duplicate active parameter, `let`, or pattern binders while preserving reuse
 across disjoint scopes. The same pass checks the scalar/nominal expression,
-constructor, pattern, call, arm, and result type relation. Generated Gamma
+constructor, pattern, call, arm, and result type relation. An unknown retained
+typing-continuation kind at positive depth reports compiler-owned InternalFailure
+code 1 at its zero-based active-stack row. This narrow branch does not remap
+malformed-frame or other raw evaluator failures. Generated Gamma
 names live outside Delta's identifier alphabet, so lowering cannot capture
 authored locals. It lowers
 arbitrary-field recursive algebraic data and exact arbitrary-order exhaustive

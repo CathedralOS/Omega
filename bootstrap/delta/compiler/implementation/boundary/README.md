@@ -289,6 +289,26 @@ that arm's body. Only after all arms pass does final constructor coverage
 produce code 18 at the match start. These traversal rules, not a global sort of
 candidate offsets, select the published failure.
 
+## Retained frontend contradiction
+
+The embedded internal table currently implements one branch:
+
+| Tag | Internal code | Meaning | Coordinate space | Coordinate | Limit/requested |
+| --- | --- | --- | --- | --- | --- |
+| 3 InternalFailure | 1 | retained_frontend_contradiction | 3 internal row | zero-based active typing-continuation row | zero/zero |
+
+An unknown typing-continuation kind publishes this failure only after the
+frame's pair projections succeed and its depth is positive. The top active
+row is `depth - 1`, counted from the bottom of the current stack. This
+artifact-owned convention is not a Gamma pair address or cumulative allocation
+index. Negative-depth unknown frames and malformed nonpair frames retain their
+raw Gamma failures. No evaluator trap is caught or translated into DCOUT.
+The ordinary phase outcome propagates the owned failure to the existing
+publisher before lowering or output. The
+[internal-boundary controls](../../../../../tests/delta/internal-boundary/README.md)
+exercise actual dispatch and publication using synthetic retained frames;
+those frames are not claimed to arise from admitted Delta source.
+
 ## Remaining boundary work
 
 After normalization, the shared serializer counts the complete Gamma payload
