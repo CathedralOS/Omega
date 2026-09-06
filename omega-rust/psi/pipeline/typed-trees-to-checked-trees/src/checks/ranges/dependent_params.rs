@@ -4,7 +4,7 @@
 //! proof-plan atom), so inside the state it composes with everything the
 //! guard-seeded orderings already serve (via_ordering index bounds,
 //! two-pointer chains). Staleness rides the existing machinery: a write
-//! to EITHER side forgets the pair (`forget_orderings` drops on both
+//! to EITHER side forgets the pair (relational invalidation checks both
 //! ends), exactly as guard-seeded orderings behave.
 //!
 //! Only offsets `k <= 0` mint (i <= F + k implies i <= F); a positive

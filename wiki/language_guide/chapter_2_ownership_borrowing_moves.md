@@ -516,6 +516,17 @@ Direct mutable local and parameter bounds remain unknown, as do ambiguous and
 cyclic aliases and inclusive symbolic upper bounds. Value identity alone proves
 neither range validity nor a compile-time constant index.
 
+For a known array length, numeric bounds can validate a runtime start or end,
+including a tail window with an omitted end. The checker still requires
+nonnegative endpoints and their ordering; independently bounding both by the
+array length does not prove that the start precedes the end. Immutable integer
+copies retain established numeric bounds about their captured value after the
+source changes. This does not retain expired bounds about the mutable source.
+Inclusive ends must remain strictly below the array length.
+The current checker conservatively discards computed-expression premises on
+writes where their full operand dependencies are not retained; a separately
+captured integer keeps its own numeric facts.
+
 No public `footprint(...)` contract surface follows from this rule. Most
 source contracts state ordinary value relationships such as `mid <= items.len`,
 from which the checker derives projected-place relationships. Public abstract

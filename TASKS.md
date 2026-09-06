@@ -405,15 +405,10 @@ Owners include
   establish disjointness/containment but cannot extend lifetime, duplicate a
   loan, or replace ownership accounting.
 
-  Preserve nonconstant range facts through immutable value snapshots in
-  `typed-trees-to-checked-trees/src/checks/ranges/`. With a mutable unsigned
-  parameter `original` constrained by `original <= 4`, `[0..original]` can
-  establish its upper bound, but `[original..4]` still fails range validation;
-  copying through `cut` and `last` must also retain the captured bound after
-  `original` changes. Acceptance: both half-open windows validate using the
-  captured value's bounds, without reusing expired facts about the mutable
-  source. Snapshot identity alone is not a range-validity proof. This is
-  engineering work under chapter 2's captured-place rule, not a design blocker.
+  Retain exact operand dependencies for computed range premises in
+  `typed-trees-to-checked-trees/src/checks/ranges/`, so unrelated writes need
+  not discard them. Writes to an operand must still retire its computed
+  premises; numeric facts about values captured before the write must survive.
 
 - **CALLBACK-PARAMETER-REQUIREMENT.** Implement the nominal
   `where machine Selected satisfies Trait::requirement` binder and retain its
