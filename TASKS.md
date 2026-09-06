@@ -174,15 +174,6 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   lexicographic cycles derive checked `Terminates` without publishing a
   guarantee; an external call with unknown progress prevents that derivation.
 
-- **PROOF-RECEIVER-TARGETS.** Retain exact selected callees for calls through
-  pattern payloads in `symbol-resolved-trees-to-typed-trees/`. In a structurally
-  ranked mutual `ProofTree` cycle, a call such as `second.right(n)` can still
-  lack its typed target and escape the resolved call-dependency graph. Owning
-  areas are typed receiver selection and proof call-cycle completeness, not a
-  new ranking rule. Acceptance: payload-receiver calls retain their exact
-  nominal target; an unchanged recursive argument rejects even beside a
-  certified decreasing call, and an acyclic payload method call still checks.
-
 - **EXACT-CALL-RESULT-RELATIONS.** Carry exact call-result comparisons through
   state arrivals and arithmetic validation in
   `psi/semantics/validation/src/arithmetic_domains/`. The restored

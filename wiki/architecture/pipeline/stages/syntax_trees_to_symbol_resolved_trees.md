@@ -55,12 +55,17 @@ Must own:
 - Statement calls retain the exact lexical receiver root independently of the
   final projected receiver symbol. A member awaiting type-aware resolution does
   not erase its already-resolved current-state parameter or prior-local root.
-- Resolving indexed expression-call receivers through declared array/slice
-  element types and subsequent exact-owner member declarations. Each index
+- Resolving projected expression-call receivers through declared array/slice
+  element types, selected-case payload fields, and exact-owner members. Each index
   consumes one collection layer, independently of its runtime value. Roots
   must retain the exact current receiver, parameter, or prior local identity;
-  unresolved indexed paths cannot select a free same-named callable. Bounds,
-  index effects, receiver access, and call validity remain later obligations.
+  unresolved projected paths cannot select a free same-named callable or use
+  the ordinary nested-member fallback. A pattern binding's renamed spelling
+  cannot select a same-named parameter or state. Method candidates are filtered
+  by the exact nominal owner before source lookup precedence; a locally
+  shadowed type does not hide an inherited payload's method. Bounds, case
+  reachability, index effects, receiver access, and call validity remain later
+  obligations.
 - Unresolved receivers rooted in call results also cannot select a same-named
   free callable. Typed lowering selects these methods from declared producer
   return types, after their receiver children have lowered.
@@ -199,6 +204,9 @@ task:
   `symbols/symbol_table/names.rs` owns symbol-name seeding and operator display
   names.
 - `symbols/lookup.rs` owns reusable symbol-table lookup helpers.
+  The symbol table's source-scoped lookup can filter eligible declarations
+  before applying its existing visibility, explicit-binding, and source
+  precedence rules; projected method lookup uses that filter for nominal owners.
 - `symbols/top_level.rs` owns only root-level stamping order.
   `symbols/top_level/{data,domains,operators,platforms,traits}.rs` stamp
   declaration-family symbols and type-reference symbols for their owned
@@ -238,6 +246,11 @@ task:
   `symbols/expression_paths/calls.rs` resolves call targets after receiver
   identity is known, while `symbols/expression_paths/receivers.rs` resolves
   expression receiver/member paths and indexed receiver paths.
+  `symbols/expression_paths/projected_receivers.rs` walks declared collection
+  and case-payload projections to select an exact attached method. Its tests
+  cover projection identity, source shadowing, and mixed payload/index paths.
+  Ordinary member stamping does not replace a case-tagged payload projection
+  with a same-named state or field from another scope.
 - `symbols/expression_paths/stamping.rs` owns writing resolved receiver
   head/final symbols back into expression-table nodes.
 - `symbols/targets.rs` owns only target-resolution exports.

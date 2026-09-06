@@ -50,6 +50,9 @@ Must own:
   projections retain their nominal declaration identity; a same-spelled foreign
   declaration cannot select an attached method. This supplies a previously
   unresolved target, not a proof of receiver origin, effects, or borrow legality.
+  Calls on parameter/local-rooted case payloads already receive their candidate
+  during resolution. Typing preserves it so proof and runtime call graphs do
+  not lose a call merely because its receiver was bound by a pattern.
 - Enough value/type information for checked trees to build durable facts without
   reverse-engineering source syntax.
 - Typed machine contracts retain the optional named evidence binding separately

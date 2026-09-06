@@ -3,6 +3,8 @@ use crate::lower_syntax_trees;
 use source_files_to_tokens::Lexer;
 use tokens_to_syntax_trees::parse_syntax_trees;
 
+mod selection;
+
 fn payload_program() -> symbol_resolved_trees::SymbolResolvedTrees {
     let source = r#"
         data First {} data Second {} data Result { value: u64; }
@@ -306,8 +308,8 @@ fn payload_candidates_keep_same_spelled_nominal_owners_in_their_source() {
     for foreign in [false, true] {
         let mut call = base_call.clone();
         if foreign {
-            // Keep the exact base receiver and field; only make method lookup
-            // see the same-spelled declaration from the extension's source.
+            // A reference from the extension can still receive the base
+            // nominal value. Source preference must not substitute its owner.
             call.target = extension_call.target.clone();
         }
         let actual = call_target(
@@ -319,14 +321,7 @@ fn payload_candidates_keep_same_spelled_nominal_owners_in_their_source() {
             &program.tables.declarations.child_type_references,
             &program.symbols,
         );
-        if foreign {
-            assert!(
-                !actual.is_valid(),
-                "a foreign method cannot borrow the base payload type"
-            );
-        } else {
-            assert_eq!(actual, base_call.target_symbol);
-        }
+        assert_eq!(actual, base_call.target_symbol);
     }
 }
 

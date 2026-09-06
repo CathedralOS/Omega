@@ -183,6 +183,13 @@ pub(in crate::symbols) fn assign_member_symbol(
     member_name: &symbol_resolved_trees::name::DiagnosticName,
     expression: symbol_resolved_trees::expression::ExpressionHandle,
 ) {
+    if matches!(expression_table.expression(expression),
+        symbol_resolved_trees::expression::ExpressionNode::Member(member) if member.case_variant.is_some())
+    {
+        // A destructured payload belongs to its exact case, not to a
+        // same-named state or ordinary field under the receiver's scope.
+        return;
+    }
     let mut member_symbol = resolve_expression_table_member_symbol(
         symbols,
         machine.symbol,
