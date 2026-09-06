@@ -54,6 +54,7 @@ pub(super) fn return_unit_affine_discards(
                 ..
             } => structural_arguments
                 .iter()
+                .filter(|argument| argument.access == CheckedStructuralAccess::Owned)
                 .filter_map(|argument| argument.source_parameter_index())
                 .collect::<Vec<_>>(),
             CheckedUnitEffectOperationPlan::PortWrite { .. }
@@ -666,6 +667,25 @@ pub(super) fn structural_access_for_type_reference(
             _ => return Some(CheckedStructuralAccess::Owned),
         }
     }
+}
+
+/// Shared references to this existing whole affine carrier do not own or
+/// qualify the referent. Nested references and constrained carriers stay out.
+pub(super) fn shared_plain_affine_referent(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    let TypeReferenceNode::Reference {
+        access: language_semantics::ReferenceAccess::Shared,
+        referee,
+        ..
+    } = program.type_reference_table.type_reference(reference)
+    else {
+        return None;
+    };
+    (program.type_multiplicity(*referee) == Multiplicity::Affine
+        && has_plain_owned_contents(program, *referee))
+    .then_some(*referee)
 }
 
 pub(super) fn byte_sequence_type_identity(

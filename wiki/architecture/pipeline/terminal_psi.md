@@ -3134,8 +3134,19 @@ The call rejoins the exact authored local or temporary expression and transfer
 event; only that result
 loses caller cleanup. Boundary result signatures remain independently checked,
 without deriving facts from provider implementations. Unrestricted results do
-not enter this affine move route. Borrowed or projected result operands, self
-consumers, linear result claims, and sum-payload inspection remain separate work.
+not enter this affine move route. Named immutable, whole, plain-owned affine
+results may also supply shared reads to ordinary Unit calls, scalar boundary
+wrappers, and direct Unit or scalar boundary calls. The exact authored `&local`
+and captured read access rejoin the producer binding; a read neither transfers
+ownership nor removes cleanup. Repeated reads retain the same value identity
+until one final owned move or reverse-order caller cleanup. Independent frontier
+verification requires the intact owner to be live at every read and rejects a
+call that both borrows and moves that result. The shared parameter is unrestricted;
+the produced value and its caller-owned custody remain affine. Provider refusal
+leaves that custody available for retry, and a later operand crash adds no cleanup
+successor. Anonymous shared borrows, mutable/write-only or projected result
+operands, self consumers, linear result claims, and sum-payload inspection remain
+separate work.
 Anonymous boundary structural results use the same argument schedule as
 ordinary affine producers. Static requirements, bodyless declarations, and
 caller-owned nominal requirements retain their exact source target separately
@@ -3968,8 +3979,10 @@ prevents later arguments and the enclosing invocation from running; it has no
 caller cleanup successor. Fuel exhaustion preserves the completed prefix and
 does not repeat a paid call or transfer on resumption.
 
-This does not widen the native call ABI or admit result projections or
-borrowed/qualified/linear result obligations. Projected results need exact
+This does not widen the native call ABI or admit result projections,
+anonymous borrowed operands, or borrowed/qualified/linear result obligations.
+The named shared-read route above does not turn an owned result into a returned
+reference. Projected results need exact
 residual cleanup alongside their retained storage, loans, and claim transfers
 before those gates can open.
 

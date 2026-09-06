@@ -502,9 +502,9 @@ pub(super) fn validate_unit_operation_static(
                     actual,
                 });
             }
-            // This extension moves constructed locals and established affine
-            // results whole. Borrowed parameter calls retain their existing
-            // lane; borrowing a local requires separate staged-loan custody.
+            // Construction-local loans remain separate. Whole affine call
+            // results may supply shared reads; the common source validator
+            // checks their exact producer and the frontier checks live custody.
             if let Some((argument_index, argument)) =
                 structural_arguments
                     .iter()
@@ -515,6 +515,8 @@ pub(super) fn validate_unit_operation_static(
                                 .structural_parameters
                                 .iter()
                                 .any(|parameter| parameter.place == argument.place)
+                            && !(argument.access == StructuralAccess::SharedBorrow
+                                && is_structural_call_result(machine, argument.place))
                     })
             {
                 return Err(ModuleError::StructuralArgumentAccessMismatch {
@@ -1110,6 +1112,19 @@ pub(super) enum StructuralArgumentSourcePolicy {
     ParametersOrAffineOperationResults,
 }
 
+fn is_structural_call_result(caller: &TerminalMachine, place: PlaceId) -> bool {
+    caller.structural_places.iter().any(|declaration| {
+        declaration.id == place
+            && matches!(declaration.kind,
+            StructuralPlaceKind::OperationResult { producer, .. }
+                if caller.blocks.iter().flat_map(|block| &block.operations).any(|operation| {
+                    operation.id == producer && matches!(operation.kind,
+                        OperationKind::CallStructuralWithScalarArguments { .. }
+                            | OperationKind::BoundaryCall { .. })
+                }))
+    })
+}
+
 pub(super) fn validate_structural_arguments(
     module: &TerminalModule,
     caller: &TerminalMachine,
@@ -1200,9 +1215,14 @@ pub(super) fn validate_structural_arguments(
                                         }
                                         OperationKind::CallStructuralWithScalarArguments { .. }
                                         | OperationKind::BoundaryCall { .. } => {
-                                            argument.access == StructuralAccess::Owned
-                                                && expected.access == StructuralAccess::Owned
-                                                && expected.multiplicity == StructuralMultiplicity::Affine
+                                            matches!(argument.access,
+                                                StructuralAccess::Owned | StructuralAccess::SharedBorrow)
+                                                && expected.access == argument.access
+                                                && expected.multiplicity == if argument.access == StructuralAccess::SharedBorrow {
+                                                    StructuralMultiplicity::Unrestricted
+                                                } else {
+                                                    StructuralMultiplicity::Affine
+                                                }
                                                 && !expected.is_self
                                                 && expected.qualifications.is_empty()
                                                 && expected.projected_qualifications.is_empty()
@@ -1283,7 +1303,21 @@ pub(super) fn validate_structural_arguments(
             is_unrestricted_shared_subloan(caller, expected, argument);
         let unrestricted_mutable_field_subloan =
             is_unrestricted_mutable_subloan(caller, expected, argument);
-        let actual_multiplicity = if argument.path.is_empty() {
+        // A shared view is unrestricted without changing the owning root's
+        // affine multiplicity. Construction-local loans remain separate.
+        let shared_affine_loan = argument.path.is_empty()
+            && argument.access == StructuralAccess::SharedBorrow
+            && expected.multiplicity == StructuralMultiplicity::Unrestricted
+            && actual_access == StructuralAccess::Owned
+            && actual_multiplicity == StructuralMultiplicity::Affine
+            && (is_structural_call_result(caller, argument.place)
+                || caller
+                    .structural_parameters
+                    .iter()
+                    .any(|parameter| parameter.place == argument.place));
+        let actual_multiplicity = if shared_affine_loan {
+            StructuralMultiplicity::Unrestricted
+        } else if argument.path.is_empty() {
             actual_multiplicity
         } else if unrestricted_write_only_field_subloan
             || unrestricted_shared_field_subloan
@@ -1344,7 +1378,20 @@ pub(super) fn validate_structural_arguments(
             if left.place == right.place
                 && structural_paths_may_overlap(&left.path, &right.path)
                 && (structural_access_is_exclusive(left.access)
-                    || structural_access_is_exclusive(right.access))
+                    || structural_access_is_exclusive(right.access)
+                    || ((left.access == StructuralAccess::Owned
+                        || right.access == StructuralAccess::Owned)
+                        && caller.structural_places.iter().any(|place| {
+                            place.id == left.place
+                                && (matches!(
+                                    place.kind,
+                                    StructuralPlaceKind::OperationResult { .. }
+                                ) || caller.structural_parameters.iter().any(|parameter| {
+                                    parameter.place == place.id
+                                        && parameter.access == StructuralAccess::Owned
+                                        && parameter.multiplicity == StructuralMultiplicity::Affine
+                                }))
+                        })))
             {
                 return Err(ModuleError::OverlappingExclusiveStructuralArguments {
                     operation,

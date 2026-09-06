@@ -6,6 +6,35 @@ use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
 use terminal_psi::{BoundaryMachineResult, OperationKind, OperationResult, Terminator};
 
 #[test]
+fn shared_result_borrows_preserve_custody_until_the_final_move() {
+    let source = source(
+        "Sink::read(&first, prefix); Sink::read(&first, prefix); Sink::consume(first, prefix);",
+    )
+    .replace(
+        "boundary trait Sink {",
+        "boundary trait Sink { machine read(token: &Token, count: u16) reaches Sink;",
+    );
+    let artifact = encoded_locals(&checked(&source), &["prefix", "first", "spare"]);
+    let mut execution = TerminalExecution::start_artifact(
+        &artifact.0,
+        &artifact.1,
+        &AdmissionProfile::default(),
+        &[],
+    )
+    .unwrap();
+    let mut observer = ObserveMoves::default();
+    assert_eq!(
+        execution
+            .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer,)
+            .unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(observer.produced, [700, 701]);
+    assert_eq!(observer.consumed, [700, 700, 700]);
+    assert!(execution.live_affine_frontier().next().is_none());
+}
+
+#[test]
 fn nested_boundary_producers_transfer_their_exact_temporary_result() {
     let artifact = encoded_locals(
         &checked(&source(
