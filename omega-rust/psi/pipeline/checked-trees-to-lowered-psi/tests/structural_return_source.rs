@@ -16,6 +16,9 @@ use terminal_psi::{TerminalMachineResult, Terminator};
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
+#[path = "structural_return_source/boundary_arguments.rs"]
+mod boundary_arguments;
+
 const SOURCE: &str = r#"
     data ByteUnit {}
     data CountedQuantity<Unit> { magnitude: u64; }

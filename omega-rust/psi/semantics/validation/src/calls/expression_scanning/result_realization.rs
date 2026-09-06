@@ -12,6 +12,19 @@ use typed_trees::name::Identifier;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TableAssignment, TransitionTargetNode};
 
+mod boundary_return;
+
+/// Result operations own the outer call while their operands use the shared
+/// scalar evaluator. Each caller family retains its existing source topology.
+pub fn result_initializer_call_is_supported(
+    program: &TypedTrees,
+    machine: &Machine,
+    value: ExpressionHandle,
+) -> bool {
+    unit_result_initializer_call_is_supported(program, machine, value)
+        || boundary_return::is_supported(program, machine, value)
+}
+
 /// A value call on a LET-BOUND LOCAL receiver (`let p: Pair = ..; p.total()`)
 /// reads ZII natively: receiver resolution reaches machine FIELDS and state
 /// PARAMETERS only, so the callee's `self.field` reads bind to nothing and
@@ -146,7 +159,7 @@ pub(crate) fn report_nested_call_in_local_initializer(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if free_scalar_computation_call(program, machine, value)
-        || unit_result_initializer_call_is_supported(program, machine, value)
+        || result_initializer_call_is_supported(program, machine, value)
     {
         // This exempts a destination, not its semantics. Ordinary call checks
         // still validate every argument; unsupported computation nodes or call
@@ -197,7 +210,18 @@ pub fn unit_result_initializer_call_is_supported(
     {
         return false;
     }
-    let ExpressionNode::Call(call) = program.expression_table.expression(value) else {
+    initializer_target_is_supported(program, machine, local, true, false)
+}
+
+fn initializer_target_is_supported(
+    program: &TypedTrees,
+    machine: &Machine,
+    local: &typed_trees::statement::TableLocalData,
+    allow_ordinary: bool,
+    allow_parameter_receiver: bool,
+) -> bool {
+    let ExpressionNode::Call(call) = program.expression_table.expression(local.initial_value)
+    else {
         return false;
     };
     if !call.target_symbol.is_valid()
@@ -215,12 +239,21 @@ pub fn unit_result_initializer_call_is_supported(
     });
     if let Some((owner, target)) = targets.next() {
         return targets.next().is_none()
-            && program.call_has_no_runtime_receiver(call, owner, target)
+            && (program.call_has_no_runtime_receiver(call, owner, target)
+                || (allow_parameter_receiver
+                    && owner.supply_mode.is_boundary_declaration()
+                    && boundary_return::has_parameter_receiver(
+                        program, machine, call, owner, target,
+                    )))
             && !unit_type(program, target.return_type)
+            && (allow_ordinary
+                || program.primitive_type_reference(target.return_type)
+                    == program.primitive_type_reference(local.type_reference))
             && (owner.supply_mode.is_boundary_declaration()
-                || (program
-                    .primitive_type_reference(local.type_reference)
-                    .is_some()
+                || (allow_ordinary
+                    && program
+                        .primitive_type_reference(local.type_reference)
+                        .is_some()
                     && program
                         .primitive_type_reference(target.return_type)
                         .is_some()));
@@ -248,6 +281,9 @@ pub fn unit_result_initializer_call_is_supported(
     };
     if requirements.next().is_some()
         || unit_type(program, signature.return_type)
+        || (!allow_ordinary
+            && program.primitive_type_reference(signature.return_type)
+                != program.primitive_type_reference(local.type_reference))
         || program
             .state_signature_parameters(signature)
             .iter()

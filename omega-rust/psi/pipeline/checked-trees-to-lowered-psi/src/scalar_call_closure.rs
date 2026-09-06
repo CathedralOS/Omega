@@ -2,6 +2,8 @@
 
 use super::*;
 
+pub(crate) mod embedded;
+
 pub(super) fn checked_scalar_call_closure(
     checked: &CheckedTrees,
     entry: symbols::SymbolHandle,

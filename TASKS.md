@@ -486,10 +486,13 @@ Owners include
   Complete typed computation plans for remaining numeric policies and selected
   operator calls and borrowed/projected operands and writes.
   Extend computed scalar call operands to later structural-result initializers,
-  returned calls, internal Unit calls in dynamic-result and closed-sum continuations,
+  structural returned calls and Unit tail-call expressions, internal Unit calls
+  in dynamic-result and closed-sum continuations,
   and structural arguments on composed internal calls. Retain exact
   evaluation order across guards and other argument effects, including projected
   and borrowed operand staging.
+  Connect scalar-returning boundary callees to ordinary Unit call closures;
+  named-root lowering alone does not make them callable from a Unit ProgramEntry.
   Lower scalar-dependent Unit crash predicates using the same retained argument
   values; the callee route must not reread caller storage or keep callee-local IDs.
   Complete nonliteral contract arithmetic and callee-result bounds requiring

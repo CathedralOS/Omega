@@ -5,7 +5,7 @@ use super::*;
 pub(super) fn lower(
     checked: &CheckedTrees,
     plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
-) -> Result<ComposedLowered, LoweringError> {
+) -> Result<SourceMappedLowered, LoweringError> {
     if matches!(
         plan.states.first().map(|state| &state.terminator),
         Some(CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. })

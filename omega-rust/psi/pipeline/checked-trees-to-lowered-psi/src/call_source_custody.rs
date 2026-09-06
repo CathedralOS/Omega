@@ -3,7 +3,7 @@
 use super::*;
 
 pub(crate) mod authored;
-mod initializers;
+pub(crate) mod initializers;
 
 pub(super) fn validate_operation(
     checked: &CheckedTrees,

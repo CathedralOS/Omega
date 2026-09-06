@@ -7,7 +7,7 @@ pub(super) fn emit(
     plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
     admitted: super::admission::AdmittedPrefixed<'_>,
     mut catalogs: super::super::catalogs::ComposedCatalogs,
-) -> Result<ComposedLowered, LoweringError> {
+) -> Result<SourceMappedLowered, LoweringError> {
     let mut next_value = catalogs.next_value;
     let mut next_block = catalogs.next_block;
     let control_parameters = (0..admitted.controls.len())

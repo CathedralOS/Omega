@@ -1,9 +1,9 @@
-//! Scalar operand evaluation within an existing Unit machine's structural frontier.
+//! Scalar operand evaluation within an existing machine's structural frontier.
 
 use super::*;
 use checked_trees::CheckedCallScalarArgument;
 
-pub(super) struct Evaluation {
+pub(crate) struct Evaluation {
     pub entry: BlockId,
     pub current: BlockId,
     pub parameters: Vec<ValueDeclaration>,
@@ -12,7 +12,7 @@ pub(super) struct Evaluation {
 }
 
 impl Evaluation {
-    pub(super) fn new(next_block: &mut u64) -> Result<Self, LoweringError> {
+    pub(crate) fn new(next_block: &mut u64) -> Result<Self, LoweringError> {
         let entry = block_id(allocate_dense(next_block)?);
         Ok(Self {
             entry,
@@ -24,7 +24,7 @@ impl Evaluation {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn arguments(
+    pub(crate) fn arguments(
         &mut self,
         checked: &CheckedTrees,
         machine: symbols::SymbolHandle,
@@ -183,7 +183,7 @@ fn declarations(
         .collect()
 }
 
-pub(super) fn validated_values(
+pub(crate) fn validated_values(
     values: Option<&[ValueDeclaration]>,
     types: &[ScalarType],
 ) -> Result<Vec<ValueDeclaration>, LoweringError> {

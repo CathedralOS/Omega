@@ -3067,6 +3067,16 @@ first-initializer route and retains its existing normal cleanup; later structura
 initializers, forwarding those locals to later calls, and inspecting sum payloads
 remain separate work.
 
+Scalar-returning boundary callers also use this evaluator for their existing
+two-statement body: an immutable boundary-result initializer followed by that
+local's return. Nested operand calls use shared scalar-helper identities; they
+do not create synthetic Unit bodies or additional source statements. The root
+retains its checked crash contract and whole-root claims while arguments execute.
+Only successful boundary completion settles those claims and supplies the
+returned scalar. Source validation rejoins the initializer, its captured call,
+the declared result carrier, and the returned local independently of operand
+graphs. The emitted root and scalar helpers retain their exact source owners.
+
 Composed-control boundary leaves use the same evaluator, including the existing
 three-state, prefixed, nested acyclic, dynamic-result continuation, and closed-sum
 payload routes. The producer partitions exact outer flow calls from nested
