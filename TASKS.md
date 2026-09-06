@@ -158,7 +158,9 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   above, `attached Unit closure is missing a checked transitive machine plan`,
   which owns the clear majority of all failing diagnostics; the rest fall behind
   `NOMINAL-FIELD-FLOW`, missing exact selected program entries, and
-  index/subslice bound proofs. Owning areas
+  index/subslice bound proofs. The checked-tree-valid
+  `capabilities/win64_scalar_float_import_compile` fixture remains blocked by
+  the Unit closure fence during native production. Owning areas
   are those entries, not this one. Blocker: clearing the fence advances each
   affected canary to its next failure rather than passing it outright, so the
   distribution must be re-ranked after it closes rather than assumed. Rank with

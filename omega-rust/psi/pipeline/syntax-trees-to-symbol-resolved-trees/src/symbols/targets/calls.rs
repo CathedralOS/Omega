@@ -214,6 +214,9 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
     // &Item) -> i32 { ... }`, called as `compute(item)`): resolve to the free
     // machine's entry state so downstream passes (contract call obligations,
     // state-call planning) see a resolved target instead of an invalid symbol.
+    if has_receiver {
+        return SymbolHandle::invalid();
+    }
     resolve_free_machine_entry_state_symbol(symbols, target)
 }
 

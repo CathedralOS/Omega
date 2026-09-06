@@ -3,6 +3,46 @@ use symbol_resolved_trees::domain::ProofFact;
 use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
 
 #[test]
+fn qualified_operator_calls_do_not_select_same_named_free_machines() {
+    let source = r#"
+        pub operator Meaning::compare(left: i32, right: i32) -> bool;
+        machine compare(left: i32, right: i32) -> bool { left == right }
+        pub boundary operator Probe::compare(left: i32, right: i32) -> bool
+        ensures result == Meaning::compare(left, right);
+        machine direct() -> bool { compare(1, 1) }
+        machine missing() -> bool { Missing::compare(1, 1) }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let program = lower_syntax_trees(&syntax).expect("resolve");
+    let mut qualified_calls = 0;
+    let mut direct_calls = 0;
+    for (_, expression) in program.tables.bodies.expressions.iter_expressions() {
+        let ExpressionNode::Call(call) = expression else {
+            continue;
+        };
+        if call.target.as_str() != "compare" {
+            continue;
+        }
+        if call.receiver.is_valid() {
+            assert!(
+                !call.target_symbol.is_valid(),
+                "qualified calls await their own declaration"
+            );
+            qualified_calls += 1;
+        } else {
+            assert_eq!(
+                program.symbols.display_path(call.target_symbol, "::"),
+                "compare::entry"
+            );
+            direct_calls += 1;
+        }
+    }
+    assert!(qualified_calls >= 2);
+    assert!(direct_calls >= 1);
+}
+
+#[test]
 fn operator_contracts_resolve_each_overloads_own_formal_parameters() {
     let source = r#"
         boundary operator [] Slice::read<Element>(items: &[Element], position: u64) -> Element
