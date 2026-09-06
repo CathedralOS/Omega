@@ -1200,15 +1200,53 @@ fn build_checked_machine_with(
             )
         })
         .flatten();
+    // Construction remains owned by the existing prefix builders. The shared
+    // statement sequence receives their exact local identities, not a synthetic
+    // structural result or a second establishment operation.
+    let sequence_trivial_locals = if construction.is_none() && affine_scalar_record_local.is_none()
+    {
+        let count = statements
+            .iter()
+            .take_while(|statement| {
+                matches!(statement, StatementNode::LocalData(local)
+                if program.expression_table.expression_is_valid(local.initial_value)
+                    && matches!(program.expression_table.expression(local.initial_value),
+                        ExpressionNode::StructLiteral(_)))
+            })
+            .count();
+        (count != 0)
+            .then(|| {
+                build_unit_trivial_affine_locals(
+                    program,
+                    facts,
+                    shapes,
+                    machine,
+                    state,
+                    &binders,
+                    &statements[..count],
+                )
+            })
+            .flatten()
+    } else {
+        None
+    };
+    let construction_statement_count = if affine_scalar_record_local.is_some() {
+        1
+    } else {
+        sequence_trivial_locals.as_ref().map_or(0, Vec::len)
+    };
     let statement_sequence = if selected_scalar_result_local.is_none()
         && selected_structural_result_local.is_none()
         && selected_ieee_float_fma_result_locals.is_none()
         && construction.is_none()
-        && affine_scalar_record_local.is_none()
         && write_only_store.is_none()
         && structural_scalar_field_store.is_none()
-        && statement_sequence::has_statement_shape(program, facts, state)
-    {
+        && statement_sequence::has_statement_shape(
+            program,
+            facts,
+            state,
+            construction_statement_count,
+        ) {
         Some(statement_sequence::build(
             program,
             facts,
@@ -1218,6 +1256,9 @@ fn build_checked_machine_with(
             &structural_parameters,
             &entry_claims,
             &calls,
+            sequence_trivial_locals.as_deref().unwrap_or(&[]),
+            affine_scalar_record_local.as_slice(),
+            construction_statement_count,
         )?)
     } else {
         None
@@ -1247,7 +1288,10 @@ fn build_checked_machine_with(
             )
         });
     let has_scalar_result_local = scalar_result_local_count != 0;
-    if has_scalar_result_local && (construction.is_some() || affine_scalar_record_local.is_some()) {
+    if has_scalar_result_local
+        && statement_sequence.is_none()
+        && (construction.is_some() || affine_scalar_record_local.is_some())
+    {
         return None;
     }
     if write_only_store.is_some()
@@ -1369,7 +1413,8 @@ fn build_checked_machine_with(
         restored_call_alias_prefix,
         affine_scalar_record_local.as_ref(),
     ) {
-        (true, None, None, None) => Vec::new(),
+        (true, None, None, None) => sequence_trivial_locals.unwrap_or_default(),
+        (true, None, None, Some(_)) if statement_sequence.is_some() => Vec::new(),
         (false, Some((rows, _)), None, None) => rows,
         (false, None, Some(_), None) | (false, None, None, Some(_)) => Vec::new(),
         (false, None, None, None) => build_unit_trivial_affine_locals(

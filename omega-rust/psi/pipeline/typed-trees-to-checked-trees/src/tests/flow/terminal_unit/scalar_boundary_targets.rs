@@ -652,3 +652,126 @@ fn scalar_boundary_wrapper_consumes_established_affine_result_once() {
     }) if trivial_affine_discards.is_empty() && trivial_affine_local_discard_ordinals.is_empty())
     );
 }
+
+#[test]
+fn scalar_boundary_wrapper_consumes_existing_constructed_local_kinds() {
+    for (fields, values, scalar_record) in [("", "", false), ("value: i64;", "value: 7i64", true)] {
+        let source = format!(
+            r#"
+            data Payload {{ {fields} }}
+            boundary trait Host {{ machine measure(payload: Payload, value: u16) -> u16; }}
+            data Wrapper {{}}
+            machine Wrapper::measure(payload: Payload, value: u16) -> u16 reaches Host
+            {{ let result: u16 = Host::measure(payload, value); result }}
+            data Root {{}}
+            machine Root::run() reaches Host {{
+                let payload: Payload = Payload {{ {values} }};
+                let result: u16 = Wrapper::measure(payload, 70u16);
+            }}
+        "#
+        );
+        let original = checked(&source);
+        let root = machine_named(&original, "run");
+        let caller = original
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(root)
+            .expect("constructed local reaches scalar wrapper through existing argument source");
+        assert_eq!(caller.operations.len(), 3);
+        if scalar_record {
+            assert!(matches!(
+                &caller.operations[0],
+                CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal {
+                    statement_index: 0,
+                    declaration_ordinal: 0,
+                    ..
+                }
+            ));
+        } else {
+            assert!(matches!(
+                &caller.operations[0],
+                CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+                    statement_index: 0,
+                    declaration_ordinal: 0,
+                    ..
+                }
+            ));
+        }
+        let CheckedUnitEffectOperationPlan::ScalarCall {
+            coordinate,
+            result,
+            structural_arguments,
+            claim_transfers,
+            ..
+        } = &caller.operations[1]
+        else {
+            panic!("scalar wrapper consumer")
+        };
+        assert_eq!(coordinate.statement_index, 1);
+        assert_eq!(
+            result.binding_ordinal, 0,
+            "structural construction occupies no scalar binding"
+        );
+        assert_eq!(structural_arguments.len(), 1);
+        if scalar_record {
+            assert_eq!(
+                structural_arguments[0].source_affine_scalar_record_local_declaration_ordinal(),
+                Some(0)
+            );
+        } else {
+            assert_eq!(
+                structural_arguments[0].source_local_declaration_ordinal(),
+                Some(0)
+            );
+        }
+        assert!(claim_transfers.is_empty());
+        assert!(
+            matches!(caller.operations.last(), Some(CheckedUnitEffectOperationPlan::ReturnUnit {
+            trivial_affine_discards, trivial_affine_local_discard_ordinals, ..
+        }) if trivial_affine_discards.is_empty() && trivial_affine_local_discard_ordinals.is_empty())
+        );
+
+        let mutable = checked(&source.replace("let payload:", "let mut payload:"));
+        let root = machine_named(&mutable, "run");
+        assert!(
+            mutable
+                .facts
+                .flow
+                .terminal_unit_effects
+                .for_machine(root)
+                .is_none(),
+            "mutable construction remains outside the immutable local path"
+        );
+    }
+}
+
+#[test]
+fn scalar_wrapper_transfer_keeps_unconsumed_empty_prefix_cleanup() {
+    let source = r#"
+        data Payload {}
+        boundary trait Host { machine measure(payload: Payload) -> u16; }
+        data Wrapper {}
+        machine Wrapper::measure(payload: Payload) -> u16 reaches Host
+        { let result: u16 = Host::measure(payload); result }
+        data Root {}
+        machine Root::run() reaches Host {
+            let unused: Payload = Payload {};
+            let consumed: Payload = Payload {};
+            let result: u16 = Wrapper::measure(consumed);
+        }
+    "#;
+    let checked = checked(source);
+    let root = machine_named(&checked, "run");
+    let caller = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(root)
+        .unwrap();
+    assert!(
+        matches!(caller.operations.last(), Some(CheckedUnitEffectOperationPlan::ReturnUnit {
+        trivial_affine_local_discard_ordinals, ..
+    }) if trivial_affine_local_discard_ordinals == &[0])
+    );
+}

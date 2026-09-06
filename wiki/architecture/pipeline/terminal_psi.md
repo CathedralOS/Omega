@@ -3149,7 +3149,14 @@ direct call has retained that same callee in the module. Previously established
 affine structural results use their existing result owner and single-consumer
 cleanup rules; this does not introduce linear result claims. Provider rejection
 retains custody for retry, and an operand crash invokes neither the boundary nor
-cleanup. Construction locals and nested structural-result expressions as wrapper
+cleanup. Constructed local arguments reuse the existing leading empty-record
+prefix or single-i64-field record establishment. The source declaration,
+constructor value, and exact establishment/transfer events remain authoritative;
+scalar result ordinals do not count construction locals. Only transferred locals
+lose caller cleanup, and unused locals retain reverse declaration order.
+The verifier shares the ordinary Unit local/result policy and still rejects
+borrowed or projected locals, missing establishments, and duplicate disposal.
+Wider construction carriers and nested structural-result expressions as wrapper
 arguments, structural-observation requirements, broader result guarantees, and
 mixed structural-field crash predicates remain separate work.
 
