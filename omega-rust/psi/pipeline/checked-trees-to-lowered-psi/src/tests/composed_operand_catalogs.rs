@@ -3,6 +3,8 @@
 use super::*;
 use typed_trees::{expression::ExpressionNode, statement::StatementNode};
 
+mod dynamic_unit;
+
 fn roundtrip(checked: &CheckedTrees) -> LoweredPsi {
     let lowered = lower_machine(checked, "Main::main").expect("computed leaves lower");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).expect("encode module");
@@ -154,9 +156,7 @@ fn assert_trailing_provider_field_custody(checked: &CheckedTrees) {
     }
 }
 
-#[test]
-fn dynamic_continuation_operands_preserve_forwarding_and_helper_identities() {
-    let source = r#"
+const DYNAMIC_CONTINUATION_SOURCE: &str = r#"
         boundary trait Console {
             machine exit_process(return_code: i32) reaches Console;
         }
@@ -187,6 +187,10 @@ fn dynamic_continuation_operands_preserve_forwarding_and_helper_identities() {
         ensures 0i32 == 0i32
         { value }
     "#;
+
+#[test]
+fn dynamic_continuation_operands_preserve_forwarding_and_helper_identities() {
+    let source = DYNAMIC_CONTINUATION_SOURCE;
     for source in [
         source.to_owned(),
         source
@@ -243,6 +247,37 @@ fn dynamic_continuation_operands_preserve_forwarding_and_helper_identities() {
             "operand evaluation retains private blocks"
         );
     }
+}
+
+#[test]
+fn dynamic_result_continuation_calls_an_observable_ordinary_unit_body() {
+    let source = DYNAMIC_CONTINUATION_SOURCE
+        .replace(
+            "data Main {",
+            r#"
+            machine consume(value: i32) reaches Console {
+                Console::exit_process(value);
+            }
+            data Main {
+        "#,
+        )
+        .replace(
+            "self.console.exit_process(helper(70i32));",
+            "consume(helper(70i32));",
+        );
+    let checked = checked_source(&source);
+    let lowered = roundtrip(&checked);
+    assert!(
+        lowered.semantic_module.machines.iter().any(|machine| {
+            machine.id != lowered.semantic_module.entry
+                && machine.blocks.iter().any(|block| {
+                    block.operations.iter().any(|operation| {
+                        matches!(operation.kind, OperationKind::BoundaryCall { .. })
+                    })
+                })
+        }),
+        "dynamic continuation includes the observable ordinary Unit body"
+    );
 }
 
 #[test]

@@ -8,7 +8,7 @@ pub(super) fn lower(
     continuation: &checked_trees::CheckedDynamicUnitContinuationPlan,
     caller: DynamicCallerShape,
     lane: DynamicLoweringLane<'_>,
-) -> Result<LoweredPsi, LoweringError> {
+) -> Result<crate::machine_dispatch::SourceMappedLowered, LoweringError> {
     if plan.caller_structural_scalar_field_store.is_some() {
         return unsupported(
             "direct dynamic result control cannot also retain a caller field store",
@@ -20,14 +20,10 @@ pub(super) fn lower(
     };
     let mut catalogs =
         crate::attached_unit::lower_dynamic_control_catalogs(checked, plan, continuation, stored)?;
-    if !catalogs.internal_targets.is_empty() || catalogs.next_place != 1 {
-        return unsupported(
-            "direct dynamic continuation requires scalar-only boundary effect leaves",
-        );
-    }
+    let mut next_place = catalogs.next_place;
     let caller_attachment = lookup_type_id(&catalogs.type_ids, &caller.attachment_type_identity)?;
     let caller_self = StructuralParameterDeclaration {
-        place: place_id(1),
+        place: place_id(allocate_dense(&mut next_place)?),
         position: 0,
         is_self: true,
         structural_type: caller_attachment,
@@ -49,15 +45,40 @@ pub(super) fn lower(
 
     let caller_machine = machine_id(1);
     let has_descriptor_store = matches!(lane, DynamicLoweringLane::Stored(_));
-    let call_operation = operation_id(if has_descriptor_store { 2 } else { 1 });
-    let call_result_value = value_id(1);
+    let mut next_operation = catalogs.next_operation;
+    let descriptor_store_operation = if has_descriptor_store {
+        Some(operation_id(allocate_dense(&mut next_operation)?))
+    } else {
+        None
+    };
+    let call_operation = operation_id(allocate_dense(&mut next_operation)?);
+    let mut next_value = catalogs.next_value;
+    let call_result_value = value_id(allocate_dense(&mut next_value)?);
     let call_result_type = terminal_scalar_type(plan.result.primitive_type)?;
     let call_result = ValueDeclaration {
         id: call_result_value,
         scalar_type: call_result_type,
     };
     let source_type = lookup_type_id(&catalogs.type_ids, &plan.source_type_identity)?;
-    let all_realizations = collect_dynamic_realizations(checked, plan)?;
+    // Shared Unit bodies already contain calls using their selected identities.
+    // Dynamic realizations follow them; those existing calls cannot be renamed.
+    let first_realization = catalogs
+        .shared_units
+        .as_ref()
+        .map_or(1, |shared| {
+            shared
+                .semantic_module
+                .machines
+                .iter()
+                .map(|machine| machine.id.get())
+                .max()
+                .unwrap_or(1)
+        })
+        .checked_add(1)
+        .ok_or(LoweringError::Unsupported(
+            "dynamic realization prefix overflowed",
+        ))?;
+    let all_realizations = collect_dynamic_realizations(checked, plan, first_realization)?;
     let lowered_realizations = retain_realizations_for_lane(&all_realizations, plan, lane)?;
     let realization_prefix = lowered_realizations
         .iter()
@@ -83,9 +104,11 @@ pub(super) fn lower(
         .ok_or(LoweringError::Unsupported(
             "dynamic machine prefix exceeds usize",
         ))?;
-    catalogs
-        .scalar_calls
-        .reserve_machine_prefix(scalar_prefix)?;
+    if catalogs.shared_units.is_none() {
+        catalogs
+            .scalar_calls
+            .reserve_machine_prefix(scalar_prefix)?;
+    }
     let selected_realizations = lowered_realizations
         .iter()
         .filter(|candidate| {
@@ -121,7 +144,6 @@ pub(super) fn lower(
     };
     let guard = lower_checked_scalar_expression(&continuation.guard)?;
     validate_direct_parameter_types(&guard, &[call_result_type])?;
-    let mut next_value = 2;
     let mut guard_operations = OperationBuffer::new(call_operation.get());
     let condition = emit_direct_expression(
         &guard,
@@ -129,19 +151,22 @@ pub(super) fn lower(
         &mut next_value,
         &mut guard_operations,
     );
-    let mut next_operation = guard_operations.next_identity;
+    next_operation = guard_operations.next_identity;
     let guard_operations = guard_operations.operations;
 
-    let caller_block = block_id(1);
-    let leaf_blocks = [block_id(2), block_id(3)];
-    let mut next_block = 4_u64;
-    let mut next_edge = 1_u64;
+    let mut next_block = catalogs.next_block;
+    let caller_block = block_id(allocate_dense(&mut next_block)?);
+    let leaf_blocks = [
+        block_id(allocate_dense(&mut next_block)?),
+        block_id(allocate_dense(&mut next_block)?),
+    ];
+    let mut next_edge = catalogs.next_edge;
     let when_true = empty_successor(leaf_blocks[0], &mut next_edge)?;
     let when_false = empty_successor(leaf_blocks[1], &mut next_edge)?;
     let mut emitted_leaf_blocks = Vec::new();
     let mut leaf_source_call_occurrences = Vec::new();
     for (state, block) in continuation.leaves.iter().zip(leaf_blocks) {
-        let (leaf, mut occurrences) = crate::attached_unit::emit_direct_dynamic_boundary_leaf(
+        let (leaf, mut occurrences) = crate::attached_unit::emit_dynamic_control_leaf(
             checked,
             plan.caller_machine,
             state,
@@ -185,7 +210,6 @@ pub(super) fn lower(
         .iter()
         .map(|boundary| (boundary.source, boundary.id))
         .collect::<Vec<_>>();
-    let mut next_place = 2_u64;
     let provider_places = crate::attached_unit::lower_provider_attachment_places(
         caller_attachment,
         attachment,
@@ -218,6 +242,7 @@ pub(super) fn lower(
         &catalogs.type_ids,
         caller_machine,
         call_operation,
+        descriptor_store_operation,
         source,
         initial_application.as_ref(),
         &application,
@@ -230,9 +255,9 @@ pub(super) fn lower(
         extend_parameter_forwarding_catalog(&mut dynamic_dispatch, &forwarded_helpers)?;
     }
     let mut caller_operations = Vec::new();
-    if has_descriptor_store {
+    if let Some(id) = descriptor_store_operation {
         caller_operations.push(Operation {
-            id: operation_id(1),
+            id,
             result: OperationResult::Unit,
             kind: OperationKind::StoreDynamicDescriptor {
                 descriptor_ordinal: 0,
@@ -279,7 +304,8 @@ pub(super) fn lower(
         &forwarded_helpers,
     )?;
 
-    let mut lowered = LoweredPsi {
+    let source_machine_ids = catalogs.scalar_calls.machine_ids.clone();
+    let mut lowered = catalogs.shared_units.take().unwrap_or_else(|| LoweredPsi {
         semantic_module: TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: caller_machine,
@@ -300,50 +326,13 @@ pub(super) fn lower(
             evidence_contract_lanes: Vec::new(),
             proof_output_calls: Vec::new(),
             proof_recursive_components: Vec::new(),
-            closed_conformance_applications: {
-                let mut applications = vec![application];
-                applications.extend(initial_application);
-                applications.sort_by(|left, right| {
-                    (
-                        left.owner,
-                        left.declaration_identity.as_str(),
-                        left.report_fingerprint,
-                    )
-                        .cmp(&(
-                            right.owner,
-                            right.declaration_identity.as_str(),
-                            right.report_fingerprint,
-                        ))
-                });
-                applications
-            },
-            dynamic_dispatch,
+            closed_conformance_applications: Vec::new(),
+            dynamic_dispatch: Default::default(),
             suspension_call_plan_count: 0,
             suspension_call_sites: Vec::new(),
             suspension_call_plans: Vec::new(),
             quotient_correspondences: Vec::new(),
-            machines: {
-                let mut machines = vec![TerminalMachine {
-                    id: caller_machine,
-                    attachment: Some(caller_attachment),
-                    parameters: Vec::new(),
-                    structural_parameters: vec![caller_self],
-                    ranked_scc: None,
-                    result: TerminalMachineResult::Unit,
-                    structural_places: caller_structural_places,
-                    entry_claims: Vec::new(),
-                    published_service_ceiling: caller_reach,
-                    content_entry_claims: Vec::new(),
-                    content_identity_reshuffles: Vec::new(),
-                    content_partition_compositions: Vec::new(),
-                    entry: caller_block,
-                    blocks: caller_blocks,
-                    contract: empty_terminal_contract(caller_machine.get()),
-                }];
-                machines.extend(realization_machines);
-                machines.extend(forwarded_helper_machines);
-                machines
-            },
+            machines: Vec::new(),
         },
         proof_bundle: ProofBundle {
             recursive_components: Vec::new(),
@@ -351,17 +340,96 @@ pub(super) fn lower(
             evidence: Vec::new(),
         },
         debug_map: None,
-        source_call_occurrences,
+        source_call_occurrences: Vec::new(),
         selected_ieee_float_fma_occurrences: Vec::new(),
-    };
-    lowered.semantic_module.machines[0].contract.crash_routes =
-        lower_checked_crash_route_buckets(&catalogs.root_crash_routes, &[])?;
-    lowered.semantic_module.machines[0]
-        .blocks
-        .sort_by_key(|block| block.id);
+    });
+    if lowered.semantic_module.entry != caller_machine {
+        return unsupported("dynamic continuation lost its reserved shared entry");
+    }
+    let mut contract = empty_terminal_contract(caller_machine.get());
+    contract.crash_routes = lower_checked_crash_route_buckets(&catalogs.root_crash_routes, &[])?;
+    caller_blocks.sort_by_key(|block| block.id);
+    lowered.semantic_module.machines.insert(
+        0,
+        TerminalMachine {
+            id: caller_machine,
+            attachment: Some(caller_attachment),
+            parameters: Vec::new(),
+            structural_parameters: vec![caller_self],
+            ranked_scc: None,
+            result: TerminalMachineResult::Unit,
+            structural_places: caller_structural_places,
+            entry_claims: Vec::new(),
+            published_service_ceiling: caller_reach,
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: caller_block,
+            blocks: caller_blocks,
+            contract,
+        },
+    );
+    lowered
+        .semantic_module
+        .machines
+        .extend(realization_machines);
+    lowered
+        .semantic_module
+        .machines
+        .extend(forwarded_helper_machines);
+    lowered
+        .source_call_occurrences
+        .extend(source_call_occurrences);
+    let applications = &mut lowered.semantic_module.closed_conformance_applications;
+    applications.push(application);
+    applications.extend(initial_application);
+    applications.sort_by(|left, right| {
+        (
+            left.owner,
+            left.declaration_identity.as_str(),
+            left.report_fingerprint,
+        )
+            .cmp(&(
+                right.owner,
+                right.declaration_identity.as_str(),
+                right.report_fingerprint,
+            ))
+    });
+    append_dynamic_dispatch(
+        &mut lowered.semantic_module.dynamic_dispatch,
+        dynamic_dispatch,
+    );
     catalogs.scalar_calls.append_to(&mut lowered)?;
     finalize_operation_proofs(&mut lowered)?;
-    Ok(lowered)
+    retain_dynamic_source_owners(
+        lowered,
+        plan,
+        &lowered_realizations,
+        &forwarded_helpers,
+        source_machine_ids,
+    )
+}
+
+fn append_dynamic_dispatch(
+    target: &mut TerminalDynamicDispatchCatalog,
+    source: TerminalDynamicDispatchCatalog,
+) {
+    fn append<T: Ord>(target: &mut Vec<T>, source: Vec<T>) {
+        target.extend(source);
+        target.sort();
+    }
+    append(&mut target.parameters, source.parameters);
+    append(&mut target.arguments, source.arguments);
+    append(&mut target.selections, source.selections);
+    append(&mut target.rebound_descriptors, source.rebound_descriptors);
+    append(&mut target.stored_descriptors, source.stored_descriptors);
+    append(&mut target.direct_dispatches, source.direct_dispatches);
+    append(&mut target.indirect_dispatches, source.indirect_dispatches);
+    append(&mut target.stored_dispatches, source.stored_dispatches);
+    append(
+        &mut target.parameter_dispatches,
+        source.parameter_dispatches,
+    );
 }
 
 fn empty_successor(target: BlockId, next_edge: &mut u64) -> Result<SuccessorEdge, LoweringError> {

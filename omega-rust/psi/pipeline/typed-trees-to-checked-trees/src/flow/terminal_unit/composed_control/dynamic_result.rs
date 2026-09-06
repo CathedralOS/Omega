@@ -151,10 +151,15 @@ pub(crate) fn build(
         )?,
     ];
     if leaves.iter().any(|leaf| {
-        !matches!(
-            leaf.operations.as_slice(),
-            [CheckedUnitEffectOperationPlan::BoundaryCall { .. }]
-        )
+        leaf.operations.iter().any(|operation| match operation {
+            CheckedUnitEffectOperationPlan::BoundaryCall { .. } => false,
+            CheckedUnitEffectOperationPlan::CallUnit {
+                structural_arguments,
+                claim_transfers,
+                ..
+            } => !structural_arguments.is_empty() || !claim_transfers.is_empty(),
+            _ => true,
+        })
     }) {
         return None;
     }

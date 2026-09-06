@@ -503,6 +503,13 @@ Owners include
   exact residual custody; trap/abort edges clean nothing. Acceptance: no affine
   occurrence disappears, duplicates, or is cleaned after transfer.
 
+- **UNUSED-PROVIDER-FIELDS.** Represent an unused provider-backed attachment
+  field without inventing a boundary specialization or changing its relevance.
+  Owning areas: provider attachment lowering and Terminal structural-field
+  validation. Acceptance: an attachment whose ordinary callees own all boundary
+  calls publishes with its unused provider field retained; omitting any actual
+  direct-call requirement still rejects.
+
 - **STATE-LOCAL-VALUE-FRONTIER.** Complete live contract/value-fact transport
   across dynamic projections. Extend storage-value operands and executable
   paths to borrowed/projected places and the remaining scalar carriers.
@@ -512,11 +519,9 @@ Owners include
   Complete typed computation plans for remaining numeric policies and selected
   operator calls and borrowed/projected operands and writes.
   Extend computed scalar call operands to later structural-result initializers,
-  structural returned calls, internal Unit calls
-  in dynamic-result continuations,
-  and structural arguments on composed internal calls. Retain exact
-  evaluation order across guards and other argument effects, including projected
-  and borrowed operand staging.
+  structural returned calls, and structural arguments on composed internal
+  calls. Retain exact evaluation order across guards and other argument effects,
+  including projected and borrowed operand staging.
   Connect scalar-returning boundary callees to ordinary Unit call closures;
   named-root lowering alone does not make them callable from a Unit ProgramEntry.
   Lower scalar-dependent Unit crash predicates using the same retained argument

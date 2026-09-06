@@ -112,6 +112,7 @@ pub(crate) fn lower_dynamic_catalogs(
     plan: &checked_trees::CheckedDynamicScalarCallPlan,
     continuation: &checked_trees::CheckedDynamicUnitContinuationPlan,
     boundaries: &[(&CheckedBoundaryMachinePlan, String)],
+    internal_targets: &[(&checked_trees::CheckedUnitEffectMachinePlan, String)],
 ) -> Result<ComposedCatalogs, LoweringError> {
     let contract_service_reach = checked
         .facts
@@ -128,7 +129,7 @@ pub(crate) fn lower_dynamic_catalogs(
         plan.caller_service_reach,
         &continuation.leaves,
         boundaries,
-        &[],
+        internal_targets,
     )
 }
 

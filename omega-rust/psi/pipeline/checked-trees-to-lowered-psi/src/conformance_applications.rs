@@ -36,8 +36,69 @@ pub(super) fn lower_closed_conformance_applications(
         .zip(&module.machines)
         .map(|(source, terminal)| (*source, terminal.id))
         .collect::<Vec<_>>();
+    module.closed_conformance_applications =
+        collect_closed_conformance_applications(checked, &owners, &[])?;
+    Ok(())
+}
+
+/// Dynamic roots already retain their selected application. Add independently
+/// selected callee applications without replacing that dynamic custody.
+pub(super) fn append_closed_conformance_applications_excluding(
+    checked: &CheckedTrees,
+    owners: &[(symbols::SymbolHandle, semantic_vocabulary::MachineId)],
+    excluded_source: symbols::SymbolHandle,
+    module: &mut TerminalModule,
+) -> Result<(), LoweringError> {
+    if owners.len() != module.machines.len()
+        || owners
+            .iter()
+            .zip(&module.machines)
+            .any(|((_, owner), machine)| *owner != machine.id)
+        || owners.iter().enumerate().any(|(index, (source, owner))| {
+            owners[..index]
+                .iter()
+                .any(|(prior_source, prior_owner)| source == prior_source || owner == prior_owner)
+        })
+    {
+        return Err(LoweringError::Unsupported(
+            "closed conformance application owners do not match the exact terminal closure",
+        ));
+    }
+    let applications =
+        collect_closed_conformance_applications(checked, owners, &[excluded_source])?;
+    for application in applications {
+        let existing = module
+            .closed_conformance_applications
+            .iter()
+            .find(|existing| {
+                existing.owner == application.owner
+                    && existing.declaration_identity == application.declaration_identity
+                    && existing.report_fingerprint == application.report_fingerprint
+            });
+        if let Some(existing) = existing {
+            if existing != &application {
+                return Err(LoweringError::Unsupported(
+                    "retained closed conformance application differs from its source selection",
+                ));
+            }
+        } else {
+            module.closed_conformance_applications.push(application);
+        }
+    }
+    sort_applications(&mut module.closed_conformance_applications);
+    Ok(())
+}
+
+fn collect_closed_conformance_applications(
+    checked: &CheckedTrees,
+    owners: &[(symbols::SymbolHandle, semantic_vocabulary::MachineId)],
+    excluded_sources: &[symbols::SymbolHandle],
+) -> Result<Vec<ClosedConformanceApplication>, LoweringError> {
     let mut applications = Vec::new();
     for specialization in &checked.machine_specializations {
+        if excluded_sources.contains(&specialization.instance) {
+            continue;
+        }
         let Some((_, owner)) = owners
             .iter()
             .find(|(source, _)| *source == specialization.instance)
@@ -333,6 +394,11 @@ pub(super) fn lower_closed_conformance_applications(
             applications.push(lowered);
         }
     }
+    sort_applications(&mut applications);
+    Ok(applications)
+}
+
+fn sort_applications(applications: &mut [ClosedConformanceApplication]) {
     applications.sort_by(|left, right| {
         (
             left.owner,
@@ -345,6 +411,152 @@ pub(super) fn lower_closed_conformance_applications(
                 right.report_fingerprint,
             ))
     });
-    module.closed_conformance_applications = applications;
-    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    type Owners = Vec<(symbols::SymbolHandle, semantic_vocabulary::MachineId)>;
+
+    fn dynamic_callee_fixture() -> (CheckedTrees, TerminalModule, Owners, symbols::SymbolHandle) {
+        let source = r#"
+            boundary trait Console {
+                machine exit_process(value: i32) reaches Console;
+            }
+            trait Measure { machine measure(&self) -> i32; }
+            data Item [copy] { value: i32; }
+            Primary: Item satisfies Measure {
+                machine measure(&self) -> i32 { transition { _ -> self.value } }
+            }
+            machine consume<Element, Order: Element satisfies Measure>(value: i32) reaches Console {
+                Console::exit_process(value);
+            }
+            machine identity(value: i32) -> i32 { value }
+            data Main { selected: Item; }
+            machine Main::main(&mut self) reaches Console {
+                let erased: &dyn Measure = &self.selected as &dyn Item::Primary;
+                let result: i32 = erased.measure();
+                transition result == 0 { true -> good() _ -> bad() }
+                state good(&mut self) { consume<Item, Primary>(identity(70i32)); }
+                state bad(&mut self) { consume<Item, Primary>(identity(71i32)); }
+            }
+        "#;
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .expect("tokenize");
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+        let resolved =
+            syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("type");
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check");
+        let selection = crate::machine_dispatch::select_terminal_machine(&checked, "Main::main")
+            .expect("dynamic root selection");
+        let root = selection.machine;
+        let lowered = crate::machine_dispatch::lower_selected_machine(&checked, selection)
+            .expect("dynamic root and ordinary callee lower");
+        let owners = lowered.exact_sources.expect("exact dynamic source owners");
+        (checked, lowered.terminal.semantic_module, owners, root)
+    }
+
+    #[test]
+    fn dynamic_root_and_specialized_unit_callee_publish_distinct_applications() {
+        let (checked, mut module, owners, root) = dynamic_callee_fixture();
+        let [root_application] = module.closed_conformance_applications.as_slice() else {
+            panic!("one retained dynamic root application");
+        };
+        let root_application = root_application.clone();
+        let callee_source = checked
+            .machine_specializations
+            .iter()
+            .find(|specialization| {
+                specialization.instance != root
+                    && !specialization.conformance_applications.is_empty()
+                    && owners
+                        .iter()
+                        .any(|(source, _)| *source == specialization.instance)
+            })
+            .expect("selected generic Unit callee application")
+            .instance;
+        let callee_owner = owners
+            .iter()
+            .find_map(|(source, owner)| (*source == callee_source).then_some(*owner))
+            .unwrap();
+        append_closed_conformance_applications_excluding(&checked, &owners, root, &mut module)
+            .expect("append callee application");
+        assert_eq!(module.closed_conformance_applications.len(), 2);
+        assert!(
+            module
+                .closed_conformance_applications
+                .contains(&root_application)
+        );
+        let callee_application = module
+            .closed_conformance_applications
+            .iter()
+            .find(|application| application.owner == callee_owner)
+            .expect("callee application uses its exact emitted owner");
+        assert_eq!(
+            callee_application.declaration_identity,
+            root_application.declaration_identity
+        );
+        assert_eq!(callee_application.subject_identity.as_deref(), Some("Item"));
+        terminal_verifier::validate_module(&module).expect("root and callee applications verify");
+        let once = module.clone();
+        append_closed_conformance_applications_excluding(&checked, &owners, root, &mut module)
+            .expect("identical retained callee application is reused");
+        assert_eq!(module, once);
+        let artifact = terminal_production::produce_terminal_artifact(&checked, "Main::main")
+            .expect("public production retains both source-owned applications");
+        assert_eq!(
+            terminal_codec::decode_module(artifact.semantic_bytes()).unwrap(),
+            module
+        );
+    }
+
+    #[test]
+    fn conformance_append_rejects_conflicting_retained_callee_application() {
+        let (checked, mut module, owners, root) = dynamic_callee_fixture();
+        append_closed_conformance_applications_excluding(&checked, &owners, root, &mut module)
+            .expect("append callee application");
+        let entry = module.entry;
+        let callee = module
+            .closed_conformance_applications
+            .iter_mut()
+            .find(|application| application.owner != entry)
+            .expect("callee application");
+        callee.subject_identity = Some("different subject".to_owned());
+        assert!(matches!(
+            append_closed_conformance_applications_excluding(&checked, &owners, root, &mut module),
+            Err(LoweringError::Unsupported(
+                "retained closed conformance application differs from its source selection"
+            ))
+        ));
+    }
+
+    #[test]
+    fn conformance_append_rejects_incomplete_reordered_or_duplicate_owners() {
+        let (checked, module, owners, root) = dynamic_callee_fixture();
+        for mutation in 0..3 {
+            let mut changed = owners.clone();
+            match mutation {
+                0 => {
+                    changed.pop();
+                }
+                1 => changed.swap(0, 1),
+                _ => changed[1].0 = changed[0].0,
+            }
+            assert!(matches!(
+                append_closed_conformance_applications_excluding(
+                    &checked,
+                    &changed,
+                    root,
+                    &mut module.clone()
+                ),
+                Err(LoweringError::Unsupported(
+                    "closed conformance application owners do not match the exact terminal closure"
+                ))
+            ));
+        }
+    }
 }
