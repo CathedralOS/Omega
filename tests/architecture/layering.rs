@@ -2265,6 +2265,10 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
                 .contains("physical.into_function_fragment_emission_source()")
             && optimized_fragment_projection
                 .contains("stage_optimized_function_fragment_emission(")
+            && optimized_fragment_projection.contains("machine_emission::publish_function_fragments(")
+            && !optimized_fragment_projection.contains("MachineCodeFunction {")
+            && !optimized_fragment_projection.contains("FunctionAppliedFrameProtocol")
+            && !realization_root.join("optimized_fragment_unit_stack.rs").exists()
             && !machine_code.contains("optimize_verified_abstract_input(")
             && !machine_code.contains("stage_optimized_verified_physical_pipeline(")
             && !machine_code

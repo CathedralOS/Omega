@@ -11,7 +11,6 @@ mod model;
 mod native_artifact;
 mod optimization_stage;
 mod optimized_fragment_projection;
-mod optimized_fragment_unit_stack;
 mod output;
 mod physical_stage;
 mod program_entry;
