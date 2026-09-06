@@ -723,7 +723,10 @@ collection-wide in caller-visible mutation summaries. A forwarding-only
 Terminal rung first carried closed owned/shared/mutable/write-only access on
 structural parameters and call arguments in canonical format 27.
 That rung now includes one exact unrestricted `WriteOnlyBorrow` field-path
-subloan. The verifier replays its ordered path, structural type, and access and
+subloan from a mutable or write-only borrowed root. Attenuation preserves the
+root's declared access and records `WriteOnlyBorrow` on both the operand and
+callee; it does not permit readable access within the callee.
+The verifier replays its ordered path, structural type, and access and
 treats it as a claim-free non-transferring subloan rather than an owned linear
 projection; malformed path, target type/access, source access, qualification,
 arity, or provider substitution rejects. Reusable local or re-entrant reborrow

@@ -157,6 +157,23 @@ pub(crate) fn symbol_type_symbol(
     }
 
     for machine in program.machines() {
+        // Bare attached fields retain an inherited machine symbol. Resolve its
+        // exact declaration type before walking child fields; missing child
+        // identities must not make overlapping receiver loans appear disjoint.
+        if program.symbols.get(symbol).parent == machine.symbol
+            && let Some(field) = validation::exact_attached_field(
+                program,
+                machine,
+                symbol,
+                program.symbols.name(symbol),
+            )
+        {
+            return Some(
+                program
+                    .type_reference_table
+                    .type_symbol(field.type_reference),
+            );
+        }
         if machine.symbol == symbol
             && let Some(attached_data) = machine.attached_data.as_deref()
             && let Some(data) = program

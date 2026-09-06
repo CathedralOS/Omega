@@ -1478,7 +1478,10 @@ fn is_unrestricted_write_only_subloan(
         && argument.access == StructuralAccess::WriteOnlyBorrow
         && expected.access == StructuralAccess::WriteOnlyBorrow
         && expected.multiplicity == StructuralMultiplicity::Unrestricted
-        && actual.access == StructuralAccess::WriteOnlyBorrow
+        && matches!(
+            actual.access,
+            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+        )
         && actual.multiplicity == StructuralMultiplicity::Unrestricted
         && indexed_leaf_is_primitive
 }
