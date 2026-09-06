@@ -1553,8 +1553,9 @@ mod continuation_tests {
                         target::TargetProfile::WindowsX64,
                     ))
                     .expect("recompile Windows child after sibling");
-                (windows, linux, windows_again)
-            });
+                Ok((windows, linux, windows_again))
+            })
+            .expect("spawn prepared source compiler thread");
 
         assert_eq!(standalone, windows);
         assert_eq!(windows, windows_again);
