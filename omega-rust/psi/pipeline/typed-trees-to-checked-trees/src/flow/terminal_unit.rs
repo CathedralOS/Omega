@@ -245,6 +245,11 @@ pub(crate) fn build_checked_unit_effect_plans(
                     .terminal_scalar_graphs
                     .for_machine(*target_machine)
                     .is_some(),
+                CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. } => facts
+                    .flow
+                    .terminal_structural_returns
+                    .claim_free_affine_for_machine(*target_machine)
+                    .is_some(),
                 // Exact realization custody was already joined by selected
                 // execution before this plan was minted.
                 CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
@@ -436,6 +441,12 @@ pub(crate) fn build_checked_unit_effect_plans(
             CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
                 realization_machine,
                 realization_state,
+                result,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::StructuralCall {
+                target_machine: realization_machine,
+                target_state: realization_state,
                 result,
                 ..
             } => {

@@ -989,7 +989,14 @@ pub fn lower_machine(
                         CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
                             realization_machine,
                             ..
+                        }
+                        | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
+                            realization_machine,
+                            ..
                         } => Some(*realization_machine),
+                        CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. } => {
+                            Some(*target_machine)
+                        }
                         _ => None,
                     }
                         }) {

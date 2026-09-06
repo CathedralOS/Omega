@@ -896,7 +896,9 @@ pub(super) fn build_call_operation(
             Some(ExpectedCallValueResult::Scalar(expected)) => {
                 program.primitive_type_reference(target_state.return_type) != Some(*expected)
             }
-            Some(ExpectedCallValueResult::Structural(_)) => true,
+            Some(expected @ ExpectedCallValueResult::Structural(_)) => {
+                !boundary_value_result_matches(program, target_state.return_type, expected)
+            }
         }
     } {
         return None;
@@ -1018,6 +1020,45 @@ pub(super) fn build_call_operation(
             scalar_arguments,
             structural_arguments,
             completion_receipts: transfers,
+        })
+    } else if let Some(ExpectedCallValueResult::Structural(result)) = expected_call_result {
+        let target = facts
+            .flow
+            .terminal_structural_returns
+            .claim_free_affine_for_machine(target_machine.symbol)?;
+        let [argument] = structural_arguments.as_slice() else {
+            return None;
+        };
+        let source =
+            caller_parameters.get(usize::try_from(argument.source_parameter_index()?).ok()?)?;
+        if target.state != target_state.symbol
+            || target.result.type_identity != result.type_identity
+            || result.multiplicity != Multiplicity::Affine
+            || target.scalar_parameters != scalar_parameters
+            || target.structural_parameter.type_identity != argument.type_identity
+            || source.type_identity != argument.type_identity
+            || source.multiplicity != Multiplicity::Affine
+            || source.access != CheckedStructuralAccess::Owned
+            || !source.qualifications.is_empty()
+            || argument.access != CheckedStructuralAccess::Owned
+            || !argument.path.is_empty()
+            || !transfers.is_empty()
+            || !service_reach_is_empty(facts, call.service_reach)
+        {
+            return None;
+        }
+        Some(CheckedUnitEffectOperationPlan::StructuralCall {
+            coordinate,
+            source_site,
+            result: result.clone(),
+            target_machine: target_machine.symbol,
+            target_state: target_state.symbol,
+            target_contract_report_fingerprint: target_contract.report_fingerprint,
+            target_contract_commitment: target_contract.commitment,
+            service_reach: call.service_reach,
+            scalar_arguments,
+            structural_arguments,
+            discard_result_on_return: true,
         })
     } else if expected_call_result.is_some()
         && (!structural_arguments.is_empty() || !transfers.is_empty())

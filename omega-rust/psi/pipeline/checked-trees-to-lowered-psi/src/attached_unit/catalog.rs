@@ -188,6 +188,11 @@ pub(super) fn lower_unit_structural_types_including(
                     realization_machine,
                     realization_state,
                     ..
+                }
+                | CheckedUnitEffectOperationPlan::StructuralCall {
+                    target_machine: realization_machine,
+                    target_state: realization_state,
+                    ..
                 } => {
                     let realizations = checked
                         .facts
@@ -624,6 +629,7 @@ pub(super) fn lower_unit_services_including(
             match operation {
                 CheckedUnitEffectOperationPlan::CallUnit { service_reach, .. }
                 | CheckedUnitEffectOperationPlan::ScalarCall { service_reach, .. }
+                | CheckedUnitEffectOperationPlan::StructuralCall { service_reach, .. }
                 | CheckedUnitEffectOperationPlan::BoundaryCall { service_reach, .. }
                 | CheckedUnitEffectOperationPlan::BoundaryScalarCall { service_reach, .. }
                 | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {

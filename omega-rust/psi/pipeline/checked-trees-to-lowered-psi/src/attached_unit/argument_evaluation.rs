@@ -47,6 +47,11 @@ impl Evaluation {
                 coordinate,
                 scalar_arguments,
                 ..
+            }
+            | CheckedUnitEffectOperationPlan::StructuralCall {
+                coordinate,
+                scalar_arguments,
+                ..
             } => (*coordinate, scalar_arguments, false),
             CheckedUnitEffectOperationPlan::BoundaryCall {
                 coordinate,

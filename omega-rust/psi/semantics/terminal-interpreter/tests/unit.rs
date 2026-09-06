@@ -43,6 +43,9 @@ use terminal_verifier::{
 #[path = "unit/indexed_structural_store.rs"]
 mod indexed_structural_store;
 
+#[path = "unit/affine_identity_calls.rs"]
+mod affine_identity_calls;
+
 #[test]
 fn unit_artifact_interprets_as_a_value_less_normal_result() {
     let (semantic, proof) = artifact_sections();

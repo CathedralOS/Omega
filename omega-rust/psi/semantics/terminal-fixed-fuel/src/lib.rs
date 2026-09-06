@@ -730,7 +730,8 @@ fn operation_callee(
         OperationKind::Call { callee, .. }
         | OperationKind::CallUnit { callee, .. }
         | OperationKind::CallStructuralScalar { callee, .. }
-        | OperationKind::CallStructural { callee, .. } => Some(*callee),
+        | OperationKind::CallStructural { callee, .. }
+        | OperationKind::CallStructuralWithScalarArguments { callee, .. } => Some(*callee),
         OperationKind::CallDynamicScalar { .. } => {
             dynamic_call_targets.get(&(owner, operation.id)).copied()
         }

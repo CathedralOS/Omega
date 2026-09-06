@@ -3806,10 +3806,28 @@ arrays and standalone bounded-owned byte-sequence types.
 The producer emits distinct parameter and result places and transfers the
 input at `ReturnStructural`, preserving its opaque identity across fuel
 exhaustion. Independent verification follows the complete owned type graph;
-native fragment width does not determine whole-value transfer validity. This
-does not widen the selected operator call ABI or connect ordinary structural
-results to caller locals and nested operands; those uses still require their
-own checked result locations and retained loans or claim transfers.
+native fragment width does not determine whole-value transfer validity.
+
+An ordinary call to that producer can initialize the first immutable structural
+local in a free or attached Unit body. The checked `StructuralCall` retains its
+authored occurrence, exact target contract, scalar argument evaluations, and
+whole owned input separately from boundary and selected-operator calls. Its
+callee joins the shared Unit closure's type and machine catalogs, including
+when the calling Unit body is itself transitive. The resulting
+`CallStructuralWithScalarArguments` has a distinct operation-result place;
+return cleanup disposes that result before older live parameters. The Terminal
+operation admits zero or more fixed-width integer side arguments and the same
+plain owned aggregate graph as the producer. Verification rejects missing,
+reused, or mismatched result places and ownership obligations. Fixed-fuel
+analysis counts both the invocation and callee body; suspended execution resumes
+without replaying the transfer. Whole affine results can also feed this Terminal
+operation directly, although source result-binding lookup for subsequent uses
+remains unfinished.
+
+This does not widen the native call ABI or admit nested structural operands,
+later structural initializers, result projections, or borrowed/qualified/linear
+result obligations. Those source uses still need complete evaluator, storage,
+loan, and claim-transfer plans before their gates can be removed.
 
 The first internal structural-call slice composes two such checked machines. A
 `CallStructural` operation owns a structural operation-result place with its

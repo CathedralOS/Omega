@@ -1462,6 +1462,22 @@ pub enum CheckedUnitEffectOperationPlan {
         service_reach: ServiceReachSummary,
         scalar_arguments: Vec<CheckedCallScalarArgument>,
     },
+    /// Invoke an ordinary checked whole owned-affine result producer and retain
+    /// its exact result binding. This is neither a boundary invocation nor a
+    /// selected operator application; the checked callee owns its semantics.
+    StructuralCall {
+        coordinate: CheckedUnitCallCoordinate,
+        source_site: Option<NominalMachineUseSite>,
+        result: CheckedUnitStructuralResultBindingPlan,
+        target_machine: SymbolHandle,
+        target_state: SymbolHandle,
+        target_contract_report_fingerprint: u64,
+        target_contract_commitment: crate::MachineContractCommitment,
+        service_reach: ServiceReachSummary,
+        scalar_arguments: Vec<CheckedCallScalarArgument>,
+        structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
+        discard_result_on_return: bool,
+    },
     BoundaryCall {
         coordinate: CheckedUnitCallCoordinate,
         /// Exact authored call site retained for target-owned occurrence joins.

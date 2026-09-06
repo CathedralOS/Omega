@@ -50,6 +50,21 @@ pub(super) fn validate_operation(
                 false,
                 None,
             ),
+            CheckedUnitEffectOperationPlan::StructuralCall {
+                coordinate,
+                source_site,
+                target_machine,
+                target_state,
+                scalar_arguments,
+                ..
+            } => (
+                coordinate,
+                target_machine,
+                target_state,
+                scalar_arguments,
+                false,
+                Some(source_site),
+            ),
             CheckedUnitEffectOperationPlan::BoundaryCall {
                 coordinate,
                 source_site,
