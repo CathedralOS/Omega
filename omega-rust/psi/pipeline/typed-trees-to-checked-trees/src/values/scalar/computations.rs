@@ -55,7 +55,40 @@ pub(crate) fn build_checked_scalar_computation_plans(
                 let Ok(statement_ordinal) = u32::try_from(statement_index) else {
                     continue;
                 };
+                let mut builder = Builder {
+                    program,
+                    operators,
+                    flow,
+                    exact_integer_casts,
+                    machine: machine.symbol,
+                    state: state.symbol,
+                    statement_index,
+                    parameters,
+                    parameter_types: &parameter_types,
+                    locals: &locals,
+                    plans: &mut plans,
+                };
                 if let StatementNode::LocalData(local) = statement {
+                    let argument_roots = statement_index == 0
+                        && !local.is_mutable
+                        && validation::unit_result_initializer_call_is_supported(
+                            program,
+                            machine,
+                            local.initial_value,
+                        );
+                    if argument_roots
+                        && let ExpressionNode::Call(call) =
+                            program.expression_table.expression(local.initial_value)
+                    {
+                        // The result operation owns the outer call. Only its operands
+                        // become computations, before the destination enters scope.
+                        builder.record_call_arguments(
+                            pure,
+                            statement_ordinal,
+                            call.target_symbol,
+                            program.expression_table.expression_handles(call.arguments),
+                        );
+                    }
                     if local.initial_value.is_valid()
                         && let Some(primitive_type) =
                             program.primitive_type_reference(local.type_reference)
@@ -74,30 +107,18 @@ pub(crate) fn build_checked_scalar_computation_plans(
                             };
                             // Keep the established direct-call binding coordinates when
                             // every argument already has a pure checked plan.
-                            if local.is_mutable
-                                || !has_pure_call_arguments(
-                                    program,
-                                    pure,
-                                    state.symbol,
-                                    statement_ordinal,
-                                    binding_ordinal,
-                                    local.initial_value,
-                                )
+                            if !argument_roots
+                                && (local.is_mutable
+                                    || !has_pure_call_arguments(
+                                        program,
+                                        pure,
+                                        state.symbol,
+                                        statement_ordinal,
+                                        binding_ordinal,
+                                        local.initial_value,
+                                    ))
                             {
-                                Builder {
-                                    program,
-                                    operators,
-                                    flow,
-                                    exact_integer_casts,
-                                    machine: machine.symbol,
-                                    state: state.symbol,
-                                    statement_index,
-                                    parameters,
-                                    parameter_types: &parameter_types,
-                                    locals: &locals,
-                                    plans: &mut plans,
-                                }
-                                .record_root(
+                                builder.record_root(
                                     pure,
                                     statement_ordinal,
                                     role,
@@ -118,21 +139,13 @@ pub(crate) fn build_checked_scalar_computation_plans(
                     }
                     continue;
                 }
-                let mut builder = Builder {
-                    program,
-                    operators,
-                    flow,
-                    exact_integer_casts,
-                    machine: machine.symbol,
-                    state: state.symbol,
-                    statement_index,
-                    parameters,
-                    parameter_types: &parameter_types,
-                    locals: &locals,
-                    plans: &mut plans,
-                };
                 if let StatementNode::Call(call) = statement {
-                    builder.record_call_arguments(pure, statement_ordinal, call);
+                    builder.record_call_arguments(
+                        pure,
+                        statement_ordinal,
+                        call.target_symbol,
+                        program.statement_table.expression_handles(call.arguments),
+                    );
                     continue;
                 }
                 if let StatementNode::Assignment(assignment) = statement {

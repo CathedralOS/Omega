@@ -2,6 +2,7 @@ mod arithmetic_domains;
 mod call_cycles;
 mod callable_overloads;
 mod calls;
+pub use calls::unit_result_initializer_call_is_supported;
 mod cleanup;
 mod content_conservation;
 mod content_projections;

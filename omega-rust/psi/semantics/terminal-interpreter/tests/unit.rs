@@ -10,8 +10,8 @@ use semantic_vocabulary::{
 use terminal_codec::{decode_module, encode_module, encode_proof_bundle};
 use terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
 use terminal_interpreter::{
-    TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
-    TerminalExecutionResult, TerminalExecutionStatus, TerminalInterpretError,
+    TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
+    TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalInterpretError,
     TerminalPayloadlessCaseResult, TerminalPayloadlessCaseValue, TerminalScalarValue,
     TerminalStructuralPrimitiveValue, TerminalStructuralValue,
     interpret_terminal_artifact_measured, interpret_terminal_artifact_with_effect_handler_measured,
@@ -2105,12 +2105,168 @@ fn unsupported_structural_boundary_result_rejects_before_the_effect() {
     let mut meter = TerminalFuelMeter::unbounded();
     let mut handler = RecordingHandler::default();
 
-    assert_eq!(
+    assert!(matches!(
         execution.resume_with_effect_handler(&mut meter, &mut handler),
-        Err(TerminalInterpretError::VerifiedOperationMalformed)
-    );
+        Err(TerminalInterpretError::EffectRejected { operation, .. })
+            if operation == operation_id(3)
+    ));
     assert!(handler.effects.is_empty());
     assert!(execution.effects().is_empty());
+}
+
+#[test]
+fn structural_boundary_result_establishes_affine_custody_once_before_cleanup() {
+    let module = structural_boundary_effect_module();
+    let semantic = encode_module(&module).expect("structural result module encodes");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let mut execution =
+        TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
+            .expect("verified structural result starts");
+    let mut handler = BoundaryResultHandler {
+        result: Ok(TerminalEffectResult::Structural(TerminalStructuralValue {
+            opaque_identity: 71,
+            structural_type: structural_type_id(1),
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        })),
+        requests: 0,
+        effects: Vec::new(),
+    };
+    let mut meter = TerminalFuelMeter::with_allowance(3);
+    assert!(matches!(
+        execution
+            .resume_with_effect_handler(&mut meter, &mut handler)
+            .unwrap(),
+        TerminalExecutionStatus::SponsorExhausted(_)
+    ));
+    assert_eq!(handler.requests, 1);
+    assert_eq!(execution.effects(), handler.effects);
+    assert_eq!(execution.effects().len(), 1);
+    assert_eq!(
+        execution
+            .live_affine_frontier()
+            .cloned()
+            .collect::<Vec<_>>(),
+        vec![StructuralAffineDiscard {
+            place: place_id(1),
+            path: Vec::new(),
+            structural_type: structural_type_id(1),
+        }]
+    );
+    assert!(execution.live_claim_frontier().next().is_none());
+    meter.replenish(1).unwrap();
+    assert_eq!(
+        execution
+            .resume_with_effect_handler(&mut meter, &mut handler)
+            .unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert!(execution.live_affine_frontier().next().is_none());
+    assert_eq!(
+        handler.requests, 1,
+        "cleanup does not replay the producer effect"
+    );
+    assert_eq!(execution.effects(), handler.effects);
+}
+
+#[test]
+fn malformed_structural_boundary_results_establish_no_runtime_custody() {
+    let valid = TerminalStructuralValue {
+        opaque_identity: 72,
+        structural_type: structural_type_id(1),
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let mut wrong_type = valid.clone();
+    wrong_type.structural_type = structural_type_id(2);
+    let mut wrong_qualification = valid.clone();
+    wrong_qualification
+        .qualifications
+        .push(structural_domain_id(1));
+    let mut wrong_path = valid;
+    wrong_path
+        .path
+        .push(StructuralPathSegment::Field("unexpected".into()));
+    for result in [
+        TerminalEffectResult::Unit,
+        TerminalEffectResult::Scalar(TerminalScalarValue::Boolean(false)),
+        TerminalEffectResult::Structural(wrong_type),
+        TerminalEffectResult::Structural(wrong_qualification),
+        TerminalEffectResult::Structural(wrong_path),
+    ] {
+        let module = structural_boundary_effect_module();
+        let semantic = encode_module(&module).expect("structural result module encodes");
+        let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+        let mut execution =
+            TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
+                .expect("verified structural result starts");
+        let mut handler = BoundaryResultHandler {
+            result: Ok(result.clone()),
+            requests: 0,
+            effects: Vec::new(),
+        };
+        assert_eq!(
+            execution.resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut handler),
+            Err(TerminalInterpretError::VerifiedOperationMalformed),
+            "{result:?}"
+        );
+        assert_eq!(handler.requests, 1);
+        assert!(
+            execution.effects().is_empty(),
+            "malformed response is not a committed effect"
+        );
+        assert!(execution.live_affine_frontier().next().is_none());
+        assert!(execution.live_claim_frontier().next().is_none());
+    }
+}
+
+#[test]
+fn rejected_structural_boundary_result_establishes_no_value_or_effect() {
+    let module = structural_boundary_effect_module();
+    let semantic = encode_module(&module).expect("structural result module encodes");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let mut execution =
+        TerminalExecution::start_artifact(&semantic, &proof, &AdmissionProfile::default(), &[])
+            .expect("verified structural result starts");
+    let mut handler = BoundaryResultHandler {
+        result: Err(TerminalEffectRejection::new(
+            "structural result rejected by host",
+        )),
+        requests: 0,
+        effects: Vec::new(),
+    };
+    assert!(matches!(
+        execution.resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut handler),
+        Err(TerminalInterpretError::EffectRejected { operation, .. })
+            if operation == operation_id(3)
+    ));
+    assert_eq!(handler.requests, 1);
+    assert!(handler.effects.is_empty());
+    assert!(execution.effects().is_empty());
+    assert!(execution.live_affine_frontier().next().is_none());
+    assert!(execution.live_claim_frontier().next().is_none());
+}
+
+struct BoundaryResultHandler {
+    result: Result<TerminalEffectResult, TerminalEffectRejection>,
+    requests: usize,
+    effects: Vec<TerminalEffect>,
+}
+
+impl TerminalEffectHandler for BoundaryResultHandler {
+    fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+        panic!("result-bearing boundary must use the explicit result handler");
+    }
+
+    fn handle_effect_result(
+        &mut self,
+        effect: &TerminalEffect,
+    ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        self.requests += 1;
+        let result = self.result.clone()?;
+        self.effects.push(effect.clone());
+        Ok(result)
+    }
 }
 
 #[test]

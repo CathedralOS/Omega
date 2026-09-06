@@ -5,7 +5,10 @@
 //! execution state; no source or checked-tree representation crosses this
 //! boundary.
 
+mod effect_results;
 mod semantic_value_comparison;
+
+pub use effect_results::TerminalEffectResult;
 
 pub use semantic_value_comparison::{
     TerminalTraceScalarComparisonError, TerminalTraceScalarValueSide,
@@ -308,16 +311,25 @@ pub enum TerminalEffect {
 pub trait TerminalEffectHandler {
     fn handle_effect(&mut self, effect: &TerminalEffect) -> Result<(), TerminalEffectRejection>;
 
-    /// Handle an effect that may return one primitive scalar. Existing Unit
-    /// handlers retain their behavior through the default implementation;
-    /// result-bearing boundary providers override this method and return the
-    /// exact declared scalar type.
+    /// Return the boundary's exact declared result. The default Unit handler
+    /// rejects structural results before performing an effect it cannot finish.
     fn handle_effect_result(
         &mut self,
         effect: &TerminalEffect,
-    ) -> Result<Option<TerminalScalarValue>, TerminalEffectRejection> {
+    ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        if matches!(
+            effect,
+            TerminalEffect::BoundaryCall {
+                result: BoundaryMachineResult::Structural(_),
+                ..
+            }
+        ) {
+            return Err(TerminalEffectRejection::new(
+                "handler does not supply structural boundary results",
+            ));
+        }
         self.handle_effect(effect)?;
-        Ok(None)
+        Ok(TerminalEffectResult::Unit)
     }
 }
 
@@ -1907,15 +1919,7 @@ impl TerminalExecution {
                             )?;
                             continue;
                         }
-                        // Structural effect results do not yet have a handler result
-                        // carrier. Reject before invoking the handler so an unsupported
-                        // call cannot perform an external effect and fail afterward.
-                        if matches!(
-                            &boundary_declaration.result,
-                            BoundaryMachineResult::Structural(_)
-                        ) {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
+                        self.preflight_boundary_result(&operation.result)?;
                         let remaining_claims = complete_claims(
                             &self.live_claims,
                             &structural_arguments,
@@ -1951,24 +1955,14 @@ impl TerminalExecution {
                                     rejection,
                                 }
                             })?;
-                        match (&operation.result, &boundary_declaration.result, returned) {
-                            (OperationResult::Unit, BoundaryMachineResult::Unit, None) => {}
-                            (
-                                OperationResult::Scalar(declaration),
-                                BoundaryMachineResult::Scalar(expected),
-                                Some(value),
-                            ) if declaration.scalar_type == *expected
-                                && declaration.scalar_type == value.scalar_type() =>
-                            {
-                                self.values.insert(declaration.id, value);
-                            }
-                            // Structural boundary effects need a handler result carrier that
-                            // publishes the exact case/payload value. Representation and
-                            // verification are closed first; execution remains fail-closed.
-                            _ => {
-                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                            }
-                        }
+                        effect_results::commit_boundary_result(
+                            &mut self.values,
+                            &mut self.structural_values,
+                            &mut self.live_affine_frontier,
+                            &operation.result,
+                            &boundary_declaration.result,
+                            returned,
+                        )?;
                         for (argument, parameter) in structural_arguments
                             .iter()
                             .zip(&boundary_declaration.structural_parameters)

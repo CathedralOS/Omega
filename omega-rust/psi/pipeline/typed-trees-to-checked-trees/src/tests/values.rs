@@ -4,6 +4,7 @@ use checked_trees::{CheckedScalarBindingValue, CheckedValueStatementRole};
 mod call_computations;
 mod guard_operator_custody;
 mod guard_parameter_bounds;
+mod initializer_call_computations;
 mod source_bindings;
 
 #[test]

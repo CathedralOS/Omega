@@ -9,6 +9,7 @@ use checked_trees::{CheckedUnitCallCoordinate, NominalMachineUseSite};
 use symbols::SymbolHandle;
 
 pub(crate) struct AuthoredCall {
+    pub source_target: SymbolHandle,
     pub source_site: Option<NominalMachineUseSite>,
     pub scalar_arguments: Vec<(ExpressionHandle, PrimitiveType)>,
     pub boundary: bool,
@@ -121,6 +122,7 @@ pub(crate) fn locate_source(
         scalar_arguments.push((argument, primitive));
     }
     Ok(AuthoredCall {
+        source_target,
         source_site,
         scalar_arguments,
         boundary,

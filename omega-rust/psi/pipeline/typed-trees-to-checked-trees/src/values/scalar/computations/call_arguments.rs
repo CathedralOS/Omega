@@ -5,16 +5,12 @@ impl Builder<'_, '_> {
         &mut self,
         pure: &CheckedScalarExpressionPlans,
         statement: u32,
-        call: &typed_trees::statement::TableCall,
+        target: SymbolHandle,
+        arguments: &[ExpressionHandle],
     ) {
-        let Some(parameters) = crate::call_target_parameters(self.program, call.target_symbol)
-        else {
+        let Some(parameters) = crate::call_target_parameters(self.program, target) else {
             return;
         };
-        let arguments = self
-            .program
-            .statement_table
-            .expression_handles(call.arguments);
         let explicit_self = arguments.len()
             > parameters
                 .iter()
@@ -27,7 +23,7 @@ impl Builder<'_, '_> {
         if explicit_parameters.len() != arguments.len() {
             return;
         }
-        let boundary = call_is_boundary(self.program, call.target_symbol);
+        let boundary = call_is_boundary(self.program, target);
         let mut scalar_ordinal = 0u32;
         for (argument, parameter) in arguments.iter().zip(explicit_parameters) {
             let Some(primitive_type) = self

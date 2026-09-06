@@ -119,7 +119,12 @@ fn retain_exact_checked_flow_call(
     let call_ordinal = usize::try_from(coordinate.call_ordinal).map_err(|_| {
         LoweringError::Unsupported("Unit scalar call ordinal coordinate exceeds usize")
     })?;
-    let exact_calls = checked
+    let authored =
+        crate::call_source_custody::authored::locate_source(checked, machine.state, coordinate)?;
+    if authored.target_state != target {
+        return unsupported("Unit result call disagrees with its authored resolved target");
+    }
+    let mut exact_calls = checked
         .facts
         .flow
         .control
@@ -127,12 +132,15 @@ fn retain_exact_checked_flow_call(
         .span_or_empty(state.calls)
         .iter()
         .filter(|call| {
-            call.statement_index == statement_index
-                && call.call_ordinal == call_ordinal
-                && call.target_symbol == target
-        })
-        .count();
-    if exact_calls != 1 {
+            call.statement_index == statement_index && call.call_ordinal == call_ordinal
+        });
+    // Flow retains the authored callable parameter, while the operation names
+    // its resolved boundary requirement. Rejoin both identities through source.
+    if exact_calls
+        .next()
+        .is_none_or(|call| call.target_symbol != authored.source_target)
+        || exact_calls.next().is_some()
+    {
         return unsupported(
             "Unit scalar call coordinate and target do not rejoin its original checked flow call",
         );

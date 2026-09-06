@@ -40,16 +40,39 @@ pub(super) fn outer_calls<'a>(
             .statement_table
             .statements(state.statement_nodes)
             .get(call.statement_index)?;
-        let StatementNode::Call(authored) = statement else {
-            continue;
+        let (target, arguments) = match statement {
+            StatementNode::Call(authored) => (
+                authored.target_symbol,
+                program
+                    .statement_table
+                    .expression_handles(authored.arguments),
+            ),
+            StatementNode::LocalData(local) if call.statement_index == 0 && !local.is_mutable => {
+                if !program
+                    .expression_table
+                    .expression_is_valid(local.initial_value)
+                    || call.authored_expression != local.initial_value
+                {
+                    return None;
+                }
+                let ExpressionNode::Call(authored) =
+                    program.expression_table.expression(local.initial_value)
+                else {
+                    return None;
+                };
+                (
+                    authored.target_symbol,
+                    program
+                        .expression_table
+                        .expression_handles(authored.arguments),
+                )
+            }
+            _ => return None,
         };
-        if authored.target_symbol != call.target_symbol {
+        if target != call.target_symbol {
             return None;
         }
-        let parameters = crate::call_target_parameters(program, authored.target_symbol)?;
-        let arguments = program
-            .statement_table
-            .expression_handles(authored.arguments);
+        let parameters = crate::call_target_parameters(program, target)?;
         let explicit_self = arguments.len()
             > parameters
                 .iter()

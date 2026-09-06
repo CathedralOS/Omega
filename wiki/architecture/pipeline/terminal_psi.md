@@ -1471,6 +1471,24 @@ identity, whole-root arguments, receipts, and exact bytes survive object,
 image, and installation validation. Other result shapes and targets, plus
 projected exits and content-bearing returned results, fail closed.
 
+The reference interpreter's host result carrier distinguishes Unit, scalar,
+and opaque structural values. A structural boundary result uses the same
+target-neutral carrier as a structural entry input: exact structural type,
+ordered qualifications, opaque identity, and an empty whole-root path. The
+interpreter validates the response before recording the effect or transferring
+argument custody, then establishes the result and its affine cleanup frontier.
+Suspension after completion does not replay the provider. A handler without
+structural-result support rejects before invoking its effect. A malformed host
+response leaves interpreter custody unchanged; this does not roll back effects
+the host may already have performed. Linear results, result claims, projected
+qualifications, and sum discriminator/payload inspection remain unsupported.
+This interpreter carrier does not extend native provider installation.
+The embedding host remains responsible for returning a legitimate owned value;
+the opaque number is not a globally checked allocation identity. In particular,
+it cannot establish freshness relative to interpreter-created values or values
+retained by suspended callers. Descriptor validation is not proof of external
+ownership.
+
 A qualified whole structural parameter whose domain owns a checked `Content<A>`
 projection carries that content catalog into terminal Psi on both Unit and
 primitive-result bodyless exits. Lowering reuses the structural claim identity
@@ -3031,9 +3049,20 @@ no cleanup successor. Arithmetic obligations are finalized on the completed
 selected Unit module, after borrowed-place and cleanup assembly, not on a
 provisional closure used by another lowerer.
 
-Computed operands of result initializers, returned calls, and composed-control
-leaves still need connections to that shared evaluator. Their existing pure
-argument paths remain distinct from an unsupported computed plan.
+The first immutable bare-call result initializer in a single-state Unit caller
+also evaluates scalar operands through those blocks. The outer call may return
+an ordinary scalar, a boundary scalar, or a boundary structural value. Operand
+roots use the pre-initializer namespace; only successful outer-call completion
+establishes the result. The result operation owns the outer call, so no duplicate
+whole-initializer computation is emitted. Source eligibility and lowering rejoin
+the exact local initializer, callee, static qualifier, and captured outer flow
+occurrence independently from the nested operand occurrences. Structural results
+retain their existing normal cleanup; forwarding those locals to later calls
+and inspecting sum payloads remain separate work.
+
+Later result initializers, returned calls, and composed-control leaves still
+need connections to that shared evaluator. Their existing pure argument paths
+remain distinct from an unsupported computed plan.
 
 Computed Boolean guards complete before either branch destination starts. A
 private dispatch block consumes the completed Boolean and retains the source

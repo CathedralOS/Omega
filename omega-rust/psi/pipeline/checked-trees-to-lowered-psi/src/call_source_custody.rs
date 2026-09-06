@@ -3,6 +3,7 @@
 use super::*;
 
 pub(crate) mod authored;
+mod initializers;
 
 pub(super) fn validate_operation(
     checked: &CheckedTrees,
@@ -68,6 +69,19 @@ pub(super) fn validate_operation(
             // they are not authored calls with positional argument facts.
             _ => return Ok(()),
         };
+    if matches!(
+        operation,
+        CheckedUnitEffectOperationPlan::ScalarCall { .. }
+            | CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
+    ) && arguments.iter().any(|argument| {
+        matches!(
+            argument,
+            checked_trees::CheckedCallScalarArgument::Computation(_)
+        )
+    }) {
+        initializers::validate(checked, caller_machine, caller_state, *coordinate)?;
+    }
     let call = authored::locate(
         checked,
         caller_machine,
