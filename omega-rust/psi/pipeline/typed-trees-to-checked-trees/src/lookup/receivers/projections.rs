@@ -56,6 +56,23 @@ pub(super) fn root(
                     }
                     _ => None,
                 })
+        })
+        .or_else(|| {
+            if !program
+                .state_parameters(state)
+                .iter()
+                .any(|parameter| parameter.is_self)
+            {
+                return None;
+            }
+            let machine = program.machines().iter().find(|machine| {
+                program
+                    .machine_states(machine)
+                    .iter()
+                    .any(|candidate| candidate.symbol == state.symbol)
+            })?;
+            validation::exact_attached_field(program, machine, symbol, name.as_str())
+                .map(|field| field.type_reference)
         })?;
     Some(Projection {
         root_symbol: symbol,

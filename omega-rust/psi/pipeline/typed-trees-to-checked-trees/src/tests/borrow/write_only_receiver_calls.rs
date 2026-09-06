@@ -1,5 +1,20 @@
 use super::super::*;
 
+mod projections;
+
+#[test]
+fn projected_write_only_receiver_call_checks() {
+    check_source(
+        r#"
+        data Record { value: u16; }
+        data Container { record: Record; }
+        machine Record::replace(&write self) { self.value = 17; }
+        machine invoke(container: &write Container) { container.record.replace(); }
+    "#,
+    )
+    .expect("a closed field projection can invoke an exact non-observing receiver");
+}
+
 fn check_source(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");

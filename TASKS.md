@@ -147,13 +147,14 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   any write or its exact frame; the bounded single-scalar-store form is not
   a plan for that complete body.
 
-  Extend retained receiver forwarding to shared, indexed, and write-only projections,
-  owned/local receiver roots, composed control flow, and scalar-result receiver
+  Extend retained receiver forwarding to shared and indexed projections,
+  mutable-to-write-only projected attenuation, owned/local receiver roots,
+  composed control flow, and scalar-result receiver
   callees. Reconcile each exact receiver operand in
   `typed-trees-to-checked-trees/src/flow/terminal_unit/receiver_calls.rs`;
   preserve the source place, access, and ownership across each supported call
   shape and validate the resulting Terminal closure. Do not erase a required
-  callee receiver to make argument counts agree. Projected write-only receiver
+  callee receiver to make argument counts agree. Indexed write-only receiver
   source admission remains separately gated under the borrow implementation.
 
   Acceptance: both tests pass, with every maintained sample reaching checked

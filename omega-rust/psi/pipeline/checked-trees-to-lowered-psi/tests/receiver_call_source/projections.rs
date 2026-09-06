@@ -1,4 +1,4 @@
-//! Exact mutable receiver subloans from plain record fields.
+//! Exact mutable and write-only receiver subloans from plain record fields.
 
 use super::*;
 use checked_trees::CheckedUnitStructuralPathSegment;
@@ -8,10 +8,12 @@ use terminal_psi::StructuralPathSegment;
 mod rejections;
 
 fn projected_source(
+    borrow: &str,
     nested: bool,
     self_caller: bool,
     from_parameter: bool,
     caller_first: bool,
+    bare_self: bool,
 ) -> (String, &'static str, Vec<&'static str>) {
     let caller_name = if self_caller {
         "Container::forward"
@@ -30,10 +32,10 @@ fn projected_source(
         "record: Record;"
     };
     let signature = match (self_caller, from_parameter) {
-        (false, false) => "container: &mut Container",
-        (false, true) => "replacement: u16, container: &mut Container",
-        (true, false) => "&mut self",
-        (true, true) => "&mut self, replacement: u16",
+        (false, false) => format!("container: &{borrow} Container"),
+        (false, true) => format!("replacement: u16, container: &{borrow} Container"),
+        (true, false) => format!("&{borrow} self"),
+        (true, true) => format!("&{borrow} self, replacement: u16"),
     };
     let scalar_formal = if from_parameter {
         ", replacement: u16"
@@ -43,12 +45,15 @@ fn projected_source(
     let replacement = if from_parameter { "replacement" } else { "17" };
     let argument = if from_parameter { "replacement" } else { "" };
     let callee = format!(
-        "machine Record::replace(&mut self{scalar_formal}) {{ self.value = {replacement}; }}"
+        "machine Record::replace(&{borrow} self{scalar_formal}) {{ self.value = {replacement}; }}"
     );
-    let caller = format!(
-        "machine {caller_name}({signature}) {{ {root}.{}.replace({argument}); }}",
+    let receiver = if bare_self {
         path.join(".")
-    );
+    } else {
+        format!("{root}.{}", path.join("."))
+    };
+    let caller =
+        format!("machine {caller_name}({signature}) {{ {receiver}.replace({argument}); }}");
     let declarations = if caller_first {
         format!("{caller}\n{callee}")
     } else {
@@ -66,11 +71,27 @@ fn projected_source(
     )
 }
 
-fn assert_projected_receiver(nested: bool, self_caller: bool) {
+fn assert_projected_receiver(
+    access: StructuralAccess,
+    nested: bool,
+    self_caller: bool,
+    bare_self: bool,
+) {
+    let (borrow, checked_access) = match access {
+        StructuralAccess::MutableBorrow => ("mut", CheckedStructuralAccess::MutableBorrow),
+        StructuralAccess::WriteOnlyBorrow => ("write", CheckedStructuralAccess::WriteOnlyBorrow),
+        _ => panic!("fixture requires a writable borrowed receiver"),
+    };
     for from_parameter in [false, true] {
         for caller_first in [false, true] {
-            let (source, caller_name, field_names) =
-                projected_source(nested, self_caller, from_parameter, caller_first);
+            let (source, caller_name, field_names) = projected_source(
+                borrow,
+                nested,
+                self_caller,
+                from_parameter,
+                caller_first,
+                bare_self,
+            );
             let checked = checked_from_source(&source);
             let caller = unit_plan(&checked, caller_name);
             let callee = unit_plan(&checked, "Record::replace");
@@ -89,7 +110,7 @@ fn assert_projected_receiver(nested: bool, self_caller: bool) {
             assert!(callee_receiver.is_self);
             assert_ne!(caller_receiver.type_identity, callee_receiver.type_identity);
             for receiver in [caller_receiver, callee_receiver] {
-                assert_eq!(receiver.access, CheckedStructuralAccess::MutableBorrow);
+                assert_eq!(receiver.access, checked_access);
             }
             let [
                 CheckedUnitEffectOperationPlan::CallUnit {
@@ -114,7 +135,7 @@ fn assert_projected_receiver(nested: bool, self_caller: bool) {
                 CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 }
             );
             assert_eq!(argument.type_identity, callee_receiver.type_identity);
-            assert_eq!(argument.access, CheckedStructuralAccess::MutableBorrow);
+            assert_eq!(argument.access, checked_access);
             assert_eq!(
                 argument.path,
                 field_names
@@ -188,7 +209,7 @@ fn assert_projected_receiver(nested: bool, self_caller: bool) {
                 panic!("one projected operand")
             };
             assert_eq!(argument.place, caller_receiver.place);
-            assert_eq!(argument.access, StructuralAccess::MutableBorrow);
+            assert_eq!(argument.access, access);
             assert_eq!(
                 argument.path,
                 field_names
@@ -211,7 +232,7 @@ fn assert_projected_receiver(nested: bool, self_caller: bool) {
                 callee_receiver.structural_type
             );
             for receiver in [caller_receiver, callee_receiver] {
-                assert_eq!(receiver.access, StructuralAccess::MutableBorrow);
+                assert_eq!(receiver.access, access);
                 assert_eq!(receiver.multiplicity, StructuralMultiplicity::Unrestricted);
                 assert!(receiver.qualifications.is_empty());
                 assert!(receiver.projected_qualifications.is_empty());
@@ -350,27 +371,59 @@ fn assert_projected_receiver(nested: bool, self_caller: bool) {
 
 #[test]
 fn mutable_parameter_field_receiver_retains_exact_subloan() {
-    assert_projected_receiver(false, false);
+    assert_projected_receiver(StructuralAccess::MutableBorrow, false, false, false);
 }
 
 #[test]
 fn mutable_parameter_nested_receiver_retains_ordered_subloan() {
-    assert_projected_receiver(true, false);
+    assert_projected_receiver(StructuralAccess::MutableBorrow, true, false, false);
 }
 
 #[test]
 fn mutable_self_field_receiver_retains_container_root() {
-    assert_projected_receiver(false, true);
+    assert_projected_receiver(StructuralAccess::MutableBorrow, false, true, false);
 }
 
 #[test]
 fn mutable_self_nested_receiver_retains_container_root() {
-    assert_projected_receiver(true, true);
+    assert_projected_receiver(StructuralAccess::MutableBorrow, true, true, false);
+}
+
+#[test]
+fn write_only_parameter_field_receiver_retains_exact_subloan() {
+    assert_projected_receiver(StructuralAccess::WriteOnlyBorrow, false, false, false);
+}
+
+#[test]
+fn write_only_parameter_nested_receiver_retains_ordered_subloan() {
+    assert_projected_receiver(StructuralAccess::WriteOnlyBorrow, true, false, false);
+}
+
+#[test]
+fn write_only_self_field_receiver_retains_container_root() {
+    assert_projected_receiver(StructuralAccess::WriteOnlyBorrow, false, true, false);
+}
+
+#[test]
+fn write_only_self_nested_receiver_retains_container_root() {
+    assert_projected_receiver(StructuralAccess::WriteOnlyBorrow, true, true, false);
+}
+
+#[test]
+fn bare_attached_fields_retain_exclusive_receiver_paths() {
+    for access in [
+        StructuralAccess::MutableBorrow,
+        StructuralAccess::WriteOnlyBorrow,
+    ] {
+        for nested in [false, true] {
+            assert_projected_receiver(access, nested, true, true);
+        }
+    }
 }
 
 #[test]
 fn corrupted_projected_receiver_path_type_and_access_reject() {
-    let (source, caller_name, _) = projected_source(true, false, true, false);
+    let (source, caller_name, _) = projected_source("mut", true, false, true, false, false);
     let checked = checked_from_source(&source);
     let artifact = terminal_production::produce_terminal_artifact(&checked, caller_name).unwrap();
     drop(checked);
