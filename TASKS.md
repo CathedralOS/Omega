@@ -487,10 +487,9 @@ Owners include
   field obligations, while corrupted elements and stale aliased fields reject
   at calls, transitions, and returns. Do not encode universal coverage as an
   unresolved index or assume arbitrary incoming storage is zero-initialized.
-  Indexed text writers still owe the replacement byte its proof. A per-byte
-  carrier class survives `buffer[i] = byte` in
-  `typed-trees-to-checked-trees/src/flow/transfers/byte_sequences.rs`, but
-  only for a byte whose value is a live literal. `format_number`'s
+  Indexed text writers still need numeric conversion result evidence beyond
+  the live scalar snapshots consumed by
+  `typed-trees-to-checked-trees/src/flow/transfers/byte_sequences.rs`. `format_number`'s
   `narrow_i32_to_u8_trapping` result and `print_squares`'s
   `narrow_u32_to_u8_wrapping` result publish no result range, and the checker
   derives none from their `trap_if` calls, so neither byte proves a class.
