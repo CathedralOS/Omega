@@ -407,3 +407,19 @@ fn a_structural_initializer_evaluates_its_scalar_expression() {
         &[],
     );
 }
+
+#[test]
+fn constructed_result_calls_require_an_executable_structural_producer() {
+    let checked = checked(
+        "data Packet { flag: bool; }
+         machine identity(input: bool) -> bool { input }
+         machine packet(input: bool) -> Packet { Packet { flag: input } }
+         machine value(input: bool) {
+             let saved: Packet = packet(identity(input));
+         }",
+    );
+    assert!(
+        lower_machine(&checked, "value").is_err(),
+        "source-family eligibility cannot manufacture a structural result producer"
+    );
+}
