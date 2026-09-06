@@ -112,6 +112,15 @@ needed for independent replay through publication.
   assignment/coloring, store/reload insertion, later-use rewrites, and
   independent validation. Existing logical spill plans grant no frame, unwind,
   instruction, or publication authority.
+  Connect final spill-inclusive frame extents to existing WCSU composition and
+  stack provisioning under the
+  [compiler-owned stack contract](wiki/language_guide/chapter_16_errors_traps_failure.md#compiler-owned-stack-storage-and-spill-accesses).
+  Acceptance: slot reuse is not double-counted; changed allocation/frame
+  realization invalidates stale demand; insufficient supply rejects before
+  execution; and generated loads/stores independently replay their physical
+  geometry and value lineage without adding source crash routes. A byte ceiling
+  alone must not stand in for valid stack backing. Target-required probing and
+  setup remain frame/provisioning work, not an owner-blocked language choice.
 
 - **ALLOCATION-REFINEMENT.** Complete coalescing, live-range splitting,
   fixed/precolored intervals, and rematerialization cost decisions while

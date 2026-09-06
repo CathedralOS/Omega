@@ -33,34 +33,7 @@ promote that narrow ambiguity here before adding machinery.
 
 Last pruned: 2026-09-05.
 
-## Q1 — Compiler-inserted spill-access fault semantics
-
-Omega must compile ordinary register-pressure programs by relocating live
-values through compiler-owned spill storage. Chapter 16 currently requires
-operation- or platform-triggered faults to remain inside explicit
-`crashes Trap` ceilings, while the optimizer semantic contract forbids
-introducing an observable trap or exit change. Neither contract says whether
-a fault caused only by realizing an otherwise-valid value in a
-compiler-selected stack slot is an Omega program observation.
-
-Choose the semantic boundary for compiler-inserted spill loads/stores:
-
-- the target/runtime must establish sufficient spill storage before entering
-  the checked invocation, making admitted spill accesses non-faulting in the
-  language model and treating establishment failure as an outer activation or
-  deployment failure;
-- each possibly faulting spill access is a platform-triggered `Trap` site that
-  must enter inferred/published crash ceilings with retained guard and
-  provenance; or
-- a versioned target realization profile explicitly selects between those
-  contracts and becomes part of optimization, frame, and publication custody.
-
-This decision blocks only conversion of the validated abstract spill schedule
-into real memory operations and frame/probing code. Logical spill choice,
-abstract slot coloring, reload-value allocation, and non-authoritative frame
-planning may proceed without making a trap claim.
-
-## Q2 — Mutable structural-parameter native identity
+## Q1 — Mutable structural-parameter native identity
 
 Omega structural parameters currently select a native ABI from their value
 shape without incorporating `MutableBorrow` or `WriteOnlyBorrow`. A small
@@ -88,7 +61,7 @@ structural-field stores and writeback. It does not block the explicitly bounded
 direct named-dynamic fixture whose stored value is consumed by the following
 projected call before the Unit returns.
 
-## Q3 — Ranked receiver-subplace transfer identity
+## Q2 — Ranked receiver-subplace transfer identity
 
 The product compiler requires ranked cyclic control to preserve a mutable
 receiver subplace across a backedge. The current ranked source and checked plan
@@ -112,7 +85,7 @@ native replay obligations. This decision blocks only the first projected
 receiver-subplace ranked-countdown slice. Whole-receiver ranked countdowns and
 ranked work that does not require receiver projection may proceed unchanged.
 
-## Q4 — Portable filesystem control and lifecycle authority classes
+## Q3 — Portable filesystem control and lifecycle authority classes
 
 D45's six portable filesystem facets determine 36 of the current 50 raw
 `FilesystemHost` requirements, including conservative all-facet unions for
@@ -146,7 +119,7 @@ custody, or engineering work on syscall/import mechanism identities and target
 classification. Raw descriptors continue to establish operation classes only,
 never object confinement.
 
-## Q5 — macOS GUI publication destination
+## Q4 — macOS GUI publication destination
 
 The Mach-O GUI publication contract in
 [`calling_plans.md`](wiki/design_briefs/calling_plans.md) states in the present

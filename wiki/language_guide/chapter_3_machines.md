@@ -430,6 +430,10 @@ Working rules:
   complete admissible arrival contexts, per-domain entry epochs, declared
   nesting, and checked or admitted demands compose through the external-root
   ledger. The resulting bound appears in the layout report.
+  It includes the final physical frames' spill storage; see
+  [compiler-owned stack storage and spill accesses](chapter_16_errors_traps_failure.md#compiler-owned-stack-storage-and-spill-accesses).
+  Register allocation changes that bound, not recursive frame growth or the
+  source machine's crash ceiling.
 
 Proof-stratum machines (chapter 10) use the same clause and legality rule with
 no tail restriction: non-tail shapes — `1 + max(Tree::depth(node.left),

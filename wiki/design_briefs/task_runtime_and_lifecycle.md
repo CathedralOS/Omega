@@ -101,6 +101,14 @@ does not negotiate or allocate a second continuation buffer. The activation
 descriptor therefore asks for a `StackLease` satisfying `StackPlan<M>`, not for
 a runtime-authored continuation-capacity record.
 
+That WCSU includes the final validated frames' spill storage. Exact stack demand
+and usable backing are separate obligations: a size comparison does not supply
+a `StackLease`. The existing activation contract handles insufficient supply
+before execution; ordinary calls do not acquire a new spill-exhaustion route.
+Retain the connection from final physical realization through WCSU to the
+provisioned activation, as specified by
+[compiler-owned stack storage and spill accesses](../language_guide/chapter_16_errors_traps_failure.md#compiler-owned-stack-storage-and-spill-accesses).
+
 Compiler elaboration remains live for concrete `TaskRuntime::start<M>` and
 `try_start<M>` specializations and emits `05_task_activations.json`. The
 artifact now carries a fixed-stack `StackPlan`, canonical suspension-crossing

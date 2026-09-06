@@ -579,7 +579,8 @@ closure review. The reviewer consumes it only when the selected profile and
 `u32` number match exactly. Missing, duplicate, unsupported, unclassified, or
 substituted coordinates fail closed. No service or method spelling can
 synthesize the identity, and this rung does not resolve filesystem descriptor
-confinement or the unsettled authority classes in `OWNER_QUESTIONS.md` Q4.
+confinement or the
+[portable filesystem control/lifecycle authority question](../../OWNER_QUESTIONS.md).
 
 A row publishes the union over every authority reachable through its argument
 values. Narrowing requires retained compiler-checked constants, ranges, handle
@@ -611,7 +612,8 @@ the helper does not inspect service paths or readable method names.
 The current real `FilesystemHost` schema has explicit consumer-policy coverage
 for the 36 requirements whose class unions follow from these rules, including
 all six facets for flag-polymorphic opens. Fourteen control/lifecycle cohorts
-remain deliberately unmapped pending `OWNER_QUESTIONS.md` Q4; neither an empty
+remain deliberately unmapped pending the portable filesystem control/lifecycle
+authority question; neither an empty
 disposition nor a filesystem class is inferred from their names. This policy
 partition is separate from target syscall/import mechanism classification and
 from any future descriptor-confinement claim.
@@ -641,7 +643,8 @@ stand in for `Console::exit_process -> ProcessTermination`, and accepting the
 broad row does not create the exact permission. Direct native compilation
 cross-checks resolved package rows against the receiving permission policy;
 missing or changed rows and duplicates across bindings reject. Complete legacy-
-row replacement remains separate unfinished work: Q4 blocks the last 14
+row replacement remains separate unfinished work: the portable filesystem
+control/lifecycle authority question blocks the last 14
 portable filesystem dispositions and retirement of the broad `Filesystem`
 summary, while no filename classifier feeds either table.
 

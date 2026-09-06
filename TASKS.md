@@ -421,7 +421,8 @@ Owners include
   pins the relevant arguments. Acceptance: exercised classes must be a subset
   of the service's permitted classes under the receiving lowerer's versioned
   target policy. Exact selected-closure containment is live and the five legacy
-  hardware filename/trait classifications are retired. Q4 blocks only the 14
+  hardware filename/trait classifications are retired. The portable filesystem
+  control/lifecycle authority question blocks only the 14
   unresolved portable filesystem dispositions and eventual retirement of the
   transitional broad `Filesystem` review summary.
 
