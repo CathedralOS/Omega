@@ -4,7 +4,7 @@ use selected_instructions::{
     SelectedBlock, SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedTerminator,
 };
 
-use post_allocation_machine_to_selected_form_encoding::SelectedFormEncodingRow;
+use machine_code::SelectedFormEncodingRow;
 
 use super::super::super::OptimizedResolvedSelectedFormLayoutError;
 use super::PreLayoutRows;

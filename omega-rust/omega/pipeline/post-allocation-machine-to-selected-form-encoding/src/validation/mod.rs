@@ -1,4 +1,4 @@
-//! Optimizer module role: executable entrance. Independent admission of producer-owned selected-form bytes.
+//! Optimizer module role: executable entrance. Independent admission of selected-form bytes.
 //!
 //! Ordinary and structural rows descend separately into target-owned byte
 //! decoders. Aggregate custody is checked only after both row families pass.
@@ -11,8 +11,7 @@ use crate::{
 };
 
 use super::{
-    OptimizedSelectedFormEncodingError, StagedOptimizedSelectedFormEncoding,
-    custody::validate_optimization_roots,
+    OptimizedSelectedFormEncodingError, SelectedFormEncoding, custody::validate_optimization_roots,
 };
 
 mod aggregate;
@@ -25,7 +24,7 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
     staged: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     optimization: Option<&StagedOptimizedPostAllocationMachineOptimization>,
-    artifact: &StagedOptimizedSelectedFormEncoding,
+    artifact: &SelectedFormEncoding,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
     let machine = staged.machine().plan();
     if machine.selected != selected.selected_identity()

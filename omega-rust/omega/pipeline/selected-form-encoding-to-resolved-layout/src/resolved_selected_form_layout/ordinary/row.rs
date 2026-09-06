@@ -12,13 +12,13 @@ use selected_instructions::{
 use semantic_vocabulary::MachineId;
 use target::Architecture;
 
-use post_allocation_machine_to_post_allocation_machine::{
-    StagedOptimizedAarch64CbnzFusion, StagedOptimizedAarch64SameViewCopyElision,
-};
-use post_allocation_machine_to_selected_form_encoding::{
+use machine_code::{
     DeferredControlEncodingReason, SelectedFormEncodingRow, SelectedFormEncodingState,
     SelectedFormInternalMachineFixup, SelectedFormInternalMachineFixupKind,
     SelectedFormInternalMachineFixupState, SelectedFormMachineDisposition,
+};
+use post_allocation_machine_to_post_allocation_machine::{
+    StagedOptimizedAarch64CbnzFusion, StagedOptimizedAarch64SameViewCopyElision,
 };
 
 use super::super::{OptimizedResolvedSelectedFormLayoutError, ResolvedBranchEvidence};

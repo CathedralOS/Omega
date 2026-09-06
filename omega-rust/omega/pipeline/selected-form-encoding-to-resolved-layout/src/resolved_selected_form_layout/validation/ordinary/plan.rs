@@ -6,7 +6,7 @@ use selected_instructions::{
 };
 use target::Architecture;
 
-use post_allocation_machine_to_selected_form_encoding::{
+use machine_code::{
     DeferredControlEncodingReason, SelectedFormEncodingRow, SelectedFormEncodingState,
     SelectedFormMachineDisposition,
 };

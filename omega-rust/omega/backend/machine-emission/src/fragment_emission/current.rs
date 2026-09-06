@@ -12,8 +12,6 @@ pub(super) struct CurrentFunctionFragmentInput {
         selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout,
     pub(super) homes: selected_instructions_to_register_homes::ValidatedRegisterHomes,
     pub(super) environment: register_environment::ValidatedTargetRegisterEnvironment,
-    pub(super) encoding:
-        post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding,
     pub(super) frame_protocol: Option<crate::ValidatedTargetFrameProtocolEncoding>,
     pub(super) frame_layout: Option<crate::frame_layout::ValidatedTargetFrameLayout>,
     pub(super) exit: crate::ValidatedWholeFunctionExitContract,
@@ -36,13 +34,13 @@ impl CurrentFunctionFragmentInput {
                 homes: homes.shared_plan(),
                 effects: machine.effects().shared_plan(),
                 machine: machine.machine().shared_plan(),
+                encoding: replay.encoding().shared_program(),
                 layout: layout.shared_program(),
             },
             machine,
             layout,
             homes,
             environment: replay.register_environment().clone(),
-            encoding: replay.encoding().clone(),
             frame_protocol: replay.frame_protocol().cloned(),
             frame_layout: replay.frame_layout().cloned(),
             exit: replay.exit_contract().clone(),
@@ -64,7 +62,6 @@ impl CurrentFunctionFragmentInput {
             || self.layout != expected.layout
             || self.homes != expected.homes
             || self.environment != expected.environment
-            || self.encoding != expected.encoding
             || self.frame_protocol != expected.frame_protocol
             || self.frame_layout != expected.frame_layout
             || self.exit != expected.exit

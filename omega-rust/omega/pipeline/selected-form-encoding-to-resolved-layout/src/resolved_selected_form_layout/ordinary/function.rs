@@ -5,10 +5,10 @@ use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{SelectedFunction, SelectedInstructionId};
 use target::Architecture;
 
+use machine_code::SelectedFormEncodingRow;
 use post_allocation_machine_to_post_allocation_machine::{
     StagedOptimizedAarch64CbnzFusion, StagedOptimizedAarch64SameViewCopyElision,
 };
-use post_allocation_machine_to_selected_form_encoding::SelectedFormEncodingRow;
 
 use super::super::{
     OptimizedResolvedSelectedFormLayoutError, ResolvedSelectedBlockLayout, ResolvedSelectedFormRow,

@@ -3,6 +3,11 @@
 mod tests;
 
 use abstract_operations_to_target_operations::*;
+use machine_code::{
+    SelectedFormEncodingCounts, SelectedFormEncodingIdentity, SelectedFormEncodingRow,
+    SelectedFormEncodingState, SelectedFormInternalMachineFixupKind,
+    SelectedFormInternalMachineFixupState, SelectedFormMachineDisposition,
+};
 use machine_emission::frame_layout::*;
 use machine_emission::*;
 use native_artifact::*;

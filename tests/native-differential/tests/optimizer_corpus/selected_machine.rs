@@ -6,6 +6,7 @@ use isa_x86_64::{
     decode_x86_64_mov_r32_imm32_i64_materialization,
     decode_x86_64_mov_r64_imm32_sign_extended_i64_materialization,
 };
+use machine_code::SelectedFormEncodingState;
 use native_realization::*;
 use optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
 use optimization_unit::PsiRewritePatch;

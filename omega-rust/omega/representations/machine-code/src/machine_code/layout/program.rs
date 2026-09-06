@@ -7,6 +7,7 @@ use register_homes::RegisterHomePlan;
 use selected_instructions::{PreAllocationMachineEffectPlan, SelectedInstructionPlan};
 
 use super::ResolvedMachineLayout;
+use crate::SelectedFormEncoding;
 
 /// Shared original artifacts, not copied snapshots or admission tokens.
 /// Consumers must independently validate their exact joins before publication.
@@ -16,5 +17,6 @@ pub struct ResolvedMachineProgram {
     pub homes: Arc<RegisterHomePlan>,
     pub effects: Arc<PreAllocationMachineEffectPlan>,
     pub machine: Arc<PostAllocationMachinePlan>,
+    pub encoding: Arc<SelectedFormEncoding>,
     pub layout: Arc<ResolvedMachineLayout>,
 }

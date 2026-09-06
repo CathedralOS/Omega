@@ -249,6 +249,16 @@ before entering the common analysis. Persisted effect rows, identities, and
 encoding are selected-representation-owned; analysis and admission remain
 pipeline-owned.
 
+Layout-independent selected-form bytes are current representation data in
+`machine-code::SelectedFormEncoding`, reached through the machine-code root's
+encoding owner. Rows, physical footprints, call templates, counts, and normalized
+optimization custody do not belong to the encoding transform. That transform
+constructs and independently validates the raw program before returning its
+sealed admission wrapper. Layout reads representation-owned rows, and fragment
+emission retains the same immutable encoding program beside its other current
+inputs. Only replay retains the producing stage's admission token; sharing or
+rehashing the raw program grants no encoding or publication authority.
+
 Selected-lowering rewrites and selected-program analyses belong to
 `selected-instructions-to-selected-instructions`; they do not assign register
 homes. The result retains one current selected program and separate replay

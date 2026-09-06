@@ -1,11 +1,10 @@
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::{
-    PhysicalRegisterModelIdentity, RegisterClassId, RegisterUnitId, RegisterViewId,
-    ValidatedPhysicalRegisterModel,
+    PhysicalRegisterModelIdentity, RegisterUnitId, ValidatedPhysicalRegisterModel,
 };
 use selected_instructions::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionPlan,
-    SelectedInstructionPlanIdentity, VirtualRegisterId,
+    SelectedInstructionPlanIdentity,
 };
 use selected_instructions_to_register_homes::{LivenessIdentity, LivenessPlan};
 use semantic_vocabulary::{EdgeId, MachineId};
@@ -52,18 +51,7 @@ pub struct Aarch64CbnzFusionAttempt {
     pub outcome: Aarch64CbnzFusionAttemptOutcome,
 }
 
-/// A physical dependency qualified by the selected instruction and operand
-/// that owns the value. The fused branch has no selected operands of its own,
-/// so this must not be represented as branch operand zero.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct QualifiedPhysicalRead {
-    pub source_instruction: SelectedInstructionId,
-    pub operand: u16,
-    pub virtual_register: VirtualRegisterId,
-    pub class: RegisterClassId,
-    pub view: RegisterViewId,
-    pub units: Vec<RegisterUnitId>,
-}
+pub use physical_instructions::QualifiedPhysicalRead;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Aarch64CbnzFusionAction {
