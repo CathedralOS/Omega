@@ -124,6 +124,16 @@ before exposing a bound. Unknown or overlapping writes retire the affected
 facts. Authored requirements remain body-checking assumptions whose callers
 must independently establish them.
 
+Local integer guards also project immutable operand intervals through builtin
+ordered comparisons. `guard_narrowing/parameter_bounds.rs` uses the existing
+`invariant_bounds.rs` owner, retaining one-sided carrier bounds: an unrestricted
+`u64` still has a zero floor when its ceiling exceeds the interval engine's
+endpoint width. Thus `n > floor` with unsigned `floor` proves `n >= 1` without
+requiring a duplicate literal guard. Projection uses exact state-parameter
+symbols, preserves guard polarity, intersects the subject's declared range,
+and checks selected operator meaning. Mutable operands and same-spelled
+foreign parameters cannot supply immutable bounds.
+
 Scalar exit proof binds the synthetic `result` to the exact final expression
 or selected returning arm. Authored output parameters instead follow retained
 per-contract reference origins into that state. Domain and scalar proof share

@@ -83,3 +83,44 @@ fn another_states_same_spelled_parameter_has_no_bound() {
         None
     );
 }
+
+#[test]
+fn comparison_bounds_keep_unsigned_floors_without_representable_ceilings() {
+    let program = typed("machine compare(left: u64, right: u64) -> bool { left > right }");
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let typed_trees::statement::StatementNode::Expression(expression) =
+        program.statement_table.statements(state.statement_nodes)[0]
+    else {
+        panic!("comparison expression");
+    };
+    let (left, right) = builtin_comparison_intervals(&program, machine, state, expression)
+        .expect("both exact immutable unsigned parameters");
+    assert_eq!(
+        left,
+        Interval {
+            low: Some(0),
+            high: None
+        }
+    );
+    assert_eq!(right, left);
+}
+
+#[test]
+fn comparison_bounds_do_not_rebind_a_foreign_parameter_by_spelling() {
+    let program = typed(
+        "machine first(left: u64, right: u64) -> bool { left > right }
+        machine second(left: u64, right: u64) -> bool { left > right }",
+    );
+    let first = &program.machines()[0];
+    let second = &program.machines()[1];
+    let first_state = &program.machine_states(first)[0];
+    let second_state = &program.machine_states(second)[0];
+    let typed_trees::statement::StatementNode::Expression(expression) = program
+        .statement_table
+        .statements(first_state.statement_nodes)[0]
+    else {
+        panic!("comparison expression");
+    };
+    assert!(builtin_comparison_intervals(&program, second, second_state, expression).is_none());
+}
