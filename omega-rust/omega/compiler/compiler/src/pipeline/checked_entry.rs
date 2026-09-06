@@ -543,6 +543,9 @@ impl CheckedCompileRequest {
 /// supply package inputs, build staging, and exact target selection; source
 /// assembly rejects a child whose immutable package source projection differs
 /// from the one prepared here.
+/// Clones share parsed storage; consuming the sole checkpoint moves that storage
+/// into its child instead of copying the syntax trees.
+#[derive(Clone)]
 pub(crate) struct PreparedCheckedSource {
     root_path: std::path::PathBuf,
     source_checkpoint: ImmutableSourceParseCheckpoint,
@@ -591,7 +594,7 @@ impl PreparedCheckedSource {
     }
 
     pub(crate) fn compile_for_terminal(
-        &self,
+        self,
         options: &super::CompileOptions,
         package_inputs: Option<&PackageCompilationInputs>,
     ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
@@ -618,13 +621,13 @@ impl PreparedCheckedSource {
     }
 
     fn compile_child_with_replay(
-        &self,
+        self,
         child: CheckedChildExecution<'_>,
     ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
         let target_name = child
             .selected_target_profile
             .map(target::TargetProfile::target_name);
-        let mut timings = self.shared_timings.clone();
+        let mut timings = self.shared_timings;
         let (source_file_count, syntax) = match target_name {
             Some(target_name) => self
                 .source_checkpoint
@@ -804,14 +807,14 @@ impl CheckedFrontend {
 /// executes.
 ///
 /// The coherent base frontend, exact prepared build projection, reach and
-/// authority verdicts, package declaration verdict, and frozen base syntax
+/// authority verdicts, package declaration verdict, and exact base source map
 /// needed to bind a generated extension stay coupled across execution.
 struct AdmittedBuildCheckpoint {
     frontend: CheckedFrontend,
     admitted_build: crate::pipeline::build_config::AdmittedBuildProgram,
     package_authority_verdict:
         Option<crate::pipeline::package_declaration_admission::AuthoredDeclarationAuthorityVerdict>,
-    base_syntax: crate::pipeline::source_assembly::AssembledSyntax,
+    base_sources: Arc<source::SourceMap>,
 }
 
 struct ExecutedBuildCheckpoint {
@@ -819,7 +822,7 @@ struct ExecutedBuildCheckpoint {
     computed_build_config: crate::pipeline::build_config::ComputedBuildConfig,
     package_authority_verdict:
         Option<crate::pipeline::package_declaration_admission::AuthoredDeclarationAuthorityVerdict>,
-    base_syntax: crate::pipeline::source_assembly::AssembledSyntax,
+    base_sources: Arc<source::SourceMap>,
 }
 
 impl AdmittedBuildCheckpoint {
@@ -835,7 +838,7 @@ impl AdmittedBuildCheckpoint {
             frontend: self.frontend,
             computed_build_config,
             package_authority_verdict: self.package_authority_verdict,
-            base_syntax: self.base_syntax,
+            base_sources: self.base_sources,
         })
     }
 }
@@ -884,7 +887,7 @@ fn lower_checked_frontend(
 
 fn try_seeded_extension(
     base: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
-    assembled: &crate::pipeline::source_assembly::AssembledSyntax,
+    base_sources: &Arc<source::SourceMap>,
     extension: crate::pipeline::source_assembly::RetainedGeneratedSyntaxExtension,
     selected_target_machine_declarations:
         crate::pipeline::target_machines::SelectedTargetMachineDeclarations,
@@ -900,9 +903,8 @@ fn try_seeded_extension(
 > {
     let retained_prefix = base.typed().clone();
     let mut wire_schema_frontier = retained_prefix.wire_schemas().len();
-    let (extension_units, sources) = extension.into_pre_resolution_inputs(assembled)?;
-    let mut extension_syntax =
-        syntax_trees::SyntaxTrees::new(source::SourceId(assembled.sources.len()));
+    let (extension_units, sources) = extension.into_pre_resolution_inputs(base_sources)?;
+    let mut extension_syntax = syntax_trees::SyntaxTrees::new(source::SourceId(base_sources.len()));
     let mut pre_checks = Vec::with_capacity(extension_units.len());
     for unit in extension_units {
         let evaluated = match package_inputs {
@@ -1014,7 +1016,7 @@ fn compile_assembled_checked_child(
     // artifact consumer below observes only the catalog's canonical spelling.
     let target_name = selected_target_profile.map(target::TargetProfile::target_name);
     let mut generated_source_custody = syntax.generated_source_custody.clone();
-    let frozen_syntax = syntax.clone();
+    let base_sources = syntax.sources.clone();
     let mut frontend = lower_checked_frontend(syntax, target_name, package_inputs, &mut timings)?;
     let package_authority_verdict = if let Some(package_inputs) = package_inputs {
         Some(crate::pipeline::package_declaration_admission::validate_authored_declaration_selections_before_build(
@@ -1105,12 +1107,12 @@ fn compile_assembled_checked_child(
         frontend: executed_frontend,
         computed_build_config,
         package_authority_verdict,
-        base_syntax: frozen_syntax,
+        base_sources,
     } = (AdmittedBuildCheckpoint {
         frontend,
         admitted_build,
         package_authority_verdict,
-        base_syntax: frozen_syntax,
+        base_sources,
     })
     .execute()?;
     frontend = executed_frontend;
@@ -1127,7 +1129,7 @@ fn compile_assembled_checked_child(
             .package_root(package_inputs.root())
             .expect("validated package inputs retain their root package");
         let extension = crate::pipeline::source_assembly::retain_generated_syntax_extension(
-            &frozen_syntax,
+            &base_sources,
             package_root,
             Some(package_inputs.root()),
             &computed_build_config.generated_sources,
@@ -1152,7 +1154,7 @@ fn compile_assembled_checked_child(
         };
         let (typed, selected_target_machine_declarations) = try_seeded_extension(
             typing_base,
-            &frozen_syntax,
+            &base_sources,
             extension,
             selected_target_machine_declarations,
             target_name,
@@ -1535,11 +1537,13 @@ mod continuation_tests {
                 let prepared = PreparedCheckedSource::prepare(&main, None)
                     .expect("prepare checked source checkpoint");
                 let windows = prepared
+                    .clone()
                     .compile_child_with_replay(CheckedChildExecution::exact_target(
                         target::TargetProfile::WindowsX64,
                     ))
                     .expect("compile Windows child from prepared source");
                 let linux = prepared
+                    .clone()
                     .compile_child_with_replay(CheckedChildExecution::exact_target(
                         target::TargetProfile::LinuxX64,
                     ))

@@ -160,9 +160,9 @@ fn compile_checked_with_observations(
     Vec<Diagnostic>,
 > {
     let checked = match prepared {
-        Some(prepared) => {
-            prepared.compile_for_terminal(request.options(), request.package_inputs())?
-        }
+        Some(prepared) => prepared
+            .clone()
+            .compile_for_terminal(request.options(), request.package_inputs())?,
         None => crate::pipeline::checked_entry::compile_to_checked_for_terminal(
             request.options(),
             request.package_inputs(),

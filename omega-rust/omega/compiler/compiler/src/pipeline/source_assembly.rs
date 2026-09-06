@@ -14,7 +14,6 @@ use syntax_trees::SyntaxTrees;
 mod checkpoint;
 pub(in crate::pipeline) use checkpoint::ImmutableSourceParseCheckpoint;
 
-#[derive(Clone)]
 pub(super) struct AssembledSyntax {
     pub(super) syntax_trees: SyntaxTrees,
     pub(super) sources: Arc<source::SourceMap>,
@@ -60,9 +59,9 @@ impl RetainedGeneratedSyntaxExtension {
 
     pub(super) fn into_pre_resolution_inputs(
         self,
-        assembled: &AssembledSyntax,
+        base_sources: &Arc<source::SourceMap>,
     ) -> Result<(Vec<SyntaxTrees>, Arc<source::SourceMap>), Vec<Diagnostic>> {
-        if !Arc::ptr_eq(&assembled.sources, &self.base_sources) {
+        if !Arc::ptr_eq(base_sources, &self.base_sources) {
             return Err(vec![Diagnostic::error(
                 "retained generated-source extension no longer matches its base source frontier",
             )]);
@@ -91,12 +90,12 @@ impl RetainedGeneratedSyntaxExtension {
 }
 
 pub(super) fn retain_generated_syntax_extension(
-    assembled: &AssembledSyntax,
+    base_sources: &Arc<source::SourceMap>,
     package_root: &Path,
     package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     generated_sources: &[build_output::PackageGeneratedSource],
 ) -> Result<RetainedGeneratedSyntaxExtension, Vec<Diagnostic>> {
-    let mut sources = (*assembled.sources).clone();
+    let mut sources = (**base_sources).clone();
     let mut units = Vec::with_capacity(generated_sources.len());
     let mut retained = Vec::with_capacity(generated_sources.len());
     for generated in generated_sources {
@@ -169,7 +168,7 @@ pub(super) fn retain_generated_syntax_extension(
         units,
         sources: Arc::new(sources),
         generated_source_custody: retained,
-        base_sources: assembled.sources.clone(),
+        base_sources: base_sources.clone(),
     })
 }
 
@@ -626,6 +625,32 @@ mod tests {
     use super::*;
 
     #[test]
+    fn retained_generated_syntax_extension_rejects_equal_but_distinct_base_sources() {
+        let mut sources = source::SourceMap::default();
+        sources.add(
+            PathBuf::from("main.omg"),
+            "const ANSWER: u32 = 42;".to_owned(),
+        );
+        let base_sources = Arc::new(sources);
+        let substituted_sources = Arc::new((*base_sources).clone());
+        assert_eq!(base_sources, substituted_sources);
+        let extension = RetainedGeneratedSyntaxExtension {
+            units: Vec::new(),
+            sources: base_sources.clone(),
+            generated_source_custody: Vec::new(),
+            base_sources,
+        };
+        let diagnostics = extension
+            .into_pre_resolution_inputs(&substituted_sources)
+            .expect_err("equal source contents cannot substitute for the retained source identity");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("no longer matches its base source frontier")
+        );
+    }
+
+    #[test]
     fn retained_generated_syntax_extension_preserves_unit_custody_without_reparsing() {
         let base_text = "machine base() -> u64 { 1 }";
         let base_tokens = crate::lexer::Lexer::new(base_text)
@@ -684,7 +709,7 @@ mod tests {
         };
 
         let (units, sources) = extension
-            .into_pre_resolution_inputs(&assembled)
+            .into_pre_resolution_inputs(&assembled.sources)
             .expect("retained units should match their exact base");
 
         assert_eq!(assembled.sources.len(), 1);
@@ -786,7 +811,7 @@ mod tests {
             base_sources,
         };
         let (units, _) = extension
-            .into_pre_resolution_inputs(&assembled)
+            .into_pre_resolution_inputs(&assembled.sources)
             .expect("retained units match their base");
         let normalized_counts = units
             .into_iter()
