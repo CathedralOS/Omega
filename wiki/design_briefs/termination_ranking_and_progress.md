@@ -360,8 +360,12 @@ dependency. Disjoint writes preserve identity. Reference copies preserve live
 aliases, not snapshots of their referents, and need their own exact storage
 correspondence. Rebinding one alias does not redirect a previously copied
 reference. An owned value read through an alias uses that alias's binding at
-the capture point. Explicit state requirements may use an existing live
-qualification of the exact referent; reference identity cannot establish a
+the capture point. References stored in local records and selected cases use
+the same rule: declaration and carrier copies freeze the reference binding,
+not the referent's contents. Loading a frozen leaf needs its exact declared
+selector and source; replacing or exposing the carrier or reference slot for
+replacement prevents reuse of that evidence. Explicit state requirements may
+use an existing live qualification of the exact referent; reference identity cannot establish a
 missing or invalidated qualification.
 An unrelated reference with an unknown origin does not erase another
 reference's exact correspondence. Copies of that unknown reference remain

@@ -471,13 +471,15 @@ fn walk_state_write_prefix_inner(
                         &local_alias_origins,
                         |aliases| {
                             if include_shared {
-                                reference_subjects::validate_initializer(
+                                return reference_subjects::initializer_origin(
                                     program,
                                     machine,
                                     assignment.value,
                                     symbols,
                                     inference,
-                                )?;
+                                    aliases,
+                                    &stored,
+                                );
                             }
                             stable_alias_initializer_origin(
                                 program,
@@ -503,7 +505,7 @@ fn walk_state_write_prefix_inner(
                     && !type_is_caller_isolated_local(program, local.type_reference)
                     && declared_local_alias_origin.is_none() =>
             {
-                stored_origins::declaration_origins(
+                stored_origins::declaration_origins_for_query(
                     program,
                     machine,
                     local,
@@ -511,6 +513,7 @@ fn walk_state_write_prefix_inner(
                     &stored,
                     symbols,
                     inference,
+                    include_shared,
                 )
             }
             _ => None,
@@ -575,32 +578,31 @@ fn walk_state_write_prefix_inner(
                         assignment.value,
                         &mut local_alias_origins,
                         |aliases| {
-                            let declared = !include_shared
-                                || reference_subjects::validate_initializer(
+                            let origin = if include_shared {
+                                reference_subjects::initializer_origin(
                                     program,
                                     machine,
                                     assignment.value,
                                     symbols,
                                     inference,
+                                    aliases,
+                                    &stored,
                                 )
-                                .is_some();
-                            let origin = declared
-                                .then(|| {
-                                    stable_alias_initializer_origin(
-                                        program,
-                                        machine,
-                                        &machine_symbols,
-                                        inference,
-                                        assignment.value,
-                                        parameters,
-                                        &isolated_local_roots,
-                                        aliases,
-                                        symbols,
-                                        true,
-                                        &stored,
-                                    )
-                                })
-                                .flatten();
+                            } else {
+                                stable_alias_initializer_origin(
+                                    program,
+                                    machine,
+                                    &machine_symbols,
+                                    inference,
+                                    assignment.value,
+                                    parameters,
+                                    &isolated_local_roots,
+                                    aliases,
+                                    symbols,
+                                    true,
+                                    &stored,
+                                )
+                            };
                             origin.or_else(|| {
                                 if !include_shared {
                                     return None;
@@ -876,13 +878,15 @@ fn stable_local_reference_alias_origin(
         return None;
     }
     if include_shared {
-        reference_subjects::validate_initializer(
+        return reference_subjects::initializer_origin(
             program,
             current_machine,
             local.initial_value,
             symbols,
             inference,
-        )?;
+            aliases,
+            stored,
+        );
     }
     stable_alias_initializer_origin(
         program,

@@ -121,14 +121,62 @@ pub(super) fn local_origin(
 /// Body-derived helper relations need exact nominal projections as well as
 /// their conservative write footprint. Loaded reference slots need their own
 /// frozen evidence and cannot be identified from a referent's type alone.
-pub(super) fn validate_initializer(
+pub(super) fn initializer_origin(
     program: &TypedTrees,
     machine: &Machine,
     expression: ExpressionHandle,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-) -> Option<()> {
-    declared_initializer_origin(program, machine, expression, symbols, inference, false).map(|_| ())
+    aliases: &[(String, FramePlaceOrigin)],
+    stored: &[StoredLocalOrigins],
+) -> Option<FramePlaceOrigin> {
+    declared_initializer_origin(
+        program, machine, expression, symbols, inference, false, aliases, stored,
+    )?;
+    let (state, _, index) = caller_aliases::caller_statement_at_site(
+        program,
+        machine,
+        caller_aliases::CallerWriteSite::Expression(expression),
+    )?;
+    let isolated = program.statement_table.statements(state.statement_nodes)[..index]
+        .iter()
+        .filter_map(|statement| match statement {
+            StatementNode::LocalData(local)
+                if type_is_caller_isolated_local(program, local.type_reference)
+                    && !type_reference_is_reference(program, local.type_reference) =>
+            {
+                Some(local.name.as_str().to_owned())
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let mut diagnostics = Vec::new();
+    let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
+    if !diagnostics.is_empty() {
+        return None;
+    }
+    let origin = stable_alias_initializer_origin(
+        program,
+        machine,
+        &machine_symbols,
+        inference,
+        expression,
+        program.state_parameters(state),
+        &isolated,
+        aliases,
+        symbols,
+        true,
+        stored,
+    )?;
+    let mut origins =
+        stored_origins::canonical_reference_origins(program, &origin, aliases, stored).into_iter();
+    let origin = origins.next()?;
+    if origins.next().is_some() || origin.precision != FramePathPrecision::Exact {
+        return None;
+    }
+    let reference = source_root_type(program, machine, state, index, origin.source.root)?;
+    validate_owned_projection(program, reference, &origin.source.segments)?;
+    Some(origin)
 }
 
 fn declared_initializer_origin(
@@ -138,6 +186,8 @@ fn declared_initializer_origin(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     implicit_borrow: bool,
+    aliases: &[(String, FramePlaceOrigin)],
+    stored: &[StoredLocalOrigins],
 ) -> Option<FramePlaceOrigin> {
     let explicit_borrow = matches!(
         program.expression_table.expression(expression),
@@ -176,7 +226,9 @@ fn declared_initializer_origin(
                     parameter.type_reference,
                     &relative.source.segments,
                 )?;
-                declared_initializer_origin(program, machine, actual, symbols, inference, true)
+                declared_initializer_origin(
+                    program, machine, actual, symbols, inference, true, aliases, stored,
+                )
             },
         )?;
         let reference = source_root_type(program, machine, state, index, origin.source.root)?;
@@ -200,8 +252,61 @@ fn declared_initializer_origin(
     }
     let source = FrameSourcePlace::from_expression(program, expression);
     let reference = source_root_type(program, machine, state, index, source.root)?;
-    validate_owned_projection(program, reference, &source.segments)?;
+    if validate_owned_projection(program, reference, &source.segments).is_none() {
+        return frozen_reference_origin(program, expression, reference, &source, aliases, stored);
+    }
     frame_place_path(program, expression)
+}
+
+/// A loaded slot has identity only through a matching declaration-time leaf.
+/// Type-derived overlap and a similarly spelled reference field are insufficient.
+fn frozen_reference_origin(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    reference: TypeReferenceHandle,
+    source: &FrameSourcePlace,
+    aliases: &[(String, FramePlaceOrigin)],
+    stored: &[StoredLocalOrigins],
+) -> Option<FramePlaceOrigin> {
+    if type_reference_is_reference(program, reference)
+        || source.segments.iter().any(|segment| {
+            !matches!(
+                segment,
+                PlaceSegment::Field { .. } | PlaceSegment::Case { .. }
+            )
+        })
+    {
+        return None;
+    }
+    let local = stored
+        .iter()
+        .find(|local| local.local_symbol == source.root)?;
+    let mut selected = local
+        .references
+        .iter()
+        .filter(|leaf| source.segments.starts_with(&leaf.local_segments));
+    let leaf = selected.next()?;
+    if selected.next().is_some() {
+        return None;
+    }
+    let leaf_type =
+        stored_origins::projected_storage_type(program, reference, &leaf.local_segments)?;
+    if !type_reference_is_reference(program, leaf_type) {
+        return None;
+    }
+    let projected =
+        stored_origins::project_stored_origins(program, local, &leaf.local_segments, false)?;
+    if projected.references.len() != 1 {
+        return None;
+    }
+    let raw = frame_place_path(program, expression)?;
+    let mut origins =
+        stored_origins::canonical_reference_origins(program, &raw, aliases, stored).into_iter();
+    let origin = origins.next()?;
+    (origins.next().is_none()
+        && origin.precision == FramePathPrecision::Exact
+        && origin.source.root.is_valid())
+    .then_some(origin)
 }
 
 fn source_root_type(

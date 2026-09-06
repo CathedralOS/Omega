@@ -996,8 +996,20 @@ Current ownership is:
   intermediate aliases cannot recover identity from a missing symbol's name.
   The exact query validates both the relative projection and actual caller
   source, and rejects reference-binding exposure in any call operand.
-  Name-only, loaded-reference-slot, coarse, and unresolved helper origins cannot
-  supply exact identity. A returned reference identifies storage, not its old
+  Local literal carriers retain shared as well as exclusive reference leaves
+  for this query. Loading a frozen Field/Case leaf validates the exact prior
+  declaration, nominal selectors, retained case selection, and one canonical
+  source. Nested carrier copies preserve that declaration-time binding across
+  later alias rebindings. A loaded reference stays live: writes to its referent
+  do not become snapshots. Slot or ancestor replacement and explicit mutable
+  exposure retire the frozen relation. Implicit mutable receivers at the slot
+  borrow the referent; receivers at an ancestor can replace the slot and remain
+  opaque. Unknown shared leaves retain query-local markers without widening
+  ordinary write frames. Aggregate helper results still need separate shared
+  leaf result relations; an empty exclusive-write footprint proves no shared
+  reference identity. Name-only, untracked loaded slots, indexed selections,
+  coarse, and unresolved helper origins cannot supply exact identity.
+  A returned reference identifies storage, not its old
   contents: helper writes still invalidate overlapping progress qualifications.
   Resolved methods named like slice views use their selected body relation;
   unresolved view shortcuts retain only collection-coarse evidence and cannot

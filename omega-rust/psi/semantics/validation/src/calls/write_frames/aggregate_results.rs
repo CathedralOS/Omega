@@ -147,6 +147,12 @@ pub(super) fn call_result_origins(
             "",
             symbols,
             inference,
+            false,
+            &|expression, _, inference| {
+                super::reference_origins::exclusive_reference_origin(
+                    program, machine, expression, symbols, inference,
+                )
+            },
             &|expression, reference, _| {
                 reference_leaves_before_statement(
                     program,

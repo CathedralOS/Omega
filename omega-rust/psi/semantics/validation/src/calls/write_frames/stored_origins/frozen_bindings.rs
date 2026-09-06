@@ -1,6 +1,6 @@
-//! Frozen case evidence cannot survive replacement of its discriminant storage.
-//! Payload scalar writes do not replace an enclosing case. This is an opacity
-//! fence, not a mutable case-state transfer or a source of access permission.
+//! Frozen cases and reference slots cannot survive untracked replacement.
+//! Payload/referent writes do not replace their containing binding. This is an
+//! opacity fence, not a source of access permission or replacement identity.
 
 use super::{StoredLocalOrigins, projections::prefix_matches};
 use crate::calls::write_frames::{FrameSourcePlace, coarse_place_path, split_place_root};
@@ -22,7 +22,7 @@ pub(in crate::calls::write_frames) fn statement_exposes_frozen_binding(
     use typed_trees::{expression::ExpressionNode, statement::StatementNode};
     if let StatementNode::Call(call) = statement
         && receiver_allows_replacement(program, call.target_symbol)
-        && statement_receiver_replaces_case(program, state, call, stored)
+        && statement_receiver_exposes_binding(program, state, call, stored)
     {
         return true;
     }
@@ -31,7 +31,8 @@ pub(in crate::calls::write_frames) fn statement_exposes_frozen_binding(
             || expression_any(program, expression, |expression| {
                 matches!(program.expression_table.expression(expression),
                     ExpressionNode::Call(call) if receiver_allows_replacement(program, call.target_symbol)
-                        && target_replaces_case_binding(program, call.receiver, stored))
+                        && (target_replaces_case_binding(program, call.receiver, stored)
+                            || target_replaces_reference_binding(program, call.receiver, stored, false)))
             })
     })
 }
@@ -62,7 +63,7 @@ fn receiver_allows_replacement(program: &TypedTrees, target: symbols::SymbolHand
     }
 }
 
-fn statement_receiver_replaces_case(
+fn statement_receiver_exposes_binding(
     program: &TypedTrees,
     state: &typed_trees::state::State,
     call: &typed_trees::statement::TableCall,
@@ -87,24 +88,63 @@ fn statement_receiver_replaces_case(
             if members.len() == 1 && call.receiver_symbol != local.local_symbol {
                 // Unresolved or substituted receiver identity cannot recover a
                 // permissive spelling fallback for a case-bearing local.
-                return !local.cases.is_empty();
+                return !local.cases.is_empty() || !local.references.is_empty();
             }
-            local.cases.iter().any(|case| {
-                let Some((PlaceSegment::Case { .. }, container)) = case.split_last() else {
-                    return false;
-                };
-                let fields = container
-                    .iter()
-                    .filter_map(|segment| match segment {
-                        PlaceSegment::Field { symbol } => Some(program.symbols.name(*symbol)),
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>();
-                members.len() - 1 <= fields.len()
-                    && members[1..]
+            let cases = local
+                .cases
+                .iter()
+                .filter_map(|case| match case.split_last() {
+                    Some((PlaceSegment::Case { .. }, container)) => Some((container, true)),
+                    _ => None,
+                });
+            let references = local
+                .references
+                .iter()
+                .map(|leaf| (leaf.local_segments.as_slice(), false));
+            cases
+                .chain(references)
+                .any(|(container, include_endpoint)| {
+                    let fields = container
                         .iter()
-                        .zip(fields)
-                        .all(|(member, field)| member.as_str() == field)
+                        .filter_map(|segment| match segment {
+                            PlaceSegment::Field { symbol } => Some(program.symbols.name(*symbol)),
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>();
+                    members.len() - 1 <= fields.len()
+                        && (include_endpoint || members.len() - 1 < fields.len())
+                        && members[1..]
+                            .iter()
+                            .zip(fields)
+                            .all(|(member, field)| member.as_str() == field)
+                })
+        })
+}
+
+/// An implicit method receiver at a reference leaf borrows the referent, not
+/// the slot. Explicit exclusive borrows can expose the slot itself as well.
+pub(super) fn target_replaces_reference_binding(
+    program: &TypedTrees,
+    target: ExpressionHandle,
+    stored: &[StoredLocalOrigins],
+    include_endpoint: bool,
+) -> bool {
+    let source = FrameSourcePlace::from_expression(program, target);
+    if !source.root.is_valid() {
+        return coarse_place_path(program, target).is_some_and(|path| {
+            let (root, _) = split_place_root(&path);
+            stored.iter().any(|local| {
+                !local.references.is_empty() && program.symbols.name(local.local_symbol) == root
+            })
+        });
+    }
+    stored
+        .iter()
+        .filter(|local| local.local_symbol == source.root)
+        .any(|local| {
+            local.references.iter().any(|leaf| {
+                prefix_matches(&source.segments, &leaf.local_segments)
+                    && (include_endpoint || source.segments.len() < leaf.local_segments.len())
             })
         })
 }
