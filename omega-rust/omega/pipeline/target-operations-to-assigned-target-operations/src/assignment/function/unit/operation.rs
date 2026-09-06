@@ -1,5 +1,6 @@
 use super::{
-    dynamic, dynamic_argument, foreign_call, installed_provider, scalar_call, structural_scalar,
+    dynamic, dynamic_argument, foreign_call, installed_provider, scalar_call, structural_result,
+    structural_scalar,
 };
 use crate::assignment::shared::*;
 
@@ -198,7 +199,7 @@ pub(super) fn assign(
             returned_claim_transfers,
             requirement_obligations,
             crash_continuations,
-        } => structural_scalar::assign_result_call(
+        } => structural_result::assign_result_call(
             machine,
             attachment,
             body,

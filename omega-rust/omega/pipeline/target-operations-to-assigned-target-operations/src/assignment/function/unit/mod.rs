@@ -11,6 +11,7 @@ mod installed_provider;
 mod operation;
 mod scalar_call;
 mod scalar_transport;
+mod structural_result;
 pub(super) mod structural_scalar;
 mod write_only_primitive_store;
 
