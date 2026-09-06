@@ -43,3 +43,15 @@ Transfer: keep computation storage compact and make presentation pay for the pag
 Read the README's Snapshot System section and `squalr-engine-api/src/structures/snapshots/snapshot_region.rs` for current/previous byte buffers. Locate their refresh writers before changing reuse behavior; the data holder alone does not establish allocation frequency.
 
 The README describes alternating current/previous storage so recurring scans can reuse allocations after initialization. Transfer the buffer-lifetime design while accounting for input growth, invalid reads, and retained memory. Verify the actual refresh route before claiming allocation-free steady state.
+
+## Transfer example: Omega
+
+Omega's README and AGENTS require arena-backed durable lowered children through `Handle<T>` and `HandleSpan<T>`; worker-local vectors may be temporary construction buffers. At Omega revision `8fb34c783fa91fd74d3ddddb37bc09e1eff40009`, inspect these repository-relative paths when applying the Squalr pattern:
+
+- `omega-rust/psi/foundation/arena/src/handle_span.rs`: `push_contiguous` requires contiguous positions and one generation.
+- `omega-rust/psi/foundation/arena/src/paged_arena.rs`: insertion requires exclusive `&mut self`; nested page storage is not concurrent semantic child-list publication.
+- `omega-rust/psi/foundation/arena/src/generational_paged_arena.rs`: concurrent allocation supplies default-valued slots; the documented API does not support insertion of initialized nodes. Check current APIs before assuming that remains true.
+- `omega-rust/omega/compiler/compiler/tests/canary_suite.rs`: `run_bounded_canary_jobs` restores source order. The `named_integer_conversion_filesystem_cross_targets_reach_checked_trees` caller in `omega-rust/omega/compiler/compiler/tests/canary_suite/abi_runtime_values_and_strings.rs` zips returned results with input targets. Completion order would misattribute failures.
+- `omega-rust/omega/compiler/compiler/src/compiler/execution.rs`: `run_on_compile_thread` requests a 256 MiB stack so recursive work can reach depth guards. Executor reuse must preserve that execution requirement and failure propagation; a default worker pool is not automatically equivalent. The configured stack size is not a measurement of committed or resident memory.
+
+These examples constrain how a change can be made. They do not establish a measured bottleneck or require changing the destination's existing storage or scheduler.
