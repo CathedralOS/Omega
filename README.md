@@ -46,6 +46,7 @@ mbx --version
 cargo fmt --all -- --check
 mbx clippy --workspace --all-targets -- -D warnings
 mbx nextest run -p omega-architecture-test --all-targets --no-fail-fast
+mbx nextest run -p compiler --test canary_suite --no-fail-fast --no-tests fail -E 'test(=surface_and_targets::retired_domain_when_surface_is_absent_from_authored_corpus)'
 mbx check --workspace --all-targets
 mbx nextest run --workspace --lib --no-fail-fast
 ```

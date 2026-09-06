@@ -2,9 +2,10 @@
 """Run affected library tests without changing workspace feature unification.
 
 Supply a previously verified commit as --base. Git compares its tree with the
-current working files (including staged and untracked files). Only Rust files
-under a known crate's src/ have a narrow interpretation. Everything else runs
-all library tests. Architecture tests always run because they read source trees
+current working files (including staged and untracked files). Rust files under
+a known crate's src/ select dependents; audited documentation selects its source
+checks. Other inputs run all library tests. Architecture tests always run because
+they read source trees
 without Cargo dependency edges. This is change-impact selection, not a proof
 that the compiler or an untested base is correct. See wiki/testing.md.
 """
@@ -28,6 +29,24 @@ SOURCE_READERS = {
         "semantic-vocabulary", "terminal-semantics",
     },
 }
+
+# Audited Markdown locations, not a blanket extension exclusion: Markdown in
+# tests/fixtures is executable test input. Architecture reads wiki releases;
+# the compiler corpus audit below reads prose across the repository.
+DOCUMENTATION_FILES = {
+    "AGENTS.md", "CLAUDE.md", "README.md", "OWNER_QUESTIONS.md",
+    "TASKS.md", "TASKS_BOOTSTRAP.md", "TASKS_OPTIMIZER.md",
+}
+DOCUMENTATION_TEST = (
+    "surface_and_targets::retired_domain_when_surface_is_absent_from_authored_corpus"
+)
+
+
+def is_documentation(filename):
+    path = PurePosixPath(filename)
+    return filename in DOCUMENTATION_FILES or (
+        path.parts[0] == "wiki" and path.suffix == ".md"
+    )
 
 
 def output(root, arguments):
@@ -60,6 +79,8 @@ def selection(root, metadata, paths):
     reasons = []
     for filename in paths:
         path = PurePosixPath(filename)
+        if is_documentation(filename):
+            continue
         if filename in {
             "omega-rust/psi/semantics/terminal-codec/src/trust_graph.rs",
         }:
@@ -102,6 +123,7 @@ def selection(root, metadata, paths):
 
 def make_plan(root, runner, base, full=False):
     paths = [] if full else changed_paths(root, base)
+    documentation_paths = [path for path in paths if is_documentation(path)]
     if full:
         expression, packages, reasons = "all()", [], ["Explicit full run"]
     else:
@@ -112,6 +134,10 @@ def make_plan(root, runner, base, full=False):
         expression, packages, reasons = selection(root, metadata, paths)
     commands = [[runner, "nextest", "run", "--locked", "-p",
                  "omega-architecture-test", "--all-targets", "--no-fail-fast"]]
+    if full or documentation_paths:
+        commands.append([runner, "nextest", "run", "--locked", "-p", "compiler",
+                         "--test", "canary_suite", "--no-fail-fast", "--no-tests", "fail",
+                         "-E", f"test(={DOCUMENTATION_TEST})"])
     if expression != "none()":
         # Keep --workspace even for a narrow filter. Splitting -p builds can
         # change feature unification and no longer match the full baseline.
@@ -122,6 +148,7 @@ def make_plan(root, runner, base, full=False):
             # The separate integration gate covers those; this phase is --lib.
             commands[-1].extend(["--no-tests", "pass"])
     return {"base": base, "changed_paths": paths, "affected_packages": packages,
+            "documentation_paths": documentation_paths,
             "filter": expression, "full_suite_reasons": reasons,
             "commands": commands}
 

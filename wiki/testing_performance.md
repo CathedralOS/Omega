@@ -138,3 +138,34 @@ On the isolated migration tree based on `ac3b45e9b462def078772e5bd5ca31be0a544ec
 
 The Python and nextest workflows ran on Windows. macOS runtime validation is
 still outstanding. No new performance percentage is claimed for that host.
+
+## Documentation selection follow-up
+
+Audited root project docs and Markdown under `wiki/` now select all 448
+architecture checks plus the compiler corpus audit, with no library tests.
+Other Markdown (including fixture inputs), configuration, tools and unknown
+paths still select all libraries. A mixed docs/Rust edit retains the Rust
+reverse-dependency closure. See [the exact allowlist](testing.md).
+
+Three real README-only edits were checked through the complete Python CLI on
+the warmed Windows worktree. Each plan contained only README.md, selected
+`none()` for libraries, ran the two required commands, and passed all 449 checks.
+The probe edit was restored byte-for-byte afterward.
+
+| End-to-end seconds | Minimum | Mean | Maximum |
+| --- | ---: | ---: | ---: |
+| 28.06, 21.89, 23.47 | 21.89 | 24.47 | 28.06 |
+
+These samples include metadata, nextest startup/build checks, and test execution
+on the active workstation. They do not establish a matched full-suite speedup
+ratio: the earlier 357.071-second library run had different cache conditions.
+The removed work is concrete: documentation-only rechecks no longer execute
+7,687 unrelated library tests.
+
+Validation also included 13 selector regression tests, compiler formatting,
+and strict Clippy for the changed compiler canary target. An injected untracked
+Markdown file with invalid retired syntax failed with exit 100 and identified
+the exact file and line; removing it restored a pass. The corpus audit now
+includes untracked, nonignored files so staging cannot determine whether this
+check sees a new document. Existing full-suite failures were not suppressed or
+retested as part of this focused documentation change. macOS was not available.
