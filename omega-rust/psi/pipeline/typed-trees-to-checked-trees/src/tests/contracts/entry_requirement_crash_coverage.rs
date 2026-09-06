@@ -109,3 +109,49 @@ fn equivalent_route_spelling_needs_the_complete_exact_entry_fact() {
            state failed() -> bool { crash Trap; } }",
     );
 }
+
+#[test]
+fn common_disjunctive_entry_consequences_cover_direct_and_call_routes() {
+    for (requirement, route) in [
+        ("(a && b) || (a && c)", "a"),
+        ("(a && b) || ((a && c) || (a && d))", "a"),
+        ("((a && b) || (a && c)) && ((d && b) || (d && c))", "a && d"),
+        ("(!a && b) || (c && !a)", "a == false"),
+        ("!((a || b) && (a || c))", "!a"),
+        ("((a && b) || (a && c)) == true", "a"),
+    ] {
+        for body in ["crash Trap;", "trigger()"] {
+            accepts(&format!(
+                "machine trigger() -> bool\ncrashes Trap\n{{ crash Trap; }}\n\
+                 machine value(mut a: bool, b: bool, c: bool, d: bool) -> bool\n\
+                 requires {requirement}\ncrashes Trap {route}\n{{ a = false; {body} }}",
+            ));
+        }
+    }
+    accepts(
+        "machine value(mut a: bool, b: bool, c: bool) -> bool\n\
+         requires (a && b) || (a && c)\ncrashes Trap a\n\
+         { a = false; transition { _ -> failed(false) }\n\
+           state failed(a: bool) -> bool { crash Trap; } }",
+    );
+}
+
+#[test]
+fn common_disjunctive_entry_consequences_need_every_alternative_and_complete_route() {
+    for (requirement, route) in [
+        ("(a && b) || (b && c)", "a"),
+        ("(a && b) || (!a && c)", "a"),
+        ("(a && b) || (a && c)", "d"),
+        ("(a && b) || (a && c)", "a && d"),
+        ("(a && b) || (a && c)", "!a"),
+        ("(a && b) || ((a && c) || d)", "a"),
+    ] {
+        for body in ["crash Trap;", "trigger()"] {
+            rejects_uncovered(&format!(
+                "machine trigger() -> bool\ncrashes Trap\n{{ crash Trap; }}\n\
+                 machine value(mut a: bool, b: bool, c: bool, d: bool) -> bool\n\
+                 requires {requirement}\ncrashes Trap {route}\n{{ a = true; {body} }}",
+            ));
+        }
+    }
+}

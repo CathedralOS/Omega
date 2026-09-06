@@ -3473,15 +3473,28 @@ One union goal shares the 4,096-step conversion and search limits across the
 bucket; proof depth is bounded to 64. Exact callee continuations remain unchanged.
 This also permits a disjunctive entry requirement to cover separate published
 alternatives without claiming either alternative holds by itself.
+Common consequences of nested alternatives use kernel-checked disjunction
+elimination: each ordered branch proves the same goal with only its exact
+alternative added as a local assumption. The assumption is discharged before
+the next branch. Conjunction projections and case branches share the existing
+search budget and depth limit; semantic axioms never occupy requirement slots.
 
 Checked source coverage recognizes equivalent negation and Boolean-literal
 equality wrappers only after verifying builtin meaning and the exact entry
 formal/symbol and canonical ordinal on both requirements and authored routes.
 It retains the original published predicate identity as a proved consequence.
+Strict entry-only consequence extraction unions conjunction facts and intersects
+facts from every disjunct, preserving polarity through negation and literal
+Boolean equality. Published compound routes must be established completely from
+those retained facts. The shared runtime-guard reader is unchanged; current body
+storage and selected authored operators cannot supply entry hypotheses.
+Common-consequence intersection and route assembly share 4,096 work units and
+depth 64; exhausted work is not retried with a fresh budget for another route.
 Negated scalar conjunctions and disjunctions lower through logical De Morgan
 propositions, including Boolean-literal equality wrappers, not eager scalar
-operations. General disjunctive implication, equality between two compound
-Boolean predicates, and numeric entry coverage remain implementation work.
+operations. Boolean implication beyond structural common consequences, equality
+between two compound Boolean predicates, and numeric entry coverage remain
+implementation work.
 
 Direct crash-site validation independently proves every asserted guard from
 invocation-entry requirements and facts reconstructed before that terminator.
@@ -3493,9 +3506,10 @@ Each machine's traversal has independent limits of 4,096 block visits and
 4,096 generated or copied facts; exhausting either rejects without dropping
 unvisited paths.
 Bounded certificate search uses exact assumptions, semantic axioms,
-conjunctions, disjunction introduction, and equality rules. The proof owner checks
-both the certificate and fixed Boolean/integer predicate-denotation conversions;
-these private conversions add no serialized proof rule or obligation identity.
+conjunctions, disjunction introduction and elimination, and equality rules.
+The proof owner checks both the certificate and fixed Boolean/integer
+predicate-denotation conversions; these private conversions add no serialized
+proof rule or obligation identity.
 Crash-only raw branch facts stay out of ordinary obligation reconstruction.
 
 Ranked-site proofs use only entry requirements until all-path invariant custody

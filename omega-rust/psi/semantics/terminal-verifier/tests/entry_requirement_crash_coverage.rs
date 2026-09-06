@@ -201,6 +201,36 @@ fn separate_requirements_may_establish_a_conjunctive_ceiling() {
 }
 
 #[test]
+fn every_disjunct_must_establish_the_same_call_ceiling() {
+    for scalar_call in [false, true] {
+        let mut module = module(scalar_call);
+        module.machines[0].parameters.push(ValueDeclaration {
+            id: ValueId::new(5).unwrap(),
+            scalar_type: ScalarType::Boolean,
+        });
+        let mut alternatives = [2, 5]
+            .map(|identity| {
+                let mut children = vec![boolean(1, true), boolean(identity, true)];
+                children.sort();
+                Proposition::Conjunction(children)
+            })
+            .to_vec();
+        alternatives.sort();
+        module.machines[0].contract.requires = vec![Proposition::Disjunction(alternatives.clone())];
+        verify_module(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .expect("each alternative establishes the exact caller ceiling");
+        alternatives[1] = boolean(5, true);
+        alternatives.sort();
+        module.machines[0].contract.requires = vec![Proposition::Disjunction(alternatives)];
+        rejects_coverage(&module);
+    }
+}
+
+#[test]
 fn missing_opposite_foreign_or_disjunctive_requirements_do_not_prove_coverage() {
     for scalar_call in [false, true] {
         let mut disjuncts = vec![boolean(1, true), boolean(2, true)];
