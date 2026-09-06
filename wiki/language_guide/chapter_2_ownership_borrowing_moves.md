@@ -104,6 +104,14 @@ machine RoomFormatter::render(
 
 Many shared borrows may coexist if no mutable borrow conflicts with them.
 
+All borrowed forms denote the original object, not a snapshot selected because
+the object fits in registers. Shared access remains subject to the operation's
+concurrency rules; where synchronized mutation is permitted, a shared reference
+must keep observing the original location. Mutable and write-only calls likewise
+write the caller's actual referent. Their common physical reference ABI does not
+make their access permissions interchangeable. Owned arguments retain ordinary
+value ABI selection. See the [native structural borrow identity contract](../design_briefs/core_multiplicity_and_linearity.md#structural-borrow-identity-at-native-calls).
+
 ## Mutable Borrows
 
 A mutable borrow is unique for the borrowed place.
@@ -237,10 +245,13 @@ exact source; target assignment, machine emission, object construction, and
 installed replay reconstruct its register, incoming-stack, or durable-result-home
 location and exact field offset on both Linux targets.
 These native tests establish store encoding and retained artifact evidence;
-they do not establish caller-visible mutation after return. Small structural
-borrows currently use shape-selected value placements and can be copied into
-local frame homes. General native projected mutation therefore remains blocked
-on the native structural-parameter identity decision in `OWNER_QUESTIONS.md`.
+they do not alone establish caller-visible mutation after return. The native
+reference-identity rule is settled for all borrowed access modes. Mutable and
+write-only reference selection and pointer-home stores already exist, but
+shared-borrow classification and complete structural-signature construction,
+argument preparation, and independent replay enforcement remain unfinished.
+Existing unsupported forms remain fenced; this is an implementation gap, not
+an open choice about what a reference means.
 Boolean sources retain their own one-byte ABI and definition custody without
 an integer surrogate.
 Bodyless boundary result homes, delayed uses, Boolean and IEEE results, and

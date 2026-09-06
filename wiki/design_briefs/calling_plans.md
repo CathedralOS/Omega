@@ -17,6 +17,26 @@ do not use `addr`. Build-time evaluation preserves the complete 64-bit source
 value; normalization narrows to the closed compiler model's `u8`/`u16`/`u32`
 fields only with explicit range checks.
 
+## Structural parameter access and reference identity
+
+The [structural borrow identity ruling](core_multiplicity_and_linearity.md#structural-borrow-identity-at-native-calls)
+separates referent layout from parameter passing. `Owned` retains shape-selected
+value ABI treatment; shared, mutable, and write-only borrows use the existing
+`ValueClass::BorrowedReference` contract to preserve original storage. An owned
+aggregate may itself require physical indirection without becoming a borrow.
+
+Structural signatures are derived from parameter declarations through one
+exhaustive access classifier, not paired afterward with an independently built
+shape list. Structural producers must require that derived result; generic
+scalar/low-level ABI construction remains available. Caller argument preparation
+still checks the actual referent and permitted access, and receiving plan
+validation/replay independently rejects inconsistent or substituted access,
+shape, and placement. Staging the reference pointer is valid; silently staging
+the object as a replacement for that reference is not. Copy-based optimization
+requires occurrence-specific observational equivalence, including relevant exit
+paths. Complete enforcement remains implementation work, not a new ABI meaning
+to choose in each backend.
+
 ## One boundary entry plan, two independent facets
 
 An ordinary ABI is a layout over registers and a stack. It does not, by itself,

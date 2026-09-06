@@ -879,8 +879,15 @@ delayed results, arithmetic locals, nested or dynamic indexes, ranges,
 aggregate array elements, cases, erased fields, constrained data, and opaque
 shapes remain fail-closed.
 
-This native coverage does not establish caller-visible structural mutation
-after return; the native structural-parameter identity decision remains open.
+This native coverage alone does not establish caller-visible structural
+mutation after return. The [structural borrow identity contract](../../design_briefs/core_multiplicity_and_linearity.md#structural-borrow-identity-at-native-calls)
+is settled: every borrowed mode preserves the original referent, using the
+existing reference ABI tag without erasing semantic access. Native structural
+signatures must derive through one access classifier; caller argument
+preparation and receiving validation/replay independently preserve that
+relationship. Shared-borrow classification and complete producer/boundary
+enforcement remain unfinished. A pointer staged in a local home is not an
+object copy, and a direct-copy fixture is not proof of reference semantics.
 Terminal interpretation does preserve the opaque referent identity and indexed
 path across calls and returns. Shared projected arguments from an unrestricted
 root retain unrestricted multiplicity through record-field paths, optionally
