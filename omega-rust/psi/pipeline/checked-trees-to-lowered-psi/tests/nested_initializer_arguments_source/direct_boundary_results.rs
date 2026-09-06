@@ -6,6 +6,33 @@ use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
 use terminal_psi::{BoundaryMachineResult, OperationKind, OperationResult, Terminator};
 
 #[test]
+fn direct_boundary_arguments_evaluate_nested_affine_producers() {
+    let artifact = encoded_locals(
+        &checked(&source(
+            "Sink::consume(forward(first, identity16(prefix)), identity16(prefix));",
+        )),
+        &["prefix", "first", "spare"],
+    );
+    let mut execution = TerminalExecution::start_artifact(
+        &artifact.0,
+        &artifact.1,
+        &AdmissionProfile::default(),
+        &[],
+    )
+    .unwrap();
+    let mut observer = ObserveMoves::default();
+    assert_eq!(
+        execution
+            .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer)
+            .unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(observer.produced, [700, 701]);
+    assert_eq!(observer.consumed, [700]);
+    assert!(execution.live_affine_frontier().next().is_none());
+}
+
+#[test]
 fn a_boundary_result_moves_directly_into_a_later_boundary_call() {
     let artifact = encoded_locals(
         &checked(&source("Sink::consume(first, identity16(prefix));")),

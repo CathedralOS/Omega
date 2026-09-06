@@ -576,8 +576,8 @@ Owners include
   carriers beyond the existing empty-record prefix and single-i64-field local
   in ordinary Unit call closures.
   Extend result operands to borrowed/projected routes and self consumers without
-  losing their exact result owner; direct boundary operands also need anonymous
-  nested structural-result evaluation.
+  losing their exact result owner; anonymous boundary-produced structural
+  operands still need exact nested evaluation and transfer custody.
   Rejoin exact source/evaluation custody and remove only the cleanup transferred
   by the call; linear structural-result claims need their owning result plan.
   Complete mixed-signature runtime requirement transport for call-bearing

@@ -39,9 +39,48 @@ pub(super) fn argument(
                 return None;
             }
         }
-        // The existing ordinary nested-result schedule owns these temporary
-        // expressions. Boundary call sites exclude them before this helper.
-        facts::PlaceRoot::Expression(source) if source == expression => {}
+        // Only the existing ordinary affine producer owns an anonymous result,
+        // even when its consumer is a boundary. Rejoin its exact captured
+        // preorder coordinate; the shared sequencer executes it in postorder.
+        facts::PlaceRoot::Expression(source) if source == expression => {
+            if usize::try_from(result.statement_index).ok()? != call.statement_index {
+                return None;
+            }
+            let flow = state_flow(facts, machine, state)?;
+            let mut producers =
+                facts
+                    .flow
+                    .control
+                    .calls
+                    .span(flow.calls)?
+                    .iter()
+                    .filter(|producer| {
+                        producer.statement_index == call.statement_index
+                            && producer.authored_expression == source
+                    });
+            let producer = producers.next()?;
+            if producers.next().is_some() || producer.call_ordinal <= call.call_ordinal {
+                return None;
+            }
+            let ExpressionNode::Call(authored) = program.expression_table.expression(source) else {
+                return None;
+            };
+            if authored.target_symbol != producer.target_symbol
+                || !facts
+                    .flow
+                    .terminal_structural_returns
+                    .claim_free_affine_machines
+                    .iter()
+                    .any(|target| {
+                        target.state == producer.target_symbol
+                            && target.result.type_identity == result.type_identity
+                            && target.result.multiplicity == Multiplicity::Affine
+                            && target.result.qualifications.is_empty()
+                    })
+            {
+                return None;
+            }
+        }
         _ => return None,
     }
     let mut events = facts

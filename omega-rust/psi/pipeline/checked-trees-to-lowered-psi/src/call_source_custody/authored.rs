@@ -224,7 +224,7 @@ fn expression_call(
     ))
 }
 
-fn target_parameters(
+pub(crate) fn target_parameters(
     checked: &CheckedTrees,
     caller_machine: SymbolHandle,
     source_target: SymbolHandle,

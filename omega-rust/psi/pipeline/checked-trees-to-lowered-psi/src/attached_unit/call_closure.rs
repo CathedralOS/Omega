@@ -308,6 +308,9 @@ pub(super) fn validate_unit_operation_sequence(
             operation,
             CheckedUnitEffectOperationPlan::CallUnit { .. }
                 | CheckedUnitEffectOperationPlan::ScalarCall { .. }
+                | CheckedUnitEffectOperationPlan::BoundaryCall { .. }
+                | CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
         ) && coordinate.call_ordinal == 0;
         // Coordinates retain preorder identity. Same-statement producers are
         // published in postorder; exact syntax and argument ordering rejoin in

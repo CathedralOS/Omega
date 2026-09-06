@@ -37,7 +37,10 @@ pub(super) fn build(
             .find(|index| match &operations[*index] {
                 CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. }
                 | CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. }
-                | CheckedUnitEffectOperationPlan::ScalarCall { coordinate, .. } => {
+                | CheckedUnitEffectOperationPlan::ScalarCall { coordinate, .. }
+                | CheckedUnitEffectOperationPlan::BoundaryCall { coordinate, .. }
+                | CheckedUnitEffectOperationPlan::BoundaryScalarCall { coordinate, .. }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate, .. } => {
                     coordinate.statement_index == statement && coordinate.call_ordinal == 0
                 }
                 _ => false,
@@ -92,13 +95,31 @@ fn append(
             coordinate,
             scalar_arguments,
             ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryCall {
+            coordinate,
+            scalar_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+            coordinate,
+            scalar_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+            coordinate,
+            scalar_arguments,
+            ..
         } => (*coordinate, scalar_arguments),
-        _ => return unsupported("nested argument schedule requires an ordinary call"),
+        _ => return unsupported("nested argument schedule requires an ordinary or boundary call"),
     };
     let authored =
         crate::call_source_custody::authored::locate_source(checked, plan.state, coordinate)?;
-    let (_, target) = crate::scalar_source_custody::authored_state(checked, authored.target_state)?;
-    let parameters = checked.state_parameters(target);
+    let (parameters, _, _, _) = crate::call_source_custody::authored::target_parameters(
+        checked,
+        plan.machine,
+        authored.source_target,
+    )?;
     if parameters.iter().any(|parameter| parameter.is_self)
         || parameters.len() != authored.scalar_arguments.len() + authored.structural_arguments.len()
         || scalar_arguments.len() != authored.scalar_arguments.len()

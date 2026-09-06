@@ -3930,7 +3930,12 @@ exact authored source even when substituting a different same-typed live value
 would satisfy Terminal ownership rules.
 
 Direct whole-result call expressions also supply ordinary Unit calls,
-scalar-returning boundary wrappers, and claim-free affine structural calls.
+scalar-returning boundary wrappers, claim-free affine structural calls, and
+direct boundary consumers with Unit, scalar, or structural results. Boundary
+consumers may name bodyless declarations, static trait requirements, or the
+caller's exact nominal requirement parameter. Their anonymous structural
+operands still originate only in ordinary claim-free affine producers; nested
+boundary-produced temporaries remain unsupported.
 The same binding namespace retains these temporary results without inventing
 local names. Captured call ordinals identify authored
 preorder occurrences; the operation sequence evaluates children before their
@@ -3947,7 +3952,8 @@ Mixed scalar and structural operands use one private argument schedule derived
 from the authored formal positions. Each scalar operand completes in place,
 before the next structural producer or scalar operand. The shared evaluator
 retains completed scalar values across its control blocks; staging indices do
-not become source-local binding ordinals. Completing an enclosing scalar call
+not become source-local binding ordinals. Completing an enclosing ordinary or
+boundary scalar call
 discards its private argument slots while retaining its result as the next
 source binding. Scalar operands of nested structural producers retain their own
 captured call coordinate and dense scalar argument
