@@ -20,7 +20,7 @@ pub(crate) fn build_semantic_facts(
     program: &typed_trees::TypedTrees,
     proof: &ProofFacts,
 ) -> FactPlan {
-    let mut facts = facts::build_definition_fact_plan(program);
+    let mut facts = validation::build_definition_fact_plan(program);
     append_proof_obligation_semantic_facts(proof, &mut facts);
     append_contract_semantic_facts(program, proof, &mut facts);
     // #66 read-narrowing: surface declared field domains as machine entry facts

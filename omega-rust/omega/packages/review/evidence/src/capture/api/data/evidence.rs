@@ -64,7 +64,7 @@ pub(crate) struct RecheckedDataSymbolFactSet {
 pub(crate) fn require_rederived_data_definition_facts(
     compilation: &CheckedCompilation,
 ) -> Result<(), Vec<Diagnostic>> {
-    let rederived = facts::build_definition_fact_plan(&compilation.typed);
+    let rederived = validation::build_definition_fact_plan(&compilation.typed);
     let data_symbols = compilation
         .data_definitions()
         .iter()

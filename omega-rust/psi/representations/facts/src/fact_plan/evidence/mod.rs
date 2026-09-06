@@ -1,16 +1,10 @@
+use crate::{FactHandle, FactPlace, PlaceHandle, ProgramPoint};
 use arena::{Handle, HandleSpan};
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::name::Identifier;
-use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle};
-
-pub type FactHandle = Handle<Fact>;
-pub type FactRefHandle = Handle<FactRef>;
-pub type FactContextHandle = Handle<FactContext>;
-pub type PlaceHandle = Handle<Place>;
-pub type PlaceSegmentHandle = Handle<PlaceSegment>;
-pub type QualificationCorrespondenceHandle = Handle<QualificationCorrespondence>;
+use typed_trees::types::TypeConstraintNode;
 
 /// Exact checked ownership retained for one fact authored by a domain
 /// definition. The ordinary semantic fact remains the flow-facing row; this
@@ -47,126 +41,6 @@ pub struct DataDefinitionFactDependency {
     pub expression: ExpressionHandle,
     pub place: PlaceHandle,
 }
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum PlaceRoot {
-    #[default]
-    Unknown,
-    Symbol(SymbolHandle),
-    Expression(ExpressionHandle),
-    TypeReference(TypeReferenceHandle),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PlaceSegment {
-    Field {
-        symbol: SymbolHandle,
-    },
-    /// Compiler-normalized identity for one statically selected sum case.
-    /// Payload fields follow this segment, so otherwise identical field
-    /// spellings in distinct variants cannot alias.
-    Case {
-        variant: SymbolHandle,
-    },
-    /// Compiler-normalized identity for one statically known fixed-array
-    /// element. Unlike `Index`, this is independent of expression handles and
-    /// can therefore appear in a type-derived ownership frontier.
-    FixedIndex {
-        index: usize,
-    },
-    /// One compiler-normalized half-open window selected from a collection.
-    /// The bounds are element ordinals, not byte offsets; `start == end`
-    /// denotes the empty window. Keeping the window structural lets mutation,
-    /// loan-overlap, and caller-frame reasoning preserve untouched siblings
-    /// without depending on expression-handle identity.
-    FixedRange {
-        start: usize,
-        end: usize,
-    },
-    /// A runtime or otherwise non-normalized index expression. Ownership
-    /// decomposition treats this conservatively as potentially selecting any
-    /// element.
-    Index {
-        expression: ExpressionHandle,
-    },
-}
-
-impl Default for PlaceSegment {
-    fn default() -> Self {
-        Self::Field {
-            symbol: SymbolHandle::invalid(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct Place {
-    pub root: PlaceRoot,
-    pub segments: HandleSpan<PlaceSegment>,
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum FactPlace {
-    #[default]
-    Unknown,
-    Place(PlaceHandle),
-    Symbol(SymbolHandle),
-    Expression(ExpressionHandle),
-    TypeReference(TypeReferenceHandle),
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum ProgramPoint {
-    #[default]
-    Global,
-    Definition {
-        symbol: SymbolHandle,
-    },
-    Machine {
-        machine_symbol: SymbolHandle,
-    },
-    State {
-        machine_symbol: SymbolHandle,
-        state_symbol: SymbolHandle,
-    },
-    Statement {
-        machine_symbol: SymbolHandle,
-        state_symbol: SymbolHandle,
-        statement_index: usize,
-    },
-    Call {
-        machine_symbol: SymbolHandle,
-        state_symbol: SymbolHandle,
-        statement_index: usize,
-        call_ordinal: usize,
-    },
-    CallRequires {
-        machine_symbol: SymbolHandle,
-        state_symbol: SymbolHandle,
-        statement_index: usize,
-        call_ordinal: usize,
-    },
-    CallEnsures {
-        machine_symbol: SymbolHandle,
-        state_symbol: SymbolHandle,
-        statement_index: usize,
-        call_ordinal: usize,
-    },
-    TransitionArm {
-        machine_symbol: SymbolHandle,
-        state_symbol: SymbolHandle,
-        statement_index: usize,
-        /// Invalid identifies the guard-false fallthrough to the next arm.
-        transition_target: typed_trees::statement::TransitionTargetHandle,
-    },
-    Exit {
-        machine_symbol: SymbolHandle,
-        state_symbol: SymbolHandle,
-        statement_index: usize,
-        transition_target: typed_trees::statement::TransitionTargetHandle,
-    },
-}
-
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum FactOrigin {
     #[default]
@@ -490,38 +364,4 @@ pub struct Fact {
     pub origin: FactOrigin,
     pub evidence: QualificationEvidence,
     pub payload: FactPayload,
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct FactRef {
-    pub fact: FactHandle,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct FactContext {
-    pub point: ProgramPoint,
-    pub facts: HandleSpan<FactRef>,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct SymbolFactSet {
-    pub symbol: SymbolHandle,
-    pub facts: HandleSpan<FactRef>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BooleanFact {
-    pub expression: ExpressionHandle,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DomainMembershipFact {
-    pub value: ExpressionHandle,
-    pub domain: HandleSpan<Identifier>,
-    pub domain_symbol: SymbolHandle,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TypeConstraintFact {
-    pub constraint: Handle<TypeConstraintNode>,
 }

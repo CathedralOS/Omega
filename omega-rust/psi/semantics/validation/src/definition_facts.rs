@@ -3,7 +3,7 @@ use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::domain::ProofFact;
 
-use crate::{
+use facts::{
     DataDefinitionFactDependency, DataDefinitionFactRecord, DomainDefinitionFactDependency,
     DomainDefinitionFactRecord, Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceHandle,
     ProgramPoint,
@@ -359,7 +359,7 @@ fn append_data_expression_place(
             let place = facts.append_symbol_place(data.symbol);
             facts.push_place_segment(
                 place,
-                crate::PlaceSegment::Field {
+                facts::PlaceSegment::Field {
                     symbol: first_field,
                 },
             );
@@ -374,7 +374,7 @@ fn append_data_expression_place(
                     });
                 let symbol = exact_symbol
                     .or_else(|| {
-                        crate::resolve_place_member_symbol(
+                        facts::resolve_place_member_symbol(
                             program,
                             facts,
                             place,
@@ -382,26 +382,26 @@ fn append_data_expression_place(
                         )
                     })
                     .unwrap_or_else(symbols::SymbolHandle::invalid);
-                if let Some(variant) = crate::payload_variant_for_field(program, symbol) {
-                    facts.push_place_segment(place, crate::PlaceSegment::Case { variant });
+                if let Some(variant) = facts::payload_variant_for_field(program, symbol) {
+                    facts.push_place_segment(place, facts::PlaceSegment::Case { variant });
                 }
-                facts.push_place_segment(place, crate::PlaceSegment::Field { symbol });
+                facts.push_place_segment(place, facts::PlaceSegment::Field { symbol });
             }
             place
         }
         ExpressionNode::Member(member) => {
             let place = append_data_expression_place(program, facts, data, member.receiver);
-            let symbol = crate::effective_member_symbol(program, member.receiver, member);
+            let symbol = facts::effective_member_symbol(program, member.receiver, member);
             let symbol = if symbol.is_valid() {
                 symbol
             } else {
-                crate::resolve_place_member_symbol(program, facts, place, member.member.as_str())
+                facts::resolve_place_member_symbol(program, facts, place, member.member.as_str())
                     .unwrap_or_else(symbols::SymbolHandle::invalid)
             };
-            if let Some(variant) = crate::payload_variant_for_field(program, symbol) {
-                facts.push_place_segment(place, crate::PlaceSegment::Case { variant });
+            if let Some(variant) = facts::payload_variant_for_field(program, symbol) {
+                facts.push_place_segment(place, facts::PlaceSegment::Case { variant });
             }
-            facts.push_place_segment(place, crate::PlaceSegment::Field { symbol });
+            facts.push_place_segment(place, facts::PlaceSegment::Field { symbol });
             place
         }
         ExpressionNode::Indexed(indexed) => {
@@ -410,8 +410,8 @@ fn append_data_expression_place(
                 .expression_table
                 .constant_integer_value(indexed.index)
                 .and_then(|value| usize::try_from(value).ok())
-                .map(|index| crate::PlaceSegment::FixedIndex { index })
-                .unwrap_or(crate::PlaceSegment::Index {
+                .map(|index| facts::PlaceSegment::FixedIndex { index })
+                .unwrap_or(facts::PlaceSegment::Index {
                     expression: indexed.index,
                 });
             facts.push_place_segment(place, segment);
@@ -651,11 +651,11 @@ fn append_domain_expression_place(
         ExpressionNode::Member(member) => {
             let place =
                 append_domain_expression_place(program, facts, domain_target, member.receiver);
-            let symbol = crate::effective_member_symbol(program, member.receiver, member);
+            let symbol = facts::effective_member_symbol(program, member.receiver, member);
             let symbol = if symbol.is_valid() {
                 symbol
             } else {
-                crate::resolve_place_member_symbol(program, facts, place, member.member.as_str())
+                facts::resolve_place_member_symbol(program, facts, place, member.member.as_str())
                     .or_else(|| {
                         facts
                             .places
@@ -673,10 +673,10 @@ fn append_domain_expression_place(
                     })
                     .unwrap_or_else(symbols::SymbolHandle::invalid)
             };
-            if let Some(variant) = crate::payload_variant_for_field(program, symbol) {
-                facts.push_place_segment(place, crate::PlaceSegment::Case { variant });
+            if let Some(variant) = facts::payload_variant_for_field(program, symbol) {
+                facts.push_place_segment(place, facts::PlaceSegment::Case { variant });
             }
-            facts.push_place_segment(place, crate::PlaceSegment::Field { symbol });
+            facts.push_place_segment(place, facts::PlaceSegment::Field { symbol });
             place
         }
         ExpressionNode::Indexed(indexed) => {
@@ -686,8 +686,8 @@ fn append_domain_expression_place(
                 .expression_table
                 .constant_integer_value(indexed.index)
                 .and_then(|value| usize::try_from(value).ok())
-                .map(|index| crate::PlaceSegment::FixedIndex { index })
-                .unwrap_or(crate::PlaceSegment::Index {
+                .map(|index| facts::PlaceSegment::FixedIndex { index })
+                .unwrap_or(facts::PlaceSegment::Index {
                     expression: indexed.index,
                 });
             facts.push_place_segment(place, segment);
@@ -780,3 +780,6 @@ fn proof_fact_handles(facts: HandleSpan<ProofFact>) -> impl Iterator<Item = Hand
         )
     })
 }
+
+#[cfg(test)]
+mod tests;

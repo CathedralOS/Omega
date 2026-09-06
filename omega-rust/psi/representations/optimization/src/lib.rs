@@ -6,8 +6,6 @@
 //! owns this catalog because every entry executes before Terminal publication;
 //! target and physical optimization identities remain Omega-owned.
 
-mod catalog;
-mod selection;
+pub mod optimization_selections;
 
-pub use catalog::PRETERMINAL_PSI_PASS_CATALOG;
-pub use selection::*;
+pub use optimization_selections::*;

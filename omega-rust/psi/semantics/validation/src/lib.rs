@@ -9,6 +9,7 @@ mod contract_entailment;
 mod data;
 mod declaration_visibility;
 mod default_domains;
+mod definition_facts;
 mod denotational_calls;
 mod destructure;
 mod domain_weakening;
@@ -97,6 +98,7 @@ use crate::type_references::{
     TypeReferenceOwner, validate_type_reference_handle_with_type_parameters,
 };
 pub use default_domains::{OpenInvariantCrashSite, build_open_invariant_crash_sites};
+pub use definition_facts::build_definition_fact_plan;
 use diagnostics::Diagnostic;
 pub use effect_inference::{
     declared_machine_invocations, declared_signature_invocations,
@@ -405,7 +407,7 @@ fn validate_program_internal(
         &mut diagnostics,
     );
     let symbols = TopLevelSymbols::build(program, &mut diagnostics);
-    let fact_plan = facts::build_definition_fact_plan(program);
+    let fact_plan = build_definition_fact_plan(program);
 
     declaration_visibility::collect_declaration_visibility_diagnostics(program, &mut diagnostics);
     cleanup::collect_reserved_cleanup_selection_diagnostics(program, &mut diagnostics);

@@ -1,24 +1,16 @@
 #![forbid(unsafe_code)]
 
-//! Durable target-neutral fact vocabulary produced by Psi checking.
+//! Durable target-neutral facts and their current storage.
 
-mod definitions;
-mod model;
-mod place_resolution;
-mod plan;
-mod view;
-mod write_frame;
+pub mod fact_plan;
 
-pub use definitions::*;
-pub use model::*;
-pub use plan::*;
-pub use view::*;
-pub use write_frame::*;
-
-pub use place_resolution::payload_variant_for_field;
-pub(crate) use place_resolution::{
-    canonical_place_label, effective_member_symbol, resolve_place_member_symbol,
+pub use fact_plan::contexts::view::*;
+pub use fact_plan::contexts::*;
+pub use fact_plan::evidence::*;
+pub(crate) use fact_plan::places::resolution::canonical_place_label;
+pub use fact_plan::places::resolution::{
+    effective_member_symbol, payload_variant_for_field, resolve_place_member_symbol,
 };
-
-#[cfg(test)]
-mod tests;
+pub use fact_plan::places::write_frame::*;
+pub use fact_plan::places::*;
+pub use fact_plan::*;
