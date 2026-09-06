@@ -13,6 +13,7 @@ mod loop_arithmetic_policy;
 mod loop_counter_identity;
 mod requires_operator_custody;
 mod source_bindings;
+mod typed_integer_remainder;
 
 #[test]
 fn scalar_transition_argument_custody_keeps_exact_targets_and_source_bindings() {

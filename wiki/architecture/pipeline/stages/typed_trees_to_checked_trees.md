@@ -157,6 +157,15 @@ Bitwise results never acquire Boolean bounds, and both integer complement and
 Boolean negation validate arithmetic nested in their operands. Bitwise
 operations themselves impose no overflow-policy condition; surrounding
 arithmetic still consumes the retained operand policy.
+
+Builtin remainder formation is checked before value or proof validation. A
+wholly anonymous numeric operand tree does not obtain integer meaning from a
+destination or a constant fold, including when an intermediate division is
+fractional. The check covers retained range bounds and contract expressions as
+well as executable values. Declared operator candidates and typed leaves retain
+their ordinary selection and typing boundaries; this is not a new evaluator for
+proof-level `Int` or authored const operators.
+
 Exact `u64` arithmetic checks the actual unsigned carrier ceiling separately
 from its i64-backed interval projection. An unknown projected ceiling is not
 proof of representability. Direct unsigned literal bindings retain exact

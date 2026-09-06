@@ -42,6 +42,7 @@ pub(in crate::generic_data) fn evaluate_const_fact_expression(
         }
         ExpressionNode::SelfValue => Ok(self_value.map(ConstFactValue::Integer)),
         ExpressionNode::Binary(binary) => {
+            validate_anonymous_remainder(syntax, binary)?;
             let Some(left) = evaluate_const_fact_expression(
                 syntax,
                 binary.left,

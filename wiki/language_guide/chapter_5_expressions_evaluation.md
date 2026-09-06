@@ -868,10 +868,11 @@ the anonymous operation rejects rather than evaluating under a second sign
 convention. The fractional-intermediate warning remains unchanged.
 
 > **Implementation status:** this settles the meaning, not the completeness of
-> builtin `Int` division/remainder support. The anonymous integer evaluator's
-> fallback currently declines `%`; that helper alone does not prove rejection
-> across all compiler paths. Consistent rejection, `Int` evaluation and proof
-> support, and the signed controls remain execution-board work.
+> builtin `Int` division/remainder support. Known-builtin literal-only `%` is
+> checked before value/proof admission and closed-const normalization; const
+> argument parsing preserves the operation for that check. Authored const
+> operator selection, `Int` evaluation and proof support, and the remaining
+> numeric landing boundaries remain execution-board work.
 
 ### Landed target-semantic dependencies
 

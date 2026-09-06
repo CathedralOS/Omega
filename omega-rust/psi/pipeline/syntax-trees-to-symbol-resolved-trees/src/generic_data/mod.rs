@@ -28,6 +28,9 @@ mod substitution;
 mod synthesis;
 mod uses;
 
+#[cfg(test)]
+mod remainder_tests;
+
 use arguments::*;
 use const_evaluation::*;
 use discovery::*;

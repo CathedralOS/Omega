@@ -1,0 +1,8 @@
+// Typing either operand selects integer remainder before the result lands.
+machine unsigned_remainder() -> u32 {
+    7u32 % 2
+}
+
+machine signed_remainder() -> i32 {
+    -3i32 % 2
+}

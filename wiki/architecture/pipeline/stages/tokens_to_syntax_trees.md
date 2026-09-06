@@ -100,6 +100,9 @@ The Psi product role owns this stage; its hosted source belongs under
 - `parser/transition/targets/copy.rs` owns expression-to-statement-table copying
   for transition target paths and arguments.
 - `parser/statement.rs`, `state.rs`, `type_reference.rs`, and `proof_fact.rs` own source-shaped subgrammars reused across items.
+  Const-generic and domain arguments containing `%` retain their expression
+  trees for semantic admission. Parsing does not turn an anonymous remainder
+  into a numeric leaf that later stages can mistake for an integer value.
   Statement parsing retains `crash Trap;` and `crash Abort;` as explicit
   non-return exits, distinct from an ordinary terminal transition. The retired
   `trap;` spelling diagnoses the replacement rather than silently producing a

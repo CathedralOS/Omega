@@ -535,11 +535,12 @@ Owners include
   warning; `(4097u32 / 4096) * 4096` is 4096 without one.
   Implement [typed integer quotient and remainder](wiki/language_guide/chapter_5_expressions_evaluation.md#typed-integer-quotient-and-remainder)
   across operator resolution, constant evaluation, and proof consumption.
-  Literal-only `%` must reject even with an integer destination or in proof
-  context, including positive and exactly-divisible operands. Builtin proof
-  `Int` must evaluate truncating division and dividend-sign remainder without
-  machine-width bounds; preserve those semantics in retained proof terms and
-  independent checking. Acceptance: positive/negative dividend and divisor
+  Close authored const-operator selection before folding: an unrelated
+  declaration must not suppress builtin `%` formation checks, and selected
+  declarations must retain their own meaning during const normalization.
+  Builtin proof `Int` must evaluate truncating division and dividend-sign
+  remainder without machine-width bounds; preserve those semantics in retained
+  proof terms and independent checking. Acceptance: positive/negative dividend and divisor
   combinations satisfy the paired integer law, zero divisors fail admission,
   `a: Int` selects integer operations with anonymous integral operands, and
   existing fixed-width policies and exact anonymous `/` remain unchanged.

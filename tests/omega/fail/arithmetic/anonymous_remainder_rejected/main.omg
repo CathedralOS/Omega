@@ -1,0 +1,4 @@
+// A result annotation is not an integer-typed operand for builtin remainder.
+machine run() -> u32 {
+    7 % 2
+}
