@@ -16,6 +16,31 @@ pub use arrivals::arrival_integer_expression_bounds;
 #[cfg(test)]
 mod tests;
 
+// Sibling Requires readers must recover the comparison from the same exact
+// expression whose declaration occurrence is checked by the meaning owner.
+pub(super) fn has_builtin_ordering(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+) -> bool {
+    let ExpressionNode::Binary(comparison) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    meaning::builtin_ordering(program, machine, state, expression, comparison)
+        && meaning::folded_constant_is_builtin(program, machine, state, comparison.left)
+        && meaning::folded_constant_is_builtin(program, machine, state, comparison.right)
+}
+
+pub(super) fn has_builtin_bound_arithmetic(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+) -> bool {
+    meaning::builtin_arithmetic(program, machine, state, expression)
+}
+
 /// S4: build a value environment pre-seeded with the integer bounds a machine's
 /// `requires` clause places on its parameters (`requires amount <= 100`). Used to
 /// seed the ENTRY state's env so param arithmetic with a declared bound stays
@@ -28,6 +53,21 @@ pub(crate) fn requires_value_env(
     machine: &Machine,
     entry_state: &State,
 ) -> ValueEnv {
+    // Both interval and joint-relation projection must consume the selected
+    // ordering, not its token. Other fact kinds retain their existing owners.
+    let ordered_meaning_is_available = |expression| {
+        let ExpressionNode::Binary(comparison) = program.expression_table.expression(expression)
+        else {
+            return true;
+        };
+        !matches!(
+            comparison.operator,
+            BinaryOperator::Less
+                | BinaryOperator::LessOrEqual
+                | BinaryOperator::Greater
+                | BinaryOperator::GreaterOrEqual
+        ) || has_builtin_ordering(program, machine, Some(entry_state), expression)
+    };
     let mut bounds: BTreeMap<String, (Option<i64>, Option<i64>)> = BTreeMap::new();
     for contract in program.machine_contracts(machine) {
         if contract.kind != SignatureContractKind::Requires {
@@ -37,6 +77,9 @@ pub(crate) fn requires_value_env(
             let ProofFact::Expression(expression) = fact else {
                 continue;
             };
+            if !ordered_meaning_is_available(*expression) {
+                continue;
+            }
             if let Some((name, low, high)) = comparison_bound(program, *expression) {
                 let entry = bounds.entry(name).or_insert((None, None));
                 // Intersect across facts: tightest lower (max) and upper (min).
@@ -61,6 +104,9 @@ pub(crate) fn requires_value_env(
             let ProofFact::Expression(expression) = fact else {
                 continue;
             };
+            if !ordered_meaning_is_available(*expression) {
+                continue;
+            }
             let ExpressionNode::Binary(comparison) =
                 program.expression_table.expression(*expression)
             else {
@@ -360,7 +406,7 @@ pub(super) fn narrow_env_by_condition(
             | BinaryOperator::LessOrEqual
             | BinaryOperator::Greater
             | BinaryOperator::GreaterOrEqual
-    ) && !meaning::builtin_ordering(program, machine, state, condition, comparison)
+    ) && !has_builtin_ordering(program, machine, state, condition)
     {
         return;
     }
@@ -580,7 +626,9 @@ fn joint_add_upper_guard(
     let ExpressionNode::Binary(subtract) = program.expression_table.expression(bound) else {
         return None;
     };
-    if subtract.operator != BinaryOperator::Subtract {
+    if subtract.operator != BinaryOperator::Subtract
+        || !meaning::builtin_arithmetic(program, machine, state, bound)
+    {
         return None;
     }
     let left_type = declared_place_type_raw(program, machine, state, left)?;
@@ -637,7 +685,9 @@ fn joint_add_lower_guard(
     let ExpressionNode::Binary(subtract) = program.expression_table.expression(bound) else {
         return None;
     };
-    if subtract.operator != BinaryOperator::Subtract {
+    if subtract.operator != BinaryOperator::Subtract
+        || !meaning::builtin_arithmetic(program, machine, state, bound)
+    {
         return None;
     }
     let left_type = declared_place_type_raw(program, machine, state, left)?;
@@ -712,7 +762,9 @@ fn signed_joint_subtract_lower_guard(
     let ExpressionNode::Binary(add) = program.expression_table.expression(bound) else {
         return None;
     };
-    if add.operator != BinaryOperator::Add {
+    if add.operator != BinaryOperator::Add
+        || !meaning::builtin_arithmetic(program, machine, state, bound)
+    {
         return None;
     }
     let (minimum, right) = if literal_i64(program, add.left).is_some() {
@@ -762,7 +814,9 @@ fn signed_joint_subtract_upper_guard(
     let ExpressionNode::Binary(add) = program.expression_table.expression(bound) else {
         return None;
     };
-    if add.operator != BinaryOperator::Add {
+    if add.operator != BinaryOperator::Add
+        || !meaning::builtin_arithmetic(program, machine, state, bound)
+    {
         return None;
     }
     let (maximum, right) = if literal_i64(program, add.left).is_some() {
@@ -812,7 +866,9 @@ fn joint_multiply_guard(
     let ExpressionNode::Binary(divide) = program.expression_table.expression(bound) else {
         return None;
     };
-    if divide.operator != BinaryOperator::Divide {
+    if divide.operator != BinaryOperator::Divide
+        || !meaning::builtin_arithmetic(program, machine, state, bound)
+    {
         return None;
     }
     let left_type = declared_place_type_raw(program, machine, state, left)?;
@@ -893,7 +949,9 @@ fn signed_joint_multiply_quotient_guard(
     let ExpressionNode::Binary(divide) = program.expression_table.expression(bound) else {
         return None;
     };
-    if divide.operator != BinaryOperator::Divide {
+    if divide.operator != BinaryOperator::Divide
+        || !meaning::builtin_arithmetic(program, machine, state, bound)
+    {
         return None;
     }
     let left_type = declared_place_type_raw(program, machine, state, left)?;

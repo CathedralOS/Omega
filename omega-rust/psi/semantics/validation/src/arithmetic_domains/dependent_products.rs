@@ -142,12 +142,28 @@ fn product_coupling_conjunct(
                 || product_coupling_conjunct(program, machine, binary.right, fa_label, fb_label),
             )
         }
+        _ if !guard_narrowing::has_builtin_ordering(
+            program,
+            machine,
+            program.machine_states(machine).first(),
+            guard,
+        ) =>
+        {
+            None
+        }
         BinaryOperator::LessOrEqual | BinaryOperator::Less => {
             let ExpressionNode::Binary(product) = program.expression_table.expression(binary.left)
             else {
                 return None;
             };
-            if product.operator != BinaryOperator::Multiply {
+            if product.operator != BinaryOperator::Multiply
+                || !guard_narrowing::has_builtin_bound_arithmetic(
+                    program,
+                    machine,
+                    program.machine_states(machine).first(),
+                    binary.left,
+                )
+            {
                 return None;
             }
             let lhs = product_coupling_operand(program, machine, product.left)?;
