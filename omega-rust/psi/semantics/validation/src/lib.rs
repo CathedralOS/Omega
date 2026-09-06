@@ -168,6 +168,7 @@ pub struct ExactIntegerCastFact {
     pub maximum: numerics::bignum::BigInt,
 }
 
+pub use arithmetic_domains::arrival_integer_expression_bounds;
 pub use arithmetic_domains::immutable_integer_expression_bounds;
 pub use contract_entailment::integer_embedding_sources_equal;
 pub use contract_entailment::is_arm_pattern_marker;

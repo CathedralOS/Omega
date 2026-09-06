@@ -50,7 +50,7 @@ impl FloatInterval {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub(crate) struct ValueEnv {
     pub(super) intervals: BTreeMap<String, Interval>,
     pub(super) known_u64_values: BTreeMap<String, u64>,
@@ -68,6 +68,59 @@ pub(crate) struct ValueEnv {
 }
 
 impl ValueEnv {
+    /// Translate only explicitly bound roots. A source root may feed several
+    /// target parameters; unrelated same-spelled roots never survive the edge.
+    pub(super) fn rebind(&self, bindings: &[(String, String)]) -> Self {
+        let paths = |path: &str| -> Vec<String> {
+            bindings
+                .iter()
+                .filter_map(|(source, target)| {
+                    if path == source {
+                        Some(target.clone())
+                    } else {
+                        path.strip_prefix(source)
+                            .filter(|suffix| suffix.starts_with('.'))
+                            .map(|suffix| format!("{target}{suffix}"))
+                    }
+                })
+                .collect()
+        };
+        let mut rebound = Self::new();
+        macro_rules! maps {
+            ($($field:ident),* $(,)?) => {$(
+                for (path, value) in &self.$field {
+                    for path in paths(path) { rebound.$field.insert(path, *value); }
+                }
+            )*};
+        }
+        macro_rules! sets {
+            ($($field:ident),* $(,)?) => {$(
+                for path in &self.$field { rebound.$field.extend(paths(path)); }
+            )*};
+        }
+        macro_rules! pairs {
+            ($canonical:literal; $($field:ident),* $(,)?) => {$(
+                for (left, right) in &self.$field {
+                    for left in paths(left) {
+                        for right in paths(right) {
+                            let pair = if $canonical { canonical_path_pair(left.clone(), right) }
+                                else { (left.clone(), right) };
+                            rebound.$field.insert(pair);
+                        }
+                    }
+                }
+            )*};
+        }
+        maps!(intervals, known_u64_values, float_intervals);
+        sets!(non_nan, signed_joint_multiply_negation_bounds);
+        pairs!(true; joint_add_upper_bounds, joint_add_lower_bounds,
+            joint_multiply_bounds, signed_joint_multiply_lower_bounds,
+            signed_joint_multiply_upper_bounds);
+        pairs!(false; joint_subtract_bounds, signed_joint_subtract_lower_bounds,
+            signed_joint_subtract_upper_bounds);
+        rebound
+    }
+
     pub(crate) fn new() -> Self {
         Self::default()
     }

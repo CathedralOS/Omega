@@ -111,6 +111,19 @@ return guarantees. Actual invocations retain both contract sides. A `self`
 back-edge to entry must re-establish its machine preconditions; a named-state
 back-edge owes that state's own arrival requirements.
 
+Bounded integer returns consume the shared arithmetic arrival query in
+`validation/src/arithmetic_domains/guard_narrowing/arrivals.rs`. Each source
+argument binds to its exact target parameter before incoming guards are joined;
+matching parameter names do not transfer facts. Calls, named transitions,
+continuations, and backedges contribute their evaluated arrivals. Iteration
+starts from an overapproximation, so stopping before convergence loses precision
+rather than assuming an inductive invariant. Scalar arguments retain their own
+evaluation snapshots; reference facts must survive later argument writes. The
+return query crosses the consuming state's prefix and expression write frames
+before exposing a bound. Unknown or overlapping writes retire the affected
+facts. Authored requirements remain body-checking assumptions whose callers
+must independently establish them.
+
 Scalar exit proof binds the synthetic `result` to the exact final expression
 or selected returning arm. Authored output parameters instead follow retained
 per-contract reference origins into that state. Domain and scalar proof share
