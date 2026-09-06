@@ -625,30 +625,19 @@ pub(super) fn lower_scalar_call(
     arguments: Vec<LoweredDirectExpression>,
     crash_scope: ScalarCallCrashScope,
 ) -> Result<LoweredDirectCallBinding, LoweringError> {
-    let target_graph = checked
-        .facts
-        .flow
-        .terminal_scalar_graphs
-        .for_machine(target_machine)
-        .ok_or(LoweringError::Unsupported(
-            "direct scalar call target has no source-independent checked graph",
-        ))?;
-    let target_entry = target_graph
-        .states
-        .first()
-        .ok_or(LoweringError::Unsupported(
-            "direct scalar call target has no checked entry state",
-        ))?;
-    if target_entry.state != target_state {
+    let target =
+        crate::scalar_call_closure::callee::CheckedScalarCallee::find(checked, target_machine)?;
+    let target_parameter_types = target.parameter_types()?;
+    if target.entry_state()? != target_state {
         return unsupported("direct scalar call must target the callee entry state");
     }
-    if terminal_scalar_type(target_entry.result_type)? != result_type {
+    if target.result_type()? != result_type {
         return unsupported("direct scalar call result type must match its local binding");
     }
-    if arguments.len() != target_entry.parameter_types.len() {
+    if arguments.len() != target_parameter_types.len() {
         return unsupported("direct scalar call argument count must match the callee signature");
     }
-    for (expression, target_type) in arguments.iter().zip(&target_entry.parameter_types) {
+    for (expression, target_type) in arguments.iter().zip(target_parameter_types) {
         if expression.scalar_type() != terminal_scalar_type(*target_type)? {
             return unsupported(
                 "checked scalar call argument type must match its callee parameter",

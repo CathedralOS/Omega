@@ -2,7 +2,7 @@
 
 use super::*;
 
-/// Discover the scalar graphs selected by exact calls in an external caller.
+/// Discover scalar bodies selected by exact calls in an external caller.
 /// Embedded roots retain their caller attachment; every
 /// transitive attached callee needs an exact source-validated static computation
 /// edge. Other transitive scalar callees pass the generic signature fence.
@@ -46,35 +46,29 @@ pub(crate) fn checked_scalar_call_closure(
         if selection.signature == CheckedTerminalSignatureEligibility::Attached {
             attached_members.push(machine);
         }
-        let graph = checked
-            .facts
-            .flow
-            .terminal_scalar_graphs
-            .for_machine(machine)
-            .ok_or(LoweringError::Unsupported(
-                "embedded scalar call has no checked scalar graph",
-            ))?;
+        let callee =
+            crate::scalar_call_closure::callee::CheckedScalarCallee::find(checked, machine)?;
+        let direct_targets = match callee {
+            crate::scalar_call_closure::callee::CheckedScalarCallee::Graph(graph) => graph
+                .states
+                .iter()
+                .flat_map(|state| state.bindings.iter())
+                .filter_map(|binding| match &binding.value {
+                    CheckedScalarBindingValue::DirectCall { target_machine, .. } => {
+                        Some(*target_machine)
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>(),
+            crate::scalar_call_closure::callee::CheckedScalarCallee::Boundary(_) => Vec::new(),
+        };
         let computed = source_checked_computation_targets(checked, machine)?;
         for target in &computed {
             if !computation_targets.contains(target) {
                 computation_targets.push(*target);
             }
         }
-        for target in graph
-            .states
-            .iter()
-            .flat_map(|state| {
-                state.bindings.iter().filter_map(|binding| {
-                    let CheckedScalarBindingValue::DirectCall { target_machine, .. } =
-                        &binding.value
-                    else {
-                        return None;
-                    };
-                    Some(*target_machine)
-                })
-            })
-            .chain(computed)
-        {
+        for target in direct_targets.into_iter().chain(computed) {
             if !closure.contains(&target) {
                 closure.push(target);
             }

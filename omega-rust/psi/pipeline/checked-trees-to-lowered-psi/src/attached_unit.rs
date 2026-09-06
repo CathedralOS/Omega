@@ -6,6 +6,7 @@
 
 use super::*;
 use crate::runtime_requirements::substitute_runtime_requirement_scalar_values;
+use crate::scalar_call_closure::callee::{CheckedScalarCallee, PreparedScalarCallee};
 
 pub(crate) mod argument_evaluation;
 mod argument_schedule;
@@ -16,6 +17,7 @@ mod composed_control;
 mod parameters;
 mod provider_attachments;
 mod providers;
+mod scalar_boundaries;
 mod scalar_locals;
 mod selected_operator;
 pub(super) mod shared_closure;
@@ -362,32 +364,10 @@ fn assemble_unit_closure(
     let prepared_scalar_machines = scalar_closure
         .iter()
         .map(|machine| {
-            let graph = checked
-                .facts
-                .flow
-                .terminal_scalar_graphs
-                .for_machine(*machine)
-                .ok_or(LoweringError::Unsupported(
-                    "embedded scalar call closure has no checked scalar graph",
-                ))?;
-            if scalar_roots.contains(machine) {
-                prepare_embedded_scalar_graph_machine(checked, *machine, graph)
-            } else {
-                prepare_scalar_graph_machine(checked, *machine, graph)
-            }
+            crate::scalar_call_closure::callee::CheckedScalarCallee::find(checked, *machine)?
+                .prepare(checked, *machine, scalar_roots.contains(machine))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    if prepared_scalar_machines.iter().any(|machine| {
-        !machine.identity_reshuffles.structural_places.is_empty()
-            || !machine.identity_reshuffles.entry_claims.is_empty()
-            || !machine.identity_reshuffles.reshuffles.is_empty()
-            || !machine.partition_compositions.structural_places.is_empty()
-            || !machine.partition_compositions.compositions.is_empty()
-    }) {
-        return unsupported(
-            "embedded scalar call structural/content effects require a dedicated terminal slice",
-        );
-    }
 
     let mut selected_structural_scalar_roots = Vec::new();
     for machine_symbol in &closure {
@@ -523,20 +503,10 @@ fn assemble_unit_closure(
                     scalar_arguments,
                 } => {
                     retain_exact_checked_flow_call(checked, machine, *coordinate, *target_state)?;
-                    let graph = checked
-                        .facts
-                        .flow
-                        .terminal_scalar_graphs
-                        .for_machine(*target_machine)
-                        .ok_or(LoweringError::Unsupported(
-                            "ordinary Unit scalar call target has no checked scalar graph",
-                        ))?;
-                    let entry_state = graph.states.first().ok_or(LoweringError::Unsupported(
-                        "ordinary Unit scalar call target has no checked entry state",
-                    ))?;
+                    let target = CheckedScalarCallee::find(checked, *target_machine)?;
                     let prepared = prepared_scalar_machines
                         .iter()
-                        .find(|prepared| prepared.source_machine == *target_machine)
+                        .find(|prepared| prepared.source_machine() == *target_machine)
                         .ok_or(LoweringError::Unsupported(
                             "ordinary Unit scalar call target is absent from the prepared closure",
                         ))?;
@@ -559,29 +529,42 @@ fn assemble_unit_closure(
                         })
                         .map(|(_, state)| state.service_reach)
                         .collect::<Vec<_>>();
-                    if entry_state.state != *target_state
-                        || entry_state.parameter_types.len() != scalar_arguments.len()
-                        || prepared.result_type != terminal_scalar_type(result.primitive_type)?
+                    let reach_matches = match &target {
+                        CheckedScalarCallee::Graph(_) => {
+                            target_reaches.as_slice() == [*service_reach]
+                        }
+                        CheckedScalarCallee::Boundary(plan) => {
+                            target_reaches.as_slice() == [plan.service_reach]
+                                && checked_unit_target_reach_matches(
+                                    *service_reach,
+                                    plan.contract_service_reach,
+                                )
+                        }
+                    };
+                    if target.entry_state()? != *target_state
+                        || target.parameter_types()?.len() != scalar_arguments.len()
+                        || prepared.result_type() != terminal_scalar_type(result.primitive_type)?
                         || contract.report_fingerprint != *target_contract_report_fingerprint
                         || contract.commitment != *target_contract_commitment
-                        || target_reaches.as_slice() != [*service_reach]
+                        || !reach_matches
                     {
                         return unsupported(
                             "ordinary Unit scalar call disagrees with its checked target signature, contract, or reach",
                         );
                     }
-                    if !checked
-                        .facts
-                        .service_reaches
-                        .rows
-                        .services(service_reach.direct)
-                        .is_empty()
-                        || !checked
+                    if matches!(target, CheckedScalarCallee::Graph(_))
+                        && (!checked
                             .facts
                             .service_reaches
                             .rows
-                            .services(service_reach.transitive)
+                            .services(service_reach.direct)
                             .is_empty()
+                            || !checked
+                                .facts
+                                .service_reaches
+                                .rows
+                                .services(service_reach.transitive)
+                                .is_empty())
                     {
                         return unsupported(
                             "ordinary Unit scalar call with services requires scalar service lowering",
@@ -767,30 +750,43 @@ fn assemble_unit_closure(
             }
         }
     }
+    let mut additional_type_roots = external
+        .as_ref()
+        .map_or_else(Vec::new, |roots| roots.structural_type_roots.to_vec());
+    let mut additional_service_roots = external
+        .as_ref()
+        .map_or_else(Vec::new, |roots| roots.service_roots.to_vec());
+    scalar_boundaries::retain_catalog_roots(
+        checked,
+        &prepared_scalar_machines,
+        &mut boundaries,
+        &mut additional_type_roots,
+        &mut additional_service_roots,
+    )?;
     boundaries.sort_by(|left, right| left.1.cmp(&right.1));
     if boundaries.windows(2).any(|pair| pair[0].1 == pair[1].1) {
         return unsupported("boundary Unit closure contains duplicate canonical identities");
     }
 
-    let (structural_types, type_ids) = if let Some(external) = &external {
+    let (structural_types, type_ids) = if !additional_type_roots.is_empty() {
         catalog::lower_unit_structural_types_including(
             checked,
             &closure,
             &boundaries,
-            external.structural_type_roots,
+            &additional_type_roots,
         )?
     } else {
         catalog::lower_unit_structural_types(checked, &closure, &boundaries)?
     };
     let (structural_domains, domain_ids) =
         lower_unit_structural_domains(checked, &closure, &boundaries, &type_ids)?;
-    let (services, service_ids) = if let Some(external) = &external {
+    let (services, service_ids) = if !additional_service_roots.is_empty() {
         catalog::lower_unit_services_including(
             checked,
             &closure,
             &boundaries,
             &provider_candidate_plans,
-            external.service_roots,
+            &additional_service_roots,
         )?
     } else {
         catalog::lower_unit_services(checked, &closure, &boundaries, &provider_candidate_plans)?
@@ -1038,7 +1034,7 @@ fn assemble_unit_closure(
     placed_view_inputs.sort();
     let scalar_requirement_counts = prepared_scalar_machines
         .iter()
-        .map(|machine| (machine.source_machine, machine.contract.requirement_count()))
+        .map(|machine| (machine.source_machine(), machine.requirement_count()))
         .collect::<Vec<_>>();
     let mut next_operation = 1_u64;
     let mut next_edge = 1_u64;
@@ -1627,27 +1623,14 @@ fn assemble_unit_closure(
                     }
                     let prepared_target = prepared_scalar_machines
                         .iter()
-                        .find(|target| target.source_machine == *realization_machine)
+                        .find(|target| target.source_machine() == *realization_machine)
                         .ok_or(LoweringError::Unsupported(
                             "Unit scalar call target is absent from the prepared closure",
                         ))?;
-                    let target_graph = checked
-                        .facts
-                        .flow
-                        .terminal_scalar_graphs
-                        .for_machine(*realization_machine)
-                        .ok_or(LoweringError::Unsupported(
-                            "Unit scalar call target has no checked graph",
-                        ))?;
-                    let target_entry =
-                        target_graph
-                            .states
-                            .first()
-                            .ok_or(LoweringError::Unsupported(
-                                "Unit scalar call target has no checked entry state",
-                            ))?;
-                    if target_entry.state != *realization_state
-                        || prepared_target.result_type
+                    let target = CheckedScalarCallee::find(checked, *realization_machine)?;
+                    let target_parameter_types = target.parameter_types()?;
+                    if target.entry_state()? != *realization_state
+                        || prepared_target.result_type()
                             != terminal_scalar_type(result.primitive_type)?
                     {
                         return unsupported(
@@ -1657,8 +1640,7 @@ fn assemble_unit_closure(
                     let arguments = if let Some(arguments) = evaluated_scalar_arguments.as_deref() {
                         argument_evaluation::validated_values(
                             Some(arguments),
-                            &target_entry
-                                .parameter_types
+                            &target_parameter_types
                                 .iter()
                                 .map(|primitive| terminal_scalar_type(*primitive))
                                 .collect::<Result<Vec<_>, _>>()?,
@@ -1675,10 +1657,10 @@ fn assemble_unit_closure(
                             .iter()
                             .map(|value| value.scalar_type)
                             .collect::<Vec<_>>();
-                        if scalar_arguments.len() != target_entry.parameter_types.len() {
+                        if scalar_arguments.len() != target_parameter_types.len() {
                             return unsupported("selected scalar call argument count disagrees");
                         }
-                        scalar_arguments.iter().zip(&target_entry.parameter_types).map(|(argument, primitive)| {
+                        scalar_arguments.iter().zip(target_parameter_types).map(|(argument, primitive)| {
                             let argument = lower_checked_scalar_expression(argument)?;
                             let scalar_type = terminal_scalar_type(*primitive)?;
                             if argument.scalar_type() != scalar_type || direct_expression_contains_short_circuit(&argument) {
@@ -1720,7 +1702,7 @@ fn assemble_unit_closure(
                         .collect::<Result<Vec<_>, LoweringError>>()?;
                     let value = ValueDeclaration {
                         id: value_id(next_value_identity),
-                        scalar_type: prepared_target.result_type,
+                        scalar_type: prepared_target.result_type(),
                     };
                     next_value_identity =
                         next_value_identity
@@ -2971,7 +2953,7 @@ fn assemble_unit_closure(
 
     let mut scalar_evidence = Vec::new();
     for (index, machine) in prepared_scalar_machines.into_iter().enumerate() {
-        let terminal_machine = lookup_machine_id(&machine_ids, machine.source_machine)?;
+        let terminal_machine = lookup_machine_id(&machine_ids, machine.source_machine())?;
         let machine_index = closure
             .len()
             .checked_add(reserved_prefix)
@@ -2990,6 +2972,53 @@ fn assemble_unit_closure(
             .ok_or(LoweringError::Unsupported(
                 "selected scalar closure identity range overflows",
             ))?;
+        let PreparedScalarCallee::Graph(machine) = machine else {
+            let PreparedScalarCallee::Boundary { plan, .. } = machine else {
+                unreachable!("scalar callee has exactly one checked body owner")
+            };
+            let CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. } =
+                &plan.boundary_call
+            else {
+                return unsupported("scalar wrapper lost its boundary operation");
+            };
+            let boundary = lowered_boundary_parameters
+                .iter()
+                .find_map(|(source, identity, _, _)| {
+                    (*source == *target_machine).then_some(*identity)
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "scalar wrapper boundary is absent from the shared catalog",
+                ))?;
+            let mut context = CallEmissionContext {
+                machine_ids: &machine_ids,
+                requirement_counts: &scalar_requirement_counts,
+                next_obligation_identity: next_call_obligation,
+                obligation_limit: u64::MAX,
+            };
+            let mut emitted = crate::boundary_scalar_return::emit_boundary_scalar_return(
+                checked,
+                plan,
+                Vec::new(),
+                crate::boundary_scalar_return::BoundaryScalarReturnCatalogs {
+                    structural_types: &structural_types,
+                    type_ids: &type_ids,
+                    service_ids: &service_ids,
+                },
+                crate::boundary_scalar_return::BoundaryScalarReturnIdentities {
+                    machine: terminal_machine,
+                    contract: contract_id(terminal_machine.get()),
+                    boundary,
+                    identity_base,
+                },
+                &mut context,
+            )?;
+            next_call_obligation = context.next_obligation_identity;
+            machines.push(emitted.machine);
+            source_call_occurrences.append(&mut emitted.source_call_occurrences);
+            selected_ieee_float_fma_occurrences
+                .append(&mut emitted.selected_ieee_float_fma_occurrences);
+            continue;
+        };
         let mut lowered = build_scalar_graph_module(
             &machine.states,
             machine.result_type,
@@ -3008,6 +3037,8 @@ fn assemble_unit_closure(
         machines.push(terminal_machine.clone());
         scalar_evidence.append(&mut lowered.proof_bundle.evidence);
         source_call_occurrences.append(&mut lowered.source_call_occurrences);
+        selected_ieee_float_fma_occurrences
+            .append(&mut lowered.selected_ieee_float_fma_occurrences);
     }
 
     let mut lowered_structural_realizations = lower_selected_structural_scalar_realizations(

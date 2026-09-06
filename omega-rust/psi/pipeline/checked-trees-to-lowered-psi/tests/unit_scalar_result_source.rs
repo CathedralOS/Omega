@@ -7,6 +7,9 @@ use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use tokens_to_syntax_trees::parse_syntax_trees;
 
+#[path = "unit_scalar_result_source/boundary_wrappers.rs"]
+mod boundary_wrappers;
+
 const SOURCE: &str = r#"
 boundary trait Host {
     machine measure(value: i32) -> i32
@@ -157,6 +160,36 @@ fn attached_unit_scalar_boundary_result_reaches_later_call_in_terminal_psi() {
         consumer.result,
         terminal_psi::OperationResult::Unit
     ));
+}
+
+#[test]
+fn unit_call_closure_retains_scalar_boundary_wrapper() {
+    let source = SOURCE
+        .replace("Host::measure(70)", "Scalar::measure()")
+        .replace(
+            "data Main {}",
+            r#"
+            data Scalar {}
+            machine Scalar::measure() -> i32
+            reaches Host
+            {
+                let result: i32 = Host::measure(70);
+                result
+            }
+            data Main {}
+        "#,
+        );
+    let checked = checked_from_source(&source);
+    checked_trees_to_lowered_psi::lower_machine(&checked, "Scalar::measure")
+        .expect("the scalar boundary wrapper already lowers as a named root");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main")
+        .expect("the same wrapper belongs to the ordinary Unit call closure");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the composed result and boundary authority independently verify");
 }
 
 #[test]

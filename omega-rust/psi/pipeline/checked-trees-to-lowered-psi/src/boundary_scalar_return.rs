@@ -5,85 +5,30 @@ use crate::attached_unit::argument_evaluation;
 use crate::machine_dispatch::SourceMappedLowered;
 use crate::scalar_call_closure::embedded::EmbeddedScalarCalls;
 
+mod emission;
 mod source_custody;
+mod validation;
+
+pub(crate) use emission::{
+    BoundaryScalarReturnCatalogs, BoundaryScalarReturnIdentities, EmittedBoundaryScalarReturn,
+    emit_boundary_scalar_return,
+};
+pub(crate) use validation::validate_boundary_scalar_return;
 
 pub(super) fn lower_boundary_scalar_return_machine(
     checked: &CheckedTrees,
     plan: &CheckedBoundaryScalarReturnMachinePlan,
 ) -> Result<SourceMappedLowered, LoweringError> {
-    source_custody::validate(checked, plan)?;
-    crate::call_source_custody::validate_operation(
-        checked,
-        plan.machine,
-        plan.state,
-        &plan.boundary_call,
-    )?;
+    let boundary = validate_boundary_scalar_return(checked, plan)?;
     let plans = &checked.facts.flow.terminal_boundary_scalar_returns;
     let CheckedUnitEffectOperationPlan::BoundaryCall {
-        coordinate,
-        source_site,
-        target_machine,
-        target_state,
-        target_contract_report_fingerprint,
         service_reach,
         scalar_arguments,
-        structural_arguments,
-        completion_receipts,
+        ..
     } = &plan.boundary_call
     else {
         return unsupported("result-bearing boundary plan does not contain a boundary call");
     };
-    if coordinate.statement_index != 0
-        || coordinate.call_ordinal != 0
-        || plan.return_statement_ordinal != 1
-    {
-        return unsupported("result-bearing boundary call coordinates are not canonical");
-    }
-    let mut matches = plans
-        .boundary_machines
-        .iter()
-        .filter(|boundary| boundary.machine == *target_machine);
-    let boundary = matches.next().ok_or(LoweringError::Unsupported(
-        "result-bearing boundary target is absent from its checked plan",
-    ))?;
-    if matches.next().is_some()
-        || boundary.state != *target_state
-        || boundary.contract_report_fingerprint != *target_contract_report_fingerprint
-        || boundary.result.scalar() != Some(plan.result_type)
-        || !checked_unit_target_reach_matches(*service_reach, boundary.contract_service_reach)
-    {
-        return unsupported("result-bearing boundary call disagrees with its exact checked target");
-    }
-    let exact_identity = checked
-        .facts
-        .contract_plans
-        .for_machine(boundary.contract_owner)
-        .map(|contract| (contract.report_fingerprint, contract.commitment))
-        .or_else(|| {
-            checked
-                .facts
-                .contract_plans
-                .crash_capsule(boundary.contract_owner, boundary.state)
-                .map(|capsule| {
-                    (
-                        capsule.target_contract_report_fingerprint(),
-                        capsule.target_contract_commitment(),
-                    )
-                })
-        })
-        .ok_or(LoweringError::Unsupported(
-            "result-bearing boundary target is missing its canonical contract identity",
-        ))?;
-    if (
-        boundary.contract_report_fingerprint,
-        boundary.contract_commitment,
-    ) != exact_identity
-    {
-        return unsupported(
-            "result-bearing boundary target contract compatibility coordinate or strong commitment drifted",
-        );
-    }
-
     let (structural_types, type_ids) = lower_structural_type_plans(&plans.structural_types)?;
     let (structural_domains, domain_ids) =
         lower_boundary_scalar_domains(checked, plans, plan, boundary, &type_ids)?;
@@ -146,78 +91,6 @@ pub(super) fn lower_boundary_scalar_return_machine(
         )?,
     };
 
-    let mut next_claim = 1_u64;
-    let mut entry_claims = Vec::with_capacity(plan.entry_claims.len());
-    let mut claim_bindings = Vec::with_capacity(plan.entry_claims.len());
-    for claim in &plan.entry_claims {
-        if claim.carry != CarryPolicy::STRICT {
-            return unsupported("result-bearing boundary entry claim has non-default carry");
-        }
-        let parameter = parameters
-            .get(usize::try_from(claim.parameter_index).map_err(|_| {
-                LoweringError::Unsupported("boundary entry claim parameter exceeds usize")
-            })?)
-            .ok_or(LoweringError::Unsupported(
-                "result-bearing boundary entry claim has an invalid parameter",
-            ))?;
-        let PermissionClaimIdentity::Established {
-            machine_symbol,
-            state_symbol,
-            source: language_semantics::PermissionEventSource::StateEntry,
-            ..
-        } = claim.claim_identity
-        else {
-            return unsupported("result-bearing boundary entry claim is not exact");
-        };
-        if machine_symbol != plan.machine || state_symbol != plan.state {
-            return unsupported("result-bearing boundary entry claim belongs to another state");
-        }
-        let id = claim_id(allocate_dense(&mut next_claim)?);
-        entry_claims.push(EntryClaim {
-            claim: id,
-            input: parameter.place,
-            path: lower_structural_path(&claim.path),
-        });
-        claim_bindings.push((claim.claim_identity, id));
-    }
-    let expected_claim_arguments = structural_arguments
-        .iter()
-        .enumerate()
-        .flat_map(|(argument_index, argument)| {
-            plan.entry_claims
-                .iter()
-                .filter(move |claim| {
-                    Some(claim.parameter_index) == argument.source_parameter_index()
-                        && (argument.path.is_empty() || claim.path == argument.path)
-                })
-                .map(move |_| {
-                    u32::try_from(argument_index).map_err(|_| {
-                        LoweringError::Unsupported("boundary argument index exceeds u32")
-                    })
-                })
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-    validate_transfer_shape(
-        structural_arguments,
-        completion_receipts,
-        &parameters,
-        &[],
-        &[],
-        &[],
-        &boundary.structural_parameters,
-        &type_ids,
-        &structural_types,
-        &expected_claim_arguments,
-    )?;
-    if scalar_arguments.len() != boundary_scalar_parameters.len() {
-        return unsupported(
-            "result-bearing boundary scalar argument count disagrees with its declaration",
-        );
-    }
-    let mut operations = OperationBuffer::new(0);
-    let mut next_value_identity = 1_u64;
-    let mut next_block = 1_u64;
-    let mut next_edge = 1_u64;
     let roots = scalar_arguments
         .iter()
         .filter_map(|argument| match argument {
@@ -229,146 +102,27 @@ pub(super) fn lower_boundary_scalar_return_machine(
         EmbeddedScalarCalls::prepare_computations(checked, &roots, &[plan.machine], 1)?;
     let mut source_machine_ids = vec![(plan.machine, machine_id(1))];
     source_machine_ids.extend_from_slice(&scalar_calls.machine_ids);
-    let mut evaluation = argument_evaluation::Evaluation::new(&mut next_block)?;
-    let arguments = evaluation.arguments(
+    let EmittedBoundaryScalarReturn {
+        machine,
+        source_call_occurrences,
+        selected_ieee_float_fma_occurrences,
+    } = emit_boundary_scalar_return(
         checked,
-        plan.machine,
-        plan.state,
-        &plan.boundary_call,
-        &mut Vec::new(),
-        &mut next_value_identity,
-        &mut next_block,
-        &mut next_edge,
-        &mut operations,
+        plan,
+        parameters,
+        BoundaryScalarReturnCatalogs {
+            structural_types: &structural_types,
+            type_ids: &type_ids,
+            service_ids: &service_ids,
+        },
+        BoundaryScalarReturnIdentities {
+            machine: machine_id(1),
+            contract: contract_id(1),
+            boundary: boundary_id,
+            identity_base: 0,
+        },
         &mut scalar_calls.emission_context(),
     )?;
-    let arguments =
-        argument_evaluation::validated_values(arguments.as_deref(), &boundary_scalar_parameters)?
-            .into_iter()
-            .map(|value| value.id)
-            .collect();
-    let scalar_type = terminal_scalar_type(plan.result_type)?;
-    let call_result = ValueDeclaration {
-        id: value_id(next_value_identity),
-        scalar_type,
-    };
-    next_value_identity = next_value_identity
-        .checked_add(1)
-        .ok_or(LoweringError::Unsupported(
-            "result-bearing boundary value identity space is exhausted",
-        ))?;
-    let operation_id = operations.allocate();
-    operations.record_source_call(
-        SourceCallCoordinate {
-            state: plan.state,
-            statement_index: usize::try_from(coordinate.statement_index).map_err(|_| {
-                LoweringError::Unsupported(
-                    "result-bearing boundary statement coordinate exceeds usize",
-                )
-            })?,
-            call_ordinal: usize::try_from(coordinate.call_ordinal).map_err(|_| {
-                LoweringError::Unsupported("result-bearing boundary call ordinal exceeds usize")
-            })?,
-        },
-        *source_site,
-        operation_id,
-        *target_machine,
-    )?;
-    let operation = Operation {
-        id: operation_id,
-        result: terminal_psi::OperationResult::Scalar(call_result),
-        kind: OperationKind::BoundaryCall {
-            boundary: boundary_id,
-            arguments,
-            structural_arguments: lower_structural_arguments(
-                structural_arguments,
-                &parameters,
-                &[],
-                &[],
-                &[],
-                &[],
-            )?,
-            completion_receipts: completion_receipts
-                .iter()
-                .map(|receipt| {
-                    Ok(CompletionReceipt {
-                        claim: lookup_claim_id(&claim_bindings, receipt.claim_identity)?,
-                        argument_index: receipt.argument_index,
-                    })
-                })
-                .collect::<Result<Vec<_>, LoweringError>>()?,
-        },
-    };
-    operations.push(operation);
-    let machine_result = ValueDeclaration {
-        id: value_id(next_value_identity),
-        scalar_type,
-    };
-    let content_entry_claims = content_conservation::lower_whole_content_entry_claims(
-        checked,
-        &plan.structural_parameters,
-        &parameters,
-        &plan.entry_claims,
-        &claim_bindings,
-    )?;
-    let OperationBuffer {
-        operations,
-        source_calls: source_call_occurrences,
-        selected_ieee_float_fmas: selected_ieee_float_fma_occurrences,
-        ..
-    } = operations;
-    evaluation.blocks.push(Block {
-        id: evaluation.current,
-        parameters: evaluation.parameters,
-        operations: operations[evaluation.operation_start..].to_vec(),
-        terminator: Terminator::Return {
-            edge: edge_id(allocate_dense(&mut next_edge)?),
-            value: call_result.id,
-            cleanup_actions: Vec::new(),
-        },
-    });
-    evaluation.blocks.sort_by_key(|block| block.id);
-    let machine = TerminalMachine {
-        id: machine_id(1),
-        attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
-        parameters: Vec::new(),
-        structural_parameters: parameters.clone(),
-        ranked_scc: None,
-        result: TerminalMachineResult::Scalar(machine_result),
-        structural_places: parameters
-            .iter()
-            .map(|parameter| StructuralPlaceDeclaration {
-                id: parameter.place,
-                kind: StructuralPlaceKind::Parameter {
-                    position: parameter.position,
-                    is_self: parameter.is_self,
-                },
-            })
-            .collect(),
-        entry_claims,
-        published_service_ceiling: lower_installation_machine_service_ceiling(
-            checked,
-            plan.machine,
-            plan.contract_service_reach,
-            plan.service_reach,
-            &service_ids,
-        )?,
-        content_entry_claims,
-        content_identity_reshuffles: Vec::new(),
-        content_partition_compositions: Vec::new(),
-        entry: evaluation.entry,
-        blocks: evaluation.blocks,
-        contract: MachineContract {
-            id: contract_id(1),
-            crash_routes: lower_checked_crash_route_buckets(
-                &lower_checked_crash_routes(checked, plan.machine)?,
-                &[],
-            )?,
-            requires: Vec::new(),
-            ensures: Vec::new(),
-            outcome_specific_ensures: Vec::new(),
-        },
-    };
     let mut lowered = LoweredPsi {
         semantic_module: TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,

@@ -2,6 +2,7 @@
 //! closures.
 
 use super::*;
+use checked_trees::CheckedUnitStructuralTypePlan;
 
 pub(super) fn lower_program_local_root_introductions(
     checked: &CheckedTrees,
@@ -243,30 +244,61 @@ pub(crate) fn lower_unit_structural_type_roots(
     ),
     LoweringError,
 > {
-    fn collect(
-        plans: &checked_trees::CheckedUnitEffectPlans,
+    fn selected_declaration<'a>(
+        checked: &'a CheckedTrees,
         identity: &str,
-        active: &mut Vec<String>,
-        selected: &mut Vec<String>,
-    ) -> Result<(), LoweringError> {
-        if active.iter().any(|candidate| candidate == identity) {
-            return unsupported("recursive structural type is outside the Unit terminal slice");
-        }
-        if selected.iter().any(|candidate| candidate == identity) {
-            return Ok(());
-        }
-        let mut matches = plans
-            .structural_types
-            .iter()
-            .filter(|plan| plan.identity == identity);
-        let plan = matches.next().ok_or(LoweringError::Unsupported(
-            "Unit closure references a missing structural type",
-        ))?;
-        if matches.next().is_some() || identity.is_empty() {
+    ) -> Result<&'a CheckedUnitStructuralTypePlan, LoweringError> {
+        if identity.is_empty() {
             return unsupported(
                 "Unit closure contains a duplicate or empty structural type identity",
             );
         }
+        let mut selected = None;
+        for roster in [
+            &checked.facts.flow.terminal_unit_effects.structural_types,
+            &checked
+                .facts
+                .flow
+                .terminal_boundary_scalar_returns
+                .structural_types,
+        ] {
+            let mut matches = roster.iter().filter(|plan| plan.identity == identity);
+            let Some(plan) = matches.next() else {
+                continue;
+            };
+            if matches.next().is_some() {
+                return unsupported(
+                    "Unit closure contains a duplicate or empty structural type identity",
+                );
+            }
+            if selected.is_some_and(|previous| previous != plan) {
+                return unsupported(
+                    "Unit closure structural type declarations conflict across owners",
+                );
+            }
+            selected = Some(plan);
+        }
+        selected.ok_or(LoweringError::Unsupported(
+            "Unit closure references a missing structural type",
+        ))
+    }
+
+    fn collect<'a>(
+        checked: &'a CheckedTrees,
+        identity: &str,
+        active: &mut Vec<String>,
+        selected: &mut Vec<&'a CheckedUnitStructuralTypePlan>,
+    ) -> Result<(), LoweringError> {
+        if active.iter().any(|candidate| candidate == identity) {
+            return unsupported("recursive structural type is outside the Unit terminal slice");
+        }
+        if selected
+            .iter()
+            .any(|candidate| candidate.identity == identity)
+        {
+            return Ok(());
+        }
+        let plan = selected_declaration(checked, identity)?;
         active.push(identity.to_owned());
         match &plan.shape {
             CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => {}
@@ -276,7 +308,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                     if let CheckedUnitStructuralFieldType::Structural { type_identity } =
                         &field.field_type
                     {
-                        collect(plans, type_identity, active, selected)?;
+                        collect(checked, type_identity, active, selected)?;
                     }
                 }
             }
@@ -284,14 +316,14 @@ pub(crate) fn lower_unit_structural_type_roots(
                 element_type_identity,
                 ..
             } => {
-                collect(plans, element_type_identity, active, selected)?;
+                collect(checked, element_type_identity, active, selected)?;
             }
             CheckedUnitStructuralTypeShape::Sum { cases } => {
                 for field in cases.iter().flat_map(|case| &case.fields) {
                     if let CheckedUnitStructuralFieldType::Structural { type_identity } =
                         &field.field_type
                     {
-                        collect(plans, type_identity, active, selected)?;
+                        collect(checked, type_identity, active, selected)?;
                     }
                 }
             }
@@ -303,38 +335,37 @@ pub(crate) fn lower_unit_structural_type_roots(
                     if let CheckedUnitStructuralFieldType::Structural { type_identity } =
                         &field.field_type
                     {
-                        collect(plans, type_identity, active, selected)?;
+                        collect(checked, type_identity, active, selected)?;
                     }
                 }
             }
         }
         active.pop();
-        selected.push(identity.to_owned());
+        selected.push(plan);
         Ok(())
     }
 
-    let plans = &checked.facts.flow.terminal_unit_effects;
     let mut selected = Vec::new();
     let mut active = Vec::new();
     for identity in roots {
-        collect(plans, identity, &mut active, &mut selected)?;
+        collect(checked, identity, &mut active, &mut selected)?;
     }
-    selected.sort();
-    selected.dedup();
+    selected.sort_by(|left, right| left.identity.cmp(&right.identity));
     let type_ids = selected
         .iter()
         .enumerate()
-        .map(|(index, identity)| Ok((identity.clone(), structural_type_id(dense_identity(index)?))))
+        .map(|(index, plan)| {
+            Ok((
+                plan.identity.clone(),
+                structural_type_id(dense_identity(index)?),
+            ))
+        })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let mut next_field = 1_u64;
     let mut next_case = 1_u64;
     let mut declarations = Vec::with_capacity(selected.len());
-    for identity in selected {
-        let plan = plans
-            .structural_types
-            .iter()
-            .find(|plan| plan.identity == identity)
-            .expect("selected structural type was validated above");
+    for plan in selected {
+        let identity = plan.identity.clone();
         let shape = match &plan.shape {
             CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive) => {
                 StructuralTypeShape::PrimitiveScalar(terminal_scalar_type(*primitive)?)

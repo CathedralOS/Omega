@@ -2,6 +2,7 @@
 
 use super::*;
 
+pub(crate) mod callee;
 pub(crate) mod embedded;
 
 pub(super) fn checked_scalar_call_closure(
