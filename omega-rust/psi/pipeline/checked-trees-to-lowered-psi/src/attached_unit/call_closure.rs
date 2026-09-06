@@ -140,6 +140,7 @@ pub(super) fn validate_unit_operation_sequence(
     };
     let mut previous = None;
     let mut next_scalar_binding = 0_u32;
+    let mut next_structural_binding = 0_u32;
     for operation in &machine.operations[..machine.operations.len() - 1] {
         let coordinate = match operation {
             CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
@@ -234,7 +235,7 @@ pub(super) fn validate_unit_operation_sequence(
             } => {
                 if result.statement_index != coordinate.statement_index
                     || coordinate.call_ordinal != 0
-                    || result.binding_ordinal != 0
+                    || result.binding_ordinal != next_structural_binding
                 {
                     return unsupported(
                         "Unit structural result local or call coordinate is not canonical",
@@ -276,6 +277,20 @@ pub(super) fn validate_unit_operation_sequence(
                 return unsupported("Unit machine contains a nonfinal Unit return");
             }
         };
+        if let CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
+        | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { result, .. }
+        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } = operation
+        {
+            if result.binding_ordinal != next_structural_binding {
+                return unsupported("Unit structural result is not the next dense source binding");
+            }
+            next_structural_binding =
+                next_structural_binding
+                    .checked_add(1)
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit structural result binding ordinal space is exhausted",
+                    ))?;
+        }
         let key = (coordinate.statement_index, coordinate.call_ordinal);
         if previous.is_some_and(|previous| previous >= key)
             || coordinate.statement_index >= *statement_index

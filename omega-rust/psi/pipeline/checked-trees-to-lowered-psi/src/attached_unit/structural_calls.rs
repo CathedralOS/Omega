@@ -87,7 +87,6 @@ pub(super) fn validate(
             .is_empty()
         || coordinate.call_ordinal != 0
         || result.statement_index != coordinate.statement_index
-        || result.binding_ordinal != 0
         || result.multiplicity != Multiplicity::Affine
         || result.type_identity != target.result.type_identity
         || target.result.multiplicity != Multiplicity::Affine
@@ -107,34 +106,11 @@ pub(super) fn validate(
     let [argument] = structural_arguments.as_slice() else {
         return unsupported("ordinary structural call requires one whole owned argument");
     };
-    let source_index = argument
-        .source_parameter_index()
-        .ok_or(LoweringError::Unsupported(
-            "ordinary structural call source must be a whole entry parameter",
-        ))?;
-    let source = caller
-        .structural_parameters
-        .get(source_index as usize)
-        .ok_or(LoweringError::Unsupported(
-            "ordinary structural call source parameter is absent",
-        ))?;
     if !argument.path.is_empty()
         || argument.access != checked_trees::CheckedStructuralAccess::Owned
         || argument.type_identity != result.type_identity
-        || source.type_identity != argument.type_identity
-        || source.access != checked_trees::CheckedStructuralAccess::Owned
-        || source.multiplicity != Multiplicity::Affine
-        || source.is_self
-        || !source.qualifications.is_empty()
-        || source.fused_service_erasure.is_some()
-        || caller
-            .entry_claims
-            .iter()
-            .any(|claim| claim.parameter_index == source_index)
     {
-        return unsupported(
-            "ordinary structural call source is not an exact claim-free affine parameter",
-        );
+        return unsupported("ordinary structural call source is not a whole owned affine value");
     }
     let (source_machine, source_state) =
         crate::scalar_source_custody::authored_state(checked, caller.state)?;
@@ -158,12 +134,6 @@ pub(super) fn validate(
     else {
         return unsupported("ordinary structural result has no direct initializer call");
     };
-    let source_parameter = checked
-        .state_parameters(source_state)
-        .get(source.position as usize)
-        .ok_or(LoweringError::Unsupported(
-            "ordinary structural source lost its authored position",
-        ))?;
     let authored_argument = checked
         .expression_table
         .expression_handles(call.arguments)
@@ -173,18 +143,63 @@ pub(super) fn validate(
         ))?;
     if source_machine.symbol != caller.machine
         || local.is_mutable
+        || !local.symbol.is_valid()
         || checked
             .typed
             .normalized_type_identity(local.type_reference)
             .into_string()
             != result.type_identity
-        || !matches!(checked.expression_table.expression(*authored_argument),
-            ExpressionNode::Name(name) if name.symbol == source_parameter.symbol)
     {
         return unsupported(
             "ordinary structural result or source disagrees with its authored initializer",
         );
     }
+    if let Some(source_index) = argument.source_parameter_index() {
+        let source = caller
+            .structural_parameters
+            .get(source_index as usize)
+            .ok_or(LoweringError::Unsupported(
+                "ordinary structural call source parameter is absent",
+            ))?;
+        let source_parameter = checked
+            .state_parameters(source_state)
+            .get(source.position as usize)
+            .ok_or(LoweringError::Unsupported(
+                "ordinary structural source lost its authored position",
+            ))?;
+        if source.type_identity != argument.type_identity
+            || source.access != checked_trees::CheckedStructuralAccess::Owned
+            || source.multiplicity != Multiplicity::Affine
+            || source.is_self
+            || !source.qualifications.is_empty()
+            || source.fused_service_erasure.is_some()
+            || caller
+                .entry_claims
+                .iter()
+                .any(|claim| claim.parameter_index == source_index)
+            || !source_parameter.symbol.is_valid()
+            || !matches!(checked.expression_table.expression(*authored_argument),
+                ExpressionNode::Name(name) if name.symbol == source_parameter.symbol)
+        {
+            return unsupported(
+                "ordinary structural call source is not an exact authored claim-free affine parameter",
+            );
+        }
+    } else if argument
+        .source_structural_result_binding_ordinal()
+        .is_none()
+    {
+        return unsupported(
+            "ordinary structural call source must be a whole parameter or earlier result",
+        );
+    }
+    validate_consumer(
+        checked,
+        caller,
+        operation,
+        std::slice::from_ref(&target.structural_parameter),
+        &[],
+    )?;
     validate_usage(caller, result)?;
     Ok(())
 }
@@ -199,7 +214,7 @@ pub(super) fn emit(
     structural_types: &[StructuralTypeDeclaration],
     type_ids: &[(String, StructuralTypeId)],
     machine_ids: &[(symbols::SymbolHandle, MachineId)],
-    result_count: usize,
+    earlier_results: &[(StructuralPlaceDeclaration, bool)],
     next_place: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<(StructuralPlaceDeclaration, bool), LoweringError> {
@@ -216,7 +231,7 @@ pub(super) fn emit(
     else {
         return unsupported("ordinary structural emission requires a structural call");
     };
-    if usize::try_from(result.binding_ordinal).ok() != Some(result_count) {
+    if usize::try_from(result.binding_ordinal).ok() != Some(earlier_results.len()) {
         return unsupported("ordinary structural result binding ordinal drifted from source order");
     }
     let target = target(checked, *target_machine, *target_state)?;
@@ -226,7 +241,7 @@ pub(super) fn emit(
         parameters,
         &[],
         &[],
-        &[],
+        earlier_results,
         std::slice::from_ref(&target.structural_parameter),
         type_ids,
         structural_types,
@@ -246,8 +261,14 @@ pub(super) fn emit(
         .iter()
         .map(|value| value.id)
         .collect();
-    let structural_arguments =
-        lower_structural_arguments(structural_arguments, parameters, &[], &[], &[], &[])?;
+    let structural_arguments = lower_structural_arguments(
+        structural_arguments,
+        parameters,
+        &[],
+        &[],
+        earlier_results,
+        &[],
+    )?;
     let id = operations.allocate();
     let place = place_id(allocate_dense(next_place)?);
     let structural_type = lookup_type_id(type_ids, &result.type_identity)?;

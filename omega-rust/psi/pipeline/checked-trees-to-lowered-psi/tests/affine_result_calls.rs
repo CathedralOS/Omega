@@ -13,6 +13,12 @@ use terminal_psi::{OperationKind, OperationResult, Terminator};
 #[path = "affine_result_calls/uses.rs"]
 mod uses;
 
+#[path = "affine_result_calls/chains.rs"]
+mod chains;
+
+#[path = "affine_result_calls/chain_custody.rs"]
+mod chain_custody;
+
 const IDENTITY_CALL: &str = "data Value { number: u64; }
     machine forward(value: Value) -> Value { value }
     machine Main::caller(value: Value) { let result: Value = forward(value); }";
