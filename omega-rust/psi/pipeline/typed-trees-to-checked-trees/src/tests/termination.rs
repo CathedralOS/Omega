@@ -7,6 +7,7 @@ mod data_facts;
 mod joint_rankings;
 mod operational_contracts;
 mod progress_lineage;
+mod progress_mutation;
 mod proof_slices;
 mod rank_ranges;
 mod ranking;

@@ -10,6 +10,7 @@ use crate::{call_site_argument_expressions, call_target_parameters, find_call_si
 
 mod components;
 mod lineage;
+mod origins;
 
 /// Derive checked termination premises from exact selected call contracts.
 ///
@@ -562,7 +563,16 @@ fn derive_machine_summary(
                     }
                     continue;
                 }
-                let instances = parameter_lineage.resolve(local_instance)?;
+                let mut entry_instance = local_instance;
+                entry_instance.subject = origins::at_call(
+                    program,
+                    flow,
+                    machine,
+                    state_flow,
+                    call,
+                    entry_instance.subject,
+                )?;
+                let instances = parameter_lineage.resolve(entry_instance)?;
                 for instance in instances {
                     if !entry_parameter_roots.contains(&instance.subject.root) {
                         // Arbitrary local values still cannot become caller

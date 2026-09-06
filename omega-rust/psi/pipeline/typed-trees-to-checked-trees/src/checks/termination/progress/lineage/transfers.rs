@@ -40,7 +40,12 @@ pub(super) fn collect(
                         call,
                         parameters,
                         parameter.symbol,
-                    ),
+                    )
+                    .and_then(|subject| {
+                        crate::checks::termination::progress::origins::at_call(
+                            program, flow, machine, state, call, subject,
+                        )
+                    }),
                 });
             }
         }

@@ -1801,6 +1801,17 @@ Current ownership is:
   growing parameters do not prevent checked termination. The remaining
   correspondence converges without a projection-length or iteration limit;
   qualification receipt replay is unchanged.
+  `checks/termination/progress/origins.rs` resolves a fully projected call
+  premise through preceding owned assignments and local captures. Backward
+  substitution uses the source at the copy point, not after later source
+  writes. Shared complete call frames and alias-closed storage writes preserve
+  only disjoint subjects; same-statement calls use retained execution order,
+  not authored call ordinals. The selected stored type must be reference-free:
+  constrained references and reference-containing copies are not snapshots of
+  their referents. Local-state root transfers use this same origin query, but
+  a field-mutated aggregate needs per-field arrival correspondence before it
+  can regain a checked progress guarantee. Exact live receipts and build-bound
+  provider subjects retain their existing separate handling.
   `checks/termination/progress/components.rs` closes private summaries within
   each revalidated runtime call component. Validation and this query share the
   complete call graph, including proof dependencies; a runtime subset of a

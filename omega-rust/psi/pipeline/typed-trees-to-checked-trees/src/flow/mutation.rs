@@ -311,6 +311,39 @@ pub(crate) fn statement_storage_writes(
     )
 }
 
+/// Project a shared complete call frame into the exact caller storage namespace.
+/// Coarse selectors remain conservative writes; they are not value provenance.
+pub(crate) fn frame_storage_writes(
+    program: &typed_trees::TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    frame: &facts::NormalizedWriteFrame,
+) -> Option<Vec<CanonicalPlace>> {
+    let state = find_state(program, state_symbol)?;
+    let mut places = Vec::new();
+    for path in frame.complete_paths()? {
+        let source = local_origins::place_from_origin_path(program, state, statement_index, path)?;
+        for place in local_origins::rebase_local_write_places(
+            program,
+            state_symbol,
+            statement_index,
+            source,
+        )? {
+            if !places.contains(&place) {
+                places.push(place);
+            }
+        }
+    }
+    local_origins::close_storage_places_over_aliases(
+        program,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        places,
+    )
+}
+
 fn normalize_write_only_range_place(
     program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
