@@ -1,10 +1,11 @@
 use super::*;
 use crate::lookup::expression_root_symbol;
 mod local_origins;
+mod operand_coordinates;
 mod receiver;
 mod summary;
 
-pub(super) use local_origins::close_storage_places_over_aliases;
+pub(crate) use local_origins::close_storage_places_over_aliases;
 pub(crate) use receiver::{
     call_receiver_is_mutable, call_receiver_mutated_place, canonical_receiver_place_for_call_site,
 };
@@ -30,6 +31,21 @@ pub(crate) fn call_mutated_places(
     borrow_call: &BorrowCallFact,
     state_mutation_summaries: &mut StateMutationSummaryCache,
 ) -> Option<Vec<CanonicalPlace>> {
+    let site = find_call_site(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        borrow_call.statement_index,
+        borrow_call.call_ordinal,
+    )?;
+    if !operand_coordinates::call_operands_have_builtin_coordinates(
+        program,
+        caller_machine_symbol,
+        caller_state_symbol,
+        &site,
+    ) {
+        return None;
+    }
     call_write_places(
         program,
         caller_machine_symbol,

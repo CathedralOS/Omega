@@ -73,12 +73,12 @@ pub(super) fn stable_alias_place_origin(
         FramePathPrecision::Exact => FramePlaceOrigin {
             path: append_place_suffix(&parent.path, suffix),
             precision: origin.precision,
-            source: parent.source.append_segments(&origin.source.segments),
+            source: parent.source.append_source(&origin.source),
         },
         FramePathPrecision::CollectionCoarse => FramePlaceOrigin {
             path: parent.path.clone(),
             precision: FramePathPrecision::CollectionCoarse,
-            source: parent.source.append_segments(&origin.source.segments),
+            source: parent.source.append_source(&origin.source),
         },
     })
 }

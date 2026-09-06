@@ -81,6 +81,7 @@ pub(in crate::calls::write_frames) fn declared_origins_for_query(
                         source: super::super::FrameSourcePlace {
                             root: symbol,
                             segments,
+                            builtin_coordinates: symbol.is_valid(),
                         },
                     },
                 });
@@ -155,6 +156,7 @@ pub(in crate::calls::write_frames) fn declared_origins_for_query(
                 source: super::super::FrameSourcePlace {
                     root: origins.local_symbol,
                     segments: Vec::new(),
+                    builtin_coordinates: origins.local_symbol.is_valid(),
                 },
                 type_reference: reference,
             },

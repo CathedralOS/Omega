@@ -533,9 +533,13 @@ and selector dependencies. Copying an integer selector can carry an established
 indexed bound into exact typed uses of the new binding, including compiler
 temporaries; later source changes do not retarget that copy. Element writes
 still retire the dependent bound. A copied reference is not an integer snapshot.
-Unknown writes or incomplete read sets grant no preservation. Projected call
-and local-reference write paths that retain only a collection root still
-invalidate the collection's element bounds. Authored indexing operators, atomic
+Fixed element and field coordinates survive local-reference origins and
+complete projected call write frames. A write through `set(&mut values[1])`
+or an alias to that element can preserve a bound that reads `values[0]`;
+an overlapping write cannot. A runtime selector captured by a reference is
+not reevaluated at a later write to manufacture disjointness. Unknown writes,
+unresolved selectors, or incomplete read sets grant no preservation beyond
+their proven storage prefix. Authored indexing operators, atomic
 reads, and calls need their own complete read and stability evidence; their
 spelling or explicit arguments alone are insufficient. Equal expression text
 cannot choose between incompatible typed operand identities, while separate

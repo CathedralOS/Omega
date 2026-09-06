@@ -200,9 +200,9 @@ fn stored_aggregate_storage_projection_keeps_leaf_selectors() {
             vec!["self.cell.value", "view.body.value"],
         ),
         (
-            "coarse_source",
+            "fixed_source",
             "let mut view: CellView = CellView { body: &mut self.cells[0] }; view.body.value = 1;",
-            vec!["self.cells", "view.body"],
+            vec!["self.cells[0].value", "view.body.value"],
         ),
         (
             "independent_sibling",
@@ -220,14 +220,14 @@ fn stored_aggregate_storage_projection_keeps_leaf_selectors() {
             vec!["first.body.value", "second.body", "self.cell.value"],
         ),
         (
-            "coarse_stored_array_origin",
+            "dynamic_stored_array_origins",
             "let mut first: [CellView; 2] = [CellView { body: &mut self.cell }, CellView { body: &mut self.cells[0] }]; let mut second: View = View { body: &mut first[index].body.value, tag: 0 }; second.body = 1;",
             vec![
-                "first[0].body",
-                "first[1].body",
+                "first[0].body.value",
+                "first[1].body.value",
                 "second.body",
-                "self.cell",
-                "self.cells",
+                "self.cell.value",
+                "self.cells[0].value",
             ],
         ),
     ];

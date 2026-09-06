@@ -189,12 +189,23 @@ pub(in crate::calls::write_frames) fn reference_leaves_before_statement_for_quer
                 .any(|segment| matches!(segment, PlaceSegment::Case { .. })))
         .then(AggregateOrigins::default);
     };
-    project_stored_origins(program, established, segments, declared_origins.is_some())
+    let mut projected =
+        project_stored_origins(program, established, segments, declared_origins.is_some())?;
+    let source = super::super::FrameSourcePlace::from_expression(program, expression);
+    for leaf in &mut projected.references {
+        leaf.origin.source.builtin_coordinates &= source.builtin_coordinates;
+    }
+    for moved in &mut projected.moves {
+        moved.source.builtin_coordinates &= source.builtin_coordinates;
+    }
+    Some(projected)
 }
 
 /// Project frozen or symbolic aggregate evidence after the caller validates
 /// the root declaration and the selected type. Case presence remains part of
 /// projection, including subtrees with no exclusive-reference leaves.
+/// Callers transporting expression-derived selectors must conjoin their
+/// builtin-coordinate flag into all returned reference and move sources.
 pub(in crate::calls::write_frames) fn project_stored_origins(
     program: &TypedTrees,
     established: &StoredLocalOrigins,
@@ -474,6 +485,7 @@ mod tests {
                     source: FrameSourcePlace {
                         root: local_symbol,
                         segments: path,
+                        builtin_coordinates: true,
                     },
                 },
             }],

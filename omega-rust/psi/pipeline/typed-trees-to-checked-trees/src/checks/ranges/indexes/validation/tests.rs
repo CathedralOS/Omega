@@ -128,6 +128,7 @@ fn nested_index_traversal_checks_each_collection_extent() {
         let checked = crate::checks::ranges::check_indexed_accesses(
             &program,
             &checked_trees::CheckedOperatorFacts::default(),
+            &checked_trees::BorrowFacts::default(),
             frames.as_ref(),
             &incoming,
         );

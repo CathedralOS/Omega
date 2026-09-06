@@ -378,6 +378,16 @@ fn instantiate_call_relative_places(
         borrow_call.statement_index,
         borrow_call.call_ordinal,
     )?;
+    if matches!(namespace, WritePlaceNamespace::Storage)
+        && !super::operand_coordinates::call_operands_have_builtin_coordinates(
+            program,
+            caller_machine_symbol,
+            caller_state_symbol,
+            &call_site,
+        )
+    {
+        return None;
+    }
     let target_state = find_state(program, borrow_call.target_symbol)?;
     let target_machine_symbol = program
         .machines()

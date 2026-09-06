@@ -30,10 +30,10 @@ fn pure_reference_binding_replacement_has_no_referent_write() {
 }
 
 #[test]
-fn direct_indexed_alias_store_retains_the_coarse_collection() {
+fn direct_indexed_alias_store_retains_fixed_element_and_field_coordinates() {
     assert_direct_alias_store_frame(
         "let alias: &mut u64 = &mut cells[0].left; alias = 7;",
-        Some(&["cells"]),
+        Some(&["cells[0].left"]),
     );
 }
 
@@ -88,9 +88,10 @@ fn assert_direct_alias_store_frame(body: &str, expected_paths: Option<&[&str]>) 
         let mut expected_relative: Vec<_> = expected_paths
             .iter()
             .map(|path| {
+                let path = path.split('[').next().expect("coarse frame prefix");
                 let (root, suffix) = path
                     .split_once('.')
-                    .map_or((*path, String::new()), |(root, suffix)| {
+                    .map_or((path, String::new()), |(root, suffix)| {
                         (root, format!(".{suffix}"))
                     });
                 let position = ["pair", "other", "cells"]
@@ -153,25 +154,7 @@ fn assert_direct_alias_store_frame(body: &str, expected_paths: Option<&[&str]>) 
     let expected: Vec<_> = expected_paths
         .iter()
         .map(|path| {
-            let segments = path
-                .split('.')
-                .map(|name| {
-                    let symbol = program
-                        .data_definitions()
-                        .iter()
-                        .flat_map(|definition| program.data_members(definition))
-                        .find_map(|member| match member {
-                            typed_trees::data::DataMember::Field(field)
-                                if field.name.as_str() == name =>
-                            {
-                                Some(field.symbol)
-                            }
-                            _ => None,
-                        })
-                        .expect("unique fixture field");
-                    facts::PlaceSegment::Field { symbol }
-                })
-                .collect();
+            let segments = expected_segments(&program, path);
             crate::flow::CanonicalPlace {
                 root: facts::PlaceRoot::Symbol(receiver.symbol),
                 segments,
@@ -185,6 +168,37 @@ fn assert_direct_alias_store_frame(body: &str, expected_paths: Option<&[&str]>) 
             "{body}: expected {expected:?}, actual {writes:?}"
         );
     }
+}
+
+fn expected_segments(program: &typed_trees::TypedTrees, path: &str) -> Vec<facts::PlaceSegment> {
+    let mut segments = Vec::new();
+    for member in path.split('.').filter(|member| !member.is_empty()) {
+        let (name, index) = member
+            .split_once('[')
+            .map_or((member, None), |(name, index)| (name, Some(index)));
+        let symbol = program
+            .data_definitions()
+            .iter()
+            .flat_map(|definition| program.data_members(definition))
+            .find_map(|member| match member {
+                typed_trees::data::DataMember::Field(field) if field.name.as_str() == name => {
+                    Some(field.symbol)
+                }
+                _ => None,
+            })
+            .expect("unique fixture field");
+        segments.push(facts::PlaceSegment::Field { symbol });
+        if let Some(index) = index {
+            segments.push(facts::PlaceSegment::FixedIndex {
+                index: index
+                    .strip_suffix(']')
+                    .expect("index suffix")
+                    .parse()
+                    .expect("literal index"),
+            });
+        }
+    }
+    segments
 }
 
 #[test]
@@ -444,7 +458,10 @@ fn local_receiver_origins_survive_direct_and_transitive_mutation_frames() {
                 "other.left",
             ],
         ),
-        ("outer", vec!["holder.pair.left", "holder.cells", ""]),
+        (
+            "outer",
+            vec!["holder.pair.left", "holder.cells[0].left", ""],
+        ),
     ] {
         let machine = program
             .machines()
@@ -471,24 +488,10 @@ fn local_receiver_origins_survive_direct_and_transitive_mutation_frames() {
                     .iter()
                     .find(|parameter| parameter.name.as_str() == root)
                     .expect("parameter");
-                let segments = members
-                    .map(|name| {
-                        let symbol = program
-                            .data_definitions()
-                            .iter()
-                            .flat_map(|definition| program.data_members(definition))
-                            .find_map(|member| match member {
-                                typed_trees::data::DataMember::Field(field)
-                                    if field.name.as_str() == name =>
-                                {
-                                    Some(field.symbol)
-                                }
-                                _ => None,
-                            })
-                            .expect("field");
-                        facts::PlaceSegment::Field { symbol }
-                    })
-                    .collect();
+                let segments = expected_segments(
+                    &program,
+                    path.split_once('.').map_or("", |(_, suffix)| suffix),
+                );
                 vec![crate::flow::CanonicalPlace {
                     root: facts::PlaceRoot::Symbol(parameter.symbol),
                     segments,

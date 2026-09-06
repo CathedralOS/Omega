@@ -55,6 +55,7 @@ mod range_lower_bounds;
 mod range_state_argument_meet;
 mod range_state_call_invalidation;
 mod range_value_snapshots;
+mod range_write_coordinates;
 mod relevance;
 mod semantic_dependencies;
 mod termination;

@@ -340,10 +340,12 @@ fn lexical_place_declaration_before(
     }
 }
 
+mod builtin_coordinates;
 mod exact_self_field;
 mod member_paths;
 mod projected_members;
 mod result_shape;
+pub use builtin_coordinates::place_has_builtin_coordinates;
 pub use exact_self_field::exact_attached_field;
 pub use exact_self_field::exact_self_field;
 use member_paths::{collect_member_path, data_field_or_payload, data_field_or_payload_type};

@@ -65,7 +65,13 @@ pub(super) fn collect_state_argument_facts_from_statement(
             let paths = context
                 .call_frames
                 .and_then(|frames| frames.may_write_frame(machine, call).into_complete_paths());
-            facts.invalidate_call_writes(program, machine, context.state, paths.as_deref());
+            facts.invalidate_call_writes(
+                program,
+                machine,
+                context.state,
+                paths.as_deref(),
+                Some(&crate::CallSite::Statement(call)),
+            );
             // R4 witness mint in the COLLECTION pass too: boundary ensures
             // bound the &mut argument places, so a later transition can
             // transport the fact into its target's params.

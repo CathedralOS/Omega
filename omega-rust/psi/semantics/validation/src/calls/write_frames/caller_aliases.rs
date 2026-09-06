@@ -106,6 +106,12 @@ pub struct LocalWriteOrigin {
     pub local_segments: Vec<facts::PlaceSegment>,
     pub source_path: String,
     pub collection_coarse: bool,
+    /// Structural selectors retained before string-path coarsening. Consumers
+    /// must validate the declaration path; runtime selectors are not snapshots.
+    /// A zero root withholds primitive-coordinate precision without removing
+    /// the coarse source path.
+    pub source_root: SymbolHandle,
+    pub source_segments: Vec<facts::PlaceSegment>,
 }
 
 /// The direct assignment effect, excluding calls evaluated in its operands.
@@ -175,6 +181,12 @@ pub(super) fn local_write_origins_before_statement(
             local_segments: leaf.local_segments,
             source_path: leaf.origin.path,
             collection_coarse: leaf.origin.precision == FramePathPrecision::CollectionCoarse,
+            source_root: if leaf.origin.source.builtin_coordinates {
+                leaf.origin.source.root
+            } else {
+                SymbolHandle::invalid()
+            },
+            source_segments: leaf.origin.source.segments,
         })
         .collect::<Vec<_>>();
     if aliases.is_empty() {
@@ -214,6 +226,12 @@ pub(super) fn local_write_origins_before_statement(
                 local_segments: Vec::new(),
                 source_path: origin.path,
                 collection_coarse: origin.precision == FramePathPrecision::CollectionCoarse,
+                source_root: if origin.source.builtin_coordinates {
+                    origin.source.root
+                } else {
+                    SymbolHandle::invalid()
+                },
+                source_segments: origin.source.segments,
             })
         })
         .collect::<Option<Vec<_>>>()?;

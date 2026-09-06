@@ -90,7 +90,13 @@ pub(super) fn check_statement<'program>(
             }
             let paths = call_frames
                 .and_then(|frames| frames.may_write_frame(machine, call).into_complete_paths());
-            facts.invalidate_call_writes(program, machine, state, paths.as_deref());
+            facts.invalidate_call_writes(
+                program,
+                machine,
+                state,
+                paths.as_deref(),
+                Some(&crate::CallSite::Statement(call)),
+            );
             // R4 witness mint, checker tier: a BOUNDARY callee's `ensures
             // <param> <= K` bounds the `&mut` out-argument's place the
             // moment the call returns (the boundary model's citable fact).

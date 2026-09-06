@@ -117,6 +117,7 @@ fn check_checked_facts_recording_with_crash_admission(
     if let Err(mut range_diagnostics) = ranges::check_indexed_accesses(
         program,
         &facts.operators,
+        &facts.borrow,
         call_frames.as_ref(),
         &incoming_guards,
     ) {

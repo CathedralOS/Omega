@@ -47,21 +47,28 @@ impl RangeFacts<'_> {
         machine: &Machine,
         state: &State,
         paths: Option<&[String]>,
+        site: Option<&crate::CallSite<'_>>,
     ) {
         if paths.is_some_and(|paths| paths.is_empty()) {
             return;
         }
-        let writes = paths
+        let structured = paths
             .filter(|_| !self.expression_dependencies.is_empty())
-            .and_then(|paths| {
-                crate::flow::frame_storage_writes(
-                    program,
-                    machine.symbol,
-                    state.symbol,
-                    self.statement_index,
-                    &facts::NormalizedWriteFrame::complete(paths.to_vec()),
-                )
-            });
+            .and(site)
+            .and_then(|site| self.structured_call_writes(program, machine, state, site));
+        let writes = structured.or_else(|| {
+            paths
+                .filter(|_| !self.expression_dependencies.is_empty())
+                .and_then(|paths| {
+                    crate::flow::frame_storage_writes(
+                        program,
+                        machine.symbol,
+                        state.symbol,
+                        self.statement_index,
+                        &facts::NormalizedWriteFrame::complete(paths.to_vec()),
+                    )
+                })
+        });
         let preserved =
             self.preserved_expression_labels(program, machine, state, writes.as_deref());
         let overlaps = |name: &str| {
@@ -180,6 +187,7 @@ mod tests {
                     &Machine::default(),
                     &State::default(),
                     Some(&["record".into()]),
+                    None,
                 );
             } else {
                 facts.invalidate_relational_bounds(|name| write_affects_bound(name, "record"));
@@ -205,6 +213,7 @@ mod tests {
             &Machine::default(),
             &State::default(),
             Some(&["index".to_owned()]),
+            None,
         );
 
         assert!(!facts.index_upper_bound_is_proven("index", 4));
@@ -224,6 +233,7 @@ mod tests {
             &TypedTrees::default(),
             &Machine::default(),
             &State::default(),
+            None,
             None,
         );
         assert_eq!(
