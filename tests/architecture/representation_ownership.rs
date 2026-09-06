@@ -15,6 +15,42 @@ fn repository() -> PathBuf {
 }
 
 #[test]
+fn scalar_call_transport_is_planned_before_machine_emission() {
+    let root = repository();
+    let emission = rust_source(&root.join("omega-rust/omega/backend/machine-emission/src/unit"));
+    for producer in [
+        "fn scalar_snapshot_registers(",
+        "fn scalar_transport_extent(",
+        "fn x86_unit_scalar_transport_plan(",
+        "fn aarch64_unit_scalar_transport_plan(",
+        "struct UnitScalarTransportPlan {",
+    ] {
+        assert!(
+            !emission.contains(producer),
+            "emission still owns {producer}"
+        );
+    }
+    let representation =
+        rust_source(&root.join("omega-rust/omega/representations/assigned-target-operations/src"));
+    assert_eq!(
+        representation
+            .matches("pub struct UnitScalarTransportPlan {")
+            .count(),
+        1
+    );
+    assert!(representation.contains("pub call_stack_bytes: u32"));
+    assert!(representation.contains("pub snapshot_slots: Vec<(MachineRegister, u32)>"));
+    let checker = std::fs::read_to_string(
+        root.join("omega-rust/omega/backend/machine-emission/src/unit/scalar_transport.rs"),
+    )
+    .unwrap();
+    let production_checker = checker.split("#[cfg(test)]").next().unwrap();
+    assert!(production_checker.contains("fn validate_scalar_transport("));
+    assert!(!production_checker.contains("target_operations_to_assigned_target_operations"));
+    assert!(!production_checker.contains("UnitScalarTransportPlan {"));
+}
+
+#[test]
 fn selected_form_encoding_data_outlives_its_producer() {
     let root = repository();
     let representation = root.join("omega-rust/omega/representations/machine-code/src");

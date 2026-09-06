@@ -129,6 +129,12 @@ pub(super) fn assign(
         callee,
         call_plan: call_plan.clone(),
         result_home,
+        transport: super::scalar_transport::assign(
+            call_plan,
+            &assigned_arguments,
+            target,
+            super::scalar_transport::CallTransportKind::ScalarResult,
+        )?,
         arguments: assigned_arguments,
         requirement_obligations: requirement_obligations.to_vec(),
         crash_continuations: crash_continuations.to_vec(),

@@ -93,6 +93,16 @@ requirements and receipts remain available for replay. Frame geometry is
 checked by bounds and congruences, and emitted frame spans by exact order,
 extent and target encoding; neither check re-enters the producing calculation.
 
+Scalar-bearing internal calls retain their outgoing stack extent and ordered
+register snapshot slots before byte emission. Assignment owns those choices;
+emission checks the exact incoming-register roster, disjoint slot geometry and
+minimal ABI alignment, then executes the retained transport without repairing
+it. This includes scalar-result, mixed scalar/structural, and structural-result
+calls. Aggregate-only Unit calls carry no scalar transport and retain their
+separate aggregate transport handling until physical-route convergence.
+These are current physical facts, not producer-history wrappers or a new
+public pipeline stage.
+
 ## Terminal boundary
 
 Terminal Psi is the output of target-neutral Psi optimization, not its mutable

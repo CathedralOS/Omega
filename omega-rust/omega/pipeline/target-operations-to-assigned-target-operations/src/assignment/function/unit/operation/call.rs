@@ -320,6 +320,16 @@ pub(super) fn assign(
             callee: *callee,
             result: None,
             call_plan: call_plan.clone(),
+            transport: if assigned_scalar_arguments.is_empty() {
+                None
+            } else {
+                Some(super::super::scalar_transport::assign(
+                    call_plan,
+                    &assigned_scalar_arguments,
+                    target,
+                    super::super::scalar_transport::CallTransportKind::Mixed,
+                )?)
+            },
             scalar_arguments: assigned_scalar_arguments,
             copies: arguments
                 .iter()

@@ -211,8 +211,12 @@ fn attached_unit_structural_scalar_lane_replays_exact_custody_on_both_architectu
                 ..
             }
         ));
-        let AssignedUnitOperation::StructuralScalarCall { result, copies, .. } =
-            &body.operations[2]
+        let AssignedUnitOperation::StructuralScalarCall {
+            result,
+            copies,
+            transport,
+            ..
+        } = &body.operations[2]
         else {
             panic!("projected scalar call remains explicit")
         };
@@ -221,6 +225,15 @@ fn attached_unit_structural_scalar_lane_replays_exact_custody_on_both_architectu
             ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap())
         );
         assert_eq!(copies.len(), 1);
+        assert!(transport.snapshot_slots.is_empty());
+        assert_eq!(
+            transport.call_stack_bytes,
+            if target == NativeTarget::linux_x64() {
+                8
+            } else {
+                0
+            }
+        );
         assert_eq!(
             copies[0].path,
             [StructuralPathSegment::Field("item".into())]

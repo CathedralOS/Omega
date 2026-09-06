@@ -75,6 +75,7 @@ pub(super) fn emit(
                     result: None,
                     call_plan: callee_call_plan.clone(),
                     scalar_arguments: Vec::new(),
+                    transport: None,
                     copies: copies.clone(),
                     claim_transfers: claim_transfers.clone(),
                     requirement_obligations: requirement_obligations.clone(),

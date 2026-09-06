@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use assigned_target_operations::{
     AssignedFunction, AssignedOperation, AssignedScalarLocation, AssignedUnitBody,
-    AssignedUnitOperation, AssignedUnitScalarArgumentSource,
+    AssignedUnitOperation, AssignedUnitScalarArgumentSource, UnitScalarTransportPlan,
 };
 use calling_conventions::{CallSignature, CallingPolicy, ValueLocation, evaluate_call_plan};
 use machine_code::{
@@ -30,11 +30,11 @@ use crate::{
 };
 
 use super::scalar_call::{
-    aarch64_unit_scalar_transport_plan, emit_aarch64_scalar_snapshots,
-    emit_aarch64_unit_scalar_argument, emit_x86_64_scalar_snapshots,
+    emit_aarch64_scalar_snapshots, emit_aarch64_unit_scalar_argument, emit_x86_64_scalar_snapshots,
     emit_x86_64_unit_scalar_argument, unit_scalar_argument_source_record,
-    validate_unit_scalar_argument, x86_unit_scalar_transport_plan,
+    validate_unit_scalar_argument,
 };
+use super::scalar_transport::validate_scalar_transport;
 
 pub(super) fn emit_structural_scalar_field_store(
     operation: &AssignedUnitOperation,
@@ -420,6 +420,7 @@ pub(super) fn emit_unit_result_call(
         result: None,
         call_plan,
         scalar_arguments,
+        transport,
         copies,
         claim_transfers,
         ..
@@ -428,6 +429,7 @@ pub(super) fn emit_unit_result_call(
         return Err(EmissionError::UnsupportedAggregatePlacement);
     };
     let invalid = || EmissionError::InvalidUnitScalarCallCustody(*psi_operation);
+    let transport = transport.as_ref().ok_or_else(invalid)?;
     let scalar_shapes = scalar_arguments
         .iter()
         .map(|argument| {
@@ -495,6 +497,7 @@ pub(super) fn emit_unit_result_call(
             *callee,
             call_plan,
             scalar_arguments,
+            transport,
             caller_scalar_parameters,
             copies,
             preceding_operations,
@@ -508,6 +511,7 @@ pub(super) fn emit_unit_result_call(
             *callee,
             call_plan,
             scalar_arguments,
+            transport,
             caller_scalar_parameters,
             copies,
             preceding_operations,
@@ -577,6 +581,7 @@ pub(super) fn emit_structural_scalar_call(
         callee,
         call_plan,
         scalar_arguments,
+        transport,
         copies,
         claim_transfers,
         ..
@@ -670,6 +675,7 @@ pub(super) fn emit_structural_scalar_call(
             *callee,
             call_plan,
             scalar_arguments,
+            transport,
             caller_scalar_parameters,
             copies,
             preceding_operations,
@@ -683,6 +689,7 @@ pub(super) fn emit_structural_scalar_call(
             *callee,
             call_plan,
             scalar_arguments,
+            transport,
             caller_scalar_parameters,
             copies,
             preceding_operations,
@@ -754,6 +761,7 @@ pub(super) fn emit_structural_result_call(
         callee_result,
         call_plan,
         scalar_arguments,
+        transport,
         copies,
         claim_transfers,
         returned_claim_transfers,
@@ -853,6 +861,7 @@ pub(super) fn emit_structural_result_call(
             *callee,
             call_plan,
             scalar_arguments,
+            transport,
             caller_scalar_parameters,
             copies,
             preceding_operations,
@@ -866,6 +875,7 @@ pub(super) fn emit_structural_result_call(
             *callee,
             call_plan,
             scalar_arguments,
+            transport,
             caller_scalar_parameters,
             copies,
             preceding_operations,
@@ -1023,6 +1033,7 @@ fn emit_x86_64_mixed_call(
     callee: semantic_vocabulary::MachineId,
     call_plan: &calling_conventions::CallPlan,
     scalar_arguments: &[assigned_target_operations::AssignedUnitScalarCallArgument],
+    transport: &UnitScalarTransportPlan,
     caller_scalar_parameters: &[target_operations::UnitScalarAbiValue],
     copies: &[assigned_target_operations::AssignedAggregateCopy],
     preceding_operations: &[AssignedUnitOperation],
@@ -1047,7 +1058,13 @@ fn emit_x86_64_mixed_call(
         )
         .map_err(|_| EmissionError::InvalidStructuralScalarCallCustody(psi_operation))?;
     }
-    let transport = x86_unit_scalar_transport_plan(call_plan, scalar_arguments, 0)?;
+    validate_scalar_transport(
+        Architecture::X86_64,
+        call_plan,
+        scalar_arguments,
+        0,
+        transport,
+    )?;
     let call_stack_bytes = transport.call_stack_bytes;
     let mut allocation = None;
     if call_stack_bytes != 0 {
@@ -1060,14 +1077,14 @@ fn emit_x86_64_mixed_call(
     for (parameter_index, argument) in scalar_arguments.iter().enumerate() {
         let code_offset = bytes.len();
         if parameter_index == 0 {
-            emit_x86_64_scalar_snapshots(bytes, &transport)?;
+            emit_x86_64_scalar_snapshots(bytes, transport)?;
         }
         emit_x86_64_unit_scalar_argument(
             bytes,
             argument,
             frame_bytes,
             call_stack_bytes,
-            &transport,
+            transport,
         )?;
         scalar_records.push(InternalUnitScalarCallArgumentRecord {
             parameter_index: argument.parameter_index,
@@ -1134,6 +1151,7 @@ fn emit_aarch64_mixed_call(
     callee: semantic_vocabulary::MachineId,
     call_plan: &calling_conventions::CallPlan,
     scalar_arguments: &[assigned_target_operations::AssignedUnitScalarCallArgument],
+    transport: &UnitScalarTransportPlan,
     caller_scalar_parameters: &[target_operations::UnitScalarAbiValue],
     copies: &[assigned_target_operations::AssignedAggregateCopy],
     preceding_operations: &[AssignedUnitOperation],
@@ -1158,7 +1176,13 @@ fn emit_aarch64_mixed_call(
         )
         .map_err(|_| EmissionError::InvalidStructuralScalarCallCustody(psi_operation))?;
     }
-    let transport = aarch64_unit_scalar_transport_plan(call_plan, scalar_arguments)?;
+    validate_scalar_transport(
+        Architecture::Aarch64,
+        call_plan,
+        scalar_arguments,
+        0,
+        transport,
+    )?;
     let call_stack_bytes = transport.call_stack_bytes;
     let mut allocation = None;
     if call_stack_bytes != 0 {
@@ -1173,14 +1197,14 @@ fn emit_aarch64_mixed_call(
     for (parameter_index, argument) in scalar_arguments.iter().enumerate() {
         let code_offset = bytes.len();
         if parameter_index == 0 {
-            emit_aarch64_scalar_snapshots(bytes, &transport)?;
+            emit_aarch64_scalar_snapshots(bytes, transport)?;
         }
         emit_aarch64_unit_scalar_argument(
             bytes,
             argument,
             frame_bytes,
             call_stack_bytes,
-            &transport,
+            transport,
         )?;
         scalar_records.push(InternalUnitScalarCallArgumentRecord {
             parameter_index: argument.parameter_index,

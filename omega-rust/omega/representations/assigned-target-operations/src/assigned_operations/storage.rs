@@ -3,6 +3,9 @@
 use semantic_vocabulary::ValueId;
 use target_operations::MachineRegister;
 
+pub mod scalar_call;
+pub use scalar_call::*;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExpressionFrame {
     /// Aligned bytes reserved before evaluating the expression.

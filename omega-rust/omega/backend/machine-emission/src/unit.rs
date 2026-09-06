@@ -29,6 +29,7 @@ mod dynamic_argument;
 mod installed_provider;
 mod projected_copy;
 mod scalar_call;
+mod scalar_transport;
 pub(crate) mod structural_scalar;
 mod write_only_primitive_store;
 
@@ -1047,6 +1048,7 @@ pub(super) fn emit_unit_body(
                 callee,
                 result,
                 scalar_arguments,
+                transport,
                 copies,
                 claim_transfers,
                 ..
@@ -1069,6 +1071,9 @@ pub(super) fn emit_unit_body(
                         code_offset,
                     )?);
                 } else {
+                    if transport.is_some() {
+                        return Err(EmissionError::InvalidUnitScalarCallCustody(*psi_operation));
+                    }
                     operation_site = Some(*psi_operation);
                     let argument_intervals = match target.architecture {
                         Architecture::X86_64 => emit_x86_64_unit_call(
@@ -1148,6 +1153,7 @@ pub(super) fn emit_unit_body(
                 call_plan,
                 result_home,
                 arguments,
+                transport,
                 ..
             } => {
                 operation_site = Some(*psi_operation);
@@ -1159,6 +1165,7 @@ pub(super) fn emit_unit_body(
                     call_plan,
                     *result_home,
                     arguments,
+                    transport,
                     &body.scalar_parameters,
                     match target.architecture {
                         Architecture::X86_64 => x86_frame_bytes,
