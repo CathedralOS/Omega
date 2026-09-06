@@ -689,6 +689,23 @@ subsystem/image choice, and provider selections do not move into target policy.
 Target-qualified root and provider bindings remain ordinary authored build
 data, and assignment to `builder.target` remains invalid.
 
+### GUI application publication
+
+The [macOS application publication contract](macos_application_publication.md)
+defines the owner-ratified replacement for the unproduced bundle-copy lane.
+GUI intent in `build.omg` selects one `.app` for complete macOS application
+output; Windows and Linux GUI outputs remain flat executables. Assembly belongs
+to post-compilation product publication, not Psi or instruction lowering.
+This is not implemented bundle support: current macOS publication remains flat.
+
+Portable application intent must remain separate from target-specific PE loader
+integers. Preserve EFI's entry/environment contract rather than classifying it
+as hosted console/GUI or introducing a second environment switch. The authored
+application identifier is required at signed macOS GUI native-image emission,
+including retained native output, but not at a Terminal-Psi stop. It is a bound
+realization input; display metadata and destination are publication inputs.
+The exact new field spelling is pending implementation surface specification.
+
 ### Requested target and target admissibility
 
 The invocation requests one exact `TargetProfile` or a nonempty explicit set.

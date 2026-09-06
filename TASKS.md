@@ -68,6 +68,23 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   deterministic manifest of every transitive compiler/build input. Bootstrap
   construction of that closure belongs in `TASKS_BOOTSTRAP.md`.
 
+- **MACOS-APPLICATION-PUBLICATION.** Implement the
+  [settled publication contract](wiki/design_briefs/macos_application_publication.md)
+  in build evaluation/realization inputs, Mach-O signing, command publication,
+  and compilation reports. Retire the unproduced bundle-copy slot/helpers/tests
+  and stale Rust module notes without removing flat/report validation or changing
+  flat v1 digests. Specify the identifier field in ordinary build vocabulary,
+  preserve portable GUI intent separately from PE integers, and bind native
+  signing identity before emission. Publish one whole validated `.app` with
+  distinct checked package-root and inner-executable accessors.
+
+  Acceptance: the brief's stage-requiredness, deterministic bytes, cross-invocation,
+  tampering, partial-output, and flat-regression controls pass; GUI samples carry
+  authored identifiers and consumers use reported paths. Validate the procedural
+  GUI cohort on macOS, recording unavailable-host coverage explicitly. Resource
+  inclusion/lookup for `image_viewer` remains outside v1; do not claim Finder
+  runtime coverage for it or silently change its working directory.
+
 - **SAMPLE-CORPUS.** `mbx test -p compiler --test samples_compile` is red.
   `cli/proofs/math_proofs` needs ordinary core multiset data and slice-to-proof
   extraction machines, then explicit imports and exact declaration selection

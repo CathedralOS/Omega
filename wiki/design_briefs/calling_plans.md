@@ -1261,15 +1261,15 @@ substituted strong derivation, while installation format 42 serializes all four
 digests and rejects digest/compact-field drift before accepting the canonical
 record.
 The compiler constructs and revalidates this complete footprint certificate
-before installing the executable or app-bundle bytes. Auxiliary inventory
+before installing executable bytes. Auxiliary inventory
 serialization consumes that already validated certificate instead of creating
 authority after publication; report I/O may fail later, but no semantic
 certificate failure can occur only after executable visibility.
 Publication then seals the certificate to the exact emitted image evidence,
 replayed final-text/inventory pair, output name and format, and full container
-byte identity. Both the flat executable and optional app-bundle copy consume
-that same validated view. This is non-serialized orchestration custody, not a
-new semantic footprint class: it prevents a valid certificate from being
+byte identity. Executable publication consumes that validated view. This is
+non-serialized orchestration custody, not a new semantic footprint class: it
+prevents a valid certificate from being
 paired with another container or output identity before publication.
 Certificate, publication, container, compiler-text, and installed-destination
 joins use separate domain-framed SHA-256 digest types. Compact callback,
@@ -1297,37 +1297,35 @@ After atomic rename, the compiler independently reads the destination and
 compares every byte with the sealed container before minting or returning the
 installation receipt. A missing or changed destination is removed and rejects,
 so the outward report cannot attest merely to a validated temporary file.
-For a Mach-O GUI build, the compiler report retains the app-bundle executable
-receipt separately from the flat executable receipt. Both consume the same
-sealed publication and container, while their exact destination paths remain
-distinct; non-bundle targets retain no second receipt.
-The orchestration return independently validates this pair. A bundle receipt
-requires one flat receipt, identical certificate, inventory, publication,
-container, and output-leaf identities, plus distinct destination paths and
-installation identities. Missing, substituted, or self-aliased pairs reject
-instead of reaching the outward compiler report.
-Each receipt also carries its exact destination role, and that role participates
-in the installation identity. The flat report slot accepts only `FlatOutput`,
-while the optional bundle slot accepts only `MacOsAppBundle`; swapping two
-otherwise matching receipts therefore rejects.
-The bundle slot additionally rederives the canonical
-`<build>/<sanitized-project>.app/Contents/MacOS/<executable>` path from the
-report root and flat output. A same-leaf receipt under another bundle or
-directory cannot substitute for that exact destination.
-Because that root is now an input to publication custody, the outward report
-exposes it only through a read-only accessor. A caller cannot redirect the root
-after validation and thereby change the canonical bundle identity.
-Immediately before either outward receipt is minted, installation replays the
-renamed destination bytes once more against the sealed container. Destination
+The [macOS application publication contract](macos_application_publication.md)
+supersedes the former flat-plus-optional-bundle-copy design. Current publication
+writes a flat executable even for macOS GUI output; std requests activation.
+The optional bundle-copy carrier has no producer and is scheduled for removal,
+not restoration as evidence of a complete application. Its flat-receipt and
+general report checks remain required. Flat installation v1 retains its fixed
+`0` destination tag and byte-identical digests after the enum is removed.
+
+The replacement publishes one complete `.app` for a selected macOS GUI
+application, using the post-compilation product-publication owner. It validates
+the executable, generated plist, directory shape, and agreement between retained,
+signed, and plist application identifiers. The package root and inner executable
+have separate checked accessors with one validated structural relationship.
+No separate flat copy is a required deliverable. This is a settled contract with
+implementation outstanding, not a claim that the present writer emits bundles.
+The compilation root remains read-only information about the reported build;
+that property no longer depends on bundle-name derivation.
+
+Immediately before an outward executable receipt is minted, installation
+replays the renamed destination bytes once more against the sealed container. Destination
 drift in the interval after the installation check removes the changed file and
 rejects instead of returning stale custody.
 The report also retains the exact orchestration output category. A native
-executable requires the flat receipt, an object-container fallback forbids both
-executable receipts, and a check-only result forbids both output and receipts.
+executable requires checked executable custody, an object-container fallback
+forbids executable receipts, and a check-only result forbids output and receipts.
 Thus lost native custody cannot be reclassified as a valid fallback merely
 because both use the older `wrote_output` boolean.
-The validated output flag, category, flat receipt, and optional bundle receipt
-are exposed only through read-only report accessors. Callers can inspect that
+The validated output flag, category, and publication records are exposed only
+through read-only report accessors. Callers can inspect that
 custody tuple but cannot rearrange, replace, or drop one component after the
 compiler's final consistency check.
 Production orchestration now constructs both early check-only and backend
@@ -1347,16 +1345,15 @@ bridge must retain that evidence, and object-container fallback cannot carry a
 program-storage bridge. Missing or premature evidence therefore rejects at the
 same return boundary.
 For a native bridge, its final wrapper evidence must additionally name the same
-executable-region inventory fingerprint as the flat publication receipt.
+executable-region inventory fingerprint as the executable publication receipt.
 Evidence from another otherwise valid final image cannot accompany the
 published container.
 The receipt now also retains the compiler-text derivation and compiler-function
-evidence fingerprints already present in the sealed certificate. Flat and
-bundle receipts must agree on both, and native wrapper evidence must rejoin the
-same pair rather than relying on inventory identity alone.
+evidence fingerprints already present in the sealed certificate. Native wrapper
+evidence must rejoin both rather than relying on inventory identity alone.
 The receipt additionally retains the certificate's optional boundary-contract
-fingerprint. Flat and bundle copies must agree, and a native program-storage
-arrival must name that same concrete contract; absent or redirected contract
+fingerprint. A native program-storage arrival must name that same concrete
+contract; absent or redirected contract
 custody rejects before report return.
 Final relocation replay also builds one exact owner map from every retained
 selected-instruction identity to that function symbol. A selected instruction
@@ -1914,33 +1911,32 @@ These are plan/checker/backend questions. They do not justify reviving
 addresses as integers.
 
 The compile report also rejoins a retained program-storage entry binding's
-exact boundary-contract fingerprint directly to the native flat publication
+exact boundary-contract fingerprint directly to the native executable publication
 receipt. Check-only compilation may retain the selected binding while no
 publication exists, and object-container output may not retain the binding at
 all. This is an independent custody check: matching wrapper-arrival evidence
 cannot conceal a redirected selected binding.
 
 Each retained executable receipt's installation seal is now replayable from
-its existing exact destination role, publication identity, output path, and
-container byte identity. Report validation checks that seal independently for
-the flat executable and optional bundle copy. A substituted path, role,
-container, or opaque installation fingerprint therefore rejects even when no
-second receipt exists for pairwise comparison.
+its publication identity, output path, and container byte identity, retaining
+the fixed flat-destination tag under the existing v1 digest domain. Report
+validation checks that seal without depending on a second receipt. A substituted
+path, container, or opaque installation fingerprint therefore rejects. Whole
+application-package validation follows the replacement contract above, not the
+retired optional-copy relation.
 
 The written-output handoff is also checked before its path is used by
 auxiliary reporting or consumed into the compile report. Native output requires
-that handoff path to equal the flat receipt's exact installed path;
-object-container output carries neither executable receipt, and check-only
+that handoff path to equal the executable receipt's exact installed path;
+object-container output carries no executable receipt, and check-only
 cannot appear as a written output. The handoff fields are private after this
 check, preventing path/receipt drift between installation and report custody.
-That handoff now applies the same exact optional-bundle relation before it is
-consumed: the bundle must use its canonical root-derived path and bundle role,
-retain the flat publication/certificate/container identities, carry its own
-valid installation seal, and remain distinct from the flat installation. The
-final report independently replays the same relation.
+For the replacement macOS package producer, both handoff and report must retain
+the checked package root and inner executable relationship. An executable-copy
+seal alone cannot establish whole-package publication.
 
 Native execution consumers no longer reconstruct the executable name from a
-build-directory convention. The report exposes its flat installed path only
+build-directory convention. The report exposes its installed executable path only
 after replaying both the complete publication graph and optional
 program-storage bridge custody; check-only, object-container, or internally
 drifted reports return no executable path. The `omega run` probe consumes only
@@ -1963,24 +1959,9 @@ use the same checked-report runner boundary. They retain their exact literal
 exit-status assertions while removing every conventional `out/<executable>`
 reconstruction; the strict source index preserves the same unique-owner count.
 
-The first five authored-root value-call/dispatch executions now also launch
-only from the checked report's flat publication receipt. Their exact literal
-status and unique source-owner identities remain unchanged; compiler-function
-fingerprint drift between the flat and bundle copies is pinned to suppress the
-executable path before any probe can run.
-
-The next five authored-root dispatch executions, through the mixed return-type
-value-call probe, also consume only the checked flat receipt. Literal exit
-status and exact source ownership stay unchanged, while boundary-contract drift
-between flat and bundle receipts is pinned to suppress native execution.
-
-The following five value-call consumers, ending at the post-splice mutation
-result probe, now share that receipt-only launch boundary as well. Their exact
-status/owner rows remain stable, and flat/bundle executable-inventory drift is
-pinned to expose no native path.
-
-Five further runtime consumers—called-machine loop search, looping value/cast
-returns, the slice-length guard, and the sleep probe—now launch only from the
-checked report receipt. Exact owner/status rows remain unchanged, and
-flat/bundle compiler-text validation drift is pinned to expose no executable
-path.
+Authored-root value-call, dispatch, loop, cast, slice-length, and sleep consumers
+use that checked-report launch boundary. Preserve their exact source/status
+oracles and the independent flat-receipt tampering checks when deleting mixed
+bundle-copy tests. Production callers of a validator do not establish test
+coverage by themselves. For bundled output, the same executable-path accessor
+must return the verified inner executable, not a guessed flat sibling.
