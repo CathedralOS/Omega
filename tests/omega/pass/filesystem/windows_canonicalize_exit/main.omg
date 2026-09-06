@@ -9,7 +9,7 @@
 // descriptor's stored key (first byte 'o' of the relative probe name,
 // 111) -- the transition accepts exactly these two, so a garbage or
 // unwritten buffer fails BOTH engines. The missing-path leg pins
-// NotFound on both (the open leg fails with real msvcrt/virtual ENOENT
+// NotFound on both (the open leg fails with native/model ERROR_FILE_NOT_FOUND
 // before path resolution).
 // exits: 70 good; 71 seed write failed; 72 canonicalize refused; 73 the
 // resolved buffer starts with neither model's spelling; 74 the
@@ -20,6 +20,27 @@
 use omega_language_std::filesystem;
 
 use omega_language_std::console;
+
+// Separate entry for the host-call-count regression: failed acquisition must
+// observe its error without querying or closing the invalid handle.
+data FailedOpen {
+    filesystem: Filesystem;
+    buffer: [u8; 1024];
+    result: UnitResult;
+}
+
+machine FailedOpen::main(&mut self) -> i32 {
+    self.result = self.filesystem.canonicalize("omega_wcanon_missing.txt", &mut self.buffer);
+    transition self.result {
+        UnitResult::Error { kind } -> failed(kind)
+        _ -> unexpected()
+    }
+    state failed(&mut self, kind: ErrorKind) -> i32 {
+        transition kind { ErrorKind::NotFound -> expected() _ -> unexpected() }
+    }
+    state expected(&mut self) -> i32 { 70 }
+    state unexpected(&mut self) -> i32 { 71 }
+}
 
 data Main {
     console: Console;
@@ -38,7 +59,7 @@ machine Main::main(&mut self) {
     state spelled(&mut self) {
         // Native: '\\' (92, the \\?\ prefix). Hermetic: 'o' (111, the key
         // verbatim). Anything else = the resolve never wrote the buffer.
-        transition self.canon[0] == 92 { true -> missing() _ -> spelled_virtual() }
+        transition self.canon[0] == 92 { true -> make_dir() _ -> spelled_virtual() }
     }
     state spelled_virtual(&mut self) {
         transition self.canon[0] == 111 { true -> make_dir() _ -> bad(73) }
@@ -62,8 +83,7 @@ machine Main::main(&mut self) {
         transition self.unit_result { UnitResult::Error { kind } -> kindcheck(kind) _ -> bad(74) }
     }
     state kindcheck(&mut self, kind: ErrorKind) {
-        // The OPEN leg fails first on both engines (real msvcrt errno /
-        // virtual ENOENT), so the kind is honest here.
+        // The open leg's captured GetLastError supplies this classification.
         transition kind { ErrorKind::NotFound -> cleanup() _ -> bad(75) }
     }
     state cleanup(&mut self) {

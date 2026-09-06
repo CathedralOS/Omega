@@ -437,8 +437,7 @@ Owners include
 
 - **FILESYSTEM-RELEASE-CONTRACT.** Implement bounded occurrence-specific
   open/query/close evidence through checked flow and native realization replay.
-  First repair Windows `Filesystem::canonicalize` acquisition-success ordering
-  without changing sharing flags. Prove the exact object/argument contract,
+  Prove the exact object/argument contract,
   handle/alias preservation through intervening calls, one applicable release,
   and no later use; authority classes alone are not preservation evidence.
   Acceptance: constrained ordinary close has one evidence-bound empty row;
