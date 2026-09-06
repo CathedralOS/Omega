@@ -5,6 +5,7 @@ use super::*;
 pub(crate) mod authored;
 pub(crate) mod initializers;
 pub(crate) mod occurrences;
+pub(crate) mod projected_receivers;
 
 pub(super) fn validate_operation(
     checked: &CheckedTrees,

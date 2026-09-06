@@ -734,9 +734,17 @@ authority does not follow. One direct write-only literal fixed-array parameter
 root may carry a finite nonempty suffix of ordered in-bounds `FixedIndex`
 segments through recursively literal fixed arrays, either directly or after
 the eligible field prefix, when the ultimate element is an unrestricted
-non-Atomic primitive. The verifier independently rejoins every array shape,
-bound, element type, multiplicity, and write-only access. Dynamic, range, whole
-nested-array, and aggregate-element paths remain absent. The verifier also
+non-Atomic primitive. An implicit write-only receiver additionally admits
+material record leaves through finite interleaved field and literal-index
+paths. The source producer retains parameter or attached-self roots and exact
+callee identity; independent source replay rejects even an in-bounds index
+substitution. The verifier independently rejoins every array shape, bound,
+element type, multiplicity, and write-only access. Indexed receiver roots must
+have closed material record/array/scalar structure, without erased fields,
+descriptors, or sums. Dynamic and range paths, whole nested-array leaves, and
+retained local receiver aliases remain outside this producer. Canonical
+receiver artifacts execute under incremental fuel without repeating calls or
+stores; this does not establish their native realization. The verifier also
 rejects widening, target disagreement, overlapping exclusive arguments, and
 Boolean structural observation through write-only access.
 For direct Unit calls, target lowering walks the same finite field/index path

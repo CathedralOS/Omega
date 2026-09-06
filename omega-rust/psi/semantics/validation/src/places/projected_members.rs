@@ -82,7 +82,7 @@ pub(super) fn declared_case_projection_type(
 /// Select one field under the receiver's nominal declaration and, for a
 /// payload, its exact case. A missing payload symbol may be recovered from
 /// that declaration; a conflicting retained symbol cannot be replaced.
-pub(crate) fn exact_data_member_field<'program>(
+pub fn exact_data_member_field<'program>(
     program: &'program TypedTrees,
     data: &'program typed_trees::data::DataDefinition,
     member_symbol: SymbolHandle,

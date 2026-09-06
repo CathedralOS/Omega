@@ -195,8 +195,14 @@ storage containing no live `T` is a separate feature.
 > container's identity and the callee's exact leaf type. A mutable root may
 > supply a write-only callee: the root retains mutable access while the call
 > operand and callee retain write-only access. Bare attached-field spellings
-> retain the same `self` root and ordered path. Indexed receiver projections
-> remain outside that Terminal producer path.
+> retain the same `self` root and ordered path. A write-only callee may also
+> receive a material record through finite literal fixed-array indexes,
+> interleaved with record fields, from either mutable or write-only parameter
+> roots. Source replay checks the exact authored path, and Terminal verification
+> reconstructs its bounds, type, and non-transferring access. Canonical artifacts
+> execute across fuel boundaries without replaying the call or store. Dynamic
+> indexes and retained local aliases remain outside this Terminal receiver
+> producer; indexed receiver native execution is not established by this rung.
 > Borrowed `self` uses the reference type's usage multiplicity, just like an
 > explicit reference parameter; its access still controls reading and mutation.
 > This does not provision a native executable's entry receiver.

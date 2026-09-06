@@ -407,8 +407,9 @@ pub(super) fn validate_unit_operation_static(
                 .zip(&callee.structural_parameters)
                 .position(|(argument, expected)| {
                     (is_literal_indexed_field_path(&argument.path)
-                        || (is_direct_literal_index_path(&argument.path)
-                            && argument.access == StructuralAccess::WriteOnlyBorrow))
+                        || (argument.path.iter().any(|segment| {
+                            matches!(segment, StructuralPathSegment::FixedIndex(_))
+                        }) && argument.access == StructuralAccess::WriteOnlyBorrow))
                         && !is_unrestricted_write_only_subloan(module, machine, expected, argument)
                         && !is_unrestricted_shared_subloan(machine, expected, argument)
                         && !(argument.access == StructuralAccess::Owned
@@ -1504,18 +1505,53 @@ fn is_admitted_unit_call_argument_path(
         || is_nonempty_field_path(&argument.path)
         || is_literal_indexed_field_path(&argument.path)
         || is_direct_literal_index_path(&argument.path)
+        // Structural paths already retain only fields and literal indexes;
+        // write-only subloans may interleave them. Resolution checks each hop.
+        || argument.access == StructuralAccess::WriteOnlyBorrow
         || (argument.access == StructuralAccess::Owned
             && partial_affine_root_type(caller, argument.place).is_some_and(|structural_type| {
                 is_partial_affine_path(module, structural_type, &argument.path)
             }))
 }
 
-fn is_literal_indexed_write_only_path(path: &[StructuralPathSegment]) -> bool {
-    literal_index_path(path).is_some()
-}
-
-fn is_write_only_subloan_path(path: &[StructuralPathSegment]) -> bool {
-    is_nonempty_field_path(path) || is_literal_indexed_write_only_path(path)
+fn is_material_write_only_type(module: &TerminalModule, structural_type: StructuralTypeId) -> bool {
+    // Foundation establishes an acyclic, closed graph without bounding depth.
+    // Traverse iteratively and inspect each shared declaration only once.
+    let mut pending = vec![structural_type];
+    let mut visited = BTreeSet::new();
+    while let Some(current) = pending.pop() {
+        if !visited.insert(current) {
+            continue;
+        }
+        let Some(declaration) = module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == current)
+        else {
+            return false;
+        };
+        match &declaration.shape {
+            StructuralTypeShape::PrimitiveScalar(_) => {}
+            StructuralTypeShape::Record { fields } => {
+                for field in fields {
+                    if field.relevance.is_erased() {
+                        return false;
+                    }
+                    match field.field_type {
+                        StructuralFieldType::Scalar(_) | StructuralFieldType::IeeeFloat(_) => {}
+                        StructuralFieldType::Structural(next) => pending.push(next),
+                        StructuralFieldType::ByteSequence(_)
+                        | StructuralFieldType::Erased { .. } => return false,
+                    }
+                }
+            }
+            StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
+            StructuralTypeShape::ByteSequence(_)
+            | StructuralTypeShape::Sum { .. }
+            | StructuralTypeShape::Mixed { .. } => return false,
+        }
+    }
+    true
 }
 
 fn is_unrestricted_write_only_subloan(
@@ -1531,20 +1567,24 @@ fn is_unrestricted_write_only_subloan(
     else {
         return false;
     };
-    let indexed_leaf_is_primitive =
-        !matches!(
-            argument.path.last(),
-            Some(StructuralPathSegment::FixedIndex(_))
-        ) || resolve_structural_path(module, actual.structural_type, &argument.path).is_some_and(
-            |leaf| {
-                module.structural_types.iter().any(|declaration| {
-                    declaration.id == leaf
-                        && matches!(&declaration.shape, StructuralTypeShape::PrimitiveScalar(_))
-                })
-            },
-        );
+    let indexed_path_is_material = !argument
+        .path
+        .iter()
+        .any(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)))
+        || (is_material_write_only_type(module, actual.structural_type)
+            && resolve_structural_path(module, actual.structural_type, &argument.path)
+                .is_some_and(|leaf| {
+                    module.structural_types.iter().any(|declaration| {
+                        declaration.id == leaf
+                            && matches!(
+                                &declaration.shape,
+                                StructuralTypeShape::PrimitiveScalar(_)
+                                    | StructuralTypeShape::Record { .. }
+                            )
+                    })
+                }));
 
-    is_write_only_subloan_path(&argument.path)
+    !argument.path.is_empty()
         && argument.access == StructuralAccess::WriteOnlyBorrow
         && expected.access == StructuralAccess::WriteOnlyBorrow
         && expected.multiplicity == StructuralMultiplicity::Unrestricted
@@ -1553,7 +1593,7 @@ fn is_unrestricted_write_only_subloan(
             StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
         )
         && actual.multiplicity == StructuralMultiplicity::Unrestricted
-        && indexed_leaf_is_primitive
+        && indexed_path_is_material
 }
 
 fn is_unrestricted_shared_subloan(

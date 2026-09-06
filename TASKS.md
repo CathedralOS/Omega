@@ -383,9 +383,12 @@ Owners include
   mutable borrow. Acceptance includes read rejection, exact write coverage,
   unwind/return behavior, and both Linux targets.
 
-  Carry checked fixed-array receiver projections through Terminal production
-  and native lowering, retaining exact element type, ordered place coordinates,
-  bounds, and exclusive access. Extend non-observing receiver admission to
+  Finish native lowering and execution coverage for literal indexed write-only
+  receivers, retaining original referent identity, exact element type, ordered
+  place coordinates, bounds, and exclusive access. Extend Terminal receiver
+  production to dynamic indexes and retained local aliases; checked admission
+  alone does not supply their portable address and lifetime evidence.
+  Extend non-observing receiver admission to
   reference-bearing projections only where locating the receiver does not read
   a stored pointer or descriptor. Keep generic, sum, and dynamic dispatch tied
   to their corresponding shape/admission work; do not treat a receiver as
