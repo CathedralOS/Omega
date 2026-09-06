@@ -40,10 +40,18 @@ fn assert_trap_with_module_check(
     source: &str,
     check_module: impl Fn(&terminal_psi::TerminalModule),
 ) {
+    assert_trap_at_entry_with_module_check(source, "value", check_module);
+}
+
+fn assert_trap_at_entry_with_module_check(
+    source: &str,
+    entry: &str,
+    check_module: impl Fn(&terminal_psi::TerminalModule),
+) {
     let artifact = {
         let checked = lower_typed_trees(typed(source))
             .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
-        let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "value")
+        let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, entry)
             .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
         check_module(&lowered.semantic_module);
         (
@@ -74,7 +82,11 @@ fn assert_trap_with_module_check(
 }
 
 fn assert_unconditional_call_trap(source: &str) {
-    assert_trap_with_module_check(source, |module| {
+    assert_unconditional_call_trap_at_entry(source, "value");
+}
+
+fn assert_unconditional_call_trap_at_entry(source: &str, entry: &str) {
+    assert_trap_at_entry_with_module_check(source, entry, |module| {
         let mut checked_calls = 0;
         for operation in module
             .machines
@@ -82,13 +94,24 @@ fn assert_unconditional_call_trap(source: &str) {
             .flat_map(|machine| &machine.blocks)
             .flat_map(|block| &block.operations)
         {
-            let terminal_psi::OperationKind::Call {
-                callee,
-                crash_continuations,
-                ..
-            } = &operation.kind
-            else {
-                continue;
+            let (callee, crash_continuations) = match &operation.kind {
+                terminal_psi::OperationKind::Call {
+                    callee,
+                    crash_continuations,
+                    ..
+                } => (callee, crash_continuations),
+                terminal_psi::OperationKind::CallUnit {
+                    callee,
+                    structural_arguments,
+                    claim_transfers,
+                    crash_continuations,
+                    ..
+                } => {
+                    assert!(structural_arguments.is_empty(), "scalar-only Unit fixture");
+                    assert!(claim_transfers.is_empty(), "no structural claim transport");
+                    (callee, crash_continuations)
+                }
+                _ => continue,
             };
             let callee = module
                 .machines
@@ -113,6 +136,181 @@ fn assert_unconditional_call_trap(source: &str) {
             "one unchanged unconditional trigger continuation"
         );
     });
+}
+
+#[test]
+fn compound_boolean_equality_entry_requirement_covers_unconditional_unit_call() {
+    let declarations = r#"
+        data Main {}
+        boundary trait Sink { machine record(value: bool); }
+        machine trigger() -> bool
+        crashes Trap
+        { crash Trap; }
+        machine forward(a: bool, b: bool, c: bool, d: bool)
+        requires (a && b) == (c || d)
+        crashes Trap (a && b) == (c || d)
+        { Sink::record(trigger()); }
+        machine Main::value()
+        crashes Trap
+        { forward(true, true, false, true); }
+    "#;
+    assert_unconditional_call_trap_at_entry(declarations, "Main::value");
+}
+
+#[test]
+fn atomic_boolean_entry_requirement_covers_unconditional_unit_call() {
+    assert_unconditional_call_trap_at_entry(
+        r#"
+        data Main {}
+        boundary trait Sink { machine record(value: bool); }
+        machine trigger() -> bool
+        crashes Trap
+        { crash Trap; }
+        machine forward(a: bool)
+        requires a
+        crashes Trap a
+        { Sink::record(trigger()); }
+        machine Main::value()
+        crashes Trap
+        { forward(true); }
+        "#,
+        "Main::value",
+    );
+}
+
+#[test]
+fn compound_boolean_equality_entry_requirement_covers_unconditional_call() {
+    let declarations = r#"
+        machine trigger() -> bool
+        crashes Trap
+        { crash Trap; }
+        machine forward(a: bool, b: bool, c: bool, d: bool) -> bool
+        requires (a && b) == (c || d)
+        crashes Trap (a && b) == (c || d)
+        { trigger() }
+    "#;
+    assert_unconditional_call_trap(&with_caller(
+        declarations,
+        "forward(true, true, false, true)",
+    ));
+}
+
+#[test]
+fn compound_boolean_entry_routes_follow_equality_polarities_and_entry_snapshots() {
+    for bits in 0u8..16 {
+        let [a, b, c, d] = [0, 1, 2, 3].map(|position| bits & (1 << position) != 0);
+        let equal = (a && b) == (c || d);
+        for (predicate, requires_equal) in [
+            ("(a && b) == (c || d)", true),
+            ("(a && b) != (c || d)", false),
+            ("!((a && b) == (c || d))", false),
+            ("!((a && b) != (c || d))", true),
+        ] {
+            if equal != requires_equal {
+                continue;
+            }
+            for mutable in [false, true] {
+                let parameters = if mutable {
+                    "mut a: bool, mut b: bool, mut c: bool, mut d: bool"
+                } else {
+                    "a: bool, b: bool, c: bool, d: bool"
+                };
+                let body = match (mutable, requires_equal) {
+                    (false, _) => "trigger()",
+                    // Each write sequence falsifies the current predicate;
+                    // the published route still describes the entry operands.
+                    (true, true) => "a = true; b = true; c = false; d = false; trigger()",
+                    (true, false) => "a = false; b = false; c = false; d = false; trigger()",
+                };
+                let declarations = format!(
+                    "machine trigger() -> bool\ncrashes Trap\n{{ crash Trap; }}\n\
+                     machine forward({parameters}) -> bool\nrequires {predicate}\ncrashes Trap {predicate}\n{{ {body} }}",
+                );
+                assert_unconditional_call_trap(&with_caller(
+                    &declarations,
+                    &format!("forward({a}, {b}, {c}, {d})"),
+                ));
+            }
+        }
+    }
+}
+
+#[test]
+fn nested_compound_boolean_equalities_retain_each_operand_polarity() {
+    let predicate = "((a && b) == (c || d)) == ((a || c) == (b && d))";
+    for bits in 0u8..16 {
+        let [a, b, c, d] = [0, 1, 2, 3].map(|position| bits & (1 << position) != 0);
+        if ((a && b) == (c || d)) != ((a || c) == (b && d)) {
+            continue;
+        }
+        for (parameters, body) in [
+            ("a: bool, b: bool, c: bool, d: bool", "trigger()"),
+            (
+                "mut a: bool, mut b: bool, mut c: bool, mut d: bool",
+                "a = false; b = false; c = false; d = true; trigger()",
+            ),
+        ] {
+            let declarations = format!(
+                "machine trigger() -> bool\ncrashes Trap\n{{ crash Trap; }}\n\
+                 machine forward({parameters}) -> bool\nrequires {predicate}\ncrashes Trap {predicate}\n{{ {body} }}",
+            );
+            assert_unconditional_call_trap(&with_caller(
+                &declarations,
+                &format!("forward({a}, {b}, {c}, {d})"),
+            ));
+        }
+    }
+}
+
+#[test]
+fn compound_boolean_entry_requirements_do_not_authorize_opposite_or_missing_routes() {
+    for (requirement, route, arguments, body) in [
+        (
+            "(a && b) == (c || d)",
+            "(a && b) != (c || d)",
+            "false, false, false, false",
+            "a = true; b = true; c = false; d = false; trigger()",
+        ),
+        (
+            "(a && b) != (c || d)",
+            "(a && b) == (c || d)",
+            "true, true, false, false",
+            "a = false; b = false; c = false; d = false; trigger()",
+        ),
+        (
+            "(a && b) == (c || d)",
+            "a",
+            "false, false, false, false",
+            "a = true; b = true; c = true; d = true; trigger()",
+        ),
+    ] {
+        for mutable in [false, true] {
+            let parameters = if mutable {
+                "mut a: bool, mut b: bool, mut c: bool, mut d: bool"
+            } else {
+                "a: bool, b: bool, c: bool, d: bool"
+            };
+            let body = if mutable { body } else { "trigger()" };
+            let declarations = format!(
+                "machine trigger() -> bool\ncrashes Trap\n{{ crash Trap; }}\n\
+                 machine forward({parameters}) -> bool\nrequires {requirement}\ncrashes Trap {route}\n{{ {body} }}",
+            );
+            let source = with_caller(&declarations, &format!("forward({arguments})"));
+            let diagnostics = match lower_typed_trees(typed(&source)) {
+                Err(diagnostics) => diagnostics,
+                Ok(_) => panic!("an unproved compound crash route must reject: {source}"),
+            };
+            assert!(
+                diagnostics.iter().any(|diagnostic| {
+                    diagnostic
+                        .message
+                        .contains("call from `forward` to `trigger`")
+                        && diagnostic.message.contains("uncovered Trap crash route")
+                }),
+                "the exact call crash coverage check must reject: {source}: {diagnostics:#?}"
+            );
+        }
+    }
 }
 
 #[test]
