@@ -494,9 +494,16 @@ Owners include
   anonymous integer landing for argument and aggregate-element destinations
   and the remaining numeric operator/policy surface, so proof and execution
   consume the same values without rereading changed operands.
-  Non-divisible anonymous integer division and signed remainder await the
-  [anonymous division ruling](OWNER_QUESTIONS.md#anonymous-integer-division-and-remainder);
-  this does not block the other destinations or already-defined operators.
+  Implement [exact anonymous division and landing](wiki/language_guide/chapter_5_expressions_evaluation.md#exact-anonymous-division-and-landing)
+  in the shared literal/constant evaluator and its typing, proof, and lowering
+  consumers. Preserve exact rational intermediates until an actual landing
+  boundary; retain their authored origins for the default-on, suppressible
+  fractional-intermediate warning at successful integer landing. Acceptance:
+  `7 / 2 * 2` lands as 7 with a warning, `7 / 2` cannot land in an integer,
+  `7i32 / 2 * 2` is 6 without that warning, and mixed runtime/constant operands
+  follow the guide's boundaries identically before and after optimization.
+  Only anonymous signed remainder awaits the
+  [remainder ruling](OWNER_QUESTIONS.md#anonymous-integer-remainder).
   Acceptance: implicit cross-state use rejects, while explicit renamed
   transfers retain exact contracts, field selection, ownership and cleanup
   without requiring a runtime copy. Wrong results, mismatched output origins,

@@ -341,6 +341,15 @@ format's executable `FloatSemantics` function, including undefined finite
 arithmetic and special values. Constants are unitless until a site requests a
 type: deferred typing resolves once at the requesting site, and arithmetic on
 the anonymous value is exact.
+
+Anonymous division of integer literals also produces an exact rational, not a
+truncated integer. The destination rounds or checks only the completed anonymous
+value; it does not choose intermediate arithmetic. An already-typed operand
+instead requires the anonymous operand to land before their typed operation.
+See [exact anonymous division and landing](../language_guide/chapter_5_expressions_evaluation.md#exact-anonymous-division-and-landing)
+for the mixed-expression boundary and integer-landing diagnostics. This
+compile-time representation does not introduce runtime rational arithmetic.
+
 Conversion vs reinterpretation stays two mechanisms: the value-invariant
 mint (`1/3` renders differently per format) is this pipeline; the
 bits-invariant read is the recast (`&self.bits as &f32`), footprint-checked,

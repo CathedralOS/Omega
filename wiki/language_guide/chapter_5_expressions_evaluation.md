@@ -693,11 +693,14 @@ A constant is either anonymous or landed—never both and never neither.
 
 - **Anonymous (pre-landing):** a literal is an exact mathematical value
   with no type. `100` is one hundred; `3.14` is 157/50. Arithmetic between
-  anonymous constants is exact (unbounded integer; `Rat` for decimals).
+  anonymous constants is exact: integers remain unbounded, and decimals and
+  non-integral quotients have exact rational values. Anonymous `/` is rational
+  division, not truncating integer division.
   No width, no signedness, no domain, no format — deliberately: the value
   is chosen, the machine rendering is not.
 - **Landing:** the first site that requests a type renders the value ONCE
-  — range-checked into an integer type, rounded once into a float format.
+  — checked for integrality and range into an integer type, rounded once into
+  a float format.
   The same literal lands as `u8`, `u64`, `f32`, or any future format with
   no suffix; a suffix (`0u32`) merely lands the literal where it stands. A
   contract comparison inherits this destination from a typed named operand or
@@ -711,6 +714,85 @@ A constant is either anonymous or landed—never both and never neither.
 Nothing is ever both (an anonymous value with a width) or neither (a landed
 value stripped of its type). Constant folding must preserve the landed type,
 domain, and format; it cannot regress a landed value to an untyped integer.
+
+### Exact anonymous division and landing
+
+The numeric value of an anonymous expression is chosen before its destination
+representation. For nonzero `b`, anonymous `a / b` retains the exact rational
+quotient, even when both operands are integer literals. Thus `7 / 2 / 2`
+evaluates as `(7 / 2) / 2` to `7/4`, and `7 / 2 * 2` evaluates to `7`.
+Grouping does not itself cause landing, truncation, or rounding.
+
+An exact rational can be represented by an unbounded integer numerator and a
+positive denominator, reduced to lowest terms; zero is `0/1`. The expression
+may nest, but its value does not require nested rational carriers. This is
+compile-time value representation, not an implicit runtime `Rat` conversion or
+a requirement to emit a rational evaluator. Division by zero has no anonymous
+numeric value and cannot successfully land. It does not acquire a value from
+the destination's arithmetic policy. Already-landed division retains its
+existing policy and fault rules.
+
+An integer destination accepts only an integral exact value within its range.
+It does not silently truncate a fraction. A floating destination rounds the
+exact result once according to its format. Neither destination retroactively
+types the operators inside an anonymous expression.
+
+```omega
+let exact_integer: i32 = 7 / 2 * 2;    // 7; fractional-intermediate warning
+let fractional: i32 = 7 / 2;          // error: 7/2 is not an integer
+let typed_integer: i32 = 7i32 / 2 * 2; // 6; integer division, no warning
+let exact_float: f64 = 7 / 2 / 2;     // 1.75; no integer-landing warning
+```
+
+An already-typed operand establishes the operation's typed semantics. The
+anonymous operand must land to the required type before that operation, not
+after it. Assuming `i: i32`:
+
+```omega
+let mixed: i32 = i * 4097 / 2;          // (i * 4097) / 2, typed integer operations
+let fraction_operand: i32 = i * (4097 / 2); // error: 4097/2 cannot land as i32
+let truncated_operand: i32 = i * (4097i32 / 2); // i * 2048
+```
+
+The first multiplication still obeys its applicable overflow rules. A compiler
+must not reassociate it into the third expression or propagate the final
+`i32` destination inward to make the second expression accept. Runtime values
+already have types; mixing them with constants does not introduce runtime
+rational arithmetic. The same landing boundaries apply in constant arguments
+and proof evaluation. An exact rational identity does not prove the analogous
+identity for truncating integer operations. Ordinary machine parameter types
+remain landing boundaries even when a call is evaluated during compilation.
+
+### Fractional-intermediate diagnostic
+
+Integer landing of a fractional final value is a compile error. The diagnostic
+reports the exact value and destination type, and explains that an explicitly
+integer-typed operand requests integer division before the fraction arises.
+
+When an anonymous expression instead has a fractional intermediate but an
+integral final value that successfully lands in an integer, emit a default-on,
+suppressible warning. For `7 / 2 * 2`, point to the fractional subexpression and
+explain that division preserves `7/2` and the complete expression lands as `7`;
+an explicitly typed operand requests integer division if that was intended.
+This remains a valid expression, not a type error.
+
+The trigger is the exact intermediate value in the authored anonymous
+calculation, not a comparison against a hypothetical C evaluation. Retain that
+diagnostic origin through simplification so cancellation cannot erase the
+warning. Already-typed integer division and floating-point landing do not
+trigger this warning. Suppressing it changes no arithmetic or landing rule.
+
+This decision does not define anonymous `%`; its remaining semantics are an
+[open owner question](../../OWNER_QUESTIONS.md#anonymous-integer-remainder).
+Fixed-width integer remainder retains its existing dividend-sign rule.
+
+> **Implementation status:** these are the required language and diagnostic
+> rules, not a claim that every compiler path implements them. The shared
+> anonymous integer landing evaluator currently admits only exactly divisible
+> `/`; rational propagation, mixed-expression boundaries, and the warning are
+> tracked in [the execution board](../../TASKS.md).
+
+### Landed target-semantic dependencies
 
 A landed constant may also retain target-semantic dependencies. Before target
 closure those observation applications stay symbolic. After closure the value
