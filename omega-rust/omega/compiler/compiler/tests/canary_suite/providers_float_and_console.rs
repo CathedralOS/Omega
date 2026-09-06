@@ -2347,15 +2347,29 @@ fn runtime_console_byte_literal_exit_canary_runs() {
 }
 
 #[test]
+fn rooted_fixture_explicit_deny_policy_still_rejects() {
+    let canary = pass_canary(fixture_roster::RUNTIME_CONSOLE_BYTE_LITERAL_EXIT);
+    let diagnostics =
+        compile_rooted_backend_canary_without_output_for_target_and_permission_policy(
+            &canary,
+            "linux_x86_64",
+            native_realization::current_terminal_authority_permission_policy(),
+        )
+        .expect_err("an explicitly empty receiving policy must not inherit fixture permissions");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("receiving terminal-authority policy omits the accepted permission")
+    }));
+}
+
+#[test]
 fn runtime_console_byte_literal_linux_catalog_replays_both_targets() {
     let canary = pass_canary(fixture_roster::RUNTIME_CONSOLE_BYTE_LITERAL_EXIT);
     for target in ["linux_x86_64", "linux_arm64"] {
-        compile_rooted_backend_canary_without_output_for_target_with_fixture_permissions(
-            &canary, target,
-        )
-        .unwrap_or_else(|error| {
-            panic!("Linux write-byte catalog must compile for {target}: {error:?}")
-        });
+        compile_rooted_backend_canary_without_output_for_target(&canary, target).unwrap_or_else(
+            |error| panic!("Linux write-byte catalog must compile for {target}: {error:?}"),
+        );
     }
 }
 
@@ -2363,10 +2377,7 @@ fn runtime_console_byte_literal_linux_catalog_replays_both_targets() {
 fn runtime_console_byte_read_return_catalog_replays_both_linux_targets() {
     let canary = pass_canary(fixture_roster::RUNTIME_CONSOLE_BYTE_READ_RETURN);
     for target in ["linux_x86_64", "linux_arm64"] {
-        let compilation =
-            compile_rooted_backend_canary_without_output_for_target_with_fixture_permissions(
-                &canary, target,
-            )
+        let compilation = compile_rooted_backend_canary_without_output_for_target(&canary, target)
             .unwrap_or_else(|error| {
                 panic!("Linux read-byte catalog must compile for {target}: {error:?}")
             });
@@ -2389,10 +2400,7 @@ fn runtime_console_byte_inspection_replays_validated_cross_target_artifacts() {
     // through both maintained Linux native paths.
     let canary = pass_canary(fixture_roster::RUNTIME_CONSOLE_BYTE_INSPECTION_EXIT);
     for target in ["linux_x86_64", "linux_arm64"] {
-        let compilation =
-            compile_rooted_backend_canary_without_output_for_target_with_fixture_permissions(
-                &canary, target,
-            )
+        let compilation = compile_rooted_backend_canary_without_output_for_target(&canary, target)
             .unwrap_or_else(|error| {
                 panic!("runtime byte inspection must compile for {target}: {error:?}")
             });
