@@ -31,6 +31,9 @@ use terminal_verifier::{
 #[path = "structural_unit/borrowed_frontier.rs"]
 mod borrowed_frontier;
 
+#[path = "structural_unit/write_only_attenuation.rs"]
+mod write_only_attenuation;
+
 #[test]
 fn unused_provider_attachment_verifies_without_roots_calls_or_codec() {
     let mut module = unused_provider_attachment_module();

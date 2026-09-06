@@ -148,8 +148,7 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   a plan for that complete body.
 
   Extend retained receiver forwarding to shared and indexed projections,
-  mutable-to-write-only projected attenuation, owned/local receiver roots,
-  composed control flow, and scalar-result receiver
+  owned/local receiver roots, composed control flow, and scalar-result receiver
   callees. Reconcile each exact receiver operand in
   `typed-trees-to-checked-trees/src/flow/terminal_unit/receiver_calls.rs`;
   preserve the source place, access, and ownership across each supported call
@@ -368,15 +367,16 @@ Owners include
 
 - **WRITE-ONLY-BORROW.** Finish `&write T` through projected aggregates,
   calls, returns, dynamic dispatch, cleanup, and native lowering. It permits
-  initialization without observation and must remain distinct from shared and
+  replacement without observation and must remain distinct from shared and
   mutable borrow. Acceptance includes read rejection, exact write coverage,
   unwind/return behavior, and both Linux targets.
 
-  Extend non-observing receiver-call admission beyond whole closed records in
-  `validation/src/write_only_borrows/receiver.rs`. Projected receivers need exact
-  content-independent place/type and access checks, including reference-bearing
-  fields, before borrowing their callee receiver. Keep generic, sum, and dynamic
-  dispatch tied to their corresponding shape/admission work; do not treat a
+  Extend non-observing receiver-call admission beyond finite field-only paths
+  through closed records in `validation/src/write_only_borrows/receiver.rs`.
+  Indexed and reference-bearing receiver projections need exact
+  content-independent place/type and access checks before borrowing their callee
+  receiver. Keep generic, sum, and dynamic dispatch tied to their corresponding
+  shape/admission work; do not treat a
   receiver as readable merely to dispatch it.
 
   Native referent identity follows `STRUCTURAL-BORROW-IDENTITY` below; it is
@@ -403,6 +403,14 @@ Owners include
   already-existing places and occurrences. Acceptance: proof evidence can
   establish disjointness/containment but cannot extend lifetime, duplicate a
   loan, or replace ownership accounting.
+
+  Make unresolved field/case identities conservative in
+  `typed-trees-to-checked-trees/src/checks/borrows/overlap/segments.rs`.
+  Field comparisons currently treat an invalid handle and a resolved handle as
+  different storage, while two invalid handles compare as identical storage.
+  Unknown identity is neither disjointness nor containment evidence.
+  Acceptance: direct and snapshot-replayed compatibility cannot prove either
+  relation from an unresolved segment; exact disjoint siblings still pass.
 
 - **CALLBACK-PARAMETER-REQUIREMENT.** Implement the nominal
   `where machine Selected satisfies Trait::requirement` binder and retain its

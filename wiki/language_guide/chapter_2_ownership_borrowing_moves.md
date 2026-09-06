@@ -185,12 +185,13 @@ storage containing no live `T` is a separate feature.
 > Single-state Unit callers carry whole borrowed receiver parameters and
 > attached `self` through canonical Terminal production and interpretation,
 > including transitive forwarding methods and interleaved scalar parameters.
-> Mutable and write-only receiver calls with matching root and callee access
-> also retain finite field-only paths through borrowed record parameters or
-> attached `self`, preserving the container's identity and the callee's exact
-> leaf type. Bare attached-field spellings retain the same
-> `self` root and ordered path. Indexed receiver projections remain outside
-> that Terminal producer path.
+> Mutable and write-only receiver calls also retain finite field-only paths
+> through borrowed record parameters or attached `self`, preserving the
+> container's identity and the callee's exact leaf type. A mutable root may
+> supply a write-only callee: the root retains mutable access while the call
+> operand and callee retain write-only access. Bare attached-field spellings
+> retain the same `self` root and ordered path. Indexed receiver projections
+> remain outside that Terminal producer path.
 > Borrowed `self` uses the reference type's usage multiplicity, just like an
 > explicit reference parameter; its access still controls reading and mutation.
 > This does not provision a native executable's entry receiver.

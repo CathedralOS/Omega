@@ -267,7 +267,7 @@ fn receiver_argument(
         // type; the operand names the leaf, without transferring ownership.
         if !matches!(
             (parameter.access, target.access),
-            (MutableBorrow, MutableBorrow) | (WriteOnlyBorrow, WriteOnlyBorrow)
+            (MutableBorrow, MutableBorrow | WriteOnlyBorrow) | (WriteOnlyBorrow, WriteOnlyBorrow)
         ) || parameter.multiplicity != Multiplicity::Unrestricted
             || !parameter.qualifications.is_empty()
             || !place
