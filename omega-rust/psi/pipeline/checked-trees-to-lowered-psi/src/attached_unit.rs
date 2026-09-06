@@ -5,6 +5,7 @@
 //! transfer validation live in separate subordinate modules.
 
 use super::*;
+use crate::crash_routes::substitute_runtime_requirement_scalar_values;
 
 pub(crate) mod argument_evaluation;
 mod call_closure;
@@ -825,6 +826,9 @@ pub(super) fn lower_shared_unit_closure(
         lowered_boundary_parameters.push((plan.machine, id, parameters, scalar_parameters));
     }
 
+    // Allocate the actual formal values before lowering contracts. Calls and
+    // bodies share these declarations; requirement terms never use placeholder IDs.
+    let mut next_value = 1_u64;
     let mut lowered_machine_parameters = Vec::with_capacity(closure.len());
     let mut lowered_machine_scalar_parameters = Vec::with_capacity(closure.len());
     let mut lowered_claims = Vec::with_capacity(closure.len());
@@ -846,7 +850,15 @@ pub(super) fn lower_shared_unit_closure(
             &domain_ids,
             &mut next_place,
         )?;
-        let scalar_parameters = lower_unit_scalar_parameter_types(&plan.scalar_parameters)?;
+        let scalar_parameters = lower_unit_scalar_parameter_types(&plan.scalar_parameters)?
+            .into_iter()
+            .map(|scalar_type| {
+                Ok(ValueDeclaration {
+                    id: value_id(allocate_dense(&mut next_value)?),
+                    scalar_type,
+                })
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
         // ClaimId is machine-local; unrelated closure members must not shift
         // this machine's canonical claim namespace.
         let claims =
@@ -900,11 +912,18 @@ pub(super) fn lower_shared_unit_closure(
                         (*symbol == *machine_symbol).then_some(parameters)
                     })
                     .expect("every closure machine has lowered parameters");
+                let scalar_parameters = lowered_machine_scalar_parameters
+                    .iter()
+                    .find_map(|(symbol, parameters)| {
+                        (*symbol == *machine_symbol).then_some(parameters)
+                    })
+                    .expect("every closure machine has lowered scalar parameters");
                 let requirements = checked_requirements
                     .iter()
                     .map(|requirement| {
                         lower_structural_runtime_requirement(
                             requirement,
+                            scalar_parameters,
                             parameters,
                             &structural_types,
                         )
@@ -969,7 +988,6 @@ pub(super) fn lower_shared_unit_closure(
         .map(|machine| (machine.source_machine, machine.contract.requirement_count()))
         .collect::<Vec<_>>();
     let mut next_operation = 1_u64;
-    let mut next_value = 1_u64;
     let mut next_edge = 1_u64;
     let mut next_block = 1_u64;
     let mut next_call_obligation = TERMINAL_UNIT_CALL_OBLIGATION_BASE;
@@ -990,19 +1008,11 @@ pub(super) fn lower_shared_unit_closure(
             .iter()
             .find_map(|(symbol, parameters)| (*symbol == plan.machine).then_some(parameters))
             .expect("every closure machine has lowered parameters");
-        let scalar_parameter_types = lowered_machine_scalar_parameters
+        let scalar_parameters = lowered_machine_scalar_parameters
             .iter()
             .find_map(|(symbol, parameters)| (*symbol == plan.machine).then_some(parameters))
-            .expect("every closure machine has lowered scalar parameters");
-        let scalar_parameters = scalar_parameter_types
-            .iter()
-            .map(|scalar_type| {
-                Ok(ValueDeclaration {
-                    id: value_id(allocate_dense(&mut next_value)?),
-                    scalar_type: *scalar_type,
-                })
-            })
-            .collect::<Result<Vec<_>, LoweringError>>()?;
+            .expect("every closure machine has lowered scalar parameters")
+            .clone();
         let scalar_parameter_count = scalar_parameters.len();
         let runtime_requirements = lowered_machine_runtime_requirements
             .iter()
@@ -1353,6 +1363,45 @@ pub(super) fn lower_shared_unit_closure(
                             (*symbol == *target_machine).then_some(parameters)
                         })
                         .expect("every closure target has lowered parameters");
+                    let target_scalar_parameters = lowered_machine_scalar_parameters
+                        .iter()
+                        .find_map(|(symbol, parameters)| {
+                            (*symbol == *target_machine).then_some(parameters)
+                        })
+                        .expect("every closure target has lowered scalar parameters");
+                    if target_scalar_parameters.len() != terminal_scalar_values.len() {
+                        return unsupported("Unit call scalar requirement arity is inconsistent");
+                    }
+                    let scalar_substitutions = target_scalar_parameters
+                        .iter()
+                        .zip(&terminal_scalar_values)
+                        .map(|(formal, actual)| {
+                            if formal.scalar_type != actual.scalar_type {
+                                return unsupported(
+                                    "Unit call scalar requirement parameter type is inconsistent",
+                                );
+                            }
+                            Ok((formal.id, *actual))
+                        })
+                        .collect::<Result<BTreeMap<_, _>, LoweringError>>()?;
+                    // Preserve callee requirement slots after substitution, even
+                    // if reordered or equal arguments change canonical term order.
+                    let target_runtime_requirements = lowered_machine_runtime_requirements
+                        .iter()
+                        .find_map(|(symbol, requirements)| {
+                            (*symbol == *target_machine).then_some(requirements)
+                        })
+                        .expect("every closure target has lowered runtime requirements")
+                        .iter()
+                        .map(|requirement| {
+                            let mut requirement = requirement.clone();
+                            substitute_runtime_requirement_scalar_values(
+                                &mut requirement,
+                                &scalar_substitutions,
+                            )?;
+                            Ok(requirement)
+                        })
+                        .collect::<Result<Vec<_>, LoweringError>>()?;
                     let mut crash_continuations = if let Some(target_contract) =
                         checked.facts.contract_plans.for_machine(*target_machine)
                     {
@@ -1371,15 +1420,7 @@ pub(super) fn lower_shared_unit_closure(
                                     .expect("every closure target has predicate parameter bindings")
                                     .1,
                                 &structural_types,
-                                lowered_machine_runtime_requirements
-                                    .iter()
-                                    .find_map(|(symbol, requirements)| {
-                                        (*symbol == *target_machine)
-                                            .then_some(requirements.as_slice())
-                                    })
-                                    .expect(
-                                        "every closure target has lowered runtime requirements",
-                                    ),
+                                &target_runtime_requirements,
                             )?
                         }
                     } else {
@@ -1409,12 +1450,6 @@ pub(super) fn lower_shared_unit_closure(
                         &substitutions,
                     )?;
                     source_call = Some((*coordinate, None, *target_state));
-                    let target_runtime_requirements = lowered_machine_runtime_requirements
-                        .iter()
-                        .find_map(|(symbol, requirements)| {
-                            (*symbol == *target_machine).then_some(requirements)
-                        })
-                        .expect("every closure target has lowered runtime requirements");
                     let requirement_obligations = target_runtime_requirements
                         .iter()
                         .map(|requirement| {

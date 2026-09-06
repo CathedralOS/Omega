@@ -3156,6 +3156,18 @@ Crash-route comparisons normalize conjunction/disjunction order and duplicate
 leaves after substitution, including when two formals receive one actual value.
 This comparison normalization does not change the codec's canonical wire order.
 
+Proof-gated mixed Unit crash arithmetic retains integer comparison requirements
+over scalar formals, structural members, and literals. The closure allocates its
+real scalar formal declarations before lowering contracts, and the machine bodies
+reuse those declarations. Each ordinary call substitutes its completed scalar
+arguments into the callee requirements before checking predicate totality, then
+rebases structural roots to the actual places. Requirement slots keep the callee's
+canonical order even if reordered or equal arguments change the substituted terms.
+Each call obligation currently needs an exact caller requirement as its premise;
+the independent verifier reconstructs both scalar and structural substitution.
+Division nonzero and signed overflow bounds, and Exact shift count and value
+bounds, remain required. This does not add mixed projected-argument partial cleanup.
+
 The supported composed-control leaves accept either a semicolon call or a final
 Unit call expression. This includes boundary leaves after dynamic scalar-result
 dispatch and the final boundary call in a closed-sum payload leaf. Only the
@@ -3199,9 +3211,9 @@ inventing a direct boundary requirement from a callee's independent call.
 
 Later structural-result initializers and returned calls still need connections
 to the shared evaluator. Structural arguments on composed internal calls,
-scalar-dependent runtime requirements for proof-gated mixed-signature crash
-arithmetic, and caller-ceiling proofs for computed-argument routes remain
-implementation work.
+mixed runtime requirement proofs beyond exact caller premises (including equality
+symmetry after substitution), and caller-ceiling proofs for computed-argument
+routes remain implementation work.
 Existing control-state signature restrictions remain; operand evaluation does
 not itself add general scalar state-argument transport or computed dispatch guards.
 

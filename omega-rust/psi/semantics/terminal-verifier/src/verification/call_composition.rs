@@ -94,6 +94,7 @@ pub(super) fn compose_call_operation(
             CallResultRule::UnitCalleeResult,
             OperationKind::CallUnit {
                 callee,
+                arguments,
                 structural_arguments,
                 requirement_obligations,
                 ..
@@ -103,7 +104,7 @@ pub(super) fn compose_call_operation(
                 .get(callee)
                 .copied()
                 .expect("validated unit-call target exists");
-            let substitutions = callee
+            let structural_substitutions = callee
                 .structural_parameters
                 .iter()
                 .zip(structural_arguments)
@@ -120,6 +121,21 @@ pub(super) fn compose_call_operation(
                     )
                 })
                 .collect::<BTreeMap<_, _>>();
+            let value_substitutions = callee
+                .parameters
+                .iter()
+                .zip(arguments)
+                .map(|(parameter, argument)| (parameter.id, value_term(*argument, value_types)))
+                .collect::<BTreeMap<_, _>>();
+            let substitute = |proposition: &Proposition| {
+                substitute_proposition_values(
+                    &substitute_proposition_structural_places(
+                        proposition,
+                        &structural_substitutions,
+                    ),
+                    &value_substitutions,
+                )
+            };
             for (requirement_position, (required, obligation)) in callee
                 .contract
                 .requires
@@ -136,10 +152,7 @@ pub(super) fn compose_call_operation(
                     },
                     obligation: Obligation {
                         id: *obligation,
-                        proposition: substitute_proposition_structural_places(
-                            required,
-                            &substitutions,
-                        ),
+                        proposition: substitute(required),
                         class: ObligationClass::Derivable,
                     },
                     semantic_axioms: axioms.clone(),
@@ -147,13 +160,7 @@ pub(super) fn compose_call_operation(
                 });
             }
             for guarantee in &callee.contract.ensures {
-                push_unique(
-                    axioms,
-                    substitute_proposition_structural_places(
-                        &guarantee.proposition,
-                        &substitutions,
-                    ),
-                );
+                push_unique(axioms, substitute(&guarantee.proposition));
             }
         }
         (
