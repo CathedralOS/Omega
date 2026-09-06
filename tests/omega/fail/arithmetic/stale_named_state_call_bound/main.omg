@@ -1,0 +1,12 @@
+machine cost(level: u32 [1..=10]) -> u32 [15..=60] {
+    10 + level * 5
+}
+
+machine spend(level: u32 [1..=10], other: u32 [1..=10], xp: u32 [0..=1000]) -> u32
+requires xp >= cost(level)
+{
+    transition { _ -> debit(other, xp) }
+    state debit(level: u32 [1..=10], xp: u32 [0..=1000]) -> u32 {
+        xp - cost(level)
+    }
+}

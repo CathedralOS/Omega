@@ -269,6 +269,24 @@ pub(super) fn analyze(
                 BinaryOperator::ShiftRight => left.interval.shift_right(right.interval),
                 _ => Interval::UNBOUNDED,
             };
+            if operator == BinaryOperator::Subtract
+                && guard_narrowing::has_builtin_bound_arithmetic(
+                    program, machine, state, expression,
+                )
+                && let Some(floor) = ordered_values::subtract_floor(
+                    program,
+                    machine,
+                    state,
+                    env,
+                    binary.left,
+                    binary.right,
+                )
+            {
+                interval = interval.intersect(Interval {
+                    low: Some(floor),
+                    high: None,
+                });
+            }
             // Operand primitives win. The destination type is a fallback ONLY when
             // the result is a BOUNDED constant (a bare-literal computation like
             // `let c: u8 = 200 + 100`), so it is range-checked against `c`. An

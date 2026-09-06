@@ -125,10 +125,6 @@ pub(crate) fn build_check_facts(
     flow.terminal_debug = crate::flow::build_checked_terminal_debug_plans(program);
     let capabilities = build_capability_facts(program, &service_reach_inference, &flow);
     let (machine_suspensions, machine_blocking) = project_operational_rows(&operational);
-    // EFX: the durable service-reach fixed point is built independently from
-    // resolved boundary-trait identities and stored as a first-class checked
-    // root with grouped machine/state/call arenas.
-    let service_reaches = build_service_reach_facts(program, service_reach_inference);
     // STR4 checked plans, slice 2: semantic-domain commitments per machine.
     let qualifications = build_qualification_facts(program);
     // EFX: direct synchronous invocation is a separately published checked
@@ -142,6 +138,17 @@ pub(crate) fn build_check_facts(
     let blocking = build_blocking_facts(program, &machine_blocking);
     // TPR/EFX: termination is published as an independent exact-machine root.
     let termination = build_termination_facts(program, &flow, &semantic, validation_facts)?;
+    let mut fact_call_projection_diagnostics = Vec::new();
+    validation::validate_ordered_requirement_call_totality(
+        program,
+        &operational,
+        &service_reach_inference,
+        &termination,
+        &mut fact_call_projection_diagnostics,
+    );
+    // Consume the service-reach arenas only after fact-call eligibility has
+    // borrowed their exact inferred closure alongside finalized termination.
+    let service_reaches = build_service_reach_facts(program, service_reach_inference);
     // R5/STR: body-derived mutation frames are an independent checked axis,
     // never a field of the published machine contract.
     let mutation = build_mutation_facts(program);
@@ -168,7 +175,6 @@ pub(crate) fn build_check_facts(
     // fact layer; authored clauses remain minimum promises on typed data.
     let carry = carry::build_carry_facts(program);
     let mut fact_call_projections = Vec::new();
-    let mut fact_call_projection_diagnostics = Vec::new();
     for call in &validation_facts.integer_embedding_calls {
         let exact_source = matches!(program.expression_table.expression(call.call_expression),
             typed_trees::expression::ExpressionNode::Call(source) if source.target_symbol == call.target_state)
