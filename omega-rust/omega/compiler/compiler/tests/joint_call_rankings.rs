@@ -409,6 +409,18 @@ machine peel(n: ProofNat, payload: Other) -> ProofNat {
 }
 
 #[test]
+fn self_pattern_payload_method_does_not_select_the_enclosing_state() {
+    checks(
+        "data Cell {} data Tree { case Branch(right: Cell); }
+        data Main {} machine Main::main(&mut self) {}
+        machine Cell::read(self) -> u64 { 1 }
+        machine Tree::right(self) -> u64 {
+            transition self { Tree::Branch { right } -> right.read() }
+        }",
+    );
+}
+
+#[test]
 fn authored_joint_termination_guarantees_seed_progress_summaries() {
     for authored_count in [1, 2] {
         let source = JOINT.replacen(

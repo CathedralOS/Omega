@@ -403,12 +403,26 @@ impl SymbolTable {
         kinds: &[SymbolKind],
         reference: SourceSpan,
     ) -> Option<SymbolHandle> {
+        self.find_top_level_by_name_and_kinds_from_source_matching(name, kinds, reference, |_| true)
+    }
+
+    /// Apply declaration eligibility before source-scoped binding and lookup
+    /// precedence. In particular, a receiver's nominal owner can exclude a
+    /// same-spelled method without hiding another eligible declaration.
+    pub fn find_top_level_by_name_and_kinds_from_source_matching(
+        &self,
+        name: &str,
+        kinds: &[SymbolKind],
+        reference: SourceSpan,
+        mut matches_candidate: impl FnMut(SymbolHandle) -> bool,
+    ) -> Option<SymbolHandle> {
         let children = self.child_handles(self.root)?;
         let reference_is_source_backed = reference.span.start != reference.span.end;
         let candidates = children
             .filter(|symbol| {
                 kinds.contains(&self.get(*symbol).kind)
                     && self.name(*symbol) == name
+                    && matches_candidate(*symbol)
                     && (!reference_is_source_backed
                         || self.source_reference_can_see_symbol(reference, *symbol))
             })

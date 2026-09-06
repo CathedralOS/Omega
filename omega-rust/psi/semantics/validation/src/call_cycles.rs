@@ -6,6 +6,7 @@
 //! form non-tail SCCs only when every member is structurally measured and every
 //! edge passes a strict case-payload subterm to the callee's ranked parameter.
 
+use crate::places::exact_data_member_field;
 use crate::symbols::TopLevelSymbols;
 use diagnostics::Diagnostic;
 use std::collections::{BTreeSet, HashMap};
@@ -1060,48 +1061,6 @@ fn exact_member_field<'program>(
 ) -> Option<&'program typed_trees::data::DataField> {
     let data = crate::places::data_definition_for_type(program, receiver_type)?;
     exact_data_member_field(program, data, member_symbol, member_name, case_variant)
-}
-
-fn exact_data_member_field<'program>(
-    program: &'program TypedTrees,
-    data: &'program typed_trees::data::DataDefinition,
-    member_symbol: SymbolHandle,
-    member_name: &str,
-    case_variant: Option<&str>,
-) -> Option<&'program typed_trees::data::DataField> {
-    if let Some(case_variant) = case_variant {
-        let mut matches = program.data_members(data).iter().filter_map(|member| {
-            let typed_trees::data::DataMember::Variant(variant) = member else {
-                return None;
-            };
-            (variant.name.as_str() == case_variant).then_some(variant)
-        });
-        let variant = matches.next()?;
-        if matches.next().is_some() {
-            return None;
-        }
-        let mut fields = program.data_payload_fields(variant).iter().filter(|field| {
-            field.name.as_str() == member_name
-                && (!member_symbol.is_valid() || field.symbol == member_symbol)
-                && field.symbol.is_valid()
-                && field.type_reference.is_valid()
-        });
-        let field = fields.next()?;
-        return fields.next().is_none().then_some(field);
-    }
-
-    let mut fields = program.data_members(data).iter().filter_map(|member| {
-        let typed_trees::data::DataMember::Field(field) = member else {
-            return None;
-        };
-        (field.name.as_str() == member_name
-            && (!member_symbol.is_valid() || field.symbol == member_symbol)
-            && field.symbol.is_valid()
-            && field.type_reference.is_valid())
-        .then_some(field)
-    });
-    let field = fields.next()?;
-    fields.next().is_none().then_some(field)
 }
 
 #[cfg(test)]

@@ -11,7 +11,7 @@ use symbol_resolved_trees::statement::Statement;
 use symbol_resolved_trees::types::TypeReference;
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
-use super::super::lookup::call_target_for_attached_data;
+use super::super::lookup::child_symbol_by_kinds;
 use super::super::scope::MachineScope;
 
 #[cfg(test)]
@@ -201,27 +201,29 @@ pub(super) fn call_target(
         if !owner.is_valid() || symbols.get(owner).kind != SymbolKind::Data {
             return None;
         }
-        let target = call_target_for_attached_data(
-            symbols,
-            symbols.name(owner),
-            call.target.as_str(),
+        let name = format!("{}::{}", symbols.name(owner), call.target.as_str());
+        let declaration = symbols.find_top_level_by_name_and_kinds_from_source_matching(
+            &name,
+            &[SymbolKind::Machine],
             call.target.source_span(),
-        );
-        if !target.is_valid() {
-            return None;
-        }
-        // The selected declaration must attach to this nominal owner even
-        // when another package supplies an identically spelled data name.
-        let declaration = symbols.get(target).parent;
-        let reference = symbols
-            .symbol_provenance_source_span(declaration)
-            .unwrap_or_default();
-        let declared_owner = symbols.find_top_level_by_name_and_kinds_from_source(
-            symbols.name(owner),
-            &[SymbolKind::Data],
-            reference,
+            |candidate| {
+                let reference = symbols
+                    .symbol_provenance_source_span(candidate)
+                    .unwrap_or_default();
+                symbols.find_top_level_by_name_and_kinds_from_source(
+                    symbols.name(owner),
+                    &[SymbolKind::Data],
+                    reference,
+                ) == Some(owner)
+            },
         )?;
-        (declared_owner == owner).then_some(target)
+        let target = child_symbol_by_kinds(
+            symbols,
+            declaration,
+            &[SymbolKind::State],
+            call.target.as_str(),
+        );
+        target.is_valid().then_some(target)
     };
     resolve().unwrap_or_else(SymbolHandle::invalid)
 }

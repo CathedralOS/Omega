@@ -207,6 +207,15 @@ pub fn declared_place_type_raw(
         handle = inner.target;
     }
 
+    if projected_members::contains_case_projection(program, handle) {
+        return projected_members::declared_case_projection_type(
+            program,
+            current_machine,
+            current_state,
+            handle,
+        );
+    }
+
     if let Some(members) = collect_member_path(program, handle) {
         return declared_member_path_type(program, current_machine, current_state, &members);
     }
@@ -314,12 +323,14 @@ fn lexical_place_declaration_before(
 }
 
 mod member_paths;
+mod projected_members;
 mod result_shape;
 use member_paths::{collect_member_path, data_field_or_payload, data_field_or_payload_type};
 pub(crate) use member_paths::{
     data_definition_for_type, declared_member_path_type, first_unknown_nested_field,
     nested_receiver_type_name,
 };
+pub(crate) use projected_members::exact_data_member_field;
 pub(crate) use result_shape::expression_result_is_reference;
 
 /// Unwrap reference and constraint shells so the structural type underneath

@@ -97,6 +97,12 @@ that evidence: a checked tree exists only after diagnostics are clear, and the
 acceptance views expose the proof, borrow, boundary, reach, invalidation, and
 call/exit evidence that made each state operation admissible.
 
+Declared receiver typing retains case-tagged payload projections, including
+payloads rooted at `self` and ordinary fields reached through them. It selects
+the payload under the receiver's nominal declaration and exact case; flattening
+the path into field names cannot select a different case's same-named payload.
+This supplies a declared type, not evidence that a call is valid or terminating.
+
 Normal returns owe their postconditions whether they produce a value or Unit.
 An implicit return is positioned after the final statement; a transition exit
 also retains its exact target handle so a returning continuation cannot share
