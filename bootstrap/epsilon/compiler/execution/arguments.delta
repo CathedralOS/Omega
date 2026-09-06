@@ -36,8 +36,7 @@
               ((EpsilonEvaluatorTrap kind nextOutput)
                 (EpsilonEvaluatorArgumentsStopped outcome))
               ((EpsilonEvaluatorInternal offset)
-                (EpsilonEvaluatorArgumentsStopped outcome))
-              (EpsilonEvaluatorUnsupported (EpsilonEvaluatorArgumentsStopped outcome)))))))))
+                (EpsilonEvaluatorArgumentsStopped outcome)))))))))
 
 (def epsilon_evaluator_reverse_argument_values ((input EpsilonEvaluatorArgumentValues)
   (output EpsilonEvaluatorArgumentValues)) EpsilonEvaluatorArgumentValues

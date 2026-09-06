@@ -1,11 +1,10 @@
 
-; Staging outcomes never turn unsupported execution into an Epsilon observation.
+; Staging internal failures remain distinct from Epsilon observations.
 (data EpsilonEvaluatorSliceOutcome
   (EpsilonEvaluatorSliceExit Int Bytes)
   (EpsilonEvaluatorSliceTrap Int Bytes)
   (EpsilonEvaluatorSliceRejected EpsilonRejectReason Int)
-  (EpsilonEvaluatorSliceInternal Int)
-  (EpsilonEvaluatorSliceUnsupported))
+  (EpsilonEvaluatorSliceInternal Int))
 
 ; Pure arithmetic results are separate from effect-threaded expression results.
 (data EpsilonEvaluatorScalarOutcome
@@ -107,8 +106,7 @@
   (EpsilonEvaluatorResultless EpsilonRuntimeStore Bytes)
   (EpsilonEvaluatorExit Int Bytes)
   (EpsilonEvaluatorTrap Int Bytes)
-  (EpsilonEvaluatorInternal Int)
-  (EpsilonEvaluatorUnsupported))
+  (EpsilonEvaluatorInternal Int))
 
 ; Runtime buckets retain original checked rows in their own typed ledgers.
 ; Indexing narrows lookup, never replaces exact expression identity or order.
@@ -155,8 +153,7 @@
     EpsilonRuntimeStore Bytes)
   (EpsilonEvaluatorBlockExit Int Bytes)
   (EpsilonEvaluatorBlockTrap Int Bytes)
-  (EpsilonEvaluatorBlockInternal Int)
-  (EpsilonEvaluatorBlockUnsupported))
+  (EpsilonEvaluatorBlockInternal Int))
 
 ; Each argument captures a snapshot before the next argument's effects.
 (data EpsilonEvaluatorArgumentValues

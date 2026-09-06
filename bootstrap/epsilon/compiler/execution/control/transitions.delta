@@ -21,8 +21,7 @@
             ((EpsilonEvaluatorTrap kind nextOutput)
               (EpsilonEvaluatorBlockTrap kind nextOutput))
             ((EpsilonEvaluatorInternal offset)
-              (EpsilonEvaluatorBlockInternal offset))
-            (EpsilonEvaluatorUnsupported EpsilonEvaluatorBlockUnsupported)))
+              (EpsilonEvaluatorBlockInternal offset))))
         ((OneEpsilonStateApplicationReference targetMachine stateValue progress)
           (match progress
             (EpsilonStateApplicationResolved
@@ -79,8 +78,7 @@
           ((EpsilonEvaluatorTrap kind nextOutput)
             (EpsilonEvaluatorBlockTrap kind nextOutput))
           ((EpsilonEvaluatorInternal offset)
-            (EpsilonEvaluatorBlockInternal offset))
-          (EpsilonEvaluatorUnsupported EpsilonEvaluatorBlockUnsupported))))))
+            (EpsilonEvaluatorBlockInternal offset)))))))
 
 (def epsilon_evaluate_continuation ((context EpsilonEvaluatorInvocation)
   (continuation EpsilonContinuation) (bindings EpsilonEvaluatorBindings)
@@ -145,7 +143,6 @@
                 (EpsilonScalarTransitionSubject
                   (match (epsilon_evaluate_expression context expressionValue
                     bindings store output)
-                    (EpsilonEvaluatorUnsupported EpsilonEvaluatorBlockUnsupported)
                     ((EpsilonEvaluatorInternal offset)
                       (EpsilonEvaluatorBlockInternal offset))
                     ((EpsilonEvaluatorExit code nextOutput)

@@ -46,8 +46,7 @@
         (EpsilonEvaluatorInternal (epsilon_expression_start indexValue)))
       ((EpsilonEvaluatorExit code nextOutput) outcome)
       ((EpsilonEvaluatorTrap kind nextOutput) outcome)
-      ((EpsilonEvaluatorInternal offset) outcome)
-      (EpsilonEvaluatorUnsupported outcome))))
+      ((EpsilonEvaluatorInternal offset) outcome))))
 
 (def epsilon_evaluate_index ((context EpsilonEvaluatorInvocation)
   (base EpsilonExpression) (indexValue EpsilonExpression)
@@ -63,5 +62,4 @@
         (EpsilonEvaluatorInternal (epsilon_expression_start base)))
       ((EpsilonEvaluatorExit code nextOutput) outcome)
       ((EpsilonEvaluatorTrap kind nextOutput) outcome)
-      ((EpsilonEvaluatorInternal offset) outcome)
-      (EpsilonEvaluatorUnsupported outcome))))
+      ((EpsilonEvaluatorInternal offset) outcome))))

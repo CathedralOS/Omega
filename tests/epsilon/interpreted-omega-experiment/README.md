@@ -16,8 +16,8 @@ Delta-written Epsilon evaluator + exact Epsilon-written Omega D
 The gate requires the Omega product build to bind exactly one
 `alpha_bootstrap::ProgramEntry`, requires Omega D to retain its Alpha tape
 construction, and rejects any `EpsilonAlpha`/`epsilon_alpha_` backend residue in
-the Delta-written Epsilon implementation. The evaluator is currently 11,809
-lines / 601,955 bytes, authored in 84 explicitly manifested members.
+the Delta-written Epsilon implementation. The evaluator is currently 11,777
+lines / 600,123 bytes, authored in 84 explicitly manifested members.
 The complete gate checks 141 ordinary fixtures, five D customers, and seven
 framing controls against the exact reconstructed evaluator receipt.
 
@@ -66,14 +66,14 @@ matching checked case or final wildcard, and establish independent arm-local
 payload homes. Those homes support ordinary receiver mutation and array views;
 state transfers retain backing required by captured views.
 Views and all four Console operations execute with the controls below.
-Any retained `Unsupported` staging outcome is not an Epsilon observation and
-cannot survive in the final evaluator.
+The obsolete `Unsupported` staging cases are absent from execution outcomes.
+This removes no language observation and does not close the resource profile.
 
-The gate compiles the exact evaluator plus the 56-line / 2,621-byte
+The gate compiles the exact evaluator plus the 55-line / 2,565-byte
 `execution_driver.delta` (SHA-256
-`d2b2ce68e4c8afa71f3d096d9069f4c7258a98140d7c828311239de39b85a0f5`) through the
-selected Delta route and pins the measured 703,825-byte receipt, SHA-256
-`5a400946e1724cc4123bc71b5984459a5bf602dee64ec95f31c510856fe8ec7e`.
+`ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a01b7cb3897199b38`) through the
+selected Delta route and pins the measured 702,903-byte receipt, SHA-256
+`3bc739535e467378a4c82d03358bcbe2ae91ba7447139c20ef202d1313585f92`.
 The ordinary controls cover
 success, local, receiver-field, and fixed-array values, repeated mutation,
 output, comparisons, bitwise/shift/division behavior, short-circuiting, bounds
@@ -144,7 +144,7 @@ following layout. Integers and offsets use little-endian encoding.
 | `01` | Trap | one closed language trap-kind byte, then exact stdout prefix |
 | `02` | Reject | one closed language rejection-reason byte, then four-byte source offset |
 | `03` | Internal | four-byte source offset |
-| `04` | Unsupported | none |
+| `04` | unassigned (retired staging case) | never emitted |
 | `05` | MalformedRequest | none |
 
 Negative exit codes retain their full two's-complement `i32` bit pattern; they
@@ -157,7 +157,7 @@ These bytes are a private diagnostic payload returned by the driver through
 `ConformanceBytesV1`, not operating-system process statuses or a new Epsilon
 observation contract. A successful diagnostic invocation has outer status zero.
 Gamma evaluator failures remain raw failures; the runner must not synthesize a
-tagged result from them. `Unsupported`, `Internal`, and malformed private input
+tagged result from them. `Internal` and malformed private input
 remain distinct from an authored Epsilon exit or trap. The transport does not
 establish final evaluator framing or resource closure.
 

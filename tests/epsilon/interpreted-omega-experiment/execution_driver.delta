@@ -37,8 +37,7 @@
         (bytes_concat (bytes_single (epsilon_reject_reason_identity reasonValue))
           (epsilon_experiment_u32 errorOffset))))
     ((EpsilonEvaluatorSliceInternal errorOffset)
-      (bytes_concat (bytes_single 3) (epsilon_experiment_u32 errorOffset)))
-    (EpsilonEvaluatorSliceUnsupported (bytes_single 4))))
+      (bytes_concat (bytes_single 3) (epsilon_experiment_u32 errorOffset)))))
 
 (def main ((request Bytes)) Bytes
   (if (lt (bytes_length request) 4)

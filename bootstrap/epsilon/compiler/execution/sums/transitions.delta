@@ -59,5 +59,4 @@
       (EpsilonEvaluatorBlockInternal (epsilon_expression_start expressionValue)))
     ((EpsilonEvaluatorExit code nextOutput) (EpsilonEvaluatorBlockExit code nextOutput))
     ((EpsilonEvaluatorTrap kind nextOutput) (EpsilonEvaluatorBlockTrap kind nextOutput))
-    ((EpsilonEvaluatorInternal offset) (EpsilonEvaluatorBlockInternal offset))
-    (EpsilonEvaluatorUnsupported EpsilonEvaluatorBlockUnsupported)))
+    ((EpsilonEvaluatorInternal offset) (EpsilonEvaluatorBlockInternal offset))))
