@@ -337,6 +337,25 @@ mod tests {
     use package_source::SourceLineage;
 
     #[test]
+    fn compilation_error_reports_each_diagnostic() {
+        let package = PackageKey::new(
+            PackageName::parse("consumer").unwrap(),
+            SourceLineage::git("https://example.org/team/consumer.git").unwrap(),
+        );
+        let error = CompileResolvedPackageReviewsError::Compilation {
+            package,
+            diagnostics: vec![
+                diagnostics::Diagnostic::error("missing package entry"),
+                diagnostics::Diagnostic::error("invalid boundary declaration"),
+            ],
+        };
+        let text = error.to_string();
+        assert!(text.contains("package `consumer` with 2 diagnostic(s)"));
+        assert!(text.contains("missing package entry"));
+        assert!(text.contains("invalid boundary declaration"));
+    }
+
+    #[test]
     fn compiler_input_error_reports_the_cause_not_only_its_count() {
         let package = PackageKey::new(
             PackageName::parse("consumer").unwrap(),
