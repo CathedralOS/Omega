@@ -300,14 +300,21 @@ route and silently fall back. Consequently every selected-pipeline result owns a
 non-optional function-relative manifest. The remaining transitional split is one
 layer out: `NativePhysicalStageResult` still carries assigned operations for
 ranked programs and ordinary identity programs beyond the supported fragment
-publication shape. Return-only Unit programs without runtime parameters,
-callbacks or provider settlement use the shared fragment stages even with empty
-selections. This migration boundary is checked before execution; a failure never
+publication shape. Return-only Unit programs and free `u64` constant/parameter
+leaves use the shared fragment stages even with empty selections. These scalar
+leaves retain their target ABI, keep incoming parameter precolors, and explicitly
+copy a returned parameter into a separate return-constrained virtual value.
+Calls, structural parameters, cleanup, callbacks and provider settlements remain
+outside this scalar migration. This boundary is checked before execution; a failure never
 selects the old route. Identity fragment publication preserves the original
 physical-evidence scope only after checking the retained empty selection identity.
 Every optimizer-owned arm then enters one function-fragment
-emission stage; the first native projection admits an exact return-only Unit
-shape and does not inspect which physical optimization variant produced it. The
+emission stage. Native projection admits Unit returns and the scalar leaves above;
+it does not inspect which physical optimization variant produced them. Scalar
+publication binds the exact ABI, bytes and semantic intervals, with independent
+object/stack replay. Microsoft-x64 leaf frames retain the incoming stack when
+empty and align any allocated storage; outgoing calls still need a home-area
+contract and are not admitted by that frame policy. The
 public request surface uses the closed post-Terminal selection type, so this
 transitional branch cannot reopen an earlier phase. Ranked-countdown native
 authority currently rejects a nonempty post-Terminal selection: the ordinary

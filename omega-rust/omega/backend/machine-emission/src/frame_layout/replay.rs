@@ -100,12 +100,22 @@ pub(super) fn validate_layout(
         let area = storage.abstract_area_bytes;
         let physical = environment.physical().model();
         match (environment.target().architecture, required.abi) {
-            (Architecture::X86_64, FrameAbiPreservationConvention::SystemVAMD64) => {
+            (
+                Architecture::X86_64,
+                convention @ (FrameAbiPreservationConvention::SystemVAMD64
+                | FrameAbiPreservationConvention::MicrosoftX64),
+            ) if !calls || convention == FrameAbiPreservationConvention::SystemVAMD64 => {
                 let stack = physical
                     .view_named("rsp")
                     .ok_or(Error::MissingStackPointerView)?
                     .id;
-                let (alignment, residue) = if calls { (16, 8) } else { (8, 0) };
+                let (alignment, residue) = if calls
+                    || (convention == FrameAbiPreservationConvention::MicrosoftX64 && area != 0)
+                {
+                    (16, 8)
+                } else {
+                    (8, 0)
+                };
                 if row.stack_pointer != stack
                     || !minimal_aligned_extent(area, row.frame_size_bytes, alignment, residue)
                     || row.return_address

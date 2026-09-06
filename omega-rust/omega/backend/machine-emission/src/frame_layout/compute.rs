@@ -125,14 +125,24 @@ fn function_layout(
 ) -> Result<FunctionTargetFrameLayout, TargetFrameLayoutError> {
     let (stack_pointer, frame_size_bytes, return_address) =
         match (environment.target().architecture, abi) {
-            (Architecture::X86_64, FrameAbiPreservationConvention::SystemVAMD64) => {
+            (
+                Architecture::X86_64,
+                convention @ (FrameAbiPreservationConvention::SystemVAMD64
+                | FrameAbiPreservationConvention::MicrosoftX64),
+            ) if !contains_call || convention == FrameAbiPreservationConvention::SystemVAMD64 => {
                 let stack_pointer = environment
                     .physical()
                     .model()
                     .view_named("rsp")
                     .ok_or(TargetFrameLayoutError::MissingStackPointerView)?
                     .id;
-                let frame_size = if contains_call {
+                // A Windows leaf with no storage preserves the incoming RSP.
+                // Once storage is allocated its body keeps the ABI alignment.
+                // Calls need an outgoing home area and remain unsupported here.
+                let frame_size = if contains_call
+                    || (convention == FrameAbiPreservationConvention::MicrosoftX64
+                        && callee_save_area_bytes != 0)
+                {
                     align_to_residue(callee_save_area_bytes, 16, 8)?
                 } else {
                     align_up(callee_save_area_bytes, 8)?
@@ -223,4 +233,49 @@ fn align_to_residue(
     value
         .checked_add(padding)
         .ok_or(TargetFrameLayoutError::GeometryOverflow)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn windows_leaf_storage_aligns_the_body_without_an_outgoing_home_area() {
+        let environment = register_environment::baseline_target_register_environment(
+            target::NativeTarget::windows_x64(),
+        )
+        .unwrap();
+        for (area, extent) in [(0, 0), (8, 8), (16, 24)] {
+            let layout = function_layout(
+                &environment,
+                FrameAbiPreservationConvention::MicrosoftX64,
+                TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+                semantic_vocabulary::MachineId::new(1).unwrap(),
+                false,
+                area,
+                Vec::new(),
+            )
+            .unwrap();
+            assert_eq!(layout.frame_size_bytes, extent);
+            assert_eq!(
+                layout.return_address,
+                ReturnAddressFrameCustody::CallerActivationStack {
+                    post_prologue_offset_bytes: extent,
+                    size_bytes: 8,
+                }
+            );
+        }
+        assert_eq!(
+            function_layout(
+                &environment,
+                FrameAbiPreservationConvention::MicrosoftX64,
+                TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+                semantic_vocabulary::MachineId::new(1).unwrap(),
+                true,
+                0,
+                Vec::new(),
+            ),
+            Err(TargetFrameLayoutError::UnsupportedTarget)
+        );
+    }
 }

@@ -28,7 +28,7 @@ pub(in crate::legalization) fn derive_condition_for_test<'a>(
 }
 
 pub(crate) struct SourceFunctionRosters {
-    pub functions: Vec<SourceFunction>,
+    pub functions: Vec<legalized_operations::LegalizedFunction>,
     pub unit_functions: Vec<SourceUnitFunction>,
     pub scalar_call_unit_functions: Vec<legalized_operations::LegalizedScalarCallUnitFunction>,
     pub structural_unit_functions: Vec<SourceStructuralUnitFunction>,

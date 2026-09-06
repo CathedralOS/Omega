@@ -321,48 +321,50 @@ fn strict_less_than_condition_has_distinct_ordered_identity() {
     let false_value = id::<ValueId>(33);
     let true_constant = id::<OperationId>(34);
     let false_constant = id::<OperationId>(35);
-    plan.functions.push(LegalizedFunction {
-        machine,
-        attachment: None,
-        provenance: TerminalPsiProvenance {
-            operations: vec![comparison, true_constant, false_constant],
-            edges: vec![true_edge, false_edge, true_return, false_return],
-        },
-        recipe: LegalizationRecipe::ReturnU64IntegerLessThanParametersConditionalV1,
-        condition_source: condition,
-        condition: LegalizedCondition::IntegerLessThanParametersV1 {
-            operation: comparison,
-            result_definition_site: optimization_unit::ValueDefinitionSite::Node {
-                block: entry,
-                node: 0,
+    plan.functions.push(LegalizedFunction::Conditional(
+        LegalizedConditionalFunction {
+            machine,
+            attachment: None,
+            provenance: TerminalPsiProvenance {
+                operations: vec![comparison, true_constant, false_constant],
+                edges: vec![true_edge, false_edge, true_return, false_return],
             },
-            fuel: comparison_fuel,
-            left: left_parameter.clone(),
-            right: right_parameter.clone(),
+            recipe: LegalizationRecipe::ReturnU64IntegerLessThanParametersConditionalV1,
+            condition_source: condition,
+            condition: LegalizedCondition::IntegerLessThanParametersV1 {
+                operation: comparison,
+                result_definition_site: optimization_unit::ValueDefinitionSite::Node {
+                    block: entry,
+                    node: 0,
+                },
+                fuel: comparison_fuel,
+                left: left_parameter.clone(),
+                right: right_parameter.clone(),
+            },
+            entry_block: entry,
+            true_block,
+            false_block,
+            branch_true_edge: true_edge,
+            branch_false_edge: false_edge,
+            branch_true_fuel: vec![FuelSettlement {
+                site: PsiProvenance::Edge(true_edge),
+                units: 1,
+            }],
+            branch_false_fuel: vec![FuelSettlement {
+                site: PsiProvenance::Edge(false_edge),
+                units: 1,
+            }],
+            branch_true_bindings: Vec::new(),
+            branch_false_bindings: Vec::new(),
+            when_true: leaf(true_value, 7, true_constant, true_block, true_return),
+            when_false: leaf(false_value, 9, false_constant, false_block, false_return),
         },
-        entry_block: entry,
-        true_block,
-        false_block,
-        branch_true_edge: true_edge,
-        branch_false_edge: false_edge,
-        branch_true_fuel: vec![FuelSettlement {
-            site: PsiProvenance::Edge(true_edge),
-            units: 1,
-        }],
-        branch_false_fuel: vec![FuelSettlement {
-            site: PsiProvenance::Edge(false_edge),
-            units: 1,
-        }],
-        branch_true_bindings: Vec::new(),
-        branch_false_bindings: Vec::new(),
-        when_true: leaf(true_value, 7, true_constant, true_block, true_return),
-        when_false: leaf(false_value, 9, false_constant, false_block, false_return),
-    });
+    ));
     let identity = legalized_operation_plan_identity(&plan);
 
     let mut reversed = plan.clone();
     let LegalizedCondition::IntegerLessThanParametersV1 { left, right, .. } =
-        &mut reversed.functions[0].condition
+        &mut reversed.functions[0].conditional_mut().condition
     else {
         panic!("strict less-than fixture")
     };
@@ -370,38 +372,41 @@ fn strict_less_than_condition_has_distinct_ordered_identity() {
     assert_ne!(legalized_operation_plan_identity(&reversed), identity);
 
     let mut equality = plan.clone();
-    equality.functions[0].recipe = LegalizationRecipe::ReturnU64IntegerEqualParametersConditionalV1;
-    equality.functions[0].condition = LegalizedCondition::IntegerEqualParametersV1 {
-        operation: comparison,
-        result_definition_site: optimization_unit::ValueDefinitionSite::Node {
-            block: entry,
-            node: 0,
-        },
-        fuel: vec![FuelSettlement {
-            site: PsiProvenance::Operation(comparison),
-            units: 1,
-        }],
-        left: left_parameter.clone(),
-        right: right_parameter.clone(),
-    };
+    equality.functions[0].conditional_mut().recipe =
+        LegalizationRecipe::ReturnU64IntegerEqualParametersConditionalV1;
+    equality.functions[0].conditional_mut().condition =
+        LegalizedCondition::IntegerEqualParametersV1 {
+            operation: comparison,
+            result_definition_site: optimization_unit::ValueDefinitionSite::Node {
+                block: entry,
+                node: 0,
+            },
+            fuel: vec![FuelSettlement {
+                site: PsiProvenance::Operation(comparison),
+                units: 1,
+            }],
+            left: left_parameter.clone(),
+            right: right_parameter.clone(),
+        };
     assert_ne!(legalized_operation_plan_identity(&equality), identity);
 
     let mut inclusive = plan.clone();
-    inclusive.functions[0].recipe =
+    inclusive.functions[0].conditional_mut().recipe =
         LegalizationRecipe::ReturnU64IntegerLessOrEqualParametersConditionalV1;
-    inclusive.functions[0].condition = LegalizedCondition::IntegerLessOrEqualParametersV1 {
-        operation: comparison,
-        result_definition_site: optimization_unit::ValueDefinitionSite::Node {
-            block: entry,
-            node: 0,
-        },
-        fuel: vec![FuelSettlement {
-            site: PsiProvenance::Operation(comparison),
-            units: 1,
-        }],
-        left: left_parameter.clone(),
-        right: right_parameter.clone(),
-    };
+    inclusive.functions[0].conditional_mut().condition =
+        LegalizedCondition::IntegerLessOrEqualParametersV1 {
+            operation: comparison,
+            result_definition_site: optimization_unit::ValueDefinitionSite::Node {
+                block: entry,
+                node: 0,
+            },
+            fuel: vec![FuelSettlement {
+                site: PsiProvenance::Operation(comparison),
+                units: 1,
+            }],
+            left: left_parameter.clone(),
+            right: right_parameter.clone(),
+        };
     let inclusive_identity = legalized_operation_plan_identity(&inclusive);
     assert_ne!(inclusive_identity, identity);
     assert_ne!(
@@ -411,7 +416,7 @@ fn strict_less_than_condition_has_distinct_ordered_identity() {
 
     let mut inclusive_reversed = inclusive.clone();
     let LegalizedCondition::IntegerLessOrEqualParametersV1 { left, right, .. } =
-        &mut inclusive_reversed.functions[0].condition
+        &mut inclusive_reversed.functions[0].conditional_mut().condition
     else {
         panic!("inclusive comparison fixture")
     };
@@ -424,34 +429,37 @@ fn strict_less_than_condition_has_distinct_ordered_identity() {
     let equality_result = id::<ValueId>(36);
     let boolean_not = id::<OperationId>(37);
     let mut not_equal = equality.clone();
-    not_equal.functions[0].recipe =
+    not_equal.functions[0].conditional_mut().recipe =
         LegalizationRecipe::ReturnU64IntegerNotEqualParametersConditionalV1;
-    not_equal.functions[0].provenance.operations =
-        vec![comparison, boolean_not, true_constant, false_constant];
-    not_equal.functions[0].condition = LegalizedCondition::IntegerNotEqualParametersV1 {
-        equality_operation: comparison,
-        equality_result,
-        equality_result_definition_site: optimization_unit::ValueDefinitionSite::Node {
-            block: entry,
-            node: 0,
-        },
-        equality_fuel: vec![FuelSettlement {
-            site: PsiProvenance::Operation(comparison),
-            units: 1,
-        }],
-        boolean_not_operation: boolean_not,
-        boolean_not_result: condition,
-        boolean_not_result_definition_site: optimization_unit::ValueDefinitionSite::Node {
-            block: entry,
-            node: 1,
-        },
-        boolean_not_fuel: vec![FuelSettlement {
-            site: PsiProvenance::Operation(boolean_not),
-            units: 1,
-        }],
-        left: left_parameter,
-        right: right_parameter,
-    };
+    not_equal.functions[0]
+        .conditional_mut()
+        .provenance
+        .operations = vec![comparison, boolean_not, true_constant, false_constant];
+    not_equal.functions[0].conditional_mut().condition =
+        LegalizedCondition::IntegerNotEqualParametersV1 {
+            equality_operation: comparison,
+            equality_result,
+            equality_result_definition_site: optimization_unit::ValueDefinitionSite::Node {
+                block: entry,
+                node: 0,
+            },
+            equality_fuel: vec![FuelSettlement {
+                site: PsiProvenance::Operation(comparison),
+                units: 1,
+            }],
+            boolean_not_operation: boolean_not,
+            boolean_not_result: condition,
+            boolean_not_result_definition_site: optimization_unit::ValueDefinitionSite::Node {
+                block: entry,
+                node: 1,
+            },
+            boolean_not_fuel: vec![FuelSettlement {
+                site: PsiProvenance::Operation(boolean_not),
+                units: 1,
+            }],
+            left: left_parameter,
+            right: right_parameter,
+        };
     let not_equal_identity = legalized_operation_plan_identity(&not_equal);
     assert_ne!(
         not_equal_identity,
@@ -461,7 +469,7 @@ fn strict_less_than_condition_has_distinct_ordered_identity() {
 
     let mut not_equal_reversed = not_equal.clone();
     let LegalizedCondition::IntegerNotEqualParametersV1 { left, right, .. } =
-        &mut not_equal_reversed.functions[0].condition
+        &mut not_equal_reversed.functions[0].conditional_mut().condition
     else {
         panic!("not-equal comparison fixture")
     };
@@ -474,7 +482,9 @@ fn strict_less_than_condition_has_distinct_ordered_identity() {
     let mut corrupted_not_result = not_equal.clone();
     let LegalizedCondition::IntegerNotEqualParametersV1 {
         boolean_not_result, ..
-    } = &mut corrupted_not_result.functions[0].condition
+    } = &mut corrupted_not_result.functions[0]
+        .conditional_mut()
+        .condition
     else {
         panic!("not-equal comparison fixture")
     };
@@ -502,18 +512,19 @@ fn strict_less_than_condition_has_distinct_ordered_identity() {
     );
 
     let mut signed = plan.clone();
-    signed.functions[0].recipe = LegalizationRecipe::ReturnU64I64LessThanParametersConditionalV1;
+    signed.functions[0].conditional_mut().recipe =
+        LegalizationRecipe::ReturnU64I64LessThanParametersConditionalV1;
     let LegalizedCondition::IntegerLessThanParametersV1 {
         operation,
         result_definition_site,
         fuel,
         left,
         right,
-    } = signed.functions[0].condition.clone()
+    } = signed.functions[0].conditional_mut().condition.clone()
     else {
         panic!("strict less-than fixture")
     };
-    signed.functions[0].condition = LegalizedCondition::I64LessThanParametersV1 {
+    signed.functions[0].conditional_mut().condition = LegalizedCondition::I64LessThanParametersV1 {
         operation,
         result_definition_site,
         fuel,
@@ -524,7 +535,7 @@ fn strict_less_than_condition_has_distinct_ordered_identity() {
     assert_ne!(signed_identity, identity);
     let mut signed_reversed = signed.clone();
     let LegalizedCondition::I64LessThanParametersV1 { left, right, .. } =
-        &mut signed_reversed.functions[0].condition
+        &mut signed_reversed.functions[0].conditional_mut().condition
     else {
         panic!("signed strict less-than fixture")
     };
@@ -535,7 +546,7 @@ fn strict_less_than_condition_has_distinct_ordered_identity() {
     );
 
     let mut signed_inclusive = signed.clone();
-    signed_inclusive.functions[0].recipe =
+    signed_inclusive.functions[0].conditional_mut().recipe =
         LegalizationRecipe::ReturnU64I64LessOrEqualParametersConditionalV1;
     let LegalizedCondition::I64LessThanParametersV1 {
         operation,
@@ -543,17 +554,21 @@ fn strict_less_than_condition_has_distinct_ordered_identity() {
         fuel,
         left,
         right,
-    } = signed_inclusive.functions[0].condition.clone()
+    } = signed_inclusive.functions[0]
+        .conditional_mut()
+        .condition
+        .clone()
     else {
         panic!("signed strict less-than fixture")
     };
-    signed_inclusive.functions[0].condition = LegalizedCondition::I64LessOrEqualParametersV1 {
-        operation,
-        result_definition_site,
-        fuel,
-        left,
-        right,
-    };
+    signed_inclusive.functions[0].conditional_mut().condition =
+        LegalizedCondition::I64LessOrEqualParametersV1 {
+            operation,
+            result_definition_site,
+            fuel,
+            left,
+            right,
+        };
     let signed_inclusive_identity = legalized_operation_plan_identity(&signed_inclusive);
     assert_ne!(signed_inclusive_identity, signed_identity);
     assert_ne!(signed_inclusive_identity, inclusive_identity);
@@ -561,7 +576,7 @@ fn strict_less_than_condition_has_distinct_ordered_identity() {
     let mut corruptions = Vec::new();
     let mut corrupted = signed_inclusive.clone();
     let LegalizedCondition::I64LessOrEqualParametersV1 { operation, .. } =
-        &mut corrupted.functions[0].condition
+        &mut corrupted.functions[0].conditional_mut().condition
     else {
         unreachable!()
     };
@@ -571,7 +586,7 @@ fn strict_less_than_condition_has_distinct_ordered_identity() {
     let LegalizedCondition::I64LessOrEqualParametersV1 {
         result_definition_site,
         ..
-    } = &mut corrupted.functions[0].condition
+    } = &mut corrupted.functions[0].conditional_mut().condition
     else {
         unreachable!()
     };
@@ -579,7 +594,7 @@ fn strict_less_than_condition_has_distinct_ordered_identity() {
     corruptions.push(corrupted);
     let mut corrupted = signed_inclusive.clone();
     let LegalizedCondition::I64LessOrEqualParametersV1 { fuel, .. } =
-        &mut corrupted.functions[0].condition
+        &mut corrupted.functions[0].conditional_mut().condition
     else {
         unreachable!()
     };
@@ -587,7 +602,7 @@ fn strict_less_than_condition_has_distinct_ordered_identity() {
     corruptions.push(corrupted);
     let mut corrupted = signed_inclusive.clone();
     let LegalizedCondition::I64LessOrEqualParametersV1 { left, right, .. } =
-        &mut corrupted.functions[0].condition
+        &mut corrupted.functions[0].conditional_mut().condition
     else {
         unreachable!()
     };

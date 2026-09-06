@@ -6,6 +6,7 @@ mod plan;
 mod projected_structural_call_return;
 mod scalar;
 mod scalar_call_unit;
+mod scalar_leaf;
 mod schema;
 mod shared;
 mod structural;
@@ -15,6 +16,13 @@ use schema::{IdentitySchema, identity};
 use shared::*;
 
 pub fn legalized_operation_plan_identity(
+    plan: &LegalizedOperationPlan,
+) -> LegalizedOperationPlanIdentity {
+    identity(plan, IdentitySchema::V22)
+}
+
+#[doc(hidden)]
+pub fn legalized_operation_plan_identity_v21_legacy(
     plan: &LegalizedOperationPlan,
 ) -> LegalizedOperationPlanIdentity {
     identity(plan, IdentitySchema::V21)

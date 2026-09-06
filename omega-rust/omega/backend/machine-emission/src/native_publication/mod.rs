@@ -3,8 +3,10 @@
 //! Frame application, byte intervals, stack custody and MachineCodeFunction
 //! construction belong to machine emission. The compiler supplies the selected
 //! execution and separately joins the result to product evidence. Publication
-//! currently accepts return-only Unit functions; unsupported bodies reject.
+//! currently accepts return-only Unit functions and scalar leaves; unsupported
+//! bodies reject rather than falling back to a different emitter.
 
+mod scalar;
 mod unit_stack;
 
 use crate::{
@@ -66,7 +68,7 @@ pub fn publish_function_fragments(
 ) -> Result<StagedFragmentNativePublication, FragmentNativePublicationError> {
     let fragments = ProjectedFragments::from_emission(emitted)
         .map_err(FragmentNativePublicationError::FrameApplication)?;
-    let plan = project_return_only_unit_fragments(&fragments)
+    let plan = project_leaf_fragments(&fragments)
         .map_err(FragmentNativePublicationError::UnsupportedProjection)?;
     Ok(StagedFragmentNativePublication { plan, fragments })
 }
@@ -112,9 +114,7 @@ impl ProjectedFragments {
     }
 }
 
-fn project_return_only_unit_fragments(
-    projected: &ProjectedFragments,
-) -> Result<MachineCodePlan, &'static str> {
+fn project_leaf_fragments(projected: &ProjectedFragments) -> Result<MachineCodePlan, &'static str> {
     let staged = projected.emission();
     validate_optimized_function_fragment_emission(staged)
         .map_err(|_| "optimized fragment custody failed replay")?;
@@ -127,7 +127,7 @@ fn project_return_only_unit_fragments(
         (target::Architecture::X86_64, 8, 8) => &[0xc3],
         (target::Architecture::Aarch64, 8, 8) => &[0xc0, 0x03, 0x5f, 0xd6],
         _ => {
-            return Err("optimized return-only publication requires an eight-byte pointer target");
+            return Err("fragment publication requires an eight-byte pointer target");
         }
     };
     if !fragments.structural_unit_functions.is_empty() {
@@ -138,6 +138,22 @@ fn project_return_only_unit_fragments(
         .functions
         .iter()
         .map(|fragment| {
+            let target_function = staged
+                .source()
+                .optimized_target()
+                .target_operations()
+                .functions
+                .iter()
+                .find(|function| function.machine == fragment.machine)
+                .ok_or("native fragment has no validated target function")?;
+            if target_function.attachment != fragment.attachment
+                || target_function.provenance != fragment.provenance
+            {
+                return Err("native fragment is detached from its target function");
+            }
+            if let Some(abi) = &target_function.fixed_integer_scalar_abi {
+                return scalar::project_function(fragment, abi, fragments.target.architecture);
+            }
             project_function(
                 fragment,
                 return_bytes,
@@ -215,10 +231,73 @@ fn project_function(
         return Err("optimized Unit return fragment is not an exact publication projection");
     }
 
-    Ok(MachineCodeFunction {
+    Ok(leaf_function(
+        fragment,
+        LeafEvidence::Unit {
+            stack,
+            psi_return_edge,
+        },
+    ))
+}
+
+enum LeafEvidence {
+    Unit {
+        stack: machine_code::UnitStackEvidence,
+        psi_return_edge: semantic_vocabulary::EdgeId,
+    },
+    Scalar {
+        abi: target_operations::FixedIntegerScalarFunctionAbi,
+        stack: machine_code::ScalarStackEvidence,
+        attribution: Vec<SemanticCodeAttribution>,
+    },
+}
+
+/// Common native record construction after the role-specific projection has
+/// established its complete leaf contract. No Unit cleanup is invented for a
+/// scalar return, and no caller can assemble a mixed leaf disposition.
+fn leaf_function(
+    fragment: &machine_code::FunctionFragment,
+    evidence: LeafEvidence,
+) -> MachineCodeFunction {
+    let (
+        fixed_integer_scalar_abi,
+        unit_stack,
+        scalar_stack,
+        unit_affine_cleanup,
+        semantic_code_attribution,
+    ) = match evidence {
+        LeafEvidence::Unit {
+            stack,
+            psi_return_edge,
+        } => (
+            None,
+            Some(stack),
+            None,
+            Some(machine_code::UnitAffineCleanupRecord {
+                psi_edge: psi_return_edge,
+                structural_types: Vec::new(),
+                locals: Vec::new(),
+                actions: Vec::new(),
+                code_offset: 0,
+                byte_count: fragment.bytes.len(),
+            }),
+            vec![SemanticCodeAttribution {
+                site: SemanticCodeSite::Edge(psi_return_edge),
+                operation_ordinal: 0,
+                code_offset: 0,
+                byte_count: fragment.bytes.len(),
+            }],
+        ),
+        LeafEvidence::Scalar {
+            abi,
+            stack,
+            attribution,
+        } => (Some(abi), None, Some(stack), None, attribution),
+    };
+    MachineCodeFunction {
         machine: fragment.machine,
         attachment: fragment.attachment,
-        fixed_integer_scalar_abi: None,
+        fixed_integer_scalar_abi,
         mixed_structural_scalar_abi: None,
         structural_call_scalar_return: None,
         unit_scalar_abi: None,
@@ -227,10 +306,10 @@ fn project_function(
         x86_scalar_fma: Vec::new(),
         x86_scalar_fma_occurrences: Vec::new(),
         x86_floating_control: None,
-        unit_stack: Some(stack),
+        unit_stack,
         unit_parameter_homes: Vec::new(),
         unit_parameters: Vec::new(),
-        scalar_stack: None,
+        scalar_stack,
         internal_calls: Vec::new(),
         foreign_calls: Vec::new(),
         internal_unit_calls: Vec::new(),
@@ -247,29 +326,17 @@ fn project_function(
         unit_structural_scalar_field_stores: Vec::new(),
         unit_write_only_primitive_stores: Vec::new(),
         scalar_structural_scalar_field_stores: Vec::new(),
-        unit_affine_cleanup: Some(machine_code::UnitAffineCleanupRecord {
-            psi_edge: psi_return_edge,
-            structural_types: Vec::new(),
-            locals: Vec::new(),
-            actions: Vec::new(),
-            code_offset: 0,
-            byte_count: fragment.bytes.len(),
-        }),
+        unit_affine_cleanup,
         scalar_affine_cleanup: None,
         scalar_control_affine_cleanups: Vec::new(),
         scalar_structural_parameters: Vec::new(),
         scalar_structural_parameter_homes: Vec::new(),
         ranked_u32_countdown: None,
-        semantic_code_attribution: vec![SemanticCodeAttribution {
-            site: SemanticCodeSite::Edge(psi_return_edge),
-            operation_ordinal: 0,
-            code_offset: 0,
-            byte_count: fragment.bytes.len(),
-        }],
+        semantic_code_attribution,
         port_effects: Vec::new(),
         boundary_settlements: Vec::new(),
         structural_return: None,
-    })
+    }
 }
 
 #[cfg(test)]

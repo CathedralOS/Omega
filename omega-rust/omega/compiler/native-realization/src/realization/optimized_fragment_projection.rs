@@ -19,7 +19,7 @@ pub(super) struct OptimizedFragmentPublicationRequest<'request> {
     pub(super) final_unit: optimization_core::OptimizationUnitIdentity,
 }
 
-pub(super) fn emit_return_only_optimized_fragments(
+pub(super) fn emit_optimized_fragments(
     physical: crate::StagedOptimizedVerifiedPhysicalPipeline,
     request: OptimizedFragmentPublicationRequest<'_>,
 ) -> Result<
@@ -40,7 +40,7 @@ pub(super) fn emit_return_only_optimized_fragments(
     if request.has_provider_installation || request.has_boundary_settlements {
         return Err(super::diagnostics::realization_error(
             "optimized fragment native publication",
-            "the first return-only publication cohort admits no provider installation or boundary settlements",
+            "native fragment publication does not yet admit provider installation or boundary settlements",
         ));
     }
     let selected_lowering_completion = physical.selected_lowering_completion();

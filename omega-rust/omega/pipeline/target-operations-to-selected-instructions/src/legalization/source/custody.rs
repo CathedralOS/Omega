@@ -20,10 +20,13 @@ pub(super) fn validate_source_custody(
 }
 
 pub(super) fn validate_source_register_architecture(
-    functions: &[SourceFunction],
+    functions: &[legalized_operations::LegalizedFunction],
     architecture: target::Architecture,
 ) -> Result<(), LegalizationError> {
     if functions.iter().any(|function| {
+        let legalized_operations::LegalizedFunction::Conditional(function) = function else {
+            return false;
+        };
         let condition_register_mismatch = match &function.condition {
             LegalizedCondition::DirectParameter { register, .. } => {
                 register.architecture() != architecture

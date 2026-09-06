@@ -2,7 +2,7 @@ use crate::selection::constraints::row;
 use crate::selection::shared::*;
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn validate(
+pub(in crate::selection::validation) fn validate(
     function: usize,
     instruction: &SelectedInstruction,
     id: SelectedInstructionId,

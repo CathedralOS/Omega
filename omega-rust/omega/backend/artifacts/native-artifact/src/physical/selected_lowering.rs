@@ -14,16 +14,18 @@ use target::{Architecture, NativeTarget, ObjectFormat};
 use target_operations::TerminalPsiProvenance;
 use terminal_psi::TerminalPsiIdentity;
 
+mod scalar;
+
 const SELECTED_LOWERING_BINDING_DOMAIN: &[u8] =
     b"omega.native-artifact.selected-lowering-publication-binding.sha256.v1\0";
 const SELECTED_LOWERING_MACHINE_PROJECTION_DOMAIN: &[u8] =
     b"omega.native-artifact.selected-lowering-machine-projection.sha256.v1\0";
 
-/// Exact optimizer lineage and machine plan admitted by the first
-/// selected-lowering native-publication cohort.
+/// Exact optimizer lineage and machine plan admitted by selected-lowering
+/// native publication.
 ///
 /// This carrier is deliberately narrower than a general physical-pipeline
-/// descriptor. It binds one already validated, spill-free, return-only plan;
+/// descriptor. It binds validated Unit returns and fixed-integer scalar leaves;
 /// it cannot carry policy callbacks or claim support for calls and providers.
 #[derive(Debug, Clone, Copy)]
 pub struct SelectedLoweringNativePublicationInput<'plan> {
@@ -85,7 +87,7 @@ pub(crate) fn derive_selected_lowering_publication_binding(
     if input.machine_code.psi != terminal {
         return Err("selected-lowering machine plan is detached from its Terminal identity");
     }
-    validate_return_only_machine_plan(input.machine_code)?;
+    validate_leaf_machine_plan(input.machine_code)?;
     let machine_projection = machine_projection_from_plan(input.machine_code);
 
     let mut digest = Sha256::new();
@@ -108,7 +110,7 @@ pub(crate) fn validate_selected_lowering_publication_object(
     binding: &SelectedLoweringNativePublicationBinding,
     object: &image_emission::ObjectArtifact,
 ) -> Result<(), &'static str> {
-    validate_return_only_object(object)?;
+    validate_leaf_object(object)?;
     if machine_projection_from_object(object)? != *binding.machine_projection() {
         return Err(
             "selected-lowering object disagrees with the exact admitted machine projection",
@@ -117,7 +119,7 @@ pub(crate) fn validate_selected_lowering_publication_object(
     Ok(())
 }
 
-fn validate_return_only_machine_plan(plan: &MachineCodePlan) -> Result<(), &'static str> {
+fn validate_leaf_machine_plan(plan: &MachineCodePlan) -> Result<(), &'static str> {
     let shape = cohort_return_shape(plan.target)?;
     if plan.functions.is_empty() {
         return Err("selected-lowering publication requires at least one machine function");
@@ -130,10 +132,26 @@ fn validate_return_only_machine_plan(plan: &MachineCodePlan) -> Result<(), &'sta
         }
         previous = Some(function.machine);
         entry_count += usize::from(function.machine == plan.entry);
-        validate_return_only_machine_function(function, &shape)?;
+        if function.scalar_stack.is_some() {
+            scalar::validate_machine_function(function, plan.target)?;
+        } else {
+            validate_return_only_machine_function(function, &shape)?;
+        }
     }
     if entry_count != 1 {
         return Err("selected-lowering machine plan does not contain exactly one entry");
+    }
+    if plan
+        .functions
+        .iter()
+        .any(|function| function.scalar_stack.is_some())
+    {
+        // Object admission independently decodes the existing machine bytes
+        // and replays their exact stack mutations. It does not emit them again.
+        let object = image_emission::build_object_artifact(plan).map_err(
+            |_| "selected-lowering scalar machine bytes failed independent object replay",
+        )?;
+        validate_leaf_object(&object)?;
     }
     Ok(())
 }
@@ -175,6 +193,7 @@ fn validate_return_only_machine_function(
         || !function.dynamic_calls.is_empty()
         || !function.stored_dynamic_calls.is_empty()
         || !function.dynamic_parameter_calls.is_empty()
+        || !function.forwarded_dynamic_parameter_calls.is_empty()
         || !function.forwarded_dynamic_descriptor_calls.is_empty()
         || !function.unit_scalar_homes.is_empty()
         || !function.unit_integer_constants.is_empty()
@@ -206,9 +225,7 @@ fn validate_return_only_machine_function(
     Ok(())
 }
 
-fn validate_return_only_object(
-    object: &image_emission::ObjectArtifact,
-) -> Result<(), &'static str> {
+fn validate_leaf_object(object: &image_emission::ObjectArtifact) -> Result<(), &'static str> {
     let shape = cohort_return_shape(object.target())?;
     if object.functions().is_empty()
         || !object.private_functions().is_empty()
@@ -241,7 +258,11 @@ fn validate_return_only_object(
         expected_text_offset = expected_text_offset
             .checked_add(function.byte_count)
             .ok_or("selected-lowering object text size overflows")?;
-        validate_return_only_object_function(object, function, &shape)?;
+        if function.scalar_stack.is_some() {
+            scalar::validate_object_function(object, function)?;
+        } else {
+            validate_return_only_object_function(object, function, &shape)?;
+        }
     }
     if entry_count != 1 || expected_text_offset != object.text_bytes().len() {
         return Err(
@@ -294,11 +315,13 @@ fn validate_return_only_object_function(
         || !function.dynamic_calls.is_empty()
         || !function.stored_dynamic_calls.is_empty()
         || !function.dynamic_parameter_calls.is_empty()
+        || !function.forwarded_dynamic_parameter_calls.is_empty()
         || !function.forwarded_dynamic_descriptor_calls.is_empty()
         || !function.unit_scalar_homes.is_empty()
         || !function.unit_integer_constants.is_empty()
         || !function.unit_affine_scalar_records.is_empty()
         || !function.unit_structural_scalar_field_stores.is_empty()
+        || !function.unit_write_only_primitive_stores.is_empty()
         || !function.scalar_structural_scalar_field_stores.is_empty()
         || !function.unit_parameters.is_empty()
         || !function.unit_parameter_homes.is_empty()
@@ -391,6 +414,9 @@ fn machine_projection_from_plan(plan: &MachineCodePlan) -> [u8; 32] {
             &function.provenance,
             &function.bytes,
         );
+        if let Some(abi) = &function.fixed_integer_scalar_abi {
+            scalar::hash_projection(&mut digest, abi, function.semantic_code_attribution.iter());
+        }
     }
     digest.finalize().into()
 }
@@ -412,6 +438,17 @@ fn machine_projection_from_object(
             &function.provenance,
             function.bytes(object),
         );
+        if let Some(abi) = &function.fixed_integer_scalar_abi {
+            scalar::hash_projection(
+                &mut digest,
+                abi,
+                object
+                    .semantic_code_attribution()
+                    .iter()
+                    .filter(|row| row.machine == function.machine)
+                    .map(|row| &row.attribution),
+            );
+        }
     }
     Ok(digest.finalize().into())
 }
@@ -669,5 +706,190 @@ mod tests {
             validate_selected_lowering_publication_object(&binding, &different_object),
             Err("selected-lowering object disagrees with the exact admitted machine projection")
         );
+    }
+
+    fn scalar_plan() -> MachineCodePlan {
+        use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+        use machine_code::{ScalarControlFlowEvidence, ScalarStackEvidence};
+        use semantic_vocabulary::{IntegerSign, IntegerType, OperationId, ValueId};
+        use target_operations::{FixedIntegerScalarAbiValue, FixedIntegerScalarFunctionAbi};
+
+        let mut plan = plan(1);
+        let scalar_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        let call_plan = evaluate_call_plan(
+            CallingPolicy::native_for_target(plan.target),
+            &CallSignature {
+                parameters: Vec::new(),
+                result: Some(ValueShape::integer(8, 8)),
+            },
+        )
+        .unwrap();
+        let function = &mut plan.functions[0];
+        function.fixed_integer_scalar_abi = Some(FixedIntegerScalarFunctionAbi {
+            parameters: Vec::new(),
+            result: FixedIntegerScalarAbiValue {
+                value: ValueId::new(9).unwrap(),
+                scalar_type,
+                placement: call_plan.result.clone().unwrap(),
+            },
+            call_plan,
+        });
+        // mov eax, 7; ret -- writing EAX zero-extends the U64 ABI result.
+        function.bytes = vec![0xb8, 7, 0, 0, 0, 0xc3];
+        function.unit_stack = None;
+        function.unit_affine_cleanup = None;
+        function.scalar_stack = Some(ScalarStackEvidence {
+            mutations: Vec::new(),
+            control_flow: ScalarControlFlowEvidence::Linear,
+            stack_alignment: 16,
+            cleanup_preservation: None,
+        });
+        let operation = OperationId::new(11).unwrap();
+        function.provenance.operations = vec![operation];
+        function.semantic_code_attribution = vec![
+            SemanticCodeAttribution {
+                site: SemanticCodeSite::Operation(operation),
+                operation_ordinal: 0,
+                code_offset: 0,
+                byte_count: 5,
+            },
+            SemanticCodeAttribution {
+                site: SemanticCodeSite::Edge(function.provenance.edges[0]),
+                operation_ordinal: 1,
+                code_offset: 5,
+                byte_count: 1,
+            },
+        ];
+        plan
+    }
+
+    #[test]
+    fn scalar_leaf_publication_binds_abi_values_attribution_and_bytes() {
+        let plan = scalar_plan();
+        let binding =
+            derive_selected_lowering_publication_binding(terminal(), input(&plan, 3)).unwrap();
+        let object = image_emission::build_object_artifact(&plan).unwrap();
+        validate_selected_lowering_publication_object(&binding, &object).unwrap();
+
+        for corruption in 0..4 {
+            let mut changed = plan.clone();
+            let function = &mut changed.functions[0];
+            match corruption {
+                0 => {
+                    function
+                        .fixed_integer_scalar_abi
+                        .as_mut()
+                        .unwrap()
+                        .result
+                        .value = semantic_vocabulary::ValueId::new(10).unwrap()
+                }
+                1 => function.semantic_code_attribution[1].operation_ordinal = 2,
+                2 => function.semantic_code_attribution[0].byte_count = 4,
+                3 => function.bytes[1] = 8,
+                _ => unreachable!(),
+            }
+            let changed_binding =
+                derive_selected_lowering_publication_binding(terminal(), input(&changed, 3))
+                    .unwrap();
+            assert_ne!(
+                binding.machine_projection(),
+                changed_binding.machine_projection(),
+                "scalar coordinate {corruption}"
+            );
+            let changed_object = image_emission::build_object_artifact(&changed).unwrap();
+            assert!(
+                validate_selected_lowering_publication_object(&binding, &changed_object).is_err(),
+                "scalar object substitution {corruption}"
+            );
+        }
+    }
+
+    #[test]
+    fn scalar_leaf_publication_rejects_noncanonical_abi_and_stack_custody() {
+        let plan = scalar_plan();
+        for corruption in 0..6 {
+            let mut changed = plan.clone();
+            let function = &mut changed.functions[0];
+            match corruption {
+                0 => function
+                    .fixed_integer_scalar_abi
+                    .as_mut()
+                    .unwrap()
+                    .result
+                    .placement
+                    .locations
+                    .clear(),
+                1 => {
+                    function
+                        .fixed_integer_scalar_abi
+                        .as_mut()
+                        .unwrap()
+                        .call_plan
+                        .result = None
+                }
+                2 => function.scalar_stack.as_mut().unwrap().stack_alignment = 8,
+                3 => function.bytes.pop().map(|_| ()).unwrap(),
+                4 => function.bytes = vec![0x50, 0xb8, 7, 0, 0, 0, 0xc3],
+                5 => {
+                    function.semantic_code_attribution[1].site =
+                        SemanticCodeSite::Edge(semantic_vocabulary::EdgeId::new(99).unwrap())
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                derive_selected_lowering_publication_binding(terminal(), input(&changed, 3))
+                    .is_err(),
+                "scalar corruption {corruption}"
+            );
+        }
+    }
+
+    #[test]
+    fn scalar_leaf_publication_accepts_both_instruction_architectures() {
+        use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let mut plan = scalar_plan();
+            plan.target = target;
+            let function = &mut plan.functions[0];
+            let abi = function.fixed_integer_scalar_abi.as_mut().unwrap();
+            abi.call_plan = evaluate_call_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: Vec::new(),
+                    result: Some(ValueShape::integer(8, 8)),
+                },
+            )
+            .unwrap();
+            abi.result.placement = abi.call_plan.result.clone().unwrap();
+            if target.architecture == Architecture::Aarch64 {
+                // movz x0, #7; ret -- a scalar leaf preserves incoming x30.
+                function.bytes = vec![0xe0, 0x00, 0x80, 0xd2, 0xc0, 0x03, 0x5f, 0xd6];
+                function.semantic_code_attribution[0].byte_count = 4;
+                function.semantic_code_attribution[1].code_offset = 4;
+                function.semantic_code_attribution[1].byte_count = 4;
+            }
+            let binding =
+                derive_selected_lowering_publication_binding(terminal(), input(&plan, 3)).unwrap();
+            let object = image_emission::build_object_artifact(&plan).unwrap();
+            validate_selected_lowering_publication_object(&binding, &object).unwrap();
+        }
+    }
+
+    #[test]
+    fn unit_machine_projection_retains_its_original_identity_coordinates() {
+        let plan = plan(1);
+        let function = &plan.functions[0];
+        let mut original =
+            machine_projection_hasher(plan.psi, plan.target, plan.entry, plan.functions.len());
+        hash_function_projection(
+            &mut original,
+            function.machine,
+            function.attachment,
+            &function.provenance,
+            &function.bytes,
+        );
+        let original: [u8; 32] = original.finalize().into();
+        assert_eq!(machine_projection_from_plan(&plan), original);
     }
 }

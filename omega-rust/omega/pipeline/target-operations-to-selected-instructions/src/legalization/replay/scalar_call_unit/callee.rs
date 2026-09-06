@@ -31,9 +31,13 @@ pub(super) fn replay_callee(
     let mut proposed = proposed_plan
         .functions
         .iter()
-        .filter(|value| value.machine == callee);
+        .filter(|value| value.machine() == callee);
     let (Some(abstract_callee), Some(optimized_callee), Some(proposed_callee)) =
         (abstracts.next(), optimized.next(), proposed.next())
+    else {
+        return Err(Error::NonCanonicalLegalizedPlan);
+    };
+    let legalized_operations::LegalizedFunction::Conditional(proposed_callee) = proposed_callee
     else {
         return Err(Error::NonCanonicalLegalizedPlan);
     };
