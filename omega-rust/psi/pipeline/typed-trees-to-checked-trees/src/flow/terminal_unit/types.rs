@@ -2,6 +2,9 @@
 
 use super::*;
 
+mod plain_owned;
+pub(super) use plain_owned::has_plain_owned_contents;
+
 pub(super) fn return_unit_affine_discards(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -1048,7 +1051,11 @@ impl<'program> ShapeCollector<'program> {
         }
         let identity = self
             .program
-            .normalized_type_identity_with_binders(type_reference, binders)
+            .normalized_type_identity_with_binders_and_substitutions(
+                type_reference,
+                binders,
+                substitutions,
+            )
             .into_string();
         if self.types.contains_key(&identity) {
             return Some(identity);
@@ -1071,6 +1078,11 @@ impl<'program> ShapeCollector<'program> {
             .type_reference_table
             .type_reference(type_reference)
         {
+            let plain_owned_array = plain_owned::has_plain_owned_contents_with_substitutions(
+                self.program,
+                type_reference,
+                substitutions,
+            );
             let unrestricted_primitive_element =
                 self.is_unrestricted_nonatomic_primitive(*element_type);
             let unrestricted_material_record_element =
@@ -1078,18 +1090,19 @@ impl<'program> ShapeCollector<'program> {
             let unrestricted_nested_primitive_array_element =
                 self.is_literal_array_of_unrestricted_primitive(*element_type);
             if *length == 0
-                || !substitutions.is_empty()
-                || (!matches!(
-                    self.program
-                        .type_reference_table
-                        .type_reference(*element_type),
-                    TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
-                ) && !unrestricted_nested_primitive_array_element)
-                || (crate::checks::type_multiplicity(self.program, *element_type)
-                    != Multiplicity::Linear
-                    && !unrestricted_primitive_element
-                    && !unrestricted_material_record_element
-                    && !unrestricted_nested_primitive_array_element)
+                || (!plain_owned_array
+                    && (!substitutions.is_empty()
+                        || (!matches!(
+                            self.program
+                                .type_reference_table
+                                .type_reference(*element_type),
+                            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
+                        ) && !unrestricted_nested_primitive_array_element)
+                        || (crate::checks::type_multiplicity(self.program, *element_type)
+                            != Multiplicity::Linear
+                            && !unrestricted_primitive_element
+                            && !unrestricted_material_record_element
+                            && !unrestricted_nested_primitive_array_element)))
                 || !self.in_progress.insert(identity.clone())
             {
                 return None;

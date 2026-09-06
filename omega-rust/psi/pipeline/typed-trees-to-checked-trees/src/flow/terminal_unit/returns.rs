@@ -109,6 +109,9 @@ fn build_claim_free_affine_structural_return_machine(
         return None;
     }
     let binders = machine_binders(program, machine);
+    if !has_plain_owned_contents(program, state.return_type) {
+        return None;
+    }
     let (attachment_type_identity, structural_parameters, scalar_parameters) =
         if machine.attached_data.is_some() {
             let (attachment, structural, scalar) =
@@ -164,20 +167,6 @@ fn build_claim_free_affine_structural_return_machine(
     if result_type_identity != structural_parameter.type_identity
         || type_graph_requires_nominal_drop(program, state.return_type)
         || !parameter_qualifications(program, shapes, state.return_type, &binders)?.is_empty()
-        || !matches!(
-            &shapes.types.get(&result_type_identity)?.shape,
-            CheckedUnitStructuralTypeShape::Record { fields }
-                if matches!(
-                    fields.as_slice(),
-                    [field]
-                        if matches!(
-                            &field.field_type,
-                            CheckedUnitStructuralFieldType::Scalar(
-                                PrimitiveType::I64 | PrimitiveType::U64
-                            )
-                        )
-                )
-        )
     {
         return None;
     }

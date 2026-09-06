@@ -482,8 +482,8 @@ Owners include
   helper-result projections, but full checking still rejects the inner call's
   result as an unrealized operand.
   Connect ordinary structural-result callees to the shared call closure and
-  result-binding lookup, and extend whole-result production to nested records,
-  fixed arrays, and reference-bearing values without erasing their obligations.
+  result-binding lookup, and carry loans, qualifications, and projected claims
+  through structural results without erasing their obligations.
   Acceptance:
   `select(forward_outer(outer).inner)` and `select(forward_array(values)[0])`
   evaluate each call once, retain the inner result home through projection and

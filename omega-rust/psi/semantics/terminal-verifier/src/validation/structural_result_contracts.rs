@@ -71,3 +71,72 @@ pub(super) fn has_empty_qualification_rosters(
 ) -> bool {
     qualifications.is_empty() && projected.is_empty()
 }
+
+/// Whole-value transfer is independent of native fragment width. Borrowed byte
+/// views and erased carriers still need their own retained custody contracts.
+pub(super) fn has_plain_owned_shape(module: &TerminalModule, root: StructuralTypeId) -> bool {
+    fn visit(
+        module: &TerminalModule,
+        root: StructuralTypeId,
+        active: &mut Vec<StructuralTypeId>,
+        complete: &mut BTreeSet<StructuralTypeId>,
+    ) -> bool {
+        if complete.contains(&root) {
+            return true;
+        }
+        if active.contains(&root) {
+            return false;
+        }
+        let mut declarations = module
+            .structural_types
+            .iter()
+            .filter(|declaration| declaration.id == root);
+        let Some(declaration) = declarations.next() else {
+            return false;
+        };
+        if declarations.next().is_some() {
+            return false;
+        }
+        active.push(root);
+        let mut field_is_owned = |field: &terminal_psi::StructuralFieldDeclaration| {
+            !field.relevance.is_erased()
+                && match &field.field_type {
+                    StructuralFieldType::Scalar(_) | StructuralFieldType::IeeeFloat(_) => true,
+                    StructuralFieldType::Structural(child) => {
+                        visit(module, *child, active, complete)
+                    }
+                    StructuralFieldType::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                    ) => true,
+                    StructuralFieldType::ByteSequence(_) | StructuralFieldType::Erased { .. } => {
+                        false
+                    }
+                }
+        };
+        let supported = match &declaration.shape {
+            StructuralTypeShape::PrimitiveScalar(_) => true,
+            StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+            ) => true,
+            StructuralTypeShape::ByteSequence(_) => false,
+            StructuralTypeShape::Record { fields } => fields.iter().all(&mut field_is_owned),
+            StructuralTypeShape::Sum { cases } => cases
+                .iter()
+                .flat_map(|case| &case.fields)
+                .all(&mut field_is_owned),
+            StructuralTypeShape::Mixed { fields, cases } => fields
+                .iter()
+                .chain(cases.iter().flat_map(|case| &case.fields))
+                .all(&mut field_is_owned),
+            StructuralTypeShape::FixedArray { element, .. } => {
+                visit(module, *element, active, complete)
+            }
+        };
+        active.pop();
+        if supported {
+            complete.insert(root);
+        }
+        supported
+    }
+    visit(module, root, &mut Vec::new(), &mut BTreeSet::new())
+}
