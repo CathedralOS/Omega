@@ -12,9 +12,13 @@ scope, board hygiene, and publication.
 
 ## Choose a useful slice
 
-Fetch main, inspect status and recent commits in the relevant lane, and read the
-requested board. An unnamed invocation may choose from `TASKS.md`,
-`TASKS_BOOTSTRAP.md`, and `TASKS_OPTIMIZER.md`. Leave other sessions' work alone.
+Record the starting checkout path and branch. Fetch main and inspect status;
+when that checkout is clean and on main, run `git merge --ff-only origin/main`
+before reading its boards. Fetch alone does not update checked-out files.
+Otherwise preserve it and read the boards from an isolated worktree based on
+fetched `origin/main`. Inspect recent commits in the relevant lane. An unnamed
+invocation may choose from `TASKS.md`, `TASKS_BOOTSTRAP.md`, and
+`TASKS_OPTIMIZER.md`. Leave other sessions' work alone.
 
 Use existing failure logs and board evidence to rank useful work. Do not start
 an unfiltered corpus run just to choose a task. If evidence is stale, probe one
@@ -90,6 +94,14 @@ unchanged candidate does not need a second full pass merely for publication.
 Publish the exact candidate whose applicable checks are established; never bypass
 reservation ownership or push directly to main. If more development or lengthy
 validation is needed, release the reservation and finish it outside the queue.
+
+After publication, return to the recorded starting checkout and recheck its
+branch and status. If it is still clean and on main, fetch and run
+`git merge --ff-only origin/main`, then verify HEAD equals fetched `origin/main`.
+This fast-forward creates no merge commit; the candidate rebase above integrates
+local work. Never reset, auto-stash, switch branches, or rebase unrelated local
+commits to synchronize the starting checkout. If synchronization cannot proceed,
+report why and distinguish published remote main from the local checkout state.
 
 Report the resulting behavior, commit, checks actually run, remaining limitations,
 and any unrelated failures. Do not imply a scoped pass establishes whole-repository
