@@ -5780,6 +5780,9 @@ fn proves_entailment_ladder_on_empty_proof_machines() {
 
     machine congruence_add(a: u64, b: u64)
     requires
+        // Congruence does not discharge formation of overflowing arithmetic.
+        a in 0..=10
+        b in 0..=10
         a == b
     ensures
         a + 1 == b + 1

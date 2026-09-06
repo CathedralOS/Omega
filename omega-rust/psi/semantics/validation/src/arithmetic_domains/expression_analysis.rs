@@ -40,6 +40,68 @@ const NEUTRAL: Analysis = Analysis {
     primitive: None,
 };
 
+/// A landed literal retains its own width inside a larger expression; the
+/// destination does not widen its arithmetic. A suffix contributes no policy.
+fn integer_literal_primitive(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<PrimitiveType> {
+    use numerics::literals::LandedIntegerType;
+
+    let ExpressionNode::Integer(literal) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    Some(match literal.landing()?.landed_type {
+        LandedIntegerType::I8 => PrimitiveType::I8,
+        LandedIntegerType::I16 => PrimitiveType::I16,
+        LandedIntegerType::I32 => PrimitiveType::I32,
+        LandedIntegerType::I64 => PrimitiveType::I64,
+        LandedIntegerType::U8 => PrimitiveType::U8,
+        LandedIntegerType::U16 => PrimitiveType::U16,
+        LandedIntegerType::U32 => PrimitiveType::U32,
+        LandedIntegerType::U64 => PrimitiveType::U64,
+        LandedIntegerType::Addr => return None,
+    })
+}
+
+/// Recover full-width unsigned constants which the i64-backed interval cannot
+/// represent. This evaluates only bitwise trees, through the shared carrier
+/// evaluator; it never reinterprets an unsigned literal as a signed value.
+fn bitwise_known_unsigned(
+    program: &TypedTrees,
+    env: &ValueEnv,
+    primitive: PrimitiveType,
+    expression: ExpressionHandle,
+    depth: usize,
+) -> Option<u64> {
+    if depth >= 64
+        || integer_literal_primitive(program, expression)
+            .is_some_and(|literal| literal != primitive)
+    {
+        return None;
+    }
+    if let Some(value) = known_u64_value(program, env, expression) {
+        return Some(value);
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Unary(unary)
+            if unary.operator == typed_trees::expression::UnaryOperator::BitwiseNot =>
+        {
+            bitwise::complement_unsigned_value(
+                primitive,
+                bitwise_known_unsigned(program, env, primitive, unary.operand, depth + 1)?,
+            )
+        }
+        ExpressionNode::Binary(binary) => bitwise::binary_unsigned_value(
+            binary.operator,
+            primitive,
+            bitwise_known_unsigned(program, env, primitive, binary.left, depth + 1)?,
+            bitwise_known_unsigned(program, env, primitive, binary.right, depth + 1)?,
+        ),
+        _ => None,
+    }
+}
+
 /// A resolved monomorphic free call has its declared carrier and policy even
 /// when no body or result-contract range is available. Unknown values are not
 /// untyped values: their full carrier range still constrains later operations.
@@ -123,7 +185,11 @@ pub(super) fn analyze(
                 owner,
                 diagnostics,
             );
-            if !is_arithmetic(operator) {
+            let bitwise = matches!(
+                operator,
+                BinaryOperator::BitwiseAnd | BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor
+            );
+            if !is_arithmetic(operator) && !bitwise {
                 // Comparison / logical `and`/`or`: a `bool` whose integer value is
                 // 0 or 1. Its interval is [0, 1] (NOT unbounded) so it does not
                 // poison an enclosing arithmetic op -- e.g. the match desugar
@@ -230,6 +296,35 @@ pub(super) fn analyze(
                     (None, None) => None,
                 }
             };
+            // Representation operations retain operand width and policy, but
+            // have no arithmetic overflow condition of their own. In particular
+            // their result is not a Boolean bound for surrounding arithmetic.
+            if bitwise {
+                let primitive = left.primitive.or(right.primitive).or_else(|| {
+                    (left.interval.low.is_some()
+                        && left.interval.high.is_some()
+                        && right.interval.low.is_some()
+                        && right.interval.high.is_some())
+                    .then_some(target_primitive)
+                    .flatten()
+                });
+                return Analysis {
+                    domain,
+                    interval: primitive
+                        .map(|primitive| {
+                            bitwise::binary(
+                                operator,
+                                primitive,
+                                left.interval,
+                                right.interval,
+                                bitwise_known_unsigned(program, env, primitive, binary.left, 0),
+                                bitwise_known_unsigned(program, env, primitive, binary.right, 0),
+                            )
+                        })
+                        .unwrap_or(Interval::UNBOUNDED),
+                    primitive,
+                };
+            }
             let mut interval = match operator {
                 BinaryOperator::Add => refine_dependent_product(
                     program,
@@ -308,6 +403,7 @@ pub(super) fn analyze(
             let policy_bridge = integer_policy_primitive(operator).map(|primitive| {
                 numerics::integer_policy::integer_policy_bridge(primitive, effective_domain)
             });
+            let mut exact_result_proven = false;
             if effective_domain == ArithmeticDomain::Exact
                 && operator == BinaryOperator::Add
                 && (env.proves_joint_add_upper_bound(program, binary.left, binary.right)
@@ -315,6 +411,7 @@ pub(super) fn analyze(
                 && let Some(range) = primitive.and_then(primitive_range)
             {
                 interval = range;
+                exact_result_proven = true;
             }
             if effective_domain == ArithmeticDomain::Exact
                 && operator == BinaryOperator::Subtract
@@ -332,6 +429,7 @@ pub(super) fn analyze(
                 && let Some(range) = primitive.and_then(primitive_range)
             {
                 interval = range;
+                exact_result_proven = true;
             }
             if effective_domain == ArithmeticDomain::Exact
                 && operator == BinaryOperator::Multiply
@@ -352,6 +450,7 @@ pub(super) fn analyze(
                 && let Some(range) = primitive.and_then(primitive_range)
             {
                 interval = range;
+                exact_result_proven = true;
             }
             if effective_domain == ArithmeticDomain::Exact
                 && operator == BinaryOperator::ShiftLeft
@@ -360,6 +459,7 @@ pub(super) fn analyze(
                 && let Some(range) = primitive_range(PrimitiveType::U64)
             {
                 interval = range;
+                exact_result_proven = true;
             }
             // Abort-as-effect follow-up (owner 2026-07-18): a TRAPPING op
             // whose result interval is provably DISJOINT from its type's
@@ -402,7 +502,39 @@ pub(super) fn analyze(
                 })
                 && let Some(primitive) = primitive
                 && let Some(range) = primitive_range(primitive)
-                && !range.contains(interval)
+                && !(if primitive == PrimitiveType::U64 {
+                    // `None` is an unknown ceiling, not evidence of fitting
+                    // u64::MAX. Mathematical carrier bounds and retained
+                    // relational proofs establish representability separately.
+                    exact_result_proven
+                        || (operator == BinaryOperator::Add
+                            && (ordered_values::unsigned_increase_fits(
+                                program,
+                                machine,
+                                state,
+                                env,
+                                binary.left,
+                                right.interval,
+                            ) || ordered_values::unsigned_increase_fits(
+                                program,
+                                machine,
+                                state,
+                                env,
+                                binary.right,
+                                left.interval,
+                            )))
+                        || (operator == BinaryOperator::Subtract
+                            && interval.low.is_some_and(|low| low >= 0))
+                        || unsigned_representability::binary_fits(
+                            operator,
+                            left.interval,
+                            right.interval,
+                            bitwise_known_unsigned(program, env, primitive, binary.left, 0),
+                            bitwise_known_unsigned(program, env, primitive, binary.right, 0),
+                        )
+                } else {
+                    range.contains(interval)
+                })
             {
                 // When an operand is a value-machine CALL, "constrain the operands'
                 // range" is unactionable at the call site -- the fix is to annotate
@@ -516,6 +648,56 @@ pub(super) fn analyze(
                 domain,
                 interval,
                 primitive,
+            }
+        }
+        ExpressionNode::Unary(unary) => {
+            // Negation must not hide formation errors in its operand subtree.
+            let operand = analyze(
+                program,
+                machine,
+                state,
+                unary.operand,
+                env,
+                target_primitive,
+                target_domain,
+                owner,
+                diagnostics,
+            );
+            match unary.operator {
+                typed_trees::expression::UnaryOperator::BitwiseNot => {
+                    let primitive = operand.primitive.or_else(|| {
+                        (operand.interval.low.is_some() && operand.interval.high.is_some())
+                            .then_some(target_primitive)
+                            .flatten()
+                    });
+                    Analysis {
+                        domain: operand.domain,
+                        interval: primitive
+                            .map(|primitive| {
+                                bitwise::complement(
+                                    primitive,
+                                    operand.interval,
+                                    bitwise_known_unsigned(
+                                        program,
+                                        env,
+                                        primitive,
+                                        unary.operand,
+                                        0,
+                                    ),
+                                )
+                            })
+                            .unwrap_or(Interval::UNBOUNDED),
+                        primitive,
+                    }
+                }
+                typed_trees::expression::UnaryOperator::LogicalNot => Analysis {
+                    domain: None,
+                    interval: Interval {
+                        low: Some(0),
+                        high: Some(1),
+                    },
+                    primitive: Some(PrimitiveType::Bool),
+                },
             }
         }
         ExpressionNode::Cast(cast) => {
@@ -711,6 +893,26 @@ pub(super) fn analyze(
                 };
             }
 
+            // A named operator's declared result supplies its carrier even
+            // when provider selection has not supplied an executable body.
+            // Do not infer a body range or repeatability from this signature.
+            if let Some(operator) =
+                typed_trees::operator::resolve_named_expression_call(program, call)
+                && let Some(primitive) = program.primitive_type_reference(operator.return_type)
+                && integer_bit_width(primitive).is_some()
+                && let Some(range) = primitive_range(primitive)
+            {
+                return Analysis {
+                    domain: Some(
+                        program.arithmetic_domain_for_type_reference(operator.return_type),
+                    ),
+                    interval: range_constraint_interval(program, operator.return_type)
+                        .map(|declared| declared.intersect(range))
+                        .unwrap_or(range),
+                    primitive: Some(primitive),
+                };
+            }
+
             if let Some(result) = resolved_free_integer_call(program, call) {
                 return result;
             }
@@ -816,7 +1018,7 @@ pub(super) fn analyze(
         ExpressionNode::Integer(value) => Analysis {
             domain: None,
             interval: literal_interval(value),
-            primitive: None,
+            primitive: integer_literal_primitive(program, expression),
         },
         ExpressionNode::Float(_) | ExpressionNode::Boolean(_) => NEUTRAL,
         // A place (`x`, `self.field`): its declared type gives the domain and the

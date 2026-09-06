@@ -158,8 +158,9 @@ fn package_checking_finalizes_comptime_value_arm_calls_before_evaluation() {
         terminates by remaining;
         -> u64
         {
+            // This fixture checks call selection, not an accumulator bound.
             transition remaining > 0 {
-                true -> (burn(remaining - 1, acc + 1))
+                true -> (burn(remaining - 1, ((acc as u64 in Wrapping) + 1) as u64))
                 false -> acc
             }
         }

@@ -1,0 +1,4 @@
+// Integer OR preserves the u8 carrier; its result can still be 255.
+machine run(value: u8) -> u8 {
+    (value | 128u8) + 1u8
+}

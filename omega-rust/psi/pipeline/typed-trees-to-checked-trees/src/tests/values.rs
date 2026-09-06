@@ -1,6 +1,7 @@
 use super::*;
 use checked_trees::{CheckedScalarBindingValue, CheckedValueStatementRole};
 
+mod bitwise_integer_bounds;
 mod call_computations;
 mod call_result_relations;
 mod guard_boolean_custody;

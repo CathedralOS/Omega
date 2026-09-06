@@ -25,6 +25,7 @@ pub(super) enum Operand {
         target: SymbolHandle,
         arguments: Vec<Operand>,
     },
+    CollectionLength(Box<Operand>),
     Binary {
         operator: BinaryOperator,
         primitive: PrimitiveType,
@@ -56,6 +57,7 @@ impl Operand {
             }
             Self::Integer(..) => true,
             Self::Call { arguments, .. } => arguments.iter().all(|value| value.survives(written)),
+            Self::CollectionLength(collection) => collection.survives(written),
             Self::Binary { operands, .. } => operands.iter().all(|value| value.survives(written)),
         }
     }
@@ -71,6 +73,11 @@ impl Operand {
         }
         match self {
             Self::Integer(..) => vec![self.clone()],
+            Self::CollectionLength(collection) => collection
+                .rebound(bindings)
+                .into_iter()
+                .map(|collection| Self::CollectionLength(Box::new(collection)))
+                .collect(),
             Self::Place { root, fields, path } => bindings
                 .iter()
                 .filter_map(|(source, target)| {
@@ -196,6 +203,16 @@ fn build_operand(
     if !expression.is_valid() || depth >= 128 {
         return None;
     }
+    if let Some(collection) = collection_length_receiver(program, machine, Some(state), expression)
+    {
+        return Some(Operand::CollectionLength(Box::new(build_operand(
+            program,
+            machine,
+            state,
+            collection,
+            depth + 1,
+        )?)));
+    }
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(literal) => {
             Some(Operand::Integer(literal.clone(), literal.landing()))
@@ -232,7 +249,12 @@ fn build_operand(
             let field = if root == machine.symbol {
                 crate::exact_self_field(program, machine, expression)?.symbol
             } else {
-                member.member_symbol
+                crate::places::declared_member_field_symbol(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                )?
             };
             if !field.is_valid()
                 || declared_place_type_raw(program, machine, Some(state), expression).is_none()
@@ -297,25 +319,8 @@ fn integer_meaning(
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<(PrimitiveType, ArithmeticDomain)> {
-    if let ExpressionNode::Binary(binary) = program.expression_table.expression(expression)
-        && matches!(
-            binary.operator,
-            BinaryOperator::BitwiseAnd | BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor
-        )
-    {
-        // Fixed-width bitwise operations are policy-independent representation
-        // operations (chapter 5). Recover the width from their typed operands;
-        // this is not an interval evaluation or an overflow-policy bridge.
-        let left = integer_meaning(program, machine, state, binary.left);
-        let right = integer_meaning(program, machine, state, binary.right);
-        if let (Some((left, _)), Some((right, _))) = (left, right)
-            && left != right
-        {
-            return None;
-        }
-        return left
-            .or(right)
-            .map(|(primitive, _)| (primitive, ArithmeticDomain::Exact));
+    if collection_length_receiver(program, machine, Some(state), expression).is_some() {
+        return Some((PrimitiveType::U64, ArithmeticDomain::Exact));
     }
     // Reuse the arithmetic owner's operand-driven carrier/policy selection.
     // This query supplies no range proof; ordinary validation still owes all
@@ -336,6 +341,31 @@ fn integer_meaning(
         primitive,
         analysis.domain.unwrap_or(ArithmeticDomain::Exact),
     ))
+}
+
+/// Recognize builtin metadata only after the receiver has an exact structural
+/// collection type. A same-spelled nominal record field/accessor is not this
+/// operation. The member need not own a field symbol: structural collections
+/// have no authored field declaration to serve as their length identity.
+pub(super) fn collection_length_receiver(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if member.member.as_str() != "len" || member.case_variant.is_some() {
+        return None;
+    }
+    let receiver = declared_place_type_raw(program, machine, state, member.receiver)?;
+    let receiver = crate::places::unwrapped_type_reference(program, receiver)?;
+    matches!(
+        program.type_reference_table.type_reference(receiver),
+        TypeReferenceNode::Slice { .. } | TypeReferenceNode::FixedArray { .. }
+    )
+    .then_some(member.receiver)
 }
 
 pub(super) fn record(
@@ -361,9 +391,17 @@ pub(super) fn record(
         }
         _ => return,
     };
-    if integer_meaning(program, machine, state, left).is_none()
-        || integer_meaning(program, machine, state, right).is_none()
-    {
+    let bounded_integer = |expression| {
+        integer_meaning(program, machine, state, expression).is_some()
+            || matches!(program.expression_table.expression(expression),
+                ExpressionNode::Integer(literal)
+                    if literal.landing().is_none()
+                        && (literal.value_i64().is_some() || literal.value_bignum().and_then(|value| value.to_u64()).is_some()))
+    };
+    // An anonymous comparison literal has no carrier yet, but its exact value
+    // can still be an ordered operand if it lies in the fixed-integer window.
+    // Retain its anonymous identity: this does not stamp a guessed width.
+    if !bounded_integer(left) || !bounded_integer(right) {
         return;
     }
     let (Some(left), Some(right)) = (
@@ -402,4 +440,31 @@ pub(super) fn subtract_floor(
         .filter(|relation| relation.left == left && relation.right == right)
         .map(|relation| relation.floor)
         .max()
+}
+
+/// A live bound `ceiling - value >= distance` proves that an unsigned
+/// increment no larger than distance stays below that integer ceiling. Every
+/// admitted fixed-width integer ceiling is at most u64::MAX. The relation's
+/// exact operand identity and ordinary write invalidation remain authoritative.
+pub(super) fn unsigned_increase_fits(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    environment: &ValueEnv,
+    value: ExpressionHandle,
+    increase: Interval,
+) -> bool {
+    let (Some(state), Some(low), Some(high)) = (state, increase.low, increase.high) else {
+        return false;
+    };
+    if low < 0 || high < low {
+        return false;
+    }
+    let Some(value) = operand(program, machine, state, value) else {
+        return false;
+    };
+    environment
+        .ordered_values
+        .iter()
+        .any(|relation| relation.right == value && relation.floor >= high)
 }
