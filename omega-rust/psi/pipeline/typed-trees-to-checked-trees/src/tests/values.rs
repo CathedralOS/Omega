@@ -1,6 +1,8 @@
 use super::*;
 use checked_trees::{CheckedScalarBindingValue, CheckedValueStatementRole};
 
+mod source_bindings;
+
 #[test]
 fn scalar_transition_argument_custody_keeps_exact_targets_and_source_bindings() {
     use checked_trees::{

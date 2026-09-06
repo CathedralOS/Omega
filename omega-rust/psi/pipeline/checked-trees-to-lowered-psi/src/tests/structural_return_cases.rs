@@ -2,69 +2,23 @@
 
 use super::*;
 
-fn install_structural_scalar_return_fixture(checked: &mut CheckedTrees) {
-    let root = SymbolHandle::from_arena_index(1);
-    let entry = SymbolHandle::from_arena_index(11);
-    let affine_parameter = |position| checked_trees::CheckedUnitStructuralParameterPlan {
-        position,
-        is_self: false,
-        type_identity: "example::Acknowledgement".to_owned(),
-        multiplicity: Multiplicity::Affine,
-        access: checked_trees::CheckedStructuralAccess::Owned,
-        qualifications: Vec::new(),
-        fused_service_erasure: None,
-    };
-    checked.facts.flow.terminal_structural_scalar_returns =
-        checked_trees::CheckedStructuralScalarReturnPlans {
-            structural_types: checked
-                .facts
-                .flow
-                .terminal_unit_effects
-                .structural_types
-                .clone(),
-            machines: vec![CheckedStructuralScalarReturnMachinePlan {
-                machine: root,
-                state: entry,
-                attachment_type_identity: "example::Root".to_owned(),
-                structural_parameters: vec![affine_parameter(0), affine_parameter(1)],
-                scalar_parameters: Vec::new(),
-                bindings: Vec::new(),
-                result_type: PrimitiveType::I32,
-                return_statement_ordinal: 0,
-                shared_boolean_convergence: None,
-                caller_requirements: Vec::new(),
-                scalar_requirements: Vec::new(),
-                cleanup_actions: vec![
-                    CheckedStructuralScalarReturnCleanupAction::DiscardRoot(1),
-                    CheckedStructuralScalarReturnCleanupAction::DiscardRoot(0),
-                ],
-            }],
-            selected_operator_machines: Vec::new(),
-            trait_operator_machines: Vec::new(),
-        };
-    checked.facts.values.scalar_expressions.expressions.push(
-        checked_trees::CheckedLocatedScalarExpression {
-            state: entry,
-            statement_ordinal: 0,
-            role: CheckedScalarExpressionRole::Return,
-            expression: CheckedScalarExpression::IntegerLiteral {
-                literal: numerics::literals::IntegerLiteral::from_value(7).with_landing(
-                    numerics::literals::IntegerLanding {
-                        landed_type: numerics::literals::LandedIntegerType::I32,
-                        domain: numerics::arithmetic::ArithmeticDomain::Exact,
-                    },
-                ),
-            },
-        },
-    );
+fn structural_scalar_return_fixture(parameters: &str, result: &str, body: &str) -> CheckedTrees {
+    checked_source(&format!(
+        "data Root {{}}
+         data Acknowledgement {{}}
+         machine Root::enter({parameters}) -> {result} {{ {body} }}"
+    ))
 }
 
 #[test]
 fn structural_scalar_return_lowers_value_before_exact_affine_cleanup() {
-    let mut checked = hard_root_checked_fixture();
-    install_structural_scalar_return_fixture(&mut checked);
+    let checked = structural_scalar_return_fixture(
+        "first: Acknowledgement, second: Acknowledgement",
+        "i32",
+        "7i32",
+    );
 
-    let lowered = lower_machine(&checked, "example::Root::enter")
+    let lowered = lower_machine(&checked, "Root::enter")
         .expect("closed scalar return and exact affine cleanup should lower");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("structural scalar return lowers one attached machine")
@@ -103,8 +57,12 @@ fn structural_scalar_return_lowers_value_before_exact_affine_cleanup() {
 
 #[test]
 fn structural_scalar_return_fails_closed_on_stale_cleanup() {
-    let mut checked = hard_root_checked_fixture();
-    install_structural_scalar_return_fixture(&mut checked);
+    let mut checked = structural_scalar_return_fixture(
+        "first: Acknowledgement, second: Acknowledgement",
+        "i32",
+        "7i32",
+    );
+
     checked
         .facts
         .flow
@@ -116,7 +74,7 @@ fn structural_scalar_return_fails_closed_on_stale_cleanup() {
     ];
 
     assert!(matches!(
-        lower_machine(&checked, "example::Root::enter"),
+        lower_machine(&checked, "Root::enter"),
         Err(LoweringError::Unsupported(
             "structural scalar return cleanup does not consume its exact frontier"
         ))
@@ -125,25 +83,13 @@ fn structural_scalar_return_fails_closed_on_stale_cleanup() {
 
 #[test]
 fn structural_scalar_return_reconstructs_closed_exact_expression_proof() {
-    let mut checked = hard_root_checked_fixture();
-    install_structural_scalar_return_fixture(&mut checked);
-    let landed = |value| {
-        numerics::literals::IntegerLiteral::from_value(value).with_landing(
-            numerics::literals::IntegerLanding {
-                landed_type: numerics::literals::LandedIntegerType::I32,
-                domain: numerics::arithmetic::ArithmeticDomain::Exact,
-            },
-        )
-    };
-    checked.facts.values.scalar_expressions.expressions[0].expression =
-        CheckedScalarExpression::IntegerBinary {
-            kind: CheckedIntegerBinaryKind::ExactAdd,
-            primitive_type: PrimitiveType::I32,
-            left: Box::new(CheckedScalarExpression::IntegerLiteral { literal: landed(3) }),
-            right: Box::new(CheckedScalarExpression::IntegerLiteral { literal: landed(4) }),
-        };
+    let mut checked = structural_scalar_return_fixture(
+        "first: Acknowledgement, second: Acknowledgement",
+        "i32",
+        "3i32 + 4i32",
+    );
 
-    let lowered = lower_machine(&checked, "example::Root::enter")
+    let lowered = lower_machine(&checked, "Root::enter")
         .expect("closed exact expression should lower with reconstructed proof");
     let operations = &lowered.semantic_module.machines[0].blocks[0].operations;
     assert!(matches!(
@@ -194,7 +140,7 @@ fn structural_scalar_return_reconstructs_closed_exact_expression_proof() {
             primitive_type: PrimitiveType::I32,
         };
     assert!(matches!(
-        lower_machine(&checked, "example::Root::enter"),
+        lower_machine(&checked, "Root::enter"),
         Err(LoweringError::Unsupported(
             "structural scalar return is outside its checked value/control slice"
         ))
@@ -203,52 +149,13 @@ fn structural_scalar_return_reconstructs_closed_exact_expression_proof() {
 
 #[test]
 fn structural_scalar_return_materializes_branch_free_local_prefix_before_cleanup() {
-    let mut checked = hard_root_checked_fixture();
-    install_structural_scalar_return_fixture(&mut checked);
-    let landed = |value| {
-        numerics::literals::IntegerLiteral::from_value(value).with_landing(
-            numerics::literals::IntegerLanding {
-                landed_type: numerics::literals::LandedIntegerType::I32,
-                domain: numerics::arithmetic::ArithmeticDomain::Exact,
-            },
-        )
-    };
-    let plan = &mut checked
-        .facts
-        .flow
-        .terminal_structural_scalar_returns
-        .machines[0];
-    plan.bindings = vec![checked_trees::CheckedScalarBinding {
-        destination: checked_trees::CheckedScalarBindingDestination::Immutable,
-        statement_ordinal: 0,
-        primitive_type: PrimitiveType::I32,
-        value: CheckedScalarBindingValue::Expression,
-    }];
-    plan.return_statement_ordinal = 1;
-    checked.facts.values.scalar_expressions.expressions = vec![
-        checked_trees::CheckedLocatedScalarExpression {
-            state: plan.state,
-            statement_ordinal: 0,
-            role: CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 },
-            expression: CheckedScalarExpression::IntegerBinary {
-                kind: CheckedIntegerBinaryKind::ExactAdd,
-                primitive_type: PrimitiveType::I32,
-                left: Box::new(CheckedScalarExpression::IntegerLiteral { literal: landed(3) }),
-                right: Box::new(CheckedScalarExpression::IntegerLiteral { literal: landed(4) }),
-            },
-        },
-        checked_trees::CheckedLocatedScalarExpression {
-            state: plan.state,
-            statement_ordinal: 1,
-            role: CheckedScalarExpressionRole::Return,
-            expression: CheckedScalarExpression::Local {
-                position: 0,
-                primitive_type: PrimitiveType::I32,
-            },
-        },
-    ];
+    let mut checked = structural_scalar_return_fixture(
+        "first: Acknowledgement, second: Acknowledgement",
+        "i32",
+        "let sum: i32 = 3i32 + 4i32; sum",
+    );
 
-    let lowered = lower_machine(&checked, "example::Root::enter")
+    let lowered = lower_machine(&checked, "Root::enter")
         .expect("checked local prefix should lower before exact affine cleanup");
     let block = &lowered.semantic_module.machines[0].blocks[0];
     assert!(matches!(
@@ -294,7 +201,7 @@ fn structural_scalar_return_materializes_branch_free_local_prefix_before_cleanup
             primitive_type: PrimitiveType::I32,
         };
     assert!(matches!(
-        lower_machine(&checked, "example::Root::enter"),
+        lower_machine(&checked, "Root::enter"),
         Err(LoweringError::Unsupported(
             "structural scalar binding is not one branch-free local expression"
         ))
@@ -303,130 +210,20 @@ fn structural_scalar_return_materializes_branch_free_local_prefix_before_cleanup
 
 #[test]
 fn structural_scalar_return_supports_repeated_carried_short_circuit_local_continuations() {
-    let mut checked = hard_root_checked_fixture();
-    install_structural_scalar_return_fixture(&mut checked);
-    let plan = &mut checked
-        .facts
-        .flow
-        .terminal_structural_scalar_returns
-        .machines[0];
-    plan.bindings = vec![
-        checked_trees::CheckedScalarBinding {
-            destination: checked_trees::CheckedScalarBindingDestination::Immutable,
-            statement_ordinal: 0,
-            primitive_type: PrimitiveType::Bool,
-            value: CheckedScalarBindingValue::Expression,
-        },
-        checked_trees::CheckedScalarBinding {
-            destination: checked_trees::CheckedScalarBindingDestination::Immutable,
-            statement_ordinal: 1,
-            primitive_type: PrimitiveType::Bool,
-            value: CheckedScalarBindingValue::Expression,
-        },
-        checked_trees::CheckedScalarBinding {
-            destination: checked_trees::CheckedScalarBindingDestination::Immutable,
-            statement_ordinal: 2,
-            primitive_type: PrimitiveType::Bool,
-            value: CheckedScalarBindingValue::Expression,
-        },
-        checked_trees::CheckedScalarBinding {
-            destination: checked_trees::CheckedScalarBindingDestination::Immutable,
-            statement_ordinal: 3,
-            primitive_type: PrimitiveType::Bool,
-            value: CheckedScalarBindingValue::Expression,
-        },
-        checked_trees::CheckedScalarBinding {
-            destination: checked_trees::CheckedScalarBindingDestination::Immutable,
-            statement_ordinal: 4,
-            primitive_type: PrimitiveType::Bool,
-            value: CheckedScalarBindingValue::Expression,
-        },
-        checked_trees::CheckedScalarBinding {
-            destination: checked_trees::CheckedScalarBindingDestination::Immutable,
-            statement_ordinal: 5,
-            primitive_type: PrimitiveType::Bool,
-            value: CheckedScalarBindingValue::Expression,
-        },
-        checked_trees::CheckedScalarBinding {
-            destination: checked_trees::CheckedScalarBindingDestination::Immutable,
-            statement_ordinal: 6,
-            primitive_type: PrimitiveType::Bool,
-            value: CheckedScalarBindingValue::Expression,
-        },
-    ];
-    plan.result_type = PrimitiveType::Bool;
-    plan.return_statement_ordinal = 7;
-    checked.facts.values.scalar_expressions.expressions = vec![
-        checked_trees::CheckedLocatedScalarExpression {
-            state: plan.state,
-            statement_ordinal: 0,
-            role: CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 },
-            expression: CheckedScalarExpression::Boolean(Box::new(
-                CheckedBooleanExpression::Constant(true),
-            )),
-        },
-        checked_trees::CheckedLocatedScalarExpression {
-            state: plan.state,
-            statement_ordinal: 1,
-            role: CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 1 },
-            expression: CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::And {
-                left: Box::new(CheckedBooleanExpression::Local { position: 0 }),
-                right: Box::new(CheckedBooleanExpression::Constant(false)),
-            })),
-        },
-        checked_trees::CheckedLocatedScalarExpression {
-            state: plan.state,
-            statement_ordinal: 2,
-            role: CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 2 },
-            expression: CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::Not(
-                Box::new(CheckedBooleanExpression::Local { position: 1 }),
-            ))),
-        },
-        checked_trees::CheckedLocatedScalarExpression {
-            state: plan.state,
-            statement_ordinal: 3,
-            role: CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 3 },
-            expression: CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::Or {
-                left: Box::new(CheckedBooleanExpression::Local { position: 2 }),
-                right: Box::new(CheckedBooleanExpression::Constant(false)),
-            })),
-        },
-        checked_trees::CheckedLocatedScalarExpression {
-            state: plan.state,
-            statement_ordinal: 4,
-            role: CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 4 },
-            expression: CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::Not(
-                Box::new(CheckedBooleanExpression::Local { position: 3 }),
-            ))),
-        },
-        checked_trees::CheckedLocatedScalarExpression {
-            state: plan.state,
-            statement_ordinal: 5,
-            role: CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 5 },
-            expression: CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::And {
-                left: Box::new(CheckedBooleanExpression::Local { position: 4 }),
-                right: Box::new(CheckedBooleanExpression::Constant(true)),
-            })),
-        },
-        checked_trees::CheckedLocatedScalarExpression {
-            state: plan.state,
-            statement_ordinal: 6,
-            role: CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 6 },
-            expression: CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::Not(
-                Box::new(CheckedBooleanExpression::Local { position: 5 }),
-            ))),
-        },
-        checked_trees::CheckedLocatedScalarExpression {
-            state: plan.state,
-            statement_ordinal: 7,
-            role: CheckedScalarExpressionRole::Return,
-            expression: CheckedScalarExpression::Boolean(Box::new(
-                CheckedBooleanExpression::Local { position: 6 },
-            )),
-        },
-    ];
+    let mut checked = structural_scalar_return_fixture(
+        "left: Acknowledgement, right: Acknowledgement",
+        "bool",
+        "let first: bool = true;
+         let second: bool = first && false;
+         let third: bool = !second;
+         let fourth: bool = third || false;
+         let fifth: bool = !fourth;
+         let sixth: bool = fifth && true;
+         let seventh: bool = !sixth;
+         seventh",
+    );
 
-    let lowered = lower_machine(&checked, "example::Root::enter")
+    let lowered = lower_machine(&checked, "Root::enter")
         .expect("repeated short-circuit locals should compose through carried continuations");
     let machine = &lowered.semantic_module.machines[0];
     assert_eq!(machine.blocks.len(), 16);
@@ -547,7 +344,7 @@ fn structural_scalar_return_supports_repeated_carried_short_circuit_local_contin
             left: Box::new(CheckedBooleanExpression::Local { position: 6 }),
             right: Box::new(CheckedBooleanExpression::Constant(false)),
         }));
-    let lowered = lower_machine(&checked, "example::Root::enter")
+    let lowered = lower_machine(&checked, "Root::enter")
         .expect("repeated local decisions should feed a final short-circuit return");
     let machine = &lowered.semantic_module.machines[0];
     assert_eq!(machine.blocks.len(), 20);
@@ -607,7 +404,7 @@ fn structural_scalar_return_supports_repeated_carried_short_circuit_local_contin
         .bindings[5]
         .primitive_type = PrimitiveType::I32;
     assert!(matches!(
-        lower_machine(&checked, "example::Root::enter"),
+        lower_machine(&checked, "Root::enter"),
         Err(LoweringError::Unsupported(
             "structural scalar short-circuit binding has a non-Boolean carrier"
         ))
@@ -616,35 +413,13 @@ fn structural_scalar_return_supports_repeated_carried_short_circuit_local_contin
 
 #[test]
 fn structural_scalar_return_maps_interleaved_scalar_parameters_before_cleanup() {
-    let mut checked = hard_root_checked_fixture();
-    install_structural_scalar_return_fixture(&mut checked);
-    let plan = &mut checked
-        .facts
-        .flow
-        .terminal_structural_scalar_returns
-        .machines[0];
-    plan.structural_parameters[1].position = 2;
-    plan.scalar_parameters = vec![
-        checked_trees::CheckedStructuralScalarParameterPlan {
-            source_position: 1,
-            primitive_type: PrimitiveType::I32,
-        },
-        checked_trees::CheckedStructuralScalarParameterPlan {
-            source_position: 3,
-            primitive_type: PrimitiveType::Bool,
-        },
-    ];
-    plan.result_type = PrimitiveType::Bool;
-    plan.cleanup_actions = vec![
-        CheckedStructuralScalarReturnCleanupAction::DiscardRoot(2),
-        CheckedStructuralScalarReturnCleanupAction::DiscardRoot(0),
-    ];
-    checked.facts.values.scalar_expressions.expressions[0].expression =
-        CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::Not(Box::new(
-            CheckedBooleanExpression::Parameter { position: 1 },
-        ))));
+    let mut checked = structural_scalar_return_fixture(
+        "first: Acknowledgement, number: i32, second: Acknowledgement, flag: bool",
+        "bool",
+        "!flag",
+    );
 
-    let lowered = lower_machine(&checked, "example::Root::enter")
+    let lowered = lower_machine(&checked, "Root::enter")
         .expect("exact mixed parameter map should lower before affine cleanup");
     let machine = &lowered.semantic_module.machines[0];
     assert!(matches!(
@@ -699,7 +474,7 @@ fn structural_scalar_return_maps_interleaved_scalar_parameters_before_cleanup() 
         .scalar_parameters[0]
         .source_position = 0;
     assert!(matches!(
-        lower_machine(&checked, "example::Root::enter"),
+        lower_machine(&checked, "Root::enter"),
         Err(LoweringError::Unsupported(
             "structural scalar return parameter maps overlap or repeat a source position"
         ))
@@ -708,23 +483,13 @@ fn structural_scalar_return_maps_interleaved_scalar_parameters_before_cleanup() 
 
 #[test]
 fn structural_scalar_return_emits_boolean_paths_before_cleanup() {
-    let mut checked = hard_root_checked_fixture();
-    install_structural_scalar_return_fixture(&mut checked);
-    checked
-        .facts
-        .flow
-        .terminal_structural_scalar_returns
-        .machines[0]
-        .result_type = PrimitiveType::Bool;
-    checked.facts.values.scalar_expressions.expressions[0].expression =
-        CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::Not(Box::new(
-            CheckedBooleanExpression::Equal {
-                left: Box::new(CheckedBooleanExpression::Constant(true)),
-                right: Box::new(CheckedBooleanExpression::Constant(false)),
-            },
-        ))));
+    let checked = structural_scalar_return_fixture(
+        "first: Acknowledgement, second: Acknowledgement",
+        "bool",
+        "!(true == false)",
+    );
 
-    let lowered = lower_machine(&checked, "example::Root::enter")
+    let lowered = lower_machine(&checked, "Root::enter")
         .expect("closed branch-free Boolean should lower before structural cleanup");
     let machine = &lowered.semantic_module.machines[0];
     assert!(matches!(
@@ -780,38 +545,12 @@ fn structural_scalar_return_emits_boolean_paths_before_cleanup() {
         lowered.semantic_module
     );
 
-    let plan = &mut checked
-        .facts
-        .flow
-        .terminal_structural_scalar_returns
-        .machines[0];
-    plan.bindings = vec![checked_trees::CheckedScalarBinding {
-        destination: checked_trees::CheckedScalarBindingDestination::Immutable,
-        statement_ordinal: 0,
-        primitive_type: PrimitiveType::Bool,
-        value: CheckedScalarBindingValue::Expression,
-    }];
-    plan.return_statement_ordinal = 1;
-    checked.facts.values.scalar_expressions.expressions = vec![
-        checked_trees::CheckedLocatedScalarExpression {
-            state: plan.state,
-            statement_ordinal: 0,
-            role: CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 },
-            expression: CheckedScalarExpression::Boolean(Box::new(
-                CheckedBooleanExpression::Constant(true),
-            )),
-        },
-        checked_trees::CheckedLocatedScalarExpression {
-            state: plan.state,
-            statement_ordinal: 1,
-            role: CheckedScalarExpressionRole::Return,
-            expression: CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::And {
-                left: Box::new(CheckedBooleanExpression::Local { position: 0 }),
-                right: Box::new(CheckedBooleanExpression::Constant(false)),
-            })),
-        },
-    ];
-    let lowered = lower_machine(&checked, "example::Root::enter")
+    let checked = structural_scalar_return_fixture(
+        "first: Acknowledgement, second: Acknowledgement",
+        "bool",
+        "let selected: bool = true; selected && false",
+    );
+    let lowered = lower_machine(&checked, "Root::enter")
         .expect("short-circuit Boolean leaves should each perform exact affine cleanup");
     let blocks = &lowered.semantic_module.machines[0].blocks;
     assert_eq!(blocks.len(), 5);

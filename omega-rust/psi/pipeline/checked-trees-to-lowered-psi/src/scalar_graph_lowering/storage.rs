@@ -151,28 +151,17 @@ impl ScalarBindings {
         statement: u32,
         role: CheckedScalarExpressionRole,
     ) -> Result<LoweredDirectExpression, LoweringError> {
-        let mut expressions = checked
+        let (binding, expression) = checked
             .facts
             .values
             .scalar_expressions
-            .expressions
-            .iter()
-            .filter(|expression| {
-                expression.state == state
-                    && expression.statement_ordinal == statement
-                    && expression.role == role
-            });
-        let expression = expressions
-            .next()
+            .bound_expression_at(state, statement, role)
             .ok_or(LoweringError::Unsupported(
-                "scalar computation lost its checked expression",
-            ))?
-            .expression
-            .clone();
-        if expressions.next().is_some() {
-            return unsupported("scalar computation has duplicate checked expressions");
-        }
-        self.expression(&expression)
+                "scalar computation needs one checked expression and one source binding",
+            ))?;
+        let expression = self.expression(expression)?;
+        source_custody::validate_pure(checked, binding, expression.scalar_type())?;
+        Ok(expression)
     }
 
     pub(super) fn expression(

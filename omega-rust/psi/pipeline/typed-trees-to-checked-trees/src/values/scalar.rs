@@ -126,7 +126,27 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                     exact_integer_casts,
                                 )
                             {
-                                expressions.extend(arguments);
+                                for (authored_argument, argument) in arguments {
+                                    source_bindings.append(CheckedScalarExpressionBindings {
+                                        destination: symbols::SymbolHandle::invalid(),
+                                        state: state.symbol,
+                                        statement_ordinal,
+                                        role: argument.role,
+                                        expression: authored_argument,
+                                        symbols: binding_symbols.insert_many(
+                                            scalar_parameters
+                                                .iter()
+                                                .map(|parameter| parameter.symbol)
+                                                .chain(
+                                                    locals
+                                                        .iter()
+                                                        .filter(|local| !local.is_mutable)
+                                                        .map(|local| local.symbol),
+                                                ),
+                                        ),
+                                    });
+                                    expressions.push(argument);
+                                }
                             } else if let Some(initializer) = lower_return_expression(
                                 program,
                                 operators,
@@ -331,20 +351,42 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         }
                     }
                     StatementNode::Transition(transition) => {
-                        if let TransitionGuardNode::When(guard) = transition.guard
+                        if let TransitionGuardNode::When(authored_guard) = transition.guard
                             && let Some(guard) = lower_boolean_guard(
                                 program,
                                 operators,
-                                guard,
+                                authored_guard,
                                 &scalar_parameters,
                                 &parameter_types,
                                 &locals,
                                 exact_integer_casts,
                             )
                             .or_else(|| {
-                                lower_closed_integer_literal_guard(program, operators, guard)
+                                lower_closed_integer_literal_guard(
+                                    program,
+                                    operators,
+                                    authored_guard,
+                                )
                             })
                         {
+                            source_bindings.append(CheckedScalarExpressionBindings {
+                                destination: symbols::SymbolHandle::invalid(),
+                                state: state.symbol,
+                                statement_ordinal,
+                                role: CheckedScalarExpressionRole::Guard,
+                                expression: authored_guard,
+                                symbols: binding_symbols.insert_many(
+                                    scalar_parameters
+                                        .iter()
+                                        .map(|parameter| parameter.symbol)
+                                        .chain(
+                                            locals
+                                                .iter()
+                                                .filter(|local| !local.is_mutable)
+                                                .map(|local| local.symbol),
+                                        ),
+                                ),
+                            });
                             expressions.push(CheckedLocatedScalarExpression {
                                 state: state.symbol,
                                 statement_ordinal,
@@ -661,7 +703,7 @@ fn lower_direct_call_binding_arguments(
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
-) -> Option<Vec<CheckedLocatedScalarExpression>> {
+) -> Option<Vec<(ExpressionHandle, CheckedLocatedScalarExpression)>> {
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return None;
     };
@@ -692,24 +734,27 @@ fn lower_direct_call_binding_arguments(
         .map(|(argument_index, (argument, target_parameter))| {
             let expected_type =
                 program.primitive_type_reference(target_parameter.type_reference)?;
-            Some(CheckedLocatedScalarExpression {
-                state,
-                statement_ordinal,
-                role: CheckedScalarExpressionRole::CallArgument {
-                    binding_ordinal,
-                    argument_ordinal: u32::try_from(argument_index).ok()?,
+            Some((
+                *argument,
+                CheckedLocatedScalarExpression {
+                    state,
+                    statement_ordinal,
+                    role: CheckedScalarExpressionRole::CallArgument {
+                        binding_ordinal,
+                        argument_ordinal: u32::try_from(argument_index).ok()?,
+                    },
+                    expression: lower_return_expression(
+                        program,
+                        operators,
+                        *argument,
+                        parameters,
+                        parameter_types,
+                        locals,
+                        expected_type,
+                        exact_integer_casts,
+                    )?,
                 },
-                expression: lower_return_expression(
-                    program,
-                    operators,
-                    *argument,
-                    parameters,
-                    parameter_types,
-                    locals,
-                    expected_type,
-                    exact_integer_casts,
-                )?,
-            })
+            ))
         })
         .collect()
 }

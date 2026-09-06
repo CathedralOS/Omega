@@ -6,6 +6,7 @@ mod bindings;
 mod branch_destinations;
 mod computations;
 mod guards;
+mod source_custody;
 mod storage;
 
 pub(super) fn checked_scalar_computation_call_targets(
@@ -561,6 +562,18 @@ fn lower_checked_direct_call_binding(
     caller_value_types: &[ScalarType],
     scalar_bindings: &storage::ScalarBindings,
 ) -> Result<LoweredDirectCallBinding, LoweringError> {
+    source_custody::direct_calls::validate(
+        checked,
+        caller_machine,
+        caller_state,
+        statement_ordinal,
+        binding_ordinal,
+        target_machine,
+        target_state,
+        call_ordinal,
+        argument_count,
+        result_type,
+    )?;
     let arguments = (0..argument_count)
         .map(|argument_ordinal| {
             scalar_bindings.expression_at(
@@ -704,6 +717,7 @@ fn lower_scalar_graph_successor(
     scalar_bindings: &storage::ScalarBindings,
     computations: &mut computations::Expansion<'_>,
 ) -> Result<(usize, Vec<LoweredDirectExpression>), LoweringError> {
+    source_custody::validate_successor(checked, source_state, successor)?;
     let target = states
         .iter()
         .position(|candidate| candidate.state == successor.target)
@@ -757,15 +771,17 @@ pub(super) fn lower_checked_scalar_expression_at(
     statement_ordinal: u32,
     role: CheckedScalarExpressionRole,
 ) -> Result<LoweredDirectExpression, LoweringError> {
-    let expression = checked
+    let (binding, expression) = checked
         .facts
         .values
         .scalar_expressions
-        .expression_at(state, statement_ordinal, role)
+        .bound_expression_at(state, statement_ordinal, role)
         .ok_or(LoweringError::Unsupported(
-            "scalar expression has no source-independent checked value plan",
+            "scalar expression has no unique source-bound checked value plan",
         ))?;
-    lower_checked_scalar_expression(expression)
+    let expression = lower_checked_scalar_expression(expression)?;
+    source_custody::validate_pure(checked, binding, expression.scalar_type())?;
+    Ok(expression)
 }
 
 pub(super) fn lower_checked_scalar_expression(

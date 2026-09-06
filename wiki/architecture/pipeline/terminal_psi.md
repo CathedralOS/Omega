@@ -2980,6 +2980,22 @@ handle, checked against its statement and destination role before expansion.
 Invalid handles, cycles, duplicate roots/call occurrences, swapped arm roots,
 and mismatched carriers or invocation coordinates reject before publication.
 
+Pure scalar roots use the same authored-expression locator as computation roots.
+Each pure plan requires one source-binding row and one expression row at its
+state, statement, and destination role. Their expression handle, declaration
+destination, primitive carrier, and ordered declaration namespace must rejoin
+the authored source. The namespace contains scalar parameters followed by prior
+initialized immutable primitive locals; mutable storage keeps its separate
+symbol identity. Missing or conflicting rows, stale handles, reordered symbols,
+and swapped continuation roles reject instead of selecting a matching row from
+an ambiguous set. Shared structural and attached-Unit scalar-root lowering uses
+this same check; boundary and Unit call-operand custody remains separate work.
+Direct scalar call bindings also rejoin the authored callee and result carrier,
+and state transfers rejoin their selected target, including zero-argument calls
+and transfers. A trait-operator realization consumes its existing source-bound
+return only when it agrees with the selected realization plan; lowering does not
+clone the checked program to insert a second return row.
+
 Computed Boolean guards complete before either branch destination starts. A
 private dispatch block consumes the completed Boolean and retains the source
 value prefix for the selected branch. Guard roots rejoin the exact authored
