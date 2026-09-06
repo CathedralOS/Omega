@@ -63,6 +63,7 @@ pub use crate::call_cycles::{
     ValidatedProofRankingRelation, ValidatedProofRecursiveCallSite,
     ValidatedProofRecursiveComponent, ValidatedProofRecursiveEdge, ValidatedProofRecursiveMember,
     ValidatedProofRecursiveTransitionLane, machine_call_dependency_symbols,
+    validated_runtime_recursive_components,
 };
 pub use crate::calls::{
     AssignmentWriteTarget, CallFrameResolver, LocalWriteOrigin, frame_paths_overlap,

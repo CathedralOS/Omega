@@ -1765,6 +1765,21 @@ Current ownership is:
   summaries; malformed, label-only, out-of-bounds/nonliteral/runtime-indexed,
   later/missing/duplicate/reordered/type- or symbol-substituted local,
   foreign-machine, or sibling-state-rooted correspondence fails closed.
+  `checks/termination/progress/components.rs` closes private summaries within
+  each revalidated runtime call component. Validation and this query share the
+  complete call graph, including proof dependencies; a runtime subset of a
+  mixed component cannot establish progress. Other calls keep their selected
+  contract or checked-summary obligations. A component is reconsidered when
+  an external private summary becomes available, and unknown external progress
+  prevents inference. Premises and build-bound demands converge as exact sets,
+  not by discovery order. No inferred summary changes a published guarantee.
+  `components/projections.rs` bounds finite premise transport from the actual
+  parameter roots, argument-prefix lengths, external schemas, and exact receipt
+  paths. A growing recursive-reference demand retains `NoGuarantee`; it is not
+  truncated into a finite promise. This is not an arbitrary iteration budget
+  or a bound on general local-state lineage. Shared call-parameter lookup maps
+  an exact machine-head target to its entry parameters and generic context,
+  while an explicit subordinate-state target retains its own parameters.
 - The checked-lowering regression root `tests/termination.rs` is orchestration
   only. Its subordinate modules separately own ranking witnesses, operational
   contract publication, exclusive-cycle write frames, indexed-call write

@@ -19,6 +19,9 @@ use typed_trees::types::TypeReferenceHandle;
 
 mod runtime_ranking;
 
+#[cfg(test)]
+mod query_tests;
+
 /// The one closed ranking relation currently admitted for a proof-only call
 /// SCC. The ranked value must have one common normalized type across every
 /// member and each internal call must pass a nonempty member path rooted at
@@ -271,6 +274,66 @@ fn collect_expression_dependency_symbols(
     }
 }
 
+/// Return the exact runtime machine components admitted by the call-cycle
+/// ranking judgment. The full graph includes proof dependencies, so a runtime
+/// subset of a mixed component cannot acquire independent admission. This
+/// query does not validate progress premises or single-machine recursion.
+pub fn validated_runtime_recursive_components(program: &TypedTrees) -> Vec<Vec<SymbolHandle>> {
+    let mut diagnostics = Vec::new();
+    let symbols = TopLevelSymbols::build(program, &mut diagnostics);
+    if diagnostics.iter().any(Diagnostic::is_error) {
+        return Vec::new();
+    }
+    let proof_only = typed_trees::proof_only::classify(program);
+    let graph = build_machine_call_graph(program, &symbols, &proof_only);
+    runtime_ranking::admitted_components(program, &proof_only, &graph.edges)
+        .into_iter()
+        .map(|members| {
+            members
+                .into_iter()
+                .map(|member| program.machines()[member].symbol)
+                .collect()
+        })
+        .collect()
+}
+
+/// Temporary graph construction shared by validation and admission queries.
+struct MachineCallGraph {
+    edges: Vec<Vec<usize>>,
+    index_of: HashMap<u32, usize>,
+    proof_dependencies: Vec<Vec<usize>>,
+}
+
+fn build_machine_call_graph(
+    program: &TypedTrees,
+    symbols: &TopLevelSymbols<'_>,
+    proof_only: &typed_trees::proof_only::ProofOnlyClassification,
+) -> MachineCallGraph {
+    let machines = program.machines();
+    let mut index_of: HashMap<u32, usize> = HashMap::with_capacity(machines.len());
+    for (index, machine) in machines.iter().enumerate() {
+        index_of.insert(machine.symbol.arena_index(), index);
+    }
+
+    let proof_dependencies = collect_proof_call_dependencies(program, proof_only);
+    let mut edges = proof_dependencies.clone();
+    // Resolved dependencies keep unsupported proof call spellings visible;
+    // exact structural witnesses remain the only proof admission authority.
+    for edge in collect_exact_proof_call_edges(program, symbols, proof_only, &index_of) {
+        edges[edge.caller].push(edge.callee);
+    }
+    for targets in &mut edges {
+        targets.sort_unstable();
+        targets.dedup();
+    }
+    runtime_ranking::extend_runtime_adjacency(program, proof_only, &mut edges);
+    MachineCallGraph {
+        edges,
+        index_of,
+        proof_dependencies,
+    }
+}
+
 pub(crate) fn validate_machine_call_cycles(
     program: &TypedTrees,
     symbols: &TopLevelSymbols<'_>,
@@ -278,23 +341,11 @@ pub(crate) fn validate_machine_call_cycles(
 ) -> Vec<ValidatedProofRecursiveComponent> {
     let proof_only = typed_trees::proof_only::classify(program);
     let machines = program.machines();
-    let mut index_of: HashMap<u32, usize> = HashMap::with_capacity(machines.len());
-    for (index, machine) in machines.iter().enumerate() {
-        index_of.insert(machine.symbol.arena_index(), index);
-    }
-
-    let proof_dependencies = collect_proof_call_dependencies(program, &proof_only);
-    let mut edges = proof_dependencies.clone();
-    // Resolved dependencies keep unsupported proof call spellings visible;
-    // exact structural witnesses remain the only proof admission authority.
-    for edge in collect_exact_proof_call_edges(program, symbols, &proof_only, &index_of) {
-        edges[edge.caller].push(edge.callee);
-    }
-    for targets in &mut edges {
-        targets.sort_unstable();
-        targets.dedup();
-    }
-    runtime_ranking::extend_runtime_adjacency(program, &proof_only, &mut edges);
+    let MachineCallGraph {
+        edges,
+        index_of,
+        proof_dependencies,
+    } = build_machine_call_graph(program, symbols, &proof_only);
     let runtime_components = runtime_ranking::admitted_components(program, &proof_only, &edges);
     let proof_components = build_validated_proof_recursive_components(
         program,
