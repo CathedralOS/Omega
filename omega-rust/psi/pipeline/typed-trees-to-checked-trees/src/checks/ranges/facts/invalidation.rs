@@ -7,11 +7,7 @@ impl RangeFacts<'_> {
     /// replacing a collection descriptor invalidates its extent/window rows.
     /// Value snapshots are replaced separately after the RHS is evaluated.
     pub(in crate::checks::ranges) fn invalidate_assignment_bounds(&mut self, target: &str) {
-        self.forget_index_upper_bound(target);
-        self.forget_index_position_facts(target);
-        self.forget_non_negative(target);
-        self.forget_orderings(target);
-        self.forget_collection_facts(target);
+        self.invalidate_relational_bounds(|name| write_affects_bound(name, target));
         // A saved Boolean expression is not a persistent proof of its old
         // operands after a direct assignment any more than after a call.
         self.boolean_locals.clear();
@@ -30,23 +26,7 @@ impl RangeFacts<'_> {
             return;
         }
         let overlaps = |name: &str| {
-            paths.is_none_or(|paths| {
-                // Computed labels and dynamic selectors have dependencies not
-                // represented by a single frame path. Retire them rather than
-                // recover semantic identity by parsing display text.
-                !name.split('.').all(|part| {
-                    !part.is_empty()
-                        && part
-                            .chars()
-                            .all(|character| character.is_alphanumeric() || character == '_')
-                }) || paths.iter().any(|path| {
-                    validation::frame_paths_overlap(name, path)
-                        || path
-                            .strip_prefix("self.")
-                            .is_some_and(|path| validation::frame_paths_overlap(name, path))
-                        || (path == "self" && !name.contains('.'))
-                })
-            })
+            paths.is_none_or(|paths| paths.iter().any(|path| write_affects_bound(name, path)))
         };
         // Field constants currently retain a leaf name and declaration symbol,
         // not the instance's full storage path. A write to `self.cell.value`
@@ -85,6 +65,13 @@ impl RangeFacts<'_> {
                 })
             }
         });
+        self.invalidate_relational_bounds(overlaps);
+        // These rows replay their defining expressions. Until they carry all
+        // operand dependencies, no mutating call may preserve such a shortcut.
+        self.boolean_locals.clear();
+    }
+
+    fn invalidate_relational_bounds(&mut self, overlaps: impl Fn(&str) -> bool) {
         self.proven_indexes
             .retain(|(collection, index)| !overlaps(collection) && !overlaps(index));
         self.proven_index_upper_bounds
@@ -100,10 +87,23 @@ impl RangeFacts<'_> {
             .retain(|(collection, _)| !overlaps(collection));
         self.window_parents
             .retain(|(child, parent, _)| !overlaps(child) && !overlaps(parent));
-        // These rows replay their defining expressions. Until they carry all
-        // operand dependencies, no mutating call may preserve such a shortcut.
-        self.boolean_locals.clear();
     }
+}
+
+fn write_affects_bound(name: &str, path: &str) -> bool {
+    // Computed labels and dynamic selectors do not retain their full operand
+    // dependencies. Both direct assignments and calls must retire these
+    // premises; a separately named value snapshot keeps its own numeric facts.
+    !name.split('.').all(|part| {
+        !part.is_empty()
+            && part
+                .chars()
+                .all(|character| character.is_alphanumeric() || character == '_')
+    }) || validation::frame_paths_overlap(name, path)
+        || path
+            .strip_prefix("self.")
+            .is_some_and(|path| validation::frame_paths_overlap(name, path))
+        || (path == "self" && !name.contains('.'))
 }
 
 #[cfg(test)]
@@ -121,6 +121,35 @@ mod tests {
 
         assert!(!facts.index_upper_bound_is_proven("index", 4));
         assert!(facts.index_upper_bound_is_proven("unrelated", 4));
+    }
+
+    #[test]
+    fn assignments_and_calls_retire_computed_and_overlapping_bound_labels() {
+        for call in [false, true] {
+            let mut facts = RangeFacts::new(&[]);
+            for name in ["record.value", "record.value - 1", "captured", "unrelated"] {
+                facts.prove_non_negative(name.into());
+                facts.prove_index_upper_bound(name.into(), 5);
+                facts.prove_at_most("floor".into(), name.into());
+                facts.prove_range_bound("items".into(), name.into());
+            }
+            if call {
+                facts.invalidate_call_writes(
+                    &TypedTrees::default(),
+                    &State::default(),
+                    Some(&["record".into()]),
+                );
+            } else {
+                facts.invalidate_assignment_bounds("record");
+            }
+            for name in ["record.value", "record.value - 1", "captured", "unrelated"] {
+                let survives = matches!(name, "captured" | "unrelated");
+                assert_eq!(facts.non_negative_is_proven(name), survives);
+                assert_eq!(facts.index_upper_bound_is_proven(name, 5), survives);
+                assert_eq!(facts.at_most_is_proven("floor", name), survives);
+                assert_eq!(facts.range_bound_is_proven("items", name), survives);
+            }
+        }
     }
 
     #[test]

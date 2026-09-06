@@ -52,6 +52,7 @@ mod range_entry_contracts;
 mod range_lower_bounds;
 mod range_state_argument_meet;
 mod range_state_call_invalidation;
+mod range_value_snapshots;
 mod relevance;
 mod semantic_dependencies;
 mod termination;

@@ -59,32 +59,6 @@ impl RangeFacts<'_> {
             .any(|(known_index, upper_bound)| known_index == index && *upper_bound <= length)
     }
 
-    /// Drop every proven upper bound for `index` -- it is STALE once `index` is
-    /// reassigned (the field/local now holds a different value). Without this a
-    /// loosening reassignment (`j = j + 1`, which should weaken `j < 4` to
-    /// `j < 5`) would keep the old tighter bound via `prove_index_upper_bound`'s
-    /// min-merge, so an access AFTER the mutation (`arr[j]` with `j` now possibly
-    /// out of range) would wrongly prove. Called on every assignment to the
-    /// target's name; the new bound, if any, is then re-derived from the value.
-    pub(in crate::checks::ranges) fn forget_index_upper_bound(&mut self, index: &str) {
-        self.proven_index_upper_bounds
-            .retain(|(known_index, _)| known_index != index);
-    }
-
-    /// Drops collection-relative facts whose INDEX/BOUND position names
-    /// `index`. These facts describe the old scalar value, just like a
-    /// constant upper bound does, and become stale on reassignment.
-    ///
-    /// Collection-key invalidation is intentionally separate: assigning a new
-    /// scalar index does not change the collection, while assigning a new
-    /// collection uses `forget_collection_facts`.
-    pub(in crate::checks::ranges) fn forget_index_position_facts(&mut self, index: &str) {
-        self.proven_indexes
-            .retain(|(_, known_index)| known_index != index);
-        self.proven_range_bounds
-            .retain(|(_, known_bound)| known_bound != index);
-    }
-
     /// The tightest (smallest) proven EXCLUSIVE upper bound for `index`, if any.
     /// Used to carry a bound across `field = otherfield + const`.
     pub(in crate::checks::ranges) fn proven_index_upper_bound(&self, index: &str) -> Option<i64> {
@@ -122,13 +96,6 @@ impl RangeFacts<'_> {
 
     pub(in crate::checks::ranges) fn non_negative_is_proven(&self, name: &str) -> bool {
         self.proven_non_negatives.iter().any(|known| known == name)
-    }
-
-    /// Drops the `>= 0` fact for `name` -- STALE once `name` is reassigned (the
-    /// new value may be negative). The per-state re-seed (a `>= 0` guard) restores
-    /// it where it still holds.
-    pub(in crate::checks::ranges) fn forget_non_negative(&mut self, name: &str) {
-        self.proven_non_negatives.retain(|known| known != name);
     }
 
     pub(in crate::checks::ranges) fn prove_at_most(&mut self, lower: String, upper: String) {
@@ -182,14 +149,6 @@ impl RangeFacts<'_> {
             .iter()
             .filter(|(_, upper)| upper == index)
             .any(|(lower, _)| self.non_negative_is_proven(lower))
-    }
-
-    /// Drops every ordering naming `name` -- STALE once `name` is reassigned (the
-    /// `i <= j` relation no longer holds for the new value). A `<`/`<=` guard
-    /// re-establishes it where it still holds.
-    pub(in crate::checks::ranges) fn forget_orderings(&mut self, name: &str) {
-        self.proven_orderings
-            .retain(|(lower, upper)| lower != name && upper != name);
     }
 
     pub(in crate::checks::ranges) fn prove_range_bound(
