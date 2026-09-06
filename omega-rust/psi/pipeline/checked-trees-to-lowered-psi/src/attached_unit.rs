@@ -499,6 +499,9 @@ fn assemble_unit_closure(
                             "Unit call does not match the exact checked target state, contract, and reach",
                         );
                     }
+                    crate::call_source_custody::projected_receivers::validate(
+                        checked, machine, operation, target,
+                    )?;
                     structural_calls::validate_consumer(
                         checked,
                         machine,

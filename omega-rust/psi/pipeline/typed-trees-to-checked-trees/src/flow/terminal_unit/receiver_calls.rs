@@ -263,17 +263,18 @@ fn receiver_argument(
         Vec::new()
     } else {
         // Reuse the ordinary exact-place resolver and the existing Terminal
-        // field-path exclusive subloan contract. The root keeps its container
+        // structural-path exclusive subloan contract. The root keeps its container
         // type; the operand names the leaf, without transferring ownership.
         if !matches!(
             (parameter.access, target.access),
             (MutableBorrow, MutableBorrow | WriteOnlyBorrow) | (WriteOnlyBorrow, WriteOnlyBorrow)
         ) || parameter.multiplicity != Multiplicity::Unrestricted
             || !parameter.qualifications.is_empty()
-            || !place
-                .segments
-                .iter()
-                .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. }))
+            || !place.segments.iter().all(|segment| {
+                matches!(segment, facts::PlaceSegment::Field { .. })
+                    || (target.access == WriteOnlyBorrow
+                        && matches!(segment, facts::PlaceSegment::FixedIndex { .. }))
+            })
         {
             return None;
         }
