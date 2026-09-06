@@ -6,6 +6,8 @@ use crate::machine_dispatch::SourceMappedLowered;
 use crate::scalar_call_closure::embedded::EmbeddedScalarCalls;
 
 mod emission;
+mod memberships;
+mod requirements;
 mod source_custody;
 mod validation;
 
@@ -13,6 +15,7 @@ pub(crate) use emission::{
     BoundaryScalarReturnCatalogs, BoundaryScalarReturnIdentities, EmittedBoundaryScalarReturn,
     emit_boundary_scalar_return,
 };
+pub(crate) use requirements::checked_requirements;
 pub(crate) use validation::validate_boundary_scalar_return;
 
 pub(super) fn lower_boundary_scalar_return_machine(

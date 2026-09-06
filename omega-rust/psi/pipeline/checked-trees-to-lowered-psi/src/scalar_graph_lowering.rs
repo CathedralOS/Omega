@@ -637,7 +637,7 @@ pub(super) fn lower_scalar_call(
     if arguments.len() != target_parameter_types.len() {
         return unsupported("direct scalar call argument count must match the callee signature");
     }
-    for (expression, target_type) in arguments.iter().zip(target_parameter_types) {
+    for (expression, target_type) in arguments.iter().zip(&target_parameter_types) {
         if expression.scalar_type() != terminal_scalar_type(*target_type)? {
             return unsupported(
                 "checked scalar call argument type must match its callee parameter",

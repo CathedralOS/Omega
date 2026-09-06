@@ -111,28 +111,7 @@ pub(crate) fn validate_direct_unit_parameter_custody(
             continue;
         };
         let source_parameters = checked.state_parameters(state);
-        let expected_scalar_parameters = source_parameters
-            .iter()
-            .enumerate()
-            .filter_map(|(position, source)| {
-                checked
-                    .primitive_type_reference(source.type_reference)
-                    .map(|primitive_type| (position, source, primitive_type))
-            })
-            .map(|(position, source, primitive_type)| {
-                if source.is_self || source.is_const || source.is_mutable {
-                    return Err(LoweringError::Unsupported(
-                        "direct Unit scalar parameter is not an immutable direct value",
-                    ));
-                }
-                Ok(checked_trees::CheckedStructuralScalarParameterPlan {
-                    source_position: u32::try_from(position).map_err(|_| {
-                        LoweringError::Unsupported("direct Unit scalar source position exceeds u32")
-                    })?,
-                    primitive_type,
-                })
-            })
-            .collect::<Result<Vec<_>, LoweringError>>()?;
+        let expected_scalar_parameters = checked_scalar_source_parameters(checked, state)?;
         if plan.scalar_parameters != expected_scalar_parameters {
             return unsupported(
                 "direct Unit scalar parameters do not rejoin the exact typed source partition",
@@ -218,6 +197,33 @@ pub(crate) fn validate_direct_unit_parameter_custody(
     }
     service_forward::validate(checked)?;
     Ok(())
+}
+
+pub(crate) fn checked_scalar_source_parameters(
+    checked: &CheckedTrees,
+    state: &checked_trees::state::State,
+) -> Result<Vec<checked_trees::CheckedStructuralScalarParameterPlan>, LoweringError> {
+    checked
+        .state_parameters(state)
+        .iter()
+        .enumerate()
+        .filter_map(|(position, source)| {
+            checked
+                .primitive_type_reference(source.type_reference)
+                .map(|primitive_type| (position, source, primitive_type))
+        })
+        .map(|(position, source, primitive_type)| {
+            if source.is_self || source.is_const || source.is_mutable {
+                return unsupported("scalar parameter is not an immutable direct value");
+            }
+            Ok(checked_trees::CheckedStructuralScalarParameterPlan {
+                source_position: u32::try_from(position).map_err(|_| {
+                    LoweringError::Unsupported("scalar source position exceeds u32")
+                })?,
+                primitive_type,
+            })
+        })
+        .collect()
 }
 
 pub(crate) fn lower_unit_scalar_parameter_types(

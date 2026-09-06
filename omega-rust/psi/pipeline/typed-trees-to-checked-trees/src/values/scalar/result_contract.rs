@@ -13,15 +13,20 @@ pub(crate) fn lower_integer_contract_predicate(
 ) -> Option<CheckedBooleanExpression> {
     let entry = program.machine_states(machine).first()?;
     let parameters = program.state_parameters(entry);
-    if parameters.iter().any(|parameter| {
-        parameter.is_self
-            || parameter.is_const
-            || program
-                .primitive_type_reference(parameter.type_reference)
-                .is_none()
-    }) {
+    if parameters
+        .iter()
+        .any(|parameter| parameter.is_self || parameter.is_const)
+    {
         return None;
     }
+    let scalar_count = parameters
+        .iter()
+        .filter(|parameter| {
+            program
+                .primitive_type_reference(parameter.type_reference)
+                .is_some()
+        })
+        .count();
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return None;
     };
@@ -65,7 +70,16 @@ pub(crate) fn lower_integer_contract_predicate(
             if allow_result && parameter.is_mutable {
                 return None;
             }
-            return Some((position, parameter.type_reference));
+            program.primitive_type_reference(parameter.type_reference)?;
+            let scalar_position = parameters[..position]
+                .iter()
+                .filter(|parameter| {
+                    program
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_some()
+                })
+                .count();
+            return Some((scalar_position, parameter.type_reference));
         }
         (allow_result
             && !parameters
@@ -73,7 +87,7 @@ pub(crate) fn lower_integer_contract_predicate(
                 .any(|parameter| parameter.name.as_str() == "result")
             && matches!(program.expression_table.name_path_members(path.members),
                 [name] if name.as_str() == "result"))
-        .then_some((parameters.len(), entry.return_type))
+        .then_some((scalar_count, entry.return_type))
     };
     use language_core::OperatorSpelling;
     let spelling = match binary.operator {
@@ -148,15 +162,14 @@ pub(crate) fn lower_integer_parameter_range_requirements(
         return Vec::new();
     };
     let parameters = program.state_parameters(entry);
-    let scalar_namespace = parameters.iter().all(|parameter| {
-        !parameter.is_self
-            && !parameter.is_const
-            && program
-                .primitive_type_reference(parameter.type_reference)
-                .is_some()
-    });
     let mut requirements = Vec::new();
-    for (position, parameter) in parameters.iter().enumerate() {
+    let mut scalar_position = 0;
+    for parameter in parameters {
+        let primitive_type = program.primitive_type_reference(parameter.type_reference);
+        let position = scalar_position;
+        if primitive_type.is_some() {
+            scalar_position += 1;
+        }
         let mut type_reference = parameter.type_reference;
         loop {
             match program.type_reference_table.type_reference(type_reference) {
@@ -174,7 +187,9 @@ pub(crate) fn lower_integer_parameter_range_requirements(
                         let predicate = || {
                             // Existing source validation rejects range constraints
                             // outside Exact: those domains do not enforce stores.
-                            if !scalar_namespace
+                            if parameter.is_self
+                                || parameter.is_const
+                                || primitive_type.is_none()
                                 || program
                                     .arithmetic_domain_for_type_reference(parameter.type_reference)
                                     != ArithmeticDomain::Exact

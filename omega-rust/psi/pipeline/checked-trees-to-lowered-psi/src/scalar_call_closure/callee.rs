@@ -63,16 +63,20 @@ impl<'checked> CheckedScalarCallee<'checked> {
         }
     }
 
-    pub(crate) fn parameter_types(&self) -> Result<&[PrimitiveType], LoweringError> {
+    pub(crate) fn parameter_types(&self) -> Result<Vec<PrimitiveType>, LoweringError> {
         match self {
             Self::Graph(graph) => graph
                 .states
                 .first()
-                .map(|state| state.parameter_types.as_slice())
+                .map(|state| state.parameter_types.clone())
                 .ok_or(LoweringError::Unsupported(
                     "scalar callee has no checked entry state",
                 )),
-            Self::Boundary(_) => Ok(&[]),
+            Self::Boundary(plan) => Ok(plan
+                .scalar_parameters
+                .iter()
+                .map(|parameter| parameter.primitive_type)
+                .collect()),
         }
     }
 
@@ -116,6 +120,9 @@ impl<'checked> CheckedScalarCallee<'checked> {
             }
             Self::Boundary(plan) => Ok(PreparedScalarCallee::Boundary {
                 result_type: terminal_scalar_type(plan.result_type)?,
+                requirement_count: usize::from(
+                    !crate::boundary_scalar_return::checked_requirements(checked, plan)?.is_empty(),
+                ),
                 plan,
             }),
         }
@@ -127,6 +134,7 @@ pub(crate) enum PreparedScalarCallee<'checked> {
     Boundary {
         plan: &'checked CheckedBoundaryScalarReturnMachinePlan,
         result_type: ScalarType,
+        requirement_count: usize,
     },
 }
 
@@ -148,7 +156,9 @@ impl PreparedScalarCallee<'_> {
     pub(crate) fn requirement_count(&self) -> usize {
         match self {
             Self::Graph(graph) => graph.contract.requirement_count(),
-            Self::Boundary { .. } => 0,
+            Self::Boundary {
+                requirement_count, ..
+            } => *requirement_count,
         }
     }
 }

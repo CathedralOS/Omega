@@ -631,6 +631,8 @@ pub struct CheckedBoundaryScalarReturnMachinePlan {
     pub state: SymbolHandle,
     pub attachment_type_identity: String,
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
+    /// Dense scalar order, with each parameter retaining its authored position.
+    pub scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
     pub entry_claims: Vec<CheckedUnitEntryClaimPlan>,
     pub boundary_call: CheckedUnitEffectOperationPlan,
     pub result_type: PrimitiveType,

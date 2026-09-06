@@ -173,70 +173,87 @@ pub(super) fn checked_state_contracts_supported(
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
 ) -> bool {
-    let source_parameters = program.state_parameters(state);
     program.state_contracts(state).iter().all(|contract| {
-        program
-            .proof_facts
-            .span_or_empty(contract.facts)
-            .iter()
-            .all(|fact| match (&contract.kind, fact) {
-                (SignatureContractKind::Requires, ProofFact::Membership(membership)) => {
-                    let Some(place) = crate::flow::canonical_place_from_expression_in_state(
-                        program,
-                        state.symbol,
-                        0,
-                        membership.value,
-                    ) else {
-                        return false;
-                    };
-                    if program.domain_definitions().iter().any(|domain| {
-                        domain.symbol == membership.domain_symbol
-                            && domain.classification
-                                == Some(language_semantics::DomainClassification::ProgressProfile)
-                    }) {
-                        let facts::PlaceRoot::Symbol(root) = place.root else {
-                            return false;
-                        };
-                        let rooted_in_telescope = source_parameters.iter().any(|parameter| {
-                            parameter_root_symbol(machine.symbol, parameter) == root
-                                || parameter.symbol == root
-                        });
-                        return rooted_in_telescope
-                            && place.segments.iter().all(|segment| {
-                                matches!(segment, facts::PlaceSegment::Field { .. })
-                            });
-                    }
-                    if !place.segments.is_empty() {
-                        return false;
-                    }
+        checked_structural_signature_contract_supported(
+            program,
+            machine,
+            state,
+            structural_parameters,
+            contract,
+        )
+    })
+}
+
+pub(super) fn checked_structural_signature_contract_supported(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    contract: &typed_trees::signature::SignatureContract,
+) -> bool {
+    let source_parameters = program.state_parameters(state);
+    program
+        .proof_facts
+        .span_or_empty(contract.facts)
+        .iter()
+        .all(|fact| match (&contract.kind, fact) {
+            (SignatureContractKind::Requires, ProofFact::Membership(membership)) => {
+                let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+                    program,
+                    state.symbol,
+                    0,
+                    membership.value,
+                ) else {
+                    return false;
+                };
+                if program.domain_definitions().iter().any(|domain| {
+                    domain.symbol == membership.domain_symbol
+                        && domain.classification
+                            == Some(language_semantics::DomainClassification::ProgressProfile)
+                }) {
                     let facts::PlaceRoot::Symbol(root) = place.root else {
                         return false;
                     };
-                    let Some(position) = source_parameters.iter().position(|parameter| {
+                    let rooted_in_telescope = source_parameters.iter().any(|parameter| {
                         parameter_root_symbol(machine.symbol, parameter) == root
                             || parameter.symbol == root
-                    }) else {
-                        return false;
-                    };
-                    let Some(domain) = type_domain_semantic_id(
-                        program,
-                        source_parameters[position].type_reference,
-                        membership.domain_symbol,
-                    ) else {
-                        return false;
-                    };
-                    structural_parameters.iter().any(|parameter| {
-                        parameter.position as usize == position
-                            && parameter.qualifications.contains(&domain)
-                    })
+                    });
+                    return rooted_in_telescope
+                        && place
+                            .segments
+                            .iter()
+                            .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. }));
                 }
-                (SignatureContractKind::Ensures, ProofFact::Expression(expression)) => matches!(
-                    program.expression_table.expression(*expression),
-                    typed_trees::expression::ExpressionNode::Boolean(true)
-                ),
-                _ => false,
-            })
-    })
+                if !place.segments.is_empty() {
+                    return false;
+                }
+                let facts::PlaceRoot::Symbol(root) = place.root else {
+                    return false;
+                };
+                let Some(position) = source_parameters.iter().position(|parameter| {
+                    parameter_root_symbol(machine.symbol, parameter) == root
+                        || parameter.symbol == root
+                }) else {
+                    return false;
+                };
+                let Some(domain) = type_domain_semantic_id(
+                    program,
+                    source_parameters[position].type_reference,
+                    membership.domain_symbol,
+                ) else {
+                    return false;
+                };
+                structural_parameters.iter().any(|parameter| {
+                    parameter.position as usize == position
+                        && parameter.qualifications.contains(&domain)
+                })
+            }
+            (SignatureContractKind::Ensures, ProofFact::Expression(expression)) => matches!(
+                program.expression_table.expression(*expression),
+                typed_trees::expression::ExpressionNode::Boolean(true)
+            ),
+            _ => false,
+        })
 }
 
 /// A static boundary requirement may carry the implicit membership contracts

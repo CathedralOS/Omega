@@ -53,9 +53,9 @@ pub(super) use composed_control::lower_composed_unit_control_machine;
 #[cfg(test)]
 pub(super) use parameters::lower_contract_service_ceiling;
 pub(super) use parameters::{
-    lower_installation_machine_service_ceiling, lower_published_service_ceiling,
-    lower_structural_arguments, lower_structural_path, lower_unit_parameters,
-    validate_transfer_shape,
+    checked_scalar_source_parameters, lower_installation_machine_service_ceiling,
+    lower_published_service_ceiling, lower_structural_arguments, lower_structural_path,
+    lower_unit_parameters, validate_transfer_shape,
 };
 pub(super) use provider_attachments::lower_provider_attachment_places;
 use provider_attachments::validate_provider_attachment_requirements;
@@ -1660,7 +1660,7 @@ fn assemble_unit_closure(
                         if scalar_arguments.len() != target_parameter_types.len() {
                             return unsupported("selected scalar call argument count disagrees");
                         }
-                        scalar_arguments.iter().zip(target_parameter_types).map(|(argument, primitive)| {
+                        scalar_arguments.iter().zip(&target_parameter_types).map(|(argument, primitive)| {
                             let argument = lower_checked_scalar_expression(argument)?;
                             let scalar_type = terminal_scalar_type(*primitive)?;
                             if argument.scalar_type() != scalar_type || direct_expression_contains_short_circuit(&argument) {

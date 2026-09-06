@@ -1844,6 +1844,81 @@ pub(crate) fn build_checked_boundary_scalar_return_plans(
     }
 }
 
+fn boundary_scalar_contracts_supported(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+) -> bool {
+    let Some(checked_contract) = facts.contract_plans.for_machine(machine.symbol) else {
+        return false;
+    };
+    let source_contracts = program.machine_contracts(machine);
+    let mut requirements = checked_contract.closed_scalar_values.requires().iter();
+    for contract in source_contracts {
+        if contract.binding.is_some() {
+            return false;
+        }
+        if matches!(contract.kind, SignatureContractKind::Crashes { .. }) {
+            continue;
+        }
+        let structural = checked_structural_signature_contract_supported(
+            program,
+            machine,
+            state,
+            structural_parameters,
+            contract,
+        );
+        if contract.kind == SignatureContractKind::Requires {
+            let Some(requirement) = requirements.next() else {
+                return false;
+            };
+            if structural {
+                // The scalar contract keeps an explicit unsupported slot for
+                // membership; the exact structural signature owns that clause.
+                if requirement.is_some() {
+                    return false;
+                }
+            } else if !matches!(
+                program.proof_facts.span_or_empty(contract.facts),
+                [ProofFact::Expression(_)]
+            ) || requirement.is_none()
+            {
+                return false;
+            }
+        } else if !structural {
+            return false;
+        }
+    }
+    // Rejoin the entire implicit suffix through its existing source collector.
+    // Unsupported, removed, added, or changed range rows cannot become omission.
+    let expected_ranges = crate::values::lower_integer_parameter_range_requirements(
+        program,
+        &facts.operators,
+        machine,
+    );
+    requirements.len() == expected_ranges.len()
+        && requirements.zip(&expected_ranges).all(|(retained, expected)| {
+            matches!((retained, expected),
+                (Some(checked_trees::ClosedScalarContractValue::Predicate(retained)), Some(expected))
+                    if retained == expected)
+        })
+        && program.state_contracts(state).iter().all(|contract| {
+            contract.binding.is_none() && (matches!(contract.kind, SignatureContractKind::Crashes { .. })
+                || checked_structural_signature_contract_supported(
+                    program,
+                    machine,
+                    state,
+                    structural_parameters,
+                    contract,
+                )
+                || source_contracts
+                    .iter()
+                    .any(|source| source.kind == contract.kind && source.facts == contract.facts))
+        })
+}
+
 pub(super) fn build_boundary_scalar_return_machine(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -1856,9 +1931,21 @@ pub(super) fn build_boundary_scalar_return_machine(
     };
     let result_type = program.primitive_type_reference(state.return_type)?;
     let binders = machine_binders(program, machine);
-    let (attachment_type_identity, structural_parameters) =
-        structural_signature(program, shapes, machine, state, &binders, false)?;
-    if !checked_state_contracts_supported(program, machine, state, &structural_parameters)
+    let carries_scalar_parameter = program.state_parameters(state).iter().any(|parameter| {
+        !parameter.is_self
+            && program
+                .primitive_type_reference(parameter.type_reference)
+                .is_some()
+    });
+    let (attachment_type_identity, structural_parameters, scalar_parameters) =
+        if carries_scalar_parameter {
+            structural_scalar_signature(program, shapes, machine, state, &binders, false)?
+        } else {
+            let (attachment, structural) =
+                structural_signature(program, shapes, machine, state, &binders, false)?;
+            (attachment, structural, Vec::new())
+        };
+    if !boundary_scalar_contracts_supported(program, facts, machine, state, &structural_parameters)
         || machine_has_content_evidence(facts, machine.symbol, state.symbol)
     {
         return None;
@@ -1951,16 +2038,18 @@ pub(super) fn build_boundary_scalar_return_machine(
         return_statement_ordinal,
         CheckedScalarExpressionRole::Return,
     )?;
+    let result_position = scalar_parameters.len();
     let returns_binding = match return_expression {
         CheckedScalarExpression::Local {
-            position: 0,
+            position,
             primitive_type,
-        } => *primitive_type == result_type,
+        } => *position == result_position && *primitive_type == result_type,
         CheckedScalarExpression::Boolean(expression) => {
             result_type == PrimitiveType::Bool
                 && matches!(
                     expression.as_ref(),
-                    checked_trees::CheckedBooleanExpression::Local { position: 0 }
+                    checked_trees::CheckedBooleanExpression::Local { position }
+                        if *position == result_position
                 )
         }
         _ => false,
@@ -1973,6 +2062,7 @@ pub(super) fn build_boundary_scalar_return_machine(
         state: state.symbol,
         attachment_type_identity,
         structural_parameters,
+        scalar_parameters,
         entry_claims,
         boundary_call,
         result_type,

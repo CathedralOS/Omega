@@ -7,7 +7,7 @@ use crate::contract_predicates::{PredicateTerms, connective};
 
 mod namespace;
 
-pub(super) fn clauses(
+pub(crate) fn clauses(
     clauses: &[Option<ClosedScalarContractValue>],
     namespace: &[ValueDeclaration],
 ) -> Result<Option<Proposition>, LoweringError> {

@@ -3110,17 +3110,25 @@ the declared result carrier, and the returned local independently of operand
 graphs. The emitted root and scalar helpers retain their exact source owners.
 
 Ordinary Unit closures also retain these boundary-return bodies as callees when
-their authored entry signature is empty. The body remains a boundary-return
+their authored entry signature contains only immutable scalar values (or is
+empty). The body remains a boundary-return
 plan, not a manufactured scalar graph. Its attachment, bodyless boundary,
 service ceiling, nested scalar helpers, result, and crash contract join the same
 module before identities and proofs are finalized. Repeated calls share the
 same callee; identical boundary declarations from distinct checked owners
 coalesce, while conflicting declarations reject. The caller keeps its own root
-service reach. Nested operand calls may select further empty-signature wrappers
-in this shared Unit catalog. Structural parameters and claims cannot enter the
-ordinary scalar-call lane; scalar entry formals and nontrivial scalar contracts
-remain separate source-plan work. Named-root lowering retains its existing
-structural-parameter route.
+service reach. Nested operand calls may select further parameterized wrappers
+in this shared Unit catalog. Scalar formals retain authored source positions
+separately from their dense value ordinals; the returned local follows all scalar
+formals. Parameter ranges and supported entry predicates use the existing checked
+scalar contract and canonical conjunction lowering. Each ordinary call must prove
+that conjunction against its evaluated actuals before entering the wrapper.
+Missing predicates and range rows reject rather than disappear. Named-root
+lowering also retains mixed scalar/structural signatures, including whole-root
+claim settlement and scalar-only entry relations. Structural qualifications
+remain in the structural signature, not scalar proof slots. Structural parameters
+and claims cannot yet enter the ordinary scalar-call lane; requirements over
+structural observations and broader result guarantees remain separate work.
 
 Composed-control boundary leaves use the same evaluator, including the existing
 three-state, prefixed, nested acyclic, dynamic-result continuation, and closed-sum
