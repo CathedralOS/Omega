@@ -7,7 +7,9 @@ pub(super) fn append_state_writable_roots(
     writable_roots: &mut arena::Arena<BorrowWritableRootFact>,
     writable_roots_span: &mut arena::HandleSpan<BorrowWritableRootFact>,
 ) {
-    for field in attached_data_fields(program, machine) {
+    for field in attached_data_fields(program, machine)
+        .filter(|_| validation::receiver_allows_mutation(program, program.state_parameters(state)))
+    {
         writable_roots.append_to_span(
             writable_roots_span,
             BorrowWritableRootFact {

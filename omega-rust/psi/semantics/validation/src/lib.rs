@@ -59,6 +59,7 @@ mod type_references;
 mod wire;
 mod write_only_borrows;
 
+pub use locals::receiver_allows_mutation;
 pub use places::exact_self_field;
 
 pub use bound_expression_meaning::{
@@ -684,6 +685,7 @@ fn validate_program_internal(
             {
                 let writable_roots = WritableRoots {
                     program,
+                    machine,
                     machine_symbols: &machine_symbols,
                     statements: &program.statement_table.statements(state.statement_nodes)
                         [..statement_index],

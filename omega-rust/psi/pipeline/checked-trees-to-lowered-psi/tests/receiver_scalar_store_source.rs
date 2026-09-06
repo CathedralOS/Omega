@@ -279,33 +279,24 @@ fn receiver_store_retains_same_typed_scalar_parameter() {
 }
 
 #[test]
-fn shared_receiver_does_not_acquire_an_executable_store_plan() {
+fn shared_receiver_store_rejects_during_source_checking() {
     let source = r#"
         data Pair { prefix: u8; value: u16; }
         machine Pair::direct(&self) {
             self.value = 17;
         }
     "#;
-    if let Ok(checked) = typed_trees_to_checked_trees::lower_typed_trees(typed_from_source(source))
-    {
-        let machine = checked
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "Pair::direct")
-            .unwrap();
-        assert!(
-            checked
-                .facts
-                .flow
-                .terminal_unit_effects
-                .for_machine(machine.symbol)
-                .is_none()
-        );
-        assert!(
-            terminal_production::produce_terminal_artifact(&checked, "Pair::direct").is_err(),
-            "a shared receiver must never acquire store authority"
-        );
-    }
+    let diagnostics =
+        match typed_trees_to_checked_trees::lower_typed_trees(typed_from_source(source)) {
+            Ok(_) => panic!("a shared receiver store must fail source checking"),
+            Err(diagnostics) => diagnostics,
+        };
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("assignment cannot write `value`")
+            && diagnostic.message.contains("not mutable in this state")
+    }));
 }
 
 #[test]

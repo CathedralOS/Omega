@@ -218,6 +218,7 @@ pub(crate) fn state_value_root_is_known(
 
 pub(crate) struct WritableRoots<'program, 'state> {
     pub(crate) program: &'program typed_trees::TypedTrees,
+    pub(crate) machine: &'program Machine,
     pub(crate) machine_symbols: &'state MachineSymbols<'program>,
     pub(crate) statements: &'state [StatementNode],
     pub(crate) parameters: &'state [StateParameter],
@@ -227,7 +228,13 @@ impl WritableRoots<'_, '_> {
     /// `bare_reassignment` = the target is the whole local (`x = 2`); member
     /// and index writes pass `false` and keep the ZII fill idiom ungated.
     pub(crate) fn contains_for_write(&self, root_name: &str, bare_reassignment: bool) -> bool {
-        self.machine_symbols.has_owned_data(root_name)
+        (self.machine_symbols.has_owned_data(root_name)
+            && (receiver_allows_mutation(self.program, self.parameters)
+                || self
+                    .program
+                    .machine_owned_data(self.machine)
+                    .iter()
+                    .any(|owned| owned.name.as_str() == root_name)))
             || self.statements.iter().any(|statement| {
                 let StatementNode::LocalData(local_data) = statement else {
                     return false;
@@ -245,6 +252,25 @@ impl WritableRoots<'_, '_> {
                 .iter()
                 .any(|parameter| parameter.is_mutable && parameter.name.as_str() == root_name)
     }
+}
+
+/// Attached fields inherit the current state's receiver access, not ownership
+/// merely from their presence in the machine's declaration namespace.
+pub fn receiver_allows_mutation(program: &TypedTrees, parameters: &[StateParameter]) -> bool {
+    parameters.iter().any(|parameter| {
+        parameter.is_self
+            && !parameter.is_const
+            && parameter.type_reference.is_valid()
+            && match program
+                .type_reference_table
+                .type_reference(parameter.type_reference)
+            {
+                typed_trees::types::TypeReferenceNode::Reference { access, .. } => {
+                    access.is_exclusive()
+                }
+                _ => true,
+            }
+    })
 }
 
 pub(crate) fn local_is_mutable_reference(
