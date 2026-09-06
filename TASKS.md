@@ -535,11 +535,17 @@ Owners include
   execute left-to-right once, skipped calls never execute, and dynamic RHS
   calls serialize, independently verify, and execute with their exact guards.
   Extend guarded scalar control to longer dispatches. Complete
-  anonymous integer landing for argument and aggregate-element destinations
-  and the remaining numeric operator/policy surface, so proof and execution
+  anonymous integer landing, width custody, and warnings for generic/evidence-adapted
+  calls, boundary calls, and aggregate-element destinations, plus the remaining
+  numeric operator/policy surface, so proof and execution
   consume the same values without rereading changed operands.
+  Finish executable scalar call-argument plans for mutable owned parameters;
+  their declared initial carrier must not be confused with an immutable formal's
+  value throughout the callee. Acceptance: the delivered value is materialized
+  once, reassignment changes subsequent reads, and a final guarantee about that
+  mutable formal cannot prove equality with its earlier argument value.
   Complete [exact anonymous division and landing](wiki/language_guide/chapter_5_expressions_evaluation.md#exact-anonymous-division-and-landing)
-  for argument and aggregate destinations, remaining numeric policies, float
+  for the remaining parameter and aggregate destinations, numeric policies, float
   landing, constant arguments, and their proof consumers. Preserve exact rational
   intermediates until an actual landing boundary. Carry fractional-intermediate
   warnings through ordinary suppression and compiler reports, retaining authored

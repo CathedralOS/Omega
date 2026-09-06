@@ -90,7 +90,7 @@ pub(crate) fn free_machine_entry_state<'program>(
         .map(|state| (machine, state))
 }
 
-pub(in crate::calls) fn machine_state_by_symbol(
+pub(crate) fn machine_state_by_symbol(
     program: &TypedTrees,
     symbol: SymbolHandle,
 ) -> Option<(&Machine, &State)> {

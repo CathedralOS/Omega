@@ -318,11 +318,18 @@ pub(super) fn propagate_statement_transfers(
     }
 
     if stable_value_target
-        && matches!(
+        && (matches!(
             program.expression_table.expression(source_expression),
             ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) | ExpressionNode::String(_)
-        )
+        ) || (matches!(
+            program.expression_table.expression(source_expression),
+            ExpressionNode::Call(_)
+        ) && semantic.places.get(target_place).segments.is_empty()))
     {
+        // A call is retained only as the exact source occurrence of this
+        // completed assignment. It is not evaluated here. Consumers need its
+        // checked call/argument/guarantee joins before it supplies a value;
+        // ordinary assignment invalidation still retires this provenance.
         let fact = semantic.append_fact(Fact {
             place: FactPlace::Place(target_place),
             point: ProgramPoint::Statement {

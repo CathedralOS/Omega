@@ -172,10 +172,9 @@ pub(crate) fn validate_anonymous_integer_range(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<(Interval, Option<PrimitiveType>)> {
     let primitive = program.primitive_type_reference(destination)?;
-    if program.arithmetic_domain_for_type_reference(destination) != ArithmeticDomain::Exact
-        || primitive == PrimitiveType::Addr
-        || !primitive.accepts_integer_literal()
-    {
+    // A destination policy governs operations after landing. It cannot give a
+    // fraction an integer value or make an out-of-range anonymous value fit.
+    if primitive == PrimitiveType::Addr || !primitive.accepts_integer_literal() {
         return None;
     }
     let evaluated =

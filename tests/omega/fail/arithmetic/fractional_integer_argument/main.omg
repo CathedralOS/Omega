@@ -1,0 +1,6 @@
+machine take(value: i32 in Wrapping) {}
+
+machine run()
+{
+    take(7 / 2);
+}
