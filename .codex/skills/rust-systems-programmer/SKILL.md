@@ -49,6 +49,14 @@ Reuse input, output, and scratch buffers across repeated operations when ownersh
 
 Store spans, ranges, or offsets when they represent many results compactly. Decode values and construct display objects on demand. Separate I/O from computation, write directly into the intended backing storage where practical, and avoid intermediate copies or repeated conversions. Keep repeatedly accessed bytes contiguous within each work unit. Choose a layout that serves the actual access pattern instead of imposing one universal container shape.
 
+### Retain source storage instead of copying each name
+
+For unchanged source text, aim for zero per-name text allocations: retain the input buffer once and use borrowed slices or source identities plus byte ranges. Use `&str` tied to the input owner's lifetime when the consumer can borrow. If values must move independently or outlive the source-map container, retain shared buffer ownership and a validated range. An `Arc` clone shares bytes but still costs reference-count traffic; a tiny retained slice can keep a large file alive. Do not spread lifetimes, shared ownership, or source text through phases whose contract calls for semantic handles.
+
+Trace every representation boundary. A source-backed parser can still allocate during lowering and again when building symbols. A source span proves provenance, not that the semantic spelling matches the source: canonical paths, generated names, and rewrites may retain an authored span. Reuse the slice only when its validated bytes equal the required spelling; keep owned storage when spelling differs. Check missing sources, bounds, and UTF-8 boundaries explicitly; an invalid-range accessor returning an empty string is not evidence of a valid empty slice.
+
+When a small value starts retaining a larger buffer, inspect derived equality, hashing, debug formatting, and serialization. These operations must observe the logical value and relevant provenance, not accidentally compare or print the whole backing allocation. Verify backing-storage identity, unchanged spelling/provenance, and owner replacement/drop behavior. Report exactly which copy disappeared; pointer-sharing tests do not establish end-to-end zero-copy, peak-RAM savings, or a speedup. See the [Omega ownership examples](references/squalr-patterns.md#omega-source-ownership-and-copy-boundaries).
+
 ### Make SIMD part of the kernel design
 
 Use existing vector kernels for batch comparisons and other suitable hot operations. Organize contiguous input, alignment rules, comparison dispatch, and output encoding so SIMD does useful work without per-lane allocation or expensive repacking. Hoist invariant decisions out of the inner loop.
