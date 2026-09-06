@@ -964,11 +964,17 @@ fn validate_expression(
             validate_expression(program, machine, state, cast.value, roots, diagnostics)
         }
         ExpressionNode::Call(call) => {
-            if call.receiver.is_valid() {
+            let nonobserving_receiver = direct_write_only_root(program, call.receiver, roots)
+                .is_some_and(|root| receiver::admits_call(program, root, call.target_symbol));
+            if call.receiver.is_valid() && !nonobserving_receiver {
                 validate_expression(program, machine, state, call.receiver, roots, diagnostics);
             }
             for argument in program.expression_table.expression_handles(call.arguments) {
-                validate_expression(program, machine, state, *argument, roots, diagnostics);
+                if nonobserving_receiver {
+                    validate_call_argument(program, machine, state, *argument, roots, diagnostics);
+                } else {
+                    validate_expression(program, machine, state, *argument, roots, diagnostics);
+                }
             }
         }
         ExpressionNode::Range(range) => {

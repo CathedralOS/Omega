@@ -4,6 +4,7 @@ use diagnostics::Diagnostic;
 use crate::labels::call_target_label;
 
 mod conflicts;
+mod receiver;
 mod writability;
 
 use self::conflicts::check_call_access_conflicts;
@@ -19,6 +20,15 @@ pub(super) fn check_call_borrows(
     let target_name = call_target_label(program, borrow_call.target_symbol);
     let entry_constraints = call_borrow_constraints(borrow_call, state_flow, facts);
     check_call_access_conflicts(
+        program,
+        facts,
+        state_flow,
+        borrow_call,
+        entry_constraints,
+        &target_name,
+        diagnostics,
+    );
+    receiver::check_write_only_receiver_conflicts(
         program,
         facts,
         state_flow,
