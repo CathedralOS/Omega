@@ -3156,9 +3156,12 @@ scalar result ordinals do not count construction locals. Only transferred locals
 lose caller cleanup, and unused locals retain reverse declaration order.
 The verifier shares the ordinary Unit local/result policy and still rejects
 borrowed or projected locals, missing establishments, and duplicate disposal.
-Wider construction carriers and nested structural-result expressions as wrapper
-arguments, structural-observation requirements, broader result guarantees, and
-mixed structural-field crash predicates remain separate work.
+Nested whole affine result expressions use the same authored argument schedule
+as ordinary Unit and structural calls. The wrapper's returned scalar extends
+the source binding namespace only after successful completion; private staged
+operands do not become locals or displace earlier bindings.
+Wider construction carriers, structural-observation requirements, broader result
+guarantees, and mixed structural-field crash predicates remain separate work.
 
 Composed-control boundary leaves use the same evaluator, including the existing
 three-state, prefixed, nested acyclic, dynamic-result continuation, and closed-sum
@@ -3900,9 +3903,10 @@ in reverse production order before older live parameters. Lowering checks the
 exact authored source even when substituting a different same-typed live value
 would satisfy Terminal ownership rules.
 
-Direct whole-result call expressions also supply ordinary Unit and claim-free
-affine structural calls. The same binding namespace retains these temporary
-results without inventing local names. Captured call ordinals identify authored
+Direct whole-result call expressions also supply ordinary Unit calls,
+scalar-returning boundary wrappers, and claim-free affine structural calls.
+The same binding namespace retains these temporary results without inventing
+local names. Captured call ordinals identify authored
 preorder occurrences; the operation sequence evaluates children before their
 parent and siblings in argument order. Lowering independently rejoins that
 syntax order, every result producer, and the enclosing consuming expression.
@@ -3917,8 +3921,10 @@ Mixed scalar and structural operands use one private argument schedule derived
 from the authored formal positions. Each scalar operand completes in place,
 before the next structural producer or scalar operand. The shared evaluator
 retains completed scalar values across its control blocks; staging indices do
-not become source-local binding ordinals. Scalar operands of nested structural
-producers retain their own captured call coordinate and dense scalar argument
+not become source-local binding ordinals. Completing an enclosing scalar call
+discards its private argument slots while retaining its result as the next
+source binding. Scalar operands of nested structural producers retain their own
+captured call coordinate and dense scalar argument
 role, using the namespace from before the enclosing statement. Short-circuit
 branches stay selective, including statically skipped calls. An operand crash
 prevents later arguments and the enclosing invocation from running; it has no

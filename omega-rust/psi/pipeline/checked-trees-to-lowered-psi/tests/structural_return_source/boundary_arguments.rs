@@ -214,6 +214,316 @@ fn unit_caller_transfers_linear_claim_into_scalar_boundary_wrapper() {
 }
 
 #[test]
+fn unit_wrapper_accepts_nested_affine_result_argument() {
+    let source = unit_wrapper_source()
+        .replace("Receipt [linear]", "Receipt")
+        .replace(
+            "Wrapper::measure(receipt, 70u16)",
+            "Wrapper::measure(forward(receipt), 70u16)",
+        );
+    let source = format!("{source}\nmachine forward(receipt: Receipt) -> Receipt {{ receipt }}");
+    unit_wrapper_artifact(&checked(&source));
+}
+
+const NESTED_WRAPPER_SOURCE: &str = r#"
+    boundary trait PortIo {}
+    pub data Receipt { value: u64; }
+    boundary machine Receipt::settle(self, first: u16, last: u16) -> u16
+    reaches PortIo ensures true;
+    pub data Events {}
+    boundary machine Events::observe(value: u16) -> u16
+    reaches PortIo ensures true;
+    data Scalar {}
+    machine Scalar::observe(value: u16) -> u16 reaches PortIo {
+        let result: u16 = Events::observe(value); result
+    }
+    machine forward(first: u16, receipt: Receipt, last: u16) -> Receipt { receipt }
+    data Wrapper {}
+    machine Wrapper::measure(first: u16, receipt: Receipt, last: u16) -> u16
+    reaches PortIo {
+        let accepted: u16 = receipt.settle(first, last); accepted
+    }
+    data Root {}
+    machine Root::enter(receipt: Receipt) reaches PortIo {
+        let before: u16 = 5u16;
+        let accepted: u16 = Wrapper::measure(
+            Scalar::observe(before),
+            forward(Scalar::observe(11u16),
+                forward(Scalar::observe(22u16), receipt, Scalar::observe(33u16)),
+                Scalar::observe(44u16)),
+            Scalar::observe(55u16));
+        let later: u16 = Scalar::observe(accepted);
+        let previous: u16 = Scalar::observe(before);
+    }
+"#;
+
+#[derive(Default)]
+struct ObserveNestedWrapper {
+    calls: Vec<Vec<TerminalScalarValue>>,
+}
+
+impl TerminalEffectHandler for ObserveNestedWrapper {
+    fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+        panic!("all fixture effects return a scalar");
+    }
+
+    fn handle_effect_result(
+        &mut self,
+        effect: &TerminalEffect,
+    ) -> Result<terminal_interpreter::TerminalEffectResult, TerminalEffectRejection> {
+        let TerminalEffect::BoundaryCall {
+            arguments,
+            structural_arguments,
+            ..
+        } = effect
+        else {
+            panic!("boundary effect");
+        };
+        self.calls.push(arguments.clone());
+        let value = if let [receipt] = structural_arguments.as_slice() {
+            assert_eq!(receipt.opaque_identity, 700);
+            assert!(receipt.path.is_empty());
+            unsigned(700)
+        } else {
+            assert!(structural_arguments.is_empty());
+            assert_eq!(arguments.len(), 1);
+            arguments[0]
+        };
+        Ok(terminal_interpreter::TerminalEffectResult::Scalar(value))
+    }
+}
+
+#[test]
+fn nested_wrapper_arguments_keep_effect_order_and_the_published_scalar_result() {
+    let artifact = unit_wrapper_artifact(&checked(NESTED_WRAPPER_SOURCE));
+    let expected = [
+        vec![unsigned(5)],
+        vec![unsigned(11)],
+        vec![unsigned(22)],
+        vec![unsigned(33)],
+        vec![unsigned(44)],
+        vec![unsigned(55)],
+        vec![unsigned(5), unsigned(55)],
+        vec![unsigned(700)],
+        vec![unsigned(5)],
+    ];
+    let mut reference_effects = None;
+    for incremental in [false, true] {
+        let mut execution = start(&artifact);
+        let mut observer = ObserveNestedWrapper::default();
+        let mut meter = if incremental {
+            TerminalFuelMeter::with_allowance(0)
+        } else {
+            TerminalFuelMeter::unbounded()
+        };
+        let mut complete = false;
+        for _ in 0..1024 {
+            match execution
+                .resume_with_effect_handler(&mut meter, &mut observer)
+                .unwrap()
+            {
+                TerminalExecutionStatus::SponsorExhausted(_) => {
+                    assert!(incremental);
+                    meter.replenish(1).unwrap();
+                }
+                TerminalExecutionStatus::Complete(result) => {
+                    assert_eq!(result, TerminalExecutionResult::Unit);
+                    complete = true;
+                    break;
+                }
+                status => panic!("unexpected status: {status:?}"),
+            }
+        }
+        assert!(complete);
+        assert_eq!(observer.calls, expected);
+        assert!(execution.live_affine_frontier().next().is_none());
+        if let Some(reference) = &reference_effects {
+            assert_eq!(execution.effects(), reference);
+        } else {
+            reference_effects = Some(execution.effects().to_vec());
+        }
+    }
+}
+
+#[test]
+fn nested_wrapper_rejects_reordered_producers_and_scalar_binding_drift() {
+    let original = checked(NESTED_WRAPPER_SOURCE);
+    let root = original
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Root::enter")
+        .unwrap()
+        .symbol;
+    for mutation in 0..4 {
+        let mut changed = original.clone();
+        let plan = changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .find(|plan| plan.machine == root)
+            .unwrap();
+        let producers = plan
+            .operations
+            .iter()
+            .enumerate()
+            .filter_map(|(index, operation)| {
+                matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::StructuralCall { .. }
+                )
+                .then_some(index)
+            })
+            .collect::<Vec<_>>();
+        let [inner, outer] = producers.as_slice() else {
+            panic!("two nested affine producers");
+        };
+        match mutation {
+            0 => plan.operations.swap(*inner, *outer),
+            1 => {
+                let CheckedUnitEffectOperationPlan::StructuralCall { source_site, .. } =
+                    plan.operations[*inner]
+                else {
+                    unreachable!();
+                };
+                let CheckedUnitEffectOperationPlan::StructuralCall {
+                    source_site: changed_site,
+                    ..
+                } = &mut plan.operations[*outer]
+                else {
+                    unreachable!();
+                };
+                *changed_site = source_site;
+            }
+            2 | 3 => {
+                let CheckedUnitEffectOperationPlan::ScalarCall {
+                    result,
+                    scalar_arguments,
+                    ..
+                } = &mut plan.operations[*outer + 1]
+                else {
+                    panic!("enclosing wrapper publishes a scalar local");
+                };
+                if mutation == 2 {
+                    result.binding_ordinal += 1;
+                } else {
+                    // Only `before` is a source binding at this statement.
+                    // Slot one exists during staging, but must not be readable.
+                    scalar_arguments[1] = checked_trees::CheckedCallScalarArgument::Pure(
+                        checked_trees::CheckedScalarExpression::Local {
+                            position: 1,
+                            primitive_type: typed_trees::types::PrimitiveType::U16,
+                        },
+                    );
+                }
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter").is_err(),
+            "nested wrapper custody mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn nested_wrapper_computation_cannot_read_a_private_argument_slot() {
+    let mut changed = checked(NESTED_WRAPPER_SOURCE);
+    let root = changed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Root::enter")
+        .unwrap()
+        .symbol;
+    let argument = changed
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(root)
+        .unwrap()
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::ScalarCall {
+                result,
+                scalar_arguments,
+                ..
+            } if result.binding_ordinal == 1 => Some(scalar_arguments[1].clone()),
+            _ => None,
+        })
+        .unwrap();
+    let checked_trees::CheckedCallScalarArgument::Computation(computation) = argument else {
+        panic!("last wrapper operand calls observe");
+    };
+    let computations = &mut changed.facts.values.scalar_computations;
+    let CheckedScalarComputationKind::Call { arguments, .. } =
+        computations.nodes.get(computation).kind
+    else {
+        panic!("captured observe call");
+    };
+    let Some([operand]) = computations.operands.span(arguments) else {
+        panic!("one observed scalar");
+    };
+    let operand = *operand;
+    assert!(matches!(
+        computations.nodes.get(operand).kind,
+        CheckedScalarComputationKind::Value(_)
+    ));
+    computations.nodes.get_mut(operand).kind =
+        CheckedScalarComputationKind::Value(checked_trees::CheckedScalarExpression::Local {
+            position: 1,
+            primitive_type: typed_trees::types::PrimitiveType::U16,
+        });
+    let error = checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter")
+        .expect_err("private argument slots are not authored local bindings");
+    assert!(
+        format!("{error:?}")
+            .contains("scalar immutable operand is outside the established namespace"),
+        "{error:?}"
+    );
+}
+
+#[test]
+fn nested_wrapper_operand_crash_preserves_only_the_completed_effect_prefix() {
+    let source = format!(
+        "machine abort() -> u16 crashes Abort {{ crash Abort; }}\n{}",
+        NESTED_WRAPPER_SOURCE
+            .replace("Scalar::observe(44u16)", "abort()")
+            .replace(
+                "machine Root::enter(receipt: Receipt) reaches PortIo",
+                "machine Root::enter(receipt: Receipt) reaches PortIo crashes Abort"
+            )
+    );
+    let artifact = unit_wrapper_artifact(&checked(&source));
+    let mut execution = start(&artifact);
+    let mut observer = ObserveNestedWrapper::default();
+    let status = execution
+        .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer)
+        .unwrap();
+    assert!(
+        matches!(&status, TerminalExecutionStatus::Crashed(crash) if crash.cause == terminal_psi::CrashCause::Abort)
+    );
+    assert_eq!(
+        observer.calls,
+        [
+            vec![unsigned(5)],
+            vec![unsigned(11)],
+            vec![unsigned(22)],
+            vec![unsigned(33)]
+        ]
+    );
+    let effects = execution.effects().to_vec();
+    assert_eq!(
+        execution
+            .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer)
+            .unwrap(),
+        status
+    );
+    assert_eq!(execution.effects(), effects);
+}
+
+#[test]
 fn unit_wrapper_consumes_empty_record_local() {
     let source = constructed_wrapper_source("", "");
     assert_constructed_wrapper_execution(&source);

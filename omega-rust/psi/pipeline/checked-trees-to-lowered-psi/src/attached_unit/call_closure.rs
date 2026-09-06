@@ -298,12 +298,14 @@ pub(super) fn validate_unit_operation_sequence(
             CheckedUnitEffectOperationPlan::StructuralCall { .. }
         ) && coordinate.call_ordinal != 0;
         let same_statement = previous.is_some_and(|previous: (u32, u32)| previous.0 == key.0);
-        let nested_consumer =
-            matches!(
-                operation,
-                CheckedUnitEffectOperationPlan::StructuralCall { .. }
-            ) || matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. })
-                && coordinate.call_ordinal == 0;
+        let nested_consumer = matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::StructuralCall { .. }
+        ) || matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::CallUnit { .. }
+                | CheckedUnitEffectOperationPlan::ScalarCall { .. }
+        ) && coordinate.call_ordinal == 0;
         // Coordinates retain preorder identity. Same-statement producers are
         // published in postorder; exact syntax and argument ordering rejoin in
         // structural result consumer validation after this shape check.

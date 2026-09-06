@@ -38,14 +38,26 @@ impl Evaluation {
         calls: &mut CallEmissionContext<'_>,
     ) -> Result<Option<Vec<ValueDeclaration>>, LoweringError> {
         self.arguments_slice(
-            checked, machine, state, operation, None, values, next_value, next_block, next_edge,
-            operations, calls,
+            checked,
+            machine,
+            state,
+            operation,
+            None,
+            values.len(),
+            values,
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+            calls,
         )
     }
 
     /// Complete one dense scalar operand at its original call coordinate.
     /// The caller retains the result in `values` before evaluating another
-    /// operand and uses indices to follow values across private blocks.
+    /// operand and uses indices to follow values across private blocks. Only
+    /// the pre-group source prefix may be read by authored operand expressions;
+    /// later retained slots carry private argument temporaries across the CFG.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn argument_at(
         &mut self,
@@ -54,6 +66,7 @@ impl Evaluation {
         state: symbols::SymbolHandle,
         operation: &CheckedUnitEffectOperationPlan,
         argument_ordinal: usize,
+        source_value_count: usize,
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,
         next_block: &mut u64,
@@ -67,6 +80,7 @@ impl Evaluation {
             state,
             operation,
             Some(argument_ordinal),
+            source_value_count,
             values,
             next_value,
             next_block,
@@ -88,6 +102,7 @@ impl Evaluation {
         state: symbols::SymbolHandle,
         operation: &CheckedUnitEffectOperationPlan,
         argument_ordinal: Option<usize>,
+        source_value_count: usize,
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,
         next_block: &mut u64,
@@ -95,6 +110,10 @@ impl Evaluation {
         operations: &mut OperationBuffer,
         calls: &mut CallEmissionContext<'_>,
     ) -> Result<Option<Vec<ValueDeclaration>>, LoweringError> {
+        if source_value_count > values.len() {
+            return unsupported("call argument source prefix exceeds its retained values");
+        }
+        let source_bindings = crate::scalar_bindings::ScalarBindings::new(source_value_count);
         let (coordinate, arguments, boundary) = match operation {
             CheckedUnitEffectOperationPlan::CallUnit {
                 coordinate,
@@ -168,7 +187,7 @@ impl Evaluation {
                 .iter()
                 .zip(&argument_types)
                 .map(|(argument, scalar_type)| {
-                    let expression = lower_checked_scalar_expression(argument.as_pure().ok_or(
+                    let expression = source_bindings.expression(argument.as_pure().ok_or(
                         LoweringError::Unsupported(
                             "computed call argument requires ordered control",
                         ),
@@ -190,7 +209,7 @@ impl Evaluation {
             boundary,
             arguments,
             argument_ordinal_start,
-            &crate::scalar_bindings::ScalarBindings::new(values.len()),
+            &source_bindings,
             &source_types,
             0,
         )?;
