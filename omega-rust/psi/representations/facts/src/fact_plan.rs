@@ -1,3 +1,12 @@
+//! Current fact storage and its place, evidence and program-point vocabulary.
+
+pub mod contexts;
+pub mod evidence;
+pub mod places;
+
+#[cfg(test)]
+mod tests;
+
 use arena::{Arena, Handle, HandleSpan};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -6,11 +15,17 @@ use typed_trees::types::TypeReferenceHandle;
 
 use crate::{
     BooleanFact, DataDefinitionFactRecord, DomainDefinitionFactRecord, DomainMembershipFact, Fact,
-    FactContext, FactContextHandle, FactContextView, FactHandle, FactPayload, FactPlace, FactRef,
-    InstantiatedExpression, Place, PlaceHandle, PlaceRoot, PlaceSegment, ProgramPoint,
-    QualificationCorrespondence, QualificationCorrespondenceHandle, SymbolFactSet,
+    FactContext, FactContextView, FactPayload, FactPlace, FactRef, InstantiatedExpression, Place,
+    PlaceRoot, PlaceSegment, ProgramPoint, QualificationCorrespondence, SymbolFactSet,
     TypeConstraintFact, effective_member_symbol, resolve_place_member_symbol,
 };
+
+pub type FactHandle = Handle<Fact>;
+pub type FactRefHandle = Handle<FactRef>;
+pub type FactContextHandle = Handle<FactContext>;
+pub type PlaceHandle = Handle<Place>;
+pub type PlaceSegmentHandle = Handle<PlaceSegment>;
+pub type QualificationCorrespondenceHandle = Handle<QualificationCorrespondence>;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FactPlan {

@@ -8,6 +8,9 @@
 use sha2::{Digest, Sha256};
 use std::fmt;
 
+pub mod catalog;
+pub use catalog::PRETERMINAL_PSI_PASS_CATALOG;
+
 const ENCODING_MAGIC: &[u8; 8] = b"PSIOPT\0\0";
 const ENCODING_VERSION: u32 = 1;
 const IDENTITY_DOMAIN: &[u8] = b"psi.optimization-selections.v1\0";

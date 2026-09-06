@@ -353,8 +353,11 @@ keeps the compiler-owned build protocol independent of whether std exists.
   the typed/checked pipeline and `validation`; durable facts and proof
   obligations belong to `facts` and `proof`.
 - `facts` carries checked facts, invariants, and refinement data: what
-  remains true. Transitional backend consumers depend on the Psi owner directly
-  until terminal-Psi slices replace them.
+  remains true. Its `fact_plan.rs` root owns the current arenas and leads into
+  place, context and evidence records. `validation::build_definition_fact_plan`
+  derives declaration facts; representation queries do not construct that plan.
+  Transitional backend consumers depend on the Psi owner directly until
+  terminal-Psi slices replace them.
 - `checked-trees` owns the durable checked semantic representation and its
   proof, borrow, flow, reach, value-origin, and admissibility evidence. Terminal
   lowering consumes it once; Omega backend crates consume Terminal Psi rather
@@ -381,6 +384,11 @@ keeps the compiler-owned build protocol independent of whether std exists.
 ### Representations And Pipeline
 
 - `representations/` owns durable IR data structures and arena storage.
+  Each Psi crate has one named entry beside `lib.rs`. Whole-program entries
+  define their current program, such as `token_stream.rs` and `fact_plan.rs`.
+  Shared vocabulary uses the same navigation without an invented aggregate IR:
+  `flow_effects.rs` exposes independent summaries, and
+  `optimization_selections.rs` owns selections and their closed pass catalog.
 - `pipeline/` crates transform one representation into the next.
 - Pipeline crates may depend on input and output representations, but should not
   become owners of shared helper structures.

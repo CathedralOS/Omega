@@ -4933,7 +4933,8 @@ fn deployment_journal_compact_byte_identity_is_report_only() {
 #[test]
 fn normalized_write_frame_compact_identity_is_report_only() {
     let root = workspace_root();
-    let frame_path = root.join("omega-rust/psi/representations/facts/src/write_frame.rs");
+    let frame_path =
+        root.join("omega-rust/psi/representations/facts/src/fact_plan/places/write_frame.rs");
     let frame = std::fs::read_to_string(&frame_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", frame_path.display()));
 

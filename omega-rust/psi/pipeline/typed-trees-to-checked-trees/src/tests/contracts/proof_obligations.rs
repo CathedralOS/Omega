@@ -1776,7 +1776,7 @@ fn exit_ensures_requirement_label_resolves_attached_data_members() {
                 .any(|definition| definition.symbol == self_type_symbol),
         "self type symbol should resolve to a machine with attached data or a data definition"
     );
-    let mut scratch = facts::build_definition_fact_plan(&typed);
+    let mut scratch = validation::build_definition_fact_plan(&typed);
     let self_place = scratch.append_symbol_place(self_symbol);
     assert!(
         crate::semantic_places::resolve_place_member_symbol(&typed, &scratch, self_place, "player")

@@ -441,6 +441,13 @@ fn selected_program_has_one_representation_entrance() {
 fn program_representations_have_named_roots_and_concept_owners() {
     for (half, package, module, program, areas) in [
         (
+            "psi",
+            "facts",
+            "fact_plan",
+            "FactPlan",
+            &["places", "contexts", "evidence"][..],
+        ),
+        (
             "omega",
             "machine-code",
             "machine_code",
@@ -598,6 +605,54 @@ fn program_representations_have_named_roots_and_concept_owners() {
             "{package} contains stage ancestry"
         );
     }
+}
+
+#[test]
+fn every_psi_representation_has_one_named_entry() {
+    let root = repository().join("omega-rust/psi/representations");
+    let entries = [
+        ("checked-trees", "checked_trees"),
+        ("facts", "fact_plan"),
+        ("flow-effects", "flow_effects"),
+        ("lowered-psi", "lowered_psi"),
+        ("optimization", "optimization_selections"),
+        ("symbol-resolved-trees", "symbol_resolved_trees"),
+        ("syntax-trees", "syntax_trees"),
+        ("terminal-psi", "terminal_module"),
+        ("tokens", "token_stream"),
+        ("typed-trees", "typed_trees"),
+    ];
+    let mut packages = std::fs::read_dir(&root)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.join("Cargo.toml").exists())
+        .map(|path| path.file_name().unwrap().to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+    packages.sort();
+    assert_eq!(packages, entries.map(|(package, _)| package));
+    for (package, entry) in entries {
+        let directory = root.join(package).join("src");
+        let mut files = std::fs::read_dir(&directory)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| path.is_file())
+            .map(|path| path.file_name().unwrap().to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        files.sort();
+        let mut expected = vec!["lib.rs".to_owned(), format!("{entry}.rs")];
+        expected.sort();
+        assert_eq!(files, expected, "ambiguous entry in {package}");
+        let entrance = std::fs::read_to_string(directory.join("lib.rs")).unwrap();
+        assert!(entrance.contains(&format!("mod {entry};")));
+    }
+    let facts = rust_source(&root.join("facts/src"));
+    assert!(!facts.contains("fn build_definition_fact_plan"));
+    assert!(!facts.contains("fn append_domain_definition_facts"));
+    let producer = std::fs::read_to_string(
+        repository().join("omega-rust/psi/semantics/validation/src/definition_facts.rs"),
+    )
+    .unwrap();
+    assert!(producer.contains("pub fn build_definition_fact_plan"));
 }
 
 #[test]

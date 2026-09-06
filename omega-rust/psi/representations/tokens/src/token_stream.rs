@@ -1,3 +1,9 @@
+//! The current source token sequence and its spelling vocabulary.
+
+pub mod token;
+pub mod token_kind;
+pub mod token_text;
+
 use std::ops::Deref;
 
 use crate::Token;

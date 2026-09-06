@@ -26,7 +26,8 @@ pub fn payload_variant_for_field(
     })
 }
 
-pub(crate) fn effective_member_symbol(
+/// Resolve the retained member identity without establishing any semantic fact.
+pub fn effective_member_symbol(
     program: &TypedTrees,
     receiver: ExpressionHandle,
     member: &TableMemberExpression,
@@ -394,7 +395,8 @@ fn type_reference_base_symbol(
     }
 }
 
-pub(crate) fn resolve_place_member_symbol(
+/// Look up a member of the stored place; this does not introduce a qualification.
+pub fn resolve_place_member_symbol(
     program: &TypedTrees,
     facts: &FactPlan,
     place: PlaceHandle,
