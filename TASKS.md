@@ -562,8 +562,8 @@ Owners include
   calls, and partial initialization. Cleanup follows reverse establishment and
   exact residual custody; trap/abort edges clean nothing. Acceptance: no affine
   occurrence disappears, duplicates, or is cleaned after transfer.
-  Carry call-result residual cleanup through checked-source production and native
-  replay before admitting authored projected helper-result operands. Extend the
+  Carry named call-result residual cleanup through native replay and extend source
+  production to anonymous projected helper-result operands. Extend the
   type-directed record/array complement in
   [Terminal Psi](wiki/architecture/pipeline/terminal_psi.md) to construction-local
   roots and mixed live-root schedules, preserving maximal untouched subtrees,

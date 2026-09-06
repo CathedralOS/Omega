@@ -231,7 +231,7 @@ pub(super) fn validate_partial_affine_cleanup_shape(
             || partial_affine_residuals(module, root_type, &moved_paths, 0)
                 .is_none_or(|residuals| !residuals.is_empty())
             || !trivial_affine_discards.is_empty()
-            || !machine.published_service_ceiling.is_empty()
+            || (producer.is_none() && !machine.published_service_ceiling.is_empty())
             || !machine.contract.requires.is_empty()
             || !machine.contract.ensures.is_empty()
             || !machine.contract.crash_routes.is_empty()
@@ -269,7 +269,7 @@ pub(super) fn validate_partial_affine_cleanup_shape(
             || !machine.parameters.is_empty()
             || root_position != 0
             || root_is_self
-            || !machine.published_service_ceiling.is_empty()
+            || (producer.is_none() && !machine.published_service_ceiling.is_empty())
             || !machine.contract.requires.is_empty()
             || !machine.contract.ensures.is_empty()
             || !machine.contract.crash_routes.is_empty()))

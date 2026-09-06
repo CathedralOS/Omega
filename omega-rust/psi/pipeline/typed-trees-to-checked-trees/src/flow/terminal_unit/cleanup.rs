@@ -904,9 +904,11 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
         return None;
     };
     let statements = program.statement_table.statements(state.statement_nodes);
+    let result_local = matches!(statements.first(), Some(StatementNode::LocalData(_)));
     if statements.is_empty()
         || statements
             .iter()
+            .skip(usize::from(result_local))
             .any(|statement| !matches!(statement, StatementNode::Call(_)))
     {
         return None;
@@ -936,22 +938,58 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
     let binders = machine_binders(program, machine);
     let (attachment_type_identity, structural_parameters) =
         partial_affine_structural_signature(program, shapes, machine, state, &binders)?;
-    let [source_parameter] = program.state_parameters(state) else {
-        return None;
-    };
-    let [checked_parameter] = structural_parameters.as_slice() else {
-        return None;
-    };
-    if source_parameter.is_self
-        || checked_parameter.is_self
-        || checked_parameter.position != 0
-        || checked_parameter.multiplicity != Multiplicity::Affine
-        || checked_parameter.access != CheckedStructuralAccess::Owned
-        || !checked_parameter.qualifications.is_empty()
-        || type_graph_requires_nominal_drop(program, source_parameter.type_reference)
+    if structural_parameters.len() > 1
+        || program.state_parameters(state).len() != structural_parameters.len()
+        || (!result_local && structural_parameters.len() != 1)
+        || program
+            .state_parameters(state)
+            .iter()
+            .zip(&structural_parameters)
+            .any(|(source, checked)| {
+                source.is_self
+                    || checked.is_self
+                    || checked.position != 0
+                    || checked.multiplicity != Multiplicity::Affine
+                    || checked.access != CheckedStructuralAccess::Owned
+                    || !checked.qualifications.is_empty()
+                    || type_graph_requires_nominal_drop(program, source.type_reference)
+            })
     {
         return None;
     }
+    let result_binding = if result_local {
+        let (result, symbol) =
+            checked_unit_structural_result_local(program, shapes, statements, &binders)?;
+        let StatementNode::LocalData(local) = &statements[0] else {
+            unreachable!()
+        };
+        if result.multiplicity != Multiplicity::Affine
+            || shapes.add_partial_affine_type(local.type_reference, &binders)?
+                != result.type_identity
+            || !symbol.is_valid()
+        {
+            return None;
+        }
+        Some((result, facts::PlaceRoot::Symbol(symbol)))
+    } else {
+        None
+    };
+    let (root_source, root_symbol, root_type) =
+        if let Some((result, facts::PlaceRoot::Symbol(symbol))) = &result_binding {
+            (
+                CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    binding_ordinal: result.binding_ordinal,
+                },
+                *symbol,
+                result.type_identity.clone(),
+            )
+        } else {
+            (
+                CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 },
+                parameter_root_symbol(machine.symbol, &program.state_parameters(state)[0]),
+                structural_parameters[0].type_identity.clone(),
+            )
+        };
     let entry_claims = entry_claims(
         program,
         facts,
@@ -981,13 +1019,74 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
     {
         return None;
     }
-    if !service_reach_is_empty(facts, state_flow.service_reach) {
+    if !result_local && !service_reach_is_empty(facts, state_flow.service_reach) {
         return None;
     }
     let mut operations = Vec::with_capacity(calls.len().saturating_add(1));
     let mut moved_paths =
         Vec::<(Vec<CheckedUnitStructuralPathSegment>, String)>::with_capacity(calls.len());
     for call in calls {
+        if result_local && call.statement_index == 0 {
+            let (result, _) = result_binding.as_ref()?;
+            let StatementNode::LocalData(local) = &statements[0] else {
+                unreachable!()
+            };
+            if call.authored_expression != local.initial_value {
+                return None;
+            }
+            let operation = build_call_operation(
+                program,
+                facts,
+                machine,
+                state,
+                &structural_parameters,
+                &[],
+                &[],
+                &entry_claims,
+                call,
+                false,
+                Some(ExpectedCallValueResult::Structural(result)),
+                &[],
+            )?;
+            let mut operation = control::bind_structural_call_result(operation, result.clone())?;
+            match &mut operation {
+                CheckedUnitEffectOperationPlan::StructuralCall {
+                    structural_arguments,
+                    scalar_arguments,
+                    discard_result_on_return,
+                    ..
+                } => {
+                    if !scalar_arguments.is_empty()
+                        || structural_arguments.len() != structural_parameters.len()
+                        || structural_arguments.iter().any(|argument| {
+                            argument.source_parameter_index() != Some(0)
+                                || !argument.path.is_empty()
+                                || argument.access != CheckedStructuralAccess::Owned
+                        })
+                    {
+                        return None;
+                    }
+                    *discard_result_on_return = false;
+                }
+                CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                    structural_arguments,
+                    scalar_arguments,
+                    discard_result_on_return,
+                    ..
+                } => {
+                    if !structural_parameters.is_empty()
+                        || !structural_arguments.is_empty()
+                        || !scalar_arguments.is_empty()
+                    {
+                        return None;
+                    }
+                    *discard_result_on_return = false;
+                }
+                _ => return None,
+            }
+            operations.push(operation);
+            continue;
+        }
         if !service_reach_is_empty(facts, call.service_reach) {
             return None;
         }
@@ -1003,7 +1102,7 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
             call,
             true,
             None,
-            &[],
+            result_binding.as_slice(),
         )?;
         let CheckedUnitEffectOperationPlan::CallUnit {
             target_machine,
@@ -1020,7 +1119,7 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
         if !is_partial_affine_path(&argument.path) {
             return None;
         }
-        if argument.source_parameter_index() != Some(0)
+        if argument.source != root_source
             || argument.access != CheckedStructuralAccess::Owned
             || !claim_transfers.is_empty()
             || moved_paths.iter().any(|(earlier, _)| {
@@ -1075,7 +1174,11 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
                 ..
             } = operation
             else {
-                return true;
+                return !matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::StructuralCall { .. }
+                        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
+                );
             };
             !program
                 .machines()
@@ -1088,18 +1191,56 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
     {
         return None;
     }
-    let residual_affine_discards = partial_affine_residuals(
-        &shapes.types,
-        &checked_parameter.type_identity,
-        &moved_paths,
-    )?;
-    if !has_exact_root_affine_discard(facts, machine, state, source_parameter) {
+    let residual_affine_discards =
+        partial_affine_residuals(&shapes.types, &root_source, &root_type, &moved_paths)?;
+    let provenance = if result_local {
+        let provenance = language_semantics::PermissionProvenance::Established {
+            machine_symbol: machine.symbol,
+            state_symbol: state.symbol,
+            source: PermissionEventSource::Statement { statement_index: 0 },
+        };
+        let mut establishments = facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .map(|(_, event)| event)
+            .filter(|event| {
+                event.machine_symbol == machine.symbol
+                    && event.state_symbol == state.symbol
+                    && event.source == PermissionEventSource::Statement { statement_index: 0 }
+                    && event.kind == PermissionEventKind::Establish
+                    && event.root == facts::PlaceRoot::Symbol(root_symbol)
+            });
+        let establishment = establishments.next()?;
+        if establishments.next().is_some()
+            || establishment.provenance != provenance
+            || establishment.access != PermissionAccess::Owned
+            || establishment.multiplicity != Multiplicity::Affine
+            || establishment.claim_identity != PermissionClaimIdentity::Unknown
+            || establishment.obligation_live
+            || !facts
+                .flow
+                .ownership
+                .segments
+                .span_or_empty(establishment.segments)
+                .is_empty()
+        {
+            return None;
+        }
+        provenance
+    } else {
+        language_semantics::PermissionProvenance::Unknown
+    };
+    if !has_exact_symbol_affine_discard(facts, machine, state, root_symbol, provenance) {
         return None;
     }
-    if !service_reach_plan_is_empty(
-        facts,
-        facts.service_reaches.plan_for_machine(machine.symbol)?,
-    ) {
+    if !result_local
+        && !service_reach_plan_is_empty(
+            facts,
+            facts.service_reaches.plan_for_machine(machine.symbol)?,
+        )
+    {
         return None;
     }
     operations.push(CheckedUnitEffectOperationPlan::ReturnUnit {
@@ -1130,6 +1271,7 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
 
 pub(super) fn partial_affine_residuals(
     types: &BTreeMap<String, CheckedUnitStructuralTypePlan>,
+    source: &CheckedUnitStructuralArgumentSourcePlan,
     root_type: &str,
     moved_paths: &[(Vec<CheckedUnitStructuralPathSegment>, String)],
 ) -> Option<Vec<CheckedUnitPartialAffineDiscardPlan>> {
@@ -1137,7 +1279,7 @@ pub(super) fn partial_affine_residuals(
         .iter()
         .map(|(path, moved_type)| (path.as_slice(), moved_type.as_str()))
         .collect::<Vec<_>>();
-    residuals::reconstruct(types, root_type, &borrowed, usize::MAX)
+    residuals::reconstruct(types, source, root_type, &borrowed, usize::MAX)
 }
 
 fn is_partial_affine_path(path: &[CheckedUnitStructuralPathSegment]) -> bool {
@@ -1234,6 +1376,22 @@ pub(super) fn has_exact_root_affine_discard(
     state: &typed_trees::state::State,
     parameter: &StateParameter,
 ) -> bool {
+    has_exact_symbol_affine_discard(
+        facts,
+        machine,
+        state,
+        parameter_root_symbol(machine.symbol, parameter),
+        language_semantics::PermissionProvenance::Unknown,
+    )
+}
+
+fn has_exact_symbol_affine_discard(
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    symbol: SymbolHandle,
+    provenance: language_semantics::PermissionProvenance,
+) -> bool {
     let matching = facts
         .flow
         .ownership
@@ -1247,10 +1405,9 @@ pub(super) fn has_exact_root_affine_discard(
                 && event.access == PermissionAccess::Owned
                 && event.multiplicity == Multiplicity::Affine
                 && event.claim_identity == PermissionClaimIdentity::Unknown
-                && event.provenance == language_semantics::PermissionProvenance::Unknown
+                && event.provenance == provenance
                 && !event.obligation_live
-                && event.root
-                    == facts::PlaceRoot::Symbol(parameter_root_symbol(machine.symbol, parameter))
+                && event.root == facts::PlaceRoot::Symbol(symbol)
         })
         .map(|(_, event)| event)
         .collect::<Vec<_>>();

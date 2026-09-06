@@ -57,6 +57,7 @@ pub(crate) fn validate_usage(
         return unsupported("Unit structural result binding disagrees with its producer");
     }
     let mut consumed = false;
+    let mut projected_paths = Vec::<&[checked_trees::CheckedUnitStructuralPathSegment]>::new();
     for (operation_index, operation) in caller.operations.iter().enumerate() {
         let (CheckedUnitEffectOperationPlan::CallUnit {
             coordinate,
@@ -106,7 +107,23 @@ pub(crate) fn validate_usage(
                     "Unit structural result is consumed before production or twice",
                 );
             }
-            if !argument.path.is_empty()
+            if !argument.path.is_empty() {
+                if !matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. })
+                    || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                    || producer.coordinate.call_ordinal != 0
+                    || result.multiplicity != Multiplicity::Affine
+                    || projected_paths.iter().any(|earlier| {
+                        earlier.starts_with(&argument.path) || argument.path.starts_with(earlier)
+                    })
+                {
+                    return unsupported(
+                        "Unit result projection overlaps or lacks owned call custody",
+                    );
+                }
+                projected_paths.push(&argument.path);
+                continue;
+            }
+            if !projected_paths.is_empty()
                 || !matches!(
                     argument.access,
                     checked_trees::CheckedStructuralAccess::Owned
@@ -124,7 +141,10 @@ pub(crate) fn validate_usage(
             consumed = argument.access == checked_trees::CheckedStructuralAccess::Owned;
         }
     }
-    if producer.discard == consumed || (producer.coordinate.call_ordinal != 0 && !consumed) {
+    if (projected_paths.is_empty() && producer.discard == consumed)
+        || (!projected_paths.is_empty() && producer.discard)
+        || (producer.coordinate.call_ordinal != 0 && !consumed)
+    {
         return unsupported(
             "Unit structural result cleanup disagrees with its final consuming use",
         );
@@ -202,7 +222,8 @@ pub(crate) fn validate_consumer(
         )
     });
     validate_nested_execution_order(checked, caller, coordinate.statement_index, authored_nested)?;
-    let (_, state) = crate::scalar_source_custody::authored_state(checked, caller.state)?;
+    let (source_machine, state) =
+        crate::scalar_source_custody::authored_state(checked, caller.state)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
     for (index, (argument, parameter)) in structural_arguments
         .iter()
@@ -264,16 +285,27 @@ pub(crate) fn validate_consumer(
                         "Unit structural result producer disagrees with its immutable authored local",
                     );
                 }
-                expression.is_some_and(|expression| {
-                    let (expression, _) = named_result_operand(checked, expression);
-                    matches!(
-                        checked.expression_table.expression(expression),
-                        ExpressionNode::Name(name)
-                            if name.symbol == local.symbol
-                                && name.head_symbol == local.symbol
-                                && checked.expression_table.name_path_members(name.members).len() == 1
+                match expression.map(|expression| {
+                    super::super::parameters::source_path(
+                        checked,
+                        source_machine,
+                        local.type_reference,
+                        expression,
                     )
-                })
+                }) {
+                    Some(Ok((root, path, access))) if root == local.symbol => {
+                        if path != argument.path
+                            || access.unwrap_or(checked_trees::CheckedStructuralAccess::Owned)
+                                != argument.access
+                        {
+                            return unsupported(
+                                "Unit result projection disagrees with its authored path",
+                            );
+                        }
+                        true
+                    }
+                    _ => false,
+                }
             } else {
                 let source = crate::call_source_custody::authored::locate_source(
                     checked,
@@ -327,9 +359,12 @@ pub(crate) fn validate_consumer(
                 | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result: consumer, .. }
                 if result.binding_ordinal >= consumer.binding_ordinal)
             || result.multiplicity != Multiplicity::Affine
-            || argument.type_identity != result.type_identity
-            || parameter.type_identity != result.type_identity
-            || !argument.path.is_empty()
+            || (argument.path.is_empty() && argument.type_identity != result.type_identity)
+            || parameter.type_identity != argument.type_identity
+            || (!argument.path.is_empty()
+                && (!matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. })
+                    || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                    || producer.coordinate.call_ordinal != 0))
             || !matches!(
                 argument.access,
                 checked_trees::CheckedStructuralAccess::Owned

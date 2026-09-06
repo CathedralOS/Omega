@@ -1,4 +1,4 @@
-//! Whole affine result operands retain exact source access across callees.
+//! Affine result operands retain exact source access and projected storage.
 
 use super::*;
 
@@ -14,8 +14,27 @@ pub(super) fn argument(
     result: &CheckedUnitStructuralResultBindingPlan,
     parameter: &StateParameter,
     target_identity: &str,
+    allow_projection: bool,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let access = structural_access_for_type_reference(program, parameter.type_reference)?;
+    let projected = !place.segments.is_empty();
+    let path = if projected {
+        if !allow_projection
+            || access != CheckedStructuralAccess::Owned
+            || !matches!(place.root, facts::PlaceRoot::Symbol(_))
+        {
+            return None;
+        }
+        projected_argument_path_with_identity(
+            program,
+            state,
+            call.statement_index,
+            place,
+            target_identity,
+        )?
+    } else {
+        Vec::new()
+    };
     let (value_expression, referent) = match access {
         CheckedStructuralAccess::Owned => (expression, parameter.type_reference),
         CheckedStructuralAccess::SharedBorrow => {
@@ -41,8 +60,7 @@ pub(super) fn argument(
     };
     if parameter.is_self
         || result.multiplicity != Multiplicity::Affine
-        || result.type_identity != target_identity
-        || !place.segments.is_empty()
+        || (!projected && result.type_identity != target_identity)
         || program.type_multiplicity(referent) != Multiplicity::Affine
         || !validation::has_plain_owned_contents(program, referent)
         || usize::try_from(result.statement_index).ok()? > call.statement_index
@@ -53,14 +71,15 @@ pub(super) fn argument(
         facts::PlaceRoot::Symbol(symbol) => {
             if usize::try_from(result.statement_index).ok()? == call.statement_index
                 || !symbol.is_valid()
-                || !matches!(program.expression_table.expression(value_expression),
+                || (!projected
+                    && !matches!(program.expression_table.expression(value_expression),
                     ExpressionNode::Name(name) if name.symbol == symbol
                         && name.head_symbol == symbol
-                        && program.expression_table.name_path_members(name.members).len() == 1)
+                        && program.expression_table.name_path_members(name.members).len() == 1))
             {
                 return None;
             }
-            if access == CheckedStructuralAccess::SharedBorrow {
+            if access == CheckedStructuralAccess::SharedBorrow || projected {
                 let source_state = crate::find_state(program, state)?;
                 let StatementNode::LocalData(local) = program
                     .statement_table
@@ -149,6 +168,8 @@ pub(super) fn argument(
                     }
                 && event.root == place.root
                 && event.access == PermissionAccess::Owned
+                && facts.flow.ownership.segments.span_or_empty(event.segments)
+                    == place.segments.as_slice()
         });
     let event = events.next()?;
     // Non-self owned parameters transfer custody even at direct or nominal
@@ -159,12 +180,6 @@ pub(super) fn argument(
         || event.multiplicity != Multiplicity::Affine
         || event.claim_identity != PermissionClaimIdentity::Unknown
         || event.obligation_live
-        || !facts
-            .flow
-            .ownership
-            .segments
-            .span_or_empty(event.segments)
-            .is_empty()
     {
         return None;
     }
@@ -172,7 +187,7 @@ pub(super) fn argument(
         source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: result.binding_ordinal,
         },
-        path: Vec::new(),
+        path,
         type_identity: target_identity.to_owned(),
         access: CheckedStructuralAccess::Owned,
     })

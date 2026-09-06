@@ -182,7 +182,9 @@ fn build_projected_edge_plan(
             target_parameter_position: 0,
         },
         residual_affine_discards: vec![CheckedUnitPartialAffineDiscardPlan {
-            source_parameter_index: 0,
+            source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: 0,
+            },
             path: vec![CheckedUnitStructuralPathSegment::Field(
                 residual_field_identity,
             )],

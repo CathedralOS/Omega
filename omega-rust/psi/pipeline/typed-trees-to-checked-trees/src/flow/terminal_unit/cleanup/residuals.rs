@@ -52,6 +52,7 @@ fn validate_type(
 /// cannot trigger enumeration before host-size and output-allocation checks.
 fn visit(
     types: &BTreeMap<String, CheckedUnitStructuralTypePlan>,
+    source: &CheckedUnitStructuralArgumentSourcePlan,
     current_type: &str,
     moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
     prefix: &mut Vec<CheckedUnitStructuralPathSegment>,
@@ -61,7 +62,7 @@ fn visit(
     if moved_paths.is_empty() {
         if emit {
             residuals.push(CheckedUnitPartialAffineDiscardPlan {
-                source_parameter_index: 0,
+                source: source.clone(),
                 path: prefix.clone(),
                 type_identity: current_type.to_owned(),
             });
@@ -95,6 +96,7 @@ fn visit(
                 ));
                 count = count.checked_add(visit(
                     types,
+                    source,
                     type_identity,
                     &matching,
                     prefix,
@@ -139,6 +141,7 @@ fn visit(
                 prefix.push(CheckedUnitStructuralPathSegment::FixedIndex(index));
                 count = count.checked_add(visit(
                     types,
+                    source,
                     element_type_identity,
                     &matching,
                     prefix,
@@ -155,6 +158,7 @@ fn visit(
 
 pub(super) fn reconstruct(
     types: &BTreeMap<String, CheckedUnitStructuralTypePlan>,
+    source: &CheckedUnitStructuralArgumentSourcePlan,
     root_type: &str,
     moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
     max_residuals: usize,
@@ -173,6 +177,7 @@ pub(super) fn reconstruct(
     let mut residuals = Vec::new();
     let count = visit(
         types,
+        source,
         root_type,
         moved_paths,
         &mut Vec::new(),
@@ -185,6 +190,7 @@ pub(super) fn reconstruct(
     residuals.try_reserve_exact(count).ok()?;
     let emitted = visit(
         types,
+        source,
         root_type,
         moved_paths,
         &mut Vec::new(),
