@@ -62,6 +62,25 @@ pub(super) fn unit(
     moves: &[(Vec<StructuralPathSegment>, u64)],
     residuals: &[(Vec<StructuralPathSegment>, u64)],
 ) -> PsiOptimizationUnit {
+    build_unit(structural_types, root_type, moves, residuals, false)
+}
+
+pub(super) fn call_result_unit(
+    structural_types: Vec<StructuralTypeDeclaration>,
+    root_type: u64,
+    moves: &[(Vec<StructuralPathSegment>, u64)],
+    residuals: &[(Vec<StructuralPathSegment>, u64)],
+) -> PsiOptimizationUnit {
+    build_unit(structural_types, root_type, moves, residuals, true)
+}
+
+fn build_unit(
+    structural_types: Vec<StructuralTypeDeclaration>,
+    root_type: u64,
+    moves: &[(Vec<StructuralPathSegment>, u64)],
+    residuals: &[(Vec<StructuralPathSegment>, u64)],
+    produce_result: bool,
+) -> PsiOptimizationUnit {
     let caller = id(1_001, MachineId::new);
     let caller_block = id(1_002, BlockId::new);
     let caller_place = id(1_000, PlaceId::new);
@@ -140,7 +159,64 @@ pub(super) fn unit(
         operations,
     )];
     functions.extend(callees);
-    reconstruct_psi_optimization_unit_seed(
+    if produce_result {
+        // Consume the original parameter once, then use a distinct call-result
+        // root for every projected move and residual cleanup action.
+        let input = id(8_001, PlaceId::new);
+        let producer_input = id(8_002, PlaceId::new);
+        let producer_result = id(8_003, PlaceId::new);
+        let producer = id(8_004, MachineId::new);
+        let structural_type = id(root_type, StructuralTypeId::new);
+        functions[0].structural_parameters[0].place = input;
+        functions[0].operations.insert(
+            0,
+            AbstractOperation::CallStructural {
+                psi_operation: id(8_005, OperationId::new),
+                result: terminal_psi::StructuralOperationResult {
+                    place: caller_place,
+                    structural_type,
+                    multiplicity: StructuralMultiplicity::Affine,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    claims: Vec::new(),
+                },
+                callee: producer,
+                arguments: Vec::new(),
+                structural_arguments: vec![StructuralArgument {
+                    place: input,
+                    path: Vec::new(),
+                    access: StructuralAccess::Owned,
+                }],
+                claim_transfers: Vec::new(),
+                returned_claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+                selected_evidence: Vec::new(),
+            },
+        );
+        let mut identity = function(
+            producer,
+            id(8_006, BlockId::new),
+            parameter(producer_input, structural_type),
+            vec![AbstractOperation::ReturnStructural {
+                psi_edge: id(8_007, EdgeId::new),
+                source: producer_input,
+                returned_claims: Vec::new(),
+                trivial_affine_locals: Vec::new(),
+                trivial_affine_discards: Vec::new(),
+            }],
+        );
+        identity.result =
+            AbstractFunctionResult::Structural(terminal_psi::StructuralResultDeclaration {
+                place: producer_result,
+                structural_type,
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            });
+        functions.push(identity);
+    }
+    let mut unit = reconstruct_psi_optimization_unit_seed(
         &AbstractOperationPlan {
             psi: TerminalPsiIdentity {
                 vocabulary_marker: VocabularyMarker::CURRENT,
@@ -154,7 +230,19 @@ pub(super) fn unit(
         },
         FuelScheduleIdentity::new(1).unwrap(),
     )
-    .unwrap()
+    .unwrap();
+    if produce_result {
+        unit.functions.last_mut().unwrap().verified_contract =
+            Some(terminal_psi::MachineContract {
+                id: id(8_008, semantic_vocabulary::ContractId::new),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            });
+        crate::tests::refresh_identity(&mut unit);
+    }
+    unit
 }
 
 pub(super) fn mixed_unit() -> PsiOptimizationUnit {

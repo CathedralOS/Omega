@@ -46,17 +46,8 @@ pub(super) fn validate_unit_cleanup_actions(
             .collect::<Option<Vec<_>>>()
             .ok_or_else(mismatch)?;
         let root = residuals.first().ok_or_else(mismatch)?.place;
+        let root_type = partial_affine_root_type(function, root).ok_or_else(mismatch)?;
         if residuals.iter().any(|discard| discard.place != root)
-            || function
-                .structural_parameters
-                .iter()
-                .find(|parameter| parameter.place == root)
-                .is_none_or(|parameter| {
-                    parameter.is_self
-                        || parameter.access != StructuralAccess::Owned
-                        || !parameter.qualifications.is_empty()
-                        || !parameter.projected_qualifications.is_empty()
-                })
             || frontier
                 .claims
                 .values()
@@ -73,7 +64,6 @@ pub(super) fn validate_unit_cleanup_actions(
             .partial_custody_paths
             .remove(&root)
             .ok_or_else(mismatch)?;
-        let root_type = place_structural_type(function, root).ok_or_else(mismatch)?;
         let expected =
             partial_affine_residuals(structural_types, root_type, &moved, residuals.len())
                 .ok_or_else(mismatch)?;
@@ -88,6 +78,19 @@ pub(super) fn validate_unit_cleanup_actions(
             || remaining.owned_places.remove(&root) != Some(StructuralMultiplicity::Affine)
             || roots != expected_trivial_affine_discards(function, &remaining)
             || !remaining.partial_custody_paths.is_empty()
+            || has_live_owned_operation_result(function, &remaining)
+        {
+            return Err(mismatch());
+        }
+        // Result-root cleanup currently has one remaining owner. Do not let
+        // the parameter/local discard roster hide a second live call result.
+        if !function
+            .structural_parameters
+            .iter()
+            .any(|parameter| parameter.place == root)
+            && (!roots.is_empty()
+                || !remaining.owned_places.is_empty()
+                || !remaining.claims.is_empty())
         {
             return Err(mismatch());
         }
@@ -134,6 +137,7 @@ pub(super) fn validate_unit_cleanup_actions(
         .ok_or_else(mismatch)?;
     if !frontier.partial_custody_paths.is_empty()
         || roots != expected_trivial_affine_discards(function, frontier)
+        || has_live_owned_operation_result(function, frontier)
     {
         return Err(mismatch());
     }
