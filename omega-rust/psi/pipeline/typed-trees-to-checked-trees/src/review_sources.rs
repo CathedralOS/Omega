@@ -170,7 +170,7 @@ fn validate_checked_call_join(
                 } else {
                     call.target_symbol
                 },
-                receiver_path.is_some(),
+                call.receiver.is_valid(),
                 call.operational_acknowledgement,
             )
         }

@@ -371,13 +371,13 @@ Owners include
   mutable borrow. Acceptance includes read rejection, exact write coverage,
   unwind/return behavior, and both Linux targets.
 
-  Extend non-observing receiver-call admission beyond finite field-only paths
-  through closed records in `validation/src/write_only_borrows/receiver.rs`.
-  Indexed and reference-bearing receiver projections need exact
-  content-independent place/type and access checks before borrowing their callee
-  receiver. Keep generic, sum, and dynamic dispatch tied to their corresponding
-  shape/admission work; do not treat a
-  receiver as readable merely to dispatch it.
+  Carry checked fixed-array receiver projections through Terminal production
+  and native lowering, retaining exact element type, ordered place coordinates,
+  bounds, and exclusive access. Extend non-observing receiver admission to
+  reference-bearing projections only where locating the receiver does not read
+  a stored pointer or descriptor. Keep generic, sum, and dynamic dispatch tied
+  to their corresponding shape/admission work; do not treat a receiver as
+  readable merely to dispatch it.
 
   Native referent identity follows `STRUCTURAL-BORROW-IDENTITY` below; it is
   not an owner-policy blocker. Preserve write-only non-observation independently

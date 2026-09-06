@@ -176,11 +176,16 @@ storage containing no live `T` is a separate feature.
 > same-typed fixed-integer or Boolean parameter, read a literal fixed-array
 > length as static metadata through the same eligible record paths, and forward
 > the loan explicitly. A closed-record parameter, attached `self`, or finite
-> relevant field-only projection through eligible closed records may also
-> invoke an exactly selected checked `&write self` method, in statement or
-> scalar-result position. The receiver remains exclusive against explicit
+> relevant projection through eligible closed records and literal fixed arrays
+> may also invoke an exactly selected checked `&write self` method, in statement
+> or scalar-result position. Fields and nested array indexes may alternate;
+> literal and caller-proven dynamic selectors retain ordinary bounds checks.
+> Indexing and selector arithmetic must retain builtin address meaning, and
+> selector evaluation cannot observe write-only content. Standalone Unit calls
+> may precede later work without becoming scalar values or return expressions.
+> The receiver remains exclusive against explicit
 > arguments and live local loans, even when the callee performs no writes;
-> shared access cannot supply it. Selecting a receiver field never grants
+> shared access cannot supply it. Selecting a receiver place never grants
 > observation of its prior contents, even after replacement.
 > Single-state Unit callers carry whole borrowed receiver parameters and
 > attached `self` through canonical Terminal production and interpretation,

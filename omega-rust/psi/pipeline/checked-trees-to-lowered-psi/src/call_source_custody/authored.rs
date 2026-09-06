@@ -107,7 +107,12 @@ pub(crate) fn locate_source(
                 expression_call(checked, local.initial_value)?
             }
             StatementNode::Expression(expression) if coordinate.call_ordinal == 0 => {
-                if validation::unit_return_call_is_supported(program, machine, state, *expression) {
+                if validation::unit_statement_call_is_supported(
+                    program,
+                    machine,
+                    state,
+                    *expression,
+                ) {
                     super::occurrences::validate(
                         checked,
                         machine.symbol,
@@ -123,7 +128,9 @@ pub(crate) fn locate_source(
                         checked_trees::types::TypeReferenceNode::Unit
                     )
                 {
-                    return unsupported("Unit call source custody has no exact authored Unit tail");
+                    return unsupported(
+                        "Unit call source custody has no exact authored Unit statement",
+                    );
                 }
                 expression_call(checked, *expression)?
             }

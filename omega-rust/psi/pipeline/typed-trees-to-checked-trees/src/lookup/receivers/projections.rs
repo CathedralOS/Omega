@@ -1,4 +1,4 @@
-//! Resolve field paths only beneath an exact, in-scope value declaration.
+//! Resolve projected types only beneath an exact, in-scope value declaration.
 
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -9,7 +9,7 @@ use typed_trees::{
     name::Identifier,
     state::State,
     statement::StatementNode,
-    types::TypeReferenceHandle,
+    types::{TypeReferenceHandle, TypeReferenceNode},
 };
 
 pub(super) struct Projection {
@@ -186,6 +186,49 @@ pub(super) fn expression(
             };
             check_symbol(program, state, handle, member.member_symbol, &selected)?;
             Some(selected)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            let Some(receiver) = expression(program, state, before, indexed.collection, visited)?
+            else {
+                return Ok(None);
+            };
+            let Some(machine) = program
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == program.symbols.get(state.symbol).parent)
+            else {
+                return Ok(None);
+            };
+            if !validation::place_has_builtin_coordinates(program, machine, Some(state), handle) {
+                // Authored indexing retains its selected result declaration;
+                // the collection's element type cannot replace that meaning.
+                return Ok(None);
+            }
+            if matches!(
+                program.expression_table.expression(indexed.index),
+                ExpressionNode::Range(_)
+            ) {
+                return Ok(None);
+            }
+            let Some(collection) =
+                validation::unwrapped_type_reference(program, receiver.type_reference)
+            else {
+                return Ok(None);
+            };
+            let (TypeReferenceNode::FixedArray { element_type, .. }
+            | TypeReferenceNode::Slice { element_type }) =
+                program.type_reference_table.type_reference(collection)
+            else {
+                return Ok(None);
+            };
+            Some(Projection {
+                root_symbol: receiver.root_symbol,
+                // An element has no field declaration of its own. Its exact
+                // type selects the method; place and access checks retain the index.
+                symbol: SymbolHandle::invalid(),
+                type_reference: *element_type,
+                depth: receiver.depth + 1,
+            })
         }
         _ => None,
     };

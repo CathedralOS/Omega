@@ -207,6 +207,29 @@ pub fn declared_place_type_raw(
         handle = inner.target;
     }
 
+    if let ExpressionNode::Name(path) = program.expression_table.expression(handle)
+        && path.head_symbol == path.symbol
+        && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Field
+        && let [name] = program.expression_table.name_path_members(path.members)
+    {
+        // Bare attached fields retain declaration identity even without an
+        // authored `self.` prefix. Never resolve a foreign field by spelling.
+        let state = current_state?;
+        if !program
+            .machine_states(current_machine)
+            .iter()
+            .any(|candidate| candidate.symbol == state.symbol)
+            || !program
+                .state_parameters(state)
+                .iter()
+                .any(|parameter| parameter.is_self)
+        {
+            return None;
+        }
+        return exact_attached_field(program, current_machine, path.symbol, name.as_str())
+            .map(|field| field.type_reference);
+    }
+
     if projected_members::contains_case_projection(program, handle) {
         return projected_members::declared_case_projection_type(
             program,

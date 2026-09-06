@@ -28,7 +28,7 @@ mod result_use;
 mod unit_returns;
 mod write_frames;
 
-pub use unit_returns::unit_return_call_is_supported;
+pub use unit_returns::{unit_return_call_is_supported, unit_statement_call_is_supported};
 
 use argument_bounds::report_argument_bounds;
 use expression_scanning::receiver_member_chain;

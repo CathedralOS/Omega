@@ -141,6 +141,35 @@ const INDEX: &str =
     "boundary operator [] Slice::index(items: &[u8], index: u64) -> u8 requires index < items.len;";
 
 #[test]
+fn unrelated_index_declaration_preserves_builtin_bounds_not_selected_authority() {
+    let unrelated =
+        "boundary operator [] Other::index(items: &[bool], index: u64) -> bool requires false;";
+    for (access, expected) in [
+        ("[0]", BoundsCheckResult::ProvenScalar),
+        ("[4]", BoundsCheckResult::Rejected),
+    ] {
+        let (program, expression, indexed, operators) = fixture(unrelated, access);
+        let (result, diagnostics) = check(&program, expression, &indexed, &operators);
+        assert_eq!(result, expected, "{diagnostics:?}");
+    }
+    let (program, expression, indexed, mut operators) = fixture(INDEX, "[0]");
+    let handles = operators
+        .uses
+        .iter()
+        .map(|(handle, _)| handle)
+        .collect::<Vec<_>>();
+    for handle in handles {
+        let selected = operators.uses.get_mut(handle);
+        selected.status = checked_trees::CheckedOperatorResolutionStatus::Missing;
+        selected.selected_operator_symbol = symbols::SymbolHandle::invalid();
+        selected.candidate_count = 0;
+        selected.candidates = arena::HandleSpan::default();
+    }
+    let (result, diagnostics) = check(&program, expression, &indexed, &operators);
+    assert_eq!(result, BoundsCheckResult::Rejected, "{diagnostics:?}");
+}
+
+#[test]
 fn exact_selected_bounds_keep_attribution_and_actual_collection_extent() {
     for (access, expected) in [
         ("[0]", BoundsCheckResult::ProvenScalar),

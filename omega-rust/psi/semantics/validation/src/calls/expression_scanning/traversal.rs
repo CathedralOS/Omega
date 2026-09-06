@@ -96,7 +96,7 @@ pub(crate) fn validate_value_position_calls(
             }
         }
         StatementNode::Expression(expression) => {
-            scan_expression_calls(
+            scan_expression_calls_at_position(
                 program,
                 machine,
                 state,
@@ -105,6 +105,7 @@ pub(crate) fn validate_value_position_calls(
                 writable_roots,
                 value_env,
                 *expression,
+                true,
                 executes,
                 boundary_operator_applications,
                 diagnostics,
@@ -394,6 +395,39 @@ fn scan_expression_calls(
     boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    scan_expression_calls_at_position(
+        program,
+        machine,
+        state,
+        machine_symbols,
+        symbols,
+        writable_roots,
+        value_env,
+        expression,
+        false,
+        executes,
+        boundary_operator_applications,
+        diagnostics,
+    );
+}
+
+/// Only the direct expression statement may discard Unit. Recursive operands
+/// remain value uses even if a malformed tree reuses that statement's handle.
+#[allow(clippy::too_many_arguments)]
+fn scan_expression_calls_at_position(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    writable_roots: &WritableRoots<'_, '_>,
+    value_env: &ValueEnv,
+    expression: ExpressionHandle,
+    statement_root: bool,
+    executes: bool,
+    boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     if !expression.is_valid() {
         return;
     }
@@ -573,6 +607,7 @@ fn scan_expression_calls(
                 value_env,
                 expression,
                 &call,
+                statement_root,
                 executes,
                 boundary_operator_applications,
                 diagnostics,

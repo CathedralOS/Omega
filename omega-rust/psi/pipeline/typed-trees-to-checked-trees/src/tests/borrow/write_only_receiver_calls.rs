@@ -1,6 +1,19 @@
 use super::super::*;
 
+mod indexed;
 mod projections;
+
+#[test]
+fn indexed_write_only_receiver_call_checks_without_observing_the_element() {
+    check_source(
+        "data Record [copy] { value: u16; }
+         machine Record::replace(&write self, replacement: u16) { self.value = replacement; }
+         machine invoke(records: &write [Record; 2], replacement: u16) {
+             records[0].replace(replacement);
+         }",
+    )
+    .expect("fixed-array indexing selects a non-observing receiver address");
+}
 
 #[test]
 fn projected_write_only_receiver_call_checks() {

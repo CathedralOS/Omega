@@ -171,7 +171,7 @@ pub(crate) fn build_checked_scalar_computation_plans(
                     continue;
                 }
                 if let StatementNode::Expression(expression) = statement
-                    && validation::unit_return_call_is_supported(
+                    && validation::unit_statement_call_is_supported(
                         program,
                         machine,
                         state,

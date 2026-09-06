@@ -5,7 +5,7 @@ mod callable_overloads;
 mod calls;
 pub use calls::{
     result_initializer_call_is_supported, unit_result_initializer_call_is_supported,
-    unit_return_call_is_supported,
+    unit_return_call_is_supported, unit_statement_call_is_supported,
 };
 mod cleanup;
 mod content_conservation;
@@ -1271,7 +1271,7 @@ fn validate_state_statement_node(
                 return;
             };
 
-            if calls::unit_return_call_is_supported(program, machine, state, *expression) {
+            if calls::unit_statement_call_is_supported(program, machine, state, *expression) {
                 // Value-position call validation already checked the callee and
                 // its operands. Retain cast obligations inside those operands;
                 // Unit itself has no scalar return range or landing.
