@@ -103,6 +103,16 @@ local work. Never reset, auto-stash, switch branches, or rebase unrelated local
 commits to synchronize the starting checkout. If synchronization cannot proceed,
 report why and distinguish published remote main from the local checkout state.
 
+Then remove the temporary worktree and local branch created by this invocation.
+From the starting checkout, confirm the exact worktree path, that it is unlocked
+and clean (including untracked files), and that its HEAD is an ancestor of
+fetched `origin/main`. Stop any processes this invocation started there, run
+`git worktree remove <path>`, then `git branch -d <branch>` if it has a branch.
+Do not force removal or branch deletion. Preserve pre-existing worktrees, the
+starting checkout, and anything dirty, locked, unpublished, or still in use;
+report any retained temporary worktree and the reason. Verify the removed path
+is absent from `git worktree list` and the branch is gone before reporting cleanup.
+
 Report the resulting behavior, commit, checks actually run, remaining limitations,
 and any unrelated failures. Do not imply a scoped pass establishes whole-repository
 health. Stop after the bounded improvement lands; broader validation and unrelated
