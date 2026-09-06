@@ -2,6 +2,7 @@ use super::*;
 
 mod adversarial;
 mod contracts;
+mod helpers;
 mod opaque;
 
 #[test]

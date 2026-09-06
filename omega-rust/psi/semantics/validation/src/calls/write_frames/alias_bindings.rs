@@ -38,6 +38,9 @@ pub fn state_reference_parameter_binding_is_stable(
         .statements(state.statement_nodes)
         .iter()
         .all(|statement| {
+            if statement_returns_reference_without_effects(program, state, statement) {
+                return true;
+            }
             if let typed_trees::statement::StatementNode::Assignment(assignment) = statement
                 && is_binding(assignment.target)
                 && expression_may_rebind_mutable_alias(program, machine, state, assignment.value)
@@ -54,6 +57,27 @@ pub fn state_reference_parameter_binding_is_stable(
                     )
                 })
         })
+}
+
+/// A pure terminal reference expression transports its referent but cannot
+/// replace a binding. Calls inside the result still need the ordinary exposure
+/// fence, and stored/discarded expressions are not admitted by this rule.
+pub(super) fn statement_returns_reference_without_effects(
+    program: &TypedTrees,
+    state: &State,
+    statement: &typed_trees::statement::StatementNode,
+) -> bool {
+    let typed_trees::statement::StatementNode::Expression(expression) = statement else {
+        return false;
+    };
+    type_reference_is_reference(program, state.return_type)
+        && program
+            .statement_table
+            .statements(state.statement_nodes)
+            .last()
+            .is_some_and(|last| std::ptr::eq(last, statement))
+        && !super::expression_is_effectful_for_transparent_result(program, *expression)
+        && !super::caller_aliases::expression_has_calls(program, *expression)
 }
 
 /// Stable local aliases have an explicit replacement transfer. A reference
@@ -77,6 +101,22 @@ pub(super) fn assignment_replaces_untracked_reference(
         return false;
     };
     if type_reference_is_reference(program, reference) {
+        // Replacing an untracked read-only local binding cannot redirect a
+        // caller write. It remains a private slot write in ordinary summaries;
+        // exact-reference demand separately tracks and updates its identity.
+        let source = super::FrameSourcePlace::from_expression(program, assignment.target);
+        if !type_may_carry_write(program, reference)
+            && source.segments.is_empty()
+            && program.symbols.get(source.root).kind == symbols::SymbolKind::Local
+            && program.symbols.get(source.root).parent == state.symbol
+            && super::caller_aliases::caller_binding_type(program, machine, assignment.target)
+                .is_some_and(|declared| {
+                    type_reference_is_reference(program, declared)
+                        && !type_may_carry_write(program, declared)
+                })
+        {
+            return false;
+        }
         expression_may_rebind_mutable_alias(program, machine, state, assignment.value)
     } else {
         type_may_carry_write(program, reference)

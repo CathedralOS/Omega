@@ -367,6 +367,11 @@ An unrelated reference with an unknown origin does not erase another
 reference's exact correspondence. Copies of that unknown reference remain
 unknown, and recovering its binding later does not retroactively recover them.
 Unknown writes and exposed reference bindings still prevent preservation.
+Reference-returning helpers may transport an exact subject through a checked
+body relationship, including shared-reference copies and rebindings. Lifetime
+elision or a result qualification alone does not establish that relationship.
+The helper's writes remain independent evidence: returning the same reference
+after replacing a field cannot preserve the field's previous progress subject.
 
 State arrivals retain independent field origins. A finite field permutation
 may require several entry subjects, but does not by itself create an unbounded

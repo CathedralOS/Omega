@@ -63,7 +63,7 @@ pub(super) fn exclusive_reference_origin(
             call,
             symbols,
             inference,
-            |callee_machine, parameter, actual, inference| {
+            |callee_machine, parameter, _, actual, inference| {
                 let referee = exclusive_reference_referee(program, parameter.type_reference)?;
                 let owned = if parameter.is_self {
                     // The typed receiver uses nominal `Self`, whose concrete

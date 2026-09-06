@@ -10,7 +10,6 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
-use typed_trees::types::TypeReferenceNode;
 
 #[derive(Debug, Clone)]
 pub(super) struct ParameterRelativeFrameOrigin {
@@ -46,15 +45,10 @@ pub(super) fn expression_reborrows_transparent_alias_binding(
                     }
                     let root_symbol = frame_place_root_symbol(program, inner.target);
                     parameters.iter().any(|parameter| {
-                        matches!(
-                            program
-                                .type_reference_table
-                                .type_reference(parameter.type_reference),
-                            TypeReferenceNode::Reference { access, .. }
-                                if access.is_exclusive()
-                        ) && (root_symbol == Some(parameter.symbol)
-                            || parameter.is_self && root == "self"
-                            || root == parameter.name.as_str())
+                        super::type_reference_is_reference(program, parameter.type_reference)
+                            && (root_symbol == Some(parameter.symbol)
+                                || parameter.is_self && root == "self"
+                                || root == parameter.name.as_str())
                     }) || aliases.iter().any(|(name, symbol, _)| {
                         root_symbol.is_some_and(|root| {
                             root.is_valid() && symbol.is_valid() && root == *symbol
@@ -103,15 +97,12 @@ pub(super) fn parameter_relative_alias_position(
     aliases: &[(String, SymbolHandle, ParameterRelativeFrameOrigin)],
 ) -> Option<usize> {
     let place = frame_place_path(program, expression)?;
-    let (root, suffix) = split_place_root(&place.path);
+    let (_, suffix) = split_place_root(&place.path);
     if !suffix.is_empty() {
         return None;
     }
     let root_symbol = frame_place_root_symbol(program, expression);
-    aliases.iter().position(|(name, symbol, _)| {
-        let exact_symbol =
-            root_symbol.is_some_and(|root| root.is_valid() && symbol.is_valid() && root == *symbol);
-        let unresolved_name = root_symbol.is_none_or(|root| !root.is_valid()) && name == root;
-        exact_symbol || unresolved_name
+    aliases.iter().position(|(_, symbol, _)| {
+        root_symbol.is_some_and(|root| root.is_valid() && symbol.is_valid() && root == *symbol)
     })
 }

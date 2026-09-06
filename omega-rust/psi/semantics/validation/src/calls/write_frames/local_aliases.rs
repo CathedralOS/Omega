@@ -105,11 +105,7 @@ pub(super) fn expression_reborrows_stable_alias_binding(
             let (root, suffix) = split_place_root(&place.path);
             suffix.is_empty()
                 && (parameters.iter().any(|parameter| {
-                    super::reference_origins::exclusive_reference_referee(
-                        program,
-                        parameter.type_reference,
-                    )
-                    .is_some()
+                    type_reference_is_reference(program, parameter.type_reference)
                         && (parameter.is_self && root == "self" || root == parameter.name.as_str())
                 }) || aliases.iter().any(|(name, _)| root == name))
         })

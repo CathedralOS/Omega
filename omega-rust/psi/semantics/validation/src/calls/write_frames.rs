@@ -475,6 +475,8 @@ fn walk_state_write_prefix_inner(
                                     program,
                                     machine,
                                     assignment.value,
+                                    symbols,
+                                    inference,
                                 )?;
                             }
                             stable_alias_initializer_origin(
@@ -522,6 +524,9 @@ fn walk_state_write_prefix_inner(
             if expression_reborrows_local_alias_binding(program, expression, &local_alias_origins)
                 && declared_local_alias_origin.is_none()
                 && !representable_alias_rebinding
+                && !alias_bindings::statement_returns_reference_without_effects(
+                    program, state, statement,
+                )
             {
                 return None;
             }
@@ -575,6 +580,8 @@ fn walk_state_write_prefix_inner(
                                     program,
                                     machine,
                                     assignment.value,
+                                    symbols,
+                                    inference,
                                 )
                                 .is_some();
                             let origin = declared
@@ -869,7 +876,13 @@ fn stable_local_reference_alias_origin(
         return None;
     }
     if include_shared {
-        reference_subjects::validate_initializer(program, current_machine, local.initial_value)?;
+        reference_subjects::validate_initializer(
+            program,
+            current_machine,
+            local.initial_value,
+            symbols,
+            inference,
+        )?;
     }
     stable_alias_initializer_origin(
         program,
@@ -935,7 +948,7 @@ fn stable_alias_initializer_origin(
                 call,
                 symbols,
                 inference,
-                |_, _, actual, inference| {
+                |_, _, _, actual, inference| {
                     stable_alias_initializer_origin(
                         program,
                         current_machine,
@@ -1090,7 +1103,7 @@ fn stable_alias_expression_origin(
                 call,
                 symbols,
                 &mut FrameInference::default(),
-                |_, _, actual, _| {
+                |_, _, _, actual, _| {
                     stable_alias_expression_origin(
                         program,
                         actual,
@@ -1208,10 +1221,10 @@ fn stable_assignment_target_path(
 }
 
 /// Recover one deliberately structural value-call relation. The helper may be
-/// free or attached, but must be acyclic at the result surface, return `&mut`,
-/// and have one terminal result expression rooted in one mutable-reference
+/// free or attached, but must be acyclic at the result surface, return a reference,
+/// and have one terminal result expression rooted in one reference
 /// parameter. A prefix may contain caller-isolated scratch locals and local
-/// mutable-reference bindings that forward direct places from that parameter, an
+/// reference bindings that forward direct places from that parameter, an
 /// earlier such local, or another structurally transparent helper. Value-shaped
 /// assignments with effect-free right-hand sides may write through those
 /// places, scratch locals, validated mutable recast aliases with effect-free
@@ -1222,7 +1235,7 @@ fn stable_assignment_target_path(
 /// their established origins. Explicit arguments and an attached helper's
 /// actual receiver both supply exact caller origins. This is body evidence, not
 /// lifetime elision: a reference-bearing scratch local, opaque computed rebind,
-/// discarded/statement call, recursive helper relation, named-state route, or
+/// unsupported discarded/statement call, recursive helper relation, named-state route, or
 /// alternate result fails closed.
 fn transparent_call_result_origin(
     program: &TypedTrees,
@@ -1232,16 +1245,12 @@ fn transparent_call_result_origin(
     resolve_actual_origin: impl FnOnce(
         &Machine,
         &StateParameter,
+        &FramePlaceOrigin,
         ExpressionHandle,
         &mut FrameInference,
     ) -> Option<FramePlaceOrigin>,
 ) -> Option<FramePlaceOrigin> {
-    let (callee_machine, callee_state) = machine_state_by_symbol(program, call.target_symbol)
-        .or_else(|| {
-            (!call.receiver.is_valid())
-                .then(|| free_machine_entry_state(program, symbols, call.target.as_str()))
-                .flatten()
-        })?;
+    let (callee_machine, callee_state) = machine_state_by_symbol(program, call.target_symbol)?;
     if call.receiver.is_valid() != callee_machine.attached_data.is_some() {
         return None;
     }
@@ -1274,8 +1283,13 @@ fn transparent_call_result_origin(
             .expression_handles(call.arguments)
             .get(argument_index)?
     };
-    let argument_origin =
-        resolve_actual_origin(callee_machine, result_parameter, actual, inference)?;
+    let argument_origin = resolve_actual_origin(
+        callee_machine,
+        result_parameter,
+        &result_origin.place,
+        actual,
+        inference,
+    )?;
     let source = argument_origin
         .source
         .append_relative(&result_origin.place.source);
@@ -1353,7 +1367,7 @@ fn transparent_place_expression_origin(
                 call,
                 symbols,
                 inference,
-                |_, _, actual, inference| {
+                |_, _, _, actual, inference| {
                     transparent_place_expression_origin(program, actual, symbols, inference)
                 },
             )
@@ -1370,13 +1384,7 @@ fn transparent_callee_result_origin(
     inference: &mut FrameInference,
 ) -> Option<ParameterRelativeFrameOrigin> {
     if inference.active_states.contains(&callee_state.symbol)
-        || !matches!(
-            program
-                .type_reference_table
-                .type_reference(callee_state.return_type),
-            TypeReferenceNode::Reference { access, .. }
-                if access.is_exclusive()
-        )
+        || !type_reference_is_reference(program, callee_state.return_type)
     {
         return None;
     }
@@ -1405,7 +1413,9 @@ fn transparent_callee_result_origin(
                             )| { (name.clone(), origin.place.clone()) },
                         )
                         .collect::<Vec<_>>();
-                    if type_is_caller_isolated_local(program, local.type_reference) {
+                    if type_is_caller_isolated_local(program, local.type_reference)
+                        && !type_reference_is_reference(program, local.type_reference)
+                    {
                         if expression_is_effectful_for_transparent_result(
                             program,
                             local.initial_value,
@@ -1444,13 +1454,7 @@ fn transparent_callee_result_origin(
                         isolated_local_roots.push(local.name.as_str().to_owned());
                         continue;
                     }
-                    let TypeReferenceNode::Reference { access, .. } = program
-                        .type_reference_table
-                        .type_reference(local.type_reference)
-                    else {
-                        return None;
-                    };
-                    if !access.is_exclusive() {
+                    if !type_reference_is_reference(program, local.type_reference) {
                         return None;
                     }
                     let origin = parameter_relative_place_origin(
@@ -1580,7 +1584,15 @@ fn transparent_callee_result_origin(
             symbols,
             inference,
         )
-        .filter(|origin| origin.parameter_symbol.is_valid())
+        .filter(|origin| {
+            origin.parameter_symbol.is_valid()
+                && parameters.iter().any(|parameter| {
+                    parameter.symbol == origin.parameter_symbol
+                        && (origin.place.source.root == parameter.symbol
+                            || (parameter.is_self
+                                && origin.place.source.root == callee_machine.symbol))
+                })
+        })
     })();
     inference.active_states.pop();
     result
@@ -1777,30 +1789,23 @@ fn parameter_relative_place_origin(
             Some(origin)
         }
         ExpressionNode::Name(_) => {
+            reference_origins::declared_origin_root(program, current_machine, expression)?;
             let place = frame_place_path(program, expression)?;
             let root_symbol = frame_place_root_symbol(program, expression);
             let (root, suffix) = split_place_root(&place.path);
             if let Some(parameter) = parameters.iter().find(|parameter| {
                 (root_symbol == Some(parameter.symbol) || (parameter.is_self && root == "self"))
-                    && matches!(
-                        program
-                            .type_reference_table
-                            .type_reference(parameter.type_reference),
-                        TypeReferenceNode::Reference { access, .. }
-                            if access.is_exclusive()
-                    )
+                    && type_reference_is_reference(program, parameter.type_reference)
             }) {
                 return Some(ParameterRelativeFrameOrigin {
                     place,
                     parameter_symbol: parameter.symbol,
                 });
             }
-            let parent = aliases.iter().find_map(|(name, symbol, origin)| {
+            let parent = aliases.iter().find_map(|(_, symbol, origin)| {
                 let exact_symbol = root_symbol
                     .is_some_and(|root| root.is_valid() && symbol.is_valid() && root == *symbol);
-                let unresolved_name =
-                    root_symbol.is_none_or(|root| !root.is_valid()) && name == root;
-                (exact_symbol || unresolved_name).then_some(origin)
+                exact_symbol.then_some(origin)
             })?;
             let source = parent.place.source.append_segments(&place.source.segments);
             Some(ParameterRelativeFrameOrigin {
@@ -1820,7 +1825,7 @@ fn parameter_relative_place_origin(
         }
         ExpressionNode::Call(call) => {
             if call_is_transparent_mutable_slice_view(program, call) {
-                return parameter_relative_place_origin(
+                let mut origin = parameter_relative_place_origin(
                     program,
                     current_machine,
                     call.receiver,
@@ -1828,7 +1833,12 @@ fn parameter_relative_place_origin(
                     aliases,
                     symbols,
                     inference,
-                );
+                )?;
+                // An unresolved view builtin supplies a conservative collection
+                // footprint, not a nominal helper-result identity. A same-name
+                // unresolved user method cannot establish an exact subject.
+                origin.place.precision = FramePathPrecision::CollectionCoarse;
+                return Some(origin);
             }
             parameter_relative_call_result_origin(
                 program,
@@ -1867,12 +1877,26 @@ fn parameter_relative_call_result_origin(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<ParameterRelativeFrameOrigin> {
-    let (callee_machine, callee_state) = machine_state_by_symbol(program, call.target_symbol)
-        .or_else(|| {
-            (!call.receiver.is_valid())
-                .then(|| free_machine_entry_state(program, symbols, call.target.as_str()))
-                .flatten()
-        })?;
+    if std::iter::once(call.receiver)
+        .chain(
+            program
+                .expression_table
+                .expression_handles(call.arguments)
+                .iter()
+                .copied(),
+        )
+        .any(|expression| {
+            expression_reborrows_transparent_alias_binding(
+                program,
+                expression,
+                caller_parameters,
+                caller_aliases,
+            )
+        })
+    {
+        return None;
+    }
+    let (callee_machine, callee_state) = machine_state_by_symbol(program, call.target_symbol)?;
     if call.receiver.is_valid() != callee_machine.attached_data.is_some() {
         return None;
     }

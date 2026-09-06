@@ -118,20 +118,70 @@ pub(super) fn local_origin(
     Some(source)
 }
 
-/// Only structurally declared places enter the exact-reference query. A
-/// transparent helper may preserve a write footprint without proving this
-/// stronger identity. Loaded reference slots need their own frozen evidence.
+/// Body-derived helper relations need exact nominal projections as well as
+/// their conservative write footprint. Loaded reference slots need their own
+/// frozen evidence and cannot be identified from a referent's type alone.
 pub(super) fn validate_initializer(
     program: &TypedTrees,
     machine: &Machine,
-    mut expression: ExpressionHandle,
+    expression: ExpressionHandle,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
 ) -> Option<()> {
+    declared_initializer_origin(program, machine, expression, symbols, inference, false).map(|_| ())
+}
+
+fn declared_initializer_origin(
+    program: &TypedTrees,
+    machine: &Machine,
+    mut expression: ExpressionHandle,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+    implicit_borrow: bool,
+) -> Option<FramePlaceOrigin> {
     let explicit_borrow = matches!(
         program.expression_table.expression(expression),
         ExpressionNode::Borrow(_)
     );
     while let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) {
         expression = borrow.target;
+    }
+    if let ExpressionNode::Call(call) = program.expression_table.expression(expression) {
+        let (state, _, index) = caller_aliases::caller_statement_at_site(
+            program,
+            machine,
+            caller_aliases::CallerWriteSite::Expression(expression),
+        )?;
+        // A selected returned-place relation does not establish the state of
+        // a binding exposed by some other operand. Reject that exposure before
+        // the known-origin result can exempt this initializer from the prefix
+        // walker's direct-borrow guard.
+        if local_aliases::expression_has_exclusive_borrow(program, expression, &|target| {
+            crate::places::declared_place_type_raw(program, machine, Some(state), target)
+                .is_some_and(|reference| type_reference_is_reference(program, reference))
+        }) {
+            return None;
+        }
+        let origin = transparent_call_result_origin(
+            program,
+            call,
+            symbols,
+            inference,
+            |_, parameter, relative, actual, inference| {
+                if relative.precision != FramePathPrecision::Exact {
+                    return None;
+                }
+                validate_owned_projection(
+                    program,
+                    parameter.type_reference,
+                    &relative.source.segments,
+                )?;
+                declared_initializer_origin(program, machine, actual, symbols, inference, true)
+            },
+        )?;
+        let reference = source_root_type(program, machine, state, index, origin.source.root)?;
+        validate_owned_projection(program, reference, &origin.source.segments)?;
+        return (origin.precision == FramePathPrecision::Exact).then_some(origin);
     }
     reference_origins::declared_origin_root(program, machine, expression)?;
     let (state, _, index) = caller_aliases::caller_statement_at_site(
@@ -140,6 +190,7 @@ pub(super) fn validate_initializer(
         caller_aliases::CallerWriteSite::Expression(expression),
     )?;
     if !explicit_borrow
+        && !implicit_borrow
         && !type_reference_is_reference(
             program,
             crate::places::declared_place_type_raw(program, machine, Some(state), expression)?,
@@ -149,7 +200,8 @@ pub(super) fn validate_initializer(
     }
     let source = FrameSourcePlace::from_expression(program, expression);
     let reference = source_root_type(program, machine, state, index, source.root)?;
-    validate_owned_projection(program, reference, &source.segments)
+    validate_owned_projection(program, reference, &source.segments)?;
+    frame_place_path(program, expression)
 }
 
 fn source_root_type(
