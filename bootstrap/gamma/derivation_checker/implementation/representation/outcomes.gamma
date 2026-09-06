@@ -1,0 +1,31 @@
+(def admission_framed ((theory_end Int) (proposition_end Int)
+  (certificate_end Int)) Int
+  (pair 0 (pair theory_end (pair proposition_end certificate_end))))
+
+(def admission_rejected ((code Int) (coordinate Int)) Int
+  (pair 1 (pair code (pair coordinate (pair 0 0)))))
+
+(def admission_incomplete ((code Int) (coordinate Int) (limit Int)
+  (requested Int)) Int
+  (pair 2 (pair code (pair coordinate (pair limit requested)))))
+
+(def admission_theory_end ((frame Int)) Int
+  (first frame))
+
+(def admission_proposition_end ((frame Int)) Int
+  (first (second frame)))
+
+(def admission_certificate_end ((frame Int)) Int
+  (second (second frame)))
+
+(def admission_failure_code ((payload Int)) Int
+  (first payload))
+
+(def admission_failure_coordinate ((payload Int)) Int
+  (first (second payload)))
+
+(def admission_failure_limit ((payload Int)) Int
+  (first (second (second payload))))
+
+(def admission_failure_requested ((payload Int)) Int
+  (second (second (second payload))))

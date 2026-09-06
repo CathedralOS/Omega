@@ -1,0 +1,47 @@
+(def admission_section_extent_failure ((cursor Int) (length Int) (field Int)) Int
+  (if (lt (- (input) cursor) length)
+    field
+    -1))
+
+(def admission_section_end ((cursor Int) (length Int)) Int
+  (+ cursor length))
+
+(def admission_after_certificate ((request_length Int) (theory_end Int)
+  (proposition_end Int) (certificate_length Int)) Int
+  (let failure Int
+    (admission_section_extent_failure proposition_end certificate_length 16)
+    (if (lt failure 0)
+      (let certificate_end Int
+        (admission_section_end proposition_end certificate_length)
+        (if (eq certificate_end request_length)
+          (if (lt 8388608 request_length)
+            (admission_incomplete 1 8388608 8388608 request_length)
+            (admission_framed theory_end proposition_end certificate_end))
+          (admission_rejected 5 certificate_end)))
+      (admission_rejected 4 failure))))
+
+(def admission_after_proposition ((request_length Int) (theory_end Int)
+  (proposition_length Int) (certificate_length Int)) Int
+  (let proposition_end Int
+    (admission_section_end theory_end proposition_length)
+    (admission_after_certificate request_length theory_end proposition_end
+      certificate_length)))
+
+(def admission_after_theory ((request_length Int) (theory_end Int)
+  (proposition_length Int) (certificate_length Int)) Int
+  (let failure Int
+    (admission_section_extent_failure theory_end proposition_length 12)
+    (if (lt failure 0)
+      (admission_after_proposition request_length theory_end
+        proposition_length certificate_length)
+      (admission_rejected 4 failure))))
+
+(def admission_sections ((request_length Int) (theory_length Int)
+  (proposition_length Int) (certificate_length Int)) Int
+  (let failure Int
+    (admission_section_extent_failure 24 theory_length 8)
+    (if (lt failure 0)
+      (let theory_end Int (admission_section_end 24 theory_length)
+        (admission_after_theory request_length theory_end proposition_length
+          certificate_length))
+      (admission_rejected 4 failure))))
