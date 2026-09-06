@@ -134,6 +134,98 @@ fn identity_return_programs_use_fragments_and_preserve_native_bytes() {
 }
 
 #[test]
+fn selected_return_programs_publish_replayable_native_evidence_on_every_target() {
+    let checked =
+        crate::tests::fixtures::checked_source::checked("data Main {} machine Main::launch() {}");
+    let selection = checked
+        .facts
+        .flow
+        .terminal_machines
+        .machines
+        .iter()
+        .find(|machine| machine.name == "Main::launch")
+        .unwrap();
+    let profile = proof_admission::AdmissionProfile::default();
+    let selections = optimization_core::PostTerminalOptimizationSelections::new(
+        optimization_core::OptimizationSelections::new([
+            optimization_core::Optimization::SelectedIncomingU12ExactAddImmediate,
+        ])
+        .unwrap(),
+    )
+    .unwrap();
+    let providers = effects::SelectedProviderPlanFacts::default();
+    for (target_profile, target) in [
+        (
+            target::TargetProfile::WindowsX64,
+            target::NativeTarget::windows_x64(),
+        ),
+        (
+            target::TargetProfile::LinuxX64,
+            target::NativeTarget::linux_x64(),
+        ),
+        (
+            target::TargetProfile::LinuxArm64,
+            target::NativeTarget::linux_arm64(),
+        ),
+        (
+            target::TargetProfile::MacosArm64,
+            target::NativeTarget::macos_arm64(),
+        ),
+    ] {
+        let signature =
+            program_entry_plan::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
+                target_profile.program_entry_slot(),
+                selection.machine,
+                selection.machine,
+                selection.name.clone(),
+                "entry".into(),
+                "Main::launch() -> Unit".into(),
+                program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
+                Vec::new(),
+            )
+            .unwrap();
+        let (artifact, _, scope, _) = terminal_production::produce_program_entry_terminal_artifact(
+            &checked,
+            "Main::launch",
+            signature.identity().bytes(),
+        )
+        .unwrap()
+        .into_parts();
+        let native = crate::realize_native_artifact_with_checked_boundary_operator_scope(
+            artifact,
+            &scope,
+            crate::NativeRealizationRequest {
+                target,
+                subsystem: 3,
+                profile: &profile,
+                terminal_authority_policy: crate::current_terminal_authority_policy(),
+                terminal_authority_permission_policy:
+                    crate::current_terminal_authority_permission_policy(),
+                program_entry: crate::NativeProgramEntrySettlement::new(&signature, None, &[]),
+                optimization_selections: &selections,
+                selected_provider_plans: &providers,
+                external_binding_rows: &[],
+                settlements: &[],
+                compiler_builtins: &[],
+                boundary_application_coverage: None,
+                ieee_float_fma: &[],
+                native_callbacks: &[],
+                callback_thunks: &[],
+            },
+        )
+        .unwrap_or_else(|errors| panic!("{target_profile:?}: {errors:?}"));
+        assert!(matches!(
+            native.physical_evidence_scope(),
+            native_artifact::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+        ));
+        assert!(native.physical_evidence().is_some());
+        native
+            .validate()
+            .expect("native evidence independently replays after publication");
+    }
+}
+
+#[test]
 fn result_and_runtime_parameter_programs_stay_outside_return_migration() {
     let checked =
         crate::tests::fixtures::checked_source::checked("data Main {} machine Main::launch() {}");

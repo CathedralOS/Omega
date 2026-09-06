@@ -93,12 +93,15 @@ impl FunctionFragmentReplayInputs {
     }
 
     /// Routes whose realization owns a validated target frame protocol. The
-    /// Unit baseline route joins the fixed-frame route here because every
-    /// AArch64 Unit function carries a saved return address.
+    /// Unit baseline and selected-lowering routes join the fixed-frame route
+    /// here because every AArch64 Unit function carries a saved return address.
     pub fn frame_protocol(&self) -> Option<&crate::ValidatedTargetFrameProtocolEncoding> {
         match self {
             Self::FixedFrame(realization) => Some(realization.protocol()),
             Self::UnitBaseline(realization) => realization.protocol(),
+            Self::SelectedLowering(realization) => {
+                realization.frame().map(|frame| frame.protocol())
+            }
             _ => None,
         }
     }
@@ -109,6 +112,7 @@ impl FunctionFragmentReplayInputs {
         match self {
             Self::FixedFrame(realization) => Some(realization.frame()),
             Self::UnitBaseline(realization) => realization.frame().map(|frame| frame.layout()),
+            Self::SelectedLowering(realization) => realization.frame().map(|frame| frame.layout()),
             _ => None,
         }
     }

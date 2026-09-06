@@ -6,6 +6,7 @@
 
 mod construction;
 mod custody;
+pub(in crate::function_realization) mod frame;
 mod manifest;
 mod model;
 mod source;

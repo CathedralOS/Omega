@@ -1,10 +1,5 @@
 use selected_instructions_to_register_homes::{AllocationSource, RetainedAllocation};
 
-use crate::frame_layout::{
-    NonAuthoritativeCalleeSaveStoragePolicy, stage_non_authoritative_callee_save_storage,
-};
-use crate::frame_layout::{TargetFrameLayoutPolicy, stage_target_frame_layout};
-use crate::{TargetFrameProtocolEncodingPolicy, stage_target_frame_protocol_encoding};
 use crate::{stage_whole_function_exit_contract, stage_whole_function_exit_contract_with_frame};
 use post_allocation_machine_to_selected_form_encoding::stage_optimized_layout_independent_selected_form_encoding;
 use register_homes_to_post_allocation_machine::{
@@ -12,16 +7,11 @@ use register_homes_to_post_allocation_machine::{
     validate_optimized_post_allocation_machine_plan_custody,
 };
 use selected_form_encoding_to_resolved_layout::stage_optimized_resolved_selected_form_layout;
-use selected_instructions_to_register_homes::{
-    AllocatedCalleeSavedRequirementPolicy, stage_allocated_callee_saved_requirements,
-};
-use target::Architecture;
 
 use super::custody::unit_realization_receipt;
 use super::manifest::expected_manifest;
 use super::model::{
     OptimizedUnitFunctionRelativeRealizationError, StagedOptimizedUnitFunctionRelativeRealization,
-    UnitSavedReturnAddressFrame,
 };
 use super::source::validate_source;
 
@@ -39,7 +29,6 @@ pub(super) fn construct_unit_function_relative_realization(
     let selected = current.selected();
     let environment = current.register_environment();
     let physical = environment.physical();
-    let budget = current.budget_per_pass();
     validate_optimized_post_allocation_machine_plan_custody(&current, &machine)
         .map_err(OptimizedUnitFunctionRelativeRealizationError::Machine)?;
     let encoding =
@@ -48,44 +37,8 @@ pub(super) fn construct_unit_function_relative_realization(
     let layout =
         stage_optimized_resolved_selected_form_layout(selected, &machine, physical, &encoding)
             .map_err(OptimizedUnitFunctionRelativeRealizationError::Layout)?;
-    let frame = match environment.target().architecture {
-        Architecture::X86_64 => None,
-        Architecture::Aarch64 => {
-            let requirements = stage_allocated_callee_saved_requirements(
-                &current,
-                AllocatedCalleeSavedRequirementPolicy::AllocatedSelectedWritesIntersectAbiPreservationV1,
-                budget,
-            )
-            .map_err(OptimizedUnitFunctionRelativeRealizationError::CalleeSavedRequirements)?;
-            let storage = stage_non_authoritative_callee_save_storage(
-                &requirements,
-                environment,
-                NonAuthoritativeCalleeSaveStoragePolicy::CanonicalTargetPreservationGroupsV1,
-                budget,
-            )
-            .map_err(OptimizedUnitFunctionRelativeRealizationError::CalleeSaveStorage)?;
-            let layout = stage_target_frame_layout(
-                &machine,
-                &requirements,
-                &storage,
-                environment,
-                TargetFrameLayoutPolicy::CanonicalSavedReturnAddressFrameV1,
-            )
-            .map_err(OptimizedUnitFunctionRelativeRealizationError::FrameLayout)?;
-            let protocol = stage_target_frame_protocol_encoding(
-                &layout,
-                environment,
-                TargetFrameProtocolEncodingPolicy::CanonicalFixedFrameV1,
-            )
-            .map_err(OptimizedUnitFunctionRelativeRealizationError::FrameProtocol)?;
-            Some(UnitSavedReturnAddressFrame {
-                requirements,
-                storage,
-                layout,
-                protocol,
-            })
-        }
-    };
+    let frame = super::frame::stage_unit_frame(&current, &machine)
+        .map_err(OptimizedUnitFunctionRelativeRealizationError::Manifest)?;
     let exit_contract = match &frame {
         Some(frame) => stage_whole_function_exit_contract_with_frame(
             selected,
