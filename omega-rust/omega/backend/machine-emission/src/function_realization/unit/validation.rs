@@ -1,11 +1,9 @@
 use selected_instructions_to_register_homes::AllocationSource;
 
-use crate::{
-    validate_whole_function_exit_contract, validate_whole_function_exit_contract_with_frame,
-};
+use crate::validate_whole_function_exit_contract_for_layout;
 use post_allocation_machine_to_selected_form_encoding::validate_optimized_layout_independent_selected_form_encoding;
 use register_homes_to_post_allocation_machine::validate_optimized_post_allocation_machine_plan_custody;
-use selected_form_encoding_to_resolved_layout::validate_optimized_resolved_selected_form_layout;
+use resolved_layout_to_resolved_layout::validate_resolved_layout_optimization;
 
 use super::custody::unit_realization_receipt;
 use super::manifest::expected_manifest;
@@ -41,42 +39,41 @@ pub fn validate_optimized_unit_function_relative_realization(
         &staged.encoding,
     )
     .map_err(OptimizedUnitFunctionRelativeRealizationError::Encoding)?;
-    validate_optimized_resolved_selected_form_layout(
+    validate_resolved_layout_optimization(
         selected,
         &staged.machine,
         physical,
         &staged.encoding,
+        None,
         &staged.layout,
+        &current
+            .selections()
+            .project_phase(optimization_core::OptimizationExecutionPhase::FunctionRelativeLayout),
+        &staged.layout_optimization,
     )
-    .map_err(OptimizedUnitFunctionRelativeRealizationError::Layout)?;
+    .map_err(OptimizedUnitFunctionRelativeRealizationError::LayoutOptimization)?;
     super::frame::validate_unit_frame(&current, &staged.machine, staged.frame.as_ref())
         .map_err(OptimizedUnitFunctionRelativeRealizationError::Manifest)?;
-    match staged.frame.as_ref() {
-        Some(frame) => validate_whole_function_exit_contract_with_frame(
-            selected,
-            &staged.machine,
-            physical,
-            &staged.encoding,
-            &staged.layout,
-            frame.layout(),
-            frame.protocol(),
-            &staged.exit_contract,
-        ),
-        None => validate_whole_function_exit_contract(
-            selected,
-            &staged.machine,
-            physical,
-            &staged.encoding,
-            &staged.layout,
-            &staged.exit_contract,
-        ),
-    }
+    validate_whole_function_exit_contract_for_layout(
+        selected,
+        &staged.machine,
+        physical,
+        &staged.encoding,
+        None,
+        &staged.layout,
+        &staged.layout_optimization,
+        staged
+            .frame
+            .as_ref()
+            .map(|frame| (frame.layout(), frame.protocol())),
+        &staged.exit_contract,
+    )
     .map_err(OptimizedUnitFunctionRelativeRealizationError::Exit)?;
     let manifest = expected_manifest(
         &current,
         &staged.machine,
         &staged.encoding,
-        &staged.layout,
+        staged.layout(),
         staged.frame.as_ref(),
         &staged.exit_contract,
     )?;

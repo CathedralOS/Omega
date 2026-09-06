@@ -63,6 +63,7 @@ legalized-operations = { path = "../../omega-rust/omega/representations/legalize
 physical-instructions = { path = "../../omega-rust/omega/representations/physical-instructions" }
 register-environment = { path = "../../omega-rust/omega/backend/register-environment" }
 selected-form-encoding-to-resolved-layout = { path = "../../omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout" }
+resolved-layout-to-resolved-layout = { path = "../../omega-rust/omega/pipeline/resolved-layout-to-resolved-layout", features = ["test-support"] }
 register-homes-to-post-allocation-machine = { path = "../../omega-rust/omega/pipeline/register-homes-to-post-allocation-machine" }
 post-allocation-machine-to-selected-form-encoding = { path = "../../omega-rust/omega/pipeline/post-allocation-machine-to-selected-form-encoding" }
 post-allocation-machine-to-post-allocation-machine = { path = "../../omega-rust/omega/pipeline/post-allocation-machine-to-post-allocation-machine" }

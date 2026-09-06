@@ -1,5 +1,10 @@
 //! One function-relative join over current allocation facts, independent of rewrite history.
 
+use resolved_layout_to_resolved_layout::{
+    ResolvedLayoutOptimization, execute_resolved_layout_optimization,
+    validate_resolved_layout_optimization,
+};
+
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 use selected_instructions_to_register_homes::{
     AllocationReplayError, AllocationSource, RetainedAllocation,
@@ -7,9 +12,8 @@ use selected_instructions_to_register_homes::{
 
 use super::super::{assembly::*, carriers::*, error::*};
 use crate::{
-    ValidatedWholeFunctionExitContract,
-    stage_whole_function_exit_contract_with_post_allocation_machine_optimization_and_frame,
-    validate_whole_function_exit_contract_with_post_allocation_machine_optimization_and_frame,
+    ValidatedWholeFunctionExitContract, stage_whole_function_exit_contract_for_layout,
+    validate_whole_function_exit_contract_for_layout,
 };
 use post_allocation_machine_to_post_allocation_machine::{
     StagedOptimizedPostAllocationMachineOptimization,
@@ -65,13 +69,15 @@ where
     } else {
         None
     };
-    let (baseline_encoding, encoding, baseline_layout, layout, exit_contract) = build_artifacts(
-        current.selected(),
-        &machine,
-        current.register_environment().physical(),
-        &optimization,
-        frame.as_ref(),
-    )?;
+    let (baseline_encoding, encoding, baseline_layout, layout, layout_optimization, exit_contract) =
+        build_artifacts(
+            current.selected(),
+            &machine,
+            current.register_environment().physical(),
+            &optimization,
+            frame.as_ref(),
+            &current,
+        )?;
     let manifest = expected_allocated_post_allocation_machine_manifest(
         &current,
         &machine,
@@ -79,7 +85,7 @@ where
         &baseline_encoding,
         &encoding,
         &baseline_layout,
-        &layout,
+        layout_optimization.layout(),
         &exit_contract,
         frame.as_ref(),
     )?;
@@ -101,6 +107,7 @@ where
         encoding,
         baseline_layout,
         layout,
+        layout_optimization,
         frame,
         exit_contract,
         manifest,
@@ -154,7 +161,7 @@ pub fn validate_post_allocation_machine_function_relative_realization_custody(
         &staged.baseline_encoding,
         &staged.encoding,
         &staged.baseline_layout,
-        &staged.layout,
+        staged.layout(),
         &staged.exit_contract,
         staged.frame.as_ref(),
     )?;
@@ -184,12 +191,14 @@ fn build_artifacts<S: ValidatedSelectedAnalysis>(
     physical: &register_model::ValidatedPhysicalRegisterModel,
     optimization: &StagedOptimizedPostAllocationMachineOptimization,
     frame: Option<&super::super::FunctionRelativeFrame>,
+    current: &selected_instructions_to_register_homes::AllocationOutput<'_>,
 ) -> Result<
     (
         StagedOptimizedSelectedFormEncoding,
         StagedOptimizedSelectedFormEncoding,
         StagedOptimizedResolvedSelectedFormLayout,
         StagedOptimizedResolvedSelectedFormLayout,
+        ResolvedLayoutOptimization,
         ValidatedWholeFunctionExitContract,
     ),
     FunctionRelativeOptimizationRealizationError,
@@ -225,22 +234,36 @@ fn build_artifacts<S: ValidatedSelectedAnalysis>(
             Some(optimization),
         )
         .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
-    let exit_contract =
-        stage_whole_function_exit_contract_with_post_allocation_machine_optimization_and_frame(
-            selected,
-            machine,
-            physical,
-            &encoding,
-            optimization,
-            &layout,
-            frame.map(|frame| (frame.layout(), frame.protocol())),
-        )
-        .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
+    let layout_optimization = execute_resolved_layout_optimization(
+        selected,
+        machine,
+        physical,
+        &encoding,
+        Some(optimization),
+        &layout,
+        &current
+            .selections()
+            .project_phase(optimization_core::OptimizationExecutionPhase::FunctionRelativeLayout),
+        current.budget_per_pass(),
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)?;
+    let exit_contract = stage_whole_function_exit_contract_for_layout(
+        selected,
+        machine,
+        physical,
+        &encoding,
+        Some(optimization),
+        &layout,
+        &layout_optimization,
+        frame.map(|frame| (frame.layout(), frame.protocol())),
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
     Ok((
         baseline_encoding,
         encoding,
         baseline_layout,
         layout,
+        layout_optimization,
         exit_contract,
     ))
 }
@@ -277,22 +300,29 @@ fn validate_artifacts<S: ValidatedSelectedAnalysis>(
         &staged.encoding,
     )
     .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
-    validate_optimized_resolved_selected_form_layout_with_post_allocation_machine_optimization(
+    validate_resolved_layout_optimization(
         selected,
         machine,
         physical,
         &staged.encoding,
         Some(optimization),
         &staged.layout,
+        &staged
+            .allocation
+            .current()
+            .selections()
+            .project_phase(optimization_core::OptimizationExecutionPhase::FunctionRelativeLayout),
+        &staged.layout_optimization,
     )
-    .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
-    validate_whole_function_exit_contract_with_post_allocation_machine_optimization_and_frame(
+    .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)?;
+    validate_whole_function_exit_contract_for_layout(
         selected,
         machine,
         physical,
         &staged.encoding,
-        optimization,
+        Some(optimization),
         &staged.layout,
+        &staged.layout_optimization,
         staged
             .frame
             .as_ref()

@@ -244,7 +244,7 @@ fn x86_mov_r32_imm32_reaches_realization_with_replayable_zero_extension_custody(
     assert_eq!(realization.baseline_encoding(), &baseline_encoding);
     assert_eq!(realization.encoding(), &selected_encoding);
     assert_eq!(realization.baseline_layout(), &baseline_layout);
-    assert_eq!(realization.layout(), &selected_layout);
+    assert_eq!(realization.layout(), selected_layout.program());
     assert_eq!(
         realization.custody().optimization().optimization(),
         Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1

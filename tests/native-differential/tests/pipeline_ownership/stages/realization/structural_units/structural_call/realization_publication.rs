@@ -141,8 +141,10 @@ pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegister
     assert!(matches!(
         validate_optimized_structural_unit_function_relative_realization(&realization),
         Err(
-            OptimizedStructuralUnitFunctionRelativeRealizationError::Layout(
-                OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch
+            OptimizedStructuralUnitFunctionRelativeRealizationError::LayoutOptimization(
+                ResolvedLayoutOptimizationError::Baseline(
+                    OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch
+                )
             )
         )
     ));

@@ -12,7 +12,7 @@ use super::super::PhysicalOptimizationPhaseSelections;
 pub(crate) use model::{ResolvedPhysicalPhaseComposition, ResolvedRealizationPlan};
 use optimization_core::Optimization;
 use post_allocation_machine_to_post_allocation_machine::selected_post_allocation_machine_rule;
-use selected_form_encoding_to_resolved_layout::x86_rel8_selected;
+use resolved_layout_to_resolved_layout::x86_rel8_selected;
 use selected_instructions_to_register_homes::{
     resolve_selected_lowering_rules, selected_allocation_recovery_rule,
 };

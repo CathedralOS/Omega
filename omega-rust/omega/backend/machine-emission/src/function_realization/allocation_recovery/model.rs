@@ -1,4 +1,5 @@
 use optimization_core::FunctionRelativeOptimizationRealizationManifestIdentity;
+use resolved_layout_to_resolved_layout::ResolvedLayoutOptimization;
 
 use crate::{
     FunctionRelativeOptimizationRealizationError,
@@ -28,6 +29,7 @@ pub struct StagedAllocationRecoveryFunctionRelativeRealization {
     pub(super) machine: StagedOptimizedPostAllocationMachinePlan,
     pub(super) encoding: StagedOptimizedSelectedFormEncoding,
     pub(super) layout: StagedOptimizedResolvedSelectedFormLayout,
+    pub(super) layout_optimization: ResolvedLayoutOptimization,
     pub(super) exit_contract: ValidatedWholeFunctionExitContract,
     pub(super) manifest: ValidatedFunctionRelativeOptimizationRealizationManifest,
     pub(super) custody: StagedAllocationRecoveryFunctionRelativeRealizationCustodyReceipt,
@@ -43,8 +45,14 @@ impl StagedAllocationRecoveryFunctionRelativeRealization {
     pub const fn encoding(&self) -> &StagedOptimizedSelectedFormEncoding {
         &self.encoding
     }
-    pub const fn layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
+    pub const fn baseline_layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
         &self.layout
+    }
+    pub fn layout(&self) -> &machine_code::ResolvedMachineLayout {
+        self.layout_optimization.layout()
+    }
+    pub fn layout_optimization(&self) -> &ResolvedLayoutOptimization {
+        &self.layout_optimization
     }
     pub const fn exit_contract(&self) -> &ValidatedWholeFunctionExitContract {
         &self.exit_contract
@@ -96,6 +104,7 @@ pub enum AllocationRecoveryFunctionRelativeRealizationError {
     Machine(OptimizedPostAllocationMachinePipelineError),
     Encoding(OptimizedSelectedFormEncodingError),
     Layout(OptimizedResolvedSelectedFormLayoutError),
+    LayoutOptimization(resolved_layout_to_resolved_layout::ResolvedLayoutOptimizationError),
     ExitContract(WholeFunctionExitContractError),
     Manifest(FunctionRelativeOptimizationRealizationError),
     UnsupportedSelections,

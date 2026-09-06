@@ -7,8 +7,9 @@ pub enum FunctionRelativeOptimizationRealizationError {
     PostAllocationMachineOptimization(OptimizedPostAllocationMachineOptimizationError),
     Encoding(OptimizedSelectedFormEncodingError),
     Layout(OptimizedResolvedSelectedFormLayoutError),
+    LayoutOptimization(ResolvedLayoutOptimizationError),
     X86BranchRelaxation(OptimizedX86BranchRelaxationError),
-    RuleCatalog(selected_form_encoding_to_resolved_layout::FunctionRelativeLayoutCatalogError),
+    RuleCatalog(resolved_layout_to_resolved_layout::FunctionRelativeLayoutCatalogError),
     ExitContract(WholeFunctionExitContractError),
     CalleeSavedRequirements(
         selected_instructions_to_register_homes::AllocatedCalleeSavedRequirementError,

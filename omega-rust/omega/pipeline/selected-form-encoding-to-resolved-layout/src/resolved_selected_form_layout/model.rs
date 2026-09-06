@@ -6,9 +6,7 @@
 use std::sync::Arc;
 
 use machine_code::ResolvedMachineLayout;
-use optimization_core::Optimization;
 use physical_instructions::PostAllocationMachineOptimizationCustody;
-use physical_instructions::{Aarch64CbnzFusionIdentity, Aarch64MovnMaterializationIdentity};
 use target::NativeTarget;
 
 pub use machine_code::{
@@ -42,39 +40,11 @@ impl StagedOptimizedResolvedSelectedFormLayout {
     }
 
     pub fn machine_optimization(&self) -> Option<SelectedFormMachineOptimizationCustody> {
-        match self.program.post_allocation_machine_optimization {
-            Some(custody)
-                if matches!(
-                    custody.optimization(),
-                    Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1
-                ) =>
-            {
-                Some(SelectedFormMachineOptimizationCustody::from_parts(
-                    custody.selections(),
-                    custody.post_allocation_machine_selections(),
-                    Aarch64CbnzFusionIdentity::from_bytes(custody.artifact_identity()),
-                ))
-            }
-            _ => None,
-        }
+        self.program.machine_optimization()
     }
 
     pub fn movn_optimization(&self) -> Option<SelectedFormMovnOptimizationCustody> {
-        match self.program.post_allocation_machine_optimization {
-            Some(custody)
-                if matches!(
-                    custody.optimization(),
-                    Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1
-                ) =>
-            {
-                Some(SelectedFormMovnOptimizationCustody::from_parts(
-                    custody.selections(),
-                    custody.post_allocation_machine_selections(),
-                    Aarch64MovnMaterializationIdentity::from_bytes(custody.artifact_identity()),
-                ))
-            }
-            _ => None,
-        }
+        self.program.movn_optimization()
     }
 
     pub fn post_allocation_machine_optimization(
@@ -117,26 +87,6 @@ impl StagedOptimizedResolvedSelectedFormLayout {
         Self {
             program: Arc::new(program),
         }
-    }
-
-    /// Rebuild current data for independent replay of a layout transformation.
-    pub(crate) fn with_replayed_functions(
-        &self,
-        functions: Vec<ResolvedSelectedFunctionLayout>,
-    ) -> Self {
-        let mut program = ResolvedMachineLayout {
-            selected: self.program.selected,
-            machine: self.program.machine,
-            pre_layout: self.program.pre_layout,
-            post_allocation_machine_optimization: self.program.post_allocation_machine_optimization,
-            target: self.program.target,
-            policy: self.program.policy,
-            identity: self.program.identity,
-            functions,
-            structural_unit_functions: self.program.structural_unit_functions.clone(),
-        };
-        program.identity = program.recomputed_identity();
-        Self::from_program(program)
     }
 
     #[cfg(any(test, feature = "test-support"))]

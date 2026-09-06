@@ -42,14 +42,18 @@ pub fn validate_whole_function_exit_contract_with_post_allocation_machine_optimi
         layout,
     )
     .map_err(WholeFunctionExitContractError::Layout)?;
-    let layout_custody =
-        validation_rules::post_allocation_layout_custody(machine, encoding, layout, optimization)?;
+    let layout_custody = validation_rules::post_allocation_layout_custody(
+        machine,
+        encoding,
+        layout.program(),
+        optimization,
+    )?;
     validation::validate(
         selected,
         machine,
         physical,
         encoding,
-        layout,
+        layout.program(),
         layout_custody,
         frame,
         contract.contract(),

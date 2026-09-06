@@ -29,7 +29,7 @@ pub(super) fn build_realization(
     (
         StagedOptimizedSelectedFormEncoding,
         StagedOptimizedResolvedSelectedFormLayout,
-        Option<StagedOptimizedX86BranchRelaxation>,
+        ResolvedLayoutOptimization,
         Option<super::UnitSavedReturnAddressFrame>,
         ValidatedWholeFunctionExitContract,
         ValidatedFunctionRelativeOptimizationRealizationManifest,
@@ -46,7 +46,7 @@ pub(super) fn build_realization(
     let baseline_layout =
         stage_optimized_resolved_selected_form_layout(selected, machine, physical, &encoding)
             .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
-    let relaxation = stage_selected_relaxation(
+    let layout_optimization = stage_layout_optimization(
         selected,
         machine,
         physical,
@@ -56,39 +56,32 @@ pub(super) fn build_realization(
         budget,
     )?;
     let frame = super::unit::frame::stage_unit_frame(allocation, machine)?;
-    let exit_contract = match frame.as_ref() {
-        Some(frame) => stage_whole_function_exit_contract_with_frame(
-            selected,
-            machine,
-            physical,
-            &encoding,
-            final_layout(&baseline_layout, relaxation.as_ref()),
-            frame.layout(),
-            frame.protocol(),
-        )
-        .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?,
-        None => stage_exit_contract(
-            selected,
-            machine,
-            physical,
-            &encoding,
-            &baseline_layout,
-            relaxation.as_ref(),
-        )?,
-    };
+    let exit_contract = crate::stage_whole_function_exit_contract_for_layout(
+        selected,
+        machine,
+        physical,
+        &encoding,
+        None,
+        &baseline_layout,
+        &layout_optimization,
+        frame
+            .as_ref()
+            .map(|frame| (frame.layout(), frame.protocol())),
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
     let manifest = expected_manifest(
         allocation,
         machine,
         &encoding,
         &baseline_layout,
-        relaxation.as_ref(),
+        &layout_optimization,
         frame.as_ref(),
         &exit_contract,
     )?;
     Ok((
         encoding,
         baseline_layout,
-        relaxation,
+        layout_optimization,
         frame,
         exit_contract,
         manifest,

@@ -2155,7 +2155,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/mod.rs",
         "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/mod.rs",
         "omega-rust/omega/pipeline/post-allocation-machine-to-post-allocation-machine/src/rules/mod.rs",
-        "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout/src/x86_branch_relaxation/catalog.rs",
+        "omega-rust/omega/pipeline/resolved-layout-to-resolved-layout/src/x86_branch_relaxation/catalog.rs",
     ]
     .map(|relative| {
         let path = root.join(relative);

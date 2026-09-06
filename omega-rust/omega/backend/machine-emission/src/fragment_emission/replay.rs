@@ -69,17 +69,21 @@ impl FunctionFragmentReplayInputs {
         }
     }
 
-    pub fn resolved_layout(
+    pub fn resolved_layout(&self) -> &machine_code::ResolvedMachineLayout {
+        self.layout_optimization().layout()
+    }
+
+    pub fn layout_optimization(
         &self,
-    ) -> &selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout {
+    ) -> &resolved_layout_to_resolved_layout::ResolvedLayoutOptimization {
         match self {
-            Self::UnitBaseline(realization) => realization.layout(),
-            Self::StructuralUnit(realization) => realization.layout(),
-            Self::FixedFrame(realization) => realization.layout(),
-            Self::PostAllocationMachine(realization) => realization.layout(),
-            Self::AllocationRecovery(realization) => realization.layout(),
-            Self::X86Rel8Direct(realization) => realization.layout(),
-            Self::SelectedLowering(realization) => realization.layout(),
+            Self::UnitBaseline(realization) => realization.layout_optimization(),
+            Self::StructuralUnit(realization) => realization.layout_optimization(),
+            Self::FixedFrame(realization) => realization.layout_optimization(),
+            Self::PostAllocationMachine(realization) => realization.layout_optimization(),
+            Self::AllocationRecovery(realization) => realization.layout_optimization(),
+            Self::X86Rel8Direct(realization) => realization.layout_optimization(),
+            Self::SelectedLowering(realization) => realization.layout_optimization(),
         }
     }
 

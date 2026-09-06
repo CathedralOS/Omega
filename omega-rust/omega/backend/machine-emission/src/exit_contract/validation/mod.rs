@@ -17,16 +17,16 @@ use super::{
 };
 use crate::ValidatedTargetFrameProtocolEncoding;
 use crate::frame_layout::ValidatedTargetFrameLayout;
+use machine_code::ResolvedMachineLayout;
 use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
-use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
 
 struct Inputs<'a> {
     selected: &'a selected_instructions::SelectedInstructionPlan,
     machine: &'a physical_instructions::PostAllocationMachinePlan,
     physical: &'a ValidatedPhysicalRegisterModel,
     encoding: &'a StagedOptimizedSelectedFormEncoding,
-    layout: &'a StagedOptimizedResolvedSelectedFormLayout,
+    layout: &'a ResolvedMachineLayout,
     frame: Option<(
         &'a ValidatedTargetFrameLayout,
         &'a ValidatedTargetFrameProtocolEncoding,
@@ -46,7 +46,7 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     encoding: &StagedOptimizedSelectedFormEncoding,
-    layout: &StagedOptimizedResolvedSelectedFormLayout,
+    layout: &ResolvedMachineLayout,
     custody: WholeFunctionExitLayoutCustody,
     frame: Option<(
         &ValidatedTargetFrameLayout,

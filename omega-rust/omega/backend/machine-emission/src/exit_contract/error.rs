@@ -2,14 +2,16 @@ use register_model::RegisterUnitId;
 use selected_instructions::{SelectedBlockId, SelectedInstructionId};
 use semantic_vocabulary::MachineId;
 
-use selected_form_encoding_to_resolved_layout::{
-    OptimizedResolvedSelectedFormLayoutError, OptimizedX86BranchRelaxationError,
+use resolved_layout_to_resolved_layout::{
+    OptimizedX86BranchRelaxationError, ResolvedLayoutOptimizationError,
 };
+use selected_form_encoding_to_resolved_layout::OptimizedResolvedSelectedFormLayoutError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WholeFunctionExitContractError {
     Layout(OptimizedResolvedSelectedFormLayoutError),
     Relaxation(OptimizedX86BranchRelaxationError),
+    LayoutOptimization(ResolvedLayoutOptimizationError),
     OptimizationCustodyMismatch,
     RootMismatch,
     UnsupportedTargetPolicy,

@@ -10,7 +10,7 @@ const SELECTION_SOURCE: &str =
 const SELECTED_LOWERING_CATALOG: &str = "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/catalog.rs";
 const ALLOCATION_RECOVERY_CATALOG: &str = "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/catalog.rs";
 const POST_ALLOCATION_CATALOG: &str = "omega-rust/omega/pipeline/post-allocation-machine-to-post-allocation-machine/src/rules/catalog.rs";
-const FUNCTION_RELATIVE_LAYOUT_CATALOG: &str = "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout/src/x86_branch_relaxation/catalog.rs";
+const FUNCTION_RELATIVE_LAYOUT_CATALOG: &str = "omega-rust/omega/pipeline/resolved-layout-to-resolved-layout/src/x86_branch_relaxation/catalog.rs";
 const INVENTORY_START: &str = "<!-- exact-rule-inventory:start -->";
 const INVENTORY_END: &str = "<!-- exact-rule-inventory:end -->";
 

@@ -1022,6 +1022,7 @@ dependencies = [
  "register-environment",
  "register-homes-to-post-allocation-machine",
  "register-model",
+ "resolved-layout-to-resolved-layout",
  "selected-form-encoding-to-resolved-layout",
  "selected-instructions",
  "selected-instructions-to-register-homes",
@@ -1120,6 +1121,7 @@ dependencies = [
  "provider-planning",
  "register-environment",
  "register-homes-to-post-allocation-machine",
+ "resolved-layout-to-resolved-layout",
  "selected-dispatch",
  "selected-form-encoding-to-resolved-layout",
  "selected-instructions",
@@ -1284,6 +1286,7 @@ dependencies = [
  "register-environment",
  "register-homes-to-post-allocation-machine",
  "register-model",
+ "resolved-layout-to-resolved-layout",
  "selected-form-encoding-to-resolved-layout",
  "selected-instructions",
  "selected-instructions-to-register-homes",
@@ -1713,6 +1716,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "resolved-layout-to-resolved-layout"
+version = "0.1.0"
+dependencies = [
+ "isa-x86_64",
+ "machine-code",
+ "optimization-core",
+ "physical-instructions",
+ "post-allocation-machine-to-post-allocation-machine",
+ "post-allocation-machine-to-selected-form-encoding",
+ "register-homes-to-post-allocation-machine",
+ "register-model",
+ "selected-form-encoding-to-resolved-layout",
+ "selected-instructions",
+ "selected-instructions-to-register-homes",
+ "semantic-vocabulary",
+ "target",
+]
+
+[[package]]
 name = "resolver-execution"
 version = "0.1.0"
 dependencies = [
@@ -1798,7 +1820,6 @@ dependencies = [
  "selected-instructions",
  "selected-instructions-to-register-homes",
  "semantic-vocabulary",
- "sha2",
  "target",
 ]
 

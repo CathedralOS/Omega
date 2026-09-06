@@ -8,8 +8,6 @@ pub(super) struct CurrentFunctionFragmentInput {
     pub(super) program: ResolvedMachineProgram,
     pub(super) machine:
         register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan,
-    pub(super) layout:
-        selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout,
     pub(super) homes: selected_instructions_to_register_homes::ValidatedRegisterHomes,
     pub(super) environment: register_environment::ValidatedTargetRegisterEnvironment,
     pub(super) frame_protocol: Option<crate::ValidatedTargetFrameProtocolEncoding>,
@@ -26,7 +24,6 @@ pub(super) struct CurrentFunctionFragmentInput {
 impl CurrentFunctionFragmentInput {
     pub(super) fn retain(replay: &FunctionFragmentReplayInputs) -> Self {
         let machine = replay.machine().clone();
-        let layout = replay.resolved_layout().clone();
         let homes = replay.register_homes().clone();
         Self {
             program: ResolvedMachineProgram {
@@ -35,10 +32,9 @@ impl CurrentFunctionFragmentInput {
                 effects: machine.effects().shared_plan(),
                 machine: machine.machine().shared_plan(),
                 encoding: replay.encoding().shared_program(),
-                layout: layout.shared_program(),
+                layout: replay.layout_optimization().shared_layout(),
             },
             machine,
-            layout,
             homes,
             environment: replay.register_environment().clone(),
             frame_protocol: replay.frame_protocol().cloned(),
@@ -59,7 +55,6 @@ impl CurrentFunctionFragmentInput {
         // Compare complete artifacts and admitted facts, not just rehashable IDs.
         if self.program != expected.program
             || self.machine != expected.machine
-            || self.layout != expected.layout
             || self.homes != expected.homes
             || self.environment != expected.environment
             || self.frame_protocol != expected.frame_protocol

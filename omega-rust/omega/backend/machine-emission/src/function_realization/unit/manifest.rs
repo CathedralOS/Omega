@@ -10,9 +10,9 @@ use crate::{
     FunctionRelativeOptimizationUnavailableData,
     ValidatedFunctionRelativeOptimizationRealizationManifest, ValidatedWholeFunctionExitContract,
 };
+use machine_code::ResolvedMachineLayout;
 use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
-use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
 
 use super::model::{OptimizedUnitFunctionRelativeRealizationError, UnitSavedReturnAddressFrame};
 use super::source::validate_source;
@@ -22,7 +22,7 @@ pub(super) fn expected_manifest(
     current: &AllocationOutput<'_>,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     encoding: &StagedOptimizedSelectedFormEncoding,
-    layout: &StagedOptimizedResolvedSelectedFormLayout,
+    layout: &ResolvedMachineLayout,
     frame: Option<&UnitSavedReturnAddressFrame>,
     exit_contract: &ValidatedWholeFunctionExitContract,
 ) -> Result<

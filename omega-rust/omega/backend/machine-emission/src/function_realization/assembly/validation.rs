@@ -1,5 +1,5 @@
 use super::super::{error::*, prelude::*};
-use super::{validate_exit_contract, validate_selected_relaxation};
+use super::validate_layout_optimization;
 
 /// Independently replay every artifact produced by [`super::build_realization`].
 #[allow(clippy::too_many_arguments)]
@@ -10,7 +10,7 @@ pub(in super::super) fn validate_realization_artifacts<S: ValidatedSelectedAnaly
     physical: &register_model::ValidatedPhysicalRegisterModel,
     encoding: &StagedOptimizedSelectedFormEncoding,
     baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
-    relaxation: Option<&StagedOptimizedX86BranchRelaxation>,
+    layout_optimization: &ResolvedLayoutOptimization,
     frame: Option<&super::super::UnitSavedReturnAddressFrame>,
     exit_contract: &ValidatedWholeFunctionExitContract,
     selections: &OptimizationSelections,
@@ -27,36 +27,26 @@ pub(in super::super) fn validate_realization_artifacts<S: ValidatedSelectedAnaly
         baseline_layout,
     )
     .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
-    validate_selected_relaxation(
+    validate_layout_optimization(
         selected,
         machine,
         physical,
         encoding,
         baseline_layout,
-        relaxation,
+        layout_optimization,
         selections,
     )?;
     super::super::unit::frame::validate_unit_frame(allocation, machine, frame)?;
-    match frame {
-        Some(frame) => validate_whole_function_exit_contract_with_frame(
-            selected,
-            machine,
-            physical,
-            encoding,
-            super::final_layout(baseline_layout, relaxation),
-            frame.layout(),
-            frame.protocol(),
-            exit_contract,
-        )
-        .map_err(FunctionRelativeOptimizationRealizationError::ExitContract),
-        None => validate_exit_contract(
-            selected,
-            machine,
-            physical,
-            encoding,
-            baseline_layout,
-            relaxation,
-            exit_contract,
-        ),
-    }
+    crate::validate_whole_function_exit_contract_for_layout(
+        selected,
+        machine,
+        physical,
+        encoding,
+        None,
+        baseline_layout,
+        layout_optimization,
+        frame.map(|frame| (frame.layout(), frame.protocol())),
+        exit_contract,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)
 }

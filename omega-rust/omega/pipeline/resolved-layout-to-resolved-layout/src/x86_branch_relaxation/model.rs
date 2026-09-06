@@ -1,69 +1,12 @@
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use selected_instructions::SelectedInstructionId;
 use target::NativeTarget;
 
-use crate::{
-    ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFunctionLayout,
-    StagedOptimizedResolvedSelectedFormLayout,
+use crate::{ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFunctionLayout};
+
+pub use machine_code::layout::evidence::{
+    X86BranchRelaxationAction, X86BranchRelaxationAttempt, X86BranchRelaxationAttemptOutcome,
+    X86BranchRelaxationIdentity, X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,
 };
-
-/// Explicit post-layout optimization policy. It is neither part of the
-/// required baseline layout nor an encoder heuristic.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum X86BranchRelaxationPolicy {
-    X86RelaxConditionalBranchesToRel8V1,
-}
-
-pub use machine_code::X86BranchRelaxationIdentity;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct X86BranchRelaxationRevisionIdentity(pub(super) [u8; 32]);
-
-impl X86BranchRelaxationRevisionIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum X86BranchRelaxationAttemptOutcome {
-    AlreadyShort,
-    NearDisplacementOutsideI8,
-    SelectedForRelaxation,
-}
-
-/// One branch inspected in deterministic function/block/instruction order.
-/// Attempts stop at the selected branch in a mutating iteration; the terminal
-/// no-change iteration records the complete remaining scan.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct X86BranchRelaxationAttempt {
-    pub iteration: u64,
-    pub input: X86BranchRelaxationRevisionIdentity,
-    pub instruction: SelectedInstructionId,
-    pub offset: u64,
-    pub byte_displacement: i64,
-    pub encoded_bytes: u8,
-    pub outcome: X86BranchRelaxationAttemptOutcome,
-}
-
-/// Exact evidence for one monotone six-byte-near to two-byte-short rewrite.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct X86BranchRelaxationAction {
-    pub iteration: u64,
-    pub input: X86BranchRelaxationRevisionIdentity,
-    pub output: X86BranchRelaxationRevisionIdentity,
-    pub instruction: SelectedInstructionId,
-    pub old_offset: u64,
-    pub new_offset: u64,
-    pub old_displacement: i64,
-    pub new_displacement: i64,
-    pub old_bytes: Vec<u8>,
-    pub new_bytes: Vec<u8>,
-}
 
 /// Immutable result of the explicit post-layout fixed point. The baseline
 /// layout remains retained by identity; this carrier owns only the rewritten
@@ -84,7 +27,7 @@ pub struct StagedOptimizedX86BranchRelaxation {
     pub(super) identity: X86BranchRelaxationIdentity,
     pub(super) attempts: Vec<X86BranchRelaxationAttempt>,
     pub(super) actions: Vec<X86BranchRelaxationAction>,
-    pub(super) layout: StagedOptimizedResolvedSelectedFormLayout,
+    pub(super) layout: std::sync::Arc<machine_code::ResolvedMachineLayout>,
 }
 
 impl StagedOptimizedX86BranchRelaxation {
@@ -144,8 +87,12 @@ impl StagedOptimizedX86BranchRelaxation {
         self.layout.functions()
     }
 
-    pub const fn layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
+    pub fn layout(&self) -> &machine_code::ResolvedMachineLayout {
         &self.layout
+    }
+
+    pub fn shared_layout(&self) -> std::sync::Arc<machine_code::ResolvedMachineLayout> {
+        std::sync::Arc::clone(&self.layout)
     }
 
     /// Test-only authenticated corruption. This grants no production

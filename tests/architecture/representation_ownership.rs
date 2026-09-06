@@ -1205,12 +1205,13 @@ fn resolved_layout_transformation_is_owned_outside_the_coordinator() {
     let owner = root.join("omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout");
     let coordinator = root.join("omega-rust/omega/compiler/native-realization/src");
     let algorithms = rust_source(&owner.join("src"));
+    let optimization_owner =
+        root.join("omega-rust/omega/pipeline/resolved-layout-to-resolved-layout");
+    let optimization = rust_source(&optimization_owner.join("src"));
     let orchestration = rust_source(&coordinator);
     for definition in [
         "pub fn stage_optimized_resolved_selected_form_layout<",
         "pub fn admit_resolved_machine_layout<",
-        "pub fn stage_optimized_x86_branch_relaxation<",
-        "pub fn validate_optimized_x86_branch_relaxation<",
     ] {
         assert!(
             algorithms.contains(definition),
@@ -1221,15 +1222,41 @@ fn resolved_layout_transformation_is_owned_outside_the_coordinator() {
             "coordinator owns {definition}"
         );
     }
-    assert!(algorithms.contains("pub(crate) fn with_replayed_functions("));
-    assert!(!algorithms.contains("pub fn with_replayed_functions("));
+    for definition in [
+        "pub fn stage_optimized_x86_branch_relaxation<",
+        "pub fn validate_optimized_x86_branch_relaxation<",
+        "pub fn execute_resolved_layout_optimization<",
+        "pub fn validate_resolved_layout_optimization<",
+    ] {
+        assert!(
+            optimization.contains(definition),
+            "missing optimization entrance {definition}"
+        );
+        assert!(
+            !algorithms.contains(definition),
+            "baseline owner contains {definition}"
+        );
+        assert!(
+            !orchestration.contains(definition),
+            "coordinator owns {definition}"
+        );
+    }
+    assert!(!algorithms.contains("with_replayed_functions"));
+    assert!(!algorithms.contains("resolved_layout_to_resolved_layout"));
     assert!(!algorithms.contains("native_realization::"));
+    assert!(!optimization.contains("native_realization::"));
     let manifest = std::fs::read_to_string(owner.join("Cargo.toml")).unwrap();
     assert!(!manifest.contains("native-realization"));
+    assert!(!manifest.contains("resolved-layout-to-resolved-layout"));
+    let optimization_manifest =
+        std::fs::read_to_string(optimization_owner.join("Cargo.toml")).unwrap();
+    assert!(optimization_manifest.contains("selected-form-encoding-to-resolved-layout"));
+    assert!(!optimization_manifest.contains("native-realization"));
     let representation =
         rust_source(&root.join("omega-rust/omega/representations/machine-code/src"));
     assert!(representation.contains("pub struct ResolvedMachineLayout {"));
     assert!(!algorithms.contains("pub struct ResolvedMachineLayout {"));
+    assert!(!optimization.contains("pub struct ResolvedMachineLayout {"));
 }
 
 #[test]

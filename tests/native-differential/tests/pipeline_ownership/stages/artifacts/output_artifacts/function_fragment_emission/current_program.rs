@@ -50,7 +50,7 @@ fn emission_retains_original_current_artifacts_without_the_producer_history() {
             ));
             assert!(Arc::ptr_eq(
                 &retained.layout,
-                &replay.resolved_layout().shared_program()
+                &replay.layout_optimization().shared_layout()
             ));
             assert!(Arc::ptr_eq(
                 &retained.encoding,
@@ -147,7 +147,7 @@ fn emission_rejects_reauthenticated_layout_without_mutating_replay_data() {
     layout.identity = layout.recomputed_identity();
     assert_ne!(layout.identity, original.layout.identity);
     assert_eq!(
-        candidate.replay_for_test().resolved_layout().program(),
+        candidate.replay_for_test().resolved_layout(),
         original.layout.as_ref()
     );
     assert!(matches!(

@@ -1,4 +1,5 @@
 use optimization_core::FunctionRelativeOptimizationRealizationManifestIdentity;
+use resolved_layout_to_resolved_layout::ResolvedLayoutOptimization;
 use selected_instructions_to_register_homes::{AllocationReplayError, RetainedAllocation};
 
 use crate::ValidatedTargetFrameProtocolEncoding;
@@ -30,6 +31,7 @@ pub struct StagedOptimizedUnitFunctionRelativeRealization {
     pub(super) machine: StagedOptimizedPostAllocationMachinePlan,
     pub(super) encoding: StagedOptimizedSelectedFormEncoding,
     pub(super) layout: StagedOptimizedResolvedSelectedFormLayout,
+    pub(super) layout_optimization: ResolvedLayoutOptimization,
     pub(super) frame: Option<UnitSavedReturnAddressFrame>,
     pub(super) exit_contract: ValidatedWholeFunctionExitContract,
     pub(super) manifest: ValidatedFunctionRelativeOptimizationRealizationManifest,
@@ -54,8 +56,14 @@ impl StagedOptimizedUnitFunctionRelativeRealization {
         &self.encoding
     }
 
-    pub const fn layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
+    pub const fn baseline_layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
         &self.layout
+    }
+    pub fn layout(&self) -> &machine_code::ResolvedMachineLayout {
+        self.layout_optimization.layout()
+    }
+    pub fn layout_optimization(&self) -> &ResolvedLayoutOptimization {
+        &self.layout_optimization
     }
 
     pub const fn frame(&self) -> Option<&UnitSavedReturnAddressFrame> {
@@ -150,6 +158,7 @@ pub enum OptimizedUnitFunctionRelativeRealizationError {
     Machine(OptimizedPostAllocationMachinePipelineError),
     Encoding(post_allocation_machine_to_selected_form_encoding::OptimizedSelectedFormEncodingError),
     Layout(selected_form_encoding_to_resolved_layout::OptimizedResolvedSelectedFormLayoutError),
+    LayoutOptimization(resolved_layout_to_resolved_layout::ResolvedLayoutOptimizationError),
     CalleeSavedRequirements(
         selected_instructions_to_register_homes::AllocatedCalleeSavedRequirementError,
     ),

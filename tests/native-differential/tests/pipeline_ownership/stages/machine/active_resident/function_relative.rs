@@ -149,9 +149,13 @@ fn active_resident_function_relative_realization_rejects_corrupt_or_detached_cus
     corrupt_allocation_recovery_realization_layout_for_test(&mut source_corruption);
     assert!(matches!(
         validate_allocation_recovery_function_relative_realization(&source_corruption,),
-        Err(AllocationRecoveryFunctionRelativeRealizationError::Layout(
-            OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch
-        ),)
+        Err(
+            AllocationRecoveryFunctionRelativeRealizationError::LayoutOptimization(
+                ResolvedLayoutOptimizationError::Baseline(
+                    OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch
+                )
+            ),
+        )
     ));
 
     let mut exit_corruption = staged_active_resident_allocation_recovery_realization(target);

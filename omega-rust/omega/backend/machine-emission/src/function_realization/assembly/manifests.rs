@@ -4,7 +4,7 @@ use super::super::{
     FunctionRelativeOptimizationUnavailableData, error::*, model::*,
 };
 use super::allocation::{baseline_allocation_source, selected_lowering_source};
-use super::rel8::{final_layout, rel8_selected, validate_relaxation_manifest_roots};
+use super::rel8::{rel8_selected, validate_layout_optimization_manifest_roots};
 use super::statistics::function_relative_statistics;
 use selected_instructions_to_register_homes::AllocationOutput;
 
@@ -16,7 +16,7 @@ pub(in crate::function_realization) fn expected_allocated_post_allocation_machin
     baseline_encoding: &StagedOptimizedSelectedFormEncoding,
     encoding: &StagedOptimizedSelectedFormEncoding,
     baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
-    layout: &StagedOptimizedResolvedSelectedFormLayout,
+    layout: &ResolvedMachineLayout,
     exit_contract: &ValidatedWholeFunctionExitContract,
     frame: Option<&super::super::FunctionRelativeFrame>,
 ) -> Result<
@@ -60,7 +60,7 @@ pub(in crate::function_realization) fn expected_post_allocation_machine_manifest
     baseline_encoding: &StagedOptimizedSelectedFormEncoding,
     encoding: &StagedOptimizedSelectedFormEncoding,
     baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
-    layout: &StagedOptimizedResolvedSelectedFormLayout,
+    layout: &ResolvedMachineLayout,
     exit_contract: &ValidatedWholeFunctionExitContract,
     frame: Option<&super::super::FunctionRelativeFrame>,
 ) -> Result<
@@ -117,7 +117,7 @@ pub(in crate::function_realization) fn expected_post_allocation_machine_manifest
     {
         return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
     }
-    let baseline_bytes = function_relative_statistics(baseline_layout)?.bytes;
+    let baseline_bytes = function_relative_statistics(baseline_layout.program())?.bytes;
     let final_statistics = function_relative_statistics(layout)?;
     let expected_shrink = normalized
         .expected_byte_savings()
@@ -209,7 +209,7 @@ pub(in crate::function_realization) fn expected_manifest(
     machine: &StagedOptimizedPostAllocationMachinePlan,
     encoding: &StagedOptimizedSelectedFormEncoding,
     baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
-    relaxation: Option<&StagedOptimizedX86BranchRelaxation>,
+    layout_optimization: &ResolvedLayoutOptimization,
     frame: Option<&super::super::UnitSavedReturnAddressFrame>,
     exit_contract: &ValidatedWholeFunctionExitContract,
 ) -> Result<
@@ -254,13 +254,12 @@ pub(in crate::function_realization) fn expected_manifest(
         || exit_contract.contract().post_allocation_machine
             != machine.machine().receipt().identity()
         || exit_contract.contract().pre_layout != encoding.identity()
-        || exit_contract.contract().resolved_layout
-            != final_layout(baseline_layout, relaxation).identity()
+        || exit_contract.contract().resolved_layout != layout_optimization.layout().identity()
     {
         return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
     }
-    validate_relaxation_manifest_roots(baseline_layout, relaxation, selections)?;
-    let final_layout = final_layout(baseline_layout, relaxation);
+    validate_layout_optimization_manifest_roots(baseline_layout, layout_optimization, selections)?;
+    let final_layout = layout_optimization.layout();
     let statistics = function_relative_statistics(final_layout)?;
     let unavailable = FunctionRelativeOptimizationUnavailableData::Unavailable;
     let mut record = FunctionRelativeOptimizationRealizationManifest {
@@ -286,7 +285,7 @@ pub(in crate::function_realization) fn expected_manifest(
         pre_layout: encoding.identity(),
         baseline_resolved_layout: baseline_layout.identity(),
         resolved_layout: final_layout.identity(),
-        x86_branch_relaxation: relaxation.map(StagedOptimizedX86BranchRelaxation::identity),
+        x86_branch_relaxation: layout_optimization.relaxation().map(StagedOptimizedX86BranchRelaxation::identity),
         post_allocation_machine_optimization: None,
         whole_function_exit_contract: exit_contract.identity(),
         target: baseline_layout.target(),
@@ -317,7 +316,7 @@ pub(in crate::function_realization) fn expected_direct_manifest(
     machine: &StagedOptimizedPostAllocationMachinePlan,
     encoding: &StagedOptimizedSelectedFormEncoding,
     baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
-    relaxation: &StagedOptimizedX86BranchRelaxation,
+    layout_optimization: &ResolvedLayoutOptimization,
     exit_contract: &ValidatedWholeFunctionExitContract,
 ) -> Result<
     ValidatedFunctionRelativeOptimizationRealizationManifest,
@@ -340,6 +339,11 @@ pub(in crate::function_realization) fn expected_direct_manifest(
     {
         return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
     }
+    validate_layout_optimization_manifest_roots(baseline_layout, layout_optimization, selections)?;
+    let layout = layout_optimization.layout();
+    let relaxation = layout_optimization.relaxation().ok_or(
+        FunctionRelativeOptimizationRealizationError::MissingFunctionRelativeLayoutOptimization,
+    )?;
     let source = baseline_allocation_source(allocation)?;
     let selected = source.selected();
     let post = allocation.post_allocation_manifest().record();
@@ -354,13 +358,13 @@ pub(in crate::function_realization) fn expected_direct_manifest(
         || baseline_layout.machine() != machine.machine().receipt().identity()
         || baseline_layout.pre_layout() != encoding.identity()
         || relaxation.source() != baseline_layout.identity()
-        || relaxation.output() != relaxation.layout().identity()
+        || relaxation.output() != layout.identity()
         || exit_contract.contract().selected != selected
         || exit_contract.contract().post_allocation_manifest != post.identity
         || exit_contract.contract().post_allocation_machine
             != machine.machine().receipt().identity()
         || exit_contract.contract().pre_layout != encoding.identity()
-        || exit_contract.contract().resolved_layout != relaxation.layout().identity()
+        || exit_contract.contract().resolved_layout != layout.identity()
     {
         return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
     }
@@ -387,14 +391,14 @@ pub(in crate::function_realization) fn expected_direct_manifest(
         baseline_pre_layout: encoding.identity(),
         pre_layout: encoding.identity(),
         baseline_resolved_layout: baseline_layout.identity(),
-        resolved_layout: relaxation.layout().identity(),
+        resolved_layout: layout.identity(),
         x86_branch_relaxation: Some(relaxation.identity()),
         post_allocation_machine_optimization: None,
         whole_function_exit_contract: exit_contract.identity(),
         target: baseline_layout.target(),
         layout_policy: baseline_layout.policy(),
         scope: FunctionRelativeOptimizationRealizationScope::FunctionRelativeFragmentsWithValidatedWholeFunctionExitV1,
-        statistics: function_relative_statistics(relaxation.layout())?,
+        statistics: function_relative_statistics(layout)?,
         frame: FunctionRelativeFrameDisposition::Unavailable,
         machine_emission: unavailable,
         section_placement: unavailable,

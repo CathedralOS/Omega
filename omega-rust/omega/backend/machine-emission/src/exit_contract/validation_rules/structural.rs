@@ -13,8 +13,8 @@ use selected_instructions::{SelectedInstructionId, SelectedInstructionKind};
 use semantic_vocabulary::MachineId;
 use target::NativeTarget;
 
+use machine_code::ResolvedMachineLayout;
 use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
-use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
 
 use super::{
     super::{
@@ -29,7 +29,7 @@ pub(in crate::exit_contract) fn validate_structural_unit_functions(
     selected: &selected_instructions::SelectedInstructionPlan,
     machine: &physical_instructions::PostAllocationMachinePlan,
     encoding: &StagedOptimizedSelectedFormEncoding,
-    layout: &StagedOptimizedResolvedSelectedFormLayout,
+    layout: &ResolvedMachineLayout,
     target: NativeTarget,
     stack_pointer: RegisterViewId,
     result_view: RegisterViewId,

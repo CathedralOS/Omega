@@ -1,5 +1,5 @@
+use super::model::*;
 use super::prelude::*;
-use super::{assembly::final_layout, model::*};
 use selected_instructions_to_register_homes::{AllocationEvidence, RetainedAllocation};
 
 /// Direct ordinary realization whose call, preservation, and return effects
@@ -12,6 +12,7 @@ pub struct StagedFixedFrameFunctionRelativeRealization {
     pub(super) machine: StagedOptimizedPostAllocationMachinePlan,
     pub(super) encoding: StagedOptimizedSelectedFormEncoding,
     pub(super) layout: StagedOptimizedResolvedSelectedFormLayout,
+    pub(super) layout_optimization: ResolvedLayoutOptimization,
     pub(super) frame: super::FunctionRelativeFrame,
     pub(super) exit_contract: ValidatedWholeFunctionExitContract,
     pub(super) manifest: ValidatedFunctionRelativeOptimizationRealizationManifest,
@@ -32,8 +33,14 @@ impl StagedFixedFrameFunctionRelativeRealization {
     pub const fn encoding(&self) -> &StagedOptimizedSelectedFormEncoding {
         &self.encoding
     }
-    pub const fn layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
+    pub const fn baseline_layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
         &self.layout
+    }
+    pub fn layout(&self) -> &ResolvedMachineLayout {
+        self.layout_optimization.layout()
+    }
+    pub fn layout_optimization(&self) -> &ResolvedLayoutOptimization {
+        &self.layout_optimization
     }
     pub const fn requirements(&self) -> &ValidatedAllocatedCalleeSavedRequirements {
         self.frame.requirements()
@@ -106,6 +113,7 @@ pub struct StagedPostAllocationMachineFunctionRelativeRealization {
     pub(super) encoding: StagedOptimizedSelectedFormEncoding,
     pub(super) baseline_layout: StagedOptimizedResolvedSelectedFormLayout,
     pub(super) layout: StagedOptimizedResolvedSelectedFormLayout,
+    pub(super) layout_optimization: ResolvedLayoutOptimization,
     pub(super) frame: Option<super::FunctionRelativeFrame>,
     pub(super) exit_contract: ValidatedWholeFunctionExitContract,
     pub(super) manifest: ValidatedFunctionRelativeOptimizationRealizationManifest,
@@ -131,8 +139,14 @@ impl StagedPostAllocationMachineFunctionRelativeRealization {
     pub const fn baseline_layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
         &self.baseline_layout
     }
-    pub const fn layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
+    pub const fn pre_optimization_layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
         &self.layout
+    }
+    pub fn layout(&self) -> &ResolvedMachineLayout {
+        self.layout_optimization.layout()
+    }
+    pub fn layout_optimization(&self) -> &ResolvedLayoutOptimization {
+        &self.layout_optimization
     }
     pub const fn frame(&self) -> Option<&super::FunctionRelativeFrame> {
         self.frame.as_ref()
@@ -201,7 +215,7 @@ pub struct StagedSelectedLoweringFunctionRelativeRealization {
     pub(super) machine: StagedOptimizedPostAllocationMachinePlan,
     pub(super) encoding: StagedOptimizedSelectedFormEncoding,
     pub(super) baseline_layout: StagedOptimizedResolvedSelectedFormLayout,
-    pub(super) relaxation: Option<StagedOptimizedX86BranchRelaxation>,
+    pub(super) layout_optimization: ResolvedLayoutOptimization,
     pub(super) frame: Option<super::UnitSavedReturnAddressFrame>,
     pub(super) exit_contract: ValidatedWholeFunctionExitContract,
     pub(super) manifest: ValidatedFunctionRelativeOptimizationRealizationManifest,
@@ -225,11 +239,14 @@ impl StagedSelectedLoweringFunctionRelativeRealization {
     pub const fn baseline_layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
         &self.baseline_layout
     }
-    pub const fn relaxation(&self) -> Option<&StagedOptimizedX86BranchRelaxation> {
-        self.relaxation.as_ref()
+    pub fn relaxation(&self) -> Option<&StagedOptimizedX86BranchRelaxation> {
+        self.layout_optimization.relaxation()
     }
-    pub fn layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
-        final_layout(&self.baseline_layout, self.relaxation.as_ref())
+    pub fn layout(&self) -> &ResolvedMachineLayout {
+        self.layout_optimization.layout()
+    }
+    pub fn layout_optimization(&self) -> &ResolvedLayoutOptimization {
+        &self.layout_optimization
     }
     pub const fn frame(&self) -> Option<&super::UnitSavedReturnAddressFrame> {
         self.frame.as_ref()
@@ -273,7 +290,7 @@ pub struct StagedFunctionRelativeLayoutOptimizationRealization {
     pub(super) machine: StagedOptimizedPostAllocationMachinePlan,
     pub(super) encoding: StagedOptimizedSelectedFormEncoding,
     pub(super) baseline_layout: StagedOptimizedResolvedSelectedFormLayout,
-    pub(super) relaxation: StagedOptimizedX86BranchRelaxation,
+    pub(super) layout_optimization: ResolvedLayoutOptimization,
     pub(super) exit_contract: ValidatedWholeFunctionExitContract,
     pub(super) manifest: ValidatedFunctionRelativeOptimizationRealizationManifest,
     pub(super) custody: StagedFunctionRelativeLayoutOptimizationRealizationCustodyReceipt,
@@ -296,15 +313,22 @@ impl StagedFunctionRelativeLayoutOptimizationRealization {
     pub const fn baseline_layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
         &self.baseline_layout
     }
-    pub const fn relaxation(&self) -> &StagedOptimizedX86BranchRelaxation {
-        &self.relaxation
+    pub fn relaxation(&self) -> &StagedOptimizedX86BranchRelaxation {
+        self.layout_optimization
+            .relaxation()
+            .expect("selected rel8 realization")
     }
     #[cfg(any(test, feature = "test-support"))]
     pub fn relaxation_mut(&mut self) -> &mut StagedOptimizedX86BranchRelaxation {
-        &mut self.relaxation
+        self.layout_optimization
+            .relaxation_mut_for_test()
+            .expect("selected rel8 realization")
     }
-    pub const fn layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
-        self.relaxation.layout()
+    pub fn layout(&self) -> &ResolvedMachineLayout {
+        self.layout_optimization.layout()
+    }
+    pub fn layout_optimization(&self) -> &ResolvedLayoutOptimization {
+        &self.layout_optimization
     }
     pub const fn exit_contract(&self) -> &ValidatedWholeFunctionExitContract {
         &self.exit_contract

@@ -171,6 +171,7 @@ Omega/
 |       |   |-- [CRATE] post-allocation-machine-to-post-allocation-machine/
 |       |   |-- [CRATE] post-allocation-machine-to-selected-form-encoding/
 |       |   |-- [CRATE] selected-form-encoding-to-resolved-layout/
+|       |   |-- [CRATE] resolved-layout-to-resolved-layout/
 |       |   `-- [CRATE] target-operations-to-assigned-target-operations/ # Alternate route still to delete.
 |       |
 |       |-- semantics/

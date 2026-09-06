@@ -68,8 +68,9 @@ source
   -> selected pre-allocation optimization phase
   -> allocation and physical homes
   -> selected post-allocation optimization phase
-  -> function-relative layout
-  -> selected relaxation phase
+  -> selected-form encoding
+  -> resolved function-relative layout
+  -> selected resolved-layout optimization phase
   -> machine code
   -> object and image
 ```
@@ -78,6 +79,20 @@ This is one pipeline. Empty selections do not choose another backend. Mandatory
 normalization and legalization remain lowering responsibilities and run whether
 or not an optimization is selected. Optional profitability-changing rewrites
 run only when their exact names are selected.
+
+The layout portion has separate transform and optimization owners:
+`post-allocation-machine-to-selected-form-encoding` produces encoding,
+`selected-form-encoding-to-resolved-layout` constructs and independently checks
+the baseline layout, and `resolved-layout-to-resolved-layout` executes the
+explicit identity or selected relaxation phase. The latter owns the x86 rel8
+catalog, production, and replay; the baseline owner does not re-export them.
+Both phase outcomes expose the same `machine_code::ResolvedMachineLayout` data.
+Sharing that immutable output does not mint a baseline-validation receipt.
+Phase replay joins the exact baseline, encoding, machine, optional preceding
+machine optimization, phase selections, and relaxation evidence before a
+consumer accepts the current layout. Selected relaxation combined with a
+preceding machine optimization remains unsupported; naming the phase does not
+expand its composition contract.
 
 ## Allocation and frame ownership
 
