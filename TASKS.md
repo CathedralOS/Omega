@@ -464,8 +464,9 @@ Owners include
   used premise is reconstructed for the exact subject and no qualification or
   similarly shaped row mints one implicitly.
 
-  Complete value origins through stored reference carriers and
-  qualification-preserving helper results in
+  Complete value origins through stored reference carriers, owned helper
+  results, and reference helper results with unresolved control-flow or binding
+  transfers in
   `checks/termination/progress/{origins.rs,lineage.rs}`. A mutated aggregate
   cannot use root correspondence as evidence for its previous field values;
   a may-write frame cannot identify a replacement value. Extend per-field

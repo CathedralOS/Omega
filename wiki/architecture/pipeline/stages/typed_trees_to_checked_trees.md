@@ -990,14 +990,27 @@ Current ownership is:
   reference identity at a statement prefix. It reuses binding transfer with
   shared-reference discovery enabled only for this demand; shared access never
   gains write capability. Initializers and rebindings require declared nominal
-  roots and owned Field/Case projections. Name-only, loaded-reference-slot,
-  coarse, and unresolved helper origins cannot supply exact identity.
+  roots and owned Field/Case projections. Body-proven helper results reuse the
+  shared returned-place relation for shared and exclusive references. Each
+  helper hop needs a resolved callee and a selected parameter-rooted source;
+  intermediate aliases cannot recover identity from a missing symbol's name.
+  The exact query validates both the relative projection and actual caller
+  source, and rejects reference-binding exposure in any call operand.
+  Name-only, loaded-reference-slot, coarse, and unresolved helper origins cannot
+  supply exact identity. A returned reference identifies storage, not its old
+  contents: helper writes still invalidate overlapping progress qualifications.
+  Resolved methods named like slice views use their selected body relation;
+  unresolved view shortcuts retain only collection-coarse evidence and cannot
+  establish an exact reference subject.
   An unresolved read-only binding stays unknown independently of other local
   references. Its marker has no structural source, and copies preserve that
   absence; a later direct rebinding can recover only the replaced binding.
   These query-local markers are retained after initializer effects and binding
   exposure checks, never as permission to bypass them or as cached write
   summaries. Unknown write-capable aliases still make the prefix opaque.
+  Ordinary frames treat read-only local rebinding as a private binding write.
+  A pure terminal reference expression transports the referent without
+  replacing its binding; effectful results retain the exposure fence.
   `flow/reference_places.rs` adapts that structural origin and checks earlier
   operand writes against both the local binding and its referent. Contract
   domain checking may then match an existing call-entry fact for the exact

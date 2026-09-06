@@ -74,6 +74,7 @@ pub(super) fn call_is_transparent_mutable_slice_view(
 
 fn call_is_effect_free_slice_view(program: &TypedTrees, call: &TableCallExpression) -> bool {
     matches!(call.target.as_str(), "as_slice" | "as_mut_slice")
+        && !call.target_symbol.is_valid()
         && call.receiver.is_valid()
         && program
             .expression_table
