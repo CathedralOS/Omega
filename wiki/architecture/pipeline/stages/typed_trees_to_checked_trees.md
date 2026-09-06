@@ -1690,21 +1690,26 @@ Current ownership is:
   ranges resolve in the entry signature before checking, not by display-name
   recovery at a recursive edge.
   `validation/src/call_cycles/runtime_ranking.rs` checks runtime machine-call
-  components against one authored lexicographic measure. Each tail-call
+  components against one natural or authored lexicographic ranking. Each tail-call
   occurrence must preserve the rank or strictly decrease it; the graph of
   preserving occurrences must be acyclic. A strict branch therefore cannot
   hide a stalled alternative or subcycle. The projection retains the exact
   entry parameter, nominal record, measure occurrence, and ordered field
   declarations. Ordinary unstamped member expressions resolve only within
   that exact record; mismatched nonzero field symbols reject. Unsigned
-  component descent consumes the current arm's guard and builtin operator
-  meaning, never a same-spelled authored operator. State rebinding and
+  component descent consumes the current arm's guard or an earlier failed
+  dispatch guard over that same entry binding, with builtin operator meaning,
+  never a same-spelled authored operator. State rebinding and
   unknown effects require a separate arrival judgment and are not admitted by
-  this entry-parameter check. A declined declared projection cannot fall back
-  to the scalar subtraction recognizer: that path requires an exact unsigned
-  parameter under `Nat::Descending`, without a range or view arguments.
+  this entry-parameter check. Scalar `Nat::Descending` parameters use this
+  same whole-component judgment, not a separate pair-level subtraction
+  recognizer. Ranges and view arguments need their own substitution proof.
   The witness remains private implementation
   evidence and does not author a public completion guarantee.
+  Proof-only components retain their strict structural-subterm rule. Their
+  certificates must cover every resolved cross-machine call occurrence for
+  each caller/callee pair; an unclassified receiver call cannot disappear from
+  the graph or borrow a parallel call's strict-descent certificate.
   `checks/termination/progress.rs` independently replays
   retained qualification correspondence before deriving checked progress
   summaries; malformed, label-only, out-of-bounds/nonliteral/runtime-indexed,

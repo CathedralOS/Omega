@@ -1,1 +1,1 @@
-MR4 shape check: NOT met -- non-tail call edge(s): `Main::ping` -> `Main::pong`; unmeasured machine(s): `Main::ping`, `Main::pong`
+a member lacks a supported exact ranking witness

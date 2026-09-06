@@ -2,6 +2,8 @@ use super::*;
 use source::SourceMap;
 use source_files_to_tokens::Lexer;
 
+mod meaning;
+
 fn typed(body: &str) -> TypedTrees {
     typed_with_operator(body, "")
 }
@@ -187,7 +189,7 @@ fn declined_record_ranking_cannot_fall_through_to_scalar_syntax() {
 }
 
 #[test]
-fn canonical_unsigned_scalar_rank_retains_legacy_admission() {
+fn canonical_unsigned_scalar_rank_uses_joint_component_admission() {
     let program = typed_source(
         "data Main {}
         machine Main::scan_a(&mut self, remaining: u64) -> u64
@@ -199,7 +201,7 @@ fn canonical_unsigned_scalar_rank_retains_legacy_admission() {
     );
     for machine in program.machines() {
         assert!(
-            has_scalar_legacy_rank(&program, machine),
+            RankProjection::resolve(&program, machine).is_some(),
             "{:#?}",
             machine.termination_plan
         );
@@ -214,13 +216,13 @@ fn canonical_unsigned_scalar_rank_retains_legacy_admission() {
 }
 
 #[test]
-fn scalar_fallback_does_not_prove_retained_ranges_or_view_arguments() {
+fn scalar_projection_does_not_prove_retained_ranges_or_view_arguments() {
     let mut program = typed_source(
         "machine scalar(remaining: u64) -> u64
         terminates by remaining;
         { transition { _ -> 0 } }",
     );
-    assert!(has_scalar_legacy_rank(&program, &program.machines()[0]));
+    assert!(RankProjection::resolve(&program, &program.machines()[0]).is_some());
     program.machines_mut()[0]
         .termination_plan
         .implementation_witness
@@ -231,7 +233,7 @@ fn scalar_fallback_does_not_prove_retained_ranges_or_view_arguments() {
         ceiling: "5".into(),
         ceiling_inclusive: true,
     });
-    assert!(!has_scalar_legacy_rank(&program, &program.machines()[0]));
+    assert!(RankProjection::resolve(&program, &program.machines()[0]).is_none());
     program.machines_mut()[0]
         .termination_plan
         .implementation_witness
@@ -246,12 +248,12 @@ fn scalar_fallback_does_not_prove_retained_ranges_or_view_arguments() {
         .unwrap();
     let subject = program.ranking_expression_custody[custody_index].subjects[0];
     program.ranking_expression_custody[custody_index].rank_range = Some(subject);
-    assert!(!has_scalar_legacy_rank(&program, &program.machines()[0]));
+    assert!(RankProjection::resolve(&program, &program.machines()[0]).is_none());
     program.ranking_expression_custody[custody_index].rank_range = None;
     program.ranking_expression_custody[custody_index]
         .view_arguments
         .push(subject);
-    assert!(!has_scalar_legacy_rank(&program, &program.machines()[0]));
+    assert!(RankProjection::resolve(&program, &program.machines()[0]).is_none());
 }
 
 #[test]

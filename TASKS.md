@@ -151,7 +151,7 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   is attributed to a named entry on a board, and this entry is replaced by those.
 
 - **TERMINATION-RANKING-CHECKS.** Complete the documented flow-dependent
-  rank-range checks in `validation/src/call_cycles.rs` and
+  rank-range checks in
   `typed-trees-to-checked-trees/src/checks/termination/ranking/`.
   Rank constraints beyond immutable single-state parameter bounds need exact
   named-state arrivals and live guard
@@ -164,6 +164,24 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   premises. Preserve the private-witness/public-guarantee split described in
   chapter 3 and the
   [termination brief](wiki/design_briefs/termination_ranking_and_progress.md).
+
+- **PRIVATE-JOINT-PROGRESS.** Consume the validated joint-call ranking in
+  `typed-trees-to-checked-trees/src/checks/termination/progress.rs`. The current
+  `NoGuarantee` fixed point cannot derive progress for mutually dependent
+  private bodies without an authored public promise to seed it. Derive their
+  checked summaries from the exact component judgment while retaining progress
+  premises from calls outside that component. Acceptance: private scalar and
+  lexicographic cycles derive checked `Terminates` without publishing a
+  guarantee; an external call with unknown progress prevents that derivation.
+
+- **PROOF-RECEIVER-TARGETS.** Retain exact selected callees for calls through
+  pattern payloads in `symbol-resolved-trees-to-typed-trees/`. In a structurally
+  ranked mutual `ProofTree` cycle, a call such as `second.right(n)` can still
+  lack its typed target and escape the resolved call-dependency graph. Owning
+  areas are typed receiver selection and proof call-cycle completeness, not a
+  new ranking rule. Acceptance: payload-receiver calls retain their exact
+  nominal target; an unchanged recursive argument rejects even beside a
+  certified decreasing call, and an acyclic payload method call still checks.
 
 - **EXACT-CALL-RESULT-RELATIONS.** Carry exact call-result comparisons through
   state arrivals and arithmetic validation in

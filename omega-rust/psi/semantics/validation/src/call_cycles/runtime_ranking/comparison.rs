@@ -2,7 +2,7 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
-use super::projection::{RankProjection, unwrapped};
+use super::projection::{RankOrder, RankProjection, unwrapped};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Comparison {
@@ -14,26 +14,32 @@ pub(super) fn argument_comparison(
     program: &TypedTrees,
     rank: &RankProjection,
     argument: ExpressionHandle,
-    guard: ExpressionHandle,
+    guards: &[(ExpressionHandle, bool)],
 ) -> Option<Comparison> {
     if rank.is_subject(program, argument) {
         return Some(Comparison::Equal);
     }
+    let RankOrder::Lexicographic {
+        data,
+        fields: components,
+        ..
+    } = &rank.order
+    else {
+        return component_comparison(program, rank, argument, SymbolHandle::invalid(), guards);
+    };
     let ExpressionNode::StructLiteral(literal) = program
         .expression_table
         .expression(unwrapped(program, argument))
     else {
         return None;
     };
-    if literal.type_symbol != rank.data
-        || literal.case_name.is_some()
-        || literal.case_symbol.is_some()
+    if literal.type_symbol != *data || literal.case_name.is_some() || literal.case_symbol.is_some()
     {
         return None;
     }
     let fields = program.expression_table.struct_fields(literal.fields);
     let mut strict = false;
-    for field in &rank.fields {
+    for field in components {
         let mut matching = fields.iter().filter(|value| value.field_symbol == *field);
         let value = matching.next()?.value;
         if matching.next().is_some() {
@@ -41,31 +47,45 @@ pub(super) fn argument_comparison(
         }
         // A strict earlier component allows arbitrary later components, but
         // all fields still have exact, unique declaration associations.
-        if strict || rank.is_field(program, value, *field) {
+        if strict {
             continue;
         }
-        let ExpressionNode::Binary(binary) = program
-            .expression_table
-            .expression(unwrapped(program, value))
-        else {
-            return None;
-        };
-        if binary.operator != BinaryOperator::Subtract
-            || !rank.is_field(program, binary.left, *field)
-        {
-            return None;
-        }
-        let amount = integer(program, binary.right)?;
-        if amount <= 0 || !guard_proves_lower_bound(program, rank, guard, *field, amount) {
-            return None;
-        }
-        strict = true;
+        strict = component_comparison(program, rank, value, *field, guards)? == Comparison::Strict;
     }
     Some(if strict {
         Comparison::Strict
     } else {
         Comparison::Equal
     })
+}
+
+fn component_comparison(
+    program: &TypedTrees,
+    rank: &RankProjection,
+    value: ExpressionHandle,
+    field: SymbolHandle,
+    guards: &[(ExpressionHandle, bool)],
+) -> Option<Comparison> {
+    if rank.is_component(program, value, field) {
+        return Some(Comparison::Equal);
+    }
+    let ExpressionNode::Binary(binary) = program
+        .expression_table
+        .expression(unwrapped(program, value))
+    else {
+        return None;
+    };
+    if binary.operator != BinaryOperator::Subtract
+        || !rank.is_component(program, binary.left, field)
+    {
+        return None;
+    }
+    let amount = integer(program, binary.right)?;
+    (amount > 0
+        && guards.iter().any(|(guard, truth)| {
+            guard_proves_lower_bound(program, rank, *guard, *truth, field, amount)
+        }))
+    .then_some(Comparison::Strict)
 }
 
 fn integer(program: &TypedTrees, expression: ExpressionHandle) -> Option<i64> {
@@ -78,13 +98,14 @@ fn integer(program: &TypedTrees, expression: ExpressionHandle) -> Option<i64> {
     }
 }
 
-/// Only the current arm's live guard is used. There is no previous-arm name
-/// cache and no assumption imported from another state or caller. Unsigned
-/// component declarations plus this bound prove subtraction remains natural.
+/// Facts come from the current arm or an earlier failed dispatch guard, all
+/// over the same unchanged entry binding. No rendered-name cache or facts
+/// from another state/caller contribute to this lower-bound proof.
 fn guard_proves_lower_bound(
     program: &TypedTrees,
     rank: &RankProjection,
     guard: ExpressionHandle,
+    truth: bool,
     field: SymbolHandle,
     minimum: i64,
 ) -> bool {
@@ -97,29 +118,55 @@ fn guard_proves_lower_bound(
     else {
         return false;
     };
-    if binary.operator == BinaryOperator::Equal {
-        for (condition, truth) in [(binary.left, binary.right), (binary.right, binary.left)] {
-            if matches!(
-                program
-                    .expression_table
-                    .expression(unwrapped(program, truth)),
-                ExpressionNode::Boolean(true)
-            ) {
-                return guard_proves_lower_bound(program, rank, condition, field, minimum);
+    if matches!(
+        binary.operator,
+        BinaryOperator::Equal | BinaryOperator::NotEqual
+    ) {
+        for (condition, boolean) in [(binary.left, binary.right), (binary.right, binary.left)] {
+            if let ExpressionNode::Boolean(value) = program
+                .expression_table
+                .expression(unwrapped(program, boolean))
+            {
+                return guard_proves_lower_bound(
+                    program,
+                    rank,
+                    condition,
+                    truth == (*value == (binary.operator == BinaryOperator::Equal)),
+                    field,
+                    minimum,
+                );
             }
         }
     }
-    if binary.operator == BinaryOperator::And {
-        return guard_proves_lower_bound(program, rank, binary.left, field, minimum)
-            || guard_proves_lower_bound(program, rank, binary.right, field, minimum);
+    if (binary.operator == BinaryOperator::And && truth)
+        || (binary.operator == BinaryOperator::Or && !truth)
+    {
+        return guard_proves_lower_bound(program, rank, binary.left, truth, field, minimum)
+            || guard_proves_lower_bound(program, rank, binary.right, truth, field, minimum);
     }
-    let (operator, bound) = if rank.is_field(program, binary.left, field) {
-        (binary.operator, integer(program, binary.right))
-    } else if rank.is_field(program, binary.right, field) {
-        let operator = match binary.operator {
+    let operator = if truth {
+        binary.operator
+    } else {
+        match binary.operator {
+            BinaryOperator::Less => BinaryOperator::GreaterOrEqual,
+            BinaryOperator::LessOrEqual => BinaryOperator::Greater,
+            BinaryOperator::Greater => BinaryOperator::LessOrEqual,
+            BinaryOperator::GreaterOrEqual => BinaryOperator::Less,
+            BinaryOperator::Equal => BinaryOperator::NotEqual,
+            BinaryOperator::NotEqual => BinaryOperator::Equal,
+            _ => return false,
+        }
+    };
+    let (operator, bound) = if rank.is_component(program, binary.left, field) {
+        (operator, integer(program, binary.right))
+    } else if rank.is_component(program, binary.right, field) {
+        let operator = match operator {
             BinaryOperator::Less => BinaryOperator::Greater,
             BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
+            BinaryOperator::Greater => BinaryOperator::Less,
+            BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
             BinaryOperator::Equal => BinaryOperator::Equal,
+            BinaryOperator::NotEqual => BinaryOperator::NotEqual,
             _ => return false,
         };
         (operator, integer(program, binary.left))
@@ -129,6 +176,7 @@ fn guard_proves_lower_bound(
     bound.is_some_and(|bound| match operator {
         BinaryOperator::Greater => bound >= minimum - 1,
         BinaryOperator::GreaterOrEqual | BinaryOperator::Equal => bound >= minimum,
+        BinaryOperator::NotEqual => bound == 0 && minimum == 1,
         _ => false,
     })
 }

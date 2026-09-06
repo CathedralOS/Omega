@@ -1,3 +1,4 @@
+use language_semantics::RankingViewId;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
@@ -8,12 +9,20 @@ use typed_trees::types::{PrimitiveType, TypeReferenceNode};
 /// Transient declaration-local projection. A measure's current typed carrier
 /// has no populated symbol, so the unique table occurrence is its identity;
 /// matching field spellings in another measure do not make it the same order.
+#[derive(PartialEq, Eq)]
+pub(super) enum RankOrder {
+    Natural(PrimitiveType),
+    Lexicographic {
+        measure_index: usize,
+        data: SymbolHandle,
+        fields: Vec<SymbolHandle>,
+    },
+}
+
 pub(super) struct RankProjection {
-    measure_index: usize,
-    pub(super) data: SymbolHandle,
+    pub(super) order: RankOrder,
     pub(super) parameter: SymbolHandle,
     pub(super) argument_position: usize,
-    pub(super) fields: Vec<SymbolHandle>,
 }
 
 impl RankProjection {
@@ -51,6 +60,31 @@ impl RankProjection {
             .filter(|(_, parameter)| parameter.symbol == path.symbol);
         let (argument_position, parameter) = parameters.next()?;
         if parameters.next().is_some() {
+            return None;
+        }
+        if witness.ranking_view == RankingViewId::NAT_DESCENDING
+            && Some(witness.view_path.as_str()) == witness.ranking_view.canonical_path()
+        {
+            let mut reference = parameter.type_reference;
+            while let TypeReferenceNode::Constrained { base_type, .. } =
+                program.type_reference_table.type_reference(reference)
+            {
+                reference = *base_type;
+            }
+            let primitive = crate::recasts::exact_primitive_type(program, reference)?;
+            if !matches!(
+                primitive,
+                PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
+            ) {
+                return None;
+            }
+            return Some(Self {
+                order: RankOrder::Natural(primitive),
+                parameter: parameter.symbol,
+                argument_position,
+            });
+        }
+        if witness.ranking_view.is_valid() {
             return None;
         }
         let TypeReferenceNode::Named { symbol: data, .. } = program
@@ -138,18 +172,18 @@ impl RankProjection {
             fields.push(field.symbol);
         }
         Some(Self {
-            measure_index,
-            data: *data,
+            order: RankOrder::Lexicographic {
+                measure_index,
+                data: *data,
+                fields,
+            },
             parameter: parameter.symbol,
             argument_position,
-            fields,
         })
     }
 
     pub(super) fn same_order(&self, other: &Self) -> bool {
-        self.measure_index == other.measure_index
-            && self.data == other.data
-            && self.fields == other.fields
+        self.order == other.order
     }
 
     pub(super) fn is_subject(&self, program: &TypedTrees, expression: ExpressionHandle) -> bool {
@@ -157,12 +191,19 @@ impl RankProjection {
             ExpressionNode::Name(path) if path.symbol == self.parameter)
     }
 
-    pub(super) fn is_field(
+    pub(super) fn is_component(
         &self,
         program: &TypedTrees,
         expression: ExpressionHandle,
         field: SymbolHandle,
     ) -> bool {
+        if !field.is_valid() {
+            return matches!(self.order, RankOrder::Natural(_))
+                && self.is_subject(program, expression);
+        }
+        let RankOrder::Lexicographic { data: owner, .. } = self.order else {
+            return false;
+        };
         let ExpressionNode::Member(member) = program
             .expression_table
             .expression(unwrapped(program, expression))
@@ -175,7 +216,7 @@ impl RankProjection {
         let Some(data) = program
             .data_definitions()
             .iter()
-            .find(|data| data.symbol == self.data)
+            .find(|data| data.symbol == owner)
         else {
             return false;
         };

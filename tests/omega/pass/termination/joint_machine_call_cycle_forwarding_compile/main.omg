@@ -1,6 +1,6 @@
-// Frozen decision 23 requires every edge of a mutually recursive cycle to
-// strictly decrease its joint rank. scan_a -> scan_b forwards `remaining`
-// unchanged, so scan_b -> scan_a decreasing later cannot admit the cycle.
+// A complete mutual call cycle decreases its joint rank. scan_a -> scan_b
+// preserves remaining, and scan_b -> scan_a strictly decreases it; neither
+// call adds work after the recursive call returns.
 data Main {}
 
 machine Main::main(&mut self) -> u64 {

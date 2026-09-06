@@ -155,7 +155,7 @@ program.
 
 Custom ranking views remain declared through the dedicated `measure` surface,
 not as operators. Multiple named measures per carrier are legal. Mutual cycles
-share a joint ranking and every cyclic edge must decrease it; the exact source
+share a joint ranking and every complete call cycle must decrease it; the exact source
 spelling for differently shaped participants remains deferred.
 
 Runtime recursive calls remain tail-only for constant-stack lowering;
