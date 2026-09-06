@@ -528,11 +528,18 @@ across writes proven disjoint from their exact operand places. This includes
 direct assignments and complete call write frames, with reference aliases and
 bare/explicit receiver fields mapped to the same storage. Writing an operand
 retires its computed premises; a separately captured integer keeps its own
-numeric facts. Unknown writes or incomplete read sets grant no preservation.
-Indexed, atomic, and call expressions still need complete read/selector evidence
-before their computed premises can survive a potentially mutating operation;
-scanning a call's explicit arguments alone is insufficient. Equal expression
-text cannot choose between incompatible typed operand identities.
+numeric facts. Builtin array/slice element reads retain both element coordinates
+and selector dependencies. Copying an integer selector can carry an established
+indexed bound into exact typed uses of the new binding, including compiler
+temporaries; later source changes do not retarget that copy. Element writes
+still retire the dependent bound. A copied reference is not an integer snapshot.
+Unknown writes or incomplete read sets grant no preservation. Projected call
+and local-reference write paths that retain only a collection root still
+invalidate the collection's element bounds. Authored indexing operators, atomic
+reads, and calls need their own complete read and stability evidence; their
+spelling or explicit arguments alone are insufficient. Equal expression text
+cannot choose between incompatible typed operand identities, while separate
+arena copies of the same resolved selector retain its meaning.
 
 No public `footprint(...)` contract surface follows from this rule. Most
 source contracts state ordinary value relationships such as `mid <= items.len`,

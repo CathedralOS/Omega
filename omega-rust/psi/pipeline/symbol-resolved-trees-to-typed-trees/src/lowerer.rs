@@ -947,7 +947,7 @@ fn exact_extension_nominal_machine_parameter(
         )
 }
 
-fn exact_top_level_data_symbol(
+pub(crate) fn exact_top_level_data_symbol(
     source: &SymbolResolvedTrees,
     definition: &symbol_resolved_trees::data::DataDefinition,
 ) -> bool {
@@ -957,7 +957,7 @@ fn exact_top_level_data_symbol(
         && source.symbols.name(definition.symbol) == definition.name.as_str()
 }
 
-fn exact_field_symbol(
+pub(crate) fn exact_field_symbol(
     source: &SymbolResolvedTrees,
     owner: symbols::SymbolHandle,
     field: &symbol_resolved_trees::data::DataField,

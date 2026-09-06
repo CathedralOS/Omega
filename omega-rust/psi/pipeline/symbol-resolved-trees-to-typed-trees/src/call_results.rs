@@ -24,7 +24,7 @@ pub(crate) fn declared_call_state(
         .map(|(_, state)| state)
 }
 
-fn peel<'program>(
+pub(crate) fn peel<'program>(
     program: &'program resolved::SymbolResolvedTrees,
     mut reference: &'program resolved::types::TypeReference,
 ) -> &'program resolved::types::TypeReference {

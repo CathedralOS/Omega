@@ -50,6 +50,7 @@ mod proof_embeddings;
 mod range_call_invalidation;
 mod range_entry_contracts;
 mod range_expression_dependencies;
+mod range_index_dependencies;
 mod range_lower_bounds;
 mod range_state_argument_meet;
 mod range_state_call_invalidation;

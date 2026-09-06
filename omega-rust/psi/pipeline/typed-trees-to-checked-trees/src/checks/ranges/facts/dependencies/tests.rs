@@ -1,6 +1,8 @@
 use super::*;
 use typed_trees::statement::StatementNode;
 
+mod indexes;
+
 fn typed_source(source: &str) -> TypedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
@@ -17,7 +19,9 @@ fn initializer(program: &TypedTrees, state: &State) -> ExpressionHandle {
         .statements(state.statement_nodes)
         .iter()
         .find_map(|statement| match statement {
-            StatementNode::LocalData(local) => Some(local.initial_value),
+            StatementNode::LocalData(local) if local.name.as_str() == "cut" => {
+                Some(local.initial_value)
+            }
             _ => None,
         })
         .expect("computed local")
@@ -151,8 +155,8 @@ fn an_incoming_expression_cannot_borrow_the_current_states_parameter_names() {
 }
 
 #[test]
-fn calls_and_indexed_reads_do_not_claim_an_argument_only_read_set() {
-    for expression in ["compute(original)", "items[original]"] {
+fn calls_and_call_selectors_do_not_claim_an_argument_only_read_set() {
+    for expression in ["compute(original)", "items[compute(original)]"] {
         let program = typed_source(&format!(
             "machine compute(original: u64) -> u64 {{ original }}
             machine window(original: u64, items: &[u64; 4]) {{

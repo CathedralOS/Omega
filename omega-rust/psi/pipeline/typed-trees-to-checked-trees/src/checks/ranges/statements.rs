@@ -60,7 +60,15 @@ pub(super) fn check_statement<'program>(
                     name,
                     assignment.value,
                 );
-                seed_local_alias_facts(program, facts, assignment.value, name);
+                seed_local_alias_facts(
+                    program,
+                    machine,
+                    state,
+                    facts,
+                    assignment.value,
+                    symbol,
+                    name,
+                );
                 seed_subslice_window_facts(program, facts, assignment.value, name);
             } else if let Some((symbol, name)) = expression_member_name(program, assignment.target)
             {
@@ -127,8 +135,11 @@ pub(super) fn check_statement<'program>(
             );
             seed_local_alias_facts(
                 program,
+                machine,
+                state,
                 facts,
                 local.initial_value,
+                local.symbol,
                 Some(local.name.as_str()),
             );
             seed_subslice_window_facts(

@@ -1,4 +1,5 @@
 mod lowerer;
+mod member_binding;
 mod structural_equality;
 
 use crate::equatable::EqualityScope;

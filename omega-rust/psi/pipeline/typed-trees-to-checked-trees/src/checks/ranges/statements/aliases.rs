@@ -4,14 +4,18 @@ use super::super::facts::RangeFacts;
 
 pub(super) fn seed_local_alias_facts(
     program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
     value: ExpressionHandle,
+    symbol: symbols::SymbolHandle,
     name: Option<&str>,
 ) {
     let target_label = name.unwrap_or_default().to_string();
     if target_label.is_empty() {
         return;
     }
+    facts.alias_integer_place_value(program, machine, state, value, symbol, &target_label);
 
     // The local inherits the proven index/range facts of whatever stable place
     // the value aliases. The source label must be the full display name (e.g.
