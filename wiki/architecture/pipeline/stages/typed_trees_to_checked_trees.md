@@ -1043,12 +1043,16 @@ Current ownership is:
   intermediate aliases cannot recover identity from a missing symbol's name.
   The exact query validates both the relative projection and actual caller
   source, and rejects reference-binding exposure in any call operand.
-  Owned input carriers seed the same shared/exclusive reference leaves for
-  statement-prefix identity queries. Each loaded input leaf requires its exact
+  Owned input carriers and carriers behind one readable input reference seed
+  the same shared/exclusive reference leaves for statement-prefix identity
+  queries. Each loaded input leaf requires its exact
   nominal declaration and one frozen Field/Case reference boundary. All prior
   statements must preserve that binding; later statements do not affect an
   earlier query. Possible input cases do not establish a selected payload.
-  A carrier behind another reference still needs its own load relation.
+  Canonical carrier aliases use those same frozen leaves. Replacement and
+  exposure checks follow the alias to its carrier; rebinding the alias itself
+  does not replace that carrier. Further reference boundaries still need their
+  own load relation, including when an intermediate load is named by a local.
   Local literal carriers retain shared as well as exclusive reference leaves
   for this query. Loading a frozen Field/Case leaf validates the exact prior
   declaration, nominal selectors, retained case selection, and one canonical

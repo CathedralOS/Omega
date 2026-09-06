@@ -60,8 +60,10 @@ fn an_additional_loaded_reference_boundary_needs_its_own_relation() {
         )
         .replace(
             "mut carrier: Carrier",
-            &format!("carrier: &{access}Carrier"),
-        );
+            &format!("carrier: &{access}Envelope"),
+        )
+        .replace("carrier.context", "carrier.carrier.context");
+        let source = format!("{source} data Envelope {{ carrier: &Carrier; }}");
         assert_eq!(origin(&typed_source(&source)), None);
     }
 }

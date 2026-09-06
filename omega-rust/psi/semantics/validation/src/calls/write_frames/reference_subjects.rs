@@ -5,6 +5,30 @@ use facts::PlaceSegment;
 
 pub(super) mod bindings;
 
+/// The input's own readable reference can expose carrier storage. This is a
+/// type walk only: selecting a reference field still requires a seeded leaf
+/// whose binding survives every statement before the query.
+pub(super) fn carrier_storage_type(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(reference)
+    {
+        reference = *base_type;
+    }
+    if let TypeReferenceNode::Reference {
+        access, referee, ..
+    } = program.type_reference_table.type_reference(reference)
+    {
+        if !access.is_readable() {
+            return None;
+        }
+        reference = *referee;
+    }
+    (reference.is_valid() && !type_reference_is_reference(program, reference)).then_some(reference)
+}
+
 /// Retain an unresolved read-only binding without claiming a storage identity.
 /// Only the exact-reference prefix query uses this marker, after checking RHS
 /// effects and binding exposure. Write-capable carriers must remain opaque to
@@ -274,7 +298,9 @@ fn declared_initializer_origin(
     let source = FrameSourcePlace::from_expression(program, expression);
     let reference = source_root_type(program, machine, state, index, source.root)?;
     if validate_owned_projection(program, reference, &source.segments).is_none() {
-        return frozen_reference_origin(program, expression, reference, &source, aliases, stored);
+        return frozen_reference_origin(
+            program, machine, state, index, expression, aliases, stored,
+        );
     }
     frame_place_path(program, expression)
 }
@@ -283,55 +309,62 @@ fn declared_initializer_origin(
 /// Type-derived overlap and a similarly spelled reference field are insufficient.
 fn frozen_reference_origin(
     program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    index: usize,
     expression: ExpressionHandle,
-    reference: TypeReferenceHandle,
-    source: &FrameSourcePlace,
     aliases: &[(String, FramePlaceOrigin)],
     stored: &[StoredLocalOrigins],
 ) -> Option<FramePlaceOrigin> {
-    if type_reference_is_reference(program, reference)
-        || source.segments.iter().any(|segment| {
-            !matches!(
-                segment,
-                PlaceSegment::Field { .. } | PlaceSegment::Case { .. }
-            )
-        })
-    {
+    let raw = frame_place_path(program, expression)?;
+    if raw.source.segments.iter().any(|segment| {
+        !matches!(
+            segment,
+            PlaceSegment::Field { .. } | PlaceSegment::Case { .. }
+        )
+    }) {
         return None;
     }
-    let local = stored
+    // Resolve the carrier alias before selecting its stored leaf, but retain
+    // the carrier's selected-case evidence before substituting that leaf's
+    // referent. A possible payload is not an established one.
+    let source = stored_origins::binding_source(program, expression, aliases)?;
+    let reference = carrier_storage_type(
+        program,
+        source_root_type(program, machine, state, index, source.root)?,
+    )?;
+    let carrier = stored
         .iter()
-        .find(|local| local.local_symbol == source.root)?;
-    let mut selected = local
+        .find(|carrier| carrier.local_symbol == source.root)?;
+    let mut leaves = carrier
         .references
         .iter()
         .filter(|leaf| source.segments.starts_with(&leaf.local_segments));
-    let leaf = selected.next()?;
-    if selected.next().is_some() {
+    let leaf = leaves.next()?;
+    if leaves.next().is_some() {
         return None;
     }
-    let leaf_type =
-        stored_origins::projected_storage_type(program, reference, &leaf.local_segments)?;
-    if !type_reference_is_reference(program, leaf_type) {
+    let slot = stored_origins::projected_storage_type(program, reference, &leaf.local_segments)?;
+    if !type_reference_is_reference(program, slot)
+        || stored_origins::project_stored_origins(program, carrier, &leaf.local_segments, false)?
+            .references
+            .len()
+            != 1
+    {
         return None;
     }
-    let projected =
-        stored_origins::project_stored_origins(program, local, &leaf.local_segments, false)?;
-    if projected.references.len() != 1 {
-        return None;
-    }
-    let raw = frame_place_path(program, expression)?;
     let mut origins =
         stored_origins::canonical_reference_origins(program, &raw, aliases, stored).into_iter();
     let origin = origins.next()?;
-    (origins.next().is_none()
-        && origin.precision == FramePathPrecision::Exact
-        && origin.source.root.is_valid())
-    .then_some(origin)
+    if origins.next().is_some() || origin.precision != FramePathPrecision::Exact {
+        return None;
+    }
+    validate_source_projection(program, machine, state, index, &origin.source, stored)?;
+    Some(origin)
 }
 
-/// Reference queries seed owned input leaves and validate their stability
-/// through the queried prefix. A helper result additionally checks its whole
+/// Reference queries seed owned or readable borrowed input leaves and validate
+/// their stability through the queried prefix. A helper result checks its whole
 /// body before exporting that boundary for caller substitution. Neither query
 /// supplies a qualification merely from the input's declared type.
 fn validate_source_projection(
@@ -346,11 +379,11 @@ fn validate_source_projection(
     if validate_owned_projection(program, reference, &source.segments).is_some() {
         return Some(());
     }
-    if type_reference_is_reference(program, reference)
-        || !program
-            .state_parameters(state)
-            .iter()
-            .any(|parameter| parameter.symbol == source.root && !parameter.is_self)
+    let reference = carrier_storage_type(program, reference)?;
+    if !program
+        .state_parameters(state)
+        .iter()
+        .any(|parameter| parameter.symbol == source.root && !parameter.is_self)
         || source.segments.iter().any(|segment| {
             !matches!(
                 segment,
