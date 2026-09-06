@@ -16,6 +16,7 @@ use std::ffi::OsStr;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub(crate) const PACKAGE_FIXTURES: &[&str] = &[
@@ -36,6 +37,14 @@ pub(crate) fn temp_root(name: &str) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("system clock")
         .as_nanos();
+    temp_root_at(name, stamp)
+}
+
+fn temp_root_at(name: &str, stamp: u128) -> PathBuf {
+    // Clock resolution is not uniqueness: parallel fixtures can observe the
+    // same timestamp and must never share a directory or its cleanup.
+    static NEXT_ROOT: AtomicU64 = AtomicU64::new(0);
+    let ordinal = NEXT_ROOT.fetch_add(1, Ordering::Relaxed);
     #[cfg(not(windows))]
     let temporary_directory = std::env::temp_dir()
         .canonicalize()
@@ -47,9 +56,29 @@ pub(crate) fn temp_root(name: &str) -> PathBuf {
     #[cfg(windows)]
     let temporary_directory = std::env::temp_dir();
     temporary_directory.join(format!(
-        "omega-package-source-{name}-{}-{stamp}",
+        "omega-package-source-{name}-{}-{stamp}-{ordinal}",
         std::process::id()
     ))
+}
+
+#[test]
+fn simultaneous_fixture_roots_are_distinct_even_with_the_same_timestamp() {
+    let roots = std::thread::scope(|scope| {
+        let workers = (0..8)
+            .map(|_| {
+                scope.spawn(|| {
+                    (0..32)
+                        .map(|_| temp_root_at("same-clock", 0))
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect::<Vec<_>>();
+        workers
+            .into_iter()
+            .flat_map(|worker| worker.join().expect("fixture worker"))
+            .collect::<std::collections::BTreeSet<_>>()
+    });
+    assert_eq!(roots.len(), 256);
 }
 
 pub(crate) fn resolve_git_source(
