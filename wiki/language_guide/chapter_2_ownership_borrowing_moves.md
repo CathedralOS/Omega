@@ -506,13 +506,15 @@ After the usual range-validity obligations, the identical half-open boundary
 `mid` proves adjacency without requiring literal endpoints or a separately
 authored disjointness theorem.
 
-That boundary may be a computed immutable local or a finite chain of immutable
-copies of it. The automatic identity comparison retains the binding's captured
-value identity; it does not reevaluate its initializer or prove equality between
-separately computed bindings.
-Mutable, ambiguous, and cyclic aliases remain conservative, as do inclusive
-symbolic upper bounds. Value identity alone proves neither range validity nor
-a compile-time constant index.
+That boundary may be a computed immutable local, an immutable copy of a mutable
+integer, or a finite chain of immutable copies of either. An immutable copy of a
+mutable local or parameter has its own captured value identity: changing the
+source afterward does not change the copy. Separate captures from that mutable
+source do not establish equal values. The automatic identity comparison does
+not reevaluate initializers or prove equality between separately computed bindings.
+Direct mutable local and parameter bounds remain unknown, as do ambiguous and
+cyclic aliases and inclusive symbolic upper bounds. Value identity alone proves
+neither range validity nor a compile-time constant index.
 
 No public `footprint(...)` contract surface follows from this rule. Most
 source contracts state ordinary value relationships such as `mid <= items.len`,

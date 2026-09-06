@@ -70,7 +70,7 @@ fn computed_identity_preserves_copy_chains_without_becoming_a_static_index() {
         (distinct, distinct_symbol),
     ] {
         assert_eq!(
-            computed_immutable_integer_bound_symbol(&program, expression),
+            immutable_integer_bound_value_symbol(&program, expression),
             Some(expected)
         );
         assert!(normalize_immutable_integer_bound_expression(&program, expression).is_none());
@@ -84,8 +84,108 @@ fn computed_identity_preserves_copy_chains_without_becoming_a_static_index() {
         normalize_immutable_integer_bound_expression(&program, literal),
         Some(one)
     );
-    assert!(computed_immutable_integer_bound_symbol(&program, literal).is_none());
-    assert!(computed_immutable_integer_bound_symbol(&program, computed).is_none());
-    assert!(computed_immutable_integer_bound_symbol(&program, unresolved).is_none());
+    assert!(immutable_integer_bound_value_symbol(&program, literal).is_none());
+    assert!(immutable_integer_bound_value_symbol(&program, computed).is_none());
+    assert!(immutable_integer_bound_value_symbol(&program, unresolved).is_none());
     assert!(normalize_immutable_integer_bound_expression(&program, unresolved).is_none());
+}
+
+#[test]
+fn immutable_copies_of_mutable_sources_are_values_not_static_indexes() {
+    for parameter_source in [false, true] {
+        let mut program = TypedTrees::default();
+        let original_symbol = SymbolHandle::from_arena_index(1);
+        let original = name(&mut program, "original", original_symbol);
+        let cut_symbol = SymbolHandle::from_arena_index(2);
+        let cut = name(&mut program, "cut", cut_symbol);
+        let copy_symbol = SymbolHandle::from_arena_index(3);
+        let copy = name(&mut program, "copy", copy_symbol);
+        let later_symbol = SymbolHandle::from_arena_index(4);
+        let later = name(&mut program, "later", later_symbol);
+        let one = program.expression_table.insert(ExpressionNode::Integer(
+            numerics::literals::IntegerLiteral::from_value(1),
+        ));
+        let mut machine = Machine::default();
+        let mut state = State::default();
+        if parameter_source {
+            program.push_state_parameter(
+                &mut state,
+                typed_trees::signature::StateParameter {
+                    symbol: original_symbol,
+                    is_mutable: true,
+                    ..Default::default()
+                },
+            );
+        } else {
+            program.statement_table.push_statement(
+                &mut state.statement_nodes,
+                StatementNode::LocalData(TableLocalData {
+                    symbol: original_symbol,
+                    name: Identifier::generated_static("original"),
+                    initial_value: one,
+                    is_mutable: true,
+                    ..Default::default()
+                }),
+            );
+        }
+        for (symbol, spelling, initial_value) in [
+            (cut_symbol, "cut", original),
+            (copy_symbol, "copy", cut),
+            (later_symbol, "later", original),
+        ] {
+            program.statement_table.push_statement(
+                &mut state.statement_nodes,
+                StatementNode::LocalData(TableLocalData {
+                    symbol,
+                    name: Identifier::generated_static(spelling),
+                    initial_value,
+                    ..Default::default()
+                }),
+            );
+        }
+        program.push_machine_state(&mut machine, state);
+        program.push_machine(machine);
+        for (expression, expected) in [
+            (original, None),
+            (cut, Some(cut_symbol)),
+            (copy, Some(cut_symbol)),
+            (later, Some(later_symbol)),
+        ] {
+            assert_eq!(
+                immutable_integer_bound_value_symbol(&program, expression),
+                expected
+            );
+            assert!(normalize_immutable_integer_bound_expression(&program, expression).is_none());
+            assert!(normalize_immutable_integer_bound_to_usize(&program, expression).is_none());
+        }
+        // Ambiguous mutable origins must not become stable snapshot fallbacks.
+        let mut duplicate_machine = Machine::default();
+        let mut duplicate_state = State::default();
+        if parameter_source {
+            program.push_state_parameter(
+                &mut duplicate_state,
+                typed_trees::signature::StateParameter {
+                    symbol: original_symbol,
+                    is_mutable: false,
+                    ..Default::default()
+                },
+            );
+        } else {
+            program.statement_table.push_statement(
+                &mut duplicate_state.statement_nodes,
+                StatementNode::LocalData(TableLocalData {
+                    symbol: original_symbol,
+                    initial_value: one,
+                    ..Default::default()
+                }),
+            );
+        }
+        program.push_machine_state(&mut duplicate_machine, duplicate_state);
+        program.push_machine(duplicate_machine);
+        for expression in [original, cut, copy, later] {
+            assert!(immutable_integer_bound_value_symbol(&program, expression).is_none());
+            assert!(normalize_immutable_integer_bound_expression(&program, expression).is_none());
+            assert!(normalize_immutable_integer_bound_to_usize(&program, expression).is_none());
+        }
+    }
 }

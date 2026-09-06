@@ -208,7 +208,7 @@ pub use float_projection_invocations::{
     ValidatedFloatMeaningEqualityProposition, ValidatedFloatMeaningProjectionInvocation,
 };
 pub use immutable_integer_bounds::{
-    computed_immutable_integer_bound_symbol, normalize_immutable_integer_bound_expression,
+    immutable_integer_bound_value_symbol, normalize_immutable_integer_bound_expression,
     normalize_immutable_integer_bound_to_usize,
 };
 pub use proof_embeddings::{ValidatedIntegerEmbeddingCall, integer_embedding_argument};
