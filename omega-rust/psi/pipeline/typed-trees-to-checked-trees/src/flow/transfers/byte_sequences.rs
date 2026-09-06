@@ -175,6 +175,23 @@ pub(super) fn append_element_replacement_predicates(
     ) else {
         return;
     };
+    // The element selector may vary; the retained whole-carrier fact must
+    // still name storage independently of mutable selectors.
+    if !semantic
+        .place_segments
+        .span_or_empty(semantic.places.get(carrier).segments)
+        .iter()
+        .all(|segment| {
+            matches!(
+                segment,
+                facts::PlaceSegment::Field { .. }
+                    | facts::PlaceSegment::Case { .. }
+                    | facts::PlaceSegment::FixedIndex { .. }
+            )
+        })
+    {
+        return;
+    }
     let Some(byte) = replacement_byte(
         program,
         semantic,

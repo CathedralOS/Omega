@@ -1,5 +1,38 @@
 use super::*;
 
+#[test]
+fn dynamic_byte_stores_preserve_only_proved_carrier_predicates() {
+    for (predicate, byte, succeeds) in [
+        ("ascii_only", 65, true),
+        ("ascii_only", 255, false),
+        ("no_nul", 65, true),
+        ("no_nul", 0, false),
+        ("valid_utf8", 65, false),
+    ] {
+        let source = format!(
+            r#"
+            domain [u8; 4]::Property requires {predicate}(self);
+            machine replace(output: &mut [u8; 4], position: u64 [0..=3])
+            requires output in Property
+            ensures output in Property {{
+                output[position] = 65;
+                output[position] = {byte};
+            }}
+            "#
+        );
+        let result = lower_typed_trees(parse_typed_trees(&source));
+        assert_eq!(result.is_ok(), succeeds, "{predicate}/{byte}: {result:#?}");
+        if let Err(diagnostics) = result {
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| { diagnostic.message.contains("cannot prove ensures") }),
+                "{predicate}/{byte}: {diagnostics:#?}"
+            );
+        }
+    }
+}
+
 const DEFINITIONS: &str = r#"
 domain [u8; 4]::Utf8 requires valid_utf8(self);
 domain [u8; 16]::Utf8 requires valid_utf8(self);
