@@ -3,7 +3,6 @@
 //! a strict decrease. No source subject or public termination claim is added.
 
 mod comparison;
-mod legacy;
 mod meaning;
 mod projection;
 
@@ -18,8 +17,6 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 
 use comparison::Comparison;
 use projection::RankProjection;
-
-pub(super) use legacy::has_scalar_legacy_rank;
 
 pub(super) fn extend_runtime_adjacency(
     program: &TypedTrees,
@@ -62,25 +59,25 @@ pub(super) fn admitted_components(
                 && component
                     .iter()
                     .all(|index| !proof_only.is_proof_machine(program, &program.machines()[*index]))
-                && component_is_ranked(program, adjacency, component)
+                && check_component(program, adjacency, component).is_ok()
         })
         .collect()
 }
 
-fn component_is_ranked(
+pub(super) fn check_component(
     program: &TypedTrees,
     adjacency: &[Vec<usize>],
     component: &[usize],
-) -> bool {
+) -> Result<(), &'static str> {
     let Some(ranks) = component
         .iter()
         .map(|index| RankProjection::resolve(program, &program.machines()[*index]))
         .collect::<Option<Vec<_>>>()
     else {
-        return false;
+        return Err("a member lacks a supported exact ranking witness");
     };
     if !ranks.iter().all(|rank| rank.same_order(&ranks[0])) {
-        return false;
+        return Err("members do not share the same ranking order");
     }
     let mut equal_edges = vec![Vec::new(); component.len()];
     for (position, index) in component.iter().copied().enumerate() {
@@ -89,9 +86,10 @@ fn component_is_ranked(
         // rebinding or internal loop needs its own arrival judgment, not a
         // same-spelled parameter in another state.
         let [state] = program.machine_states(machine) else {
-            return false;
+            return Err("the ranking needs entry-to-state arrival evidence");
         };
         let mut observed = Vec::new();
+        let mut guards = Vec::new();
         for statement in program.statement_table.statements(state.statement_nodes) {
             let StatementNode::Transition(transition) = statement else {
                 match statement {
@@ -108,11 +106,15 @@ fn component_is_ranked(
                     }
                     // Do not replay an entry-relative projection or a guard
                     // across writes, calls, aliases, or unknown effects.
-                    _ => return false,
+                    _ => {
+                        return Err(
+                            "a write, call, or alias invalidates the entry-relative ranking",
+                        );
+                    }
                 }
             };
             if transition.continuation.is_valid() {
-                return false;
+                return Err("a non-tail call edge returns into a continuation");
             }
             let guard = match transition.guard {
                 TransitionGuardNode::Always => ExpressionHandle::invalid(),
@@ -121,31 +123,38 @@ fn component_is_ranked(
                 {
                     guard
                 }
-                TransitionGuardNode::When(_) => return false,
+                TransitionGuardNode::When(_) => {
+                    return Err("a guard has effects or non-builtin operator meaning");
+                }
             };
+            let mut site_guards = guards.clone();
+            if guard.is_valid() {
+                site_guards.push((guard, true));
+                guards.push((guard, false));
+            }
             match program.statement_table.transition_target(transition.target) {
                 TransitionTargetNode::Named {
                     path, arguments, ..
                 } => {
                     let Some(callee) = target_machine(program, path.symbol) else {
-                        return false;
+                        return Err("a call target has no exact machine identity");
                     };
                     let callee_machine = &program.machines()[callee];
                     let Some(entry) = program.machine_states(callee_machine).first() else {
-                        return false;
+                        return Err("a call target has no checked entry binding");
                     };
                     if path.symbol != callee_machine.symbol && path.symbol != entry.symbol {
-                        return false;
+                        return Err("a subordinate-state call needs its own arrival evidence");
                     }
                     if callee == index {
-                        return false;
+                        return Err("an internal state loop needs its own ranking evidence");
                     }
                     let arguments = program.statement_table.expression_handles(*arguments);
                     if !arguments
                         .iter()
                         .all(|argument| expression_is_inert(program, machine.symbol, *argument))
                     {
-                        return false;
+                        return Err("a call argument has effects or non-builtin operator meaning");
                     }
                     observed.push(callee);
                     let Some(callee_position) = component.iter().position(|index| *index == callee)
@@ -159,27 +168,31 @@ fn component_is_ranked(
                             .filter(|parameter| !parameter.is_self)
                             .count()
                     {
-                        return false;
+                        return Err("call arguments do not match the exact entry parameters");
                     }
                     let Some(argument) = arguments.get(ranks[callee_position].argument_position)
                     else {
-                        return false;
+                        return Err("the ranked parameter has no corresponding actual argument");
                     };
                     match comparison::argument_comparison(
                         program,
                         &ranks[position],
                         *argument,
-                        guard,
+                        &site_guards,
                     ) {
                         Some(Comparison::Strict) => {}
                         Some(Comparison::Equal) => equal_edges[position].push(callee_position),
-                        None => return false,
+                        None => {
+                            return Err(
+                                "ranking preservation or strict DECREASE is unproven at a call site",
+                            );
+                        }
                     }
                 }
                 TransitionTargetNode::Value(value)
                     if expression_is_inert(program, machine.symbol, *value) => {}
                 TransitionTargetNode::Terminal => {}
-                _ => return false,
+                _ => return Err("a non-tail call or unknown effect prevents ranking admission"),
             }
         }
         // A pair-level strict occurrence cannot hide an unclassified call,
@@ -189,10 +202,14 @@ fn component_is_ranked(
             .filter(|target| component.contains(target))
             .any(|target| !observed.contains(target))
         {
-            return false;
+            return Err("an internal call occurrence lacks a classified tail edge");
         }
     }
-    equality_edges_are_acyclic(&equal_edges)
+    if equality_edges_are_acyclic(&equal_edges) {
+        Ok(())
+    } else {
+        Err("a preserving cycle has no strict measure DECREASE")
+    }
 }
 
 fn equality_edges_are_acyclic(adjacency: &[Vec<usize>]) -> bool {

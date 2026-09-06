@@ -55,8 +55,9 @@ discharge the inherited claim.
 
 ## Ranking witnesses
 
-`terminates by subject -> View` selects a well-founded ranking theory and
-requires the produced rank to become strictly smaller on every cyclic edge.
+`terminates by subject -> View` selects a well-founded ranking theory. State
+transition cycles require strict descent on each cyclic edge; mutually
+recursive calls use the joint-cycle rule below.
 The vocabulary is direction-neutral:
 
 ```omega
@@ -122,14 +123,18 @@ and private normalized ranking witness). Requirement-binding and component
 tooling pin the former without incorporating proof-local material from the
 latter.
 
-Mutually recursive or mutually cyclic machines use one joint ranking for the
-strongly connected component, and every cyclic edge must decrease it. The
-exact source spelling for differently shaped participants remains deferred;
-the normalized SCC rule is settled.
+Mutually recursive machines use one joint ranking for the strongly connected
+call component, and every complete cycle through its call graph must decrease
+that ranking. A forwarding call may preserve the rank when every cycle still
+contains strict descent. Checking only a DFS traversal's discovered cycles is
+insufficient: a preserving cross-edge cycle must also reject. The exact source
+spelling for differently shaped participants remains deferred; the normalized
+joint-cycle rule is settled.
 
 The future proof-certificate form preserves that granularity. One recursive
 component cites the selected ranking relation and its well-foundedness evidence
-once; every intra-component edge carries its own strict-decrease proof. The
+once; every intra-component edge carries its own rank-comparison proof, and
+the component check establishes descent on every complete cycle. The
 well-foundedness citation is not repeated per call, and a local decrease never
 stands in for the global fact that the relation admits no infinite descent.
 Both kinds of evidence retain provenance, so an admitted custom ranking theory
@@ -350,7 +355,8 @@ contract, not in the hidden ranking witness.
 5. An increasing cursor is accepted through a bounded ranking view without an
    authored subtraction.
 6. Adding a second user measure cannot reinterpret a short-form witness.
-7. Every edge in a mutually cyclic component decreases one joint ranking.
+7. Every complete mutual call cycle decreases one joint ranking; forwarding
+   edges cannot hide a preserving cycle.
 8. `terminates` plus `suspends` remains conditional on the pinned wake/progress
    premises; the reach row alone cannot invent them.
 9. An ungranted provider cannot self-assert a sealed progress profile; only an

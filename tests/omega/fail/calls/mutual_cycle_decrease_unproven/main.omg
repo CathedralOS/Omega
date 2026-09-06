@@ -1,6 +1,5 @@
-// MR4 admission negative twin (2026-07-20): the all-tail measured shape
-// QUALIFIES but ping's edge passes `n` unchanged -- the strict decrease is
-// unprovable and the cycle keeps its refusal, verdict naming the edge.
+// Both tail calls preserve n. No complete cycle decreases the joint rank,
+// so a measured signature alone cannot establish termination.
 use omega::language::std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) {
@@ -24,6 +23,6 @@ terminates by n;
 {
     transition n == 0 {
         true -> (0)
-        _ -> self.ping(n - 1)
+        _ -> self.ping(n)
     }
 }

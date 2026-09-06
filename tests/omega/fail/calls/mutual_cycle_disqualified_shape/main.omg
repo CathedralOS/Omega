@@ -1,6 +1,5 @@
-// The NOT-met verdict names each disqualifier: ping calls pong in VALUE
-// position (a frame-growing call, not a tail transition arm target) and
-// neither machine carries a termination witness.
+// Neither machine carries a termination witness. This prevents admission
+// before classifying ping's non-tail call to pong.
 use omega::language::std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) {

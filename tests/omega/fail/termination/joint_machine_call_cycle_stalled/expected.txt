@@ -1,1 +1,1 @@
-strict measure DECREASE is unproven on edge(s)
+preserving cycle has no strict measure DECREASE

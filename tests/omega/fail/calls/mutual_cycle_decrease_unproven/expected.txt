@@ -1,1 +1,1 @@
-strict measure DECREASE is unproven on edge(s): `Main::ping` -> `Main::pong`
+preserving cycle has no strict measure DECREASE
