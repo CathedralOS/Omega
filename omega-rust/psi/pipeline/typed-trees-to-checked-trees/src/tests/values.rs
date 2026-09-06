@@ -1,6 +1,7 @@
 use super::*;
 use checked_trees::{CheckedScalarBindingValue, CheckedValueStatementRole};
 
+mod guard_operator_custody;
 mod guard_parameter_bounds;
 mod source_bindings;
 

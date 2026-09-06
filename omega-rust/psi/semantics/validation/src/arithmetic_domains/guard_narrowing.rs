@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 use super::*;
 
 mod arrivals;
+mod meaning;
 mod parameter_bounds;
 pub use arrivals::arrival_integer_expression_bounds;
 
@@ -340,6 +341,19 @@ pub(super) fn narrow_env_by_condition(
         }
         BinaryOperator::And | BinaryOperator::Or => return,
         _ => {}
+    }
+    // An authored ordered operator does not imply the primitive comparison
+    // relation, even when one operand happens to be a literal or singleton.
+    // Gate every fact consumer below, not only immutable-parameter projection.
+    if matches!(
+        comparison.operator,
+        BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
+    ) && !meaning::builtin_ordering(program, machine, state, condition, comparison)
+    {
+        return;
     }
     let comparison = *comparison;
     // Float facts are independent from the integer interval lattice. A
