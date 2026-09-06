@@ -261,6 +261,24 @@ fn condition_alias_cycles_fail_closed_without_a_depth_limit() {
 }
 
 #[test]
+fn reverse_edge_alias_keeps_the_entry_formals_selected_polarity() {
+    let formal = value(1, ScalarType::Boolean);
+    let alias = value(4, ScalarType::Boolean);
+    let axioms = [Proposition::Equal(alias, formal.clone())];
+    for positive in [false, true] {
+        assert_eq!(
+            condition_fact(ValueId::new(4).unwrap(), positive, &axioms, &|id| {
+                ScalarTerm::value(id, ScalarType::Boolean)
+            }),
+            Some(Proposition::Equal(
+                formal.clone(),
+                ScalarTerm::Boolean(positive)
+            )),
+        );
+    }
+}
+
+#[test]
 fn disequality_at_carrier_extrema_does_not_wrap_adjacent_bounds() {
     for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
         let scalar_type = IntegerType::new(sign, 128).unwrap();

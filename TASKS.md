@@ -552,15 +552,14 @@ Owners include
   owner, and prove equivalent Boolean route spellings during Terminal call
   coverage. Acceptance: `requires !flag` covers an unconditional callee under
   `crashes Trap !flag` without changing the callee's exact continuation routes.
-  Reconstruct direct crash-site guard truth in Terminal verification from entry
-  requirements and per-site CFG facts; current shape, scope, and published-route
-  membership checks do not prove the asserted guard. Acceptance: changing an
-  unconditional site's claimed guard to an unestablished entry predicate, or
-  removing the requirement/branch that establishes it, rejects independently of
-  producer evidence while valid guarded crashes still verify.
-  Retain exact entry-value origins for mutable scalar guard operands so unchanged
+  Retain exact entry-value origins for mutable scalar guard operands and
+  unversioned structural observations on owned or mutable roots so unchanged
   entry values can establish published crash routes; a current storage predicate
-  alone is not entry-snapshot evidence.
+  alone is not entry-snapshot evidence. Acceptance: an unchanged entry observation
+  can prove its guarded route, while a later write or mutable call cannot prove
+  that the new value existed at entry. Extend direct ranked crash-site proofs
+  beyond entry requirements using independently checked all-path invariants;
+  ignored-backedge first-pass facts must never authorize a loop crash guard.
   Complete [exact anonymous division and landing](wiki/language_guide/chapter_5_expressions_evaluation.md#exact-anonymous-division-and-landing)
   for the remaining parameter and aggregate destinations, numeric policies, float
   landing, constant arguments, and their proof consumers. Preserve exact rational

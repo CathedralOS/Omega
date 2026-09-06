@@ -24,6 +24,7 @@ mod substitution;
 use evidence_provenance::validate_evidence_producer_provenance;
 pub use float_meaning_projection::*;
 pub use proof_bundle::*;
+pub(crate) use reconstruction::reconstruct_validated_crash_site_facts;
 use reconstruction::reconstruct_validated_terminal_obligations;
 pub use reconstruction::{
     ReconstructedOperationObligation, ReconstructedTerminalObligation,
