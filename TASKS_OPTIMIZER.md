@@ -136,23 +136,6 @@ needed for independent replay through publication.
   requirements artifacts
   remain non-authoritative until that replay succeeds.
 
-  An authored empty machine selected for optimization resolves to
-  `CanonicalFixedFrameBodyV1`, not the Unit baseline route, so
-  `validate_unit_shape` in
-  `backend/machine-emission/src/function_realization/unit/source.rs`
-  rejects the selected plan an ordinary `machine Main::launch() {}` produces.
-  The fixed-frame route takes the AAPCS64 leaf exemption
-  (`ReturnAddressFrameCustody::LiveLinkRegister`, zero frame), so its AArch64
-  function is a bare `ret` and `image-emission` rejects it as
-  `MissingAarch64UnitReturnLink`; every function that route can currently
-  publish carries `unit_stack` evidence, which the object boundary requires a
-  saved link register for. Establish which of the two is wrong - the Unit
-  shape test, or the leaf exemption for a Unit-bodied function - before
-  changing either; broadening the fixed-frame policy would also reframe
-  AArch64 scalar leaves, which the boundary admits frameless today.
-  Acceptance: `optimized_empty_machine_reaches_object_custody` in
-  `native-realization` covers `linux_arm64` as well.
-
 - **GENERAL-CALL-CLOBBERS.** Extend live-across-call allocation and clobber
   validation from the landed attached-Unit fork/join slice through general
   scalar and structural calls on each ABI.
