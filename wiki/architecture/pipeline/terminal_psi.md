@@ -864,8 +864,8 @@ interval, and bytes. Object construction replays the architecture encoding,
 and installation format 51 transports every store field and rejects semantic,
 source, home, interval, or byte substitution. The ordinary production compiler
 uses this lane when no optimization is selected. General mutable-borrow
-writeback remains blocked on the language's native structural-parameter
-identity contract; the landed direct fixture observes its store in the
+writeback still requires complete native structural-parameter identity
+enforcement; the direct fixture observes its store in the
 following call before returning. `WriteOnlyPrimitiveStore` remains the distinct
 whole-root operation.
 
@@ -874,7 +874,8 @@ attached-Unit replacement with no dynamic dispatch. Its checked source is one
 fixed-integer or Boolean literal, one exact same-typed scalar parameter, or the
 fixed-integer result of one immediately preceding ordinary scalar call or
 selected boundary-operator realization through the sole
-unrestricted-or-affine mutable/write-only record parameter, with an exact
+unrestricted-or-affine mutable/write-only record parameter or mutable receiver,
+with an exact
 field write frame or the indexed form's sole conservative containing-array
 frame and no claims or qualifications. An empty carrier path denotes a
 primitive field directly on the root record; a nonempty path names each
@@ -885,11 +886,20 @@ Checked-to-Terminal lowering shares the dynamic realization path/type replay
 rather than maintaining a second field walker. Abstract and target lowering
 independently reconstruct direct and nested byte offsets, and assignment,
 machine emission, object construction, and installation replay preserve the
-exact non-self parameter home, scalar parameter location or durable result
+exact parameter home, scalar parameter location or durable result
 home, and store bytes on x86-64 and AArch64. Multiple writes, observations,
 delayed results, arithmetic locals, nested or dynamic indexes, ranges,
 aggregate array elements, cases, erased fields, constrained data, and opaque
 shapes remain fail-closed.
+
+Receiver stores resolve source `Self` through the machine's exact attachment
+declaration and retain `is_self` at structural position zero. Their write frame
+uses the receiver root `self`, not the ordinary parameter root `$P0`; neither
+an opaque frame nor a substituted field/root authorizes a literal store.
+Callable receiver storage and executable entry provisioning are separate:
+direct native executable realization rejects a retained receiver entry until
+the generated bridge supplies its root-backed, initialized activation loan.
+An attached namespace with no runtime receiver parameter needs no such pointer.
 
 This native coverage alone does not establish caller-visible structural
 mutation after return. The [structural borrow identity contract](../../design_briefs/core_multiplicity_and_linearity.md#structural-borrow-identity-at-native-calls)

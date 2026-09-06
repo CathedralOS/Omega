@@ -236,6 +236,20 @@ fn projected_structural_scalar_field_store_validates_and_rejects_corruption() {
     validate_psi_optimization_unit(&structural_scalar_field_store_unit())
         .expect("an exact mutable projected scalar store validates");
 
+    let mut affine = structural_scalar_field_store_unit();
+    affine.functions[0].structural_parameters[0].multiplicity =
+        terminal_psi::StructuralMultiplicity::Affine;
+    let O::StructuralScalarFieldStore { destination, .. } =
+        &mut affine.functions[0].blocks[0].nodes[1].operation
+    else {
+        unreachable!()
+    };
+    destination.multiplicity = terminal_psi::StructuralMultiplicity::Affine;
+    refresh_node_derivatives(&mut affine, 0, 0, 1);
+    refresh_identity(&mut affine);
+    validate_psi_optimization_unit(&affine)
+        .expect("an exact affine mutable loan retains the same store authority");
+
     let mut access = structural_scalar_field_store_unit();
     access.functions[0].structural_parameters[0].access =
         terminal_psi::StructuralAccess::SharedBorrow;

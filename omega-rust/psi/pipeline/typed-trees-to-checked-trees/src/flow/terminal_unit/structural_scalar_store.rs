@@ -28,8 +28,7 @@ pub(super) fn build_structural_scalar_field_store(
     let [destination] = structural_parameters else {
         return None;
     };
-    if destination.is_self
-        || destination.position != 0
+    if destination.position != 0
         || destination.multiplicity == Multiplicity::Linear
         || !matches!(
             destination.access,
@@ -42,7 +41,7 @@ pub(super) fn build_structural_scalar_field_store(
     let source_parameters = program.state_parameters(state);
     let parameter = source_parameters.first()?;
     if source_parameters.len() != scalar_parameters.len() + 1
-        || parameter.is_self
+        || parameter.is_self != destination.is_self
         || parameter.is_const
         || !parameter.is_mutable
     {
@@ -65,7 +64,16 @@ pub(super) fn build_structural_scalar_field_store(
         return None;
     }
     let mut carrier_type = *referee;
-    let root_owner = crate::field_domain::data_definition_for_field_type(program, carrier_type)?;
+    // A receiver's source referent is `Self`; its declaration identity comes
+    // from the machine attachment, not a global lookup of that spelling.
+    let root_owner = if destination.is_self {
+        program
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == machine.attached_data_symbol)?
+    } else {
+        crate::field_domain::data_definition_for_field_type(program, carrier_type)?
+    };
     if !plain_record(root_owner, program) {
         return None;
     }
@@ -86,12 +94,12 @@ pub(super) fn build_structural_scalar_field_store(
         return None;
     };
     let mut carrier_path = Vec::with_capacity(carrier_segments.len());
+    let mut carrier_owner = Some(root_owner);
     let mut reached_array = false;
     for segment in carrier_segments {
         match segment {
             facts::PlaceSegment::Field { symbol } if !reached_array => {
-                let field_owner =
-                    crate::field_domain::data_definition_for_field_type(program, carrier_type)?;
+                let field_owner = carrier_owner?;
                 if !plain_record(field_owner, program) {
                     return None;
                 }
@@ -105,6 +113,8 @@ pub(super) fn build_structural_scalar_field_store(
                     terminal_field_identity(program, carrier.symbol)?,
                 ));
                 carrier_type = carrier.type_reference;
+                carrier_owner =
+                    crate::field_domain::data_definition_for_field_type(program, carrier_type);
             }
             facts::PlaceSegment::FixedIndex { index } if !reached_array => {
                 reached_array = true;
@@ -122,11 +132,13 @@ pub(super) fn build_structural_scalar_field_store(
                     u64::try_from(*index).ok()?,
                 ));
                 carrier_type = *element_type;
+                carrier_owner =
+                    crate::field_domain::data_definition_for_field_type(program, carrier_type);
             }
             _ => return None,
         }
     }
-    let field_owner = crate::field_domain::data_definition_for_field_type(program, carrier_type)?;
+    let field_owner = carrier_owner?;
     if !plain_record(field_owner, program) {
         return None;
     }
@@ -143,11 +155,15 @@ pub(super) fn build_structural_scalar_field_store(
     let source_path =
         crate::labels::canonical_place_label_from_parts(program, place.root, &place.segments);
     let source_root = crate::labels::canonical_place_label_from_parts(program, place.root, &[]);
-    let expected_mutation_path = format!(
-        "$P{}{}",
-        destination.position,
-        source_path.strip_prefix(&source_root)?,
-    );
+    // Mutation summaries name the receiver separately from the ordinary
+    // parameter roster, even when it occupies structural position zero.
+    let mutation_root = if destination.is_self {
+        "self".to_owned()
+    } else {
+        format!("$P{}", destination.position)
+    };
+    let expected_mutation_path =
+        format!("{mutation_root}{}", source_path.strip_prefix(&source_root)?,);
     let array_collection_mutation_path = place
         .segments
         .iter()
@@ -159,8 +175,7 @@ pub(super) fn build_structural_scalar_field_store(
                 &place.segments[..first_index],
             );
             Some(format!(
-                "$P{}{}",
-                destination.position,
+                "{mutation_root}{}",
                 collection_path.strip_prefix(&source_root)?
             ))
         });

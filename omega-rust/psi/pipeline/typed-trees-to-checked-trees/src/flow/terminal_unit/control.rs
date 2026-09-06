@@ -968,11 +968,10 @@ pub(super) fn build_checked_machine(
         false,
     )
     .or_else(|| {
-        // ponytail: a borrowed `self` becomes structural parameter 0 only when
+        // A borrowed `self` becomes structural parameter 0 only when
         // the ambient attachment cannot plan the body, so every machine that
         // planned before keeps its exact shape. Retain it unconditionally once
-        // `validate_provider_attachment_specialization` (omega) admits a self
-        // beside provider roots and the entry bridge passes the loan.
+        // the entry bridge provisions the receiver and passes its loan.
         let [state] = program.machine_states(machine) else {
             return None;
         };
