@@ -1058,6 +1058,10 @@ fn build_checked_machine_with(
                 let structural =
                     free_selected_operator_structural_signature(program, shapes, state, &binders)?;
                 (None, structural, Vec::new())
+            } else if carries_scalar_parameter {
+                let (structural, scalar) =
+                    free_structural_scalar_signature(program, shapes, state, &binders)?;
+                (None, structural, scalar)
             } else {
                 (
                     None,

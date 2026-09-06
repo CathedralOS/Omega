@@ -3133,10 +3133,16 @@ from the same complete Unit-body lowering as standalone Unit machines.
 Free callees keep no attachment; a static data qualifier does not manufacture
 a receiver.
 
-For Unit signatures without runtime structural parameters, scalar-dependent
-crash ceilings use the formal scalar declarations. Ordinary and composed Unit
-calls instantiate the checked parameter-relative routes with the exact completed
-arguments, including equal and reordered operands. The independent verifier
+Unit crash ceilings may combine Boolean and fixed-integer scalar parameters
+with the supported structural member predicates. Scalar parameters use dense
+primitive positions; structural predicate roots retain authored positions, which
+lowering explicitly maps to the emitted structural places. The runtime signature
+still uses dense structural positions. Free and hosted mixed-signature Unit
+functions share the same parameter collector; free functions gain no attachment
+or receiver. Ordinary calls instantiate the checked parameter-relative routes
+with the exact completed scalar arguments and structural places, including equal
+and reordered operands. Composed internal calls retain their scalar-only argument
+restriction. The independent verifier
 substitutes scalar values as well as structural places in the callee contract
 and requires the exact invocation routes and caller-ceiling coverage. A true
 guard permits a crash; it does not execute one. Explicit crashes in the invoked
@@ -3193,8 +3199,9 @@ inventing a direct boundary requirement from a callee's independent call.
 
 Later structural-result initializers and returned calls still need connections
 to the shared evaluator. Structural arguments on composed internal calls,
-scalar-dependent Unit crash predicates on mixed scalar/structural signatures,
-and caller-ceiling proofs for computed-argument routes remain implementation work.
+scalar-dependent runtime requirements for proof-gated mixed-signature crash
+arithmetic, and caller-ceiling proofs for computed-argument routes remain
+implementation work.
 Existing control-state signature restrictions remain; operand evaluation does
 not itself add general scalar state-argument transport or computed dispatch guards.
 

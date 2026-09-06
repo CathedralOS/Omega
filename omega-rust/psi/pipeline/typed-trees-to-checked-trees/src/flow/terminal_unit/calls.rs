@@ -2745,17 +2745,59 @@ pub(super) fn structural_scalar_signature(
     Vec<CheckedUnitStructuralParameterPlan>,
     Vec<CheckedStructuralScalarParameterPlan>,
 )> {
-    let parameters = program.state_parameters(state);
     let attached_name = machine.attached_data.as_ref()?;
     let attached = program
         .data_definitions()
         .iter()
         .find(|data| data.name == *attached_name)?;
     let attachment_type_identity = shapes.add_attached_data(attached, binders)?;
-    let attachment_multiplicity = attached.properties.multiplicity;
+    let (structural_parameters, scalar_parameters) = scalar_and_structural_parameters(
+        program,
+        shapes,
+        state,
+        binders,
+        Some((&attachment_type_identity, attached.properties.multiplicity)),
+        retain_reference_self,
+    )?;
+    Some((
+        attachment_type_identity,
+        structural_parameters,
+        scalar_parameters,
+    ))
+}
+
+pub(super) fn free_structural_scalar_signature(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    state: &typed_trees::state::State,
+    binders: &[(SymbolHandle, String)],
+) -> Option<(
+    Vec<CheckedUnitStructuralParameterPlan>,
+    Vec<CheckedStructuralScalarParameterPlan>,
+)> {
+    if !binders.is_empty() {
+        return None;
+    }
+    scalar_and_structural_parameters(program, shapes, state, binders, None, false)
+}
+
+fn scalar_and_structural_parameters(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    state: &typed_trees::state::State,
+    binders: &[(SymbolHandle, String)],
+    attachment: Option<(&str, Multiplicity)>,
+    retain_reference_self: bool,
+) -> Option<(
+    Vec<CheckedUnitStructuralParameterPlan>,
+    Vec<CheckedStructuralScalarParameterPlan>,
+)> {
     let mut structural_parameters = Vec::new();
     let mut scalar_parameters = Vec::new();
-    for (position, parameter) in parameters.iter().enumerate() {
+    for (position, parameter) in program.state_parameters(state).iter().enumerate() {
+        if parameter.is_self && attachment.is_none() {
+            return None;
+        }
         let source_position = u32::try_from(position).ok()?;
         if program
             .primitive_type_reference(parameter.type_reference)
@@ -2774,7 +2816,7 @@ pub(super) fn structural_scalar_signature(
             continue;
         }
         let type_identity = if parameter.is_self {
-            attachment_type_identity.clone()
+            attachment?.0.to_owned()
         } else {
             shapes.add_type(parameter.type_reference, binders, &[])?
         };
@@ -2785,7 +2827,7 @@ pub(super) fn structural_scalar_signature(
             is_self: parameter.is_self,
             type_identity,
             multiplicity: if parameter.is_self {
-                attachment_multiplicity
+                attachment?.1
             } else {
                 crate::checks::type_multiplicity(program, parameter.type_reference)
             },
@@ -2794,11 +2836,7 @@ pub(super) fn structural_scalar_signature(
             fused_service_erasure: None,
         });
     }
-    Some((
-        attachment_type_identity,
-        structural_parameters,
-        scalar_parameters,
-    ))
+    Some((structural_parameters, scalar_parameters))
 }
 
 pub(super) fn entry_claims(

@@ -712,6 +712,7 @@ fn safe_exact_structural_shift(
 
 pub(super) fn lower_structural_crash_route_buckets(
     buckets: &[checked_trees::CrashRouteBucket],
+    scalar_parameters: &[ValueDeclaration],
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
     runtime_requirements: &[Proposition],
@@ -733,17 +734,22 @@ pub(super) fn lower_structural_crash_route_buckets(
 
     fn lower_term(
         expression: &CheckedBooleanExpression,
+        scalar_parameters: &[ValueDeclaration],
         parameters: &[StructuralParameterDeclaration],
         structural_types: &[StructuralTypeDeclaration],
         runtime_requirements: &[Proposition],
     ) -> Result<ScalarTerm, LoweringError> {
         fn lower_integer_term(
             expression: &CheckedScalarExpression,
+            scalar_parameters: &[ValueDeclaration],
             parameters: &[StructuralParameterDeclaration],
             structural_types: &[StructuralTypeDeclaration],
             runtime_requirements: &[Proposition],
         ) -> Result<ScalarTerm, LoweringError> {
             match expression {
+                CheckedScalarExpression::Parameter { .. } => {
+                    checked_scalar_term(expression, scalar_parameters)
+                }
                 CheckedScalarExpression::StructuralParameterField {
                     parameter_position,
                     path,
@@ -783,6 +789,7 @@ pub(super) fn lower_structural_crash_route_buckets(
                     };
                     let operand = lower_integer_term(
                         operand,
+                        scalar_parameters,
                         parameters,
                         structural_types,
                         runtime_requirements,
@@ -810,12 +817,14 @@ pub(super) fn lower_structural_crash_route_buckets(
                     };
                     let left = lower_integer_term(
                         left,
+                        scalar_parameters,
                         parameters,
                         structural_types,
                         runtime_requirements,
                     )?;
                     let right = lower_integer_term(
                         right,
+                        scalar_parameters,
                         parameters,
                         structural_types,
                         runtime_requirements,
@@ -853,12 +862,14 @@ pub(super) fn lower_structural_crash_route_buckets(
                     };
                     let value = lower_integer_term(
                         left,
+                        scalar_parameters,
                         parameters,
                         structural_types,
                         runtime_requirements,
                     )?;
                     let count = lower_integer_term(
                         right,
+                        scalar_parameters,
                         parameters,
                         structural_types,
                         runtime_requirements,
@@ -942,12 +953,14 @@ pub(super) fn lower_structural_crash_route_buckets(
                     };
                     let left = Box::new(lower_integer_term(
                         left,
+                        scalar_parameters,
                         parameters,
                         structural_types,
                         runtime_requirements,
                     )?);
                     let right = Box::new(lower_integer_term(
                         right,
+                        scalar_parameters,
                         parameters,
                         structural_types,
                         runtime_requirements,
@@ -1099,6 +1112,9 @@ pub(super) fn lower_structural_crash_route_buckets(
 
         match expression {
             CheckedBooleanExpression::Constant(value) => Ok(ScalarTerm::boolean(*value)),
+            CheckedBooleanExpression::Parameter { .. } => {
+                checked_boolean_scalar_term(expression, scalar_parameters)
+            }
             CheckedBooleanExpression::StorageRead { .. } => {
                 unsupported("crash predicate cannot reconstruct mutable storage")
             }
@@ -1114,21 +1130,44 @@ pub(super) fn lower_structural_crash_route_buckets(
             ),
             CheckedBooleanExpression::Not(operand) => ScalarTerm::boolean_not(lower_term(
                 operand,
+                scalar_parameters,
                 parameters,
                 structural_types,
                 runtime_requirements,
             )?)
             .map_err(LoweringError::InvalidCrashPredicate),
             CheckedBooleanExpression::Equal { left, right } => ScalarTerm::boolean_equal(
-                lower_term(left, parameters, structural_types, runtime_requirements)?,
-                lower_term(right, parameters, structural_types, runtime_requirements)?,
+                lower_term(
+                    left,
+                    scalar_parameters,
+                    parameters,
+                    structural_types,
+                    runtime_requirements,
+                )?,
+                lower_term(
+                    right,
+                    scalar_parameters,
+                    parameters,
+                    structural_types,
+                    runtime_requirements,
+                )?,
             )
             .map_err(LoweringError::InvalidCrashPredicate),
             CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
-                let left =
-                    lower_integer_term(left, parameters, structural_types, runtime_requirements)?;
-                let right =
-                    lower_integer_term(right, parameters, structural_types, runtime_requirements)?;
+                let left = lower_integer_term(
+                    left,
+                    scalar_parameters,
+                    parameters,
+                    structural_types,
+                    runtime_requirements,
+                )?;
+                let right = lower_integer_term(
+                    right,
+                    scalar_parameters,
+                    parameters,
+                    structural_types,
+                    runtime_requirements,
+                )?;
                 let ScalarType::Integer(integer_type) = left.scalar_type() else {
                     return unsupported("structural crash comparison operand is not an integer");
                 };
@@ -1157,8 +1196,7 @@ pub(super) fn lower_structural_crash_route_buckets(
             CheckedBooleanExpression::StructuralCaseMembership { .. } => {
                 unsupported("sum membership lowers as an atomic proposition")
             }
-            CheckedBooleanExpression::Parameter { .. }
-            | CheckedBooleanExpression::Local { .. }
+            CheckedBooleanExpression::Local { .. }
             | CheckedBooleanExpression::And { .. }
             | CheckedBooleanExpression::Or { .. } => {
                 unsupported("structural crash route contains an unsupported Boolean term")
@@ -1168,6 +1206,7 @@ pub(super) fn lower_structural_crash_route_buckets(
 
     fn lower_proposition(
         expression: &CheckedBooleanExpression,
+        scalar_parameters: &[ValueDeclaration],
         parameters: &[StructuralParameterDeclaration],
         structural_types: &[StructuralTypeDeclaration],
         runtime_requirements: &[Proposition],
@@ -1202,6 +1241,7 @@ pub(super) fn lower_structural_crash_route_buckets(
             return Ok(Proposition::Implication {
                 premise: Box::new(lower_proposition(
                     operand,
+                    scalar_parameters,
                     parameters,
                     structural_types,
                     runtime_requirements,
@@ -1355,7 +1395,13 @@ pub(super) fn lower_structural_crash_route_buckets(
             let propositions = leaves
                 .into_iter()
                 .map(|leaf| {
-                    lower_proposition(leaf, parameters, structural_types, runtime_requirements)
+                    lower_proposition(
+                        leaf,
+                        scalar_parameters,
+                        parameters,
+                        structural_types,
+                        runtime_requirements,
+                    )
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             let mut flattened = Vec::new();
@@ -1380,10 +1426,8 @@ pub(super) fn lower_structural_crash_route_buckets(
                 .collect::<Result<Vec<_>, _>>()?;
             keyed.sort_by(|left, right| left.0.cmp(&right.0));
             keyed.dedup_by(|left, right| left.0 == right.0);
-            if keyed.len() < 2 {
-                return unsupported(
-                    "structural crash connective must retain at least two distinct predicates",
-                );
+            if keyed.len() == 1 {
+                return Ok(keyed.pop().expect("one distinct crash predicate").1);
             }
             let propositions = keyed
                 .into_iter()
@@ -1395,15 +1439,23 @@ pub(super) fn lower_structural_crash_route_buckets(
                 Proposition::Disjunction(propositions)
             });
         }
-        Ok(Proposition::Equal(
-            ScalarTerm::boolean(true),
-            lower_term(
-                expression,
-                parameters,
-                structural_types,
-                runtime_requirements,
-            )?,
-        ))
+        let mut left = ScalarTerm::boolean(true);
+        let mut right = lower_term(
+            expression,
+            scalar_parameters,
+            parameters,
+            structural_types,
+            runtime_requirements,
+        )?;
+        let order_key = |term: &ScalarTerm| {
+            terminal_codec::canonical_scalar_term_order_key(term).map_err(|_| {
+                LoweringError::Unsupported("mixed crash Boolean term is not canonically encodable")
+            })
+        };
+        if order_key(&left)? > order_key(&right)? {
+            std::mem::swap(&mut left, &mut right);
+        }
+        Ok(Proposition::Equal(left, right))
     }
 
     buckets
@@ -1420,6 +1472,7 @@ pub(super) fn lower_structural_crash_route_buckets(
                         let proposition = if let Some(expression) = predicate.scalar_expression() {
                             lower_proposition(
                                 expression,
+                                scalar_parameters,
                                 parameters,
                                 structural_types,
                                 runtime_requirements,

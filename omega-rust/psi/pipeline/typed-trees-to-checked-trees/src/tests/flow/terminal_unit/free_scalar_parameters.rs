@@ -120,22 +120,38 @@ fn free_unit_scalar_admission_rejects_parameter_shape_drift() {
 }
 
 #[test]
-fn free_scalar_admission_does_not_admit_unrelated_structural_signatures() {
+fn free_mixed_signature_reuses_hosted_parameter_custody_without_attachment() {
     let checked = checked(
         r#"
         data Record { value: u16; }
-        machine record_input(value: u16, record: Record) {}
+        data Host {}
+        machine record_input(before: bool, record: Record, after: bool) {}
+        machine Host::record_input(before: bool, record: Record, after: bool) {}
         machine reference_input(value: &u16) {}
     "#,
     );
-    for name in ["record_input", "reference_input"] {
-        assert!(
-            checked
-                .facts
-                .flow
-                .terminal_unit_effects
-                .for_machine(machine_named(&checked, name))
-                .is_none()
-        );
-    }
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let free = plans
+        .for_machine(machine_named(&checked, "record_input"))
+        .expect("free mixed Unit signature");
+    let hosted = plans
+        .for_machine(machine_named(&checked, "Host::record_input"))
+        .expect("hosted mixed Unit signature");
+    assert!(free.attachment_type_identity.is_none());
+    assert!(hosted.attachment_type_identity.is_some());
+    assert_eq!(free.scalar_parameters, hosted.scalar_parameters);
+    assert_eq!(free.structural_parameters, hosted.structural_parameters);
+    assert!(matches!(free.scalar_parameters.as_slice(), [before, after]
+        if before.source_position == 0 && after.source_position == 2
+            && before.primitive_type == PrimitiveType::Bool && after.primitive_type == PrimitiveType::Bool));
+    assert!(matches!(free.structural_parameters.as_slice(), [record]
+        if record.position == 1 && !record.is_self && record.access == checked_trees::CheckedStructuralAccess::Owned
+            && record.multiplicity == Multiplicity::Affine && record.qualifications.is_empty()
+            && record.fused_service_erasure.is_none()));
+    assert!(
+        plans
+            .for_machine(machine_named(&checked, "reference_input"))
+            .is_none(),
+        "the independent primitive-reference-only lane remains unsupported"
+    );
 }

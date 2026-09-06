@@ -1,5 +1,7 @@
 use super::*;
 
+mod mixed_parameters;
+
 #[test]
 fn direct_crash_fallthrough_projects_immutable_entry_snapshots() {
     for (guard, route) in [
