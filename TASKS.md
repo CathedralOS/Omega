@@ -155,10 +155,7 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   `typed-trees-to-checked-trees/src/checks/termination/ranking/`.
   Named-state and machine-call-component ranges need exact arrival mappings
   for ranked subjects and pinned endpoints. Mutable premises need live
-  write-frame evidence. The static range tier still routes directly to the
-  existing descent recognizer: when membership is already proved but that
-  recognizer cannot prove an otherwise valid decrease, it must also be able to
-  consume the relational edge proof without conflating membership and descent.
+  write-frame evidence.
   Custom scalar views and slice-length ranges need their produced-rank facts.
   These are implementation gaps, not grounds to weaken the range obligation.
 

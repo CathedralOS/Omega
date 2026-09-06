@@ -3,6 +3,7 @@ use super::{
 };
 
 mod relational;
+mod static_fallback;
 
 fn typed(source: &str) -> typed_trees::TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokens");
