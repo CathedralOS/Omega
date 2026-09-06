@@ -1,6 +1,8 @@
 use calling_conventions::{CallSignature, CallingPolicy, ValueShape};
 use compiler::{compile_to_checked, compile_to_checked_with_packages};
-use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
+use package_compilation::{
+    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
+};
 use provider_planning::calling_policy_plans::{
     BoundaryOpaqueRepresentationMovementRole, BoundaryOpaqueRepresentationPathElement,
     BoundaryValueClass, evaluate_calling_policy_plan,
@@ -118,6 +120,48 @@ fn selected_plan_for_external_root<'a>(
                 identity.normalized_identity()
             )
         })
+}
+
+#[test]
+fn calling_vocabulary_is_public_across_package_boundaries() {
+    let main = write_program(
+        "public-calling-vocabulary",
+        r#"use policy::calling;
+data Consumer { signature: BoundarySignature; plan: BoundaryPlanResult; }
+data RejectingPolicy {}
+RejectingPolicyConformance: RejectingPolicy satisfies CallingPolicy;
+machine RejectingPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
+satisfies CallingPolicy::plan
+{
+    BoundaryPlanResult::Rejected {
+        reason: CallingPolicyRejection { reason: "unsupported signature" },
+    }
+}
+"#,
+    );
+    let root = main.parent().expect("consumer directory").to_path_buf();
+    let dependency = write_program("public-calling-dependency", "")
+        .parent()
+        .expect("policy directory")
+        .to_path_buf();
+    fs::copy(
+        repository_root().join("source/library/std/calling.omg"),
+        dependency.join("calling.omg"),
+    )
+    .expect("copy public calling vocabulary");
+    let consumer = PackageKeyIdentity::from_digest([74; 32]).expect("consumer identity");
+    let policy = PackageKeyIdentity::from_digest([75; 32]).expect("policy identity");
+    let inputs = PackageCompilationInputs::new_package(
+        consumer,
+        vec![
+            PackageSourceBinding::new(consumer, "consumer", root),
+            PackageSourceBinding::new(policy, "policy", dependency),
+        ],
+        vec![PackageDependencyBinding::new(consumer, "policy", policy)],
+    )
+    .expect("two-package policy graph");
+    compile_to_checked_with_packages(&main, Some("uefi_x86_64"), inputs)
+        .expect("a dependent package can author a policy using the public calling vocabulary");
 }
 
 const POLICY: &str = r#"
