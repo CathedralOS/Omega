@@ -10,7 +10,7 @@ use native_artifact::{
 
 pub(crate) fn assemble_requested_native_artifact(
     psi_artifact: terminal_codec::CanonicalTerminalArtifact,
-    machine_code: &MachineCodePlanWithPrivateFunctions,
+    object: image_emission::ObjectArtifact,
     provider_executions: Vec<NativeProviderExecution>,
     terminal_authority_policy_identity: effects::TerminalAuthorityPolicyIdentity,
     terminal_authority_permission_policy_identity:
@@ -23,26 +23,6 @@ pub(crate) fn assemble_requested_native_artifact(
     image_request: image_emission::ExecutableImageEmissionRequest,
     request: &NativeRealizationCoreRequest<'_>,
 ) -> Result<RequestedNativeArtifact, Vec<Diagnostic>> {
-    if !machine_code.private_functions.is_empty() && !request.ieee_float_fma.is_empty() {
-        return Err(realization_error(
-            "terminal object construction",
-            "compiler-private callback functions cannot yet share the feature-authorized x86 FMA object cohort",
-        ));
-    }
-    validate_ieee_float_fma_rejoin(&machine_code.plan, request)?;
-    let object = match (
-        machine_code.private_functions.is_empty(),
-        request.ieee_float_fma.first(),
-    ) {
-        (false, None) => image_emission::build_object_artifact_with_private_functions(machine_code),
-        (true, Some(first)) => image_emission::build_admitted_x86_fma_object_artifact(
-            &machine_code.plan,
-            first.provider,
-        ),
-        (true, None) => image_emission::build_object_artifact(&machine_code.plan),
-        (false, Some(_)) => unreachable!("mixed callback/FMA cohort rejected above"),
-    }
-    .map_err(|error| realization_error("terminal object construction", error))?;
     let image = image_emission::emit_requested_executable_image(&object, image_request)
         .map_err(|error| vec![error.diagnostic().clone()])?;
 
@@ -108,6 +88,33 @@ pub(crate) fn assemble_requested_native_artifact(
             .map_err(|error| realization_error("dynamic ELF native artifact replay", error))
         }
     }
+}
+
+pub(super) fn build_assigned_object_artifact(
+    machine_code: &MachineCodePlanWithPrivateFunctions,
+    request: &NativeRealizationCoreRequest<'_>,
+) -> Result<image_emission::ObjectArtifact, Vec<Diagnostic>> {
+    if !machine_code.private_functions.is_empty() && !request.ieee_float_fma.is_empty() {
+        return Err(realization_error(
+            "terminal object construction",
+            "compiler-private callback functions cannot yet share the feature-authorized x86 FMA object cohort",
+        ));
+    }
+    validate_ieee_float_fma_rejoin(&machine_code.plan, request)?;
+    let object = match (
+        machine_code.private_functions.is_empty(),
+        request.ieee_float_fma.first(),
+    ) {
+        (false, None) => image_emission::build_object_artifact_with_private_functions(machine_code),
+        (true, Some(first)) => image_emission::build_admitted_x86_fma_object_artifact(
+            &machine_code.plan,
+            first.provider,
+        ),
+        (true, None) => image_emission::build_object_artifact(&machine_code.plan),
+        (false, Some(_)) => unreachable!("mixed callback/FMA cohort rejected above"),
+    }
+    .map_err(|error| realization_error("terminal object construction", error))?;
+    Ok(object)
 }
 
 fn validate_ieee_float_fma_rejoin(

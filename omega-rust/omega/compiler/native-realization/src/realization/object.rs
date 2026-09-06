@@ -16,19 +16,19 @@ use machine_code::MachineCodePlanWithPrivateFunctions;
 use native_artifact::NativePhysicalEvidenceScope;
 use terminal_psi_to_abstract_operations::AdmittedProviderInstallation;
 
-pub(crate) struct EmittedRealizationMachineCode {
-    pub(crate) machine_code: MachineCodePlanWithPrivateFunctions,
+pub(crate) struct EmittedRealizationObject {
+    pub(crate) object: image_emission::ObjectArtifact,
     pub(crate) physical_evidence_scope: NativePhysicalEvidenceScope,
 }
 
-pub(crate) fn emit_realization_machine_code(
+pub(crate) fn emit_realization_object(
     input: NativeRealizationInput,
     provider_installation: Option<AdmittedProviderInstallation>,
     settlements: &[AdmittedBoundarySettlement<'_>],
     boundary_application_coverage: Option<&TerminalBoundaryApplicationCoverage>,
     initial_physical_evidence_scope: NativePhysicalEvidenceScope,
     request: &NativeRealizationCoreRequest<'_>,
-) -> Result<EmittedRealizationMachineCode, Vec<Diagnostic>> {
+) -> Result<EmittedRealizationObject, Vec<Diagnostic>> {
     let optimization_stage = lower_realization_optimization_stage(input, request)?;
     let target_stage = lower_realization_target_stage(
         optimization_stage,
@@ -43,22 +43,22 @@ pub(crate) fn emit_realization_machine_code(
                 emit_callback_thunks(request.callback_thunks, request.target, request.profile)?;
             let plan = machine_emission::emit_machine_code_with_native_callbacks(&assigned)
                 .map_err(|error| realization_error("machine-code emission", error))?;
-            Ok(EmittedRealizationMachineCode {
-                machine_code: MachineCodePlanWithPrivateFunctions {
+            let object = super::output::build_assigned_object_artifact(
+                &MachineCodePlanWithPrivateFunctions {
                     plan,
                     private_functions,
                 },
+                request,
+            )?;
+            Ok(EmittedRealizationObject {
+                object,
                 physical_evidence_scope: initial_physical_evidence_scope,
             })
         }
         NativePhysicalStageResult::Optimized(optimized) => {
-            let (plan, physical_evidence_scope) = emit_optimized_fragments(
+            let (object, physical_evidence_scope) = emit_optimized_fragments(
                 optimized.physical,
                 OptimizedFragmentPublicationRequest {
-                    identity_scope: request
-                        .optimization_selections
-                        .is_empty()
-                        .then_some(initial_physical_evidence_scope),
                     has_provider_installation: optimized.has_provider_installation,
                     has_boundary_settlements: !settlements.is_empty(),
                     boundary_application_coverage,
@@ -83,11 +83,14 @@ pub(crate) fn emit_realization_machine_code(
                         .collect()
                 }
             })?;
-            Ok(EmittedRealizationMachineCode {
-                machine_code: MachineCodePlanWithPrivateFunctions {
-                    plan,
-                    private_functions: Vec::new(),
-                },
+            if !request.ieee_float_fma.is_empty() {
+                return Err(realization_error(
+                    "fragment object construction",
+                    "shared fragment publication does not yet admit FMA provider evidence",
+                ));
+            }
+            Ok(EmittedRealizationObject {
+                object,
                 physical_evidence_scope,
             })
         }

@@ -126,6 +126,12 @@ fn fragment_program(
         if fragment_shape::scalar_conditional(function, native) {
             return true;
         }
+        if target_operations_to_selected_instructions::is_ordered_scalar_call_unit(
+            target,
+            function.machine,
+        ) {
+            return true;
+        }
         function.attachment.is_none()
             && function.structural_parameters.is_empty()
             && function.entry_claims.is_empty()

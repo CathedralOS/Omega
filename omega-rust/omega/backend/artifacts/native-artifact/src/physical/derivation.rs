@@ -39,12 +39,9 @@ pub(crate) fn derive_physical_evidence(
         return Ok(None);
     }
     if let NativePhysicalEvidenceScope::ValidatedOptimizedProjection(optimized) = scope
-        && let Some(publication) = optimized.selected_lowering_publication()
+        && let Some(publication) = optimized.fragment_publication()
     {
-        super::selected_lowering::validate_selected_lowering_publication_object(
-            publication,
-            object,
-        )?;
+        publication.validate_object(object)?;
     }
     let module = terminal_codec::decode_module(terminal_artifact.semantic_bytes())
         .map_err(|_| "native physical evidence cannot decode Terminal semantics")?;
@@ -291,6 +288,8 @@ pub(crate) fn derive_physical_evidence(
             target,
             object,
             image,
+            matches!(scope, NativePhysicalEvidenceScope::ValidatedOptimizedProjection(optimized)
+                if optimized.fragment_publication().is_some()),
         )?
         else {
             // Unsupported compiler-intrinsic or call mechanics leave the

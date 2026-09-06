@@ -1,10 +1,11 @@
 mod derivation;
+mod fragment_publication;
 mod model;
 mod operator_applications;
 mod projection;
-mod selected_lowering;
 
 pub(crate) use derivation::derive_physical_evidence;
+pub(crate) use fragment_publication::derive_scope as derive_fragment_publication_scope;
 pub use model::{
     BoundaryTraitSettlement, BoundaryTraitSettlementParts, BoundaryTraitSettlementRole,
     NativeByteSpan, NativeCompilerBuiltinCatalogIdentity, NativeOptimizationProjection,
@@ -14,7 +15,4 @@ pub use model::{
     OptimizedBoundaryOccurrence, OptimizedOperatorOccurrence, PhysicalChildParent,
     PhysicalRelocationDisposition, ValidatedOptimizedNativePhysicalEvidenceScope,
 };
-pub(crate) use projection::{
-    derive_validated_optimization_scope, derive_validated_selected_lowering_optimization_scope,
-};
-pub use selected_lowering::SelectedLoweringNativePublicationInput;
+pub(crate) use projection::derive_validated_optimization_scope;

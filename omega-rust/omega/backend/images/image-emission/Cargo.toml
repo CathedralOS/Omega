@@ -43,6 +43,7 @@ sha2 = "0.10"
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }
 
 [dev-dependencies]
+selected-instructions = { path = "../../../representations/selected-instructions" }
 assigned-target-operations = { path = "../../../representations/assigned-target-operations" }
 abstract-operations-to-target-operations = { path = "../../../pipeline/abstract-operations-to-target-operations" }
 terminal-psi-to-abstract-operations = { path = "../../../pipeline/terminal-psi-to-abstract-operations" }

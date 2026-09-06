@@ -57,6 +57,7 @@ program-entry-plan = { path = "../../omega-rust/omega/backend/plans/program-entr
 effects = { path = "../../omega-rust/omega/representations/effects" }
 
 [dev-dependencies]
+boundary-applications = { path = "../../omega-rust/omega/representations/boundary-applications" }
 object-file = { path = "../../omega-rust/omega/backend/object/object-file", features = ["test-support"] }
 legalized-operations = { path = "../../omega-rust/omega/representations/legalized-operations" }
 physical-instructions = { path = "../../omega-rust/omega/representations/physical-instructions" }

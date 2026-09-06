@@ -2,6 +2,7 @@
 
 use crate::tests::*;
 
+mod executable;
 mod frames;
 
 #[derive(Debug, Clone, Copy)]

@@ -7,7 +7,11 @@ mod function_realization;
 pub use function_realization::*;
 mod fragment_emission;
 pub use fragment_emission::*;
+// Legacy plan reconstruction survives only as a differential test reference.
+// Production publishes the validated current object through image-emission.
+#[cfg(any(test, feature = "test-support"))]
 mod native_publication;
+#[cfg(any(test, feature = "test-support"))]
 pub use native_publication::{
     FragmentNativePublicationError, StagedFragmentNativePublication, publish_function_fragments,
 };

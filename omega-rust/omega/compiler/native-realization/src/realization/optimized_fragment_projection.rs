@@ -1,14 +1,8 @@
-//! Product evidence joins for native fragment publication.
-//!
-//! Machine emission owns frame application and native function construction;
-//! this coordinator binds the published result to Terminal and selected execution.
+//! Product evidence joins for the shared fragment-to-object publication path.
 
 use diagnostics::Diagnostic;
-use machine_code::MachineCodePlan;
 
 pub(super) struct OptimizedFragmentPublicationRequest<'request> {
-    /// Exact original scope is reusable only for the identity optimization run.
-    pub(super) identity_scope: Option<native_artifact::NativePhysicalEvidenceScope>,
     pub(super) has_provider_installation: bool,
     pub(super) has_boundary_settlements: bool,
     pub(super) boundary_application_coverage:
@@ -24,99 +18,72 @@ pub(super) fn emit_optimized_fragments(
     request: OptimizedFragmentPublicationRequest<'_>,
 ) -> Result<
     (
-        MachineCodePlan,
+        image_emission::ObjectArtifact,
         native_artifact::NativePhysicalEvidenceScope,
     ),
     Vec<Diagnostic>,
 > {
-    if request.identity_scope.is_some()
-        && physical.selections() != optimization_core::OptimizationSelections::default().identity()
-    {
-        return Err(super::diagnostics::realization_error(
-            "identity physical-evidence projection",
-            "nonidentity physical selections cannot retain the original evidence scope",
-        ));
-    }
     if request.has_provider_installation || request.has_boundary_settlements {
         return Err(super::diagnostics::realization_error(
-            "optimized fragment native publication",
-            "native fragment publication does not yet admit provider installation or boundary settlements",
+            "fragment object publication",
+            "shared fragment publication does not yet admit provider installation or boundary settlements",
         ));
     }
-    let selected_lowering_completion = physical.selected_lowering_completion();
-    let emitted = machine_emission::stage_optimized_function_fragment_emission(
-        physical.into_function_fragment_emission_source(),
-    )
-    .map_err(|error| {
-        super::diagnostics::realization_error("optimized function-fragment emission", error)
-    })?;
-    let publication =
-        machine_emission::publish_function_fragments(emitted).map_err(|error| match error {
-            machine_emission::FragmentNativePublicationError::FrameApplication(error) => {
-                super::diagnostics::realization_error(
-                    "optimized function-fragment frame application",
-                    error,
-                )
-            }
-            machine_emission::FragmentNativePublicationError::UnsupportedProjection(error) => {
-                super::diagnostics::realization_error(
-                    "optimized fragment native publication",
-                    error,
-                )
-            }
+    let source = stage_fragment_object(physical)?;
+    let object =
+        image_emission::build_function_fragment_object_artifact(&source).map_err(|error| {
+            super::diagnostics::realization_error("fragment object publication", error)
         })?;
-    let fragments = publication.source();
-    let plan = publication.plan();
-    let physical_evidence_scope = match (
-        request.boundary_application_coverage,
-        selected_lowering_completion,
-    ) {
-        (Some(coverage), Some(completion)) => {
-            let fragment_manifest = fragments.manifest().record();
-            let realization_manifest = fragments.function_relative_manifest().record();
-            if realization_manifest.selected_lowering_completion != Some(completion) {
-                return Err(super::diagnostics::realization_error(
-                    "optimized physical-evidence projection",
-                    "physical route and function-relative manifest disagree on selected-lowering completion",
-                ));
-            }
-            let publication = native_artifact::SelectedLoweringNativePublicationInput::new(
-                fragment_manifest.selections,
-                completion,
-                fragments.pre_physical_manifest().record().identity,
-                fragments.post_allocation_manifest().record().identity,
-                realization_manifest.identity,
-                fragments.custody().fragments(),
-                fragments.custody().manifest(),
-                plan,
-            );
-            native_artifact::NativePhysicalEvidenceScope::from_validated_selected_lowering_optimization(
+    let scope = match request.boundary_application_coverage {
+        Some(coverage) => {
+            native_artifact::NativePhysicalEvidenceScope::from_validated_fragment_publication(
                 request.optimized_plan,
                 request.terminal,
                 request.validation,
                 request.final_unit,
                 coverage,
-                publication,
+                &source,
+                &object,
             )
             .map_err(|error| {
                 super::diagnostics::realization_error(
-                    "optimized physical-evidence projection",
+                    "fragment physical-evidence projection",
                     error,
                 )
             })?
         }
-        (Some(_), None) if request.identity_scope.is_some() => {
-            request.identity_scope.expect("identity scope was checked")
-        }
-        (Some(_), None) => {
-            return Err(super::diagnostics::realization_error(
-                "optimized physical-evidence projection",
-                "the selected physical route has no admitted native evidence projection; no coverage was discarded",
-            ));
-        }
-        (None, _) => native_artifact::NativePhysicalEvidenceScope::Unavailable,
+        None => native_artifact::NativePhysicalEvidenceScope::Unavailable,
     };
-    Ok((publication.into_plan(), physical_evidence_scope))
+    Ok((object, scope))
+}
+
+/// Empty and selected phases publish through the same frame/text/object owners.
+pub(super) fn stage_fragment_object(
+    physical: crate::StagedOptimizedVerifiedPhysicalPipeline,
+) -> Result<object_file::StagedOptimizedRelocationFreeObjectContainer, Vec<Diagnostic>> {
+    let emitted = machine_emission::stage_optimized_function_fragment_emission(
+        physical.into_function_fragment_emission_source(),
+    )
+    .map_err(|error| super::diagnostics::realization_error("function-fragment emission", error))?;
+    let text: object_file::StagedOptimizedObjectTextSectionSource = if emitted
+        .source()
+        .frame_protocol()
+        .is_some()
+    {
+        let applied = machine_emission::stage_function_fragment_frame_application(emitted)
+            .map_err(|error| {
+                super::diagnostics::realization_error("function-fragment frame application", error)
+            })?;
+        machine_emission::stage_optimized_fixed_frame_text_section(applied)
+            .map_err(|error| super::diagnostics::realization_error("framed text placement", error))?
+            .into()
+    } else {
+        machine_emission::stage_optimized_relocation_free_text_section(emitted)
+            .map_err(|error| super::diagnostics::realization_error("text placement", error))?
+            .into()
+    };
+    object_file::stage_optimized_relocation_free_object_container(text)
+        .map_err(|error| super::diagnostics::realization_error("fragment object placement", error))
 }
 
 #[cfg(test)]

@@ -7,6 +7,7 @@ use crate::realization::optimized_fragment_projection::{
 use crate::realization::target_stage::lower_realization_target_stage;
 mod conditional;
 mod conditional_fixture;
+mod ordered_calls;
 
 #[test]
 fn scalar_leaf_fragments_reach_native_object_publication() {
@@ -180,7 +181,6 @@ fn identity_return_programs_use_fragments_and_preserve_native_bytes() {
         let (plan, _) = emit_optimized_fragments(
             physical.physical,
             OptimizedFragmentPublicationRequest {
-                identity_scope: Some(native_artifact::NativePhysicalEvidenceScope::Unavailable),
                 has_provider_installation: false,
                 has_boundary_settlements: false,
                 boundary_application_coverage: None,
@@ -191,13 +191,16 @@ fn identity_return_programs_use_fragments_and_preserve_native_bytes() {
             },
         )
         .unwrap();
-        assert_eq!(plan.functions.len(), baseline.functions.len());
-        for (new, old) in plan.functions.iter().zip(&baseline.functions) {
+        assert_eq!(plan.functions().len(), baseline.functions.len());
+        for (new, old) in plan.functions().iter().zip(&baseline.functions) {
             assert_eq!(new.machine, old.machine);
             assert_eq!(new.attachment, old.attachment);
-            assert_eq!(new.bytes, old.bytes, "{target_profile:?}");
+            assert_eq!(
+                &plan.text_bytes()[new.text_offset..new.text_offset + new.byte_count],
+                old.bytes,
+                "{target_profile:?}"
+            );
         }
-        image_emission::build_object_artifact(&plan).unwrap();
 
         // The shape classifier must inspect every function, not just the entry.
         let input =

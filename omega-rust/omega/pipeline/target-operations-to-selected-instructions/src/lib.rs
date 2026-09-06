@@ -35,3 +35,13 @@ pub use selection::{
 
 #[cfg(test)]
 mod tests;
+
+/// Recognize the complete current ordered U64 call grammar without producing
+/// instructions or trying an emitter. Native migration uses this same input
+/// predicate; actual legalization and selection still validate independently.
+pub fn is_ordered_scalar_call_unit(
+    target: &abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
+    machine: semantic_vocabulary::MachineId,
+) -> bool {
+    legalization::is_ordered_scalar_call_unit(target, machine)
+}

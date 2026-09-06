@@ -15,6 +15,7 @@ use crate::legalization::projected_structural_call_return;
 use functions::{derive_source_function, derive_source_unit_function};
 use matchers::{match_scalar_call_unit_form, match_structural_unit_form, match_unit_form};
 use scalar_call_unit::derive_source_scalar_call_unit_function;
+pub(crate) use scalar_call_unit::is_ordered_scalar_call_unit;
 use shared::*;
 use structural::derive_source_structural_unit_function;
 

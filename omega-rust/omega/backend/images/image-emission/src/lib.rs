@@ -22,6 +22,11 @@ mod dynamic_elf;
 mod final_image_validation;
 mod forwarded_dynamic_descriptor;
 mod forwarded_dynamic_parameter;
+mod function_fragments;
+pub use function_fragments::{
+    FunctionFragmentObjectArtifactError, build_function_fragment_object_artifact,
+    validate_function_fragment_object_artifact,
+};
 mod image_output;
 mod installation;
 #[cfg(feature = "installed-artifact")]

@@ -335,7 +335,7 @@ until edge-copy scheduling exists. Unused incoming parameters retain their
 semantic bindings without requiring physical registers.
 Scalar leaves retain their target ABI, keep incoming parameter precolors, and explicitly
 copy a returned parameter into a separate return-constrained virtual value.
-Calls, structural parameters, cleanup, callbacks and provider settlements remain
+Structural parameters, cleanup, callbacks and provider settlements remain
 outside this scalar migration. Direct-return controls start at separately
 authored, verified Terminal products; shared-return controls start at Omega
 source and pass through ordinary Terminal publication and resumed lowering.
@@ -345,24 +345,30 @@ scalar functions. Constant and call counts, constant equality, call target
 identity, and use of earlier results do not select a special graph recipe.
 Each call retains its exact ABI and source operation; allocation sees explicit
 argument/result copies and target-owned clobbers. These sequences reach framed
-fragment text and object publication on Linux x64 and Arm64 with empty physical
-phases, including builds retaining a selected Psi phase. Selected physical
+fragment text, object, executable image and installation publication on Linux
+x64 and Arm64 with empty or selected physical phases. Default source builds
+enter the same path by the selection stage's input grammar, before routing;
+they do not probe emission or fall back after failure. Selected physical
 materialization uses the same frame construction and independent replay as
 ordinary realization. Allocated preservation writes and calls determine frame
 requirements, not selection presence. The optimized body retains its exact
 encoding/layout custody alongside frame geometry and protocol; fragment emission
 and frame application carry both through text and object publication. Removing
-or substituting either side rejects. The outer executable-publication join
-remains unfinished:
-its Unit call records require stack-held results, whereas shared allocation
-can retain results in preserved registers. That join must consume the actual
-physical homes, not manufacture legacy stack records. Other call ABIs and
+or substituting either side rejects. Image emission consumes the validated
+shared object directly, preserving its bytes, ABI, semantic intervals and exact
+frame/call stack prefixes. It does not rebuild an assigned machine plan or
+manufacture stack-held result records for values in preserved registers.
+Installation replay composes WCSU from those same frame and call facts, taking
+the maximum across sequential calls. Other call ABIs and
 targets remain explicit prerequisites of physical-route convergence.
 This boundary is checked before execution; a failure never
-selects the old route. Identity fragment publication preserves the original
-physical-evidence scope only after checking the retained empty selection identity.
+selects the old route. Empty and selected fragment publication bind the exact
+validated abstract projection, final optimization unit and shared object custody.
+Native admission rejects a substituted object, including changed metadata;
+the retained object is immutable equality evidence, not a second current-program
+access path. Missing application coverage remains explicitly unavailable.
 Every optimizer-owned arm then enters one function-fragment
-emission stage. Native projection admits Unit returns and the scalar bodies above;
+emission stage. Native projection admits Unit returns, ordered calls and the scalar bodies above;
 it does not inspect which physical optimization variant produced them. Scalar
 publication binds the exact ABI, bytes and semantic intervals, with independent
 object/stack replay. Forward scalar graphs retain actual conditional predicates,
