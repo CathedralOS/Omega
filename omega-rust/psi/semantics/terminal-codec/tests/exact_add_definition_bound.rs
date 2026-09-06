@@ -32,7 +32,7 @@ fn exact_add_definition_bound_owns_the_appended_rule_tag() {
     };
 
     let bytes = encode_proof_bundle(&bundle).expect("exact-add definition proof encodes");
-    assert_eq!(&bytes[8..10], &25_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &26_u16.to_le_bytes());
     assert_eq!(bytes[34], 15, "appended exact-add definition rule tag");
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 

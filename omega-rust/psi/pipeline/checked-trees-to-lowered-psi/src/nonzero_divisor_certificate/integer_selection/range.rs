@@ -113,7 +113,7 @@ impl RelationEdge<'_> {
                     },
                 };
             }
-            ProofRule::IntegerLessOrEqualSubstitution {
+            ProofRule::IntegerOrderSubstitution {
                 relation: Box::new(bound),
                 equality: Box::new(relation),
                 endpoint,

@@ -99,7 +99,7 @@ fn substitute(
 ) -> ProofNode {
     ProofNode {
         conclusion,
-        rule: ProofRule::IntegerLessOrEqualSubstitution {
+        rule: ProofRule::IntegerOrderSubstitution {
             relation: Box::new(relation),
             equality: Box::new(equality.clone()),
             endpoint,

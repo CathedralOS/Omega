@@ -63,6 +63,7 @@ pub(super) fn check_call_requires(
                         )
                         || call_entry_contexts_prove_boolean_contract_expression(
                             program,
+                            &facts.operators,
                             &facts.semantic,
                             state_flow,
                             call_flow,
@@ -77,14 +78,7 @@ pub(super) fn check_call_requires(
                             &entry_contexts,
                             expression,
                         )
-                        || if expression_is_boolean_place_like(program, expression) {
-                            semantic_contexts_prove_contract_fact(
-                                program,
-                                &facts.semantic,
-                                &entry_contexts,
-                                fact,
-                            )
-                        } else {
+                        || if !expression_is_boolean_place_like(program, expression) {
                             // R1: a DOMINATING incoming-arm guard establishes a
                             // boolean requires fact -- the ranges machinery's
                             // IncomingGuard walk-back is the soundness gate
@@ -99,6 +93,11 @@ pub(super) fn check_call_requires(
                                 expression,
                                 incoming_guards,
                             )
+                        } else {
+                            // The actual-aware proof above already checked
+                            // this formal. A raw callee name is not a caller
+                            // fact, even when both parameters spell `flag`.
+                            false
                         }
                 }
                 _ => semantic_contexts_prove_contract_fact(

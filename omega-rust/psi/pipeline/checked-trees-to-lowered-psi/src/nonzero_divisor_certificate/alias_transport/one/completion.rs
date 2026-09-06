@@ -14,7 +14,7 @@ pub(super) fn prove(
 ) -> ProofNode {
     ProofNode {
         conclusion: substitute_bound_endpoint(relation, root, endpoint),
-        rule: ProofRule::IntegerLessOrEqualSubstitution {
+        rule: ProofRule::IntegerOrderSubstitution {
             relation: Box::new(relation_proof),
             equality: Box::new(equality),
             endpoint,

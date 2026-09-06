@@ -44,7 +44,7 @@ pub(super) fn prove(
     )?;
     Some(ProofNode {
         conclusion: goal.clone(),
-        rule: ProofRule::IntegerLessOrEqualSubstitution {
+        rule: ProofRule::IntegerOrderSubstitution {
             relation: Box::new(relation),
             equality: Box::new(equality),
             endpoint,

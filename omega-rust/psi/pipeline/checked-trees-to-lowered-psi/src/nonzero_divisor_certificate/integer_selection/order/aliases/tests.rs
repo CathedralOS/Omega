@@ -118,7 +118,7 @@ fn mathematical_goal_keeps_the_projected_scalar_conclusion() {
     let proof = super::super::super::build(&context(), &goal, &assumptions, &[])
         .expect("mathematical bound from exact scalar conjunction projection");
     check_certificate(&context(), &goal, &assumptions, &[], &proof).unwrap();
-    let ProofRule::IntegerLessOrEqualSubstitution { relation, .. } = &proof.rule else {
+    let ProofRule::IntegerOrderSubstitution { relation, .. } = &proof.rule else {
         panic!("projection needs an explicit order normalization step");
     };
     assert_eq!(relation.conclusion, scalar_goal);

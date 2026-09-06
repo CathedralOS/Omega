@@ -271,7 +271,7 @@ fn ranked_countdown_proof(module: &TerminalModule) -> ProofBundle {
                     rule: ProofRule::IntegerAffineBound {
                         root_bound: Box::new(ProofNode {
                             conclusion: ordered_guard,
-                            rule: ProofRule::IntegerLessOrEqualSubstitution {
+                            rule: ProofRule::IntegerOrderSubstitution {
                                 relation: Box::new(ProofNode {
                                     conclusion: literal_guard,
                                     rule: ProofRule::SemanticAxiom { index: guard_axiom },

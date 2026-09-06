@@ -53,7 +53,7 @@ pub(super) fn prove(
     };
     let inner = ProofNode {
         conclusion: middle_relation,
-        rule: ProofRule::IntegerLessOrEqualSubstitution {
+        rule: ProofRule::IntegerOrderSubstitution {
             relation: Box::new(affine),
             equality: Box::new(inner_citation.proof(inner_equality)),
             endpoint,
@@ -61,7 +61,7 @@ pub(super) fn prove(
     };
     Some(ProofNode {
         conclusion: goal.clone(),
-        rule: ProofRule::IntegerLessOrEqualSubstitution {
+        rule: ProofRule::IntegerOrderSubstitution {
             relation: Box::new(inner),
             equality: Box::new(outer_citation.proof(outer_equality)),
             endpoint,

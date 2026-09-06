@@ -11,8 +11,15 @@ mod collections;
 mod integers;
 mod resolution;
 
+#[derive(Clone, Copy)]
+enum BooleanExpressionOwner {
+    Contract,
+    Caller,
+}
+
 pub(super) fn call_site_proves_boolean_contract_expression(
     program: &typed_trees::TypedTrees,
+    operators: &checked_trees::CheckedOperatorFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
     call_site: &crate::CallSite<'_>,
@@ -20,8 +27,9 @@ pub(super) fn call_site_proves_boolean_contract_expression(
     target_parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> bool {
-    call_site_boolean_contract_expression_value(
+    call_site_boolean_contract_expression_value_with_operators(
         program,
+        Some(operators),
         state_flow,
         call_flow,
         call_site,
@@ -44,6 +52,28 @@ pub(crate) fn call_site_boolean_contract_expression_value(
     target_parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<bool> {
+    call_site_boolean_contract_expression_value_with_operators(
+        program,
+        None,
+        state_flow,
+        call_flow,
+        call_site,
+        target_symbol,
+        target_parameters,
+        expression,
+    )
+}
+
+fn call_site_boolean_contract_expression_value_with_operators(
+    program: &typed_trees::TypedTrees,
+    operators: Option<&checked_trees::CheckedOperatorFacts>,
+    state_flow: &FlowStateFact,
+    call_flow: &FlowCallFact,
+    call_site: &crate::CallSite<'_>,
+    target_symbol: symbols::SymbolHandle,
+    target_parameters: &[StateParameter],
+    expression: ExpressionHandle,
+) -> Option<bool> {
     let caller_state =
         crate::find_state_in_machine(program, state_flow.machine_symbol, state_flow.state_symbol)?;
     let caller_machine = program
@@ -53,6 +83,7 @@ pub(crate) fn call_site_boolean_contract_expression_value(
 
     ContractExpressionEvaluator {
         program,
+        operators,
         caller_machine,
         caller_state,
         statement_index: call_flow.statement_index,
@@ -67,6 +98,9 @@ pub(crate) fn call_site_boolean_contract_expression_value(
 
 pub(super) struct ContractExpressionEvaluator<'program, 'call> {
     program: &'program typed_trees::TypedTrees,
+    // Source call checking has selected operator facts. Earlier crash-fact
+    // construction does not, and cannot gain Boolean equality authority here.
+    operators: Option<&'program checked_trees::CheckedOperatorFacts>,
     caller_machine: &'program Machine,
     caller_state: &'program State,
     statement_index: usize,

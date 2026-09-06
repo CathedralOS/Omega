@@ -13,6 +13,7 @@ mod direct_add;
 mod dispatch;
 mod exact;
 mod forbidden_root;
+mod implications;
 mod logical;
 mod multiply;
 mod order;
@@ -42,6 +43,25 @@ pub(super) fn build_with_machine_parameters(
     semantic_axioms: &[Proposition],
     machine_parameter_values: &BTreeSet<ValueId>,
 ) -> Option<ProofNode> {
+    let ordinary = |goal: &Proposition, assumptions: &[Proposition]| {
+        build_without_implications(
+            context,
+            goal,
+            assumptions,
+            semantic_axioms,
+            machine_parameter_values,
+        )
+    };
+    implications::prove(goal, assumptions, semantic_axioms, ordinary)
+}
+
+fn build_without_implications(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    machine_parameter_values: &BTreeSet<ValueId>,
+) -> Option<ProofNode> {
     if let Some(proof) = build_without_cases(
         context,
         goal,
@@ -55,7 +75,7 @@ pub(super) fn build_with_machine_parameters(
     // conjuncts need their own cases, not a Cartesian product of all cases.
     if let Proposition::Conjunction(conjuncts) = goal {
         return logical::prove_conjunction(goal, conjuncts, |part| {
-            build_with_machine_parameters(
+            build_without_implications(
                 context,
                 part,
                 assumptions,

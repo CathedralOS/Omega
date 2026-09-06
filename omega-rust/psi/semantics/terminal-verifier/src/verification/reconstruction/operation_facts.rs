@@ -6,8 +6,8 @@ use proof_admission::{Obligation, ObligationClass};
 use semantic_vocabulary::{MachineId, Proposition, ScalarType, ValueId};
 use terminal_psi::{Operation, OperationKind, TerminalMachine, TerminalModule};
 use terminal_semantics::{
-    goal_free_scalar_leaf_equation, proof_bearing_scalar_leaf_semantics,
-    structural_effect_leaf_observation,
+    GoalFreeScalarLeafSemantics, goal_free_scalar_leaf_semantics,
+    proof_bearing_scalar_leaf_semantics, structural_effect_leaf_observation,
 };
 
 use crate::ModuleError;
@@ -15,20 +15,48 @@ use crate::ModuleError;
 use super::super::call_composition::compose_call_operation;
 use super::{ReconstructedOperationObligation, ReconstructedTerminalObligationOwner};
 
+mod boolean_polarity;
+
+#[derive(Clone, Copy)]
+pub(super) enum OperationFactPurpose {
+    ProofObligations,
+    PrivateCrashPredicates,
+}
+
+fn append_scalar_facts(
+    semantics: &GoalFreeScalarLeafSemantics,
+    value_types: &BTreeMap<ValueId, ScalarType>,
+    purpose: OperationFactPurpose,
+    axioms: &mut Vec<Proposition>,
+) -> Result<(), ModuleError> {
+    let implications = match purpose {
+        OperationFactPurpose::ProofObligations => {
+            boolean_polarity::implications(semantics, value_types)?
+        }
+        // Private crash checking already converts the original denotation
+        // equation. Rebinding its redundant implication projections at every
+        // path edge would multiply facts without adding crash-proof authority.
+        OperationFactPurpose::PrivateCrashPredicates => Vec::new(),
+    };
+    axioms.push(semantics.result_equation().clone());
+    axioms.extend(implications);
+    Ok(())
+}
+
 pub(super) fn append_operation(
     module: &TerminalModule,
     machine: &TerminalMachine,
     operation: &Operation,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     value_types: &BTreeMap<ValueId, ScalarType>,
+    purpose: OperationFactPurpose,
     axioms: &mut Vec<Proposition>,
     operation_obligations: &mut Vec<ReconstructedOperationObligation>,
 ) -> Result<(), ModuleError> {
-    if let Some(equation) = goal_free_scalar_leaf_equation(operation, value_types)
+    if let Some(semantics) = goal_free_scalar_leaf_semantics(operation, value_types)
         .map_err(ModuleError::OperationSemanticSchema)?
     {
-        axioms.push(equation);
-        return Ok(());
+        return append_scalar_facts(&semantics, value_types, purpose, axioms);
     }
     if let Some(semantics) = proof_bearing_scalar_leaf_semantics(operation, value_types)
         .map_err(ModuleError::OperationSemanticSchema)?

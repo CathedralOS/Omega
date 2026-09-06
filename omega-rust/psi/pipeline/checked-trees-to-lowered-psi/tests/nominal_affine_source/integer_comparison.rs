@@ -884,7 +884,7 @@ fn mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return()
         };
         assert!(matches!(
             conjuncts[0].rule,
-            ProofRule::IntegerLessOrEqualSubstitution { .. }
+            ProofRule::IntegerOrderSubstitution { .. }
         ));
         assert!(matches!(
             conjuncts[1].rule,

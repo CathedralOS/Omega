@@ -1,5 +1,6 @@
 //! Compose ordinary integer certificates under each retained alternative.
 
+use super::super::integer_evidence::ProjectedFact;
 use proof_admission::{ProofNode, ProofRule};
 use semantic_vocabulary::Proposition;
 
@@ -9,19 +10,19 @@ pub(super) fn prove(
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
-    ordinary: impl Fn(&[Proposition]) -> Option<ProofNode>,
+    mut ordinary: impl FnMut(&[Proposition]) -> Option<ProofNode>,
 ) -> Option<ProofNode> {
     // Stable citation order prevents revisiting permutations of the same
     // cases. Each recursive path consumes a strict suffix of this finite set.
     let cases = dependencies::connected_cases(goal, assumptions, semantic_axioms);
-    prove_with_cases(goal, assumptions, &cases, &ordinary)
+    prove_with_cases(goal, assumptions, &cases, &mut ordinary)
 }
 
 fn prove_with_cases(
     goal: &Proposition,
     assumptions: &[Proposition],
-    cases: &[dependencies::ProjectedFact<'_>],
-    ordinary: &impl Fn(&[Proposition]) -> Option<ProofNode>,
+    cases: &[ProjectedFact<'_>],
+    ordinary: &mut impl FnMut(&[Proposition]) -> Option<ProofNode>,
 ) -> Option<ProofNode> {
     if let Some(proof) = ordinary(assumptions) {
         return Some(proof);

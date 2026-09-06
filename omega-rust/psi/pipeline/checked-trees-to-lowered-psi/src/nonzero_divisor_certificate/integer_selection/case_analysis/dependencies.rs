@@ -2,63 +2,9 @@
 
 use std::collections::BTreeSet;
 
-use proof_admission::{ProofNode, ProofRule};
 use semantic_vocabulary::{Proposition, ScalarTerm, ValueId};
 
-use super::super::super::integer_evidence::{Citation, cited_facts};
-
-pub(super) struct ProjectedFact<'a> {
-    citation: Citation,
-    root: &'a Proposition,
-    projection: Vec<usize>,
-    pub(super) proposition: &'a Proposition,
-}
-
-impl ProjectedFact<'_> {
-    pub(super) fn proof(&self) -> ProofNode {
-        let mut proof = self.citation.proof(self.root);
-        for &conjunct in &self.projection {
-            let Proposition::Conjunction(parts) = &proof.conclusion else {
-                unreachable!("projection follows retained conjunction children")
-            };
-            proof = ProofNode {
-                conclusion: parts[conjunct].clone(),
-                rule: ProofRule::ConjunctionElimination {
-                    conjunction: Box::new(proof),
-                    conjunct,
-                },
-            };
-        }
-        proof
-    }
-}
-
-fn projected_facts<'a>(
-    assumptions: &'a [Proposition],
-    semantic_axioms: &'a [Proposition],
-) -> Vec<ProjectedFact<'a>> {
-    let mut facts = Vec::new();
-    for (citation, root) in cited_facts(assumptions, semantic_axioms) {
-        let mut pending = vec![(root, Vec::new())];
-        while let Some((proposition, projection)) = pending.pop() {
-            if let Proposition::Conjunction(parts) = proposition {
-                for (conjunct, part) in parts.iter().enumerate().rev() {
-                    let mut child_projection = projection.clone();
-                    child_projection.push(conjunct);
-                    pending.push((part, child_projection));
-                }
-            } else {
-                facts.push(ProjectedFact {
-                    citation,
-                    root,
-                    projection,
-                    proposition,
-                });
-            }
-        }
-    }
-    facts
-}
+use super::super::super::integer_evidence::{ProjectedFact, projected_facts};
 
 struct Dependencies {
     values: BTreeSet<ValueId>,

@@ -240,6 +240,189 @@ fn literal_true_actual_proves_boolean_requirement_without_caller_assumptions() {
 }
 
 #[test]
+fn computed_boolean_actual_proves_requirement_from_operation_meaning() {
+    computed_boolean_actual("!false", "");
+}
+
+fn computed_boolean_actual(actual: &str, caller_requirement: &str) -> lowered_psi::LoweredPsi {
+    let source = SOURCE.replace(
+        "requires flag\n    { Helper::consume(flag, metrics); }",
+        &format!("{caller_requirement}\n    {{ Helper::consume({actual}, metrics); }}"),
+    );
+    let lowered = roundtrip(&source);
+    assert_call_requirement_certificates(&lowered);
+    let root = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .unwrap();
+    assert_eq!(
+        root.contract.requires.is_empty(),
+        caller_requirement.is_empty()
+    );
+    let argument = root
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match &operation.kind {
+            terminal_psi::OperationKind::CallUnit { arguments, .. } => Some(arguments[0]),
+            _ => None,
+        })
+        .unwrap();
+    let definition = root.blocks.iter().flat_map(|block| &block.operations).find(|operation|
+        matches!(operation.result, terminal_psi::OperationResult::Scalar(value) if value.id == argument)).unwrap();
+    assert!(
+        matches!(
+            definition.kind,
+            terminal_psi::OperationKind::BooleanNot { .. }
+                | terminal_psi::OperationKind::BooleanEqual { .. }
+                | terminal_psi::OperationKind::IntegerEqual { .. }
+                | terminal_psi::OperationKind::IntegerLessThan { .. }
+                | terminal_psi::OperationKind::IntegerLessOrEqual { .. }
+        ),
+        "{actual}: call retains the evaluated operation result, not a substituted literal: {:?}",
+        definition.kind
+    );
+    lowered
+}
+
+#[test]
+fn computed_boolean_equality_actual_retains_its_evaluated_result() {
+    for actual in ["true == true", "false == false"] {
+        computed_boolean_actual(actual, "");
+    }
+}
+
+#[test]
+fn computed_integer_comparison_actuals_retain_landed_literal_meaning() {
+    for primitive in ["u64", "i64"] {
+        for (left, operator, right) in [(1, "<", 2), (2, "<=", 2), (2, "==", 2)] {
+            computed_boolean_actual(
+                &format!("{left}{primitive} {operator} {right}{primitive}"),
+                "",
+            );
+        }
+    }
+}
+
+#[test]
+fn computed_nested_boolean_negations_remain_separate_operations() {
+    let lowered = computed_boolean_actual("!!!false", "");
+    let root = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .unwrap();
+    assert_eq!(
+        root.blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter(|operation| matches!(
+                operation.kind,
+                terminal_psi::OperationKind::BooleanNot { .. }
+            ))
+            .count(),
+        3
+    );
+}
+
+#[test]
+fn computed_symbolic_negation_uses_the_exact_caller_requirement() {
+    computed_boolean_actual("!flag", "requires !flag");
+}
+
+#[test]
+fn computed_boolean_requirement_rejects_changed_operand_operation_and_missing_evidence() {
+    let lowered = computed_boolean_actual("!false", "");
+    let root = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .unwrap();
+    let operation_id = root
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::BooleanNot { .. }
+            )
+        })
+        .unwrap()
+        .id;
+    let obligation = root
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match &operation.kind {
+            terminal_psi::OperationKind::CallUnit {
+                requirement_obligations,
+                ..
+            } => Some(requirement_obligations[0]),
+            _ => None,
+        })
+        .unwrap();
+    for mutation in 0..3 {
+        let mut module = lowered.semantic_module.clone();
+        let mut proof = lowered.proof_bundle.clone();
+        if mutation == 2 {
+            proof
+                .evidence
+                .retain(|evidence| evidence.obligation != obligation);
+        } else {
+            let operation = module
+                .machines
+                .iter_mut()
+                .find(|machine| machine.id == root.id)
+                .unwrap()
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.operations)
+                .find(|operation| operation.id == operation_id)
+                .unwrap();
+            let terminal_psi::OperationKind::BooleanNot { operand } = operation.kind else {
+                unreachable!();
+            };
+            operation.kind = if mutation == 0 {
+                terminal_psi::OperationKind::BooleanNot {
+                    operand: root.parameters[0].id,
+                }
+            } else {
+                terminal_psi::OperationKind::BooleanEqual {
+                    left: operand,
+                    right: root.parameters[0].id,
+                }
+            };
+            terminal_verifier::validate_module(&module)
+                .expect("changed Boolean expression is typed but not proven true");
+        }
+        let error = terminal_verifier::verify_module(
+            &module,
+            &proof,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .unwrap_err();
+        if mutation == 2 {
+            assert_eq!(
+                error,
+                terminal_verifier::VerificationError::MissingEvidence(obligation)
+            );
+        } else {
+            assert!(
+                matches!(error, terminal_verifier::VerificationError::RejectedEvidence {
+                obligation: rejected, error: proof_admission::EvidenceError::Certificate(_),
+            } if rejected == obligation),
+                "mutation={mutation}: {error:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn structural_boolean_requirement_rejects_same_shaped_unrelated_actual() {
     let source = SOURCE
         .replace("current: u64", "enabled: bool")

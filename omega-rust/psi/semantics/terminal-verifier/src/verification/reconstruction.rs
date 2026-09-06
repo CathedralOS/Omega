@@ -315,6 +315,11 @@ fn reconstruct_machine_semantics_with_crash_facts(
                 operation,
                 &context.machines,
                 &context.value_types,
+                if crash_facts {
+                    operation_facts::OperationFactPurpose::PrivateCrashPredicates
+                } else {
+                    operation_facts::OperationFactPurpose::ProofObligations
+                },
                 &mut axioms,
                 &mut operation_obligations,
             )?;

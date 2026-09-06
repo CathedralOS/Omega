@@ -68,7 +68,7 @@ fn decoded_proof(bytes: &[u8]) -> ProofNode {
 fn case_analysis_roundtrips_with_explicit_ordered_branches() {
     let bundle = bundle(proof());
     let bytes = encode_proof_bundle(&bundle).expect("case analysis encodes");
-    assert_eq!(&bytes[8..10], &25_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &26_u16.to_le_bytes());
     assert_eq!(bytes[34], 16, "appended disjunction elimination rule tag");
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
     let proof = decoded_proof(&bytes);
@@ -272,7 +272,7 @@ fn existing_child_order_and_trailing_witness_bytes_are_unchanged() {
             vec![],
         ),
         (
-            ProofRule::IntegerLessOrEqualSubstitution {
+            ProofRule::IntegerOrderSubstitution {
                 relation: first(),
                 equality: second(),
                 endpoint: 9,

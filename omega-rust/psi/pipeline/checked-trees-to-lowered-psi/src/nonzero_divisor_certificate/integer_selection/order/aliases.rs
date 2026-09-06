@@ -113,7 +113,7 @@ fn replace_endpoint(
     ) {
         return Some(ProofNode {
             conclusion,
-            rule: ProofRule::IntegerLessOrEqualSubstitution {
+            rule: ProofRule::IntegerOrderSubstitution {
                 relation: Box::new(relation),
                 equality: Box::new(equality),
                 endpoint,

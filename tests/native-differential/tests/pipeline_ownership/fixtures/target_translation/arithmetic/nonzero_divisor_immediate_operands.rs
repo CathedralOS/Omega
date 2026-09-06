@@ -177,7 +177,7 @@ pub(super) fn nonzero_divisor_integer_immediate_operands_return_artifact(
     };
     let selected_proof = ProofNode {
         conclusion: selected.clone(),
-        rule: ProofRule::IntegerLessOrEqualSubstitution {
+        rule: ProofRule::IntegerOrderSubstitution {
             relation: Box::new(ProofNode {
                 conclusion: closed_relation,
                 rule: ProofRule::Primitive(

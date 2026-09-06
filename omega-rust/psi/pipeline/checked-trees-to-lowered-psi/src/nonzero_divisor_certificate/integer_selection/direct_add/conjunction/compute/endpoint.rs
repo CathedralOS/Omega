@@ -204,7 +204,7 @@ fn orient_exact(
         } else {
             Proposition::LessOrEqual(operand.clone(), literal.clone())
         },
-        rule: ProofRule::IntegerLessOrEqualSubstitution {
+        rule: ProofRule::IntegerOrderSubstitution {
             relation: Box::new(ProofNode {
                 conclusion: Proposition::LessOrEqual(literal.clone(), literal),
                 rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),

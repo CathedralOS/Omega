@@ -72,6 +72,13 @@ const TERMINAL_REPRESENTATION_SOURCE_CLOSURE: &[u8] = include_bytes!(concat!(
     "/psi-terminal-representation-source-closure.bin"
 ));
 const TERMINAL_SEMANTICS_SOURCE: &[u8] = include_bytes!("../../terminal-semantics/src/lib.rs");
+const BOOLEAN_POLARITY_RECONSTRUCTION_SOURCE: &[u8] = include_bytes!(
+    "../../terminal-verifier/src/verification/reconstruction/operation_facts/boolean_polarity.rs"
+);
+const PREDICATE_DENOTATION_SOURCE: &[u8] =
+    include_bytes!("../../proof-admission/src/predicate_denotation.rs");
+const PREDICATE_DENOTATION_BUDGET_SOURCE: &[u8] =
+    include_bytes!("../../proof-admission/src/predicate_denotation/budget.rs");
 const TERMINAL_PROOF_BEARING_SCALAR_SOURCE: &[u8] =
     include_bytes!("../../terminal-semantics/src/proof_bearing_scalar.rs");
 const TERMINAL_CANONICAL_SCALAR_GOAL_SOURCE: &[u8] =
@@ -463,7 +470,7 @@ mod tests {
             .iter()
             .find(|node| node.identity() == "implementation:rust-proof-admission")
             .expect("current Rust proof admission checker");
-        assert_eq!(rust_admission.version(), "rust-proof-admission-v8");
+        assert_eq!(rust_admission.version(), "rust-proof-admission-v9");
         assert!(
             rust_admission
                 .dependencies()

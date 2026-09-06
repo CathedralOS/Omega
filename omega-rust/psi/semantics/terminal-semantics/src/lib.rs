@@ -97,6 +97,7 @@ pub enum ScalarLeafGoalShape {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ScalarLeafFactShape {
     ResultEquation,
+    BooleanResultEquationAndPolarityImplications,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -174,7 +175,14 @@ const fn goal_free_scalar_leaf(
         operands,
         denotation,
         goal: ScalarLeafGoalShape::None,
-        fact: ScalarLeafFactShape::ResultEquation,
+        fact: match (result, denotation) {
+            // A Boolean literal already exposes its exact polarity directly.
+            (_, ScalarLeafDenotation::BooleanConstant) => ScalarLeafFactShape::ResultEquation,
+            (ScalarLeafResultShape::Boolean, _) => {
+                ScalarLeafFactShape::BooleanResultEquationAndPolarityImplications
+            }
+            (ScalarLeafResultShape::DeclaredInteger, _) => ScalarLeafFactShape::ResultEquation,
+        },
         crash: ScalarLeafCrashPolicy::Never,
         fuel: ScalarLeafFuelPolicy::ConsumeOne,
         frontier: ScalarLeafFrontierPolicy::PreserveLocal,
@@ -691,12 +699,29 @@ fn denotation_term(
     built.map_err(OperationSemanticError::InvalidProposition)
 }
 
+/// Validated operation-local result meaning and its declared fact policy.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GoalFreeScalarLeafSemantics {
+    result_equation: Proposition,
+    fact_shape: ScalarLeafFactShape,
+}
+
+impl GoalFreeScalarLeafSemantics {
+    pub fn result_equation(&self) -> &Proposition {
+        &self.result_equation
+    }
+
+    pub fn fact_shape(&self) -> ScalarLeafFactShape {
+        self.fact_shape
+    }
+}
+
 /// Interpret one goal-free scalar leaf through its exact declarative row.
 /// `Ok(None)` means the operation belongs to a different semantic algebra.
-pub fn goal_free_scalar_leaf_equation(
+pub fn goal_free_scalar_leaf_semantics(
     operation: &Operation,
     value_types: &BTreeMap<ValueId, ScalarType>,
-) -> Result<Option<Proposition>, OperationSemanticError> {
+) -> Result<Option<GoalFreeScalarLeafSemantics>, OperationSemanticError> {
     let row = operation_semantic_row(&operation.kind)?;
     let Some(schema) = row.goal_free_scalar_leaf else {
         return Ok(None);
@@ -710,10 +735,13 @@ pub fn goal_free_scalar_leaf_equation(
     validate_result_shape(row.tag, schema.result, result.scalar_type)?;
     validate_operand_shape(row.tag, schema, inputs, result.scalar_type, value_types)?;
     let denotation = denotation_term(row.tag, schema, inputs, result.scalar_type, value_types)?;
-    Ok(Some(Proposition::Equal(
-        ScalarTerm::value(result.id, result.scalar_type),
-        denotation,
-    )))
+    Ok(Some(GoalFreeScalarLeafSemantics {
+        result_equation: Proposition::Equal(
+            ScalarTerm::value(result.id, result.scalar_type),
+            denotation,
+        ),
+        fact_shape: schema.fact(),
+    }))
 }
 
 #[cfg(test)]
@@ -812,7 +840,7 @@ mod tests {
             kind: OperationKind::WrappingIntegerAdd { left, right },
         };
         let value_types = BTreeMap::from([(left, i8_type()), (right, i8_type())]);
-        let actual = goal_free_scalar_leaf_equation(&operation, &value_types)
+        let actual = goal_free_scalar_leaf_semantics(&operation, &value_types)
             .unwrap()
             .unwrap();
         let integer_type = match i8_type() {
@@ -820,8 +848,8 @@ mod tests {
             ScalarType::Boolean | ScalarType::IeeeFloat(_) => unreachable!(),
         };
         assert_eq!(
-            actual,
-            Proposition::Equal(
+            actual.result_equation(),
+            &Proposition::Equal(
                 ScalarTerm::value(result, i8_type()),
                 ScalarTerm::wrapping_integer_add(
                     integer_type,
@@ -831,6 +859,29 @@ mod tests {
                 .unwrap(),
             ),
         );
+    }
+
+    #[test]
+    fn nonliteral_boolean_rows_declare_polarity_fact_policy() {
+        let mut polarity_rows = 0;
+        for row in OperationSemanticRow::ALL {
+            let Some(schema) = row.goal_free_scalar_leaf() else {
+                continue;
+            };
+            let expected = match schema.denotation() {
+                ScalarLeafDenotation::BooleanNot
+                | ScalarLeafDenotation::BooleanEqual
+                | ScalarLeafDenotation::IntegerEqual
+                | ScalarLeafDenotation::IntegerLessThan
+                | ScalarLeafDenotation::IntegerLessOrEqual => {
+                    polarity_rows += 1;
+                    ScalarLeafFactShape::BooleanResultEquationAndPolarityImplications
+                }
+                _ => ScalarLeafFactShape::ResultEquation,
+            };
+            assert_eq!(schema.fact(), expected);
+        }
+        assert_eq!(polarity_rows, 5);
     }
 
     #[test]
@@ -848,7 +899,7 @@ mod tests {
         };
         let value_types = BTreeMap::from([(left, i8_type()), (right, ScalarType::Boolean)]);
         assert_eq!(
-            goal_free_scalar_leaf_equation(&operation, &value_types),
+            goal_free_scalar_leaf_semantics(&operation, &value_types),
             Err(OperationSemanticError::OperandShapeMismatch(
                 OperationSemanticTag::WrappingIntegerAdd,
             )),
