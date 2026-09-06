@@ -37,7 +37,7 @@ trap 'rm -f -- "$TEMP_TAPE"' EXIT HUP INT TERM
 "$BUILD_DIR/compiler" < "$SRC" > "$TEMP_TAPE"
 mv "$TEMP_TAPE" "$TAPE"
 TLEN=$(wc -c < "$TAPE")
-[ "$TLEN" -le "$ALPHA_MAX_RAW_TAPE_SIZE" ] || { echo "FAIL: $NAME tape is $TLEN B, exceeds the AlphaBootstrapV3 raw maximum ($ALPHA_MAX_RAW_TAPE_SIZE B)" >&2; exit 1; }
+[ "$TLEN" -le "$ALPHA_MAX_RAW_TAPE_SIZE" ] || { echo "FAIL: $NAME tape is $TLEN B, exceeds the AlphaBootstrapV4 raw maximum ($ALPHA_MAX_RAW_TAPE_SIZE B)" >&2; exit 1; }
 
 # 2. stamp [4-byte LE length][bytecode] into a fresh copy of the seed
 stamp_seed "$TAPE" "$SEED" "$OUT"

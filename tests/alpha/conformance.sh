@@ -85,19 +85,19 @@ tc call_ret        42  "" "" 13 0b00000000000000 00 00 01 00 2a00000000000000 14
 # unknown opcode -> trap
 tc unknown_trap   132  "" "" ff
 
-# AlphaBootstrapV3 adds semantic memory above the unchanged stack origin.
-# All accesses below are in [0, 0x40000000); no out-of-range result is assumed.
-tc upper_origin_zero 0 "" "" 01 00 0000001000000000 08 01 00 00 01
-tc upper_middle_zero 0 "" "" 01 00 0000002000000000 08 01 00 00 01
-tc upper_final_zero  0 "" "" 01 00 ffffff3f00000000 08 01 00 00 01
-tc upper_origin_byte 165 "" "" 01 00 0000001000000000 01 01 a500000000000000 09 00 01 08 02 00 00 02
-tc upper_final_byte 231 "" "" 01 00 ffffff3f00000000 01 01 e700000000000000 09 00 01 08 02 00 00 02
+# AlphaBootstrapV4 extends the V3 memory end without moving the stack origin.
+# All accesses below are in [0, 0x70000000); no out-of-range result is assumed.
+tc upper_origin_zero 0 "" "" 01 00 0000004000000000 08 01 00 00 01
+tc upper_middle_zero 0 "" "" 01 00 0000005000000000 08 01 00 00 01
+tc upper_final_zero  0 "" "" 01 00 ffffff6f00000000 08 01 00 00 01
+tc upper_origin_byte 165 "" "" 01 00 0000004000000000 01 01 a500000000000000 09 00 01 08 02 00 00 02
+tc upper_final_byte 231 "" "" 01 00 ffffff6f00000000 01 01 e700000000000000 09 00 01 08 02 00 00 02
 # Full-word comparison checks all eight bytes ending at the selected extent.
-tc upper_final_word 42 "" "" 01 00 f8ffff3f00000000 01 01 8877665544332211 0b 00 01 0a 02 00 01 03 0100000000000000 10 01 02 3100000000000000 00 03 01 03 2a00000000000000 00 03
+tc upper_final_word 42 "" "" 01 00 f8ffff6f00000000 01 01 8877665544332211 0b 00 01 0a 02 00 01 03 0100000000000000 10 01 02 3100000000000000 00 03 01 03 2a00000000000000 00 03
 # The first call still stores return offset 9 at 0x0ffffff8, then returns.
 tc unchanged_stack_origin 9 "" "" 13 0b00000000000000 00 00 01 01 f8ffff0f00000000 0a 00 01 14
 
-# AlphaBootstrapV3 realization profile: the exact maximum raw tape must fit the
+# AlphaBootstrapV4 realization profile: the exact maximum raw tape must fit the
 # physical hole, round-trip unchanged, and execute. The adjacent raw byte must
 # be rejected before the caller's destination is touched.
 dd if=/dev/zero of="$TMP/exact-capacity.tape" bs="$ALPHA_MAX_RAW_TAPE_SIZE" count=1 2>/dev/null
@@ -149,7 +149,7 @@ fi
 if [ "$capacity_ok" = 1 ]; then
   PASS=$((PASS+1))
 else
-  FAIL=$((FAIL+1)); echo "  FAIL AlphaBootstrapV3 exact/adjacent capacity"
+  FAIL=$((FAIL+1)); echo "  FAIL AlphaBootstrapV4 exact/adjacent capacity"
 fi
 
 echo ""

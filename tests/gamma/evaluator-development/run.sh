@@ -37,8 +37,8 @@ from pathlib import Path
 from function_lookup import fixtures as function_lookup_fixtures
 
 artifacts = (
-    ("BETA", 46482, "6ef6ad5da234e61207bce4d8c262a596f3dfd19b55377121fb60978852408207"),
-    ("TAPE", 8355, "591c8417ca82b38d544c2fcf67f85ae6ff3e01002e9d015421339b8dd216df2e"),
+    ("BETA", 46482, "9ccd93e07a3baa00bba34133e91d15df6f3cc4d670688d06ff3febf82b304904"),
+    ("TAPE", 8355, "f08544faee5ee3a7aa5969f17004fa708326c38f9fb8ab27dfa9c97cb44ac2e8"),
 )
 for name, size, digest in artifacts:
     data = Path(os.environ[name]).read_bytes()

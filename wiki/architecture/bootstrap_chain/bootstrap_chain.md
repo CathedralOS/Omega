@@ -14,7 +14,7 @@ audited Alpha VM + admitted Beta compiler tape
   -> omega0 recompiles C for alpha_bootstrap -> omega_compiler_bytecode.tape
 ```
 
-Alpha is unchanged. Beta is the trusted imperative tape-assembly language whose
+Alpha opcode semantics are unchanged. Beta is the trusted imperative tape-assembly language whose
 self-reconstructing compiler has an admitted Alpha tape. Gamma is a typed
 scalar/effect functional language evaluated directly by Beta. Delta is the
 richer typed functional language required by Epsilon.
@@ -62,8 +62,8 @@ reconstruction are executable. The
 selected 1,632-line Beta-written Gamma evaluator and its 8,355-byte tape run
 the typed scalar/effect and self-augmentation gates. Proper tail execution,
 static validation, provenance-tagged immutable pairs, and bounded output are
-implemented with exact profile outcomes. The selected AlphaBootstrapV3 Gamma
-heap admits 20,132,659 pairs; its full-capacity and adjacent-refusal witnesses
+implemented with exact profile outcomes. The selected AlphaBootstrapV4 Gamma
+heap admits 40,265,318 pairs; its full-capacity and adjacent-refusal witnesses
 are an explicit slow gate, separate from routine scalar/effect checks.
 The selected Gamma-authored Delta compiler has a
 passing stage for finite arbitrary-field recursive ADTs plus exhaustive matches,

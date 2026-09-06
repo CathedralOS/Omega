@@ -4,4 +4,4 @@
     (let retained Int (pair remaining 0)
       (allocate (- remaining 1)))))
 
-(def main () Int (allocate 20132659))
+(def main () Int (allocate 40265318))

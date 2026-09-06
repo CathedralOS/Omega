@@ -8,4 +8,4 @@
 
 (def main () Int
   (let buffered Int (write 65)
-    (allocate 20132658)))
+    (allocate 40265317)))
