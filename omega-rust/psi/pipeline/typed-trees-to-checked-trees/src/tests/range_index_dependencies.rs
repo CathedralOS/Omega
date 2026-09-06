@@ -54,7 +54,7 @@ fn literal_element_writes_preserve_only_disjoint_indexed_bounds() {
         ("original[0] = replacement;", false),
         (
             "let alias: &mut i64 = &mut original[1]; alias = replacement;",
-            false,
+            true,
         ),
         (
             "let alias: &mut i64 = &mut original[0]; alias = replacement;",
@@ -70,17 +70,14 @@ fn literal_element_writes_preserve_only_disjoint_indexed_bounds() {
 
 #[test]
 fn call_frames_preserve_only_proven_disjoint_indexed_bounds() {
-    // The shared frame/origin representation currently widens projected
-    // element writes to the collection root. That complete over-approximation
-    // cannot prove disjointness; retaining coordinates is remaining work.
     for (body, accepted) in [
         ("set(&mut unrelated, replacement);", true),
         ("inspect(&original[0]);", true),
-        ("set(&mut original[1], replacement);", false),
+        ("set(&mut original[1], replacement);", true),
         ("set(&mut original[0], replacement);", false),
         (
             "let alias: &mut i64 = &mut original[1]; set(alias, replacement);",
-            false,
+            true,
         ),
         (
             "let alias: &mut i64 = &mut original[0]; set(alias, replacement);",
@@ -225,7 +222,7 @@ fn members_below_indexes_preserve_field_and_element_disjointness() {
         ("cells[0].end = replacement;", false),
         (
             "let alias: &mut i64 = &mut cells[0].other; set(alias, replacement);",
-            false,
+            true,
         ),
         (
             "let alias: &mut i64 = &mut cells[0].end; set(alias, replacement);",

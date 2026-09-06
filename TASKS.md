@@ -405,14 +405,6 @@ Owners include
   establish disjointness/containment but cannot extend lifetime, duplicate a
   loan, or replace ownership accounting.
 
-  Retain fixed element/field coordinates through projected call and local-reference
-  write origins in `validation/src/calls/write_frames/` and their
-  `typed-trees-to-checked-trees/src/flow/mutation/` adapter. Current coarse
-  collection roots retire indexed bounds even for `set(&mut values[1])` or a
-  local alias to that element when the bound reads `values[0]`. Acceptance:
-  exact disjoint writes preserve the bound; overlapping, dynamic, or unresolved
-  writes remain conservative, including writes through aliases.
-
   Extend range-premise read dependencies to selected calls/indexing operators
   and atomic reads when their complete footprints and operation stability are
   established. Explicit arguments alone do not establish all callee reads;

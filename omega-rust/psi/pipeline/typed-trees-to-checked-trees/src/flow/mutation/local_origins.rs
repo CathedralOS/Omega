@@ -1,15 +1,17 @@
 //! Project the shared frame engine's local storage origins into flow places.
 //!
 //! Alias transfer belongs to validation. This adapter resolves its canonical
-//! names to existing typed symbols and retains structured selectors only when
-//! the shared origin is exact.
+//! names to existing typed symbols and retains only declared, builtin fixed
+//! coordinates from its captured structural origins.
 
 use super::*;
+mod coordinates;
+use coordinates::origin_place;
 
 /// Facts can be expressed through any live reference to the written storage.
 /// Transport the shared prefix origins into this representation; do not infer
 /// bindings here or change the access routes used by borrow authorization.
-pub(in crate::flow) fn close_storage_places_over_aliases(
+pub(crate) fn close_storage_places_over_aliases(
     program: &typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
@@ -32,7 +34,7 @@ pub(in crate::flow) fn close_storage_places_over_aliases(
     let origins = resolver.local_write_origins_before_statement(machine, statement)?;
     let storage = places.clone();
     for origin in origins {
-        let source = place_from_origin_path(program, state, statement_index, &origin.source_path)?;
+        let (source, exact) = origin_place(program, state, statement_index, &origin)?;
         for place in &storage {
             if crate::flow::normalized_event_place_root(program, source.root)
                 != crate::flow::normalized_event_place_root(program, place.root)
@@ -44,7 +46,7 @@ pub(in crate::flow) fn close_storage_places_over_aliases(
             if !canonical_place_segments_may_overlap(program, &place.segments, &source.segments) {
                 continue;
             }
-            if place.segments.len() >= source.segments.len() && !origin.collection_coarse {
+            if place.segments.len() >= source.segments.len() && exact {
                 alias
                     .segments
                     .extend_from_slice(&place.segments[source.segments.len()..]);
@@ -67,6 +69,37 @@ pub(super) fn assignment_storage_places(
     let StatementNode::Assignment(assignment) = statement else {
         return None;
     };
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)?;
+    let state = find_state(program, state_symbol)?;
+    let mut projection = assignment.target;
+    loop {
+        projection = match program.expression_table.expression(projection) {
+            ExpressionNode::Borrow(borrow) => borrow.target,
+            ExpressionNode::Member(member) => member.receiver,
+            ExpressionNode::Indexed(indexed)
+                if matches!(
+                    program.expression_table.expression(indexed.index),
+                    ExpressionNode::Range(_)
+                ) =>
+            {
+                indexed.collection
+            }
+            ExpressionNode::Indexed(_)
+                if !validation::place_has_builtin_coordinates(
+                    program,
+                    machine,
+                    Some(state),
+                    projection,
+                ) =>
+            {
+                return None;
+            }
+            _ => break,
+        };
+    }
     let mut direct = canonical_place_from_expression_in_state(
         program,
         state_symbol,
@@ -79,10 +112,6 @@ pub(super) fn assignment_storage_places(
             return direct.map(|place| vec![place]);
         }
     }
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)?;
     let resolver = validation::CallFrameResolver::new(program)?;
     match resolver.assignment_write_target(machine, statement)? {
         validation::AssignmentWriteTarget::LocalBindingReplacement { .. } => {
@@ -94,14 +123,7 @@ pub(super) fn assignment_storage_places(
             } else {
                 paths
                     .iter()
-                    .map(|path| {
-                        place_from_origin_path(
-                            program,
-                            find_state(program, state_symbol)?,
-                            statement_index,
-                            path,
-                        )
-                    })
+                    .map(|path| place_from_origin_path(program, state, statement_index, path))
                     .collect()
             }
         }
@@ -165,11 +187,10 @@ pub(super) fn rebase_local_write_places(
         if !canonical_place_segments_may_overlap(program, &place.segments, &origin.local_segments) {
             continue;
         }
-        let mut canonical =
-            place_from_origin_path(program, state, statement_index, &origin.source_path)?;
+        let (mut canonical, exact) = origin_place(program, state, statement_index, origin)?;
         if place.segments.len() >= origin.local_segments.len() {
             retains_private_storage = false;
-            if !origin.collection_coarse {
+            if exact {
                 canonical
                     .segments
                     .extend_from_slice(&place.segments[origin.local_segments.len()..]);

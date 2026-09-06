@@ -23,7 +23,7 @@ pub(in crate::calls::write_frames) fn canonical_reference_origins(
         .find(|(name, _)| program.symbols.name(origin.source.root) == name)
     {
         let (_, suffix) = super::split_place_root(&origin.path);
-        let source = prior.source.append_segments(&origin.source.segments);
+        let source = prior.source.append_source(&origin.source);
         origin = compose_origin(prior, suffix, origin.precision);
         origin.source = source;
     }
@@ -44,6 +44,7 @@ pub(in crate::calls::write_frames) fn canonical_reference_origins(
             .origin
             .source
             .append_segments(&origin.source.segments[leaf.local_segments.len()..]);
+        source.source.builtin_coordinates &= origin.source.builtin_coordinates;
         if !sources.iter().any(|prior: &FramePlaceOrigin| {
             prior.path == source.path
                 && prior.precision == source.precision

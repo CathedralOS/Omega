@@ -111,6 +111,7 @@ mod tests {
             source: super::super::FrameSourcePlace {
                 root: source,
                 segments: Vec::new(),
+                builtin_coordinates: true,
             },
             type_reference: Default::default(),
         });

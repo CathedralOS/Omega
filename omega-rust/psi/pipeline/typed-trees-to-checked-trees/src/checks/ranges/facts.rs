@@ -1,5 +1,6 @@
 use symbols::SymbolHandle;
 
+mod call_writes;
 mod dependencies;
 mod invalidation;
 mod proofs;
@@ -8,6 +9,8 @@ mod values;
 #[derive(Clone)]
 pub(super) struct RangeFacts<'field> {
     pub(super) checked_operators: Option<&'field checked_trees::CheckedOperatorFacts>,
+    pub(super) checked_borrows: Option<&'field checked_trees::BorrowFacts>,
+    mutation_summaries: crate::flow::StateMutationSummaryCache,
     pub(super) statement_index: usize,
     expression_dependencies: Vec<dependencies::ExpressionDependencies>,
     fields: &'field [(SymbolHandle, String, usize)],
@@ -48,6 +51,8 @@ impl<'field> RangeFacts<'field> {
     pub(super) fn new(fields: &'field [(SymbolHandle, String, usize)]) -> Self {
         Self {
             checked_operators: None,
+            checked_borrows: None,
+            mutation_summaries: crate::flow::StateMutationSummaryCache::default(),
             statement_index: 0,
             expression_dependencies: Vec::new(),
             fields,

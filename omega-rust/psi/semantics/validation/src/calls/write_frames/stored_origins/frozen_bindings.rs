@@ -287,5 +287,5 @@ pub(in crate::calls::write_frames) fn binding_source(
         return Some(source);
     };
     (origin.precision == FramePathPrecision::Exact && origin.source.root.is_valid())
-        .then(|| origin.source.append_segments(&source.segments))
+        .then(|| origin.source.append_source(&source))
 }

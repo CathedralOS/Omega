@@ -136,6 +136,7 @@ pub(super) fn collect_state_argument_facts<'program>(
     field_lengths: &[(SymbolHandle, String, usize)],
     machine: &'program Machine,
     call_frames: Option<&validation::CallFrameResolver<'program>>,
+    borrows: &checked_trees::BorrowFacts,
 ) -> Vec<StateArgumentFacts> {
     // Facts about a state's arguments are derived from the call/transition
     // sites that target it. On a recursive or cyclic control-flow path the
@@ -172,6 +173,7 @@ pub(super) fn collect_state_argument_facts<'program>(
                 call_frames,
             };
             let mut facts = RangeFacts::new(field_lengths);
+            facts.checked_borrows = Some(borrows);
             for parameter in program.state_parameters(state) {
                 facts.define_local(
                     parameter.symbol,

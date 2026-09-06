@@ -3,14 +3,22 @@
 //! access checks remain with the origin consumer.
 
 use facts::{FactPlan, PlaceRoot, PlaceSegment};
-use symbols::SymbolHandle;
+use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
+use typed_trees::machine::Machine;
+use typed_trees::state::State;
+use typed_trees::statement::StatementNode;
+
+use crate::calls::write_frames::caller_aliases::{CallerWriteSite, caller_statement_at_site};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(in crate::calls::write_frames) struct FrameSourcePlace {
     pub(in crate::calls::write_frames) root: SymbolHandle,
     pub(in crate::calls::write_frames) segments: Vec<PlaceSegment>,
+    /// Permission to interpret candidate selectors as primitive coordinates.
+    /// False retains possible-source metadata for the coarse frame consumers.
+    pub(in crate::calls::write_frames) builtin_coordinates: bool,
 }
 
 impl FrameSourcePlace {
@@ -27,12 +35,18 @@ impl FrameSourcePlace {
         if !root.is_valid() {
             return Self::default();
         }
+        let segments = facts.place_segments.span_or_empty(place.segments);
+        let builtin_coordinates = !segments_have_index_geometry(segments)
+            || source_has_builtin_coordinates(program, root, expression);
         Self {
             root,
-            segments: facts.place_segments.span_or_empty(place.segments).to_vec(),
+            segments: segments.to_vec(),
+            builtin_coordinates,
         }
     }
 
+    /// Append schema-derived selectors. Expression-derived selectors must
+    /// also carry their meaning flag via append_source or explicit conjunction.
     pub(in crate::calls::write_frames) fn append_segments(
         &self,
         segments: &[PlaceSegment],
@@ -42,6 +56,12 @@ impl FrameSourcePlace {
         }
         let mut projected = self.clone();
         projected.segments.extend_from_slice(segments);
+        projected
+    }
+
+    pub(in crate::calls::write_frames) fn append_source(&self, source: &Self) -> Self {
+        let mut projected = self.append_segments(&source.segments);
+        projected.builtin_coordinates &= source.builtin_coordinates;
         projected
     }
 
@@ -70,12 +90,23 @@ impl FrameSourcePlace {
         if whole.root != base.root || !known_base {
             return Self::default();
         }
-        let whole = facts.place_segments.span_or_empty(whole.segments);
-        let base = facts.place_segments.span_or_empty(base.segments);
-        let Some(suffix) = whole.strip_prefix(base) else {
+        let whole_segments = facts.place_segments.span_or_empty(whole.segments);
+        let base_segments = facts.place_segments.span_or_empty(base.segments);
+        let Some(suffix) = whole_segments.strip_prefix(base_segments) else {
             return Self::default();
         };
-        self.append_segments(suffix)
+        // The base origin is already proven, including helper-result bases.
+        // Only newly appended index geometry requires operation-meaning custody.
+        let mut projected = self.append_segments(suffix);
+        if segments_have_index_geometry(suffix) {
+            projected.builtin_coordinates &= match whole.root {
+                PlaceRoot::Symbol(root) => {
+                    source_has_builtin_coordinates(program, root, whole_expression)
+                }
+                _ => false,
+            };
+        }
+        projected
     }
 
     /// Substitute a proven relative source beneath this caller source.
@@ -86,6 +117,7 @@ impl FrameSourcePlace {
             return Self::default();
         }
         let mut result = self.clone();
+        result.builtin_coordinates &= relative.builtin_coordinates;
         result
             .segments
             .extend(relative.segments.iter().map(|segment| match segment {
@@ -98,196 +130,99 @@ impl FrameSourcePlace {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use arena::HandleSpan;
-    use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
-    use typed_trees::expression::{
-        ExpressionNode, TableIndexedExpression, TableMemberExpression, TableNamePath,
-    };
-    use typed_trees::name::Identifier;
-
-    fn name(program: &mut TypedTrees, spelling: &str, symbol: SymbolHandle) -> ExpressionHandle {
-        let mut members = HandleSpan::empty();
-        program
-            .expression_table
-            .push_name_path_member(&mut members, Identifier::generated(spelling));
-        let mut member_symbols = HandleSpan::empty();
-        program
-            .expression_table
-            .push_name_path_member_symbol(&mut member_symbols, symbol);
-        program
-            .expression_table
-            .insert(ExpressionNode::Name(TableNamePath {
-                members,
-                member_symbols,
-                head_symbol: symbol,
-                symbol,
-            }))
-    }
-
-    fn field_after_index(
-        program: &mut TypedTrees,
-        collection: ExpressionHandle,
-        index: ExpressionHandle,
-        field: SymbolHandle,
-    ) -> (ExpressionHandle, ExpressionHandle) {
-        let indexed =
-            program
-                .expression_table
-                .insert(ExpressionNode::Indexed(TableIndexedExpression {
-                    collection,
-                    index,
-                }));
-        let whole =
-            program
-                .expression_table
-                .insert(ExpressionNode::Member(TableMemberExpression {
-                    receiver: indexed,
-                    member_symbol: field,
-                    member: Identifier::generated("view"),
-                    case_variant: None,
-                }));
-        (indexed, whole)
-    }
-
-    fn fixture() -> (TypedTrees, Vec<SymbolHandle>) {
-        let mut symbols = SymbolTableBuilder::default();
-        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
-        let children = symbols.insert_children(
-            root,
-            [
-                (SymbolKind::Local, SymbolNameRef::Static("values")),
-                (SymbolKind::Local, SymbolNameRef::Static("index")),
-                (SymbolKind::Field, SymbolNameRef::Static("view")),
-                (SymbolKind::Parameter, SymbolNameRef::Static("caller")),
-            ],
-        );
-        let handles = SymbolTableBuilder::child_handles(children).collect();
-        (
-            TypedTrees {
-                symbols: symbols.finish(),
-                ..TypedTrees::default()
-            },
-            handles,
+fn segments_have_index_geometry(segments: &[PlaceSegment]) -> bool {
+    segments.iter().any(|segment| {
+        matches!(
+            segment,
+            PlaceSegment::FixedIndex { .. }
+                | PlaceSegment::FixedRange { .. }
+                | PlaceSegment::Index { .. }
         )
-    }
+    })
+}
 
-    #[test]
-    fn coarse_write_path_retains_structural_field_after_index() {
-        for runtime in [false, true] {
-            let (mut program, symbols) = fixture();
-            let collection = name(&mut program, "values", symbols[0]);
-            let index = if runtime {
-                name(&mut program, "index", symbols[1])
-            } else {
-                program.expression_table.insert(ExpressionNode::Integer(
-                    numerics::literals::IntegerLiteral::from_value(1),
-                ))
-            };
-            let (_, expression) = field_after_index(&mut program, collection, index, symbols[2]);
-            let origin = super::super::frame_place_path(&program, expression).expect("place");
-            assert_eq!(origin.path, "values");
-            assert_eq!(
-                origin.precision,
-                super::super::FramePathPrecision::CollectionCoarse
-            );
-            assert_eq!(origin.source.root, symbols[0]);
-            assert_eq!(
-                origin.source.segments,
-                vec![
-                    if runtime {
-                        PlaceSegment::Index { expression: index }
-                    } else {
-                        PlaceSegment::FixedIndex { index: 1 }
-                    },
-                    PlaceSegment::Field { symbol: symbols[2] },
-                ]
-            );
-            assert_eq!(
-                super::super::coarse_place_path(&program, expression),
-                Some(origin.path)
-            );
+fn source_has_builtin_coordinates(
+    program: &TypedTrees,
+    root: SymbolHandle,
+    expression: ExpressionHandle,
+) -> bool {
+    source_owner(program, root, expression).is_some_and(|(machine, state)| {
+        crate::place_has_builtin_coordinates(program, machine, Some(state), expression)
+    })
+}
+
+/// Recover context from declaration ownership, never from a matching name or
+/// the first state of an attached machine. A data field's declaration alone
+/// cannot identify which attached machine is evaluating the expression.
+fn source_owner(
+    program: &TypedTrees,
+    root: SymbolHandle,
+    expression: ExpressionHandle,
+) -> Option<(&Machine, &State)> {
+    let declaration = program.symbols.get(root);
+    let mut owner = None;
+    for machine in program.machines() {
+        match declaration.kind {
+            SymbolKind::Parameter | SymbolKind::Local => {
+                for state in program.machine_states(machine) {
+                    if state.symbol != declaration.parent {
+                        continue;
+                    }
+                    let retained = match declaration.kind {
+                        SymbolKind::Parameter => program
+                            .state_parameters(state)
+                            .iter()
+                            .any(|parameter| parameter.symbol == root),
+                        SymbolKind::Local => program
+                            .statement_table
+                            .statements(state.statement_nodes)
+                            .iter()
+                            .any(|statement| {
+                                matches!(statement, StatementNode::LocalData(local)
+                                    if local.symbol == root)
+                            }),
+                        _ => false,
+                    };
+                    if retained {
+                        if owner.is_some() {
+                            return None;
+                        }
+                        owner = Some((machine, state));
+                    }
+                }
+            }
+            SymbolKind::Machine | SymbolKind::Field => {
+                let owns_root = match declaration.kind {
+                    SymbolKind::Machine => machine.symbol == root,
+                    SymbolKind::Field => {
+                        declaration.parent == machine.symbol
+                            && crate::exact_attached_field(
+                                program,
+                                machine,
+                                root,
+                                program.symbols.name(root),
+                            )
+                            .is_some()
+                    }
+                    _ => false,
+                };
+                if owns_root {
+                    let (state, _, _) = caller_statement_at_site(
+                        program,
+                        machine,
+                        CallerWriteSite::Expression(expression),
+                    )?;
+                    if owner.is_some() {
+                        return None;
+                    }
+                    owner = Some((machine, state));
+                }
+            }
+            _ => return None,
         }
     }
-
-    #[test]
-    fn structural_projection_appends_only_the_normalized_suffix() {
-        let (mut program, symbols) = fixture();
-        let collection = name(&mut program, "values", symbols[0]);
-        let index = name(&mut program, "index", symbols[1]);
-        let (indexed, whole) = field_after_index(&mut program, collection, index, symbols[2]);
-        let source = FrameSourcePlace {
-            root: symbols[3],
-            segments: vec![PlaceSegment::FixedIndex { index: 5 }],
-        };
-        assert_eq!(
-            source.projected(&program, whole, indexed),
-            FrameSourcePlace {
-                root: symbols[3],
-                segments: vec![
-                    PlaceSegment::FixedIndex { index: 5 },
-                    PlaceSegment::Field { symbol: symbols[2] },
-                ],
-            }
-        );
-        assert_eq!(
-            source.projected(&program, indexed, whole),
-            FrameSourcePlace::default()
-        );
-        let foreign = name(&mut program, "caller", symbols[3]);
-        assert_eq!(
-            source.projected(&program, whole, foreign),
-            FrameSourcePlace::default()
-        );
-        assert_eq!(
-            FrameSourcePlace::default().projected(&program, whole, indexed),
-            FrameSourcePlace::default()
-        );
-    }
-
-    #[test]
-    fn relative_source_erases_only_callee_runtime_index_handles() {
-        let (mut program, symbols) = fixture();
-        let index = name(&mut program, "index", symbols[1]);
-        let caller = FrameSourcePlace {
-            root: symbols[3],
-            segments: vec![PlaceSegment::Index { expression: index }],
-        };
-        let relative = FrameSourcePlace {
-            root: symbols[0],
-            segments: vec![
-                PlaceSegment::Index { expression: index },
-                PlaceSegment::FixedIndex { index: 2 },
-                PlaceSegment::Field { symbol: symbols[2] },
-            ],
-        };
-        assert_eq!(
-            caller.append_relative(&relative),
-            FrameSourcePlace {
-                root: symbols[3],
-                segments: vec![
-                    PlaceSegment::Index { expression: index },
-                    PlaceSegment::Index {
-                        expression: ExpressionHandle::invalid()
-                    },
-                    PlaceSegment::FixedIndex { index: 2 },
-                    PlaceSegment::Field { symbol: symbols[2] },
-                ],
-            }
-        );
-        assert_eq!(
-            caller.append_relative(&FrameSourcePlace::default()),
-            FrameSourcePlace::default()
-        );
-        assert_eq!(
-            FrameSourcePlace::default().append_relative(&relative),
-            FrameSourcePlace::default()
-        );
-        assert_eq!(
-            FrameSourcePlace::from_expression(&program, ExpressionHandle::invalid()),
-            FrameSourcePlace::default()
-        );
-    }
+    owner
 }
+
+#[cfg(test)]
+mod tests;
