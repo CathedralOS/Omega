@@ -43,7 +43,7 @@ pub(super) fn call_home(
             .any(|(index, location)| {
                 !matches!(location, ValueLocation::Register { value_byte_offset, byte_size, .. }
                 if usize::from(*value_byte_offset) == index * 8
-                    && matches!(*byte_size, 1 | 2 | 4 | 8)
+                    && (1..=8).contains(byte_size)
                     && usize::from(*byte_size)
                         == (usize::from(shape.byte_size) - index * 8).min(8))
             })
@@ -86,20 +86,21 @@ pub(super) fn emit_result_stores(
             .checked_add(u32::from(*value_byte_offset))
             .ok_or_else(invalid)?;
         match target.architecture {
-            Architecture::X86_64 => emit_x86_64_stack_store_width(
+            Architecture::X86_64 => packed_fragments::x86_stack_store(
                 bytes,
                 x86_unit_register(*register)?,
                 offset,
                 *byte_size,
             )?,
             Architecture::Aarch64 => {
-                let instruction = aarch64_unit_stack_access(
-                    aarch64_store_base(*byte_size)?,
+                let mut instructions = Vec::new();
+                packed_fragments::aarch64_stack_store(
+                    &mut instructions,
                     aarch64_unit_register(*register)?,
                     offset,
                     *byte_size,
                 )?;
-                bytes.extend_from_slice(&instruction.to_le_bytes());
+                append_aarch64_instructions(bytes, instructions);
             }
         }
     }

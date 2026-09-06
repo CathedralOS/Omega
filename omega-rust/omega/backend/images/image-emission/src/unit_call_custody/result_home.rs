@@ -45,11 +45,27 @@ pub(crate) fn expected_store_bytes(
         else {
             return None;
         };
-        if value_byte_offset != cursor || !matches!(byte_size, 1 | 2 | 4 | 8) {
+        if value_byte_offset != cursor || !(1..=8).contains(&byte_size) {
             return None;
         }
         let offset = home.home_byte_offset.checked_add(u32::from(cursor))?;
         match target.architecture {
+            Architecture::X86_64 if super::packed_fragment::is_packed(byte_size) => {
+                super::packed_fragment::x86_store(
+                    &mut bytes,
+                    super::x86_terminal_register(register)?,
+                    offset,
+                    byte_size,
+                )?;
+            }
+            Architecture::Aarch64 if super::packed_fragment::is_packed(byte_size) => {
+                super::packed_fragment::aarch64_store(
+                    &mut bytes,
+                    super::aarch64_terminal_register(register)?,
+                    offset,
+                    byte_size,
+                )?;
+            }
             Architecture::X86_64 => super::projected_copy::x86_stack_store(
                 &mut bytes,
                 super::x86_terminal_register(register)?,

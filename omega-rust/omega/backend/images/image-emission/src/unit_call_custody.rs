@@ -5,6 +5,7 @@
 //! exact copy bytes, and call-span containment. It neither assigns layouts nor
 //! emits relocations or executable bytes.
 
+mod packed_fragment;
 mod projected_copy;
 pub(crate) mod result_home;
 

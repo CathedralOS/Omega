@@ -37,20 +37,6 @@ fn execute_payload(
     let output = image.output();
     assert_eq!(output.final_image_imports, 0);
     assert!(output.final_data_bytes.is_empty());
-    let nonce = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    let sequence = NEXT_SCRATCH_DIRECTORY.fetch_add(1, Ordering::Relaxed);
-    let directory = std::env::temp_dir().join(format!(
-        "omega-affine-unit-call-{}-{nonce}-{sequence}",
-        std::process::id()
-    ));
-    std::fs::create_dir(&directory).unwrap();
-    let _cleanup = ScratchDirectory(directory.clone());
-    let assembly_path = directory.join("entry.s");
-    let driver_path = directory.join("driver.c");
-    let executable_path = directory.join("entry");
     let bytes = output
         .final_text_bytes
         .iter()
@@ -83,6 +69,24 @@ fn execute_payload(
              return 0;\n\
          }}\n"
     );
+    compile_and_run(&assembly, &driver);
+}
+
+pub(super) fn compile_and_run(assembly: &str, driver: &str) {
+    let nonce = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let sequence = NEXT_SCRATCH_DIRECTORY.fetch_add(1, Ordering::Relaxed);
+    let directory = std::env::temp_dir().join(format!(
+        "omega-affine-unit-call-{}-{nonce}-{sequence}",
+        std::process::id()
+    ));
+    std::fs::create_dir(&directory).unwrap();
+    let _cleanup = ScratchDirectory(directory.clone());
+    let assembly_path = directory.join("entry.s");
+    let driver_path = directory.join("driver.c");
+    let executable_path = directory.join("entry");
     std::fs::write(&assembly_path, assembly).unwrap();
     std::fs::write(&driver_path, driver).unwrap();
     let link = Command::new("cc")

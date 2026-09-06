@@ -146,7 +146,7 @@ pub(super) fn expected_owned_projected_copy_bytes(
                 } => (*value_byte_offset, *byte_size),
                 ValueLocation::Indirect { .. } => return None,
             };
-            if offset != copied || !matches!(width, 1 | 2 | 4 | 8) {
+            if offset != copied || !(1..=8).contains(&width) {
                 return None;
             }
             copied = copied.checked_add(width)?;
@@ -208,36 +208,56 @@ fn append_fragment(
                 ValueLocation::Register { register, .. } => x86_terminal_register(register)?,
                 _ => 0,
             };
-            if indirect {
+            if super::packed_fragment::is_packed(width) {
+                super::packed_fragment::x86_load(bytes, register, offset, width, indirect)?;
+            } else if indirect {
                 x86_pointer_load(bytes, register, offset, width)?;
             } else {
                 expected_x86_stack_load(bytes, register, offset, width)?;
             }
             if let Some(offset) = stack {
-                x86_stack_store(bytes, register, offset, width)?;
+                if super::packed_fragment::is_packed(width) {
+                    super::packed_fragment::x86_store(bytes, register, offset, width)?;
+                } else {
+                    x86_stack_store(bytes, register, offset, width)?;
+                }
             }
         }
         Architecture::Aarch64 => {
             let register = match destination {
                 ValueLocation::Register { register, .. } => aarch64_terminal_register(register)?,
+                _ if !indirect && super::packed_fragment::is_packed(width) => 9,
                 _ => 10,
             };
-            let mut load = expected_aarch64_stack_load(register, offset, width)?;
-            if indirect {
-                load = (load & !(31 << 5)) | (9 << 5);
+            if super::packed_fragment::is_packed(width) {
+                super::packed_fragment::aarch64_load(bytes, register, offset, width, indirect)?;
+            } else {
+                let mut load = expected_aarch64_stack_load(register, offset, width)?;
+                if indirect {
+                    load = (load & !(31 << 5)) | (9 << 5);
+                }
+                bytes.extend_from_slice(&load.to_le_bytes());
             }
-            bytes.extend_from_slice(&load.to_le_bytes());
             if let Some(offset) = stack {
-                bytes.extend_from_slice(
-                    &aarch64_stack_store(register, offset, width)?.to_le_bytes(),
-                );
+                if super::packed_fragment::is_packed(width) {
+                    super::packed_fragment::aarch64_store(bytes, register, offset, width)?;
+                } else {
+                    bytes.extend_from_slice(
+                        &aarch64_stack_store(register, offset, width)?.to_le_bytes(),
+                    );
+                }
             }
         }
     }
     Some(())
 }
 
-fn x86_pointer_load(bytes: &mut Vec<u8>, register: u8, offset: u32, width: u16) -> Option<()> {
+pub(super) fn x86_pointer_load(
+    bytes: &mut Vec<u8>,
+    register: u8,
+    offset: u32,
+    width: u16,
+) -> Option<()> {
     let prefix = 0x41 | (((register >> 3) & 1) << 2);
     match width {
         1 => bytes.extend_from_slice(&[prefix, 0x0f, 0xb6]),
