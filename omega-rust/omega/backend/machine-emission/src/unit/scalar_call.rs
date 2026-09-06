@@ -16,10 +16,10 @@ use target::{Architecture, NativeTarget, ObjectFormat};
 use target_operations::CallSiteOwner;
 
 use super::{
-    EmissionError, aarch64_load_base, aarch64_outgoing_placement_extent, aarch64_store_base,
-    aarch64_unit_register, aarch64_unit_stack_access, align_u32, append_aarch64_instructions,
-    emit_aarch64_adjust_sp, emit_x86_64_adjust_sp, emit_x86_64_stack_load_width,
-    emit_x86_64_stack_store_width, outgoing_placement_extent, stack_adjustment_pair,
+    EmissionError, aarch64_load_base, aarch64_store_base, aarch64_unit_register,
+    aarch64_unit_stack_access, align_u32, append_aarch64_instructions, emit_aarch64_adjust_sp,
+    emit_x86_64_adjust_sp, emit_x86_64_stack_load_width, emit_x86_64_stack_store_width,
+    outgoing_placement_extent, outgoing_placement_extent_with_copy, stack_adjustment_pair,
     unit_scalar_home_record, unit_scalar_shape, x86_unit_register,
 };
 
@@ -118,7 +118,7 @@ pub(super) fn aarch64_unit_scalar_transport_plan(
     let outgoing_bytes = call_plan
         .parameters
         .iter()
-        .map(aarch64_outgoing_placement_extent)
+        .map(outgoing_placement_extent_with_copy)
         .try_fold(u32::from(call_plan.shadow_bytes), |extent, candidate| {
             candidate.map(|value| extent.max(value))
         })?;

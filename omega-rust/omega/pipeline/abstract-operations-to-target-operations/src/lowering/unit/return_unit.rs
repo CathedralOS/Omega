@@ -2,7 +2,7 @@
 
 use super::super::cleanup::validate_bounded_nominal_cleanup_body;
 use super::super::shared::*;
-use super::super::structural::exact_fully_consumed_affine_pair_root;
+use super::super::structural::exact_fully_consumed_affine_root;
 use super::super::structural_layout::{
     expected_maximal_residual_subtrees, is_partial_cleanup_path,
 };
@@ -63,7 +63,7 @@ pub(super) fn lower_unit_return(
                     _ => Vec::new(),
                 })
                 .collect::<BTreeSet<_>>();
-            let fully_consumed_affine_pair = exact_fully_consumed_affine_pair_root(
+            let fully_consumed_affine_root = exact_fully_consumed_affine_root(
                 function,
                 parameters,
                 operations,
@@ -89,7 +89,7 @@ pub(super) fn lower_unit_return(
                         .filter(|parameter| {
                             parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine
                                 && parameter.access == terminal_psi::StructuralAccess::Owned
-                                && Some(parameter.place) != fully_consumed_affine_pair
+                                && Some(parameter.place) != fully_consumed_affine_root
                                 && !consumed_whole_roots.contains(&parameter.place)
                         })
                         .map(|parameter| parameter.place),
@@ -188,33 +188,20 @@ pub(super) fn lower_unit_return(
                     parameter.structural_type,
                     &moved_subtrees,
                     structural_types,
+                    residual_discards.len(),
                 ) else {
                     return Err(LoweringError::UnsupportedOperationInUnitFunction(
                         function.machine,
                     ));
                 };
-                let fixed_array_call_count = structural_types
-                    .get(&parameter.structural_type)
-                    .and_then(|declaration| match declaration.shape {
-                        StructuralTypeShape::FixedArray { element, length: 2 }
-                            if structural_types.get(&element).is_some_and(|inner| {
-                                matches!(
-                                    inner.shape,
-                                    StructuralTypeShape::FixedArray { length: 3..=16, .. }
-                                )
-                            }) =>
-                        {
-                            Some(2)
-                        }
-                        StructuralTypeShape::FixedArray { length: 2, .. } => Some(1),
-                        StructuralTypeShape::FixedArray { length: 3, .. } => {
-                            Some(moved_arguments.len())
-                        }
-                        StructuralTypeShape::FixedArray { length: 4, .. } => Some(2),
-                        _ => None,
-                    });
+                let indexed_projection = moved_arguments.iter().any(|argument| {
+                    argument
+                        .path
+                        .iter()
+                        .any(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)))
+                });
                 if parameter.multiplicity != terminal_psi::StructuralMultiplicity::Affine
-                        || fixed_array_call_count.is_some_and(|expected_calls| {
+                        || (indexed_projection && {
                             function.structural_parameters.len() != 1
                                 || !function.entry_claims.is_empty()
                                 || !function.published_service_ceiling.is_empty()
@@ -223,7 +210,7 @@ pub(super) fn lower_unit_return(
                                 || parameter.access != terminal_psi::StructuralAccess::Owned
                                 || !parameter.qualifications.is_empty()
                                 || !local_places.is_empty()
-                                || operations.len() != expected_calls
+                                || operations.len() != moved_arguments.len()
                                 || operations.iter().any(|operation| {
                                     !matches!(operation, TargetUnitOperation::Call { .. })
                                 })

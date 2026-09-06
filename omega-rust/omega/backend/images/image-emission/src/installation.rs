@@ -1889,14 +1889,14 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             .filter(|call| call.machine == function.machine)
             .map(|call| call.custody.clone())
             .collect::<Vec<_>>();
-        let fully_consumed_affine_pair =
-            crate::fully_consumed_affine_pair::exact_fully_consumed_affine_pair(
+        let fully_consumed_affine_parameter =
+            crate::affine_projected_calls::exact_fully_consumed_affine_parameter(
                 &function.unit_parameter_homes,
                 &function_unit_calls,
                 function.unit_affine_cleanup.as_ref(),
             );
-        let partially_consumed_affine_array =
-            crate::fully_consumed_affine_pair::exact_partially_consumed_affine_array(
+        let partially_consumed_affine_parameter =
+            crate::affine_projected_calls::exact_partially_consumed_affine_parameter(
                 &function.unit_parameter_homes,
                 &function_unit_calls,
                 function.unit_affine_cleanup.as_ref(),
@@ -2132,7 +2132,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     home.multiplicity == StructuralMultiplicity::Affine
                         && home.access == terminal_psi::StructuralAccess::Owned
                         && !transferred_roots.contains(&home.place)
-                        && !fully_consumed_affine_pair
+                        && !fully_consumed_affine_parameter
                 })
                 .map(|home| home.place)
                 .collect::<Vec<_>>();
@@ -2330,16 +2330,6 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                             })
                             .map(|argument| (argument.path.as_slice(), argument.structural_type))
                             .collect::<Vec<_>>();
-                        let parameter_is_bounded_affine_array =
-                            parameter_type.is_some_and(|root_type| {
-                                cleanup.structural_types.iter().any(|declaration| {
-                                    declaration.id == root_type
-                                        && matches!(
-                                            declaration.shape,
-                                            StructuralTypeShape::FixedArray { length: 3 | 4, .. }
-                                        )
-                                })
-                            });
                         cleanup.actions.get(..discards.len()).is_none_or(|prefix| {
                             !prefix.iter().zip(&discards).all(|(action, place)| {
                                 matches!(action,
@@ -2372,8 +2362,11 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                     })
                                 })
                             || parameter_type.is_none()
-                            || (parameter_is_bounded_affine_array
-                                && !partially_consumed_affine_array)
+                            || (moved.iter().any(|(path, _)| {
+                                path.iter().any(|segment| {
+                                    matches!(segment, StructuralPathSegment::FixedIndex(_))
+                                })
+                            }) && !partially_consumed_affine_parameter)
                             || moved.is_empty()
                             || moved.iter().any(|(path, _)| {
                                 path.is_empty()
@@ -2935,8 +2928,8 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             .filter(|call| call.machine == installed.machine)
             .map(|call| call.custody.clone())
             .collect::<Vec<_>>();
-        let fully_consumed_affine_pair =
-            crate::fully_consumed_affine_pair::exact_fully_consumed_affine_pair(
+        let fully_consumed_affine_parameter =
+            crate::affine_projected_calls::exact_fully_consumed_affine_parameter(
                 &function.unit_parameter_homes,
                 &function_unit_calls,
                 function.unit_affine_cleanup.as_ref(),
@@ -3375,6 +3368,20 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                     || argument.element_stride.is_some()
                             }
                             _ if exact_write_only_argument(argument_index, argument) => false,
+                            _ if argument.access == terminal_psi::StructuralAccess::Owned
+                                && parameter_homes.iter().any(|home| {
+                                    home.place == argument.place
+                                        && home.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+                                }) =>
+                            {
+                                parameter_homes.iter().find(|home| home.place == argument.place)
+                                    .zip(affine_cleanup)
+                                    .is_none_or(|(home, cleanup)| {
+                                        !crate::affine_projected_calls::exact_owned_projection(
+                                            argument, home, &cleanup.structural_types,
+                                        )
+                                    })
+                            }
                             [StructuralPathSegment::FixedIndex(index)] => {
                                 let expected_stride = u32::from(argument.shape.byte_size)
                                     .next_multiple_of(u32::from(argument.shape.alignment));
@@ -3456,7 +3463,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     return false;
                 }
                 argument.path.is_empty()
-                    || (!fully_consumed_affine_pair
+                    || (!fully_consumed_affine_parameter
                         && affine_cleanup.is_none_or(|cleanup| {
                             !cleanup.actions.iter().any(|action| {
                                 matches!(action,
@@ -4237,21 +4244,12 @@ fn validate_installed_dynamic_conformance(
     Ok(())
 }
 
-fn is_partial_cleanup_path(path: &[StructuralPathSegment]) -> bool {
-    (!path.is_empty()
-        && path.iter().all(|segment| {
-            matches!(segment, StructuralPathSegment::Field(identity) if !identity.is_empty())
-        }))
-        || matches!(
-            path,
-            [StructuralPathSegment::FixedIndex(0..=3)]
-                | [
-                    StructuralPathSegment::FixedIndex(0 | 1),
-                    StructuralPathSegment::FixedIndex(
-                        0..=15,
-                    ),
-                ]
-        )
+fn is_partial_cleanup_path(path: &[terminal_psi::StructuralPathSegment]) -> bool {
+    !path.is_empty()
+        && path.iter().all(|segment| match segment {
+            terminal_psi::StructuralPathSegment::Field(identity) => !identity.is_empty(),
+            terminal_psi::StructuralPathSegment::FixedIndex(_) => true,
+        })
 }
 
 fn installed_stack_facts_are_canonical(

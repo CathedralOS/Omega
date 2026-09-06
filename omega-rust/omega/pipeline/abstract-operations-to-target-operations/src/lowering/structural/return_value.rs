@@ -376,18 +376,15 @@ pub(in crate::lowering) fn require_direct_structural_fragments(
     Ok(())
 }
 
-pub(in crate::lowering) fn exact_fully_consumed_affine_pair_root(
+pub(in crate::lowering) fn exact_fully_consumed_affine_root(
     function: &AbstractFunction,
     parameters: &[TargetStructuralParameter],
     operations: &[TargetUnitOperation],
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
 ) -> Option<PlaceId> {
-    let ([source_parameter], [parameter], [first, second]) = (
-        function.structural_parameters.as_slice(),
-        parameters,
-        operations,
-    ) else {
+    let ([source_parameter], [parameter]) = (function.structural_parameters.as_slice(), parameters)
+    else {
         return None;
     };
     if source_parameter.position != 0
@@ -401,22 +398,14 @@ pub(in crate::lowering) fn exact_fully_consumed_affine_pair_root(
     {
         return None;
     }
-    let root = structural_types.get(&parameter.structural_type).copied()?;
-    let StructuralTypeShape::FixedArray { element, length: 2 } = root.shape else {
-        return None;
-    };
-    if !matches!(
-        structural_types
-            .get(&element)
-            .map(|declaration| &declaration.shape),
-        Some(StructuralTypeShape::Record { .. })
-    ) {
-        return None;
-    }
-    let moved_index = |operation: &TargetUnitOperation| {
+    let mut moved = Vec::new();
+    let mut shapes = BTreeMap::new();
+    let mut active = BTreeSet::new();
+    for operation in operations {
         let TargetUnitOperation::Call {
             callee,
             arguments,
+            scalar_arguments,
             claim_transfers,
             ..
         } = operation
@@ -424,42 +413,70 @@ pub(in crate::lowering) fn exact_fully_consumed_affine_pair_root(
             return None;
         };
         let callee = functions.get(callee).copied()?;
-        let [callee_parameter] = callee.structural_parameters.as_slice() else {
+        let ([callee_parameter], [argument]) = (
+            callee.structural_parameters.as_slice(),
+            arguments.as_slice(),
+        ) else {
             return None;
         };
-        let [argument] = arguments.as_slice() else {
+        let (projected_type, shape, offset) =
+            super::super::structural_layout::resolve_structural_projection_path(
+                parameter.structural_type,
+                &argument.path,
+                structural_types,
+                &mut shapes,
+                &mut active,
+            )
+            .ok()?;
+        let metadata = super::super::structural_layout::root_array_projection_metadata(
+            parameter.structural_type,
+            structural_types,
+            &mut shapes,
+            &mut active,
+        )
+        .ok()?;
+        let root_shape = super::super::structural_layout::structural_shape(
+            parameter.structural_type,
+            structural_types,
+            &mut shapes,
+            &mut active,
+        )
+        .ok()?;
+        if callee.result != AbstractFunctionResult::Unit
+            || !callee.parameters.is_empty()
+            || !callee.entry_claims.is_empty()
+            || callee_parameter.position != 0
+            || callee_parameter.is_self
+            || callee_parameter.structural_type != projected_type
+            || callee_parameter.multiplicity != terminal_psi::StructuralMultiplicity::Affine
+            || callee_parameter.access != terminal_psi::StructuralAccess::Owned
+            || !callee_parameter.qualifications.is_empty()
+            || !claim_transfers.is_empty()
+            || !scalar_arguments.is_empty()
+            || argument.place != parameter.place
+            || argument.access != terminal_psi::StructuralAccess::Owned
+            || argument.root_structural_type != parameter.structural_type
+            || argument.structural_type != projected_type
+            || argument.shape != shape
+            || argument.source != parameter.placement
+            || argument.source.shape != parameter.shape
+            || argument.source_byte_offset != offset
+            || (argument.fixed_array_length, argument.element_stride) != metadata
+            || parameter.shape != root_shape
+            || offset
+                .checked_add(u32::from(shape.byte_size))
+                .is_none_or(|end| end > u32::from(root_shape.byte_size))
+        {
             return None;
-        };
-        let [StructuralPathSegment::FixedIndex(index @ (0 | 1))] = argument.path.as_slice() else {
-            return None;
-        };
-        let stride = argument.element_stride?;
-        let expected_stride = u32::from(argument.shape.byte_size)
-            .checked_next_multiple_of(u32::from(argument.shape.alignment))?;
-        (callee.result == AbstractFunctionResult::Unit
-            && callee.parameters.is_empty()
-            && callee.entry_claims.is_empty()
-            && callee_parameter.position == 0
-            && !callee_parameter.is_self
-            && callee_parameter.structural_type == element
-            && callee_parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-            && callee_parameter.access == terminal_psi::StructuralAccess::Owned
-            && callee_parameter.qualifications.is_empty()
-            && claim_transfers.is_empty()
-            && argument.place == parameter.place
-            && argument.access == terminal_psi::StructuralAccess::Owned
-            && argument.root_structural_type == parameter.structural_type
-            && argument.structural_type == element
-            && argument.fixed_array_length == Some(2)
-            && stride == expected_stride
-            && argument.source == parameter.placement
-            && argument.source.shape == parameter.shape
-            && argument.source.shape.alignment == argument.shape.alignment
-            && u32::from(argument.source.shape.byte_size) == stride.checked_mul(2)?
-            && argument.source_byte_offset == stride.checked_mul(u32::try_from(*index).ok()?)?)
-        .then_some((*index, argument.shape, stride))
-    };
-    let first = moved_index(first)?;
-    let second = moved_index(second)?;
-    (first.0 != second.0 && first.1 == second.1 && first.2 == second.2).then_some(parameter.place)
+        }
+        moved.push((argument.path.clone(), argument.structural_type));
+    }
+    super::super::structural_layout::expected_maximal_residual_subtrees(
+        parameter.structural_type,
+        &moved,
+        structural_types,
+        0,
+    )
+    .is_some_and(|residuals| residuals.is_empty())
+    .then_some(parameter.place)
 }

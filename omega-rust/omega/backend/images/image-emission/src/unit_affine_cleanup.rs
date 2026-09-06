@@ -102,8 +102,8 @@ pub(super) fn validate_unit_affine_cleanup(
     functions: &std::collections::BTreeMap<MachineId, &MachineCodeFunction>,
     cleanup: &UnitAffineCleanupRecord,
     allow_mixed_nominal_roots: bool,
-    fully_consumed_affine_pair: bool,
-    partially_consumed_affine_array: bool,
+    fully_consumed_affine_parameter: bool,
+    partially_consumed_affine_parameter: bool,
 ) -> Result<(), ObjectError> {
     let invalid = || ObjectError::InvalidUnitAffineCleanupEvidence(machine);
     if !exact_construction_prefix(cleanup) {
@@ -139,7 +139,7 @@ pub(super) fn validate_unit_affine_cleanup(
             home.multiplicity == terminal_psi::StructuralMultiplicity::Affine
                 && home.access == terminal_psi::StructuralAccess::Owned
                 && !transferred_roots.contains(&home.place)
-                && !fully_consumed_affine_pair
+                && !fully_consumed_affine_parameter
         })
         .map(|home| home.place)
         .collect::<Vec<_>>();
@@ -292,21 +292,16 @@ pub(super) fn validate_unit_affine_cleanup(
             })
             .map(|argument| (argument.path.as_slice(), argument.structural_type))
             .collect::<Vec<_>>();
-        let parameter_is_bounded_affine_array = parameter_type.is_some_and(|root_type| {
-            cleanup.structural_types.iter().any(|declaration| {
-                declaration.id == root_type
-                    && matches!(
-                        declaration.shape,
-                        terminal_psi::StructuralTypeShape::FixedArray { length: 3 | 4, .. }
-                    )
-            })
-        });
         cleanup.actions[..expected_local_actions.len()] != expected_local_actions
             || residuals.len() != residual_actions.len()
             || residuals.is_empty()
             || residual_root.is_none_or(|root| expected_parameter_suffix.as_slice() != [root])
             || parameter_type.is_none()
-            || (parameter_is_bounded_affine_array && !partially_consumed_affine_array)
+            || (moved.iter().any(|(path, _)| {
+                path.iter().any(|segment| {
+                    matches!(segment, terminal_psi::StructuralPathSegment::FixedIndex(_))
+                })
+            }) && !partially_consumed_affine_parameter)
             || residuals.iter().any(|residual| {
                 Some(residual.place) != residual_root
                     || residual.path.is_empty()
@@ -519,19 +514,11 @@ pub(super) fn validate_unit_affine_cleanup(
 }
 
 fn is_partial_cleanup_path(path: &[terminal_psi::StructuralPathSegment]) -> bool {
-    (!path.is_empty()
-        && path.iter().all(|segment| {
-            matches!(segment,
-                terminal_psi::StructuralPathSegment::Field(identity) if !identity.is_empty())
-        }))
-        || matches!(
-            path,
-            [terminal_psi::StructuralPathSegment::FixedIndex(0..=3)]
-                | [
-                    terminal_psi::StructuralPathSegment::FixedIndex(0 | 1),
-                    terminal_psi::StructuralPathSegment::FixedIndex(0..=15),
-                ]
-        )
+    !path.is_empty()
+        && path.iter().all(|segment| match segment {
+            terminal_psi::StructuralPathSegment::Field(identity) => !identity.is_empty(),
+            terminal_psi::StructuralPathSegment::FixedIndex(_) => true,
+        })
 }
 
 fn bounded_nominal_receiver_shape(shape: calling_conventions::ValueShape) -> bool {

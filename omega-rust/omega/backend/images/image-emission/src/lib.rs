@@ -13,6 +13,7 @@
 //! resulting sealed image. It does not grant executable authority or replace
 //! the separate native admission, placement, and retirement ladder.
 
+mod affine_projected_calls;
 mod boundary_results;
 mod byte_sequence_custody;
 mod completion_receipts;
@@ -21,7 +22,6 @@ mod dynamic_elf;
 mod final_image_validation;
 mod forwarded_dynamic_descriptor;
 mod forwarded_dynamic_parameter;
-mod fully_consumed_affine_pair;
 mod image_output;
 mod installation;
 #[cfg(feature = "installed-artifact")]
@@ -79,15 +79,15 @@ pub use machine_code::BoundaryExecutionRecord;
 pub(crate) use partial_cleanup_partition::exact_partial_cleanup_partition;
 pub use stack_demand::{derive_stack_demand, derive_unit_stack_demand};
 
+use affine_projected_calls::{
+    exact_fully_consumed_affine_parameter, exact_partially_consumed_affine_parameter,
+};
 use boundary_results::boundary_result_is_exact;
 use byte_sequence_custody::linux_write_line_custody_is_exact;
 use completion_receipts::{CompletionCustodyError, validate_completion_custody};
 use dynamic_conformance::{validate_dynamic_calls, validate_stored_dynamic_calls};
 use forwarded_dynamic_descriptor::validate_forwarded_dynamic_descriptors;
 use forwarded_dynamic_parameter::validate_forwarded_dynamic_parameter_calls;
-use fully_consumed_affine_pair::{
-    exact_fully_consumed_affine_pair, exact_partially_consumed_affine_array,
-};
 use installed_provider_unit_scalar_call::validate_installed_provider_unit_scalar_calls;
 use runtime_scalar_custody::linux_write_byte_custody_is_exact;
 use scalar_cleanup_preservation::validate_scalar_cleanup_preservation;
@@ -1251,12 +1251,12 @@ fn build_object_artifact_with_x86_feature_profile(
         } else {
             function.unit_affine_cleanup.as_ref()
         };
-        let fully_consumed_affine_pair = exact_fully_consumed_affine_pair(
+        let fully_consumed_affine_parameter = exact_fully_consumed_affine_parameter(
             parameter_homes,
             &function.internal_unit_calls,
             default_affine_cleanup,
         );
-        let partially_consumed_affine_array = exact_partially_consumed_affine_array(
+        let partially_consumed_affine_parameter = exact_partially_consumed_affine_parameter(
             parameter_homes,
             &function.internal_unit_calls,
             default_affine_cleanup,
@@ -1343,7 +1343,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 target_structural_return,
                 custody,
                 affine_cleanup,
-                fully_consumed_affine_pair,
+                fully_consumed_affine_parameter,
             )?;
         }
         validate_unit_affine_scalar_records(function)?;
@@ -1402,8 +1402,8 @@ fn build_object_artifact_with_x86_feature_profile(
                 &machine_functions,
                 cleanup,
                 false,
-                fully_consumed_affine_pair,
-                partially_consumed_affine_array,
+                fully_consumed_affine_parameter,
+                partially_consumed_affine_parameter,
             )?,
             (None, None) => {}
             _ => {

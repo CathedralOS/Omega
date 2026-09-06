@@ -23,9 +23,11 @@ use semantic_vocabulary::{MachineId, OperationId};
 use target::{Architecture, NativeTarget, ObjectFormat};
 use target_operations::CallSiteOwner;
 
+mod affine_cleanup;
 mod dynamic;
 mod dynamic_argument;
 mod installed_provider;
+mod projected_copy;
 mod scalar_call;
 pub(crate) mod structural_scalar;
 mod write_only_primitive_store;
@@ -45,8 +47,8 @@ use super::{
     aarch64_unit_register, aarch64_unit_stack_access, append_aarch64_instructions,
     emit_aarch64_adjust_sp, emit_aarch64_condition_load, emit_aarch64_sp_address,
     emit_x86_64_adjust_sp, emit_x86_64_memory_load_width, emit_x86_64_parameter_return,
-    emit_x86_64_stack_load_width, emit_x86_64_stack_store_width, exact_partial_cleanup_partition,
-    executable_nominal_cleanup, placement_fragment, stack_adjustment_pair, x86_unit_register,
+    emit_x86_64_stack_load_width, emit_x86_64_stack_store_width, executable_nominal_cleanup,
+    placement_fragment, stack_adjustment_pair, x86_unit_register,
 };
 
 type EstablishedAffineScalarRecords = std::collections::BTreeMap<
@@ -87,224 +89,6 @@ pub(super) struct UnitEmission {
     pub(super) parameter_homes: Vec<machine_code::UnitParameterHomeRecord>,
     pub(super) parameters: Vec<machine_code::UnitParameterRecord>,
     pub(super) affine_cleanup: Option<machine_code::UnitAffineCleanupRecord>,
-}
-
-fn exact_fully_consumed_affine_pair_root(
-    body: &AssignedUnitBody,
-    return_ordinal: usize,
-) -> Option<semantic_vocabulary::PlaceId> {
-    let [parameter] = body.parameters.as_slice() else {
-        return None;
-    };
-    if parameter.multiplicity != terminal_psi::StructuralMultiplicity::Affine
-        || parameter.access != terminal_psi::StructuralAccess::Owned
-        || return_ordinal != 2
-        || body
-            .structural_types
-            .windows(2)
-            .any(|pair| pair[0].id >= pair[1].id)
-        || body
-            .structural_types
-            .iter()
-            .any(|declaration| declaration.identity.is_empty())
-        || body
-            .structural_types
-            .iter()
-            .map(|declaration| declaration.identity.as_str())
-            .collect::<std::collections::BTreeSet<_>>()
-            .len()
-            != body.structural_types.len()
-    {
-        return None;
-    }
-    let declaration = body
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == parameter.structural_type)?;
-    let terminal_psi::StructuralTypeShape::FixedArray { element, length: 2 } = declaration.shape
-    else {
-        return None;
-    };
-    if !matches!(
-        body.structural_types
-            .iter()
-            .find(|declaration| declaration.id == element)
-            .map(|declaration| &declaration.shape),
-        Some(terminal_psi::StructuralTypeShape::Record { .. })
-    ) {
-        return None;
-    }
-    let [first, second, AssignedUnitOperation::Return { .. }] = body.operations.as_slice() else {
-        return None;
-    };
-    let moved_index = |operation: &AssignedUnitOperation| {
-        let AssignedUnitOperation::Call {
-            result: None,
-            copies,
-            claim_transfers,
-            ..
-        } = operation
-        else {
-            return None;
-        };
-        let [copy] = copies.as_slice() else {
-            return None;
-        };
-        let [terminal_psi::StructuralPathSegment::FixedIndex(index @ (0 | 1))] =
-            copy.path.as_slice()
-        else {
-            return None;
-        };
-        let stride = copy.element_stride?;
-        let expected_stride = u32::from(copy.shape.byte_size)
-            .checked_next_multiple_of(u32::from(copy.shape.alignment))?;
-        (claim_transfers.is_empty()
-            && copy.place == parameter.place
-            && copy.access == terminal_psi::StructuralAccess::Owned
-            && copy.root_structural_type == parameter.structural_type
-            && copy.structural_type == element
-            && copy.fixed_array_length == Some(2)
-            && stride == expected_stride
-            && copy.source == parameter.placement
-            && copy.source.shape == parameter.shape
-            && copy.source.shape.alignment == copy.shape.alignment
-            && u32::from(copy.source.shape.byte_size) == stride.checked_mul(2)?
-            && copy.source_byte_offset == stride.checked_mul(u32::try_from(*index).ok()?)?)
-        .then_some((*index, copy.shape, stride))
-    };
-    let first = moved_index(first)?;
-    let second = moved_index(second)?;
-    (([first.0, second.0] == [0, 1] || [first.0, second.0] == [1, 0])
-        && first.1 == second.1
-        && first.2 == second.2)
-        .then_some(parameter.place)
-}
-
-fn exact_partially_consumed_affine_array_root(
-    body: &AssignedUnitBody,
-    return_ordinal: usize,
-) -> Option<semantic_vocabulary::PlaceId> {
-    let [parameter] = body.parameters.as_slice() else {
-        return None;
-    };
-    if parameter.multiplicity != terminal_psi::StructuralMultiplicity::Affine
-        || parameter.access != terminal_psi::StructuralAccess::Owned
-        || !matches!(return_ordinal, 1 | 2)
-        || body
-            .structural_types
-            .windows(2)
-            .any(|pair| pair[0].id >= pair[1].id)
-        || body
-            .structural_types
-            .iter()
-            .any(|declaration| declaration.identity.is_empty())
-        || body
-            .structural_types
-            .iter()
-            .map(|declaration| declaration.identity.as_str())
-            .collect::<std::collections::BTreeSet<_>>()
-            .len()
-            != body.structural_types.len()
-    {
-        return None;
-    }
-    let declaration = body
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == parameter.structural_type)?;
-    let terminal_psi::StructuralTypeShape::FixedArray { element, length } = declaration.shape
-    else {
-        return None;
-    };
-    if !matches!((length, return_ordinal), (3, 1 | 2) | (4, 2)) {
-        return None;
-    }
-    if !matches!(
-        body.structural_types
-            .iter()
-            .find(|declaration| declaration.id == element)
-            .map(|declaration| &declaration.shape),
-        Some(terminal_psi::StructuralTypeShape::Record { .. })
-    ) {
-        return None;
-    }
-    let (
-        AssignedUnitOperation::Return {
-            cleanup_actions, ..
-        },
-        calls,
-    ) = body.operations.split_last()?
-    else {
-        return None;
-    };
-    if calls.len() != return_ordinal {
-        return None;
-    }
-    let moved_index = |operation: &AssignedUnitOperation| {
-        let AssignedUnitOperation::Call {
-            result: None,
-            copies,
-            claim_transfers,
-            ..
-        } = operation
-        else {
-            return None;
-        };
-        let [copy] = copies.as_slice() else {
-            return None;
-        };
-        let [terminal_psi::StructuralPathSegment::FixedIndex(index)] = copy.path.as_slice() else {
-            return None;
-        };
-        let stride = copy.element_stride?;
-        let expected_stride = u32::from(copy.shape.byte_size)
-            .checked_next_multiple_of(u32::from(copy.shape.alignment))?;
-        (claim_transfers.is_empty()
-            && copy.place == parameter.place
-            && copy.access == terminal_psi::StructuralAccess::Owned
-            && copy.root_structural_type == parameter.structural_type
-            && copy.structural_type == element
-            && *index < length
-            && copy.fixed_array_length == Some(length)
-            && stride == expected_stride
-            && copy.source == parameter.placement
-            && copy.source.shape == parameter.shape
-            && copy.source.shape.alignment == copy.shape.alignment
-            && u32::from(copy.source.shape.byte_size)
-                == stride.checked_mul(u32::try_from(length).ok()?)?
-            && copy.source_byte_offset == stride.checked_mul(u32::try_from(*index).ok()?)?)
-        .then_some((*index, copy.shape, stride))
-    };
-    let moved = calls.iter().map(moved_index).collect::<Option<Vec<_>>>()?;
-    let (_, first_shape, first_stride) = *moved.first()?;
-    let moved_indexes = moved
-        .iter()
-        .map(|(index, _, _)| *index)
-        .collect::<std::collections::BTreeSet<_>>();
-    if moved_indexes.len() != moved.len()
-        || moved
-            .iter()
-            .any(|(_, shape, stride)| *shape != first_shape || *stride != first_stride)
-    {
-        return None;
-    }
-    let expected_residuals = (0_u64..length)
-        .rev()
-        .filter(|index| !moved_indexes.contains(index))
-        .collect::<Vec<_>>();
-    (cleanup_actions.len() == expected_residuals.len()
-        && cleanup_actions
-            .iter()
-            .zip(expected_residuals)
-            .all(|(action, residual_index)| {
-                matches!(action,
-                    terminal_psi::TerminalAffineCleanupAction::DiscardResidual(residual)
-                        if residual.place == parameter.place
-                            && residual.structural_type == element
-                            && residual.path
-                                == [terminal_psi::StructuralPathSegment::FixedIndex(residual_index)])
-            }))
-    .then_some(parameter.place)
 }
 
 fn exact_construction_prefix(
@@ -681,7 +465,7 @@ fn normalized_foreign_call_stack_bytes(
             .try_fold(shadow_bytes, |extent, placement| {
                 let candidate = match architecture {
                     Architecture::X86_64 => outgoing_placement_extent(placement),
-                    Architecture::Aarch64 => aarch64_outgoing_placement_extent(placement),
+                    Architecture::Aarch64 => outgoing_placement_extent_with_copy(placement),
                 }?;
                 Ok::<_, EmissionError>(extent.max(candidate))
             })?;
@@ -749,6 +533,8 @@ pub(super) fn emit_unit_body(
     functions: &[AssignedFunction],
     native_callbacks: &[AssignedNativeCallbackArgument],
 ) -> Result<UnitEmission, EmissionError> {
+    let projected_cleanup_root =
+        affine_cleanup::validate_projected_cleanup(body, owner, attachment, target, functions)?;
     let mut bytes = Vec::new();
     let mut internal_calls = Vec::new();
     let mut foreign_calls = Vec::new();
@@ -2370,10 +2156,8 @@ pub(super) fn emit_unit_body(
                 if !exact_construction_prefix(body, &established_affine_locals) {
                     return Err(EmissionError::UnsupportedAggregatePlacement);
                 }
-                let fully_consumed_affine_pair =
-                    exact_fully_consumed_affine_pair_root(body, operation_ordinal);
-                let partially_consumed_affine_array =
-                    exact_partially_consumed_affine_array_root(body, operation_ordinal);
+                let fully_consumed_affine_root =
+                    projected_cleanup_root.filter(|_| cleanup_actions.is_empty());
                 let transferred_roots = body.operations[..operation_ordinal]
                     .iter()
                     .filter_map(|operation| match operation {
@@ -2435,7 +2219,7 @@ pub(super) fn emit_unit_body(
                                     == terminal_psi::StructuralMultiplicity::Affine
                                     && parameter.access == terminal_psi::StructuralAccess::Owned
                                     && !transferred_roots.contains(&parameter.place)
-                                    && Some(parameter.place) != fully_consumed_affine_pair
+                                    && Some(parameter.place) != fully_consumed_affine_root
                             })
                             .map(|parameter| parameter.place),
                     )
@@ -2443,12 +2227,6 @@ pub(super) fn emit_unit_body(
                 let expected_root_actions = expected_discards
                     .iter()
                     .copied()
-                    .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
-                    .collect::<Vec<_>>();
-                let expected_local_actions = structural_result_prefix
-                    .iter()
-                    .copied()
-                    .chain(expected_local_prefix.iter().copied())
                     .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
                     .collect::<Vec<_>>();
                 let nominal_cleanups = cleanup_actions
@@ -2460,116 +2238,21 @@ pub(super) fn emit_unit_body(
                         _ => None,
                     })
                     .collect::<Vec<_>>();
-                let partial_cleanup_valid = if cleanup_actions == &expected_root_actions {
-                    true
-                } else {
-                    let residual_actions = cleanup_actions
-                        .get(expected_local_actions.len()..)
-                        .unwrap_or_default();
-                    let residuals = residual_actions
-                        .iter()
-                        .filter_map(|action| match action {
-                            terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
-                                residual,
-                            ) => Some(residual),
-                            _ => None,
-                        })
-                        .collect::<Vec<_>>();
-                    let residual_root = residuals.first().map(|residual| residual.place);
-                    let moved = body.operations[..operation_ordinal]
-                        .iter()
-                        .filter_map(|operation| match operation {
-                            AssignedUnitOperation::Call { copies, .. } => Some(copies),
-                            _ => None,
-                        })
-                        .flatten()
-                        .filter(|copy| Some(copy.place) == residual_root)
-                        .map(|copy| (copy.path.as_slice(), copy.structural_type))
-                        .collect::<Vec<_>>();
-                    cleanup_actions.get(..expected_local_actions.len())
-                        == Some(expected_local_actions.as_slice())
-                        && residual_root.is_some_and(|root| {
-                            body.parameters
-                                .iter()
-                                .find(|parameter| parameter.place == root)
-                                .and_then(|parameter| {
-                                    body.structural_types.iter().find(|declaration| {
-                                        declaration.id == parameter.structural_type
-                                    })
-                                })
-                                .is_none_or(|declaration| {
-                                    !matches!(
-                                        declaration.shape,
-                                        terminal_psi::StructuralTypeShape::FixedArray {
-                                            length: 3 | 4,
-                                            ..
-                                        }
-                                    ) || partially_consumed_affine_array == Some(root)
-                                })
-                        })
-                        && !residuals.is_empty()
-                        && residuals.len() == residual_actions.len()
-                        && residual_root.is_some_and(|root| {
-                            expected_discards.get(expected_local_actions.len()..) == Some(&[root])
-                        })
-                        && residuals.iter().all(|residual| {
-                            Some(residual.place) == residual_root
-                                && !residual.path.is_empty()
-                                && is_partial_cleanup_path(&residual.path)
-                                && body.parameters.iter().any(|parameter| {
-                                    parameter.place == residual.place
-                                        && parameter.multiplicity
-                                            == terminal_psi::StructuralMultiplicity::Affine
-                                        && parameter.structural_type != residual.structural_type
-                                })
-                        })
-                        && residuals.iter().enumerate().all(|(index, residual)| {
-                            residuals[..index].iter().all(|earlier| {
-                                !residual.path.starts_with(&earlier.path)
-                                    && !earlier.path.starts_with(&residual.path)
-                            })
-                        })
-                        && !moved.is_empty()
-                        && moved.iter().all(|(moved_path, _)| {
-                            !moved_path.is_empty()
-                                && is_partial_cleanup_path(moved_path)
-                                && residuals.iter().all(|residual| {
-                                    !moved_path.starts_with(&residual.path)
-                                        && !residual.path.starts_with(moved_path)
-                                })
-                        })
-                        && moved.iter().enumerate().all(|(index, (moved_path, _))| {
-                            moved[..index].iter().all(|(earlier, _)| {
-                                !moved_path.starts_with(earlier) && !earlier.starts_with(moved_path)
-                            })
-                        })
-                        && residual_root
-                            .and_then(|root| {
-                                body.parameters
-                                    .iter()
-                                    .find(|parameter| parameter.place == root)
-                            })
-                            .is_some_and(|parameter| {
-                                exact_partial_cleanup_partition(
-                                    &body.structural_types,
-                                    parameter.structural_type,
-                                    &moved,
-                                    &residuals,
-                                )
-                            })
-                } || (structural_result_prefix.is_empty()
-                    && expected_local_prefix.is_empty()
-                    && !nominal_cleanups.is_empty()
-                    && nominal_cleanups.len() == cleanup_actions.len()
-                    && nominal_cleanups.len() == body.parameters.len()
-                    && body.parameters.iter().rev().zip(&nominal_cleanups).all(
-                        |(parameter, cleanup)| {
-                            parameter.place == cleanup.place
-                                && parameter.structural_type == cleanup.structural_type
-                                && parameter.multiplicity
-                                    == terminal_psi::StructuralMultiplicity::Affine
-                        },
-                    ));
+                let partial_cleanup_valid = cleanup_actions == &expected_root_actions
+                    || projected_cleanup_root.is_some()
+                    || (structural_result_prefix.is_empty()
+                        && expected_local_prefix.is_empty()
+                        && !nominal_cleanups.is_empty()
+                        && nominal_cleanups.len() == cleanup_actions.len()
+                        && nominal_cleanups.len() == body.parameters.len()
+                        && body.parameters.iter().rev().zip(&nominal_cleanups).all(
+                            |(parameter, cleanup)| {
+                                parameter.place == cleanup.place
+                                    && parameter.structural_type == cleanup.structural_type
+                                    && parameter.multiplicity
+                                        == terminal_psi::StructuralMultiplicity::Affine
+                            },
+                        ));
                 if !partial_cleanup_valid {
                     return Err(EmissionError::UnsupportedAggregatePlacement);
                 }
@@ -3023,22 +2706,6 @@ fn patch_unit_conditional_branch(
     Ok(())
 }
 
-fn is_partial_cleanup_path(path: &[terminal_psi::StructuralPathSegment]) -> bool {
-    (!path.is_empty()
-        && path.iter().all(|segment| {
-            matches!(segment,
-                terminal_psi::StructuralPathSegment::Field(identity) if !identity.is_empty())
-        }))
-        || matches!(
-            path,
-            [terminal_psi::StructuralPathSegment::FixedIndex(0..=3)]
-                | [
-                    terminal_psi::StructuralPathSegment::FixedIndex(0 | 1),
-                    terminal_psi::StructuralPathSegment::FixedIndex(0..=15),
-                ]
-        )
-}
-
 fn affine_scalar_record_bits(
     value: semantic_vocabulary::IntegerValue,
 ) -> Result<u64, EmissionError> {
@@ -3116,7 +2783,13 @@ pub(super) fn emit_x86_64_unit_call(
 ) -> Result<Vec<(usize, usize, u32, u32)>, EmissionError> {
     let outgoing_bytes = copies
         .iter()
-        .map(|copy| outgoing_placement_extent(&copy.destination))
+        .map(|copy| {
+            if copy.access == terminal_psi::StructuralAccess::Owned && !copy.path.is_empty() {
+                outgoing_placement_extent_with_copy(&copy.destination)
+            } else {
+                outgoing_placement_extent(&copy.destination)
+            }
+        })
         .try_fold(0_u32, |extent, candidate| {
             candidate.map(|value| extent.max(value))
         })?
@@ -3237,7 +2910,7 @@ pub(super) fn emit_aarch64_unit_call(
 ) -> Result<Vec<(usize, usize, u32, u32)>, EmissionError> {
     let outgoing_bytes = copies
         .iter()
-        .map(|copy| aarch64_outgoing_placement_extent(&copy.destination))
+        .map(|copy| outgoing_placement_extent_with_copy(&copy.destination))
         .try_fold(0_u32, |extent, candidate| {
             candidate.map(|value| extent.max(value))
         })?;
@@ -3899,7 +3572,7 @@ fn outgoing_placement_extent(placement: &ValuePlacement) -> Result<u32, Emission
         })
 }
 
-fn aarch64_outgoing_placement_extent(placement: &ValuePlacement) -> Result<u32, EmissionError> {
+fn outgoing_placement_extent_with_copy(placement: &ValuePlacement) -> Result<u32, EmissionError> {
     placement
         .locations
         .iter()
@@ -3946,6 +3619,15 @@ fn emit_x86_64_aggregate_copy_from_home(
     home: &X86UnitParameterHome,
     call_stack_bytes: u32,
 ) -> Result<(), EmissionError> {
+    if copy.access == terminal_psi::StructuralAccess::Owned
+        && !copy.path.is_empty()
+        && matches!(
+            copy.destination.locations.as_slice(),
+            [ValueLocation::Indirect { .. }]
+        )
+    {
+        return projected_copy::x86(bytes, copy, home, call_stack_bytes);
+    }
     if home.indirect {
         if !copy.path.is_empty() {
             if copy.source.shape.class == ValueClass::BorrowedReference
@@ -4086,6 +3768,15 @@ fn emit_aarch64_aggregate_copy_from_home(
     home: &Aarch64UnitParameterHome,
     call_stack_bytes: u32,
 ) -> Result<(), EmissionError> {
+    if copy.access == terminal_psi::StructuralAccess::Owned
+        && !copy.path.is_empty()
+        && matches!(
+            copy.destination.locations.as_slice(),
+            [ValueLocation::Indirect { .. }]
+        )
+    {
+        return projected_copy::aarch64(instructions, copy, home, call_stack_bytes);
+    }
     if home.indirect {
         if !copy.path.is_empty() {
             if copy.source.shape.class == ValueClass::BorrowedReference

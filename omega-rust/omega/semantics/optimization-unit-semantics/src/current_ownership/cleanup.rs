@@ -46,7 +46,26 @@ pub(super) fn validate_unit_cleanup_actions(
             .collect::<Option<Vec<_>>>()
             .ok_or_else(mismatch)?;
         let root = residuals.first().ok_or_else(mismatch)?.place;
-        if residuals.iter().any(|discard| discard.place != root) {
+        if residuals.iter().any(|discard| discard.place != root)
+            || function
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == root)
+                .is_none_or(|parameter| {
+                    parameter.is_self
+                        || parameter.access != StructuralAccess::Owned
+                        || !parameter.qualifications.is_empty()
+                        || !parameter.projected_qualifications.is_empty()
+                })
+            || frontier
+                .claims
+                .values()
+                .any(|claim| claim.input == Some(root))
+            || function
+                .content_entry_claims
+                .iter()
+                .any(|claim| claim.input.root == root)
+        {
             return Err(mismatch());
         }
         let mut remaining = frontier.clone();
@@ -56,7 +75,8 @@ pub(super) fn validate_unit_cleanup_actions(
             .ok_or_else(mismatch)?;
         let root_type = place_structural_type(function, root).ok_or_else(mismatch)?;
         let expected =
-            partial_affine_residuals(structural_types, root_type, &moved).ok_or_else(mismatch)?;
+            partial_affine_residuals(structural_types, root_type, &moved, residuals.len())
+                .ok_or_else(mismatch)?;
         if moved.is_empty()
             || residuals.len() != expected.len()
             || residuals
@@ -173,9 +193,13 @@ pub(super) fn validate_scalar_cleanup_actions(
             return Err(mismatch());
         }
         if let Some(moved) = remaining.partial_custody_paths.remove(&parameter.place) {
-            let residuals =
-                partial_affine_residuals(structural_types, parameter.structural_type, &moved)
-                    .ok_or_else(mismatch)?;
+            let residuals = partial_affine_residuals(
+                structural_types,
+                parameter.structural_type,
+                &moved,
+                actions.len(),
+            )
+            .ok_or_else(mismatch)?;
             if moved.is_empty() || residuals.is_empty() {
                 return Err(mismatch());
             }

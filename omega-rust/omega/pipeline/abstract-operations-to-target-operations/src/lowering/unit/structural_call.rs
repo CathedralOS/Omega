@@ -214,6 +214,32 @@ pub(super) fn lower_structural_unit_call(
             ) =
                 match argument.path.as_slice() {
                     [] => (source_structural_type, source_shape, 0, None, None),
+                    path if argument.access == StructuralAccess::Owned
+                        && callee_parameter.multiplicity == StructuralMultiplicity::Affine
+                        && parameters_by_place
+                            .get(&argument.place)
+                            .is_some_and(|source| {
+                                source.access == StructuralAccess::Owned
+                                    && source.multiplicity == StructuralMultiplicity::Affine
+                            }) =>
+                    {
+                        let (selected_type, selected_shape, offset) =
+                            resolve_structural_projection_path(
+                                source_structural_type,
+                                path,
+                                structural_types,
+                                shape_cache,
+                                active,
+                            )?;
+                        let (length, stride) =
+                            super::super::structural_layout::root_array_projection_metadata(
+                                source_structural_type,
+                                structural_types,
+                                shape_cache,
+                                active,
+                            )?;
+                        (selected_type, selected_shape, offset, length, stride)
+                    }
                     path if exact_write_only_projection => {
                         let (projected_type, projected_shape, offset) =
                             resolve_structural_projection_path(
@@ -276,75 +302,6 @@ pub(super) fn lower_structural_unit_call(
                                 source_structural_type,
                             ))?;
                         (element, element_shape, offset, Some(length), Some(stride))
-                    }
-                    [
-                        StructuralPathSegment::FixedIndex(outer_index),
-                        StructuralPathSegment::FixedIndex(inner_index),
-                    ] => {
-                        let declaration = structural_types
-                            .get(&source_structural_type)
-                            .copied()
-                            .ok_or(LoweringError::UnknownStructuralType(source_structural_type))?;
-                        let StructuralTypeShape::FixedArray {
-                            element: inner_type,
-                            length: 2,
-                        } = declaration.shape
-                        else {
-                            return Err(LoweringError::StructuralCallArgumentTypeMismatch {
-                                callee: *callee,
-                                place: argument.place,
-                            });
-                        };
-                        let inner_declaration = structural_types
-                            .get(&inner_type)
-                            .copied()
-                            .ok_or(LoweringError::UnknownStructuralType(inner_type))?;
-                        let StructuralTypeShape::FixedArray {
-                            element: leaf_type,
-                            length: inner_length @ (3..=16),
-                        } = inner_declaration.shape
-                        else {
-                            return Err(LoweringError::StructuralCallArgumentTypeMismatch {
-                                callee: *callee,
-                                place: argument.place,
-                            });
-                        };
-                        if *outer_index >= 2 || *inner_index >= inner_length {
-                            return Err(LoweringError::StructuralCallArgumentTypeMismatch {
-                                callee: *callee,
-                                place: argument.place,
-                            });
-                        }
-                        let inner_shape =
-                            structural_shape(inner_type, structural_types, shape_cache, active)?;
-                        let leaf_shape =
-                            structural_shape(leaf_type, structural_types, shape_cache, active)?;
-                        let outer_stride = checked_align_up_u32(
-                            u32::from(inner_shape.byte_size),
-                            u32::from(inner_shape.alignment),
-                        )
-                        .ok_or(LoweringError::StructuralTypeTooLarge(
-                            source_structural_type,
-                        ))?;
-                        let inner_stride = checked_align_up_u32(
-                            u32::from(leaf_shape.byte_size),
-                            u32::from(leaf_shape.alignment),
-                        )
-                        .ok_or(LoweringError::StructuralTypeTooLarge(
-                            source_structural_type,
-                        ))?;
-                        let offset = u64::from(outer_stride)
-                            .checked_mul(*outer_index)
-                            .and_then(|offset| {
-                                u64::from(inner_stride)
-                                    .checked_mul(*inner_index)
-                                    .and_then(|inner| offset.checked_add(inner))
-                            })
-                            .and_then(|offset| u32::try_from(offset).ok())
-                            .ok_or(LoweringError::StructuralTypeTooLarge(
-                                source_structural_type,
-                            ))?;
-                        (leaf_type, leaf_shape, offset, Some(2), Some(outer_stride))
                     }
                     path @ [StructuralPathSegment::Field(_), ..]
                         if path

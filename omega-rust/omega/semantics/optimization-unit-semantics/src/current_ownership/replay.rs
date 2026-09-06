@@ -269,7 +269,7 @@ pub(super) fn validate_current_ownership_cfg(
                         },
                     );
                 }
-                if projected_fixed_array_root_is_fully_consumed(
+                if projected_root_is_fully_consumed(
                     function,
                     structural_types,
                     &frontier,
