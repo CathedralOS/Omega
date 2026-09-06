@@ -1,4 +1,4 @@
-//! Bounded mixed-input structural-result call inside an attached Unit body.
+//! Whole-input affine identity calls inside a Unit body.
 
 use super::super::shared::*;
 use super::super::structural::require_direct_structural_fragments;
@@ -34,9 +34,7 @@ pub(super) fn lower_structural_result_call(
     else {
         unreachable!("structural-result Unit lowering receives only its exact role")
     };
-    let ([source_value], [source_argument]) =
-        (arguments.as_slice(), structural_arguments.as_slice())
-    else {
+    let [source_argument] = structural_arguments.as_slice() else {
         return Err(LoweringError::UnsupportedOperationInUnitFunction(
             function.machine,
         ));
@@ -52,8 +50,7 @@ pub(super) fn lower_structural_result_call(
         .get(callee)
         .copied()
         .ok_or(LoweringError::UnknownCallTarget(*callee))?;
-    let ([callee_scalar], [callee_structural], [callee_operation]) = (
-        callee_function.parameters.as_slice(),
+    let ([callee_structural], [callee_operation]) = (
         callee_function.structural_parameters.as_slice(),
         callee_function.operations.as_slice(),
     ) else {
@@ -78,52 +75,78 @@ pub(super) fn lower_structural_result_call(
             function.machine,
         ));
     };
-    let ScalarType::Integer(callee_scalar_type) = callee_scalar.scalar_type else {
-        return Err(LoweringError::UnsupportedOperationInUnitFunction(
-            function.machine,
-        ));
+    let scalar = match (arguments.as_slice(), callee_function.parameters.as_slice()) {
+        ([], []) => None,
+        ([source_value], [callee_scalar]) => {
+            let ScalarType::Integer(callee_scalar_type) = callee_scalar.scalar_type else {
+                return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                    function.machine,
+                ));
+            };
+            let Some(shape) =
+                super::super::scalar_abi::fixed_native_integer_shape(callee_scalar_type)
+            else {
+                return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                    function.machine,
+                ));
+            };
+            let known = scalar_values
+                .get(source_value)
+                .copied()
+                .ok_or(LoweringError::UnknownValue(*source_value))?;
+            if known.scalar_type() != callee_scalar_type {
+                return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                    function.machine,
+                ));
+            }
+            Some((*source_value, known, shape))
+        }
+        _ => {
+            return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                function.machine,
+            ));
+        }
     };
-    let Some(scalar_shape) =
-        super::super::scalar_abi::fixed_native_integer_shape(callee_scalar_type)
-    else {
-        return Err(LoweringError::UnsupportedOperationInUnitFunction(
-            function.machine,
-        ));
-    };
-    let known_scalar = scalar_values
-        .get(source_value)
-        .copied()
-        .ok_or(LoweringError::UnknownValue(*source_value))?;
     let result_declaration = structural_types
         .get(&result.structural_type)
         .copied()
         .ok_or(LoweringError::UnknownStructuralType(result.structural_type))?;
-    let exact_record = matches!(
-        &result_declaration.shape,
-        StructuralTypeShape::Record { fields }
-            if matches!(
-                fields.as_slice(),
-                [field]
-                    if matches!(
-                        field.field_type,
-                        StructuralFieldType::Scalar(ScalarType::Integer(integer))
-                            if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
-                                && integer.bits() == 64
-                    )
-            )
-    );
+    let supported_shape = if scalar.is_none() {
+        matches!(
+            &result_declaration.shape,
+            StructuralTypeShape::Record { .. }
+                | StructuralTypeShape::FixedArray { length: 1.., .. }
+        )
+    } else {
+        matches!(
+            &result_declaration.shape,
+            StructuralTypeShape::Record { fields }
+                if matches!(
+                    fields.as_slice(),
+                    [field]
+                        if matches!(
+                            field.field_type,
+                            StructuralFieldType::Scalar(ScalarType::Integer(integer))
+                                if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+                                    && integer.bits() == 64
+                        )
+                )
+        )
+    };
     let aggregate_shape = structural_shape(
         result.structural_type,
         structural_types,
         shape_cache,
         active,
     )?;
-    if !exact_record
-        || aggregate_shape != ValueShape::integer(8, 8)
+    if !supported_shape
+        || (scalar.is_some() && aggregate_shape != ValueShape::integer(8, 8))
         || function.attachment.is_some()
         || !function.published_service_ceiling.is_empty()
-        || known_scalar.scalar_type() != callee_scalar_type
+        || result.place == source_argument.place
+        || callee_result.place == callee_structural.place
         || source_parameter.structural_type != result.structural_type
+        || source_parameter.shape != aggregate_shape
         || source_parameter.multiplicity != StructuralMultiplicity::Affine
         || source_parameter.access != StructuralAccess::Owned
         || !source_parameter.projected_qualifications.is_empty()
@@ -163,18 +186,23 @@ pub(super) fn lower_structural_result_call(
     let call_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
-            parameters: vec![scalar_shape, aggregate_shape],
+            parameters: scalar
+                .iter()
+                .map(|(_, _, shape)| *shape)
+                .chain(std::iter::once(aggregate_shape))
+                .collect(),
             result: Some(aggregate_shape),
         },
     )
     .map_err(LoweringError::AbiPlan)?;
-    if call_plan.parameters.len() != 2 {
+    let source_index = usize::from(scalar.is_some());
+    if call_plan.parameters.len() != source_index + 1 {
         return Err(LoweringError::AbiParameterCountMismatch {
-            expected: 2,
+            expected: source_index + 1,
             actual: call_plan.parameters.len(),
         });
     }
-    require_direct_structural_fragments(function.machine, &call_plan.parameters[1])?;
+    require_direct_structural_fragments(function.machine, &call_plan.parameters[source_index])?;
     let result_placement = call_plan
         .result
         .as_ref()
@@ -186,11 +214,14 @@ pub(super) fn lower_structural_result_call(
         callee: *callee,
         callee_result: callee_result.clone(),
         call_plan: call_plan.clone(),
-        scalar_arguments: vec![TargetUnitScalarCallArgument {
-            parameter_index: 0,
-            source: known_scalar.into_target_source(*source_value),
-            placement: call_plan.parameters[0].clone(),
-        }],
+        scalar_arguments: scalar
+            .into_iter()
+            .map(|(source_value, known, _)| TargetUnitScalarCallArgument {
+                parameter_index: 0,
+                source: known.into_target_source(source_value),
+                placement: call_plan.parameters[0].clone(),
+            })
+            .collect(),
         arguments: vec![TargetStructuralArgument {
             place: source_argument.place,
             access: source_argument.access,
@@ -202,7 +233,7 @@ pub(super) fn lower_structural_result_call(
             fixed_array_length: None,
             element_stride: None,
             source: source_parameter.placement.clone(),
-            destination: call_plan.parameters[1].clone(),
+            destination: call_plan.parameters[source_index].clone(),
         }],
         claim_transfers: Vec::new(),
         returned_claim_transfers: Vec::new(),

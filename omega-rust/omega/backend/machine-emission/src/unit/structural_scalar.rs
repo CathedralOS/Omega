@@ -778,18 +778,23 @@ pub(super) fn emit_structural_result_call(
         unreachable!("structural-result call router supplied another operation")
     };
     let invalid = || EmissionError::InvalidStructuralScalarCallCustody(*psi_operation);
-    let ([scalar_argument], [copy]) = (scalar_arguments.as_slice(), copies.as_slice()) else {
+    let [copy] = copies.as_slice() else {
         return Err(invalid());
     };
-    let scalar_shape = unit_scalar_shape(
-        scalar_argument.source.source_value(),
-        scalar_argument.source.scalar_type(),
-    )
-    .map_err(|_| invalid())?;
+    let scalar_shapes = scalar_arguments
+        .iter()
+        .map(|argument| {
+            unit_scalar_shape(
+                argument.source.source_value(),
+                argument.source.scalar_type(),
+            )
+            .map_err(|_| invalid())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let expected_call_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
-            parameters: vec![scalar_shape, copy.shape],
+            parameters: scalar_shapes.iter().copied().chain([copy.shape]).collect(),
             result: Some(copy.shape),
         },
     )
@@ -818,23 +823,45 @@ pub(super) fn emit_structural_result_call(
     else {
         return Err(invalid());
     };
-    let ([callee_scalar], [callee_parameter]) = (
-        callee_scalar_parameters.as_slice(),
-        callee_parameters.as_slice(),
-    ) else {
+    let [callee_parameter] = callee_parameters.as_slice() else {
         return Err(invalid());
     };
+    let exact_shape = match scalar_arguments.len() {
+        0 => {
+            copy.shape.class == calling_conventions::ValueClass::Integer
+                && ((copy.shape.byte_size == 8 && copy.shape.alignment == 8)
+                    || (9..=16).contains(&copy.shape.byte_size))
+        }
+        1 => copy.shape == calling_conventions::ValueShape::integer(8, 8),
+        _ => false,
+    };
     let caller_result_placement = call_plan.result.clone().ok_or_else(invalid)?;
-    if expected_call_plan != *call_plan
+    if !exact_shape
+        || expected_call_plan != *call_plan
         || callee_call_plan != call_plan
-        || call_plan.parameters.as_slice()
-            != [callee_scalar.placement.clone(), source_placement.clone()]
-        || scalar_argument.parameter_index != 0
-        || scalar_argument.source.scalar_type()
-            != semantic_vocabulary::ScalarType::Integer(callee_scalar.scalar_type)
-        || assigned_scalar_destination(&callee_scalar.placement)
-            != Some(scalar_argument.destination)
+        || scalar_arguments.len() != callee_scalar_parameters.len()
+        || call_plan.parameters.len() != scalar_arguments.len() + 1
+        || scalar_arguments
+            .iter()
+            .zip(callee_scalar_parameters)
+            .enumerate()
+            .any(|(index, (argument, parameter))| {
+                usize::try_from(argument.parameter_index) != Ok(index)
+                    || argument.source.scalar_type()
+                        != semantic_vocabulary::ScalarType::Integer(parameter.scalar_type)
+                    || call_plan.parameters.get(index) != Some(&parameter.placement)
+                    || assigned_scalar_destination(&parameter.placement)
+                        != Some(argument.destination)
+            })
+        || call_plan.parameters.last() != Some(source_placement)
         || copy.destination != *source_placement
+        || copy.access != terminal_psi::StructuralAccess::Owned
+        || !copy.path.is_empty()
+        || copy.source_byte_offset != 0
+        || copy.fixed_array_length.is_some()
+        || copy.element_stride.is_some()
+        || copy.source.shape != copy.shape
+        || copy.root_structural_type != copy.structural_type
         || copy.structural_type != callee_parameter.structural_type
         || copy.shape != *callee_shape
         || result.structural_type != callee_result.structural_type
@@ -845,6 +872,10 @@ pub(super) fn emit_structural_result_call(
         || callee_parameter.multiplicity != terminal_psi::StructuralMultiplicity::Affine
         || callee_parameter.access != terminal_psi::StructuralAccess::Owned
         || callee_source != callee_parameter
+        || callee_source.place == retained_callee_result.place
+        || result.place == copy.place
+        || !callee_parameter.qualifications.is_empty()
+        || !callee_parameter.projected_qualifications.is_empty()
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()

@@ -2790,12 +2790,18 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             (None, None) => true,
             (Some(result), Some(target)) => {
                 custody.result.is_none()
+                    && custody
+                        .arguments
+                        .iter()
+                        .all(|argument| argument.place != result.operation_result.place)
                     && crate::unit_call_custody::structural_result_matches_return(result, target)
             }
             _ => false,
         };
-        let callee_mixed_structural_return =
-            target_structural_return.filter(|returned| !returned.scalar_parameters.is_empty());
+        let callee_mixed_structural_return = target_structural_return.filter(|returned| {
+            !returned.scalar_parameters.is_empty()
+                || crate::structural_return::has_claim_free_affine_identity_custody(returned)
+        });
         let expected_text_offset = function
             .text_offset
             .checked_add(custody.code_offset)

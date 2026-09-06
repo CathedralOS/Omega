@@ -1672,8 +1672,8 @@ at Unit return. Structural boundary results use the same producer, type,
 availability, and ownership reconstruction while retaining their boundary
 signature and declared service reach. Result custody is installed only after
 the call's input transfers and completion receipts; it grants no input claim
-completion. Target assignment and native replay remain parameter-rooted. This
-does not admit result-root cleanup in native production, anonymous projected
+completion. Native projected cleanup remains parameter-rooted. This does not
+admit result-root residual cleanup in native production, anonymous projected
 helper-result operands, claims, nominal destruction, or partial construction.
 
 The straight-line Unit return slice carries explicit no-code cleanup for owned
@@ -3997,6 +3997,14 @@ record restriction. Assignment, object validation, and installation replay
 retain distinct source/result identities and reject invented claims or cleanup.
 This producer support does not provide native projected call-result cleanup;
 that still needs result homes, projected copies, and residual-custody replay.
+
+A free Unit caller can invoke this identity producer without scalar arguments
+and discard the whole returned affine owner at its return edge. The call
+transfers the input; cleanup names the distinct operation-result place, never
+the transferred input. Native assignment and publication retain the exact
+callee result, direct ABI fragments, call occurrence, and cleanup edge.
+Immediate no-code disposal requires no saved result slot. This does not make
+the returned registers available as storage for subsequent projected consumers.
 
 An ordinary call to that producer can initialize an immutable structural local
 in a free or attached Unit body. The checked `StructuralCall` retains its

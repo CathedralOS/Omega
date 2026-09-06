@@ -237,10 +237,7 @@ pub(super) fn structural_result_matches_return(
                     == [result.returned_claim_transfers[0].caller_claim]
         }
         terminal_psi::StructuralMultiplicity::Affine => {
-            returned.scalar_parameters.len() == 1
-                && returned.returned_claims.is_empty()
-                && returned.result.qualifications.is_empty()
-                && returned.result.projected_qualifications.is_empty()
+            crate::structural_return::has_claim_free_affine_identity_custody(returned)
                 && result.operation_result.claims.is_empty()
                 && result.returned_claim_transfers.is_empty()
                 && result.returned_claims.is_empty()
@@ -388,6 +385,14 @@ pub(super) fn validate_internal_unit_call_custody(
     if custody.result.is_some() && custody.structural_result.is_some() {
         return Err(invalid());
     }
+    if custody.structural_result.as_ref().is_some_and(|result| {
+        custody
+            .arguments
+            .iter()
+            .any(|argument| argument.place == result.operation_result.place)
+    }) {
+        return Err(invalid());
+    }
     if custody.scalar_arguments.is_empty()
         && custody.arguments.is_empty()
         && custody.claim_transfers.is_empty()
@@ -467,8 +472,10 @@ pub(super) fn validate_internal_unit_call_custody(
         .iter()
         .position(|candidate| *candidate == operation)
         .ok_or_else(invalid)?;
-    let callee_mixed_structural_return =
-        callee_structural_return.filter(|returned| !returned.scalar_parameters.is_empty());
+    let callee_mixed_structural_return = callee_structural_return.filter(|returned| {
+        !returned.scalar_parameters.is_empty()
+            || crate::structural_return::has_claim_free_affine_identity_custody(returned)
+    });
     if usize::from(callee_unit_scalar_abi.is_some())
         + usize::from(callee_mixed_abi.is_some())
         + usize::from(callee_mixed_structural_return.is_some())

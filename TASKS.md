@@ -569,7 +569,7 @@ Owners include
   occurrence disappears, duplicates, or is cleaned after transfer.
   Complete target assignment and native replay for named ordinary and boundary
   call-result residual cleanup, including result homes and projected copies;
-  whole-value producer returns alone do not cover the caller's residuals.
+  whole-result disposal does not cover a projected result's residuals.
   Extend source production to anonymous
   projected helper-result operands. Extend the
   type-directed record/array complement in
