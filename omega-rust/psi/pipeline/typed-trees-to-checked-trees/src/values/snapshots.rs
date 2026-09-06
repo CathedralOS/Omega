@@ -101,6 +101,21 @@ fn payloads_at_place<'a>(
                 let FactPlace::Place(place) = fact.place else {
                     return None;
                 };
+                // Call provenance and its completed scalar snapshot share one
+                // transfer context and point. Keep unknown calls at other
+                // points as blockers; never let one path's snapshot mask them.
+                if let FactPayload::AssignedValue { value } = fact.payload
+                    && matches!(program.expression_table.expression(value), ExpressionNode::Call(_))
+                    && semantic.context_view(context).facts().any(|snapshot| {
+                        snapshot.place == fact.place
+                            && snapshot.point == fact.point
+                            && snapshot.origin == fact.origin
+                            && matches!(snapshot.payload, FactPayload::AssignedScalarValue { value }
+                                if !matches!(semantic.scalar_values.get(value), ScalarValue::Unknown))
+                    })
+                {
+                    return None;
+                }
                 let candidate = canonical_place_from_semantic_place(
                     program,
                     semantic,
@@ -113,4 +128,96 @@ fn payloads_at_place<'a>(
             })
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use facts::{Fact, FactOrigin, ProgramPoint};
+
+    #[test]
+    fn call_provenance_requires_its_own_snapshot_and_conflicts_still_reject() {
+        let mut program = TypedTrees::default();
+        let call = program.expression_table.insert(ExpressionNode::Call(
+            typed_trees::expression::TableCallExpression {
+                receiver: Default::default(),
+                target_symbol: Default::default(),
+                target: Default::default(),
+                static_requirement_dispatch: None,
+                machine_arguments: Default::default(),
+                quotient_operation: None,
+                private_layout_operation: None,
+                arguments: Default::default(),
+                evidence_arguments: Default::default(),
+                operational_acknowledgement: Default::default(),
+            },
+        ));
+        let symbol = symbols::SymbolHandle::from_arena_index(1);
+        let subject = CanonicalPlace {
+            root: PlaceRoot::Symbol(symbol),
+            segments: Vec::new(),
+        };
+        for (different_point, separate_context, conflicting_value, accepted) in [
+            (false, false, false, true),
+            (true, false, false, false),
+            (false, true, false, false),
+            (false, false, true, false),
+        ] {
+            let mut semantic = FactPlan::default();
+            let place = semantic.append_symbol_place(symbol);
+            let point = ProgramPoint::Statement {
+                machine_symbol: symbol,
+                state_symbol: symbol,
+                statement_index: 0,
+            };
+            let snapshot_point = ProgramPoint::Statement {
+                machine_symbol: symbol,
+                state_symbol: symbol,
+                statement_index: usize::from(different_point),
+            };
+            let call_fact = semantic.append_fact(Fact {
+                place: FactPlace::Place(place),
+                point,
+                origin: FactOrigin::StatementTransfer,
+                evidence: Default::default(),
+                payload: FactPayload::AssignedValue { value: call },
+            });
+            let mut call_references = Default::default();
+            semantic.append_ref(&mut call_references, call_fact);
+            let mut scalar_references = Default::default();
+            for value in [65, if conflicting_value { 66 } else { 65 }] {
+                let value = semantic.scalar_values.append(ScalarValue::Integer(
+                    numerics::bignum::BigInt::from_u64(value),
+                ));
+                let fact = semantic.append_fact(Fact {
+                    place: FactPlace::Place(place),
+                    point: snapshot_point,
+                    origin: FactOrigin::StatementTransfer,
+                    evidence: Default::default(),
+                    payload: FactPayload::AssignedScalarValue { value },
+                });
+                if separate_context {
+                    semantic.append_ref(&mut scalar_references, fact);
+                } else {
+                    semantic.append_ref(&mut call_references, fact);
+                }
+            }
+            let call_context = semantic.append_context(point, call_references);
+            let scalar_context = semantic.append_context(snapshot_point, scalar_references);
+            let value = scalar_value_at_place(
+                &program,
+                &semantic,
+                [
+                    semantic.contexts.get(call_context),
+                    semantic.contexts.get(scalar_context),
+                ],
+                &subject,
+            );
+            assert_eq!(
+                value.is_some(),
+                accepted,
+                "point={different_point} context={separate_context} conflict={conflicting_value}"
+            );
+        }
+    }
 }
