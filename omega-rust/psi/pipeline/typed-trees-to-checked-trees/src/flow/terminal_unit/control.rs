@@ -1029,15 +1029,11 @@ fn build_checked_machine_with(
         .as_ref()
         .map(|(_, _, symbol)| *symbol);
     let binders = machine_binders(program, machine);
-    let boundary_structural_result_local = selected_structural_result_local
+    let structural_result_local = selected_structural_result_local
         .is_none()
-        .then(|| {
-            checked_unit_boundary_structural_result_local(program, shapes, statements, &binders)
-        })
+        .then(|| checked_unit_structural_result_local(program, shapes, statements, &binders))
         .flatten();
-    let boundary_structural_result_symbol = boundary_structural_result_local
-        .as_ref()
-        .map(|(_, symbol)| *symbol);
+    let structural_result_symbol = structural_result_local.as_ref().map(|(_, symbol)| *symbol);
     let carries_fused_service_parameter = program.state_parameters(state).iter().any(|parameter| {
         typed_trees::service::exact_bound_service_requirement(program, parameter.type_reference)
             .is_some()
@@ -1056,7 +1052,7 @@ fn build_checked_machine_with(
                 (None, structural, scalar)
             } else if (selected_scalar_result_local.is_some()
                 || selected_structural_result_local.is_some()
-                || boundary_structural_result_local.is_some())
+                || structural_result_local.is_some())
                 && !carries_scalar_parameter
             {
                 let structural =
@@ -1138,14 +1134,14 @@ fn build_checked_machine_with(
     );
     if (selected_scalar_result_local.is_some()
         || selected_structural_result_local.is_some()
-        || boundary_structural_result_local.is_some())
+        || structural_result_local.is_some())
         && selected_ieee_float_fma_result_locals.is_some()
     {
         return None;
     }
     let scalar_result_local = (selected_scalar_result_local.is_none()
         && selected_structural_result_local.is_none()
-        && boundary_structural_result_local.is_none()
+        && structural_result_local.is_none()
         && selected_ieee_float_fma_result_locals.is_none())
     .then(|| checked_unit_scalar_result_local(program, statements))
     .flatten();
@@ -1185,7 +1181,7 @@ fn build_checked_machine_with(
         .flatten();
     let scalar_sequence = if selected_scalar_result_local.is_none()
         && selected_structural_result_local.is_none()
-        && boundary_structural_result_local.is_none()
+        && structural_result_local.is_none()
         && selected_ieee_float_fma_result_locals.is_none()
         && construction.is_none()
         && affine_scalar_record_local.is_none()
@@ -1223,7 +1219,7 @@ fn build_checked_machine_with(
                         scalar_result_local.is_some()
                             || selected_scalar_result_local.is_some()
                             || selected_structural_result_local.is_some()
-                            || boundary_structural_result_local.is_some(),
+                            || structural_result_local.is_some(),
                     ) + scalar_expression_locals.len()
                 },
                 Vec::len,
@@ -1278,7 +1274,7 @@ fn build_checked_machine_with(
         }
     } else {
         let expected_call_count = call_statements.len().checked_add(usize::from(
-            scalar_result_local.is_some() || boundary_structural_result_local.is_some(),
+            scalar_result_local.is_some() || structural_result_local.is_some(),
         ))?;
         if scalar_sequence.is_none()
             && (calls.len() != expected_call_count
@@ -1382,7 +1378,7 @@ fn build_checked_machine_with(
             .map(|local| local.symbol),
     );
     admitted_local_symbols.extend(selected_structural_result_symbol);
-    admitted_local_symbols.extend(boundary_structural_result_symbol);
+    admitted_local_symbols.extend(structural_result_symbol);
 
     let mut operations = trivial_affine_locals
         .iter()
@@ -1555,24 +1551,14 @@ fn build_checked_machine_with(
                     )?);
                 }
                 0
-            } else if let Some((result, _)) = boundary_structural_result_local {
+            } else if let Some((result, _)) = structural_result_local {
                 let call = calls.first()?;
                 if call.statement_index != usize::try_from(result.statement_index).ok()?
                     || call.call_ordinal != 0
                 {
                     return None;
                 }
-                let CheckedUnitEffectOperationPlan::BoundaryCall {
-                    coordinate,
-                    source_site,
-                    target_machine,
-                    target_state,
-                    target_contract_report_fingerprint,
-                    service_reach,
-                    scalar_arguments,
-                    structural_arguments,
-                    completion_receipts,
-                } = build_call_operation(
+                let operation = build_call_operation(
                     program,
                     facts,
                     machine,
@@ -1584,24 +1570,47 @@ fn build_checked_machine_with(
                     call,
                     false,
                     Some(ExpectedCallValueResult::Structural(&result)),
-                )?
-                else {
-                    return None;
+                )?;
+                let operation = match operation {
+                    CheckedUnitEffectOperationPlan::BoundaryCall {
+                        coordinate,
+                        source_site,
+                        target_machine,
+                        target_state,
+                        target_contract_report_fingerprint,
+                        service_reach,
+                        scalar_arguments,
+                        structural_arguments,
+                        completion_receipts,
+                    } => CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                        coordinate,
+                        source_site,
+                        discard_result_on_return: result.multiplicity == Multiplicity::Affine,
+                        result,
+                        target_machine,
+                        target_state,
+                        target_contract_report_fingerprint,
+                        service_reach,
+                        scalar_arguments,
+                        structural_arguments,
+                        completion_receipts,
+                    },
+                    operation @ CheckedUnitEffectOperationPlan::StructuralCall { .. } => {
+                        for plan in &facts.flow.terminal_structural_returns.structural_types {
+                            if shapes
+                                .types
+                                .get(&plan.identity)
+                                .is_some_and(|existing| existing != plan)
+                            {
+                                return None;
+                            }
+                            shapes.types.insert(plan.identity.clone(), plan.clone());
+                        }
+                        operation
+                    }
+                    _ => return None,
                 };
-                let discard_result_on_return = result.multiplicity == Multiplicity::Affine;
-                operations.push(CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                    coordinate,
-                    source_site,
-                    result,
-                    target_machine,
-                    target_state,
-                    target_contract_report_fingerprint,
-                    service_reach,
-                    scalar_arguments,
-                    structural_arguments,
-                    completion_receipts,
-                    discard_result_on_return,
-                });
+                operations.push(operation);
                 1
             } else {
                 0
@@ -1650,6 +1659,10 @@ fn build_checked_machine_with(
                 ..
             }
             | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
+                structural_arguments,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::StructuralCall {
                 structural_arguments,
                 ..
             } => structural_arguments
@@ -1977,7 +1990,7 @@ fn bind_scalar_call_result(
     }
 }
 
-pub(super) fn checked_unit_boundary_structural_result_local(
+pub(super) fn checked_unit_structural_result_local(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
     statements: &[StatementNode],

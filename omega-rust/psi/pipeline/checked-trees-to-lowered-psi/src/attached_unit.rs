@@ -18,6 +18,7 @@ mod providers;
 mod scalar_locals;
 mod selected_operator;
 pub(super) mod shared_closure;
+mod structural_calls;
 
 use parameters::lower_unit_scalar_parameter_types;
 pub(super) use parameters::validate_direct_unit_parameter_custody;
@@ -58,9 +59,8 @@ use provider_attachments::validate_provider_attachment_requirements;
 use providers::checked_unit_provider_candidates;
 use scalar_locals::lower_scalar_expression_local;
 use selected_operator::{
-    lower_selected_structural_result_realizations, lower_selected_structural_scalar_realizations,
-    validate_selected_operator_scalar_call, validate_selected_operator_structural_call,
-    validate_selected_operator_structural_scalar_call,
+    lower_selected_structural_scalar_realizations, validate_selected_operator_scalar_call,
+    validate_selected_operator_structural_call, validate_selected_operator_structural_scalar_call,
 };
 
 fn lower_boundary_result(
@@ -409,27 +409,32 @@ fn assemble_unit_closure(
             "selected structural-scalar realization overlaps another attached Unit closure",
         );
     }
-    let mut selected_structural_result_roots = Vec::new();
+    let mut structural_result_roots = Vec::new();
     for machine_symbol in &closure {
         for operation in &unique_unit_machine(plans, *machine_symbol)?.operations {
-            if let CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
-                realization_machine,
-                ..
-            } = operation
-                && !selected_structural_result_roots.contains(realization_machine)
+            let target = match operation {
+                CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
+                    realization_machine,
+                    ..
+                } => Some(*realization_machine),
+                CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. } => {
+                    Some(*target_machine)
+                }
+                _ => None,
+            };
+            if let Some(target) = target
+                && !structural_result_roots.contains(&target)
             {
-                selected_structural_result_roots.push(*realization_machine);
+                structural_result_roots.push(target);
             }
         }
     }
-    if selected_structural_result_roots.iter().any(|machine| {
+    if structural_result_roots.iter().any(|machine| {
         closure.contains(machine)
             || scalar_closure.contains(machine)
             || selected_structural_scalar_roots.contains(machine)
     }) {
-        return unsupported(
-            "selected structural-result realization overlaps another attached Unit closure",
-        );
+        return unsupported("structural-result machine overlaps another attached Unit closure");
     }
 
     let mut boundaries = Vec::<(&CheckedBoundaryMachinePlan, String)>::new();
@@ -495,6 +500,9 @@ fn assemble_unit_closure(
                             "Unit call does not match the exact checked target state, contract, and reach",
                         );
                     }
+                }
+                CheckedUnitEffectOperationPlan::StructuralCall { .. } => {
+                    structural_calls::validate(checked, machine, operation)?;
                 }
                 CheckedUnitEffectOperationPlan::ScalarCall {
                     coordinate,
@@ -998,7 +1006,7 @@ fn assemble_unit_closure(
         .chain(closure.iter())
         .chain(&scalar_closure)
         .chain(&selected_structural_scalar_roots)
-        .chain(&selected_structural_result_roots)
+        .chain(&structural_result_roots)
         .enumerate()
         .map(|(index, symbol)| Ok((*symbol, machine_id(dense_identity(index)?))))
         .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -1033,7 +1041,7 @@ fn assemble_unit_closure(
         closure.len()
             + scalar_closure.len()
             + selected_structural_scalar_roots.len()
-            + selected_structural_result_roots.len(),
+            + structural_result_roots.len(),
     );
     let mut source_call_occurrences = Vec::new();
     let mut selected_ieee_float_fma_occurrences = Vec::new();
@@ -1837,6 +1845,23 @@ fn assemble_unit_closure(
                         },
                     });
                     scalar_result_values.push(value);
+                    continue;
+                }
+                CheckedUnitEffectOperationPlan::StructuralCall { .. } => {
+                    let result = structural_calls::emit(
+                        checked,
+                        plan,
+                        operation,
+                        parameters,
+                        evaluated_scalar_arguments.as_deref(),
+                        &structural_types,
+                        &type_ids,
+                        &machine_ids,
+                        structural_result_places.len(),
+                        &mut next_place,
+                        &mut operations,
+                    )?;
+                    structural_result_places.push(result);
                     continue;
                 }
                 CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
@@ -2743,18 +2768,21 @@ fn assemble_unit_closure(
         else {
             unreachable!()
         };
-        let trivial_affine_discards = trivial_affine_local_discard_ordinals
+        let local_discards = trivial_affine_local_discard_ordinals.iter().map(|ordinal| {
+            local_places
+                .get(usize::try_from(*ordinal).map_err(|_| {
+                    LoweringError::Unsupported("Unit local cleanup ordinal exceeds usize")
+                })?)
+                .map(|local| local.id)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit local cleanup ordinal is not dense",
+                ))
+        });
+        let trivial_affine_discards = structural_result_places
             .iter()
-            .map(|ordinal| {
-                local_places
-                    .get(usize::try_from(*ordinal).map_err(|_| {
-                        LoweringError::Unsupported("Unit local cleanup ordinal exceeds usize")
-                    })?)
-                    .map(|local| local.id)
-                    .ok_or(LoweringError::Unsupported(
-                        "Unit local cleanup ordinal is not dense",
-                    ))
-            })
+            .rev()
+            .filter_map(|(place, discard)| discard.then_some(Ok(place.id)))
+            .chain(local_discards)
             .chain(trivial_affine_discards.iter().map(|parameter_index| {
                 parameters
                     .get(usize::try_from(*parameter_index).map_err(|_| {
@@ -2767,11 +2795,6 @@ fn assemble_unit_closure(
                         "Unit affine discard has an invalid parameter index",
                     ))
             }))
-            .chain(
-                structural_result_places
-                    .iter()
-                    .filter_map(|(place, discard)| discard.then_some(Ok(place.id))),
-            )
             .collect::<Result<Vec<_>, _>>()?;
         let block = evaluation.current;
         let edge = edge_id(allocate_dense(&mut next_edge)?);
@@ -2925,17 +2948,18 @@ fn assemble_unit_closure(
     call_evidence.append(&mut lowered_structural_realizations.evidence);
     source_call_occurrences.append(&mut lowered_structural_realizations.source_calls);
 
-    let mut lowered_structural_result_realizations = lower_selected_structural_result_realizations(
-        checked,
-        &selected_structural_result_roots,
-        &structural_types,
-        &type_ids,
-        &machine_ids,
-        reserved_prefix
-            + closure.len()
-            + scalar_closure.len()
-            + selected_structural_scalar_roots.len(),
-    )?;
+    let mut lowered_structural_result_realizations =
+        crate::affine_return::lower_claim_free_affine_return_machines(
+            checked,
+            &structural_result_roots,
+            &structural_types,
+            &type_ids,
+            &machine_ids,
+            reserved_prefix
+                + closure.len()
+                + scalar_closure.len()
+                + selected_structural_scalar_roots.len(),
+        )?;
     machines.append(&mut lowered_structural_result_realizations);
 
     let mut provider_candidates = provider_candidate_plans

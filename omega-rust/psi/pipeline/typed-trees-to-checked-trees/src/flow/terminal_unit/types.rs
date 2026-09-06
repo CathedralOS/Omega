@@ -41,6 +41,10 @@ pub(super) fn return_unit_affine_discards(
             | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
                 structural_arguments,
                 ..
+            }
+            | CheckedUnitEffectOperationPlan::StructuralCall {
+                structural_arguments,
+                ..
             } => structural_arguments
                 .iter()
                 .filter_map(|argument| argument.source_parameter_index())

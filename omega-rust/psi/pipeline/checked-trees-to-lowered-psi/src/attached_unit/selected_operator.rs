@@ -3,7 +3,6 @@
 use super::*;
 
 mod structural_realizations;
-pub(super) use crate::affine_return::lower_claim_free_affine_return_machines as lower_selected_structural_result_realizations;
 pub(super) use structural_realizations::lower_selected_structural_scalar_realizations;
 
 #[allow(clippy::too_many_arguments)]

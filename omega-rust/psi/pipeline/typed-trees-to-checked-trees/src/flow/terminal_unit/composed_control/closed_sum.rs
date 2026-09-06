@@ -53,7 +53,7 @@ pub(super) fn build(
         return None;
     }
     let (result, result_symbol) =
-        checked_unit_boundary_structural_result_local(program, shapes, statements, &binders)?;
+        checked_unit_structural_result_local(program, shapes, statements, &binders)?;
     if result.statement_index != 0
         || result.binding_ordinal != 0
         || result_symbol != result_local.symbol

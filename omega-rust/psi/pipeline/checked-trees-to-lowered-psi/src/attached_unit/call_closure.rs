@@ -217,6 +217,12 @@ pub(super) fn validate_unit_operation_sequence(
                 result,
                 discard_result_on_return,
                 ..
+            }
+            | CheckedUnitEffectOperationPlan::StructuralCall {
+                coordinate,
+                result,
+                discard_result_on_return,
+                ..
             } => {
                 if result.statement_index != coordinate.statement_index
                     || coordinate.call_ordinal != 0

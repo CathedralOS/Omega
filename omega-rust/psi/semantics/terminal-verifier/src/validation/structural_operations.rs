@@ -576,29 +576,10 @@ pub(super) fn validate_unit_operation_static(
                     callee: callee.id,
                 });
             };
-            let exact_record = module
-                .structural_types
-                .iter()
-                .find(|declaration| declaration.id == callee_result.structural_type)
-                .is_some_and(|declaration| {
-                    matches!(
-                        &declaration.shape,
-                        StructuralTypeShape::Record { fields }
-                            if matches!(
-                                fields.as_slice(),
-                                [field]
-                                    if matches!(
-                                        field.field_type,
-                                        StructuralFieldType::Scalar(ScalarType::Integer(integer))
-                                            if integer.carrier()
-                                                == semantic_vocabulary::IntegerCarrier::Fixed
-                                                && integer.bits() == 64
-                                    )
-                            )
-                    )
-                });
             let exact_return = matches!(callee.blocks.as_slice(), [block]
-            if block.operations.is_empty()
+            if block.id == callee.entry
+                && block.parameters.is_empty()
+                && block.operations.is_empty()
                 && matches!(
                     &block.terminator,
                     Terminator::ReturnStructural {
@@ -610,15 +591,16 @@ pub(super) fn validate_unit_operation_static(
                         && returned_claims.is_empty()
                         && trivial_affine_discards.is_empty()
                 ));
-            if callee.parameters.len() != 1
-                || !matches!(
-                    callee.parameters[0].scalar_type,
+            if !callee.parameters.iter().all(|parameter| {
+                matches!(
+                    parameter.scalar_type,
                     ScalarType::Integer(integer)
                         if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
                             && matches!(integer.bits(), 8 | 16 | 32 | 64)
                 )
-                || callee_parameter.position != 0
+            }) || callee_parameter.position != 0
                 || callee_parameter.is_self
+                || callee_parameter.structural_type != callee_result.structural_type
                 || callee_parameter.multiplicity != StructuralMultiplicity::Affine
                 || callee_parameter.access != StructuralAccess::Owned
                 || !callee_parameter.qualifications.is_empty()
@@ -645,7 +627,10 @@ pub(super) fn validate_unit_operation_static(
                 || !callee.contract.ensures.is_empty()
                 || !callee.contract.outcome_specific_ensures.is_empty()
                 || !callee.contract.crash_routes.is_empty()
-                || !exact_record
+                || !super::structural_result_contracts::has_plain_owned_shape(
+                    module,
+                    callee_result.structural_type,
+                )
                 || !exact_return
             {
                 return Err(ModuleError::StructuralCallTargetMismatch {
@@ -672,8 +657,8 @@ pub(super) fn validate_unit_operation_static(
                 structural_arguments,
                 &callee.structural_parameters,
                 operation.id,
-                true,
-                StructuralArgumentSourcePolicy::OnlyParameters,
+                false,
+                StructuralArgumentSourcePolicy::ParametersOrAffineOperationResults,
             )?;
             validate_unit_call_contract_places(callee, operation.id)?;
             validate_service_reach(
@@ -1091,6 +1076,9 @@ pub(super) enum StructuralArgumentSourcePolicy {
     OnlyParameters,
     ParametersOrByteSequenceLiterals,
     ParametersOrAffineLocals,
+    /// Whole record establishments and claim-free affine identity call results.
+    /// Frontier validation separately requires their producer to have run.
+    ParametersOrAffineOperationResults,
 }
 
 pub(super) fn validate_structural_arguments(
@@ -1165,8 +1153,11 @@ pub(super) fn validate_structural_arguments(
                         StructuralPlaceKind::OperationResult {
                             producer,
                             structural_type,
-                        } if source_policy
-                            == StructuralArgumentSourcePolicy::ParametersOrAffineLocals
+                        } if matches!(
+                            source_policy,
+                            StructuralArgumentSourcePolicy::ParametersOrAffineLocals
+                                | StructuralArgumentSourcePolicy::ParametersOrAffineOperationResults
+                        )
                             && argument.path.is_empty()
                             && caller
                                 .blocks
@@ -1174,10 +1165,15 @@ pub(super) fn validate_structural_arguments(
                                 .flat_map(|block| &block.operations)
                                 .any(|operation| {
                                     operation.id == producer
-                                        && matches!(
+                                        && (matches!(
                                             operation.kind,
                                             OperationKind::EstablishAffineScalarRecord { .. }
-                                        )
+                                        ) || (source_policy
+                                            == StructuralArgumentSourcePolicy::ParametersOrAffineOperationResults
+                                            && matches!(
+                                                operation.kind,
+                                                OperationKind::CallStructuralWithScalarArguments { .. }
+                                            )))
                                         && operation.result.structural().is_some_and(|result| {
                                             result.place == argument.place
                                                 && result.structural_type == structural_type
