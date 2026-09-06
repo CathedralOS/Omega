@@ -17,6 +17,7 @@ mod writes;
 pub(crate) mod labels;
 mod places;
 mod prover;
+mod reference_domains;
 mod return_values;
 
 use calls::check_call_requires;

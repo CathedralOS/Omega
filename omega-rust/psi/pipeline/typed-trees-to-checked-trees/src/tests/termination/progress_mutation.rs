@@ -1,6 +1,7 @@
 use super::*;
 use language_semantics::TerminationGuarantee;
 
+mod aliases;
 mod arrivals;
 
 const CONTEXT_FIXTURE: &str = r#"

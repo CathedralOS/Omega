@@ -120,7 +120,15 @@ pub(super) fn check_call_requires(
                     fact.payload,
                     fact.place,
                 )
-                || parameter_domain_grants(program, facts, state_flow, fact.payload, fact.place);
+                || parameter_domain_grants(program, facts, state_flow, fact.payload, fact.place)
+                || super::reference_domains::proves(
+                    program,
+                    facts,
+                    state_flow,
+                    call_flow,
+                    &entry_contexts,
+                    fact,
+                );
 
             if !satisfied {
                 let detail = match fact.payload {

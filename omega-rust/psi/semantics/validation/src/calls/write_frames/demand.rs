@@ -52,6 +52,36 @@ pub struct CallFrameResolver<'program> {
 }
 
 impl<'program> CallFrameResolver<'program> {
+    /// A bare reference-local replacement changes its binding, not the storage
+    /// reached through that binding. Unknown reference-shaped results are not
+    /// evidence of a store to the previous referent.
+    pub fn assignment_replaces_local_reference_binding(
+        &self,
+        machine: &Machine,
+        statement: &StatementNode,
+    ) -> Option<bool> {
+        super::reference_subjects::replaces_binding(self.program, machine, statement)
+    }
+
+    /// Resolve a bare local reference to exact live storage at this prefix.
+    /// This query includes shared references, without granting them writes.
+    /// Unknown origins, loaded reference slots, and coarse selectors reject.
+    pub fn local_reference_origin_before_statement(
+        &self,
+        machine: &Machine,
+        statement: &StatementNode,
+        local: SymbolHandle,
+    ) -> Option<(SymbolHandle, Vec<facts::PlaceSegment>)> {
+        let source = super::reference_subjects::local_origin(
+            self.program,
+            machine,
+            &self.symbols,
+            statement,
+            local,
+        )?;
+        Some((source.root, source.segments))
+    }
+
     /// Reference-free erased value shape; unlike runtime layout, inline proof
     /// recursion does not make a value capable of aliasing caller storage.
     pub fn proof_value_is_caller_isolated(

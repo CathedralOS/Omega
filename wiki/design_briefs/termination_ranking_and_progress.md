@@ -279,7 +279,11 @@ qualification. An owned replacement depends on the source value captured by
 that assignment; later changes to the source slot cannot rewrite the captured
 dependency. Disjoint writes preserve identity. Reference copies preserve live
 aliases, not snapshots of their referents, and need their own exact storage
-correspondence.
+correspondence. Rebinding one alias does not redirect a previously copied
+reference. An owned value read through an alias uses that alias's binding at
+the capture point. Explicit state requirements may use an existing live
+qualification of the exact referent; reference identity cannot establish a
+missing or invalidated qualification.
 
 State arrivals retain independent field origins. A finite field permutation
 may require several entry subjects, but does not by itself create an unbounded

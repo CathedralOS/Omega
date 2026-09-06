@@ -24,39 +24,8 @@ pub(super) fn at_call(
     for projection in subject.projections {
         flow::push_field_place_segments(program, &mut place.segments, projection);
     }
-    // Call rows are retained in execution order, not authored preorder ordinal.
-    // Earlier operand effects must not be silently borrowed as entry identity.
-    let calls = flow.control.calls.span_or_empty(state.calls);
-    let position = calls
-        .iter()
-        .position(|candidate| std::ptr::eq(candidate, call))?;
-    for prior in calls[..position]
-        .iter()
-        .filter(|prior| prior.statement_index == call.statement_index)
-    {
-        let site = crate::find_call_site(
-            program,
-            machine.symbol,
-            state.state_symbol,
-            prior.statement_index,
-            prior.call_ordinal,
-        )?;
-        let frame = match site {
-            crate::CallSite::Statement(call) => frames.may_write_frame(machine, call),
-            crate::CallSite::Expression { expression, .. } => {
-                frames.expression_write_frame(machine, expression)
-            }
-            crate::CallSite::TransitionNamed { .. } => return None,
-        };
-        preserve_frame(
-            program,
-            machine,
-            state,
-            call.statement_index,
-            &place,
-            &frame,
-        )?;
-    }
+    place =
+        flow::local_reference_storage_at_call(program, &frames, machine, flow, state, call, place)?;
     let typed_state = crate::semantic_calls::find_state(program, state.state_symbol)?;
     let statements = program
         .statement_table
@@ -69,12 +38,26 @@ pub(super) fn at_call(
     {
         match statement {
             StatementNode::Assignment(assignment) => {
+                if frames.assignment_replaces_local_reference_binding(machine, statement)? {
+                    preserve_frame(
+                        program,
+                        machine,
+                        state,
+                        index,
+                        &place,
+                        &frames.statement_value_write_frame(machine, statement),
+                    )?;
+                    continue;
+                }
                 let target = flow::statement_mutated_place(
                     program,
                     machine.symbol,
                     state.state_symbol,
                     index,
                     statement,
+                )?;
+                let target = flow::local_reference_storage_before_statement(
+                    program, &frames, machine, state, index, target,
                 )?;
                 if let Some(suffix) = exact_suffix(&place, &target) {
                     let stored_type = validation::declared_place_type_raw(
@@ -96,7 +79,9 @@ pub(super) fn at_call(
                         assignment.value,
                     )?;
                     source.segments.extend_from_slice(suffix);
-                    place = source;
+                    place = flow::local_reference_storage_before_statement(
+                        program, &frames, machine, state, index, source,
+                    )?;
                 } else {
                     let writes = flow::statement_storage_writes(
                         program,
@@ -123,7 +108,9 @@ pub(super) fn at_call(
                     local.initial_value,
                 )?;
                 source.segments.extend_from_slice(&place.segments);
-                place = source;
+                place = flow::local_reference_storage_before_statement(
+                    program, &frames, machine, state, index, source,
+                )?;
             }
             StatementNode::Call(call) => {
                 preserve_frame(
