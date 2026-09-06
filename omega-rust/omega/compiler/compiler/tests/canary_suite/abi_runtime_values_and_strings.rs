@@ -497,6 +497,13 @@ fn cross_win64_large_aggregate_result_uses_hidden_rcx_destination() {
 }
 
 #[test]
+fn float_operator_contracts_ignore_unrelated_private_free_machines() {
+    let canary = pass_canary(fixture_roster::WIN64_SCALAR_FLOAT_IMPORT_COMPILE);
+    compile_to_checked(&canary.join("main.omg"), Some("windows_x86_64"))
+        .expect("public FloatSemantics calls must not select the private Nat machine");
+}
+
+#[test]
 fn cross_win64_scalar_float_import_uses_positional_xmm_and_stack_locations() {
     let canary = pass_canary(fixture_roster::WIN64_SCALAR_FLOAT_IMPORT_COMPILE);
     let scratch =
