@@ -259,10 +259,14 @@ fn rejected_boundary_results_do_not_establish_or_transfer_before_retry() {
 
 #[test]
 fn a_crashing_consumer_operand_never_transfers_or_cleans_boundary_results() {
-    for consumer in ["Main::consume", "Sink::consume"] {
+    for (consumer, operand, abort_ordinal) in [
+        ("Main::consume", "first", 1),
+        ("Sink::consume", "first", 1),
+        ("Sink::consume", "forward(first, prefix)", 2),
+    ] {
         let source = format!(
             "machine abort() -> u16 crashes Abort {{ crash Abort; }}\n{}",
-            source(&format!("{consumer}(first, abort());")).replace(
+            source(&format!("{consumer}({operand}, abort());")).replace(
                 "reaches Factory + Sink {",
                 "reaches Factory + Sink crashes Abort {"
             )
@@ -277,7 +281,7 @@ fn a_crashing_consumer_operand_never_transfers_or_cleans_boundary_results() {
             .find(|occurrence| {
                 occurrence.source_state == state
                     && occurrence.statement_index == 3
-                    && occurrence.call_ordinal == 1
+                    && occurrence.call_ordinal == abort_ordinal
             })
             .unwrap()
             .terminal_operation;

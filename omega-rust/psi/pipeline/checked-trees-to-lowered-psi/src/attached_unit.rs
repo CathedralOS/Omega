@@ -633,7 +633,7 @@ fn assemble_unit_closure(
                     result,
                     ..
                 } => {
-                    retain_exact_checked_flow_call(checked, machine, *coordinate, *target_machine)?;
+                    retain_exact_checked_flow_call(checked, machine, *coordinate, *target_state)?;
                     retain_exact_unit_boundary(
                         checked,
                         plans,
@@ -654,7 +654,7 @@ fn assemble_unit_closure(
                     result,
                     ..
                 } => {
-                    retain_exact_checked_flow_call(checked, machine, *coordinate, *target_machine)?;
+                    retain_exact_checked_flow_call(checked, machine, *coordinate, *target_state)?;
                     let target = unique_unit_boundary(plans, *target_machine)?;
                     if !matches!(
                         &target.result,
@@ -2420,7 +2420,7 @@ fn assemble_unit_closure(
                     if usize::try_from(result.binding_ordinal)
                         .ok()
                         .and_then(|ordinal| ordinal.checked_add(scalar_parameter_count))
-                        != Some(scalar_result_values.len())
+                        != Some(source_value_count)
                     {
                         return unsupported(
                             "Unit scalar result binding ordinal drifted from source order",
@@ -2570,7 +2570,15 @@ fn assemble_unit_closure(
                         result: terminal_psi::OperationResult::Scalar(value),
                         kind,
                     });
-                    scalar_result_values.push(value);
+                    if staged {
+                        if staged_scalar_result.replace(value).is_some() {
+                            return unsupported(
+                                "nested argument group produces more than one scalar binding",
+                            );
+                        }
+                    } else {
+                        scalar_result_values.push(value);
+                    }
                     continue;
                 }
                 CheckedUnitEffectOperationPlan::BoundaryStructuralCall {

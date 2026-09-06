@@ -20,23 +20,21 @@ pub(crate) fn authored_postorder(
         ))?;
     let mut pending = Vec::new();
     let mut next_ordinal = 0_u32;
-    let statement_root = match statement {
+    let (statement_root, outer_expression) = match statement {
         StatementNode::Call(call) => {
-            let (owner, target) =
-                crate::scalar_source_custody::authored_state(checked, call.target_symbol)?;
-            if owner.supply_mode.is_boundary_declaration()
-                || checked
-                    .state_parameters(target)
-                    .iter()
-                    .any(|parameter| parameter.is_self)
-                || (call.receiver_symbol.is_valid()
-                    && call.receiver_symbol != owner.attached_data_symbol)
-                || !call.machine_arguments.is_empty()
+            validate_root_receiver(
+                checked,
+                machine.symbol,
+                call.target_symbol,
+                call.receiver_symbol,
+                !call.receiver.is_empty(),
+            )?;
+            if !call.machine_arguments.is_empty()
                 || !call.evidence_arguments.is_empty()
                 || call.static_requirement_dispatch.is_some()
                 || call.discards_result
             {
-                return unsupported("nested call has no supported ordinary statement root");
+                return unsupported("nested call has no supported statement root");
             }
             let arguments = checked.statement_table.expression_handles(call.arguments);
             if arguments.len() != call.arguments.count() as usize {
@@ -49,11 +47,11 @@ pub(crate) fn authored_postorder(
                     .map(|argument| (*argument, true, None)),
             );
             next_ordinal = 1;
-            true
+            (true, ExpressionHandle::invalid())
         }
         StatementNode::LocalData(local) if !local.is_mutable => {
             pending.push((local.initial_value, true, None));
-            false
+            (false, local.initial_value)
         }
         StatementNode::Expression(expression)
             if statement_index as usize + 1 == statements.len()
@@ -65,7 +63,7 @@ pub(crate) fn authored_postorder(
                 ) =>
         {
             pending.push((*expression, true, None));
-            false
+            (false, *expression)
         }
         _ => return unsupported("nested calls require a direct initializer or Unit call root"),
     };
@@ -88,17 +86,43 @@ pub(crate) fn authored_postorder(
         let mut children = Vec::new();
         let ordinal = match table.expression(expression) {
             ExpressionNode::Call(call) => {
-                let (owner, target) =
-                    crate::scalar_source_custody::authored_state(checked, call.target_symbol)?;
-                if (!direct_argument
-                    && checked
-                        .primitive_type_reference(target.return_type)
-                        .is_none())
-                    || owner.supply_mode.is_boundary_declaration()
-                    || !checked
-                        .typed
-                        .call_has_no_runtime_receiver(call, owner, target)
-                    || !call.machine_arguments.is_empty()
+                if next_ordinal == 0 && expression == outer_expression {
+                    let receiver = if call.receiver.is_valid() {
+                        if !table.expression_is_valid(call.receiver) {
+                            return unsupported("nested root has a stale receiver");
+                        }
+                        let ExpressionNode::Name(name) = table.expression(call.receiver) else {
+                            return unsupported("nested root has a runtime receiver");
+                        };
+                        name.symbol
+                    } else {
+                        SymbolHandle::invalid()
+                    };
+                    validate_root_receiver(
+                        checked,
+                        machine.symbol,
+                        call.target_symbol,
+                        receiver,
+                        call.receiver.is_valid(),
+                    )?;
+                } else {
+                    let (owner, target) =
+                        crate::scalar_source_custody::authored_state(checked, call.target_symbol)?;
+                    if (!direct_argument
+                        && checked
+                            .primitive_type_reference(target.return_type)
+                            .is_none())
+                        || owner.supply_mode.is_boundary_declaration()
+                        || !checked
+                            .typed
+                            .call_has_no_runtime_receiver(call, owner, target)
+                    {
+                        return unsupported(
+                            "nested call has no ordinary producer or scalar helper",
+                        );
+                    }
+                }
+                if !call.machine_arguments.is_empty()
                     || !call.evidence_arguments.is_empty()
                     || call.static_requirement_dispatch.is_some()
                     || call.quotient_operation.is_some()
@@ -146,4 +170,50 @@ pub(crate) fn authored_postorder(
         order.push((0, ExpressionHandle::invalid()));
     }
     Ok(order)
+}
+
+/// The outer consumer may name an ordinary or bodyless machine, an exact
+/// boundary-trait requirement, or the caller's nominal requirement parameter.
+/// None of these routes evaluates a receiver. Nested producers use the stricter
+/// ordinary-machine check above.
+fn validate_root_receiver(
+    checked: &CheckedTrees,
+    caller: SymbolHandle,
+    target: SymbolHandle,
+    receiver: SymbolHandle,
+    has_receiver: bool,
+) -> Result<(), LoweringError> {
+    let (parameters, _, target_machine, target_state) = target_parameters(checked, caller, target)?;
+    if parameters.iter().any(|parameter| parameter.is_self) || has_receiver != receiver.is_valid() {
+        return unsupported("nested call root has no exact nonself receiver identity");
+    }
+    if let Some((_, qualifier)) =
+        validation::exact_compiler_intrinsic_boundary_requirement(&checked.typed, target)
+    {
+        if !has_receiver || receiver == qualifier {
+            return Ok(());
+        }
+    } else if let Some(owner) = checked
+        .machines()
+        .iter()
+        .find(|owner| owner.symbol == target_machine)
+    {
+        if !has_receiver || receiver == owner.attached_data_symbol {
+            return Ok(());
+        }
+    } else if checked.machine_parameter_signature(target).is_some() {
+        if !has_receiver {
+            return Ok(());
+        }
+    } else if checked.traits().iter().any(|definition| {
+        definition.is_boundary
+            && definition.symbol == receiver
+            && checked
+                .trait_machine_signatures(definition)
+                .iter()
+                .any(|signature| signature.symbol == target_state)
+    }) {
+        return Ok(());
+    }
+    unsupported("nested call root receiver is not its exact static namespace")
 }

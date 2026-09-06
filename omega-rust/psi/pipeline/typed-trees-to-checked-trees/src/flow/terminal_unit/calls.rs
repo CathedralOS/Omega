@@ -755,9 +755,6 @@ pub(super) fn build_call_operation(
                 .iter()
                 .find(|(_, root)| *root == place.root)
             {
-                if !matches!(place.root, facts::PlaceRoot::Symbol(_)) {
-                    return None;
-                }
                 structural_arguments.push(result_arguments::argument(
                     program,
                     facts,
@@ -1870,27 +1867,24 @@ pub(super) fn structural_call_arguments(
             .iter()
             .find(|(_, root)| *root == place.root)
         {
-            if target_machine.supply_mode.is_boundary_declaration() {
-                if !matches!(place.root, facts::PlaceRoot::Symbol(_)) {
-                    return None;
-                }
-            } else if target_machine.supply_mode != MachineSupplyMode::CheckedBody
-                || (!is_unit(program, target_state.return_type)
-                    && facts
-                        .flow
-                        .terminal_structural_returns
-                        .claim_free_affine_for_machine(target_machine.symbol)
-                        .is_none()
-                    && !program
-                        .primitive_type_reference(target_state.return_type)
-                        .is_some_and(|result| {
-                            is_registered_boundary_scalar_target(
-                                facts,
-                                target_machine.symbol,
-                                target_state.symbol,
-                                result,
-                            )
-                        }))
+            if !target_machine.supply_mode.is_boundary_declaration()
+                && (target_machine.supply_mode != MachineSupplyMode::CheckedBody
+                    || (!is_unit(program, target_state.return_type)
+                        && facts
+                            .flow
+                            .terminal_structural_returns
+                            .claim_free_affine_for_machine(target_machine.symbol)
+                            .is_none()
+                        && !program
+                            .primitive_type_reference(target_state.return_type)
+                            .is_some_and(|result| {
+                                is_registered_boundary_scalar_target(
+                                    facts,
+                                    target_machine.symbol,
+                                    target_state.symbol,
+                                    result,
+                                )
+                            })))
             {
                 return None;
             }
