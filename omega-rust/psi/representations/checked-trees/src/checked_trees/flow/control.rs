@@ -13,6 +13,9 @@ use super::{
 pub struct FlowCallFact {
     pub statement_index: usize,
     pub call_ordinal: usize,
+    /// Exact expression occurrence captured by the semantic call traversal.
+    /// Statement calls and named transition roots use the zero handle.
+    pub authored_expression: typed_trees::expression::ExpressionHandle,
     pub receiver_symbol: SymbolHandle,
     pub target_symbol: SymbolHandle,
     pub has_receiver: bool,

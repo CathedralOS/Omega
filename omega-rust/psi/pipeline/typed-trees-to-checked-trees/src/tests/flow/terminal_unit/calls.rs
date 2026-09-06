@@ -1416,7 +1416,9 @@ fn retains_scalar_parameter_beside_projected_write_only_argument() {
     };
     assert!(matches!(
         scalar_arguments.as_slice(),
-        [checked_trees::CheckedScalarExpression::Parameter { .. }]
+        [checked_trees::CheckedCallScalarArgument::Pure(
+            checked_trees::CheckedScalarExpression::Parameter { .. }
+        )]
     ));
     assert!(matches!(
         structural_arguments.as_slice(),
@@ -1533,7 +1535,7 @@ fn retains_static_boundary_scalar_parameter_and_literal_argument() {
     assert_eq!(scalar_arguments.len(), 1);
     assert!(matches!(
         &scalar_arguments[0],
-        CheckedScalarExpression::IntegerLiteral { literal }
+        checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::IntegerLiteral { literal })
             if literal.landing().is_some_and(|landing|
                 landing.landed_type == numerics::literals::LandedIntegerType::I32)
     ));
@@ -1761,7 +1763,9 @@ fn retains_boundary_scalar_result_local_consumed_by_later_unit_call() {
     assert_eq!(result.primitive_type, PrimitiveType::I32);
     assert!(matches!(
         result_arguments.as_slice(),
-        [CheckedScalarExpression::IntegerLiteral { .. }]
+        [checked_trees::CheckedCallScalarArgument::Pure(
+            CheckedScalarExpression::IntegerLiteral { .. }
+        )]
     ));
     assert_eq!(
         (consumer_call.statement_index, consumer_call.call_ordinal),
@@ -1769,10 +1773,12 @@ fn retains_boundary_scalar_result_local_consumed_by_later_unit_call() {
     );
     assert!(matches!(
         consumer_arguments.as_slice(),
-        [CheckedScalarExpression::Local {
-            position: 0,
-            primitive_type: PrimitiveType::I32,
-        }]
+        [checked_trees::CheckedCallScalarArgument::Pure(
+            CheckedScalarExpression::Local {
+                position: 0,
+                primitive_type: PrimitiveType::I32,
+            }
+        )]
     ));
 }
 
@@ -1836,10 +1842,10 @@ fn retains_branch_free_scalar_local_after_boundary_scalar_result() {
             )
             && matches!(
                 scalar_arguments.as_slice(),
-                [CheckedScalarExpression::Local {
+                [checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Local {
                     position: 1,
                     primitive_type: PrimitiveType::I32,
-                }]
+                })]
             )
     ));
 }
@@ -1936,10 +1942,12 @@ fn retains_provider_attached_boundary_scalar_result_and_exact_requirements() {
     assert_eq!(result.binding_ordinal, 0);
     assert!(matches!(
         scalar_arguments.as_slice(),
-        [CheckedScalarExpression::Local {
-            position: 0,
-            primitive_type: PrimitiveType::I32,
-        }]
+        [checked_trees::CheckedCallScalarArgument::Pure(
+            CheckedScalarExpression::Local {
+                position: 0,
+                primitive_type: PrimitiveType::I32,
+            }
+        )]
     ));
 }
 

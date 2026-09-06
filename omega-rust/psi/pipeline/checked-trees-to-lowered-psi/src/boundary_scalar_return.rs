@@ -213,7 +213,11 @@ pub(super) fn lower_boundary_scalar_return_machine(
         .iter()
         .zip(&boundary_scalar_parameters)
         .map(|(argument, target_type)| {
-            let argument = lower_checked_scalar_expression(argument)?;
+            let argument = lower_checked_scalar_expression(argument.as_pure().ok_or(
+                LoweringError::Unsupported(
+                    "boundary return operands require a connected computation fragment",
+                ),
+            )?)?;
             if argument.scalar_type() != *target_type {
                 return unsupported(
                     "result-bearing boundary scalar argument type disagrees with its declaration",

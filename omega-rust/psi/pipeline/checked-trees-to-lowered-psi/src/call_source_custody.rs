@@ -2,7 +2,7 @@
 
 use super::*;
 
-mod authored;
+pub(crate) mod authored;
 
 pub(super) fn validate_operation(
     checked: &CheckedTrees,
@@ -98,23 +98,53 @@ pub(super) fn validate_operation(
                 argument_ordinal,
             }
         };
-        let (binding, selected) = checked
-            .facts
-            .values
-            .scalar_expressions
-            .bound_expression_at(caller_state, coordinate.statement_index, role)
-            .ok_or(LoweringError::Unsupported(
-                "call scalar operand has no unique source-bound checked plan",
-            ))?;
-        if binding.expression != *expression
-            || binding.destination.is_valid()
-            || selected != argument
-            || lower_checked_scalar_expression(argument)?.scalar_type()
-                != terminal_scalar_type(*primitive_type)?
-        {
-            return unsupported("call scalar operand disagrees with its authored argument");
+        match argument {
+            checked_trees::CheckedCallScalarArgument::Pure(argument) => {
+                let (binding, selected) = checked
+                    .facts
+                    .values
+                    .scalar_expressions
+                    .bound_expression_at(caller_state, coordinate.statement_index, role)
+                    .ok_or(LoweringError::Unsupported(
+                        "call scalar operand has no unique source-bound checked plan",
+                    ))?;
+                if binding.expression != *expression
+                    || binding.destination.is_valid()
+                    || selected != argument
+                    || lower_checked_scalar_expression(argument)?.scalar_type()
+                        != terminal_scalar_type(*primitive_type)?
+                {
+                    return unsupported("call scalar operand disagrees with its authored argument");
+                }
+                crate::scalar_source_custody::validate_namespace(checked, binding)?;
+            }
+            checked_trees::CheckedCallScalarArgument::Computation(computation) => {
+                let plans = &checked.facts.values.scalar_computations;
+                let root = plans
+                    .root_at(caller_state, coordinate.statement_index, role)
+                    .ok_or(LoweringError::Unsupported(
+                        "call scalar operand has no unique checked computation root",
+                    ))?;
+                if root.machine != caller_machine
+                    || root.root != *computation
+                    || !plans.nodes.is_valid(*computation)
+                {
+                    return unsupported("call scalar operand disagrees with its computation root");
+                }
+                let node = plans.nodes.get(*computation);
+                if node.authored_root != *expression || node.primitive_type != *primitive_type {
+                    return unsupported("call computation disagrees with its authored argument");
+                }
+                crate::scalar_source_custody::validate_computation_calls(
+                    checked,
+                    caller_machine,
+                    caller_state,
+                    coordinate.statement_index,
+                    *computation,
+                    *expression,
+                )?;
+            }
         }
-        crate::scalar_source_custody::validate_namespace(checked, binding)?;
     }
     Ok(())
 }

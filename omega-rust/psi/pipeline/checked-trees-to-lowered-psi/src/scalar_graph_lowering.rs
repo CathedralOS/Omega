@@ -4,10 +4,10 @@ use super::*;
 
 mod bindings;
 mod branch_destinations;
-mod computations;
+use crate::scalar_computations as computations;
 mod guards;
+use crate::scalar_bindings as storage;
 use crate::scalar_source_custody as source_custody;
-mod storage;
 
 pub(super) fn checked_scalar_computation_call_targets(
     checked: &CheckedTrees,
@@ -603,7 +603,7 @@ fn lower_checked_direct_call_binding(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn lower_scalar_call(
+pub(super) fn lower_scalar_call(
     checked: &CheckedTrees,
     caller_machine: symbols::SymbolHandle,
     caller_state: symbols::SymbolHandle,
@@ -906,7 +906,7 @@ pub(super) fn lower_checked_scalar_expression(
     }
 }
 
-fn lower_checked_boolean_expression(
+pub(super) fn lower_checked_boolean_expression(
     expression: &CheckedBooleanExpression,
 ) -> Result<LoweredBooleanReturnExpression, LoweringError> {
     Ok(match expression {

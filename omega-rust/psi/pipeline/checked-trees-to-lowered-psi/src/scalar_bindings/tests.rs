@@ -1,4 +1,5 @@
 use super::*;
+use crate::scalar_graph_lowering::lower_checked_boolean_expression;
 use checked_trees::CheckedScalarBindingDestination;
 
 #[test]

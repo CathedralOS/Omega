@@ -69,6 +69,7 @@ pub(super) fn build_call_flow_fact(
     FlowCallFact {
         statement_index: borrow_call.statement_index,
         call_ordinal: borrow_call.call_ordinal,
+        authored_expression: Default::default(),
         receiver_symbol: borrow_call.receiver_symbol,
         target_symbol: borrow_call.target_symbol,
         has_receiver: borrow_call.has_receiver,

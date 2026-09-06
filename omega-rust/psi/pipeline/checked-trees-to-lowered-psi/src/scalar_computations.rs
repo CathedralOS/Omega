@@ -4,6 +4,8 @@
 //! before the next operand starts; selection converges with one result value.
 
 use super::*;
+use crate::scalar_bindings as storage;
+use crate::scalar_graph_lowering::lower_scalar_call;
 use arena::Handle;
 use checked_trees::{CheckedScalarComputation, CheckedScalarComputationKind};
 
@@ -47,6 +49,60 @@ impl<'a> Expansion<'a> {
 
     pub(super) fn finish(self) -> Vec<LoweredScalarBranchState> {
         self.states
+    }
+
+    /// Retain the caller prefix while completing each operand in source order.
+    /// The target receives that prefix followed by the dense scalar arguments.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn call_arguments(
+        &mut self,
+        state: symbols::SymbolHandle,
+        coordinate: checked_trees::CheckedUnitCallCoordinate,
+        boundary: bool,
+        arguments: &[checked_trees::CheckedCallScalarArgument],
+        bindings: &storage::ScalarBindings,
+        source_types: &[ScalarType],
+        target: usize,
+    ) -> Result<usize, LoweringError> {
+        let site = Site {
+            state,
+            statement: coordinate.statement_index,
+            bindings,
+        };
+        let mut operands = Vec::with_capacity(arguments.len());
+        for (ordinal, argument) in arguments.iter().enumerate() {
+            let argument_ordinal = u32::try_from(ordinal).map_err(|_| {
+                LoweringError::Unsupported("scalar call argument ordinal exceeds u32")
+            })?;
+            let role = if boundary {
+                CheckedScalarExpressionRole::BoundaryCallArgument {
+                    call_ordinal: coordinate.call_ordinal,
+                    argument_ordinal,
+                }
+            } else {
+                CheckedScalarExpressionRole::UnitCallArgument {
+                    call_ordinal: coordinate.call_ordinal,
+                    argument_ordinal,
+                }
+            };
+            operands.push(match argument {
+                checked_trees::CheckedCallScalarArgument::Pure(expression) => {
+                    Argument::Value(bindings.expression(expression)?)
+                }
+                checked_trees::CheckedCallScalarArgument::Computation(root) => {
+                    source_custody::validate(
+                        self.checked,
+                        self.machine,
+                        &site,
+                        role,
+                        *root,
+                        symbols::SymbolHandle::invalid(),
+                    )?;
+                    Argument::Computation(*root)
+                }
+            });
+        }
+        self.sequence(&operands, source_types, target, &site, &mut Vec::new())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -434,7 +490,6 @@ impl<'a> Expansion<'a> {
                     || source.statement_index != site.statement as usize
                     || source.call_ordinal != call_ordinal as usize
                     || source.target_symbol != target_state
-                    || source.has_receiver
                 {
                     return unsupported("scalar computation invocation coordinate disagrees");
                 }

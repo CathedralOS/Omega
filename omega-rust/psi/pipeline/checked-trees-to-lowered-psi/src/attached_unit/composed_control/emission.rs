@@ -338,7 +338,11 @@ pub(super) fn emit_boundary_call_operation(
         .iter()
         .zip(&target.scalar_parameters)
         .map(|(argument, target_type)| {
-            let argument = lower_checked_scalar_expression(argument)?;
+            let argument = lower_checked_scalar_expression(argument.as_pure().ok_or(
+                LoweringError::Unsupported(
+                    "composed call operands require a connected computation fragment",
+                ),
+            )?)?;
             if argument.scalar_type() != *target_type {
                 return unsupported("composed Unit boundary scalar type drifted");
             }

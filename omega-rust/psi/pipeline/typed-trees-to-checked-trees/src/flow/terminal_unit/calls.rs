@@ -1098,28 +1098,63 @@ fn checked_call_scalar_arguments(
     coordinate: CheckedUnitCallCoordinate,
     parameters: &[CheckedStructuralScalarParameterPlan],
     boundary: bool,
-) -> Option<Vec<CheckedScalarExpression>> {
+) -> Option<Vec<checked_trees::CheckedCallScalarArgument>> {
     parameters
         .iter()
         .enumerate()
         .map(|(argument_ordinal, parameter)| {
+            let role = if boundary {
+                CheckedScalarExpressionRole::BoundaryCallArgument {
+                    call_ordinal: coordinate.call_ordinal,
+                    argument_ordinal: u32::try_from(argument_ordinal).ok()?,
+                }
+            } else {
+                CheckedScalarExpressionRole::UnitCallArgument {
+                    call_ordinal: coordinate.call_ordinal,
+                    argument_ordinal: u32::try_from(argument_ordinal).ok()?,
+                }
+            };
+            let computations = &facts.values.scalar_computations;
+            let roots = computations
+                .roots
+                .iter()
+                .filter(|(_, root)| {
+                    root.state == caller_state
+                        && root.statement_ordinal == coordinate.statement_index
+                        && root.role == role
+                })
+                .map(|(_, root)| root)
+                .collect::<Vec<_>>();
+            if let [root] = roots.as_slice() {
+                if !computations.nodes.is_valid(root.root)
+                    || computations.nodes.get(root.root).primitive_type != parameter.primitive_type
+                    || facts
+                        .values
+                        .scalar_expressions
+                        .expressions
+                        .iter()
+                        .any(|expression| {
+                            expression.state == caller_state
+                                && expression.statement_ordinal == coordinate.statement_index
+                                && expression.role == role
+                        })
+                {
+                    return None;
+                }
+                return Some(checked_trees::CheckedCallScalarArgument::Computation(
+                    root.root,
+                ));
+            }
+            if !roots.is_empty() {
+                return None;
+            }
             let (_, expression) = facts.values.scalar_expressions.bound_expression_at(
                 caller_state,
                 coordinate.statement_index,
-                if boundary {
-                    CheckedScalarExpressionRole::BoundaryCallArgument {
-                        call_ordinal: coordinate.call_ordinal,
-                        argument_ordinal: u32::try_from(argument_ordinal).ok()?,
-                    }
-                } else {
-                    CheckedScalarExpressionRole::UnitCallArgument {
-                        call_ordinal: coordinate.call_ordinal,
-                        argument_ordinal: u32::try_from(argument_ordinal).ok()?,
-                    }
-                },
+                role,
             )?;
             (crate::values::scalar_expression_type(expression)? == parameter.primitive_type)
-                .then(|| expression.clone())
+                .then(|| checked_trees::CheckedCallScalarArgument::Pure(expression.clone()))
         })
         .collect()
 }

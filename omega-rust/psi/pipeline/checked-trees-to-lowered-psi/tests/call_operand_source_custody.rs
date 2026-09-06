@@ -1,6 +1,6 @@
 use checked_trees::{
-    CheckedScalarExpression, CheckedScalarExpressionBindings, CheckedScalarExpressionRole,
-    CheckedUnitEffectOperationPlan,
+    CheckedCallScalarArgument, CheckedScalarExpression, CheckedScalarExpressionBindings,
+    CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
 };
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
@@ -299,7 +299,7 @@ fn replace_expression_call_argument(
 
 fn arguments_mut(
     operation: &mut CheckedUnitEffectOperationPlan,
-) -> Option<(u32, &mut Vec<CheckedScalarExpression>)> {
+) -> Option<(u32, &mut Vec<CheckedCallScalarArgument>)> {
     match operation {
         CheckedUnitEffectOperationPlan::BoundaryCall {
             coordinate,
@@ -353,7 +353,7 @@ fn replace_operation_argument(
             if let Some((statement, arguments)) = arguments_mut(operation)
                 && statement == row.statement_ordinal
             {
-                arguments[ordinal] = value.clone();
+                arguments[ordinal] = CheckedCallScalarArgument::Pure(value.clone());
                 replaced += 1;
             }
         }
@@ -362,7 +362,7 @@ fn replace_operation_argument(
         if plan.state == row.state {
             let (statement, arguments) = arguments_mut(&mut plan.boundary_call).unwrap();
             if statement == row.statement_ordinal {
-                arguments[ordinal] = value.clone();
+                arguments[ordinal] = CheckedCallScalarArgument::Pure(value.clone());
                 replaced += 1;
             }
         }

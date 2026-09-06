@@ -60,6 +60,10 @@ pub(super) fn bind_checked_body_call_source_spans(
                 ))]);
             };
             validate_checked_call_join(program, machine, state, checked_call, &call_site)?;
+            checked_call.authored_expression = match &call_site {
+                CallSite::Expression { expression, .. } => *expression,
+                CallSite::Statement(_) | CallSite::TransitionNamed { .. } => Default::default(),
+            };
             match authored_call_span(program, &call_site) {
                 Ok(source_span) => {
                     checked_call.authored_source_span = source_span;
