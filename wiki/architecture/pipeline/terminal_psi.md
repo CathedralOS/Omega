@@ -3332,6 +3332,21 @@ or transitivity, including case analysis over disjoined guarantees. Named-state
 forwarding retains exact immutable entry origins and rejects ambiguous joins,
 including backedges to the entry state spelled through its state or machine name.
 
+Free scalar requirements also retain Boolean entry predicates, including
+negation, equality, conjunction, and disjunction. Mutable formals use their
+incoming values, not later body storage. The scalar fallback requires exact
+entry-parameter symbols and builtin operators; spelling cannot recover a
+missing or foreign operand identity. Boolean polarity lowers into logical
+propositions over the exact entry operands; literal wrappers and negation do
+not require evaluating a separate Boolean expression inside call proof search.
+The existing literal contract encoding and mutable-formal postcondition fence
+remain unchanged. Source calls prove these requirements before executing the
+callee; this does not add runtime requirement checks to host-supplied interpreter
+entry arguments. Nested body-local and mutable-storage operands cannot alias
+entry namespace positions in a retained contract predicate.
+Compound equality expansion has a 4,096-step per-clause lowering budget;
+exhaustion rejects before allocating an unbounded proposition tree.
+
 Remaining numeric policies and selected operator calls, longer computed dispatches,
 borrowed/projected operands and writes, and named runtime proof outputs still
 need execution-plan extensions. Nonliteral contract arithmetic and result bounds

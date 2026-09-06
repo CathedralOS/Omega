@@ -2008,7 +2008,7 @@ pub(super) fn checked_boolean_proposition(
     }
 }
 
-fn checked_boolean_scalar_term(
+pub(super) fn checked_boolean_scalar_term(
     expression: &CheckedBooleanExpression,
     values: &[ValueDeclaration],
 ) -> Result<ScalarTerm, LoweringError> {

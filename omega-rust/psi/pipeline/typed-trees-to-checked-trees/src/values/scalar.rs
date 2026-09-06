@@ -21,7 +21,9 @@ mod computations;
 mod contract_entry;
 mod result_contract;
 pub(crate) use computations::build_checked_scalar_computation_plans;
-pub(crate) use contract_entry::lower_machine_entry_boolean_expression;
+pub(crate) use contract_entry::{
+    lower_machine_entry_boolean_expression, lower_machine_entry_scalar_contract_expression,
+};
 pub(crate) use result_contract::{
     lower_integer_contract_predicate, lower_integer_parameter_range_requirements,
 };

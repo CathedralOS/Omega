@@ -1,6 +1,8 @@
-//! Integer contracts over entry parameters and the normal-return result.
+//! Scalar contracts over entry parameters and the normal-return result.
 
 use super::*;
+
+mod namespace;
 
 pub(super) fn clauses(
     clauses: &[Option<ClosedScalarContractValue>],
@@ -34,40 +36,94 @@ pub(super) fn proposition(
     predicate: &CheckedBooleanExpression,
     namespace: &[ValueDeclaration],
 ) -> Result<Proposition, LoweringError> {
+    self::namespace::validate(predicate)?;
+    // Equality of compound predicates needs both child polarities. Bound the
+    // total expansion before allocating an exponential proposition tree.
+    proposition_with_polarity(predicate, namespace, true, &mut 4096)
+}
+
+fn proposition_with_polarity(
+    predicate: &CheckedBooleanExpression,
+    namespace: &[ValueDeclaration],
+    positive: bool,
+    remaining: &mut usize,
+) -> Result<Proposition, LoweringError> {
+    *remaining = remaining.checked_sub(1).ok_or(LoweringError::Unsupported(
+        "scalar contract Boolean expansion exceeds its lowering budget",
+    ))?;
     match predicate {
         CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
             let left = crate::crash_routes::checked_scalar_term(left, namespace)?;
             let right = crate::crash_routes::checked_scalar_term(right, namespace)?;
-            Ok(match kind {
-                CheckedIntegerComparisonKind::Equal => canonical_equality(left, right)?,
-                CheckedIntegerComparisonKind::LessThan => strict_result_bound(left, right),
-                CheckedIntegerComparisonKind::LessOrEqual => Proposition::LessOrEqual(left, right),
+            Ok(match (kind, positive) {
+                (CheckedIntegerComparisonKind::Equal, true) => canonical_equality(left, right)?,
+                (CheckedIntegerComparisonKind::Equal, false) => connective(
+                    strict_result_bound(left.clone(), right.clone()),
+                    strict_result_bound(right, left),
+                    false,
+                )?,
+                (CheckedIntegerComparisonKind::LessThan, true) => strict_result_bound(left, right),
+                (CheckedIntegerComparisonKind::LessOrEqual, false) => {
+                    strict_result_bound(right, left)
+                }
+                (CheckedIntegerComparisonKind::LessOrEqual, true) => {
+                    Proposition::LessOrEqual(left, right)
+                }
+                (CheckedIntegerComparisonKind::LessThan, false) => {
+                    Proposition::LessOrEqual(right, left)
+                }
             })
         }
         CheckedBooleanExpression::And { left, right }
         | CheckedBooleanExpression::Or { left, right } => {
-            let left = proposition(left, namespace)?;
-            let right = proposition(right, namespace)?;
+            let left = proposition_with_polarity(left, namespace, positive, remaining)?;
+            let right = proposition_with_polarity(right, namespace, positive, remaining)?;
             connective(
                 left,
                 right,
-                matches!(predicate, CheckedBooleanExpression::And { .. }),
+                matches!(predicate, CheckedBooleanExpression::And { .. }) == positive,
             )
         }
         CheckedBooleanExpression::Not(operand) => {
-            let CheckedBooleanExpression::IntegerComparison {
-                kind: CheckedIntegerComparisonKind::Equal,
-                left,
-                right,
-            } = operand.as_ref()
-            else {
-                return unsupported("result predicate negation is not integer inequality");
-            };
-            let left = crate::crash_routes::checked_scalar_term(left, namespace)?;
-            let right = crate::crash_routes::checked_scalar_term(right, namespace)?;
+            proposition_with_polarity(operand, namespace, !positive, remaining)
+        }
+        CheckedBooleanExpression::Constant(value) if *value == positive => Ok(Proposition::Truth),
+        CheckedBooleanExpression::Constant(_) | CheckedBooleanExpression::Parameter { .. } => {
+            canonical_equality(
+                crate::crash_routes::checked_boolean_scalar_term(predicate, namespace)?,
+                ScalarTerm::boolean(positive),
+            )
+        }
+        CheckedBooleanExpression::Equal { left, right } => {
+            if let CheckedBooleanExpression::Constant(value) = left.as_ref() {
+                return proposition_with_polarity(right, namespace, *value == positive, remaining);
+            }
+            if let CheckedBooleanExpression::Constant(value) = right.as_ref() {
+                return proposition_with_polarity(left, namespace, *value == positive, remaining);
+            }
+            if positive
+                && matches!(left.as_ref(), CheckedBooleanExpression::Parameter { .. })
+                && matches!(right.as_ref(), CheckedBooleanExpression::Parameter { .. })
+            {
+                return canonical_equality(
+                    crate::crash_routes::checked_boolean_scalar_term(left, namespace)?,
+                    crate::crash_routes::checked_boolean_scalar_term(right, namespace)?,
+                );
+            }
+            // Equality selects equal polarities; inequality selects opposite
+            // polarities. Keep logical facts in the proposition language so
+            // calls can prove them from their evaluated argument equations.
             connective(
-                strict_result_bound(left.clone(), right.clone()),
-                strict_result_bound(right, left),
+                connective(
+                    proposition_with_polarity(left, namespace, true, remaining)?,
+                    proposition_with_polarity(right, namespace, positive, remaining)?,
+                    true,
+                )?,
+                connective(
+                    proposition_with_polarity(left, namespace, false, remaining)?,
+                    proposition_with_polarity(right, namespace, !positive, remaining)?,
+                    true,
+                )?,
                 false,
             )
         }

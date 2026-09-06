@@ -128,6 +128,103 @@ fn requires_namespace_excludes_the_result_slot() {
 }
 
 #[test]
+fn boolean_requirements_retain_exact_entry_values_and_reject_wrong_carriers() {
+    let namespace = namespace();
+    let predicate = CheckedBooleanExpression::Parameter { position: 0 };
+    assert_eq!(
+        proposition(&predicate, &namespace).unwrap(),
+        canonical_equality(
+            ScalarTerm::value(namespace[0].id, ScalarType::Boolean),
+            ScalarTerm::boolean(true),
+        )
+        .unwrap(),
+    );
+    for position in [1, 4] {
+        assert!(
+            proposition(
+                &CheckedBooleanExpression::Parameter { position },
+                &namespace
+            )
+            .is_err()
+        );
+    }
+    assert!(proposition(&predicate, &[]).is_err());
+}
+
+#[test]
+fn boolean_literal_wrappers_and_negation_keep_one_canonical_predicate() {
+    let namespace = namespace();
+    let parameter = CheckedBooleanExpression::Parameter { position: 0 };
+    for positive in [false, true] {
+        let expected = canonical_equality(
+            ScalarTerm::value(namespace[0].id, ScalarType::Boolean),
+            ScalarTerm::boolean(positive),
+        )
+        .unwrap();
+        for predicate in [
+            CheckedBooleanExpression::Equal {
+                left: Box::new(parameter.clone()),
+                right: Box::new(CheckedBooleanExpression::Constant(positive)),
+            },
+            CheckedBooleanExpression::Equal {
+                left: Box::new(CheckedBooleanExpression::Constant(positive)),
+                right: Box::new(parameter.clone()),
+            },
+            CheckedBooleanExpression::Not(Box::new(CheckedBooleanExpression::Equal {
+                left: Box::new(parameter.clone()),
+                right: Box::new(CheckedBooleanExpression::Constant(!positive)),
+            })),
+        ] {
+            assert_eq!(proposition(&predicate, &namespace).unwrap(), expected);
+        }
+    }
+}
+
+#[test]
+fn nested_boolean_body_locals_cannot_alias_entry_slots() {
+    let namespace = namespace();
+    for local in [
+        CheckedBooleanExpression::Local { position: 0 },
+        CheckedBooleanExpression::StorageRead {
+            symbol: symbols::SymbolHandle::invalid(),
+        },
+    ] {
+        for predicate in [
+            CheckedBooleanExpression::Not(Box::new(local.clone())),
+            CheckedBooleanExpression::Equal {
+                left: Box::new(local),
+                right: Box::new(CheckedBooleanExpression::Constant(true)),
+            },
+        ] {
+            assert!(proposition(&predicate, &namespace).is_err());
+        }
+    }
+}
+
+#[test]
+fn nested_boolean_equality_has_a_bounded_expansion() {
+    let namespace = (0..14)
+        .map(|position| ValueDeclaration {
+            id: ValueId::new(position + 1).unwrap(),
+            scalar_type: ScalarType::Boolean,
+        })
+        .collect::<Vec<_>>();
+    let mut predicate = CheckedBooleanExpression::Parameter { position: 0 };
+    for position in 1..14 {
+        predicate = CheckedBooleanExpression::Equal {
+            left: Box::new(predicate),
+            right: Box::new(CheckedBooleanExpression::Parameter { position }),
+        };
+    }
+    assert!(matches!(
+        proposition(&predicate, &namespace),
+        Err(LoweringError::Unsupported(
+            "scalar contract Boolean expansion exceeds its lowering budget"
+        ))
+    ));
+}
+
+#[test]
 fn reversed_parameter_result_equality_uses_canonical_serialized_term_order() {
     // Above 255, the codec's little-endian ID bytes do not sort numerically.
     // Either the input or the result may be first; source orientation is irrelevant.
