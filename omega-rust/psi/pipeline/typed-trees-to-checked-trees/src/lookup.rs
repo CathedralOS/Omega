@@ -1,5 +1,8 @@
 mod calls;
+mod receivers;
 mod symbols;
+
+pub(crate) use receivers::{projected_statement_receiver_place, resolve_projected_receiver_calls};
 
 use crate::context::*;
 pub(crate) use calls::{

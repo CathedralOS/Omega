@@ -56,6 +56,19 @@ pub(crate) fn canonical_receiver_place_for_call_site(
 ) -> Option<CanonicalPlace> {
     match call_site {
         CallSite::Statement(statement) => {
+            let state = find_state(program, caller_state_symbol)?;
+            let statements = program.statement_table.statements(state.statement_nodes);
+            if let Some(before) = statements.iter().position(|candidate| match candidate {
+                typed_trees::statement::StatementNode::Call(call) => std::ptr::eq(call, *statement),
+                _ => false,
+            }) && let Some((root, segments)) =
+                crate::lookup::projected_statement_receiver_place(program, state, before, statement)
+            {
+                return Some(CanonicalPlace {
+                    root: facts::PlaceRoot::Symbol(root),
+                    segments,
+                });
+            }
             if let Some(place) =
                 canonical_self_receiver_path(program, caller_state_symbol, statement)
             {
