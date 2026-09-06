@@ -412,17 +412,29 @@ Owners include
 
 ## Parallel language and compiler lanes
 
-- **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Replace filename/trait heuristics with
-  service permissions versus exact exercised terminal mechanisms. Classification
-  is demand-complete over admitted provider leaves and fail-closed for unknown
-  mechanisms. Argument-sensitive narrowing requires evidence that the lowering
-  pins the relevant arguments. Acceptance: exercised classes must be a subset
-  of the service's permitted classes under the receiving lowerer's versioned
-  target policy. Exact selected-closure containment is live and the five legacy
-  hardware filename/trait classifications are retired. The portable filesystem
-  control/lifecycle authority question blocks only the 14
-  unresolved portable filesystem dispositions and eventual retirement of the
-  transitional broad `Filesystem` review summary.
+- **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Finish consumer permission rows and
+  exact target-mechanism classification under the settled
+  [filesystem control/lifecycle policy](wiki/design_briefs/effects_authority_and_observation.md#portable-filesystem-control-and-lifecycle-authority).
+  Acceptance: remaining requirements have justified dispositions; every
+  admitted leaf has one exact mechanism/contract row; unknowns and duplicates
+  reject; exercised classes fit independently supplied service permissions.
+  Explicit empties retain service reach and exact review identity. Retire the
+  transitional broad `Filesystem` summary only after exact replacement closes.
+  Generic close need not be supported to admit a separately proved constrained
+  occurrence; do not fabricate a broad union to complete the table.
+
+- **FILESYSTEM-RELEASE-CONTRACT.** Implement bounded occurrence-specific
+  open/query/close evidence through checked flow and native realization replay.
+  First repair Windows `Filesystem::canonicalize` acquisition-success ordering
+  without changing sharing flags. Prove the exact object/argument contract,
+  handle/alias preservation through intervening calls, one applicable release,
+  and no later use; authority classes alone are not preservation evidence.
+  Acceptance: constrained ordinary close has one evidence-bound empty row;
+  failed acquisition, escape, stale/substituted proof, invalidating calls,
+  reused aliases, and attached deferred deletion prevent narrowing. External
+  pending-deletion completion alone leaves ordinary close empty. Keep this
+  bounded proof separate from general owned-handle design; no owner-policy
+  blocker remains.
 
 - **R5.** Finish exact inferred may-write summaries and relational candidates
   for unresolved receivers, boundary-result origins, conditional helper-body

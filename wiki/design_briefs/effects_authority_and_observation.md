@@ -578,9 +578,9 @@ number, classifies the derived mechanism, and passes that same mechanism to
 closure review. The reviewer consumes it only when the selected profile and
 `u32` number match exactly. Missing, duplicate, unsupported, unclassified, or
 substituted coordinates fail closed. No service or method spelling can
-synthesize the identity, and this rung does not resolve filesystem descriptor
-confinement or the
-[portable filesystem control/lifecycle authority question](../../OWNER_QUESTIONS.md).
+synthesize the identity. This rung establishes neither filesystem descriptor
+confinement nor the occurrence-specific release proof required by the
+[filesystem control and lifecycle ruling](#portable-filesystem-control-and-lifecycle-authority).
 
 A row publishes the union over every authority reachable through its argument
 values. Narrowing requires retained compiler-checked constants, ranges, handle
@@ -611,11 +611,12 @@ requiring the consumer to provide exact schema and requirement coordinates;
 the helper does not inspect service paths or readable method names.
 The current real `FilesystemHost` schema has explicit consumer-policy coverage
 for the 36 requirements whose class unions follow from these rules, including
-all six facets for flag-polymorphic opens. Fourteen control/lifecycle cohorts
-remain deliberately unmapped pending the portable filesystem control/lifecycle
-authority question; neither an empty
-disposition nor a filesystem class is inferred from their names. This policy
-partition is separate from target syscall/import mechanism classification and
+all six facets for flag-polymorphic opens. The fourteen remaining requirements
+are an implementation gap under the settled
+[control/lifecycle policy](#portable-filesystem-control-and-lifecycle-authority),
+not an unanswered owner question. Neither an empty disposition nor a filesystem
+class is inferred from their names. This policy partition is separate from
+target syscall/import mechanism classification and
 from any future descriptor-confinement claim.
 
 The filename-and-trait keyed dangerous-authority classifier has been removed.
@@ -643,10 +644,133 @@ stand in for `Console::exit_process -> ProcessTermination`, and accepting the
 broad row does not create the exact permission. Direct native compilation
 cross-checks resolved package rows against the receiving permission policy;
 missing or changed rows and duplicates across bindings reject. Complete legacy-
-row replacement remains separate unfinished work: the portable filesystem
-control/lifecycle authority question blocks the last 14
-portable filesystem dispositions and retirement of the broad `Filesystem`
-summary, while no filename classifier feeds either table.
+row replacement remains separate unfinished work: implement the remaining
+portable filesystem dispositions and the checked release-contract narrowing
+below before retiring the broad `Filesystem` summary. No filename classifier
+feeds either table.
+
+### Portable filesystem control and lifecycle authority
+
+Owner-ratified policy, 2026-09-05. This completes the policy choices for the
+remaining filesystem cohorts; it does not claim their implementation is live.
+The existing six filesystem classes remain unchanged. Classification is about
+the exact selected mechanism and accepted argument/release contract, never the
+service or method spelling. The names below identify source requirements to
+review, not keys for a name-based classifier.
+
+| Requirement cohort | Disposition for the stated mechanism contract |
+| --- | --- |
+| `read_link` | Metadata query: discloses the stored link target. Neither content read nor directory enumeration is added merely because the result is a path. |
+| `sync`, `sync_data` | Explicit empty for durability-only completion of existing changes; not a request for new logical content or metadata mutation. |
+| `lock_file`, `lock_file_ex`, `unlock_file` | Explicit empty for ordinary locking/unlocking under this vocabulary. No coordination or locking class is added. |
+| `seek`, `get_osfhandle`, `duplicate` | Explicit empty for position, handle-representation, and alias operations under their accepted contracts. |
+| `get_last_error`, `errno` | Explicit empty for the recognized error-state observation, regardless of which service declares it. |
+| `close`, `find_close`, `close_handle` | Explicit empty only for an established ordinary release contract; generic raw-handle close is not automatically such a contract. |
+
+An empty row makes no claim about purity, blocking, interference, general side
+effects, foreign-code trust, provider custody, or object confinement. Locks can
+deny other actors access, and aliases can share state. Those facts do not become
+filesystem content or metadata mutation merely to make them visible in review.
+Adding a coordination class later needs a concrete policy customer and a new
+accepted policy version/commitment with revalidation; it is not compatibility-
+free merely because an enum can grow.
+
+Service reach remains mandatory and separate. Calling a boundary requirement
+contributes its boundary-trait identity automatically and propagates through
+the call graph. Private callers may infer reach; published APIs must respect
+their declared ceilings. An empty terminal-authority row removes neither that
+reach nor the exact demanded requirement/mechanism from review. The six classes
+are receiving-policy vocabulary, not a requirement to introduce six `core::`
+traits. Services permit classes; selected mechanisms exercise them; containment
+checks the two independently.
+
+#### Requested mutation versus incidental completion
+
+Requesting or arming a namespace mutation exercises namespace-mutation
+authority. Ordinary release does not additionally exercise that class merely
+because it completes another actor's already-requested deletion. This is an
+explicit attribution policy, not a claim that concurrent deletion is impossible.
+It also explains the durability-only empty disposition: committing an existing
+change is not a new logical write request.
+
+Windows permits shared delete access and can complete a pending deletion when
+the final handle closes. See Microsoft's [CreateFileW](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew)
+and [DeleteFileW](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-deletefilew)
+contracts. Do not remove `FILE_SHARE_DELETE` to manufacture an empty row; that
+changes concurrency behavior. Do not invent a portable POSIX delete-on-close
+open flag as its counterpart.
+
+This is not an exemption for arbitrary deferred finalizers. The ordinary-empty
+release contract must exclude deferred deletion attached to the released
+handle itself, whether established at acquisition or by a later disposition-
+changing operation, and any other behavior outside ordinary release. A generic
+Win32 closer can also release the last kill-on-close job handle and terminate processes
+([job-object contract](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects)).
+Its classification cannot be forced into the six filesystem classes because
+the source requirement happens to sit inside `FilesystemHost`.
+
+A completely classified broad mechanism can fail containment under a
+filesystem-only service permission. An unknown or incompletely classified
+mechanism fails classification instead. Both are realization refusals, not
+malformed source requirements. Demand-completeness requires exactly one row
+per admitted leaf; it never licenses inventing a union for an unsupported leaf.
+
+#### Bounded occurrence-specific release proof
+
+Use one occurrence, one exact mechanism-plus-checked-contract key, and one
+classification. A constrained occurrence and an unconstrained one have distinct
+keys, not two competing rows for the same leaf. The unconstrained operation may
+remain unsupported without blocking an independently proved constrained use.
+
+The first customer is the open/query/close sequence in the Windows
+[`Filesystem::canonicalize` implementation](../../source/library/std/targets/windows_x86_64/filesystem_impl.omg).
+Its control arguments are literals: access zero, `OPEN_EXISTING`, and
+`BACKUP_SEMANTICS` without `DELETE_ON_CLOSE`; the path is not constant. These
+are useful proof inputs, not proof of the entire sequence or object kind.
+The current source performs query and close before testing acquisition success.
+Repair that ordering using the target's actual success predicate before
+admitting an ordinary-release proof. Preserve legitimate sharing behavior.
+
+The checker must retain a replayable derivation establishing:
+
+1. Successful acquisition under the exact accepted object and argument
+   contract, including the absence of attached deferred-deletion behavior.
+2. Handle identity through aliases and control flow, excluding unproved escape,
+   storage, duplication, substitution, or foreign intervention.
+3. Preservation by every intervening handle-taking call. A query-only or empty
+   authority set is not a preservation contract; using it as one is circular.
+4. One release on the applicable returning paths, no later use, and the allowed
+   release behavior under the stated external-environment assumptions.
+
+Constants alone, a hash of an asserted proof, and a method-name exception do
+not satisfy these obligations. Bind the constraint identity to the actual
+derivation and exact retained occurrence; changes to arguments, flow, selected
+calls, or their contracts must invalidate or re-establish it. A failed proof
+uses a justified unconstrained classification if available, otherwise rejects.
+It never silently keeps the narrowed row.
+
+An `i64 in FileHandle` qualification alone cannot establish this lifecycle:
+qualifications are carried rather than consumed, and copies can outlive a
+close and refer to recycled handles. The bounded checker may prove flow facts
+about an ordinary integer without making the source type linear. General owned
+opaque handles are not a prerequisite for this table cleanup, and existing
+linear-consumption checks do not themselves prove this raw-handle sequence.
+
+Acceptance controls cover explicit empties remaining in transitive reach and
+exact review; unknown and duplicate rows rejecting; metadata-only `read_link`;
+broad generic close failing filesystem-only containment; the proved ordinary
+close succeeding; failed acquisition, escape, alias reuse, second close,
+handle-changing calls, and substituted/stale proof identities rejecting
+narrowing. Include both external pending deletion completing at an ordinary
+close without adding namespace mutation, and deferred deletion attached to the
+released handle preventing the ordinary-empty classification.
+
+Implementation ownership stays bounded: consumer permission tables and target
+mechanism classification implement the policy; checked flow/contract evidence
+and its realization replay implement close narrowing; the standard library
+fixes acquisition ordering. No new owner decision is required for these tasks.
+
+### Accepted permission transport
 
 The in-memory transport boundary is now explicit. Accepted ordinary closure
 evidence projects a canonical exact accepted-permission set solely from
