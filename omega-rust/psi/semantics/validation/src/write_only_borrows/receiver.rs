@@ -5,6 +5,9 @@ use typed_trees::data::DataField;
 use typed_trees::expression::TableNamePath;
 use typed_trees::statement::TableCall;
 
+mod projections;
+pub(super) use projections::validate_operands;
+
 pub(super) fn record<'program>(
     program: &'program TypedTrees,
     root: &WriteOnlyRoot,
@@ -230,12 +233,7 @@ pub(super) fn admits_expression_call(
     roots: &[WriteOnlyRoot],
     target: SymbolHandle,
 ) -> bool {
-    let owner = direct_write_only_root(program, expression, roots)
-        .and_then(|root| root_record(program, root))
-        .or_else(|| {
-            write_only_record_field_type(program, expression, roots)
-                .and_then(|field_type| write_only_record(program, field_type))
-        });
+    let owner = projections::record(program, expression, roots);
     owner.is_some_and(|owner| admits_call(program, owner, target))
 }
 

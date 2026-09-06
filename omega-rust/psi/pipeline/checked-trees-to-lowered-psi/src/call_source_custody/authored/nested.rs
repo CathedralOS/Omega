@@ -54,13 +54,12 @@ pub(crate) fn authored_postorder(
             (false, local.initial_value)
         }
         StatementNode::Expression(expression)
-            if statement_index as usize + 1 == statements.len()
-                && validation::unit_return_call_is_supported(
-                    &checked.typed,
-                    machine,
-                    state,
-                    *expression,
-                ) =>
+            if validation::unit_statement_call_is_supported(
+                &checked.typed,
+                machine,
+                state,
+                *expression,
+            ) =>
         {
             pending.push((*expression, true, None));
             (false, *expression)

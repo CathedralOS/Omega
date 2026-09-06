@@ -549,7 +549,7 @@ pub(super) fn report_void_value_callee(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if callee_state.return_type.is_valid()
-        || crate::calls::unit_return_call_is_supported(
+        || crate::calls::unit_statement_call_is_supported(
             program,
             current_machine,
             current_state,

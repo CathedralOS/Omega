@@ -13,6 +13,9 @@ use terminal_interpreter::{
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::{expression::ExpressionNode, statement::StatementNode};
 
+#[path = "unit_tail_calls_source/statements.rs"]
+mod statements;
+
 fn checked(source: &str) -> checked_trees::CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");

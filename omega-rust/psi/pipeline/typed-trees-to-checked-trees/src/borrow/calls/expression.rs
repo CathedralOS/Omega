@@ -68,7 +68,7 @@ pub(super) fn collect_expression_borrow_calls(
                     } else {
                         call.target_symbol
                     },
-                    receiver_path.is_some(),
+                    call.receiver.is_valid(),
                     accesses,
                 );
             }

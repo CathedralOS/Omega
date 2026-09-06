@@ -1,6 +1,36 @@
-//! A trailing call returns Unit only when its exact declaration does.
+//! Unit calls retain their exact statement or return use and declaration.
 
 use super::*;
+
+/// A standalone call may perform Unit work before later statements. The final
+/// expression still has the state's return contract. Call this for a direct
+/// statement root; recursive validators must also retain the current use
+/// position, since a reused handle does not make a nested operand a statement.
+pub fn unit_statement_call_is_supported(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> bool {
+    if !program.expression_table.expression_is_valid(expression) {
+        return false;
+    }
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let mut occurrences = statements.iter().enumerate().filter_map(|(position, statement)| {
+        matches!(statement, typed_trees::statement::StatementNode::Expression(root) if *root == expression)
+            .then_some(position)
+    });
+    let Some(position) = occurrences.next() else {
+        return false;
+    };
+    if occurrences.next().is_some() {
+        return false;
+    }
+    if position + 1 == statements.len() {
+        return unit_return_call_is_supported(program, machine, state, expression);
+    }
+    call_returns_unit(program, machine, expression)
+}
 
 pub fn unit_return_call_is_supported(
     program: &TypedTrees,

@@ -52,12 +52,22 @@ pub(super) fn obligation(
     if selected.spelling != spelling {
         return Err(failure("does not match its checked operator spelling"));
     }
+    let operands = crate::operators::indexed_operand_types(program, indexed, selected.origin);
+    let live = resolve_indexed_spelling_for_operands(program, spelling, &operands);
     if matches!(
         selected.status,
         CheckedOperatorResolutionStatus::Missing | CheckedOperatorResolutionStatus::BuiltinFallback
     ) && !selected.selected_operator_symbol.is_valid()
-        && resolve_spelling(program, spelling, None).is_empty()
+        && selected.candidate_count == 0
+        && operators.candidates(selected).is_empty()
+        && live.is_empty()
     {
+        // An unrelated overload cannot replace this collection's builtin
+        // indexing. The exact checked occurrence and freshly matched operands
+        // must both have no candidate; a stale or conflicting selection fails.
+        if uses.any(|other| other != selected) {
+            return Err(failure("has inconsistent checked selection custody"));
+        }
         return Ok(None);
     }
     if selected.status != CheckedOperatorResolutionStatus::Resolved {
@@ -76,8 +86,6 @@ pub(super) fn obligation(
     {
         return Err(failure("has inconsistent checked selection custody"));
     }
-    let operands = crate::operators::indexed_operand_types(program, indexed, selected.origin);
-    let live = resolve_indexed_spelling_for_operands(program, spelling, &operands);
     let replayed = replay_selection(program, selected, &live)
         .ok_or_else(|| failure("has too many live operator candidates"))?;
     if replayed != (selected.status, selected.selected_operator_symbol) {

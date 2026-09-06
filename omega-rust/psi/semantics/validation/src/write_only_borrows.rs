@@ -966,7 +966,16 @@ fn validate_expression(
         ExpressionNode::Call(call) => {
             let nonobserving_receiver =
                 receiver::admits_expression_call(program, call.receiver, roots, call.target_symbol);
-            if call.receiver.is_valid() && !nonobserving_receiver {
+            if nonobserving_receiver {
+                receiver::validate_operands(
+                    program,
+                    machine,
+                    state,
+                    call.receiver,
+                    roots,
+                    diagnostics,
+                );
+            } else if call.receiver.is_valid() {
                 validate_expression(program, machine, state, call.receiver, roots, diagnostics);
             }
             for argument in program.expression_table.expression_handles(call.arguments) {

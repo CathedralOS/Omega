@@ -215,6 +215,12 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         });
                     }
                     StatementNode::Expression(expression) => {
+                        let unit_statement = validation::unit_statement_call_is_supported(
+                            program,
+                            machine,
+                            state,
+                            *expression,
+                        );
                         if let ExpressionNode::Call(call) =
                             program.expression_table.expression(*expression)
                             && let Some(arguments) = lower_boundary_call_arguments(
@@ -231,12 +237,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 &parameter_types,
                                 &locals,
                                 exact_integer_casts,
-                                validation::unit_return_call_is_supported(
-                                    program,
-                                    machine,
-                                    state,
-                                    *expression,
-                                ),
+                                unit_statement,
                             )
                         {
                             retain_call_arguments(
@@ -248,7 +249,8 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 &mut binding_symbols,
                             );
                         }
-                        if let Some(result_type) = result_type
+                        if !unit_statement
+                            && let Some(result_type) = result_type
                             && let Some(return_expression) = lower_return_expression(
                                 program,
                                 operators,

@@ -114,17 +114,20 @@ fn validate_expression_call_bounds(
     value_env: &ValueEnv,
     expression: ExpressionHandle,
     call: &TableCallExpression,
+    statement_root: bool,
     executes: bool,
     boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if super::unit_returns::call_returns_unit(program, current_machine, expression)
-        && !crate::calls::unit_return_call_is_supported(
+    let unit_statement = statement_root
+        && crate::calls::unit_statement_call_is_supported(
             program,
             current_machine,
             current_state,
             expression,
-        )
+        );
+    if super::unit_returns::call_returns_unit(program, current_machine, expression)
+        && !unit_statement
     {
         diagnostics.push(Diagnostic::error(format!(
             "machine `{}` state `{}`: `{}(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local",
@@ -324,14 +327,7 @@ fn validate_expression_call_bounds(
         if let Some(signature) =
             program.machine_parameter_signature_in(current_machine, call.target_symbol)
         {
-            if !signature.return_type.is_valid()
-                && !crate::calls::unit_return_call_is_supported(
-                    program,
-                    current_machine,
-                    current_state,
-                    expression,
-                )
-            {
+            if !signature.return_type.is_valid() && !unit_statement {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` state `{}`: machine parameter `{}` does not return a value but is used in a VALUE position",
                     current_machine.name,

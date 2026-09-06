@@ -8,6 +8,8 @@ use typed_trees::types::TypeReferenceNode;
 
 use super::super::overlap::captured_place_compatibility;
 
+mod aliases;
+
 pub(super) fn check_exclusive_receiver_conflicts(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -72,6 +74,13 @@ pub(super) fn check_exclusive_receiver_conflicts(
         segments,
     }) = receiver
     else {
+        if receiver_access == BorrowAccessKind::Mutable {
+            // Computed reference receivers use the existing result-origin and
+            // call-frame checks, not this source-place subloan judgment. Their
+            // presence is still retained in call facts. Write-only receivers
+            // require the content-independent exact place admitted here.
+            return;
+        }
         diagnostics.push(Diagnostic::error(format!(
             "state `{target_name}` requires an exact place for its {receiver_name} receiver"
         )));
@@ -98,10 +107,17 @@ pub(super) fn check_exclusive_receiver_conflicts(
     if receiver_access == BorrowAccessKind::Mutable && receiver.segments.is_empty() {
         return;
     }
+    let Some(receiver) = aliases::resolve(program, facts, state_flow, entry_constraints, receiver)
+    else {
+        diagnostics.push(Diagnostic::error(format!(
+            "state `{target_name}` requires an exact retained loan origin for its {receiver_name} receiver"
+        )));
+        return;
+    };
     let overlaps = |place: CapturedPlace, access: &BorrowAccessKind| {
         !captured_place_compatibility(
             program,
-            &receiver,
+            &attached_place(program, machine, receiver.place.clone()),
             &receiver_access,
             &attached_place(program, machine, place),
             access,
@@ -109,7 +125,11 @@ pub(super) fn check_exclusive_receiver_conflicts(
         .non_interfering
     };
     for argument in facts.borrow.argument_accesses.span_or_empty(call.accesses) {
-        if overlaps(
+        let Some(argument_place) = aliases::resolve(
+            program,
+            facts,
+            state_flow,
+            entry_constraints,
             CapturedPlace {
                 root_symbol: argument.root_symbol,
                 segments: facts
@@ -118,15 +138,26 @@ pub(super) fn check_exclusive_receiver_conflicts(
                     .span_or_empty(argument.segments)
                     .to_vec(),
             },
-            &argument.kind,
-        ) {
+        ) else {
+            diagnostics.push(Diagnostic::error(format!(
+                "state `{target_name}` cannot establish a retained argument loan origin against its {receiver_name} receiver"
+            )));
+            continue;
+        };
+        if overlaps(argument_place.place, &argument.kind) {
             diagnostics.push(Diagnostic::error(format!(
                 "state `{target_name}` receives {receiver_name} receiver overlapping another argument in the same call"
             )));
         }
     }
-    for loan in facts.flow.borrow_loan_constraints(entry_constraints) {
-        let loan = facts.borrow.loans.get(loan);
+    for loan_handle in facts.flow.borrow_loan_constraints(entry_constraints) {
+        // The implicit child call borrows through this exact lineage. Its own
+        // loan and ancestors are authority, not competing sibling operands.
+        // Explicit arguments above never receive this exemption.
+        if receiver.lineage.contains(&loan_handle) {
+            continue;
+        }
+        let loan = facts.borrow.loans.get(loan_handle);
         if overlaps(
             CapturedPlace {
                 root_symbol: loan.root_symbol,
