@@ -1586,9 +1586,9 @@ preserve fragment order, offsets, sizes, and selected registers. Wider or
 non-integer-class shapes, multiple roots or claims, projections, staging, and
 bodyless calls remain fenced.
 
-Claim-free partial cleanup in checked production, Terminal verification, and
-interpretation accepts one owned, non-self, unqualified affine parameter whose
-finite structural graph consists of records and nonempty literal fixed arrays.
+Claim-free partial cleanup in checked production accepts one owned, non-self,
+unqualified affine parameter whose finite structural graph consists of records
+and nonempty literal fixed arrays.
 Pairwise prefix-disjoint, nonempty paths may mix record fields and literal
 indices through source-ordered one-parameter ordinary Unit calls. Structural
 fields carry cleanup; scalar, floating-point, and bounded-owned-byte record
@@ -1607,6 +1607,21 @@ No partially moved ancestor is discarded whole. When all structural descendants
 have transferred, the complement is empty and the existing `ReturnUnit` carries
 no cleanup; otherwise the existing `ReturnUnitPartialAffine` carries the exact
 complement. No new representation is needed.
+
+Terminal verification, canonical encoding, and interpretation also admit one
+claim-free, unqualified affine call-result root. An ordinary whole-value producer
+or structural boundary call establishes that exact result place before the
+projected ordinary Unit calls. The bounded schedule has one producer followed
+by projected disposers in one block, with no other live roots left at return.
+Ordinary production transfers its input into the result; it does not leave a
+second owner. The same type-directed complement reconstructs record fields,
+array indices, maximal untouched subtrees, and empty remainders. Producer, root
+type, path, result metadata, and current live custody rejoin independently.
+Reordered production, overlapping moves, whole-root cleanup after a partial move,
+and residual type/order drift reject. A crash retains the abandoned residual
+frontier and carries no cleanup successor. This does not admit construction-local
+partial moves, mixed-root cleanup ordering, scalar-return residuals, or authored
+projected helper-result expressions.
 
 Lowering and Terminal verification independently reconstruct that complement
 from the types and moves, rejecting overlaps, missing or extra residuals, and
@@ -1637,8 +1652,9 @@ For an array root, call metadata retains that root's length and element stride;
 record-root paths carry neither, even when they pass through an array.
 ABI-required indirect argument copies materialize only the transferred subtree.
 Cleanup itself emits no instruction, runtime bitmap, or liveness-dependent loop.
-This route does not extend cleanup to local/result roots or admit projected
-helper-result operands, claims, nominal destruction, or partial construction.
+Checked-source production and native replay remain parameter-rooted. The Terminal
+call-result extension above does not admit authored projected helper-result
+operands, claims, nominal destruction, or partial construction in those producers.
 
 The straight-line Unit return slice carries explicit no-code cleanup for owned
 affine structural parameters that have no claim rows. The checked plan derives

@@ -2,6 +2,67 @@
 
 use super::*;
 
+/// Resolve custody from its real owner, independently of any projected use.
+/// Result declarations alone do not establish an affine value or its producer.
+pub(super) fn partial_affine_root_type(
+    machine: &TerminalMachine,
+    place: PlaceId,
+) -> Option<StructuralTypeId> {
+    if machine
+        .entry_claims
+        .iter()
+        .any(|claim| claim.input == place)
+        || machine
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == place)
+    {
+        return None;
+    }
+    if let Some(parameter) = machine
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == place)
+    {
+        return (parameter.multiplicity == StructuralMultiplicity::Affine
+            && parameter.access == StructuralAccess::Owned
+            && parameter.qualifications.is_empty()
+            && parameter.projected_qualifications.is_empty())
+        .then_some(parameter.structural_type);
+    }
+    let declaration = machine
+        .structural_places
+        .iter()
+        .find(|declaration| declaration.id == place)?;
+    let StructuralPlaceKind::OperationResult {
+        producer,
+        structural_type,
+    } = declaration.kind
+    else {
+        return None;
+    };
+    let operation = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| operation.id == producer)?;
+    if !matches!(
+        operation.kind,
+        OperationKind::CallStructuralWithScalarArguments { .. }
+            | OperationKind::BoundaryCall { .. }
+    ) {
+        return None;
+    }
+    let result = operation.result.structural()?;
+    (result.place == place
+        && result.structural_type == structural_type
+        && result.multiplicity == StructuralMultiplicity::Affine
+        && result.qualifications.is_empty()
+        && result.projected_qualifications.is_empty()
+        && result.claims.is_empty())
+    .then_some(structural_type)
+}
+
 pub(super) fn is_partial_affine_path(
     module: &TerminalModule,
     root_type: StructuralTypeId,

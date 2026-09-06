@@ -652,14 +652,11 @@ pub(super) fn validate_structural_frontier(
                         block: block.id,
                     });
                 };
-                let expected_residuals = machine
-                    .structural_parameters
-                    .iter()
-                    .find(|parameter| parameter.place == root_place)
-                    .and_then(|parameter| {
+                let expected_residuals =
+                    partial_affine_root_type(machine, root_place).and_then(|structural_type| {
                         partial_affine_residuals(
                             module,
-                            parameter.structural_type,
+                            structural_type,
                             &moved,
                             residual_affine_discards.len(),
                         )
@@ -1022,13 +1019,6 @@ fn projected_root_is_fully_consumed(
     frontier: &StructuralOwnershipFrontier,
     place: PlaceId,
 ) -> bool {
-    let Some(parameter) = machine
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == place)
-    else {
-        return false;
-    };
     if frontier
         .claims
         .values()
@@ -1036,18 +1026,27 @@ fn projected_root_is_fully_consumed(
     {
         return false;
     }
-    if parameter.multiplicity == StructuralMultiplicity::Affine {
-        return !parameter.is_self
-            && parameter.access == StructuralAccess::Owned
-            && parameter.qualifications.is_empty()
-            && frontier
-                .partial_custody_paths
-                .get(&place)
-                .is_some_and(|moved| {
-                    partial_affine_residuals(module, parameter.structural_type, moved, 0)
-                        .is_some_and(|residuals| residuals.is_empty())
-                });
+    if let Some(structural_type) = partial_affine_root_type(machine, place)
+        && !machine
+            .structural_parameters
+            .iter()
+            .any(|parameter| parameter.place == place && parameter.is_self)
+    {
+        return frontier
+            .partial_custody_paths
+            .get(&place)
+            .is_some_and(|moved| {
+                partial_affine_residuals(module, structural_type, moved, 0)
+                    .is_some_and(|residuals| residuals.is_empty())
+            });
     }
+    let Some(parameter) = machine
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == place)
+    else {
+        return false;
+    };
     let Some(StructuralTypeShape::FixedArray { length, .. }) = module
         .structural_types
         .iter()

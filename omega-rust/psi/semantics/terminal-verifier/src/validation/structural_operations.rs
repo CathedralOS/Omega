@@ -376,10 +376,16 @@ pub(super) fn validate_unit_operation_static(
                     if is_unrestricted_write_only_subloan(module, machine, parameter, argument)
                         || is_unrestricted_mutable_subloan(machine, parameter, argument)
             );
+            let result_projection = structural_arguments.iter().any(|argument| {
+                argument.access == StructuralAccess::Owned
+                    && !argument.path.is_empty()
+                    && is_structural_call_result(machine, argument.place)
+                    && partial_affine_root_type(machine, argument.place).is_some()
+            });
             if projected
                 && (machine.result != TerminalMachineResult::Unit
                     || (!machine.parameters.is_empty() && !exact_exclusive_projection)
-                    || machine.structural_parameters.len() != 1
+                    || (!result_projection && machine.structural_parameters.len() != 1)
                     || structural_arguments.len() != 1
                     || callee.structural_parameters.len() != 1)
             {
@@ -405,6 +411,13 @@ pub(super) fn validate_unit_operation_static(
                             && argument.access == StructuralAccess::WriteOnlyBorrow))
                         && !is_unrestricted_write_only_subloan(module, machine, expected, argument)
                         && !is_unrestricted_shared_subloan(machine, expected, argument)
+                        && !(argument.access == StructuralAccess::Owned
+                            && expected.multiplicity == StructuralMultiplicity::Affine
+                            && partial_affine_root_type(machine, argument.place).is_some_and(
+                                |root_type| {
+                                    is_partial_affine_path(module, root_type, &argument.path)
+                                },
+                            ))
                 })
             {
                 return Err(ModuleError::InvalidStructuralArgumentPath {
@@ -1134,6 +1147,15 @@ pub(super) fn validate_structural_arguments(
     allow_projected: bool,
     source_policy: StructuralArgumentSourcePolicy,
 ) -> Result<(), ModuleError> {
+    let result_projection = allow_projected
+        && caller
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .any(|candidate| {
+                candidate.id == operation
+                    && matches!(candidate.kind, OperationKind::CallUnit { .. })
+            });
     if arguments.len() != expected.len() {
         return Err(ModuleError::StructuralArgumentArityMismatch {
             operation,
@@ -1203,7 +1225,10 @@ pub(super) fn validate_structural_arguments(
                                 | StructuralArgumentSourcePolicy::ParametersOrAffineOperationResults
                                 | StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
                         )
-                            && argument.path.is_empty()
+                            && (argument.path.is_empty()
+                                || (result_projection && argument.access == StructuralAccess::Owned
+                                    && partial_affine_root_type(caller, argument.place) == Some(structural_type)
+                                    && is_partial_affine_path(module, structural_type, &argument.path)))
                             && caller
                                 .blocks
                                 .iter()
@@ -1480,10 +1505,8 @@ fn is_admitted_unit_call_argument_path(
         || is_literal_indexed_field_path(&argument.path)
         || is_direct_literal_index_path(&argument.path)
         || (argument.access == StructuralAccess::Owned
-            && caller.structural_parameters.iter().any(|parameter| {
-                parameter.place == argument.place
-                    && parameter.multiplicity == StructuralMultiplicity::Affine
-                    && is_partial_affine_path(module, parameter.structural_type, &argument.path)
+            && partial_affine_root_type(caller, argument.place).is_some_and(|structural_type| {
+                is_partial_affine_path(module, structural_type, &argument.path)
             }))
 }
 
@@ -1626,14 +1649,19 @@ fn validate_unit_call_claim_transfers(
                         .entry_claims
                         .iter()
                         .all(|claim| claim.input != argument.place);
-            let claim_free_direct_affine = caller
+            // Parameter projections include borrowed dynamic-provider fields;
+            // they do not require an owned partial-cleanup root. Only the new
+            // result route must establish plain affine call-result custody.
+            let root_type = caller
                 .structural_parameters
                 .iter()
                 .find(|actual| actual.place == argument.place)
-                .is_some_and(|actual| {
-                    is_partial_affine_path(module, actual.structural_type, &argument.path)
-                })
-                && parameter.multiplicity == StructuralMultiplicity::Affine
+                .map(|actual| actual.structural_type)
+                .or_else(|| partial_affine_root_type(caller, argument.place));
+            let claim_free_direct_affine = root_type.is_some_and(|structural_type| {
+                is_partial_affine_path(module, structural_type, &argument.path)
+            }) && parameter.multiplicity
+                == StructuralMultiplicity::Affine
                 && callee_claims.is_empty()
                 && caller
                     .entry_claims
