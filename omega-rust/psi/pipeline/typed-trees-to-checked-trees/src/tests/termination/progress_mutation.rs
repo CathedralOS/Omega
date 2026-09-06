@@ -1,6 +1,25 @@
 use super::*;
 use language_semantics::TerminationGuarantee;
 
+mod arrivals;
+
+const CONTEXT_FIXTURE: &str = r#"
+    data Main {}
+    machine Main::run(&mut self) {}
+    pub data SchedulerHandle {}
+    pub data Context { scheduler: SchedulerHandle; counter: u64; }
+    pub domain SchedulerHandle::WeakFair
+    satisfies ProgressProfile
+    established by SchedulerAdmission::grant;
+    pub boundary trait SchedulerAdmission {
+        machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair;
+    }
+    pub machine wait_context(context: &Context)
+    requires context.scheduler in WeakFair
+    terminates;
+    -> u64 { 0 }
+"#;
+
 fn fixture(statements: &str) -> checked_trees::CheckedTrees {
     fixture_with_contract(statements, true, false)
 }
@@ -42,20 +61,7 @@ fn fixture_source(body: &str, requires_original: bool, published: bool, extra: &
     let visibility = if published { "pub " } else { "" };
     format!(
         r#"
-        data Main {{}}
-        machine Main::run(&mut self) {{}}
-        pub data SchedulerHandle {{}}
-        pub data Context {{ scheduler: SchedulerHandle; counter: u64; }}
-        pub domain SchedulerHandle::WeakFair
-        satisfies ProgressProfile
-        established by SchedulerAdmission::grant;
-        pub boundary trait SchedulerAdmission {{
-            machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair;
-        }}
-        pub machine wait_context(context: &Context)
-        requires context.scheduler in WeakFair
-        terminates;
-        -> u64 {{ 0 }}
+        {CONTEXT_FIXTURE}
         {visibility}machine replace(context: &mut Context, replacement: &Context) -> u64
         {original_requirement}
         requires replacement.scheduler in WeakFair
@@ -251,7 +257,7 @@ fn an_owned_copy_keeps_the_source_value_from_before_a_later_call() {
 }
 
 #[test]
-fn a_changed_field_before_a_named_transition_cannot_reuse_entry_identity() {
+fn a_changed_field_before_a_named_transition_uses_the_replacement_origin() {
     let program = fixture_with_body(
         "context.scheduler = replacement.scheduler;
          transition { _ -> waiting(context) }
@@ -262,12 +268,5 @@ fn a_changed_field_before_a_named_transition_cannot_reuse_entry_identity() {
         false,
         "",
     );
-    let plan = program
-        .facts
-        .termination
-        .for_machine(symbol_of_checked(&program, "replace"))
-        .unwrap();
-    // Per-field arrival substitution is still needed before this can derive
-    // replacement.scheduler. Root identity cannot stand in for those contents.
-    assert_eq!(plan.checked_summary, TerminationGuarantee::NoGuarantee);
+    assert_subjects(&program, &["replacement"]);
 }

@@ -1,4 +1,8 @@
 use super::*;
+use symbols::SymbolHandle;
+
+mod discovery;
+mod projected;
 
 fn symbol(index: u32) -> SymbolHandle {
     SymbolHandle::from_arena_index(index)
@@ -15,12 +19,12 @@ fn exact(root: u32) -> ParameterLineage {
     ParameterLineage::Exact(vec![subject(root)])
 }
 
-fn initial_values(cycle_entry: ParameterLineage) -> Vec<(SymbolHandle, ParameterLineage)> {
+fn initial_values(cycle_entry: ParameterLineage) -> Vec<(ProgressSubject, ParameterLineage)> {
     vec![
-        (symbol(1), exact(1)),
-        (symbol(2), cycle_entry),
-        (symbol(3), ParameterLineage::Unseen),
-        (symbol(4), ParameterLineage::Unseen),
+        (subject(1), exact(1)),
+        (subject(2), cycle_entry),
+        (subject(3), ParameterLineage::Unseen),
+        (subject(4), ParameterLineage::Unseen),
     ]
 }
 
@@ -30,7 +34,7 @@ fn transfer(source: u32, destination: u32, projected: bool) -> transfers::Parame
         source.projections.push(symbol(100));
     }
     transfers::ParameterTransfer {
-        destination: symbol(destination),
+        destination: subject(destination),
         source: Some(source),
     }
 }
@@ -50,7 +54,7 @@ fn value(lineage: &StateParameterLineage, parameter: u32) -> &ParameterLineage {
     &lineage
         .values
         .iter()
-        .find(|(candidate, _)| *candidate == symbol(parameter))
+        .find(|(candidate, _)| *candidate == subject(parameter))
         .expect("retained parameter")
         .1
 }
@@ -96,7 +100,7 @@ fn unknown_incoming_activates_a_growing_cycle_and_poisons_its_join() {
         for reversed in [false, true] {
             let mut transfers = growing_cycle_with_finite_join();
             transfers.push(transfers::ParameterTransfer {
-                destination: symbol(2),
+                destination: subject(2),
                 source: source.clone(),
             });
             if reversed {
@@ -118,7 +122,7 @@ fn unknown_incoming_still_poisons_a_finite_join_without_activating_the_cycle() {
     for reversed in [false, true] {
         let mut transfers = growing_cycle_with_finite_join();
         transfers.push(transfers::ParameterTransfer {
-            destination: symbol(4),
+            destination: subject(4),
             source: None,
         });
         if reversed {

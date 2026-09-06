@@ -452,11 +452,13 @@ Owners include
   used premise is reconstructed for the exact subject and no qualification or
   similarly shaped row mints one implicitly.
 
-  Complete per-field value origins across named-state arrivals, live reference
-  aliases, and qualification-preserving helper calls in
+  Complete value origins through live reference aliases and
+  qualification-preserving helper calls in
   `checks/termination/progress/{origins.rs,lineage.rs}`. A mutated aggregate
   cannot use root correspondence as evidence for its previous field values;
-  a may-write frame cannot identify a replacement value. Acceptance: finite
+  a may-write frame cannot identify a replacement value. Extend per-field
+  arrivals through opaque reference, recursive-proof, and unresolved generic
+  leaves when exact provenance is available. Acceptance: those finite
   projected arrivals and checked helper correspondences derive the replacement
   input's exact premise, while unknown writes and reference aliases without
   exact provenance retain no checked guarantee.

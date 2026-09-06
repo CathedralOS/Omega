@@ -281,6 +281,10 @@ dependency. Disjoint writes preserve identity. Reference copies preserve live
 aliases, not snapshots of their referents, and need their own exact storage
 correspondence.
 
+State arrivals retain independent field origins. A finite field permutation
+may require several entry subjects, but does not by itself create an unbounded
+family of progress premises or qualify a changed aggregate as a whole.
+
 The checked-only transition certificate covers an existing statement transfer
 only when both endpoints are exact parameter- or prior-state-local-rooted
 Field/Case places, possibly continued through nested in-bounds `FixedIndex`
