@@ -200,6 +200,15 @@ fn write_only_self_observing_receiver_calls_reject() {
 }
 
 #[test]
+fn write_only_self_nonobserving_statement_call_checks() {
+    let source = format!(
+        "{}\nmachine Record::replace(&write self) {{ self.value = 17; }}",
+        receiver_source("&write self", "", "self.replace();"),
+    );
+    check_source(&source).expect("write-only dispatch preserves non-observing access");
+}
+
+#[test]
 fn write_only_self_observing_statement_call_rejects() {
     let source = format!(
         "{}\nmachine Record::observe(&self) {{ let prior: u16 = self.value; }}",

@@ -370,10 +370,12 @@ Owners include
   mutable borrow. Acceptance includes read rejection, exact write coverage,
   unwind/return behavior, and both Linux targets.
 
-  Implicit receiver calls need exact non-observing call admission in
-  `validation/src/write_only_borrows/receiver.rs`; the current checked route
-  requires explicit `&write` arguments. Do not treat an implicit receiver as
-  readable merely to dispatch it.
+  Extend non-observing receiver-call admission beyond whole closed records in
+  `validation/src/write_only_borrows/receiver.rs`. Projected receivers need exact
+  content-independent place/type and access checks, including reference-bearing
+  fields, before borrowing their callee receiver. Keep generic, sum, and dynamic
+  dispatch tied to their corresponding shape/admission work; do not treat a
+  receiver as readable merely to dispatch it.
 
   Native referent identity follows `STRUCTURAL-BORROW-IDENTITY` below; it is
   not an owner-policy blocker. Preserve write-only non-observation independently

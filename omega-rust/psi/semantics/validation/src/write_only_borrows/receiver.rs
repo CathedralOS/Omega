@@ -156,12 +156,55 @@ pub(super) fn validate_statement_call(
                 attached_field(program, root, call.receiver_root_symbol, name.as_str()).is_some()
             })
         {
-            // The supported call route spells an exact `&write` argument.
-            // An implicit receiver call must not bypass that access judgment.
+            if receiver.len() == 1
+                && (call.receiver_root_symbol == root.symbol
+                    || call.receiver_root_symbol == root.receiver_machine)
+                && admits_call(program, root, call.target_symbol)
+            {
+                continue;
+            }
             diagnostics.push(Diagnostic::error(format!(
-                "machine `{machine}` state `{state}` calls through write-only parameter `{}`; receiver dispatch requires non-observing call admission, so forward an exact `&write` argument instead",
+                "machine `{machine}` state `{state}` calls through write-only parameter `{}`; dispatch requires an exact checked `&write self` target on the whole receiver",
                 root.name,
             )));
         }
     }
+}
+
+/// Dispatch borrows the receiver without loading its contents only when the
+/// selected declaration retains write-only access under its exact data owner.
+pub(super) fn admits_call(
+    program: &TypedTrees,
+    root: &WriteOnlyRoot,
+    target: SymbolHandle,
+) -> bool {
+    let Some(owner) = record(program, root).or_else(|| write_only_record(program, root.referee))
+    else {
+        return false;
+    };
+    let Some((callee, state)) = crate::calls::machine_state_by_symbol(program, target) else {
+        return false;
+    };
+    if callee.attached_data_symbol != owner.symbol
+        || callee.supply_mode != MachineSupplyMode::CheckedBody
+    {
+        return false;
+    }
+    let mut receivers = program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| parameter.is_self);
+    let Some(receiver) = receivers.next() else {
+        return false;
+    };
+    receivers.next().is_none()
+        && matches!(
+            program
+                .type_reference_table
+                .type_reference(receiver.type_reference),
+            TypeReferenceNode::Reference {
+                access: ReferenceAccess::WriteOnly,
+                ..
+            }
+        )
 }

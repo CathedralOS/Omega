@@ -175,7 +175,12 @@ storage containing no live `T` is a separate feature.
 > records from either a fixed-integer or Boolean literal or one exact
 > same-typed fixed-integer or Boolean parameter, read a literal fixed-array
 > length as static metadata through the same eligible record paths, and forward
-> the loan explicitly. One projected subloan form may pass
+> the loan explicitly. A whole closed-record parameter or attached `self` may
+> also invoke an exactly selected checked `&write self` method, in statement or
+> scalar-result position. The receiver remains exclusive against explicit
+> arguments and live local loans, even when the callee performs no writes;
+> shared access cannot supply it. Projected receiver calls remain gated.
+> One projected subloan form may pass
 > `&write root.field...leaf` directly to a checked call when the complete field
 > path and leaf meet that same non-observation referee. That direct-call form may
 > finish with a finite nonempty suffix of ordered in-bounds literal indexes
