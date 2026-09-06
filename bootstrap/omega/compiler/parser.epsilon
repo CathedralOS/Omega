@@ -1980,13 +1980,25 @@ machine OmegaParser::parse_view(
     }
 
     state begin_external_binding() {
-        transition (self.machine_clause_count > self.machine_first_clause) &&
-            (self.machine_clauses[
-                self.machine_clause_count - 1
-            ].kind == OmegaMachineClauseKind::Satisfies) &&
-            (self.machine_clauses[
-                self.machine_clause_count - 1
-            ].has_external_binding == 0) {
+        transition self.machine_clause_count > self.machine_first_clause {
+            true -> external_binding_previous_clause()
+            _ -> incomplete_root()
+        }
+    }
+
+    state external_binding_previous_clause() {
+        transition self.machine_clauses[
+            self.machine_clause_count - 1
+        ].kind {
+            OmegaMachineClauseKind::Satisfies -> external_binding_unbound_clause()
+            _ -> incomplete_root()
+        }
+    }
+
+    state external_binding_unbound_clause() {
+        transition self.machine_clauses[
+            self.machine_clause_count - 1
+        ].has_external_binding == 0 {
             true -> begin_external_binding_bounded()
             _ -> incomplete_root()
         }
@@ -3748,8 +3760,14 @@ machine OmegaParser::parse_view(
     }
 
     state transition_arm_integer() {
-        transition (self.scan.numeric_base == OmegaNumericBase::Decimal) &&
-            (self.scan.numeric_empty_digits == 0) &&
+        transition self.scan.numeric_base {
+            OmegaNumericBase::Decimal -> transition_arm_decimal_integer()
+            _ -> incomplete_root()
+        }
+    }
+
+    state transition_arm_decimal_integer() {
+        transition (self.scan.numeric_empty_digits == 0) &&
             (self.scan.numeric_has_suffix == 0) &&
             (self.scan.numeric_has_exponent == 0) {
             true -> retain_integer_transition_guard()
@@ -5681,8 +5699,14 @@ machine OmegaParser::parse_view(
     }
 
     state check_struct_literal_type_path() {
-        transition (self.argument_path_kind == OmegaPathExpressionKind::Name) &&
-            (self.argument_name_member_count == self.argument_path_member_count) {
+        transition self.argument_path_kind {
+            OmegaPathExpressionKind::Name -> check_struct_literal_name_path()
+            _ -> incomplete_root()
+        }
+    }
+
+    state check_struct_literal_name_path() {
+        transition self.argument_name_member_count == self.argument_path_member_count {
             true -> check_struct_literal_type_extent()
             _ -> incomplete_root()
         }
@@ -6425,8 +6449,14 @@ machine OmegaParser::parse_view(
     }
 
     state check_integer_expression() {
-        transition (self.scan.numeric_base == OmegaNumericBase::Decimal) &&
-            (self.scan.numeric_empty_digits == 0) &&
+        transition self.scan.numeric_base {
+            OmegaNumericBase::Decimal -> check_decimal_integer_expression()
+            _ -> incomplete_root()
+        }
+    }
+
+    state check_decimal_integer_expression() {
+        transition (self.scan.numeric_empty_digits == 0) &&
             (self.scan.numeric_has_suffix == 0) &&
             (self.scan.numeric_has_exponent == 0) {
             true -> retain_integer_expression()
@@ -7578,8 +7608,14 @@ machine OmegaParser::parse_view(
     }
 
     state type_reference_or_recast() {
-        transition (self.type_consumer == OmegaTypeConsumer::Cast) &&
-            (self.type_array_depth == 0) {
+        transition self.type_consumer {
+            OmegaTypeConsumer::Cast -> type_reference_cast_depth()
+            _ -> begin_type_reference()
+        }
+    }
+
+    state type_reference_cast_depth() {
+        transition self.type_array_depth == 0 {
             true -> incomplete_root()
             _ -> begin_type_reference()
         }
@@ -7935,8 +7971,14 @@ machine OmegaParser::parse_view(
     }
 
     state array_length_integer() {
-        transition (self.scan.numeric_base == OmegaNumericBase::Decimal) &&
-            (self.scan.numeric_empty_digits == 0) &&
+        transition self.scan.numeric_base {
+            OmegaNumericBase::Decimal -> array_length_decimal_integer()
+            _ -> incomplete_root()
+        }
+    }
+
+    state array_length_decimal_integer() {
+        transition (self.scan.numeric_empty_digits == 0) &&
             (self.scan.numeric_has_suffix == 0) {
             true -> retain_array_length()
             _ -> incomplete_root()
@@ -8035,8 +8077,14 @@ machine OmegaParser::parse_view(
     }
 
     state type_suffix_identifier() {
-        transition (self.type_consumer == OmegaTypeConsumer::Cast) &&
-            (self.type_array_depth == 0) {
+        transition self.type_consumer {
+            OmegaTypeConsumer::Cast -> cast_type_suffix_depth()
+            _ -> ordinary_type_suffix_identifier_dispatch()
+        }
+    }
+
+    state cast_type_suffix_depth() {
+        transition self.type_array_depth == 0 {
             true -> cast_type_suffix_identifier()
             _ -> ordinary_type_suffix_identifier_dispatch()
         }
@@ -8178,8 +8226,14 @@ machine OmegaParser::parse_view(
     }
 
     state type_range_minimum_integer() {
-        transition (self.scan.numeric_base == OmegaNumericBase::Decimal) &&
-            (self.scan.numeric_empty_digits == 0) &&
+        transition self.scan.numeric_base {
+            OmegaNumericBase::Decimal -> type_range_minimum_decimal()
+            _ -> incomplete_root()
+        }
+    }
+
+    state type_range_minimum_decimal() {
+        transition (self.scan.numeric_empty_digits == 0) &&
             (self.scan.numeric_has_suffix == 0) {
             true -> retain_type_range_minimum()
             _ -> incomplete_root()
@@ -8221,8 +8275,14 @@ machine OmegaParser::parse_view(
     }
 
     state type_range_maximum_integer() {
-        transition (self.scan.numeric_base == OmegaNumericBase::Decimal) &&
-            (self.scan.numeric_empty_digits == 0) &&
+        transition self.scan.numeric_base {
+            OmegaNumericBase::Decimal -> type_range_maximum_decimal()
+            _ -> incomplete_root()
+        }
+    }
+
+    state type_range_maximum_decimal() {
+        transition (self.scan.numeric_empty_digits == 0) &&
             (self.scan.numeric_has_suffix == 0) {
             true -> retain_type_range_maximum()
             _ -> incomplete_root()

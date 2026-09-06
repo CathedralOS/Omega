@@ -228,7 +228,7 @@ State-name comparisons, duplicate selection, and state-local scope census use
 tail folds. A machine with many states does not retain one pending minimum
 operation per state; the earliest candidate and its existing tie behavior stay
 explicit in the accumulator. This is required by the current Omega D parser's
-776 authored states, not a new Epsilon state-count limit.
+786 authored states, not a new Epsilon state-count limit.
 
 Type formation walks every authored type after that census with an explicit
 stored/parameter/local/return/nested placement. It derives array-length,

@@ -1,0 +1,126 @@
+boundary trait Console {
+    machine exit_process(return_code: i32) -> never;
+    machine write_byte(value: i32);
+    machine read_byte() -> i32;
+    machine write_line(text: &[u8]);
+}
+
+data Main {
+    console: Console;
+    parser: OmegaParser;
+}
+
+machine Main::main(&mut self) {
+    self.parser.parse_view("data R { a: [u8; 2]; b: u32 [0..=9]; c: &u8; d: u32 in Domain; }");
+    self.check_data_rows();
+
+    self.parser.parse_view("machine p() { x = 7; y = Packet { tag: 1 }; z = value as u32 in Trapping; transition 1 { 1 -> done() } state done() {} }");
+    self.check_machine_rows();
+
+    self.parser.parse_view("machine ext() satisfies Service::f via Binding::CompilerIntrinsic;");
+    self.check_external_rows();
+
+    // A previous complete clause must not satisfy this invocation's count guard.
+    self.parser.parse_view("machine p() via Binding::CompilerIntrinsic;");
+    self.check_incomplete(12, 15);
+
+    self.parser.parse_view("machine p() { x = 0x1; }");
+    self.check_incomplete(18, 21);
+
+    self.parser.parse_view("data R { a: [u8; 0x2]; }");
+    self.check_incomplete(17, 20);
+
+    self.parser.parse_view("data R { a: u32 [0x0..=9]; }");
+    self.check_incomplete(17, 20);
+
+    self.parser.parse_view("data R { a: u32 [0..=0x9]; }");
+    self.check_incomplete(21, 24);
+
+    self.parser.parse_view("machine p() { transition 1 { 0x1 -> done() } state done() {} }");
+    self.check_incomplete(29, 32);
+
+    self.parser.parse_view("machine p() { x = self { tag: 1 }; }");
+    self.check_incomplete(23, 24);
+
+    self.parser.parse_view("machine p() { x = value as &u8; }");
+    self.check_incomplete(27, 28);
+
+    // Reusing the same receiver after failures must rebuild the same live rows.
+    self.parser.parse_view("data R { a: [u8; 2]; b: u32 [0..=9]; c: &u8; d: u32 in Domain; }");
+    self.check_data_rows();
+    self.console.write_byte(65);
+}
+
+machine Main::check_complete(&mut self) {
+    transition self.parser.status {
+        OmegaParserStatus::Complete -> return
+        _ -> self.console.exit_process(1)
+    }
+}
+
+machine Main::check_incomplete(&mut self, start: i32, end: i32) {
+    transition self.parser.status {
+        OmegaParserStatus::Incomplete -> coordinates()
+        _ -> self.console.exit_process(1)
+    }
+
+    state coordinates() {
+        assert self.parser.incomplete_start == start;
+        assert self.parser.incomplete_end == end;
+    }
+}
+
+machine Main::check_data_rows(&mut self) {
+    self.check_complete();
+    assert self.parser.root_count == 1;
+    assert self.parser.data_count == 1;
+    assert self.parser.machine_count == 0;
+    assert self.parser.data_field_count == 4;
+    assert self.parser.type_reference_count == 8;
+    assert self.parser.type_constraint_count == 2;
+    assert self.parser.statement_count == 0;
+    assert self.parser.data_fields[0].type_reference == 1;
+    assert self.parser.data_fields[1].type_reference == 3;
+    assert self.parser.data_fields[2].type_reference == 5;
+    assert self.parser.data_fields[3].type_reference == 7;
+}
+
+machine Main::check_machine_rows(&mut self) {
+    self.check_complete();
+    assert self.parser.root_count == 1;
+    assert self.parser.data_count == 0;
+    assert self.parser.machine_count == 1;
+    assert self.parser.machine_state_count == 2;
+    assert self.parser.assignment_statement_count == 3;
+    assert self.parser.transition_statement_count == 1;
+    assert self.parser.statement_count == 4;
+    assert self.parser.expression_count == 9;
+    assert self.parser.struct_literal_count == 1;
+    assert self.parser.struct_literal_field_count == 1;
+    assert self.parser.cast_expression_count == 1;
+    assert self.parser.type_reference_count == 1;
+    assert self.parser.type_constraint_count == 0;
+    assert self.parser.cast_expressions[0].has_domain == 1;
+}
+
+machine Main::check_external_rows(&mut self) {
+    self.check_complete();
+    assert self.parser.root_count == 1;
+    assert self.parser.data_count == 0;
+    assert self.parser.machine_count == 1;
+    assert self.parser.machine_state_count == 1;
+    assert self.parser.machine_clause_count == 1;
+    assert self.parser.statement_count == 0;
+    assert self.parser.machine_items[0].is_bodyless == 1;
+    assert self.parser.machine_clauses[0].has_external_binding == 1;
+    transition self.parser.machine_clauses[0].kind {
+        OmegaMachineClauseKind::Satisfies -> binding()
+        _ -> self.console.exit_process(1)
+    }
+
+    state binding() {
+        transition self.parser.machine_clauses[0].external_binding_kind {
+            OmegaExternalBindingKind::CompilerIntrinsic -> return
+        }
+    }
+}
