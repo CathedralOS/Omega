@@ -2,6 +2,9 @@
 
 use super::*;
 
+#[cfg(test)]
+mod structural_boolean_tests;
+
 pub(super) fn lower_checked_crash_frontier(
     frontier: &[PermissionClaimIdentity],
     source_claims: &[(PermissionClaimIdentity, ClaimId)],
@@ -1148,37 +1151,175 @@ pub(super) fn lower_structural_crash_route_buckets(
         }
     }
 
+    fn contains_structural_atomic_proposition(expression: &CheckedBooleanExpression) -> bool {
+        match expression {
+            CheckedBooleanExpression::IeeeFloatComparison { .. }
+            | CheckedBooleanExpression::ByteSequenceEqual { .. }
+            | CheckedBooleanExpression::PayloadlessSumEqual { .. }
+            | CheckedBooleanExpression::StructuralCaseMembership { .. } => true,
+            CheckedBooleanExpression::Not(operand) => {
+                contains_structural_atomic_proposition(operand)
+            }
+            CheckedBooleanExpression::Equal { left, right }
+            | CheckedBooleanExpression::And { left, right }
+            | CheckedBooleanExpression::Or { left, right } => {
+                contains_structural_atomic_proposition(left)
+                    || contains_structural_atomic_proposition(right)
+            }
+            CheckedBooleanExpression::Constant(_)
+            | CheckedBooleanExpression::StorageRead { .. }
+            | CheckedBooleanExpression::Parameter { .. }
+            | CheckedBooleanExpression::Local { .. }
+            | CheckedBooleanExpression::StructuralParameterField { .. }
+            | CheckedBooleanExpression::IntegerComparison { .. } => false,
+        }
+    }
+
+    fn lower_polarity(
+        expression: &CheckedBooleanExpression,
+        positive: bool,
+        scalar_parameters: &[ValueDeclaration],
+        parameters: &[StructuralParameterDeclaration],
+        structural_types: &[StructuralTypeDeclaration],
+        runtime_requirements: &[Proposition],
+        remaining: &mut usize,
+        depth: usize,
+    ) -> Result<Proposition, LoweringError> {
+        charge_boolean_expansion(remaining, depth)?;
+        let lower = |operand: &CheckedBooleanExpression, polarity, budget: &mut usize| {
+            lower_polarity(
+                operand,
+                polarity,
+                scalar_parameters,
+                parameters,
+                structural_types,
+                runtime_requirements,
+                budget,
+                depth + 1,
+            )
+        };
+        match expression {
+            CheckedBooleanExpression::Not(operand) => lower(operand, !positive, remaining),
+            CheckedBooleanExpression::Equal { left, right } => {
+                match (left.as_ref(), right.as_ref()) {
+                    (CheckedBooleanExpression::Constant(value), operand)
+                    | (operand, CheckedBooleanExpression::Constant(value)) => {
+                        lower(operand, *value == positive, remaining)
+                    }
+                    _ if contains_boolean_connective(expression)
+                        || contains_structural_atomic_proposition(expression) =>
+                    {
+                        crate::contract_predicates::equality_from_polarities(
+                            left, right, positive, remaining, lower,
+                        )
+                    }
+                    _ => lower_atom_polarity(
+                        expression,
+                        positive,
+                        scalar_parameters,
+                        parameters,
+                        structural_types,
+                        runtime_requirements,
+                        remaining,
+                        depth + 1,
+                    ),
+                }
+            }
+            CheckedBooleanExpression::And { left, right }
+            | CheckedBooleanExpression::Or { left, right } => {
+                crate::contract_predicates::connective(
+                    lower(left, positive, remaining)?,
+                    lower(right, positive, remaining)?,
+                    matches!(expression, CheckedBooleanExpression::And { .. }) == positive,
+                )
+            }
+            _ => lower_atom_polarity(
+                expression,
+                positive,
+                scalar_parameters,
+                parameters,
+                structural_types,
+                runtime_requirements,
+                remaining,
+                depth + 1,
+            ),
+        }
+    }
+
+    fn lower_atom_polarity(
+        expression: &CheckedBooleanExpression,
+        positive: bool,
+        scalar_parameters: &[ValueDeclaration],
+        parameters: &[StructuralParameterDeclaration],
+        structural_types: &[StructuralTypeDeclaration],
+        runtime_requirements: &[Proposition],
+        remaining: &mut usize,
+        depth: usize,
+    ) -> Result<Proposition, LoweringError> {
+        charge_boolean_expansion(remaining, depth)?;
+        if positive || contains_structural_atomic_proposition(expression) {
+            let proposition = lower_proposition(
+                expression,
+                scalar_parameters,
+                parameters,
+                structural_types,
+                runtime_requirements,
+                remaining,
+                depth + 1,
+            )?;
+            return Ok(if positive {
+                proposition
+            } else {
+                Proposition::Implication {
+                    premise: Box::new(proposition),
+                    conclusion: Box::new(Proposition::Falsehood),
+                }
+            });
+        }
+        let term = lower_term(
+            expression,
+            scalar_parameters,
+            parameters,
+            structural_types,
+            runtime_requirements,
+        )?;
+        crate::contract_predicates::canonical_equality(
+            ScalarTerm::boolean(true),
+            ScalarTerm::boolean_not(term).map_err(LoweringError::InvalidCrashPredicate)?,
+        )
+    }
+
     fn lower_proposition(
         expression: &CheckedBooleanExpression,
         scalar_parameters: &[ValueDeclaration],
         parameters: &[StructuralParameterDeclaration],
         structural_types: &[StructuralTypeDeclaration],
         runtime_requirements: &[Proposition],
+        remaining: &mut usize,
+        depth: usize,
     ) -> Result<Proposition, LoweringError> {
-        fn contains_structural_atomic_proposition(expression: &CheckedBooleanExpression) -> bool {
-            match expression {
-                CheckedBooleanExpression::IeeeFloatComparison { .. }
-                | CheckedBooleanExpression::ByteSequenceEqual { .. }
-                | CheckedBooleanExpression::PayloadlessSumEqual { .. }
-                | CheckedBooleanExpression::StructuralCaseMembership { .. } => true,
-                CheckedBooleanExpression::Not(operand) => {
-                    contains_structural_atomic_proposition(operand)
-                }
-                CheckedBooleanExpression::Equal { left, right }
-                | CheckedBooleanExpression::And { left, right }
-                | CheckedBooleanExpression::Or { left, right } => {
-                    contains_structural_atomic_proposition(left)
-                        || contains_structural_atomic_proposition(right)
-                }
-                CheckedBooleanExpression::Constant(_)
-                | CheckedBooleanExpression::StorageRead { .. }
-                | CheckedBooleanExpression::Parameter { .. }
-                | CheckedBooleanExpression::Local { .. }
-                | CheckedBooleanExpression::StructuralParameterField { .. }
-                | CheckedBooleanExpression::IntegerComparison { .. } => false,
-            }
+        charge_boolean_expansion(remaining, depth)?;
+        // Existing atomic denotations, including proposition-only negation,
+        // remain unchanged. Only composition that cannot be a scalar term
+        // expands into logical branches, with one budget for the whole guard.
+        if matches!(expression, CheckedBooleanExpression::Equal { .. })
+            && (contains_boolean_connective(expression)
+                || contains_structural_atomic_proposition(expression))
+            || matches!(expression, CheckedBooleanExpression::Not(operand)
+                if contains_boolean_connective(operand)
+                    && !contains_structural_atomic_proposition(operand))
+        {
+            return lower_polarity(
+                expression,
+                true,
+                scalar_parameters,
+                parameters,
+                structural_types,
+                runtime_requirements,
+                remaining,
+                depth + 1,
+            );
         }
-
         if let CheckedBooleanExpression::Not(operand) = expression
             && contains_structural_atomic_proposition(operand)
         {
@@ -1189,6 +1330,8 @@ pub(super) fn lower_structural_crash_route_buckets(
                     parameters,
                     structural_types,
                     runtime_requirements,
+                    remaining,
+                    depth + 1,
                 )?),
                 conclusion: Box::new(Proposition::Falsehood),
             });
@@ -1345,6 +1488,8 @@ pub(super) fn lower_structural_crash_route_buckets(
                         parameters,
                         structural_types,
                         runtime_requirements,
+                        remaining,
+                        depth + 1,
                     )
                 })
                 .collect::<Result<Vec<_>, _>>()?;
@@ -1414,12 +1559,15 @@ pub(super) fn lower_structural_crash_route_buckets(
                     }
                     checked_trees::CrashRouteGuard::Predicate(predicate) => {
                         let proposition = if let Some(expression) = predicate.scalar_expression() {
+                            let mut remaining = boolean_input_budget(expression)?;
                             lower_proposition(
                                 expression,
                                 scalar_parameters,
                                 parameters,
                                 structural_types,
                                 runtime_requirements,
+                                &mut remaining,
+                                0,
                             )?
                         } else {
                             let mut path = Vec::new();
@@ -1716,6 +1864,11 @@ pub(super) fn checked_boolean_proposition(
     expression: &CheckedBooleanExpression,
     values: &[ValueDeclaration],
 ) -> Result<Proposition, LoweringError> {
+    let mut remaining = boolean_input_budget(expression)?;
+    checked_boolean_proposition_with_budget(expression, values, &mut remaining, 0)
+}
+
+fn boolean_input_budget(expression: &CheckedBooleanExpression) -> Result<usize, LoweringError> {
     let mut remaining = 4096;
     // Bound logical input traversal before recursive connective discovery.
     // Expansion below consumes this same budget across the whole predicate.
@@ -1732,15 +1885,15 @@ pub(super) fn checked_boolean_proposition(
             _ => {}
         }
     }
-    checked_boolean_proposition_with_budget(expression, values, &mut remaining, 0)
+    Ok(remaining)
 }
 
 fn charge_boolean_expansion(remaining: &mut usize, depth: usize) -> Result<(), LoweringError> {
     if depth >= 64 {
-        return unsupported("scalar crash Boolean expansion exceeds its depth limit");
+        return unsupported("crash Boolean expansion exceeds its depth limit");
     }
     *remaining = remaining.checked_sub(1).ok_or(LoweringError::Unsupported(
-        "scalar crash Boolean expansion exceeds its lowering budget",
+        "crash Boolean expansion exceeds its lowering budget",
     ))?;
     Ok(())
 }
@@ -2357,7 +2510,7 @@ mod boolean_connective_tests {
             assert!(matches!(
                 checked_boolean_proposition(&expression, &values),
                 Err(LoweringError::Unsupported(
-                    "scalar crash Boolean expansion exceeds its lowering budget"
+                    "crash Boolean expansion exceeds its lowering budget"
                 ))
             ));
         }
@@ -2368,7 +2521,7 @@ mod boolean_connective_tests {
         assert!(matches!(
             checked_boolean_proposition(&deep, &values),
             Err(LoweringError::Unsupported(
-                "scalar crash Boolean expansion exceeds its depth limit"
+                "crash Boolean expansion exceeds its depth limit"
             ))
         ));
     }

@@ -3511,19 +3511,25 @@ Common-consequence intersection and route assembly share 4,096 work units and
 depth 64; exhausted work is not retried with a fresh budget for another route.
 Negated scalar conjunctions and disjunctions lower through logical De Morgan
 propositions, including Boolean-literal equality wrappers, not eager scalar
-operations. Ordinary scalar-formal crash predicates also admit equality between
+operations. Scalar and structural crash predicates also admit equality between
 compound Boolean predicates: equality combines the two equal-polarity branches,
 and inequality combines the two opposite-polarity branches. Contract and crash
 lowering share that logical constructor while retaining their separate atomic
 denotations and namespaces. The whole crash predicate has one 4,096-unit logical
 input/expansion budget and depth 64, including all branches and top-level
-conjuncts. Unnormalized constant connective children still reject; atomic
-Boolean and numeric crash encodings remain unchanged. This logical budget does
-not replace the separate arithmetic-subtree checks.
+conjuncts. Unnormalized scalar constant connective children still reject; atomic
+Boolean and numeric crash encodings remain unchanged. Structural composition
+retains its existing constant-child handling and atom-specific field, IEEE,
+byte-sequence, sum-equality, and case-membership readers. Equality can combine
+those proposition-only leaves without inventing scalar denotations. Existing
+negation of a proposition-only atom remains implication to falsehood, not a
+complemented numeric comparison. Every expanded operand retains the original
+runtime requirements and structural root/path checks. This logical budget does
+not replace arithmetic-subtree, structural-path, or sum-case checks.
 
-Boolean implication beyond structural common consequences, compound equality
-over structural predicate leaves, exact entry crash hypotheses over structural
-predicates, and numeric entry coverage remain implementation work.
+Boolean implication beyond structural common consequences, exact entry crash
+hypotheses over structural predicates, and numeric entry coverage remain
+implementation work.
 
 Direct crash-site validation independently proves every asserted guard from
 invocation-entry requirements and facts reconstructed before that terminator.
