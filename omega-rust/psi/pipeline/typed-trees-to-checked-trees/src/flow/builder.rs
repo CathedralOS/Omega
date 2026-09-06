@@ -9,7 +9,7 @@ pub(crate) fn build_flow_facts(
     domains: &DomainFacts,
     operational: &flow_effects::OperationalPlan,
 ) -> FlowFacts {
-    let service_reaches = flow_effects::infer_service_reaches(program, operational);
+    let service_reaches = validation::infer_service_reaches(program, operational);
     build_flow_facts_with_service_reaches(
         program,
         borrow,

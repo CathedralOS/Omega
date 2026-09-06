@@ -607,8 +607,8 @@ mod tests {
         let syntax = parse_syntax_trees(&tokens).expect("parse");
         let resolved = lower_syntax_trees(&syntax).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        let operations = flow_effects::infer_operational_may(&typed);
-        let service_reaches = flow_effects::infer_service_reaches(&typed, &operations);
+        let operations = validation::infer_operational_may(&typed);
+        let service_reaches = validation::infer_service_reaches(&typed, &operations);
         // Capability-flow verbs derive from normalized call topology,
         // independent of raw control-flow facts, so an empty FlowFacts
         // exercises the nested-propagation logic.

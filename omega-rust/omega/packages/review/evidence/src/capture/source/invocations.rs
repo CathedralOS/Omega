@@ -25,7 +25,7 @@ pub(crate) fn validate_machine_invocations(
     machine: &typed_trees::machine::Machine,
 ) -> Result<(), Vec<Diagnostic>> {
     let declarations = compilation.machine_invokes(machine);
-    let declared = flow_effects::declared_machine_invocations(compilation, machine);
+    let declared = validation::declared_machine_invocations(compilation, machine);
     if declared.len() != declarations.len() {
         return Err(vec![Diagnostic::error(format!(
             "reviewed callable `{}` has an unresolved, duplicate, or semantically aliased authored invokes target",
@@ -68,7 +68,7 @@ pub(crate) fn project_signature_invocation_source_locations(
     signature: &typed_trees::signature::StateSignature,
 ) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
     let declarations = compilation.state_signature_invokes(signature);
-    let targets = flow_effects::declared_signature_invocations(compilation, signature);
+    let targets = validation::declared_signature_invocations(compilation, signature);
     if targets.len() != declarations.len() {
         return Err(vec![Diagnostic::error(format!(
             "reviewed signature `{}` has an unresolved, duplicate, or semantically aliased authored invokes target",

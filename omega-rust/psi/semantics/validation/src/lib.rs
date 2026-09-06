@@ -13,6 +13,7 @@ mod denotational_calls;
 mod destructure;
 mod domain_weakening;
 mod domains;
+mod effect_inference;
 mod effects;
 mod expression_types;
 mod fact_call_projections;
@@ -97,6 +98,11 @@ use crate::type_references::{
 };
 pub use default_domains::{OpenInvariantCrashSite, build_open_invariant_crash_sites};
 use diagnostics::Diagnostic;
+pub use effect_inference::{
+    declared_machine_invocations, declared_signature_invocations,
+    has_self_forwarded_boundary_parameter, infer_operational_may, infer_service_reaches,
+    infer_synchronous_invocations, invocation_target_label,
+};
 pub use effects::{validate_asm_discharge, validate_behavior_plan};
 pub use expression_types::argument_matches_type_reference_handle as checked_argument_matches_type_reference;
 pub use float_projection_bindings::{

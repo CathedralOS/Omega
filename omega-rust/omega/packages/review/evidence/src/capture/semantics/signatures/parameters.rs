@@ -350,7 +350,7 @@ fn project_machine_parameter_contract_inner(
                         .service_reach_is_installation_bound,
                     synchronous_invocations: project_synchronous_invocations(
                         compilation,
-                        &flow_effects::declared_signature_invocations(compilation, signature),
+                        &validation::declared_signature_invocations(compilation, signature),
                     )?,
                     suspends: signature.suspends,
                     blocks: signature.blocks,

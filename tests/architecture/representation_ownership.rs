@@ -213,6 +213,57 @@ fn frame_calculations_have_phase_owners_and_replay_does_not_run_producers() {
     }
 }
 
+#[test]
+fn effect_records_do_not_derive_typed_body_or_provider_summaries() {
+    let root = repository();
+    let effects = root.join("omega-rust/psi/representations/flow-effects");
+    let manifest = std::fs::read_to_string(effects.join("Cargo.toml")).unwrap();
+    assert!(!manifest.contains("typed-trees"));
+    let records = rust_source(&effects.join("src"));
+    for forbidden in [
+        "typed_trees",
+        "fn infer_",
+        "struct MachineWork",
+        "struct MachineReachWork",
+    ] {
+        assert!(
+            !records.contains(forbidden),
+            "effect records contain {forbidden}"
+        );
+    }
+    let inference =
+        rust_source(&root.join("omega-rust/psi/semantics/validation/src/effect_inference"));
+    for function in [
+        "infer_operational_may",
+        "infer_service_reaches",
+        "infer_synchronous_invocations",
+    ] {
+        assert_eq!(inference.matches(&format!("pub fn {function}(")).count(), 1);
+    }
+    let provider_records = std::fs::read_to_string(
+        root.join("omega-rust/omega/representations/effects/src/capabilities/provider_plan.rs"),
+    )
+    .unwrap();
+    let provider_derivation = std::fs::read_to_string(
+        root.join("omega-rust/omega/build/provider-planning/src/service_schema.rs"),
+    )
+    .unwrap();
+    for function in [
+        "from_typed",
+        "from_typed_instance",
+        "from_typed_operator",
+        "from_typed_boundary_requirement",
+    ] {
+        assert!(!provider_records.contains(&format!("pub fn {function}(")));
+        assert_eq!(
+            provider_derivation
+                .matches(&format!("pub fn {function}("))
+                .count(),
+            1
+        );
+    }
+}
+
 fn rust_source(directory: &Path) -> String {
     let mut paths = std::fs::read_dir(directory)
         .unwrap()

@@ -221,7 +221,7 @@ impl CheckedCompilation {
                         == declaration_path
             })
             .filter_map(|definition| {
-                effects::provider_plan::ServiceSchema::from_typed(&self.program.typed, definition)
+                provider_planning::service_schema::from_typed(&self.program.typed, definition)
             })
             .collect::<Vec<_>>();
         let [schema] = matches.as_slice() else {

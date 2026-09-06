@@ -45,7 +45,7 @@ pub(super) fn resolve_services(
         let [definition] = definitions.as_slice() else {
             return Err(rejected("accepted service has no unique exact trait"));
         };
-        let schema = ServiceSchema::from_typed(&compilation.typed, definition)
+        let schema = provider_planning::service_schema::from_typed(&compilation.typed, definition)
             .ok_or_else(|| rejected("accepted declaration is not a boundary service schema"))?;
         // Preserve the existing UEFI semantic-only binding exception. The
         // normalized review below is context, never a replacement permission

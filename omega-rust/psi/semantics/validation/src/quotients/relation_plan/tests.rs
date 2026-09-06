@@ -7848,8 +7848,8 @@ fn representative_purity_consumes_shared_recursive_effect_summaries() {
     let telescope =
         derive_representative_telescope(&program, &request_with_representative(symbol(97)))
             .expect("exact representative telescope");
-    let operational = flow_effects::infer_operational_may(&program);
-    let service_reaches = flow_effects::infer_service_reaches(&program, &operational);
+    let operational = crate::infer_operational_may(&program);
+    let service_reaches = crate::infer_service_reaches(&program, &operational);
     assert_eq!(
         pure_representative_effect(&telescope, &operational, &service_reaches,),
         Some(super::RepresentativePurity {
@@ -7901,9 +7901,9 @@ fn representative_purity_consumes_shared_recursive_effect_summaries() {
         StatementNode::Expression(unresolved_call),
     );
     unresolved_program.machine_states_mut(&machine)[0] = state;
-    let unresolved_operational = flow_effects::infer_operational_may(&unresolved_program);
+    let unresolved_operational = crate::infer_operational_may(&unresolved_program);
     let unresolved_reaches =
-        flow_effects::infer_service_reaches(&unresolved_program, &unresolved_operational);
+        crate::infer_service_reaches(&unresolved_program, &unresolved_operational);
     assert_eq!(
         pure_representative_effect(&telescope, &unresolved_operational, &unresolved_reaches,),
         None,

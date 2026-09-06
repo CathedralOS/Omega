@@ -271,7 +271,7 @@ fn validate_receipt(
         return;
     };
     let Some(schema) =
-        effects::provider_plan::ServiceSchema::from_typed(checked, requirement_definition)
+        provider_planning::service_schema::from_typed(checked, requirement_definition)
     else {
         diagnostics.push(Diagnostic::error(format!(
             "checked routed Service parameter `{label}` cannot reconstruct its boundary schema",

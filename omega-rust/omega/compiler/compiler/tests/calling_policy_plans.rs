@@ -1608,7 +1608,7 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         .iter()
         .find(|definition| definition.name.as_str() == "TimerRoot")
         .expect("TimerRoot boundary trait");
-    let schema = effects::provider_plan::ServiceSchema::from_typed(&checked.typed, timer)
+    let schema = provider_planning::service_schema::from_typed(&checked.typed, timer)
         .expect("TimerRoot service schema");
     assert!(schema.methods[0].calling_plan_report_fingerprint.is_some());
     let selected = selected_plan_for_external_root(checked.selected_provider_plans(), "TimerRoot");
@@ -2444,7 +2444,7 @@ fn changing_the_selected_opaque_conformance_reissues_the_calling_application() {
             .iter()
             .find(|definition| definition.name.as_str() == "TimerRoot")
             .expect("TimerRoot boundary trait");
-        effects::provider_plan::ServiceSchema::from_typed(&checked.typed, timer)
+        provider_planning::service_schema::from_typed(&checked.typed, timer)
             .expect("TimerRoot service schema")
             .methods[0]
             .calling_plan_report_fingerprint
@@ -2512,7 +2512,7 @@ fn source_policy_receives_signature_and_publishes_only_validated_acceptance() {
         .iter()
         .find(|definition| definition.name.as_str() == "Tick")
         .expect("Tick boundary trait");
-    let schema = effects::provider_plan::ServiceSchema::from_typed(&checked.typed, tick)
+    let schema = provider_planning::service_schema::from_typed(&checked.typed, tick)
         .expect("Tick service schema");
     assert_eq!(schema.methods.len(), 1);
     let application_report = schema.methods[0]
@@ -2811,7 +2811,7 @@ fn policy_source_identity_is_absent_from_the_published_fingerprint() {
             .iter()
             .find(|definition| definition.name.as_str() == "Tick")
             .expect("Tick boundary trait");
-        effects::provider_plan::ServiceSchema::from_typed(&checked.typed, tick)
+        provider_planning::service_schema::from_typed(&checked.typed, tick)
             .expect("Tick service schema")
             .methods[0]
             .calling_plan_report_fingerprint
@@ -2867,7 +2867,7 @@ machine Main::main(&mut self) { }
         .iter()
         .find(|definition| definition.name.as_str() == "OverloadedEntry")
         .expect("OverloadedEntry boundary trait");
-    let schema = effects::provider_plan::ServiceSchema::from_typed(&checked.typed, overloaded)
+    let schema = provider_planning::service_schema::from_typed(&checked.typed, overloaded)
         .expect("overloaded boundary service schema");
     let methods = schema
         .methods
@@ -2919,14 +2919,14 @@ fn generic_boundary_conformance_selects_and_publishes_its_policy_instance() {
         .type_reference_table
         .type_reference_handles(conformance.arguments);
     let schema =
-        effects::provider_plan::ServiceSchema::from_typed_instance(&checked.typed, tick, arguments)
+        provider_planning::service_schema::from_typed_instance(&checked.typed, tick, arguments)
             .expect("generic Tick service schema");
 
     assert_eq!(schema.methods.len(), 1);
     assert!(schema.methods[0].calling_plan_report_fingerprint.is_some());
     assert!(schema.methods[0].calling_plan_commitment.is_some());
     assert_eq!(
-        effects::provider_plan::ServiceSchema::from_typed(&checked.typed, tick)
+        provider_planning::service_schema::from_typed(&checked.typed, tick)
             .expect("uninstantiated schema")
             .methods[0]
             .calling_plan_report_fingerprint,
@@ -2949,7 +2949,7 @@ fn uninstantiated_generic_boundary_does_not_publish_an_abi() {
         .iter()
         .find(|definition| definition.name.as_str() == "Tick")
         .expect("Tick boundary trait");
-    let schema = effects::provider_plan::ServiceSchema::from_typed(&checked.typed, tick)
+    let schema = provider_planning::service_schema::from_typed(&checked.typed, tick)
         .expect("generic declaration schema");
 
     assert_eq!(schema.methods[0].calling_plan_report_fingerprint, None);

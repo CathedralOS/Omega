@@ -59,7 +59,7 @@ machine Boot::launch(&mut self, image: Extent in Granted, initial_storage: Exten
         .find(|definition| definition.name.as_str() == "UefiApplication")
         .unwrap();
     let schema =
-        effects::provider_plan::ServiceSchema::from_typed(&candidate.typed, definition).unwrap();
+        provider_planning::service_schema::from_typed(&candidate.typed, definition).unwrap();
     let physical = schema
         .methods
         .iter()
@@ -86,8 +86,7 @@ machine Boot::launch(&mut self, image: Extent in Granted, initial_storage: Exten
         .iter()
         .find(|definition| definition.name.as_str() == "UefiApplication")
         .unwrap();
-    let schema =
-        effects::provider_plan::ServiceSchema::from_typed(&checked.typed, definition).unwrap();
+    let schema = provider_planning::service_schema::from_typed(&checked.typed, definition).unwrap();
     assert!(
         schema
             .methods

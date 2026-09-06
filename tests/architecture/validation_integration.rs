@@ -95,7 +95,7 @@ fn provider_progress_schema_retains_the_exact_authorized_establishment_route() {
     let grant_identity = typed
         .normalized_trait_requirement_overload_identity(admission, grant)
         .identity();
-    let schema = effects::provider_plan::ServiceSchema::from_typed(&typed, runtime)
+    let schema = provider_planning::service_schema::from_typed(&typed, runtime)
         .expect("runtime provider schema");
     let premise = &schema.methods[0].termination_premises[0];
 
@@ -4196,7 +4196,7 @@ fn recursive_private_operational_inference_reaches_independent_fixed_points() {
         }
         "#,
     );
-    let operations = flow_effects::infer_operational_may(&typed);
+    let operations = validation::infer_operational_may(&typed);
 
     for name in ["A::step", "B::step"] {
         let symbol = typed
@@ -4231,7 +4231,7 @@ fn published_operational_omission_is_a_negative_ceiling() {
         }
         "#,
     );
-    let operations = flow_effects::infer_operational_may(&typed);
+    let operations = validation::infer_operational_may(&typed);
     let diagnostics = validate_behavior_plan(&typed, &operations)
         .expect_err("published omission must reject inferred operational behavior");
 
@@ -4258,7 +4258,7 @@ fn ordinary_public_machine_reach_omission_is_a_negative_ceiling() {
         }
         "#,
     );
-    let operations = flow_effects::infer_operational_may(&typed);
+    let operations = validation::infer_operational_may(&typed);
     let diagnostics = validate_behavior_plan(&typed, &operations)
         .expect_err("ordinary public omission must reject inferred service reach");
 
@@ -4384,7 +4384,7 @@ fn checked_provider_infers_declared_invocation_through_local_helper() {
 
     validate_program(&typed)
         .expect("the declared callback ceiling admits the helper-forwarded direct edge");
-    let plan = flow_effects::infer_synchronous_invocations(&typed);
+    let plan = validation::infer_synchronous_invocations(&typed);
     let provider = typed
         .machines()
         .iter()
@@ -4428,7 +4428,7 @@ fn checked_provider_normalizes_self_forwarded_receiver_before_refinement() {
     validate_program(&typed).expect(
         "composition removes the forwarded provider receiver and shifts the callback to requirement parameter 0",
     );
-    let plan = flow_effects::infer_synchronous_invocations(&typed);
+    let plan = validation::infer_synchronous_invocations(&typed);
     let provider = typed
         .machines()
         .iter()
@@ -4462,7 +4462,7 @@ fn checked_provider_infers_attached_boundary_field_as_direct_target() {
         }
         "#,
     );
-    let plan = flow_effects::infer_synchronous_invocations(&typed);
+    let plan = validation::infer_synchronous_invocations(&typed);
     let labels = |name: &str| {
         let machine = typed
             .machines()
@@ -4473,7 +4473,7 @@ fn checked_provider_infers_attached_boundary_field_as_direct_target() {
             .expect("invocation summary")
             .inferred_direct
             .iter()
-            .map(|target| flow_effects::invocation_target_label(&typed, machine, *target))
+            .map(|target| validation::invocation_target_label(&typed, machine, *target))
             .collect::<Vec<_>>()
     };
     assert_eq!(labels("AlphaProvider::alpha_checked"), ["Beta"]);
@@ -4497,7 +4497,7 @@ fn invocation_inference_does_not_alias_same_named_foreign_fields_to_self() {
         }
         "#,
     );
-    let plan = flow_effects::infer_synchronous_invocations(&typed);
+    let plan = validation::infer_synchronous_invocations(&typed);
     let machine = typed
         .machines()
         .iter()
@@ -4508,7 +4508,7 @@ fn invocation_inference_does_not_alias_same_named_foreign_fields_to_self() {
         .expect("invocation summary")
         .inferred_direct
         .iter()
-        .map(|target| flow_effects::invocation_target_label(&typed, machine, *target))
+        .map(|target| validation::invocation_target_label(&typed, machine, *target))
         .collect::<Vec<_>>();
     assert_eq!(labels, ["Beta"]);
 }
@@ -4534,7 +4534,7 @@ fn invocation_and_operational_inference_visit_transition_arguments() {
         .iter()
         .find(|machine| machine.name.as_str() == "run")
         .expect("run machine");
-    let invocations = flow_effects::infer_synchronous_invocations(&typed);
+    let invocations = validation::infer_synchronous_invocations(&typed);
     assert_eq!(
         invocations
             .for_machine(machine.symbol)
@@ -4542,7 +4542,7 @@ fn invocation_and_operational_inference_visit_transition_arguments() {
             .inferred_transitive,
         vec![flow_effects::InvocationTarget::Parameter(0)]
     );
-    let operations = flow_effects::infer_operational_may(&typed);
+    let operations = validation::infer_operational_may(&typed);
     let operational = operations
         .machines()
         .iter()
@@ -6642,7 +6642,7 @@ fn rejects_published_service_ceiling_below_reached_services() {
     let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
 
-    let operations = flow_effects::infer_operational_may(&typed);
+    let operations = validation::infer_operational_may(&typed);
     let diagnostics =
         validate_behavior_plan(&typed, &operations).expect_err("service ceiling should fail");
 
@@ -6671,8 +6671,8 @@ mod effects_analysis {
         BoundaryCallCoordinate, BoundaryProviderApproval, BoundaryProviderApprovalRegistry,
         audit_boundary_provider_calls, build_boundary_provider_approval_registry,
     };
-    use flow_effects::{infer_operational_may, infer_service_reaches};
     use typed_trees::TypedTrees;
+    use validation::{infer_operational_may, infer_service_reaches};
 
     use source_files_to_tokens::Lexer;
     use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -7632,8 +7632,8 @@ mod provider_plan {
             .iter()
             .find(|definition| definition.name.as_str() == "Console")
             .expect("Console trait");
-        let schema =
-            ServiceSchema::from_typed(&program, console).expect("boundary trait has a schema");
+        let schema = provider_planning::service_schema::from_typed(&program, console)
+            .expect("boundary trait has a schema");
         assert_eq!(schema.trait_name, "Console");
         assert_eq!(schema.methods.len(), 2);
         assert_eq!(schema.methods[0].name, "write_line");
@@ -7683,7 +7683,8 @@ mod provider_plan {
             Some(typed_trees::trait_definition::TraitCompositionKind::Policy)
         );
 
-        let schema = ServiceSchema::from_typed(&program, timer).expect("boundary schema");
+        let schema = provider_planning::service_schema::from_typed(&program, timer)
+            .expect("boundary schema");
         assert_eq!(
             schema
                 .methods

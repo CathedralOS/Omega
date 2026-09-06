@@ -66,7 +66,7 @@ pub(super) fn validate_selected_callable_shape(
             program
                 .service_reach_rows
                 .services(actual_signature.service_reach_row),
-            &flow_effects::declared_signature_invocations(program, actual_signature),
+            &crate::declared_signature_invocations(program, actual_signature),
             actual_signature.suspends,
             actual_signature.blocks,
             actual_signature
@@ -266,7 +266,7 @@ fn validate_callable_parts(
         )));
     }
 
-    let allowed_invocations = flow_effects::declared_signature_invocations(program, requirement);
+    let allowed_invocations = crate::declared_signature_invocations(program, requirement);
     for invocation in actual_invocations {
         if allowed_invocations.contains(invocation) {
             continue;
@@ -372,7 +372,7 @@ pub(crate) fn validate_trait_callable_parameter_refinement(
             program
                 .service_reach_rows
                 .services(actual_contract.service_reach_row),
-            &flow_effects::declared_signature_invocations(program, actual_contract),
+            &crate::declared_signature_invocations(program, actual_contract),
             actual_contract.suspends,
             actual_contract.blocks,
             actual_contract.termination_guarantee.promises_termination(),
@@ -512,7 +512,7 @@ fn validate_callable_type_parameters(
                     program
                         .service_reach_rows
                         .services(actual_contract.service_reach_row),
-                    &flow_effects::declared_signature_invocations(program, actual_contract),
+                    &crate::declared_signature_invocations(program, actual_contract),
                     actual_contract.suspends,
                     actual_contract.blocks,
                     actual_contract.termination_guarantee.promises_termination(),

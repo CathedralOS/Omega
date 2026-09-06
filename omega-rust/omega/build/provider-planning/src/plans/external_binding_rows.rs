@@ -303,11 +303,8 @@ fn selected_source_boundary_entry_plan(
         .iter()
         .filter(|requirement| {
             requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-                && effects::provider_plan::ServiceSchema::from_typed_boundary_requirement(
-                    typed,
-                    requirement,
-                )
-                .as_ref()
+                && crate::service_schema::from_typed_boundary_requirement(typed, requirement)
+                    .as_ref()
                     == Some(&plan.schema)
         })
         .collect::<Vec<_>>();

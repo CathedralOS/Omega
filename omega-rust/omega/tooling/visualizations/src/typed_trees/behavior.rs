@@ -43,8 +43,8 @@ struct CallBehavior {
 
 impl TypedBehaviorPlan {
     pub(super) fn infer(program: &TypedTrees) -> Self {
-        let operational = flow_effects::infer_operational_may(program);
-        let service_reaches = flow_effects::infer_service_reaches(program, &operational);
+        let operational = validation::infer_operational_may(program);
+        let service_reaches = validation::infer_service_reaches(program, &operational);
         let (machines, states, calls) = project_operational_axes(&operational);
         Self {
             service_reaches,

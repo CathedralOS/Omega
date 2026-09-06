@@ -366,7 +366,8 @@ fn derive_top_level_requirement_plans_with_provenance(
             {
                 continue;
             }
-            let Some(schema) = ServiceSchema::from_typed_boundary_requirement(typed, requirement)
+            let Some(schema) =
+                crate::service_schema::from_typed_boundary_requirement(typed, requirement)
             else {
                 continue;
             };
@@ -523,7 +524,7 @@ fn provider_plan_schema_targets(
                 definition.is_boundary && definition.symbol == conformance.trait_symbol
             })?;
             let arguments = provider_boundary_arguments(typed, definition, provider_type);
-            let schema = ServiceSchema::from_typed_instance(typed, definition, &arguments)?;
+            let schema = crate::service_schema::from_typed_instance(typed, definition, &arguments)?;
             schema
                 .methods
                 .iter()
@@ -559,13 +560,15 @@ fn provider_plan_schema_targets(
     direct
         .and_then(|definition| {
             let arguments = provider_boundary_arguments(typed, definition, provider_type);
-            ServiceSchema::from_typed_instance(typed, definition, &arguments).map(|schema| {
-                (
-                    ProviderSchemaDeclaration::BoundaryTrait(definition.symbol),
-                    definition.name.as_str().to_owned(),
-                    schema,
-                )
-            })
+            crate::service_schema::from_typed_instance(typed, definition, &arguments).map(
+                |schema| {
+                    (
+                        ProviderSchemaDeclaration::BoundaryTrait(definition.symbol),
+                        definition.name.as_str().to_owned(),
+                        schema,
+                    )
+                },
+            )
         })
         .into_iter()
         .collect()
@@ -649,7 +652,7 @@ fn derive_boundary_operator_plans_with_provenance(
                 }
                 _ => continue, // invalid via/body combinations are refused elsewhere
             };
-            let Some(schema) = ServiceSchema::from_typed_operator(typed, operator) else {
+            let Some(schema) = crate::service_schema::from_typed_operator(typed, operator) else {
                 continue;
             };
             let target = selected_target.unwrap_or_default().to_owned();
@@ -1072,7 +1075,7 @@ fn checked_adapter_has_exact_conformance(
 ) -> bool {
     let top_level_requirement = typed.machines().iter().find(|requirement| {
         requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-            && ServiceSchema::from_typed_boundary_requirement(typed, requirement).as_ref()
+            && crate::service_schema::from_typed_boundary_requirement(typed, requirement).as_ref()
                 == Some(&plan.schema)
     });
     if let Some(requirement) = top_level_requirement {
@@ -1214,7 +1217,7 @@ pub(super) fn exact_canonical_provider_schema(
         .iter()
         .filter(|requirement| {
             requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-                && ServiceSchema::from_typed_boundary_requirement(typed, requirement)
+                && crate::service_schema::from_typed_boundary_requirement(typed, requirement)
                     .is_some_and(|schema| schema.trait_name == plan.schema.trait_name)
         })
         .collect::<Vec<_>>();
@@ -1251,7 +1254,7 @@ pub(super) fn exact_canonical_provider_schema(
                     )));
                 }
             };
-            ServiceSchema::from_typed_instance(typed, definition, &arguments).ok_or_else(|| {
+            crate::service_schema::from_typed_instance(typed, definition, &arguments).ok_or_else(|| {
                 diagnostics::Diagnostic::error(format!(
                     "ProviderPlan `{}` exact schema `{}` did not reconstruct as a canonical typed boundary schema",
                     plan.name, plan.schema.trait_name,
@@ -1259,14 +1262,14 @@ pub(super) fn exact_canonical_provider_schema(
             })
         }
         ([], [requirement], []) => {
-            ServiceSchema::from_typed_boundary_requirement(typed, requirement).ok_or_else(|| {
+            crate::service_schema::from_typed_boundary_requirement(typed, requirement).ok_or_else(|| {
                 diagnostics::Diagnostic::error(format!(
                     "ProviderPlan `{}` exact schema `{}` did not reconstruct as a canonical typed top-level boundary-requirement schema",
                     plan.name, plan.schema.trait_name,
                 ))
             })
         }
-        ([], [], [operator]) => ServiceSchema::from_typed_operator(typed, operator).ok_or_else(|| {
+        ([], [], [operator]) => crate::service_schema::from_typed_operator(typed, operator).ok_or_else(|| {
             diagnostics::Diagnostic::error(format!(
                 "ProviderPlan `{}` exact schema `{}` did not reconstruct as a canonical typed boundary-operator schema",
                 plan.name, plan.schema.trait_name,
@@ -1469,7 +1472,8 @@ fn exact_top_level_external_realization<'typed>(
         .iter()
         .filter(|requirement| {
             requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-                && ServiceSchema::from_typed_boundary_requirement(typed, requirement).as_ref()
+                && crate::service_schema::from_typed_boundary_requirement(typed, requirement)
+                    .as_ref()
                     == Some(&plan.schema)
                 && typed
                     .normalized_machine_overload_identity(requirement)
@@ -1550,7 +1554,8 @@ fn has_exact_top_level_ordinary_realization(
         .iter()
         .filter(|requirement| {
             requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-                && ServiceSchema::from_typed_boundary_requirement(typed, requirement).as_ref()
+                && crate::service_schema::from_typed_boundary_requirement(typed, requirement)
+                    .as_ref()
                     == Some(&plan.schema)
                 && typed
                     .normalized_machine_overload_identity(requirement)
@@ -1799,9 +1804,9 @@ pub fn validate_provider_plan_candidates(
     plans: &[effects::provider_plan::ProviderPlan],
 ) -> Vec<diagnostics::Diagnostic> {
     let mut diagnostics = Vec::new();
-    let effect_plan = flow_effects::infer_operational_may(typed);
-    let service_reach_plan = flow_effects::infer_service_reaches(typed, &effect_plan);
-    let invocation_plan = flow_effects::infer_synchronous_invocations(typed);
+    let effect_plan = validation::infer_operational_may(typed);
+    let service_reach_plan = validation::infer_service_reaches(typed, &effect_plan);
+    let invocation_plan = validation::infer_synchronous_invocations(typed);
     for plan in plans {
         let structural_diagnostics = plan.validate_candidate_against_schema();
         if structural_diagnostics.is_empty() {
@@ -1833,8 +1838,11 @@ pub fn validate_provider_plan_candidates(
                 let is_top_level_requirement_plan = typed.machines().iter().any(|requirement| {
                     requirement.supply_mode
                         == language_semantics::MachineSupplyMode::TopLevelRequirement
-                        && ServiceSchema::from_typed_boundary_requirement(typed, requirement)
-                            .as_ref()
+                        && crate::service_schema::from_typed_boundary_requirement(
+                            typed,
+                            requirement,
+                        )
+                        .as_ref()
                             == Some(&plan.schema)
                 });
                 let is_retained_ordinary_binding =
@@ -2094,7 +2102,7 @@ fn exact_provenance_schema(
                 )));
             };
             let arguments = provider_boundary_arguments(typed, definition, &plan.provider_type);
-            ServiceSchema::from_typed_instance(typed, definition, &arguments).ok_or_else(|| {
+            crate::service_schema::from_typed_instance(typed, definition, &arguments).ok_or_else(|| {
                 diagnostics::Diagnostic::error(format!(
                     "ProviderPlan `{}` provenance did not reconstruct exact boundary trait `{}`",
                     plan.name, plan.schema.trait_name,
@@ -2119,7 +2127,7 @@ fn exact_provenance_schema(
                     requirements.len(),
                 )));
             };
-            ServiceSchema::from_typed_boundary_requirement(typed, requirement).ok_or_else(|| {
+            crate::service_schema::from_typed_boundary_requirement(typed, requirement).ok_or_else(|| {
                 diagnostics::Diagnostic::error(format!(
                     "ProviderPlan `{}` provenance did not reconstruct exact top-level boundary requirement `{}`",
                     plan.name, plan.schema.trait_name,
@@ -2140,7 +2148,7 @@ fn exact_provenance_schema(
                     operators.len(),
                 )));
             };
-            ServiceSchema::from_typed_operator(typed, operator).ok_or_else(|| {
+            crate::service_schema::from_typed_operator(typed, operator).ok_or_else(|| {
                 diagnostics::Diagnostic::error(format!(
                     "ProviderPlan `{}` provenance did not reconstruct exact boundary operator `{}`",
                     plan.name, plan.schema.trait_name,

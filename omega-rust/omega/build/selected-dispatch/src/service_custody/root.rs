@@ -219,7 +219,7 @@ pub fn derive_fused_program_entry_establishments(
             )));
             continue;
         };
-        let Some(schema) = effects::provider_plan::ServiceSchema::from_typed(checked, requirement)
+        let Some(schema) = provider_planning::service_schema::from_typed(checked, requirement)
         else {
             diagnostics.push(Diagnostic::error(format!(
                 "selected ProgramEntry Service field `{}::{}` cannot reconstruct its schema",

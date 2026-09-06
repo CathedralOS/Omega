@@ -304,8 +304,11 @@ fn derive_selected_installation_reach_resolutions(
             .filter(|requirement| {
                 requirement.supply_mode
                     == language_semantics::MachineSupplyMode::TopLevelRequirement
-                    && ServiceSchema::from_typed_boundary_requirement(&checked.typed, requirement)
-                        .as_ref()
+                    && crate::service_schema::from_typed_boundary_requirement(
+                        &checked.typed,
+                        requirement,
+                    )
+                    .as_ref()
                         == Some(&plan.schema)
             })
             .collect::<Vec<_>>();
@@ -339,8 +342,7 @@ fn derive_selected_installation_reach_resolutions(
         // typed operator schema. Do not make the trait-only installation-reach
         // pass reinterpret them as missing trait requirements.
         let is_boundary_operator_plan = checked.typed.operators().iter().any(|operator| {
-            effects::provider_plan::ServiceSchema::from_typed_operator(&checked.typed, operator)
-                .as_ref()
+            crate::service_schema::from_typed_operator(&checked.typed, operator).as_ref()
                 == Some(&plan.schema)
         });
         if is_boundary_operator_plan {
@@ -1224,7 +1226,7 @@ pub fn validate_selected_synchronous_invocation_cycles(
     selected_plans: &[effects::provider_plan::ProviderPlan],
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let selected = exact_selected_synchronous_plans(selected_plans)?;
-    let inferred = flow_effects::infer_synchronous_invocations(typed);
+    let inferred = validation::infer_synchronous_invocations(typed);
     let mut edges = vec![Vec::<usize>::new(); selected.len()];
     let mut diagnostics = Vec::new();
     for (source_index, source) in selected.iter().enumerate() {

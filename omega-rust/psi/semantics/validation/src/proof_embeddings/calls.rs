@@ -37,8 +37,8 @@ pub(crate) fn validate_integer_embedding_calls(
     if calls.is_empty() {
         return Vec::new();
     }
-    let operational = flow_effects::infer_operational_may(program);
-    let service_reaches = flow_effects::infer_service_reaches(program, &operational);
+    let operational = crate::infer_operational_may(program);
+    let service_reaches = crate::infer_service_reaches(program, &operational);
     let mut admitted = Vec::new();
     for (expression, call) in calls {
         let reject = |reason: &str, diagnostics: &mut Vec<Diagnostic>| {

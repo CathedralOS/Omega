@@ -34,7 +34,7 @@ pub(super) fn project(
             (
                 signature.service_reach_row,
                 owner.is_boundary.then_some(symbol),
-                flow_effects::declared_signature_invocations(&compilation.typed, signature),
+                validation::declared_signature_invocations(&compilation.typed, signature),
                 compilation.state_signature_parameters(signature),
                 &signature.termination_guarantee,
             )
@@ -64,13 +64,13 @@ pub(super) fn project(
             (
                 machine.service_reach_row,
                 None,
-                flow_effects::declared_machine_invocations(&compilation.typed, machine),
+                validation::declared_machine_invocations(&compilation.typed, machine),
                 compilation.state_parameters(entry),
                 guarantee,
             )
         }
         ProviderSchemaDeclaration::BoundaryOperator(_) => {
-            // ServiceSchema::from_typed_operator exposes no service-reach,
+            // provider_planning::service_schema::from_typed_operator exposes no service-reach,
             // invocation or progress rows; operator contracts stay separate.
             return Ok(PackagePolicyServiceAuthority {
                 service_reach: Vec::new(),

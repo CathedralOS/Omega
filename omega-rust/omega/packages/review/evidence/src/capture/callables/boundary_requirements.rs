@@ -179,12 +179,10 @@ pub(super) fn validate_selected_top_level_requirement_external_supply(
     if matches.is_empty() {
         return Ok(());
     }
-    let Some(expected_schema) =
-        effects::provider_plan::ServiceSchema::from_typed_boundary_requirement(
-            &compilation.typed,
-            requirement,
-        )
-    else {
+    let Some(expected_schema) = provider_planning::service_schema::from_typed_boundary_requirement(
+        &compilation.typed,
+        requirement,
+    ) else {
         return Err(vec![Diagnostic::error(format!(
             "selected top-level requirement `{}` has no exact provider schema",
             requirement.name

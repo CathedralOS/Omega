@@ -234,7 +234,9 @@ pub(super) fn candidate_service_bindings(
             },
         );
     };
-    let Some(service_schema) = ServiceSchema::from_typed(&checked.typed, definition) else {
+    let Some(service_schema) =
+        provider_planning::service_schema::from_typed(&checked.typed, definition)
+    else {
         return Err(
             CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
                 consumer: consumer.clone(),

@@ -12,4 +12,3 @@ path = "src/lib.rs"
 arena = { path = "../../foundation/arena" }
 language-semantics = { path = "../../foundation/language-semantics" }
 symbols = { path = "../../foundation/symbols" }
-typed-trees = { path = "../typed-trees" }

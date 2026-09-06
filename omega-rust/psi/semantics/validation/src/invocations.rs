@@ -8,7 +8,7 @@ pub(crate) fn validate_invocation_contracts(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     validate_declared_targets(program, diagnostics);
-    let plan = flow_effects::infer_synchronous_invocations(program);
+    let plan = crate::infer_synchronous_invocations(program);
 
     for machine in program.machines() {
         let Some(summary) = plan.for_machine(machine.symbol) else {
@@ -161,10 +161,10 @@ fn validate_conformance_refinement(
             })
             .collect::<Vec<_>>();
         for requirement in matching {
-            let allowed = flow_effects::declared_signature_invocations(program, requirement);
+            let allowed = crate::declared_signature_invocations(program, requirement);
             let parameters = program.state_signature_parameters(requirement);
             let self_forwarded = trait_definition.is_boundary
-                && flow_effects::has_self_forwarded_boundary_parameter(
+                && crate::has_self_forwarded_boundary_parameter(
                     program,
                     machine,
                     trait_definition.symbol,

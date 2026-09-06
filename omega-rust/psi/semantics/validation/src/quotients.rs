@@ -259,8 +259,8 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
     // Reuse the shared whole-call-graph inference. Quotient requests still
     // reject before checked lowering, so this is the one authoritative effect
     // computation on that path rather than a local expression walk.
-    let operational = flow_effects::infer_operational_may(program);
-    let service_reaches = flow_effects::infer_service_reaches(program, &operational);
+    let operational = crate::infer_operational_may(program);
+    let service_reaches = crate::infer_service_reaches(program, &operational);
     let mut planned_requests = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {

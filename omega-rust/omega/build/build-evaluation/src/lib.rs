@@ -2085,8 +2085,8 @@ pub fn validate_selected_program_entry_calling_plan(
             expected_semantic,
         ))]);
     }
-    let service_schema = effects::provider_plan::ServiceSchema::from_typed(typed, schema)
-        .ok_or_else(|| {
+    let service_schema =
+        provider_planning::service_schema::from_typed(typed, schema).ok_or_else(|| {
             vec![Diagnostic::error(format!(
                 "target entry schema `{schema_name}` is not a boundary service schema"
             ))]
@@ -3592,8 +3592,8 @@ pub fn admit_build_program(
 ) -> Result<AdmittedBuildProgram, Vec<Diagnostic>> {
     let prepared = PreparedBuildMachineProgram::prepare(typed)?;
     let typed = prepared.typed();
-    let operational_plan = flow_effects::infer_operational_may(typed);
-    let service_reach_plan = flow_effects::infer_service_reaches(typed, &operational_plan);
+    let operational_plan = validation::infer_operational_may(typed);
+    let service_reach_plan = validation::infer_service_reaches(typed, &operational_plan);
 
     let mut build_machines = typed
         .machines()

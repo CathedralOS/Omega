@@ -318,7 +318,7 @@ pub(crate) fn project_trait_requirement(
         service_reach_is_installation_bound: requirement.service_reach_is_installation_bound,
         synchronous_invocations: project_synchronous_invocations(
             compilation,
-            &flow_effects::declared_signature_invocations(compilation, requirement),
+            &validation::declared_signature_invocations(compilation, requirement),
         )?,
         suspends: requirement.suspends,
         blocks: requirement.blocks,

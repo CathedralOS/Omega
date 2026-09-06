@@ -6,7 +6,7 @@ pub fn validate_behavior_plan(
     operational: &flow_effects::OperationalPlan,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    let service_reaches = flow_effects::infer_service_reaches(program, operational);
+    let service_reaches = crate::infer_service_reaches(program, operational);
 
     validate_pure_discards(program, operational, &service_reaches, &mut diagnostics);
     validate_asm_intrinsic_declarations(program, operational, &service_reaches, &mut diagnostics);
