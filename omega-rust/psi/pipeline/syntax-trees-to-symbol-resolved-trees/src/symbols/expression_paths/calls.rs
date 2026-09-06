@@ -20,8 +20,8 @@ pub(in crate::symbols) fn resolve_expression_table_call_target_symbol(
             // the method before that type is available.
             return SymbolHandle::invalid();
         }
-        if super::indexed_receivers::contains_index(expression_table, call.receiver) {
-            return super::indexed_receivers::call_target(
+        if super::projected_receivers::needs_declared_projection(expression_table, call.receiver) {
+            return super::projected_receivers::call_target(
                 machine,
                 parameters,
                 state_symbol,

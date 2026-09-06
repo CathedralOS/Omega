@@ -344,7 +344,68 @@ machine ProofTree::right(self, n: ProofTree) terminates by n; -> ProofTree {
     checks(source);
     // The SCC and its existing strict edges stay the same. The extra call
     // selects right through a non-self receiver and passes the unchanged n.
-    rejects_cycle(&source.replacen("second: second,", "second: n.right(n),", 1));
+    for receiver in ["n", "second"] {
+        rejects_cycle(&source.replacen(
+            "second: second,",
+            &format!("second: {receiver}.right(n),"),
+            1,
+        ));
+    }
+}
+
+#[test]
+fn acyclic_pattern_payload_method_retains_its_selected_callee() {
+    let source = r#"
+data ProofNat { case Zero; case Succ(previous: ProofNat); }
+data Other { case Zero; case Succ(previous: Other); }
+data Main {}
+machine Main::main(&mut self) {}
+machine ProofNat::finish(self) -> ProofNat { self }
+machine Other::finish(self) -> Other { self }
+machine finish() -> u64 { 99 }
+machine peel(n: ProofNat, payload: Other) -> ProofNat {
+    transition n {
+        ProofNat::Zero -> ProofNat::Zero
+        ProofNat::Succ { previous as payload } -> payload.finish()
+    }
+}
+"#;
+    let project = Project::new(source);
+    let checked = compile_to_checked(&project.0.join("main.omg"), None)
+        .expect("acyclic proof payload method must check")
+        .into_program();
+    let callee = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "ProofNat::finish")
+        .expect("proof payload method");
+    let expected = checked.machine_states(callee)[0].symbol;
+    let calls = checked
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(_, expression)| match expression {
+            typed_trees::expression::ExpressionNode::Call(call)
+                if call.target.as_str() == "finish" =>
+            {
+                Some(call)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        !calls.is_empty(),
+        "payload call must remain in the typed program"
+    );
+    for call in calls {
+        assert_eq!(call.target_symbol, expected);
+        let typed_trees::expression::ExpressionNode::Member(member) =
+            checked.expression_table.expression(call.receiver)
+        else {
+            panic!("pattern binding must retain its payload projection");
+        };
+        assert_eq!(member.member.as_str(), "previous");
+        assert_eq!(member.case_variant.as_ref().unwrap().as_str(), "Succ");
+    }
 }
 
 #[test]

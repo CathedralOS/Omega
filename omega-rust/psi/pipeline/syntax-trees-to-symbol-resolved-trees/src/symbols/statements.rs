@@ -61,6 +61,7 @@ pub(super) fn assign_statement_reference_symbols(
             prior_statements: &[],
             data_definitions,
             data_members,
+            data_payload_fields: &tables.declarations.data_payload_fields,
             type_constraints,
         };
         // Ranking expressions belong to the entry signature, not a later

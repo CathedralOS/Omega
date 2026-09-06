@@ -21,6 +21,7 @@ pub(super) struct MachineScope<'program> {
     /// receivers do not occur.
     pub(super) data_definitions: &'program OrderedRootArena<DataDefinition>,
     pub(super) data_members: &'program Arena<DataMember>,
+    pub(super) data_payload_fields: &'program Arena<symbol_resolved_trees::data::DataField>,
     pub(super) type_constraints: &'program Arena<symbol_resolved_trees::types::TypeConstraint>,
 }
 
