@@ -570,3 +570,138 @@ fn boundary_structural_results_transfer_once_through_existing_affine_consumers()
         );
     }
 }
+
+#[test]
+fn direct_boundary_result_operands_retain_exact_nonself_transfer_events() {
+    for (declaration, invocation, nominal) in [
+        (
+            "boundary machine Sink::take(packet: Packet) ensures true;",
+            "Sink::take(result);",
+            false,
+        ),
+        (
+            "boundary trait Host { machine take(packet: Packet); }",
+            "Host::take(result);",
+            false,
+        ),
+        (
+            "boundary trait Host { machine take(packet: Packet); }",
+            "Take(result);",
+            true,
+        ),
+    ] {
+        let mut source = format!(
+            "{declaration}\n{}",
+            BOUNDARY_STRUCTURAL_SEQUENCE.replace(
+                "Sink::produce(numeric(prior), prior);",
+                &format!("Sink::produce(numeric(prior), prior); {invocation}")
+            )
+        );
+        if nominal {
+            source = source.replace("machine Root::enter(input: u32)",
+                "machine Root::enter<machine Take>(input: u32) where machine Take satisfies Host::take;");
+        }
+        let checked = lower_typed_trees(typed_trees(&source))
+            .unwrap_or_else(|errors| panic!("{source}: {errors:#?}"));
+        let machine = caller(&checked);
+        let [state] = checked.machine_states(machine) else {
+            unreachable!()
+        };
+        let StatementNode::LocalData(local) =
+            &checked.statement_table.statements(state.statement_nodes)[1]
+        else {
+            unreachable!()
+        };
+        let plan = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine.symbol)
+            .expect("direct boundary consumes an established affine result");
+        assert!(plan.operations.iter().any(|operation| matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                discard_result_on_return: false,
+                ..
+            }
+        )));
+        let consumer = plan
+            .operations
+            .iter()
+            .find_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::BoundaryCall {
+                    coordinate,
+                    structural_arguments,
+                    completion_receipts,
+                    target_state,
+                    ..
+                } if coordinate.statement_index == 2 => {
+                    Some((structural_arguments, completion_receipts, target_state))
+                }
+                _ => None,
+            })
+            .unwrap();
+        assert!(
+            consumer.1.is_empty(),
+            "claim-free result has no completion claim"
+        );
+        let [argument] = consumer.0.as_slice() else {
+            unreachable!()
+        };
+        assert_eq!(argument.source_structural_result_binding_ordinal(), Some(0));
+        assert!(argument.path.is_empty());
+        let flow = &checked.facts.flow.control;
+        let source_state = flow
+            .states
+            .iter()
+            .map(|(_, state)| state)
+            .find(|candidate| {
+                candidate.machine_symbol == machine.symbol && candidate.state_symbol == state.symbol
+            })
+            .unwrap();
+        let mut source_calls = flow
+            .calls
+            .span_or_empty(source_state.calls)
+            .iter()
+            .filter(|call| call.statement_index == 2 && call.call_ordinal == 0);
+        let source_call = source_calls.next().unwrap();
+        assert!(source_calls.next().is_none(), "one exact authored consumer");
+        if nominal {
+            let (owner, requirement) = checked
+                .machine_parameter_signature(source_call.target_symbol)
+                .expect("authored nominal parameter retains its requirement");
+            assert_eq!(owner.symbol, machine.symbol);
+            assert_eq!(requirement.symbol, *consumer.2);
+            assert_ne!(source_call.target_symbol, *consumer.2);
+        } else {
+            assert_eq!(source_call.target_symbol, *consumer.2);
+        }
+        let events = checked
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .map(|(_, event)| event)
+            .filter(|event| {
+                event.machine_symbol == machine.symbol
+                    && event.state_symbol == state.symbol
+                    && event.root == ::facts::PlaceRoot::Symbol(local.symbol)
+            })
+            .collect::<Vec<_>>();
+        assert!(events.iter().any(|event| event.kind
+            == language_semantics::PermissionEventKind::Establish
+            && event.source
+                == language_semantics::PermissionEventSource::Statement { statement_index: 1 }));
+        assert!(events.iter().any(|event| event.kind
+            == language_semantics::PermissionEventKind::Transfer
+            && event.source
+                == language_semantics::PermissionEventSource::Call {
+                    statement_index: 2,
+                    call_ordinal: 0,
+                    target_symbol: source_call.target_symbol
+                }
+            && event.claim_identity == language_semantics::PermissionClaimIdentity::Unknown
+            && !event.obligation_live));
+    }
+}

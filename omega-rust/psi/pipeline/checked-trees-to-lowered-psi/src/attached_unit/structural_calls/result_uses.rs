@@ -72,6 +72,21 @@ pub(crate) fn validate_usage(
             coordinate,
             structural_arguments,
             ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryCall {
+            coordinate,
+            structural_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+            coordinate,
+            structural_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+            coordinate,
+            structural_arguments,
+            ..
         }) = operation
         else {
             continue;
@@ -134,10 +149,30 @@ pub(crate) fn validate_consumer(
             structural_arguments,
             ..
         } => (coordinate, structural_arguments, &[][..]),
+        CheckedUnitEffectOperationPlan::BoundaryCall {
+            coordinate,
+            structural_arguments,
+            completion_receipts,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+            coordinate,
+            structural_arguments,
+            completion_receipts,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+            coordinate,
+            structural_arguments,
+            completion_receipts,
+            ..
+        } => (
+            coordinate,
+            structural_arguments,
+            completion_receipts.as_slice(),
+        ),
         _ => {
-            return unsupported(
-                "ordinary structural result use requires a Unit or structural call",
-            );
+            return unsupported("structural result use requires an ordinary or boundary call");
         }
     };
     if structural_arguments.len() != target_parameters.len() {
@@ -270,6 +305,7 @@ pub(crate) fn validate_consumer(
             || producer.operation_index >= operation_index
             || !source_order
             || matches!(operation, CheckedUnitEffectOperationPlan::StructuralCall { result: consumer, .. }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result: consumer, .. }
                 if result.binding_ordinal >= consumer.binding_ordinal)
             || result.multiplicity != Multiplicity::Affine
             || argument.type_identity != result.type_identity
@@ -322,6 +358,9 @@ fn validate_nested_execution_order(
             CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. }
             | CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. }
             | CheckedUnitEffectOperationPlan::ScalarCall { coordinate, .. }
+            | CheckedUnitEffectOperationPlan::BoundaryCall { coordinate, .. }
+            | CheckedUnitEffectOperationPlan::BoundaryScalarCall { coordinate, .. }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate, .. }
                 if coordinate.statement_index == statement_index =>
             {
                 coordinate

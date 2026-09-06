@@ -2306,6 +2306,13 @@ fn assemble_unit_closure(
                 } => {
                     source_call = Some((*coordinate, *source_site, *target_machine));
                     let target = unique_unit_boundary(plans, *target_machine)?;
+                    structural_calls::validate_consumer(
+                        checked,
+                        plan,
+                        operation,
+                        &target.structural_parameters,
+                        &[],
+                    )?;
                     let expected_claim_arguments = structural_arguments
                         .iter()
                         .enumerate()
@@ -2333,7 +2340,7 @@ fn assemble_unit_closure(
                         parameters,
                         &[],
                         &[],
-                        &[],
+                        &structural_result_places,
                         &target.structural_parameters,
                         &type_ids,
                         &structural_types,
@@ -2383,7 +2390,7 @@ fn assemble_unit_closure(
                             parameters,
                             &[],
                             &[],
-                            &[],
+                            &structural_result_places,
                             &call_literal_places,
                         )?,
                         completion_receipts: completion_receipts
@@ -2425,6 +2432,13 @@ fn assemble_unit_closure(
                             "Unit scalar result type drifted from its checked boundary target",
                         );
                     }
+                    structural_calls::validate_consumer(
+                        checked,
+                        plan,
+                        operation,
+                        &target.structural_parameters,
+                        &[],
+                    )?;
                     let expected_claim_arguments = structural_arguments
                         .iter()
                         .enumerate()
@@ -2452,7 +2466,7 @@ fn assemble_unit_closure(
                         parameters,
                         &[],
                         &[],
-                        &[],
+                        &structural_result_places,
                         &target.structural_parameters,
                         &type_ids,
                         &structural_types,
@@ -2502,7 +2516,7 @@ fn assemble_unit_closure(
                             parameters,
                             &[],
                             &[],
-                            &[],
+                            &structural_result_places,
                             &call_literal_places,
                         )?,
                         completion_receipts: completion_receipts
@@ -2595,6 +2609,13 @@ fn assemble_unit_closure(
                             "Unit structural result drifted from its checked boundary target",
                         );
                     }
+                    structural_calls::validate_consumer(
+                        checked,
+                        plan,
+                        operation,
+                        &target.structural_parameters,
+                        &[],
+                    )?;
                     let expected_claim_arguments = structural_arguments
                         .iter()
                         .enumerate()
@@ -2622,7 +2643,7 @@ fn assemble_unit_closure(
                         parameters,
                         &[],
                         &[],
-                        &[],
+                        &structural_result_places,
                         &target.structural_parameters,
                         &type_ids,
                         &structural_types,
@@ -2672,7 +2693,7 @@ fn assemble_unit_closure(
                             parameters,
                             &[],
                             &[],
-                            &[],
+                            &structural_result_places,
                             &call_literal_places,
                         )?,
                         completion_receipts: completion_receipts

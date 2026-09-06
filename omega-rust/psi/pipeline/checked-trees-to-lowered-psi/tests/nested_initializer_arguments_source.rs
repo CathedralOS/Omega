@@ -26,6 +26,9 @@ mod later_structural_results;
 #[path = "nested_initializer_arguments_source/boundary_result_moves.rs"]
 mod boundary_result_moves;
 
+#[path = "nested_initializer_arguments_source/direct_boundary_results.rs"]
+mod direct_boundary_results;
+
 #[path = "nested_initializer_arguments_source/boundary_result_custody.rs"]
 mod boundary_result_custody;
 
