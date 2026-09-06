@@ -136,3 +136,90 @@ fn non_ascii_replacement_retires_the_carrier_class() {
         );
     }
 }
+
+#[test]
+fn selected_scalar_call_result_preserves_byte_class() {
+    let source = r#"
+        domain [u8; 2]::Utf8 requires valid_utf8(self);
+        machine narrow(value: i32 [0..=255]) -> u8 { value as u8 }
+        machine establish(line: &mut [u8; 2]) ensures line in Utf8 {
+            let mut value: i32 = 25;
+            value = value / 10;
+            value = value + 48;
+            let byte: u8 = narrow(value);
+            value = 200;
+            line = "AB";
+            line[0] = byte;
+        }
+    "#;
+    lower_typed_trees(parse_typed_trees(source))
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+}
+
+#[test]
+fn selected_scalar_call_result_captures_projected_assignment() {
+    let source = r#"
+        data Holder { input: i32; byte: u8; }
+        domain [u8; 2]::Utf8 requires valid_utf8(self);
+        machine narrow(value: i32 [0..=255]) -> u8 { value as u8 }
+        machine establish(line: &mut [u8; 2], holder: &mut Holder) ensures line in Utf8 {
+            holder.input = 65;
+            holder.byte = narrow(holder.input);
+            holder.input = 200;
+            line = "AB";
+            line[0] = holder.byte;
+            line[1] = narrow(66);
+        }
+    "#;
+    lower_typed_trees(parse_typed_trees(source))
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+}
+
+#[test]
+fn selected_scalar_call_result_rejects_unproved_or_replaced_bytes() {
+    for (callee, body) in [
+        ("value as u8", "let byte: u8 = narrow(200); line[0] = byte;"),
+        ("200", "let byte: u8 = narrow(65); line[0] = byte;"),
+        (
+            "value as u8",
+            "let byte: u8 = narrow(unknown); line[0] = byte;",
+        ),
+        (
+            "value as u8",
+            "let mut byte: u8 = narrow(65); byte = 200; line[0] = byte;",
+        ),
+        (
+            "value as u8",
+            "let mut byte: u8 = narrow(65); corrupt(&mut byte); line[0] = byte;",
+        ),
+        (
+            "let byte: u8 = value as u8; byte",
+            "let byte: u8 = narrow(65); line[0] = byte;",
+        ),
+        (
+            "let mut byte: u8 = 65; corrupt(&mut byte); byte",
+            "let byte: u8 = narrow(65); line[0] = byte;",
+        ),
+        (
+            "value as u8; state other(value: i32 [0..=255]) -> u8 { value as u8 }",
+            "let byte: u8 = narrow(65); line[0] = byte;",
+        ),
+    ] {
+        let source = format!(
+            r#"
+            domain [u8; 2]::Utf8 requires valid_utf8(self);
+            machine narrow(value: i32 [0..=255]) -> u8 {{ {callee} }}
+            machine corrupt(value: &mut u8) {{ value = 200; }}
+            machine establish(line: &mut [u8; 2], unknown: i32 [0..=255])
+            ensures line in Utf8 {{ line = "AB"; {body} }}
+        "#
+        );
+        let diagnostics = lower_typed_trees(parse_typed_trees(&source)).expect_err(body);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("cannot prove ensures")),
+            "{callee}: {body}: {diagnostics:#?}"
+        );
+    }
+}

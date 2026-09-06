@@ -486,8 +486,9 @@ Owners include
   field obligations, while corrupted elements and stale aliased fields reject
   at calls, transitions, and returns. Do not encode universal coverage as an
   unresolved index or assume arbitrary incoming storage is zero-initialized.
-  Indexed text writers still need numeric conversion result evidence beyond
-  the live scalar snapshots consumed by
+  Indexed text writers still need numeric conversion result evidence for
+  multi-statement callees and unsupported cast policies beyond the selected
+  single-return scalar snapshots consumed by
   `typed-trees-to-checked-trees/src/flow/transfers/byte_sequences.rs`. `format_number`'s
   `narrow_i32_to_u8_trapping` result and `print_squares`'s
   `narrow_u32_to_u8_wrapping` result publish no result range, and the checker
