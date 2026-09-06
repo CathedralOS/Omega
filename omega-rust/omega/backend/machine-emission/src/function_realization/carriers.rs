@@ -12,10 +12,7 @@ pub struct StagedFixedFrameFunctionRelativeRealization {
     pub(super) machine: StagedOptimizedPostAllocationMachinePlan,
     pub(super) encoding: StagedOptimizedSelectedFormEncoding,
     pub(super) layout: StagedOptimizedResolvedSelectedFormLayout,
-    pub(super) requirements: ValidatedAllocatedCalleeSavedRequirements,
-    pub(super) storage: ValidatedNonAuthoritativeCalleeSaveStorage,
-    pub(super) frame: ValidatedTargetFrameLayout,
-    pub(super) protocol: ValidatedTargetFrameProtocolEncoding,
+    pub(super) frame: super::FunctionRelativeFrame,
     pub(super) exit_contract: ValidatedWholeFunctionExitContract,
     pub(super) manifest: ValidatedFunctionRelativeOptimizationRealizationManifest,
     pub(super) custody: StagedFixedFrameFunctionRelativeRealizationCustodyReceipt,
@@ -39,16 +36,16 @@ impl StagedFixedFrameFunctionRelativeRealization {
         &self.layout
     }
     pub const fn requirements(&self) -> &ValidatedAllocatedCalleeSavedRequirements {
-        &self.requirements
+        self.frame.requirements()
     }
     pub const fn storage(&self) -> &ValidatedNonAuthoritativeCalleeSaveStorage {
-        &self.storage
+        self.frame.storage()
     }
     pub const fn frame(&self) -> &ValidatedTargetFrameLayout {
-        &self.frame
+        self.frame.layout()
     }
     pub const fn protocol(&self) -> &ValidatedTargetFrameProtocolEncoding {
-        &self.protocol
+        self.frame.protocol()
     }
     pub const fn exit_contract(&self) -> &ValidatedWholeFunctionExitContract {
         &self.exit_contract
@@ -109,6 +106,7 @@ pub struct StagedPostAllocationMachineFunctionRelativeRealization {
     pub(super) encoding: StagedOptimizedSelectedFormEncoding,
     pub(super) baseline_layout: StagedOptimizedResolvedSelectedFormLayout,
     pub(super) layout: StagedOptimizedResolvedSelectedFormLayout,
+    pub(super) frame: Option<super::FunctionRelativeFrame>,
     pub(super) exit_contract: ValidatedWholeFunctionExitContract,
     pub(super) manifest: ValidatedFunctionRelativeOptimizationRealizationManifest,
     pub(super) custody: StagedPostAllocationMachineFunctionRelativeRealizationCustodyReceipt,
@@ -135,6 +133,13 @@ impl StagedPostAllocationMachineFunctionRelativeRealization {
     }
     pub const fn layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
         &self.layout
+    }
+    pub const fn frame(&self) -> Option<&super::FunctionRelativeFrame> {
+        self.frame.as_ref()
+    }
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn frame_mut_for_test(&mut self) -> &mut Option<super::FunctionRelativeFrame> {
+        &mut self.frame
     }
     pub const fn exit_contract(&self) -> &ValidatedWholeFunctionExitContract {
         &self.exit_contract

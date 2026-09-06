@@ -1061,7 +1061,7 @@ fn exit_replay_checks_claimed_records_without_reentering_the_producer() {
             "exit replay uses record producer {forbidden}"
         );
     }
-    for (file, expected_count) in [("stage.rs", 4), ("mod.rs", 1)] {
+    for (file, expected_count) in [("stage.rs", 4), ("post_allocation.rs", 1)] {
         let entrance = std::fs::read_to_string(owner.join(file)).unwrap();
         assert_eq!(
             entrance.matches("validation::validate(").count(),

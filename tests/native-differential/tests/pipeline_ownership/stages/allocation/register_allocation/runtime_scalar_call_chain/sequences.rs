@@ -2,6 +2,8 @@
 
 use crate::tests::*;
 
+mod frames;
+
 #[derive(Debug, Clone, Copy)]
 enum Sequence {
     Single,
@@ -18,6 +20,11 @@ fn sequence_artifact(sequence: Sequence) -> (Vec<u8>, Vec<u8>) {
                 operations[1].kind = operations[0].kind.clone();
             }
             Sequence::InterleavedCallees => {
+                // Exercise real MOVN shortening on Arm64; the other small
+                // constant still exercises mov-r32 shortening on x64.
+                operations[0].kind = OperationKind::IntegerConstant {
+                    value: IntegerValue::Unsigned(u128::from(u64::MAX)),
+                };
                 let left = ValueId::new(SCALAR_CALL_UNIT_LEFT).unwrap();
                 let right = ValueId::new(SCALAR_CALL_UNIT_RIGHT).unwrap();
                 let first = ValueId::new(SCALAR_CALL_UNIT_FIRST_RESULT).unwrap();
@@ -109,6 +116,15 @@ fn ordered_scalar_calls_reach_shared_object_publication_with_empty_and_selected_
             for selections in [
                 OptimizationSelections::new([]).unwrap(),
                 OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
+                OptimizationSelections::new([match target.architecture {
+                    target::Architecture::X86_64 => {
+                        Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1
+                    }
+                    target::Architecture::Aarch64 => {
+                        Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1
+                    }
+                }])
+                .unwrap(),
             ] {
                 let optimized = optimize_artifact_sections(
                     &semantic,
@@ -146,6 +162,7 @@ fn ordered_scalar_calls_reach_shared_object_publication_with_empty_and_selected_
                     .collect::<Vec<_>>();
                 assert_eq!(actual_calls, expected_calls);
                 let applied = stage_function_fragment_frame_application(emitted).unwrap();
+                assert_eq!(applied.receipt().framed_function_count(), 1);
                 let text = stage_optimized_fixed_frame_text_section(applied).unwrap();
                 assert_eq!(
                     text.text_section().resolved_internal_machine_calls.len(),

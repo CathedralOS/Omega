@@ -99,6 +99,9 @@ impl FunctionFragmentReplayInputs {
         match self {
             Self::FixedFrame(realization) => Some(realization.protocol()),
             Self::UnitBaseline(realization) => realization.protocol(),
+            Self::PostAllocationMachine(realization) => {
+                realization.frame().map(|frame| frame.protocol())
+            }
             Self::SelectedLowering(realization) => {
                 realization.frame().map(|frame| frame.protocol())
             }
@@ -112,6 +115,9 @@ impl FunctionFragmentReplayInputs {
         match self {
             Self::FixedFrame(realization) => Some(realization.frame()),
             Self::UnitBaseline(realization) => realization.frame().map(|frame| frame.layout()),
+            Self::PostAllocationMachine(realization) => {
+                realization.frame().map(|frame| frame.layout())
+            }
             Self::SelectedLowering(realization) => realization.frame().map(|frame| frame.layout()),
             _ => None,
         }

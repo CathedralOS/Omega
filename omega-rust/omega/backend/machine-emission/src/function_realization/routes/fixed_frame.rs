@@ -24,35 +24,20 @@ pub fn stage_fixed_frame_function_relative_realization(
     let layout =
         stage_optimized_resolved_selected_form_layout(selected, &machine, physical, &encoding)
             .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
-    let requirements = stage_allocated_callee_saved_requirements(
+    let frame = super::super::frame::stage_frame(
         &current,
-        AllocatedCalleeSavedRequirementPolicy::AllocatedSelectedWritesIntersectAbiPreservationV1,
-        budget,
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::CalleeSavedRequirements)?;
-    let storage = stage_non_authoritative_callee_save_storage(
-        &requirements,
-        environment,
-        NonAuthoritativeCalleeSaveStoragePolicy::CanonicalTargetPreservationGroupsV1,
-        budget,
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::CalleeSaveStorage)?;
-    let frame = stage_target_frame_layout(
         &machine,
-        &requirements,
-        &storage,
-        environment,
         TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::FrameLayout)?;
-    let protocol = stage_target_frame_protocol_encoding(
-        &frame,
-        environment,
-        TargetFrameProtocolEncodingPolicy::CanonicalFixedFrameV1,
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::FrameProtocol)?;
+        budget,
+    )?;
     let exit_contract = stage_whole_function_exit_contract_with_frame(
-        selected, &machine, physical, &encoding, &layout, &frame, &protocol,
+        selected,
+        &machine,
+        physical,
+        &encoding,
+        &layout,
+        frame.layout(),
+        frame.protocol(),
     )
     .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
     let manifest = expected_fixed_frame_manifest(
@@ -60,17 +45,17 @@ pub fn stage_fixed_frame_function_relative_realization(
         &machine,
         &encoding,
         &layout,
-        &frame,
-        &protocol,
+        frame.layout(),
+        frame.protocol(),
         &exit_contract,
     )?;
     let custody = fixed_frame_custody(
         source,
         &machine,
-        &requirements,
-        &storage,
-        &frame,
-        &protocol,
+        frame.requirements(),
+        frame.storage(),
+        frame.layout(),
+        frame.protocol(),
         &exit_contract,
         &manifest,
     );
@@ -79,10 +64,7 @@ pub fn stage_fixed_frame_function_relative_realization(
         machine,
         encoding,
         layout,
-        requirements,
-        storage,
         frame,
-        protocol,
         exit_contract,
         manifest,
         custody,
@@ -123,37 +105,21 @@ pub fn validate_fixed_frame_function_relative_realization(
         &staged.layout,
     )
     .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
-    let requirements =
-        validate_allocated_callee_saved_requirements(&current, staged.requirements.plan().clone())
-            .map_err(FunctionRelativeOptimizationRealizationError::CalleeSavedRequirements)?;
-    let storage = validate_non_authoritative_callee_save_storage(
-        &requirements,
-        environment,
-        staged.storage.plan().clone(),
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::CalleeSaveStorage)?;
-    let frame = validate_target_frame_layout(
+    super::super::frame::validate_frame(
+        &current,
         &staged.machine,
-        &requirements,
-        &storage,
-        environment,
-        staged.frame.plan().clone(),
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::FrameLayout)?;
-    let protocol = validate_target_frame_protocol_encoding(
-        &frame,
-        environment,
-        staged.protocol.plan().clone(),
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::FrameProtocol)?;
+        &staged.frame,
+        TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+    )?;
+    let frame = &staged.frame;
     validate_whole_function_exit_contract_with_frame(
         selected,
         &staged.machine,
         physical,
         &staged.encoding,
         &staged.layout,
-        &frame,
-        &protocol,
+        frame.layout(),
+        frame.protocol(),
         &staged.exit_contract,
     )
     .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
@@ -162,17 +128,17 @@ pub fn validate_fixed_frame_function_relative_realization(
         &staged.machine,
         &staged.encoding,
         &staged.layout,
-        &frame,
-        &protocol,
+        frame.layout(),
+        frame.protocol(),
         &staged.exit_contract,
     )?;
     let custody = fixed_frame_custody(
         source,
         &staged.machine,
-        &requirements,
-        &storage,
-        &frame,
-        &protocol,
+        frame.requirements(),
+        frame.storage(),
+        frame.layout(),
+        frame.protocol(),
         &staged.exit_contract,
         &manifest,
     );

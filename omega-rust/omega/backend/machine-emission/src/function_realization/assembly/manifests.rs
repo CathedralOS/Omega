@@ -18,6 +18,7 @@ pub(in crate::function_realization) fn expected_allocated_post_allocation_machin
     baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
     layout: &StagedOptimizedResolvedSelectedFormLayout,
     exit_contract: &ValidatedWholeFunctionExitContract,
+    frame: Option<&super::super::FunctionRelativeFrame>,
 ) -> Result<
     ValidatedFunctionRelativeOptimizationRealizationManifest,
     FunctionRelativeOptimizationRealizationError,
@@ -41,6 +42,7 @@ pub(in crate::function_realization) fn expected_allocated_post_allocation_machin
         baseline_layout,
         layout,
         exit_contract,
+        frame,
     )
 }
 
@@ -60,6 +62,7 @@ pub(in crate::function_realization) fn expected_post_allocation_machine_manifest
     baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
     layout: &StagedOptimizedResolvedSelectedFormLayout,
     exit_contract: &ValidatedWholeFunctionExitContract,
+    frame: Option<&super::super::FunctionRelativeFrame>,
 ) -> Result<
     ValidatedFunctionRelativeOptimizationRealizationManifest,
     FunctionRelativeOptimizationRealizationError,
@@ -103,6 +106,14 @@ pub(in crate::function_realization) fn expected_post_allocation_machine_manifest
         || exit_contract.contract().pre_layout != encoding.identity()
         || exit_contract.contract().resolved_layout != layout.identity()
         || !exit_custody_matches(normalized, exit_contract.contract().layout_custody)
+        || exit_contract.contract().frame
+            != match frame {
+                Some(frame) => machine_code::WholeFunctionFrameDisposition::CanonicalFixedFrameV1 {
+                    layout: frame.layout().receipt().identity(),
+                    protocol: frame.protocol().receipt().identity(),
+                },
+                None => machine_code::WholeFunctionFrameDisposition::FramelessV1,
+            }
     {
         return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
     }
@@ -144,7 +155,10 @@ pub(in crate::function_realization) fn expected_post_allocation_machine_manifest
         layout_policy: layout.policy(),
         scope: FunctionRelativeOptimizationRealizationScope::FunctionRelativeFragmentsWithValidatedWholeFunctionExitV1,
         statistics: final_statistics,
-        frame: FunctionRelativeFrameDisposition::Unavailable,
+        frame: match exit_contract.contract().frame {
+            machine_code::WholeFunctionFrameDisposition::FramelessV1 => FunctionRelativeFrameDisposition::Unavailable,
+            machine_code::WholeFunctionFrameDisposition::CanonicalFixedFrameV1 { layout, protocol } => FunctionRelativeFrameDisposition::CanonicalFixedFrameV1 { layout, protocol },
+        },
         machine_emission: unavailable,
         section_placement: unavailable,
         symbols: unavailable,
