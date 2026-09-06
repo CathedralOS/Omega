@@ -143,43 +143,29 @@ fn exact_target_legal_and_selected_call_chain_survives_on_both_isas() {
         assert_eq!(legal_caller.machine, caller);
         assert_eq!(
             legal_caller.recipe,
-            ScalarCallUnitLegalizationRecipe::U64EqualityConditionalThreeCallChainThenReturnUnitV1
+            ScalarCallUnitLegalizationRecipe::OrderedU64PairCallsThenReturnUnitV1
         );
-        assert_eq!(legal_caller.constants.len(), 2);
-        assert_eq!(legal_caller.calls.len(), 3);
+        let calls = legal_caller
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                legalized_operations::LegalizedScalarCallUnitOperation::Call(call) => Some(call),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(legal_caller.operations.len(), 5);
+        assert_eq!(calls.len(), 3);
         assert_eq!(
-            legal_caller
-                .calls
-                .iter()
-                .map(|call| call.operation)
-                .collect::<Vec<_>>(),
+            calls.iter().map(|call| call.operation).collect::<Vec<_>>(),
             call_operations
         );
-        assert!(legal_caller.calls.iter().all(|call| call.callee == callee));
-        assert_eq!(
-            legal_caller.calls[0].arguments[0].source.source_value(),
-            left
-        );
-        assert_eq!(
-            legal_caller.calls[0].arguments[1].source.source_value(),
-            right
-        );
-        assert_eq!(
-            legal_caller.calls[1].arguments[0].source.source_value(),
-            left
-        );
-        assert_eq!(
-            legal_caller.calls[1].arguments[1].source.source_value(),
-            right
-        );
-        assert_eq!(
-            legal_caller.calls[2].arguments[0].source.source_value(),
-            first_result
-        );
-        assert_eq!(
-            legal_caller.calls[2].arguments[1].source.source_value(),
-            second_result
-        );
+        assert!(calls.iter().all(|call| call.callee == callee));
+        assert_eq!(calls[0].arguments[0].source.source_value(), left);
+        assert_eq!(calls[0].arguments[1].source.source_value(), right);
+        assert_eq!(calls[1].arguments[0].source.source_value(), left);
+        assert_eq!(calls[1].arguments[1].source.source_value(), right);
+        assert_eq!(calls[2].arguments[0].source.source_value(), first_result);
+        assert_eq!(calls[2].arguments[1].source.source_value(), second_result);
         assert_eq!(
             legal_caller.return_edge,
             EdgeId::new(SCALAR_CALL_UNIT_RETURN_EDGE).unwrap()

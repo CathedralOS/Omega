@@ -19,11 +19,11 @@ use terminal_psi::CrashRouteBucket;
 /// Closed attached-Unit scalar-call legalization forms.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ScalarCallUnitLegalizationRecipe {
-    U64EqualityConditionalThreeCallChainThenReturnUnitV1,
+    OrderedU64PairCallsThenReturnUnitV1,
 }
 
-/// Exact custody for two U64 constants and the three-call fork/join chain
-/// that consumes them before returning Unit.
+/// Ordered straight-line U64 constants and pair-ABI calls before returning Unit.
+/// The operation order is authored data, not a fixed legalization topology.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedScalarCallUnitFunction {
     pub machine: MachineId,
@@ -31,12 +31,17 @@ pub struct LegalizedScalarCallUnitFunction {
     pub provenance: TerminalPsiProvenance,
     pub recipe: ScalarCallUnitLegalizationRecipe,
     pub entry_block: BlockId,
-    pub constants: [LegalizedScalarCallUnitConstant; 2],
-    pub calls: [LegalizedScalarCallUnitCall; 3],
+    pub operations: Vec<LegalizedScalarCallUnitOperation>,
     pub return_edge: EdgeId,
     pub return_fuel: Vec<FuelSettlement>,
     pub return_effect: EffectLink,
     pub return_ownership: Vec<OwnershipEvent>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LegalizedScalarCallUnitOperation {
+    Constant(LegalizedScalarCallUnitConstant),
+    Call(LegalizedScalarCallUnitCall),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

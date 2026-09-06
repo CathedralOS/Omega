@@ -1409,15 +1409,18 @@ x64, Linux Arm64, and macOS Arm64. It checks argument/result views, implicit
 control and stack facts, every individual call clobber, preserved-unit
 injection, platform ABI substitution, preservation-convention drift, and the
 Microsoft structural-Unit call row. This does not claim general call-crossing
-allocation coverage. One exact attached-Unit U64 fork/join chain is now
-represented in the selected CFG on Linux System V AMD64 and AAPCS64: two
-constants feed two independent calls, and their results feed a third call.
+allocation coverage. Ordered attached-Unit U64 pair-call sequences are
+represented in the selected CFG on Linux System V AMD64 and AAPCS64.
+Constants may be interleaved with calls; calls may use earlier constants or
+results and select different admitted call-free scalar callees. One fixture
+retains the fork/join case: two constants feed two independent calls, and their
+results feed a third call.
 Selection uses explicit copies around fixed argument/result views rather than
 precoloring the durable values themselves. The first result is live through
 the unrelated second call; liveness retains that call's complete clobber set,
 legality removes every aliasing caller-saved home, and deterministic
 allocation selects a preserved home without spilling on both ISAs. The legal
-and selected representations independently bind the exact three-call grammar,
+and selected representations independently bind the ordered operation stream,
 callee identities, ABI rows, values, provenance, fuel, and target identity. On
 Linux System V AMD64 and AAPCS64, each `CallI64` now enters exact target-owned
 machine-effect custody. The x86 row records the five-byte direct relative call,
@@ -1427,10 +1430,10 @@ records the four-byte direct relative call, unchanged SP/memory,
 architectural-fault behavior, and complete X30/PC effects. Current pre- and
 post-allocation formats retain and independently replay those rows, while older
 formats remain decode-only and cannot acquire scalar-call vocabulary. That
-exact attached-Unit chain now also retains replayed callee-saved requirements/
+attached-Unit call family also retains replayed callee-saved requirements/
 storage, System V AMD64 or AAPCS64 frame layout and protocol, frame-aware exit
 custody, fixed-frame realization, body-fragment emission, frame application,
-three resolved internal calls, fixed-frame text custody, relocation-free
+resolved internal calls, fixed-frame text custody, relocation-free
 object/container bytes, and optimized-object-artifact publication. Its attached
 Unit signature still cannot become an ordinary scalar callable. Separately, the
 canonical three-block/two-return scalar diamond carries a real nonzero

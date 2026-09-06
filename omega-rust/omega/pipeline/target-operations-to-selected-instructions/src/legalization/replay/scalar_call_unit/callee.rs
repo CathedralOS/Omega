@@ -1,12 +1,12 @@
-//! Exact equality-conditional callee roster join.
+//! Exact memory-free pair-call callee roster join.
 
-use super::super::functions::replay_function;
 use super::super::shared::*;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn replay_callee(
     function: usize,
     callee: semantic_vocabulary::MachineId,
+    call_plan: &calling_conventions::CallPlan,
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
@@ -17,7 +17,7 @@ pub(super) fn replay_callee(
         .iter()
         .enumerate()
         .filter(|(_, value)| value.machine == callee);
-    let Some((callee_index, target_callee)) = targets.next() else {
+    let Some((_callee_index, target_callee)) = targets.next() else {
         return Err(Error::UnsupportedSourceShape { function });
     };
     let mut abstracts = abstract_plan
@@ -37,27 +37,22 @@ pub(super) fn replay_callee(
     else {
         return Err(Error::NonCanonicalLegalizedPlan);
     };
-    let legalized_operations::LegalizedFunction::Conditional(proposed_callee) = proposed_callee
-    else {
-        return Err(Error::NonCanonicalLegalizedPlan);
-    };
     if targets.next().is_some()
         || abstracts.next().is_some()
         || optimized.next().is_some()
         || proposed.next().is_some()
-        || proposed_callee.recipe
-            != legalized_operations::LegalizationRecipe::ReturnU64IntegerEqualParametersConditionalV1
+        || proposed_callee.machine() != callee
+        || !crate::legalization::scalar_call_contract::accepts(
+            target.target,
+            target_callee,
+            abstract_callee,
+            optimized_callee,
+            call_plan,
+        )
     {
         return Err(Error::NonCanonicalLegalizedPlan);
     }
-    replay_function(
-        callee_index,
-        target.target.architecture,
-        target_callee,
-        abstract_callee,
-        optimized_callee,
-        &unit.accepted_obligation_facts,
-        proposed_callee,
-    )?;
+    // Every ordinary proposed function is independently replayed by the outer
+    // roster. This check binds this call to that exact non-recursive member.
     Ok(())
 }

@@ -339,34 +339,34 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
     };
     plan.scalar_call_unit_functions
         .push(LegalizedScalarCallUnitFunction {
-        machine,
-        attachment,
-        provenance: TerminalPsiProvenance {
-            operations: operations.to_vec(),
-            edges: vec![edge],
-        },
-        recipe:
-            ScalarCallUnitLegalizationRecipe::U64EqualityConditionalThreeCallChainThenReturnUnitV1,
-        entry_block: block,
-        constants: [constant(0, 7), constant(1, 9)],
-        calls: [
-            call(2, [immediate(0, 7), immediate(1, 9)]),
-            call(3, [immediate(0, 7), immediate(1, 9)]),
-            call(
-                4,
-                [
-                    target_operations::TargetUnitScalarArgumentSource::Home(home(2)),
-                    target_operations::TargetUnitScalarArgumentSource::Home(home(3)),
-                ],
-            ),
-        ],
-        return_edge: edge,
-        return_fuel: vec![FuelSettlement {
-            site: PsiProvenance::Edge(edge),
-            units: 1,
-        }],
-        return_effect: effect(5),
-        return_ownership: vec![OwnershipEvent::Cleanup(Vec::new())],
-    });
+            machine,
+            attachment,
+            provenance: TerminalPsiProvenance {
+                operations: operations.to_vec(),
+                edges: vec![edge],
+            },
+            recipe: ScalarCallUnitLegalizationRecipe::OrderedU64PairCallsThenReturnUnitV1,
+            entry_block: block,
+            operations: vec![
+                LegalizedScalarCallUnitOperation::Constant(constant(0, 7)),
+                LegalizedScalarCallUnitOperation::Constant(constant(1, 9)),
+                LegalizedScalarCallUnitOperation::Call(call(2, [immediate(0, 7), immediate(1, 9)])),
+                LegalizedScalarCallUnitOperation::Call(call(3, [immediate(0, 7), immediate(1, 9)])),
+                LegalizedScalarCallUnitOperation::Call(call(
+                    4,
+                    [
+                        target_operations::TargetUnitScalarArgumentSource::Home(home(2)),
+                        target_operations::TargetUnitScalarArgumentSource::Home(home(3)),
+                    ],
+                )),
+            ],
+            return_edge: edge,
+            return_fuel: vec![FuelSettlement {
+                site: PsiProvenance::Edge(edge),
+                units: 1,
+            }],
+            return_effect: effect(5),
+            return_ownership: vec![OwnershipEvent::Cleanup(Vec::new())],
+        });
     plan
 }

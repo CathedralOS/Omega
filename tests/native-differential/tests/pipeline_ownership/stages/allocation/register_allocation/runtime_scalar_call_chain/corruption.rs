@@ -2,6 +2,18 @@ use crate::tests::*;
 
 use super::fixture::{caller_machine, staged_homes, staged_selected};
 
+fn call_mut(
+    plan: &mut legalized_operations::LegalizedOperationPlan,
+    index: usize,
+) -> &mut legalized_operations::LegalizedScalarCallUnitCall {
+    let legalized_operations::LegalizedScalarCallUnitOperation::Call(call) =
+        &mut plan.scalar_call_unit_functions[0].operations[index + 2]
+    else {
+        panic!("the fixture starts with two constants followed by its calls")
+    };
+    call
+}
+
 #[test]
 fn legal_call_order_callee_plan_arguments_lineage_and_evidence_fail_closed() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
@@ -23,36 +35,32 @@ fn legal_call_order_callee_plan_arguments_lineage_and_evidence_fail_closed() {
         };
 
         let mut corrupted = original.clone();
-        corrupted.scalar_call_unit_functions[0].calls.swap(0, 1);
+        corrupted.scalar_call_unit_functions[0]
+            .operations
+            .swap(2, 3);
         expect_rejected(corrupted);
 
         let mut corrupted = original.clone();
-        corrupted.scalar_call_unit_functions[0].calls[1].callee = caller_machine();
+        call_mut(&mut corrupted, 1).callee = caller_machine();
         expect_rejected(corrupted);
 
         let mut corrupted = original.clone();
-        corrupted.scalar_call_unit_functions[0].calls[0]
-            .call_plan
-            .parameters
-            .swap(0, 1);
+        call_mut(&mut corrupted, 0).call_plan.parameters.swap(0, 1);
         expect_rejected(corrupted);
 
         let mut corrupted = original.clone();
-        let replacement = corrupted.scalar_call_unit_functions[0].calls[0].arguments[1].source;
-        corrupted.scalar_call_unit_functions[0].calls[0].arguments[0].source = replacement;
+        let replacement = call_mut(&mut corrupted, 0).arguments[1].source;
+        call_mut(&mut corrupted, 0).arguments[0].source = replacement;
         expect_rejected(corrupted);
 
         let mut corrupted = original.clone();
-        let replacement = corrupted.scalar_call_unit_functions[0].calls[0].arguments[1]
-            .placement
-            .clone();
-        corrupted.scalar_call_unit_functions[0].calls[0].arguments[0].placement = replacement;
+        let replacement = call_mut(&mut corrupted, 0).arguments[1].placement.clone();
+        call_mut(&mut corrupted, 0).arguments[0].placement = replacement;
         expect_rejected(corrupted);
 
         let mut corrupted = original.clone();
-        corrupted.scalar_call_unit_functions[0].calls[1]
-            .result_home
-            .source_value = ValueId::new(SCALAR_CALL_UNIT_FIRST_RESULT).unwrap();
+        call_mut(&mut corrupted, 1).result_home.source_value =
+            ValueId::new(SCALAR_CALL_UNIT_FIRST_RESULT).unwrap();
         expect_rejected(corrupted);
 
         let mut corrupted = original.clone();
@@ -63,7 +71,7 @@ fn legal_call_order_callee_plan_arguments_lineage_and_evidence_fail_closed() {
         expect_rejected(corrupted);
 
         let mut corrupted = original.clone();
-        corrupted.scalar_call_unit_functions[0].calls[0].fuel[0].units += 1;
+        call_mut(&mut corrupted, 0).fuel[0].units += 1;
         expect_rejected(corrupted);
     }
 }

@@ -3,6 +3,13 @@ use optimization_core::OptimizationValidatorIdentity;
 
 pub fn legalization_validator_identity() -> OptimizationValidatorIdentity {
     OptimizationValidatorIdentity::from_canonical_bytes(
+        b"omega.terminal-target-legalization-independent-replay.v23",
+    )
+}
+
+#[doc(hidden)]
+pub fn legalization_validator_identity_v22_legacy() -> OptimizationValidatorIdentity {
+    OptimizationValidatorIdentity::from_canonical_bytes(
         b"omega.terminal-target-legalization-independent-replay.v22",
     )
 }

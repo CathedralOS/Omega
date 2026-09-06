@@ -44,7 +44,9 @@ pub(super) fn validate(
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
     match (selected.kind, materialization) {
-        (kind @ SelectedInstructionKind::CallI64 { .. }, None) => {
+        (kind @ SelectedInstructionKind::CallI64 { .. }, materialization)
+            if materialization.is_none_or(MaterializationDisposition::is_retained) =>
+        {
             scalar_call::validate(target, selected.id, kind, machine, physical, &row.state)
         }
         (

@@ -4,6 +4,122 @@ use crate::tests::fixtures::scalar_call_unit::scalar_call_unit_fixture;
 use crate::{legalize_target_operations, validate_legalized_operations};
 
 #[test]
+fn one_call_and_equal_constant_operands_have_no_fixture_topology_requirement() {
+    let (mut abstract_plan, _, _) = scalar_call_unit_fixture();
+    let caller = &mut abstract_plan.functions[0];
+    caller.operations.remove(4);
+    caller.operations.remove(3);
+    let abstract_operations::AbstractOperation::IntegerConstant { value, .. } =
+        &mut caller.operations[1]
+    else {
+        unreachable!()
+    };
+    *value = semantic_vocabulary::IntegerValue::Unsigned(7);
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &abstract_plan,
+        target::NativeTarget::linux_x64(),
+    )
+    .unwrap();
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &abstract_plan,
+        semantic_vocabulary::FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    let legalized = legalize_target_operations(&target, &abstract_plan, &unit)
+        .expect("one ordinary pair call with equal constants");
+    assert_eq!(
+        legalized.plan().scalar_call_unit_functions[0]
+            .operations
+            .len(),
+        3
+    );
+    validate_legalized_operations(&target, &abstract_plan, &unit, legalized.plan().clone())
+        .expect("independent ordered replay");
+}
+
+#[test]
+fn zero_call_proposal_and_forward_references_reject() {
+    let (abstract_plan, target, unit) = scalar_call_unit_fixture();
+    let legalized = legalize_target_operations(&target, &abstract_plan, &unit).unwrap();
+    let mut no_calls = legalized.plan().clone();
+    no_calls.scalar_call_unit_functions[0]
+        .operations
+        .retain(|operation| {
+            matches!(
+                operation,
+                legalized_operations::LegalizedScalarCallUnitOperation::Constant(_)
+            )
+        });
+    assert!(validate_legalized_operations(&target, &abstract_plan, &unit, no_calls).is_err());
+
+    let mut forward = target.clone();
+    let target_operations::TargetOperation::UnitBody(body) = &mut forward.functions[0].operation
+    else {
+        unreachable!()
+    };
+    let target_operations::TargetUnitOperation::ScalarCall {
+        result_home: future,
+        ..
+    } = body.operations[3]
+    else {
+        unreachable!()
+    };
+    let target_operations::TargetUnitOperation::ScalarCall { arguments, .. } =
+        &mut body.operations[2]
+    else {
+        unreachable!()
+    };
+    arguments[0].source = target_operations::TargetUnitScalarArgumentSource::Home(future);
+    assert!(legalize_target_operations(&forward, &abstract_plan, &unit).is_err());
+    assert!(
+        validate_legalized_operations(&forward, &abstract_plan, &unit, legalized.plan().clone())
+            .is_err()
+    );
+}
+
+#[test]
+fn substituted_pair_call_plan_and_memory_effectful_callee_reject() {
+    let (abstract_plan, target, unit) = scalar_call_unit_fixture();
+    let mut changed = target.clone();
+    let target_operations::TargetOperation::UnitBody(body) = &mut changed.functions[0].operation
+    else {
+        unreachable!()
+    };
+    let target_operations::TargetUnitOperation::ScalarCall { call_plan, .. } =
+        &mut body.operations[2]
+    else {
+        unreachable!()
+    };
+    call_plan.parameters.swap(0, 1);
+    assert!(legalize_target_operations(&changed, &abstract_plan, &unit).is_err());
+
+    let mut effectful = abstract_plan.clone();
+    effectful.functions[1]
+        .operations
+        .push(abstract_operations::AbstractOperation::PortWrite {
+            psi_operation: semantic_vocabulary::OperationId::new(900).unwrap(),
+            service: semantic_vocabulary::ServiceId::new(901).unwrap(),
+            port: 1,
+            value: 2,
+        });
+    assert!(legalize_target_operations(&target, &effectful, &unit).is_err());
+}
+
+#[test]
+fn ordered_call_custody_has_a_new_identity_and_validator() {
+    let (abstract_plan, target, unit) = scalar_call_unit_fixture();
+    let legalized = legalize_target_operations(&target, &abstract_plan, &unit).unwrap();
+    assert_ne!(
+        legalized_operations::legalized_operation_plan_identity(legalized.plan()),
+        legalized_operations::legalized_operation_plan_identity_v22_legacy(legalized.plan())
+    );
+    assert_ne!(
+        crate::legalization_validator_identity(),
+        crate::legalization_validator_identity_v22_legacy()
+    );
+}
+
+#[test]
 fn exact_u64_equality_three_call_chain_is_produced_and_replayed() {
     let (abstract_plan, target, unit) = scalar_call_unit_fixture();
     let legalized = legalize_target_operations(&target, &abstract_plan, &unit)
@@ -12,31 +128,41 @@ fn exact_u64_equality_three_call_chain_is_produced_and_replayed() {
     assert_eq!(legalized.plan().functions.len(), 1);
     assert_eq!(legalized.receipt().function_count(), 2);
     let function = &legalized.plan().scalar_call_unit_functions[0];
-    assert_eq!(function.constants.len(), 2);
-    assert_eq!(function.calls.len(), 3);
-    assert_eq!(function.calls[0].arguments, function.calls[1].arguments);
+    let calls = function
+        .operations
+        .iter()
+        .filter_map(|operation| match operation {
+            legalized_operations::LegalizedScalarCallUnitOperation::Call(call) => Some(call),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(function.operations.len(), 5);
+    assert_eq!(calls.len(), 3);
+    assert_eq!(calls[0].arguments, calls[1].arguments);
     assert!(
-        matches!(function.calls[2].arguments[0].source, target_operations::TargetUnitScalarArgumentSource::Home(home) if home == function.calls[0].result_home)
+        matches!(calls[2].arguments[0].source, target_operations::TargetUnitScalarArgumentSource::Home(home) if home == calls[0].result_home)
     );
     assert!(
-        matches!(function.calls[2].arguments[1].source, target_operations::TargetUnitScalarArgumentSource::Home(home) if home == function.calls[1].result_home)
+        matches!(calls[2].arguments[1].source, target_operations::TargetUnitScalarArgumentSource::Home(home) if home == calls[1].result_home)
     );
 
     let mut corruptions = Vec::new();
     let mut corrupted = legalized.plan().clone();
-    corrupted.scalar_call_unit_functions[0].constants.swap(0, 1);
+    corrupted.scalar_call_unit_functions[0]
+        .operations
+        .swap(0, 1);
     corruptions.push(corrupted);
     let mut corrupted = legalized.plan().clone();
-    corrupted.scalar_call_unit_functions[0].calls[0]
+    call_mut(&mut corrupted.scalar_call_unit_functions[0], 0)
         .arguments
         .swap(0, 1);
     corruptions.push(corrupted);
     let mut corrupted = legalized.plan().clone();
-    corrupted.scalar_call_unit_functions[0].calls[2].result_home =
-        corrupted.scalar_call_unit_functions[0].calls[1].result_home;
+    call_mut(&mut corrupted.scalar_call_unit_functions[0], 2).result_home =
+        call_mut(&mut corrupted.scalar_call_unit_functions[0], 1).result_home;
     corruptions.push(corrupted);
     let mut corrupted = legalized.plan().clone();
-    corrupted.scalar_call_unit_functions[0].calls[1].fuel[0].units += 1;
+    call_mut(&mut corrupted.scalar_call_unit_functions[0], 1).fuel[0].units += 1;
     corruptions.push(corrupted);
     let mut corrupted = legalized.plan().clone();
     corrupted.scalar_call_unit_functions.clear();
@@ -44,4 +170,19 @@ fn exact_u64_equality_three_call_chain_is_produced_and_replayed() {
     for corrupted in corruptions {
         assert!(validate_legalized_operations(&target, &abstract_plan, &unit, corrupted).is_err());
     }
+}
+
+fn call_mut(
+    function: &mut legalized_operations::LegalizedScalarCallUnitFunction,
+    index: usize,
+) -> &mut legalized_operations::LegalizedScalarCallUnitCall {
+    function
+        .operations
+        .iter_mut()
+        .filter_map(|operation| match operation {
+            legalized_operations::LegalizedScalarCallUnitOperation::Call(call) => Some(call),
+            _ => None,
+        })
+        .nth(index)
+        .expect("call fixture")
 }

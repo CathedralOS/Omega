@@ -11,6 +11,7 @@ pub(super) use legalized_operations::{
     LegalizedImmediate as SourceImmediate, LegalizedLeaf as SourceLeaf,
     LegalizedLeafValue as SourceLeafValue, LegalizedScalarCallUnitArgument,
     LegalizedScalarCallUnitCall, LegalizedScalarCallUnitConstant, LegalizedScalarCallUnitFunction,
+    LegalizedScalarCallUnitOperation,
     LegalizedStructuralUnitFunction as SourceStructuralUnitFunction, LegalizedTemporaryId,
     LegalizedUnitFunction as SourceUnitFunction, ScalarCallUnitLegalizationRecipe,
 };

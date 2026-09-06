@@ -941,9 +941,10 @@ grammar, operation, node, callee, and projection leaves; independent replay
 descends through the sibling
 `legalization/replay/scalar_call_unit/` entrance and its own contract, grammar,
 operation, and callee leaves. The catalog row is the sole enablement point.
-This keeps the exact
-two-constant, three-call fork/join form visible without adding call policy to
-the ordinary-roster coordinator.
+The legalized function carries an ordered constant/call sum, not separate
+fixed-size arrays or a fixture-specific fork/join recipe. The leaves check
+definition-before-use and each callee's exact admitted U64 pair ABI without
+adding call policy to the ordinary-roster coordinator.
 
 Selection continues through
 `selection/construction/projected_structural_call_return/`. Its 70-line

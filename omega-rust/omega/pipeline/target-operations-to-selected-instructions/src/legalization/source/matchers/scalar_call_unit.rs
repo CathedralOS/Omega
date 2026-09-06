@@ -10,21 +10,27 @@ pub(in crate::legalization::source) fn match_scalar_call_unit_form(
     let TargetOperation::UnitBody(body) = &target.operation else {
         return None;
     };
-    let [
-        TargetUnitOperation::IntegerConstant { .. },
-        TargetUnitOperation::IntegerConstant { .. },
-        TargetUnitOperation::ScalarCall { .. },
-        TargetUnitOperation::ScalarCall { .. },
-        TargetUnitOperation::ScalarCall { .. },
-        TargetUnitOperation::Return { .. },
-    ] = body.operations.as_slice()
+    let Some((TargetUnitOperation::Return { .. }, operations)) = body.operations.split_last()
     else {
         return None;
     };
+    if !operations
+        .iter()
+        .any(|operation| matches!(operation, TargetUnitOperation::ScalarCall { .. }))
+        || operations.iter().any(|operation| {
+            !matches!(
+                operation,
+                TargetUnitOperation::IntegerConstant { .. }
+                    | TargetUnitOperation::ScalarCall { .. }
+            )
+        })
+    {
+        return None;
+    }
     LEGALIZATION_FORMS.iter().find(|form| {
         form.producer_matcher
             == LegalizationProducerMatcherKind::ScalarCallUnit(
-                ScalarCallUnitLegalizationMatcherKind::U64EqualityConditionalThreeCallChain,
+                ScalarCallUnitLegalizationMatcherKind::OrderedU64PairCalls,
             )
     })
 }

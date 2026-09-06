@@ -1,4 +1,4 @@
-//! Exact source/target grammar joins for the three-call chain.
+//! Exact source/target joins for ordered scalar-call operations.
 
 use super::super::shared::*;
 
