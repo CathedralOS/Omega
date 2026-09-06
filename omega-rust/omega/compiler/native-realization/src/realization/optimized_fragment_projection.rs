@@ -1,24 +1,10 @@
-//! Narrow publication projection for the first optimized fragment cohort.
+//! Product evidence joins for native fragment publication.
 //!
-//! The optimizer owns instruction selection and fragment validation. This
-//! module only rejoins the already validated, return-only Unit fragments to
-//! the established native object/image path. It deliberately does not infer
-//! evidence for calls, frames, spills, effects, or scalar results. Admission
-//! is based on the emitted fragment shape, not the optimization route that
-//! produced it.
+//! Machine emission owns frame application and native function construction;
+//! this coordinator binds the published result to Terminal and selected execution.
 
-use machine_code::{
-    FunctionAppliedFrameProtocol, FunctionFragmentEmissionPlan, MachineCodeFunction,
-    MachineCodePlan, SemanticCodeAttribution, SemanticCodeSite,
-};
-use machine_emission::{
-    StagedFunctionFragmentFrameApplication, StagedOptimizedFunctionFragmentEmission,
-    stage_function_fragment_frame_application, validate_optimized_function_fragment_emission,
-};
-
-use super::optimized_fragment_unit_stack::unit_stack_evidence;
 use diagnostics::Diagnostic;
-use selected_instructions::MachineAlternativeFamily;
+use machine_code::MachineCodePlan;
 
 pub(super) struct OptimizedFragmentPublicationRequest<'request> {
     /// Exact original scope is reusable only for the identity optimization run.
@@ -64,16 +50,23 @@ pub(super) fn emit_return_only_optimized_fragments(
     .map_err(|error| {
         super::diagnostics::realization_error("optimized function-fragment emission", error)
     })?;
-    let projected = ProjectedFragments::from_emission(emitted).map_err(|error| {
-        super::diagnostics::realization_error(
-            "optimized function-fragment frame application",
-            error,
-        )
-    })?;
-    let fragments = projected.emission();
-    let plan = project_return_only_unit_fragments(&projected).map_err(|error| {
-        super::diagnostics::realization_error("optimized fragment native publication", error)
-    })?;
+    let publication =
+        machine_emission::publish_function_fragments(emitted).map_err(|error| match error {
+            machine_emission::FragmentNativePublicationError::FrameApplication(error) => {
+                super::diagnostics::realization_error(
+                    "optimized function-fragment frame application",
+                    error,
+                )
+            }
+            machine_emission::FragmentNativePublicationError::UnsupportedProjection(error) => {
+                super::diagnostics::realization_error(
+                    "optimized fragment native publication",
+                    error,
+                )
+            }
+        })?;
+    let fragments = publication.source();
+    let plan = publication.plan();
     let physical_evidence_scope = match (
         request.boundary_application_coverage,
         selected_lowering_completion,
@@ -95,7 +88,7 @@ pub(super) fn emit_return_only_optimized_fragments(
                 realization_manifest.identity,
                 fragments.custody().fragments(),
                 fragments.custody().manifest(),
-                &plan,
+                plan,
             );
             native_artifact::NativePhysicalEvidenceScope::from_validated_selected_lowering_optimization(
                 request.optimized_plan,
@@ -123,315 +116,21 @@ pub(super) fn emit_return_only_optimized_fragments(
         }
         (None, _) => native_artifact::NativePhysicalEvidenceScope::Unavailable,
     };
-    Ok((plan, physical_evidence_scope))
-}
-
-/// The emitted fragments plus, where the realization owns a target frame
-/// protocol, its applied prologue and epilogue bytes. A route without a frame
-/// protocol publishes the emitted fragments unchanged.
-enum ProjectedFragments {
-    Frameless(StagedOptimizedFunctionFragmentEmission),
-    Framed(StagedFunctionFragmentFrameApplication),
-}
-
-impl ProjectedFragments {
-    fn from_emission(
-        emitted: StagedOptimizedFunctionFragmentEmission,
-    ) -> Result<Self, machine_emission::FunctionFragmentFrameApplicationError> {
-        if emitted.source().frame_protocol().is_none() {
-            return Ok(Self::Frameless(emitted));
-        }
-        stage_function_fragment_frame_application(emitted).map(Self::Framed)
-    }
-
-    const fn emission(&self) -> &StagedOptimizedFunctionFragmentEmission {
-        match self {
-            Self::Frameless(emitted) => emitted,
-            Self::Framed(applied) => applied.source(),
-        }
-    }
-
-    fn fragments(&self) -> &FunctionFragmentEmissionPlan {
-        match self {
-            Self::Frameless(emitted) => emitted.fragments(),
-            Self::Framed(applied) => applied.fragments(),
-        }
-    }
-
-    fn applied_frames(&self) -> &[FunctionAppliedFrameProtocol] {
-        match self {
-            Self::Frameless(_) => &[],
-            Self::Framed(applied) => &applied.application().functions,
-        }
-    }
-}
-
-fn project_return_only_unit_fragments(
-    projected: &ProjectedFragments,
-) -> Result<MachineCodePlan, &'static str> {
-    let staged = projected.emission();
-    validate_optimized_function_fragment_emission(staged)
-        .map_err(|_| "optimized fragment custody failed replay")?;
-    let fragments = projected.fragments();
-    let return_bytes: &[u8] = match (
-        fragments.target.architecture,
-        fragments.target.pointer_size,
-        fragments.target.pointer_alignment,
-    ) {
-        (target::Architecture::X86_64, 8, 8) => &[0xc3],
-        (target::Architecture::Aarch64, 8, 8) => &[0xc0, 0x03, 0x5f, 0xd6],
-        _ => {
-            return Err("optimized return-only publication requires an eight-byte pointer target");
-        }
-    };
-    if !fragments.structural_unit_functions.is_empty() {
-        return Err("optimized native publication does not yet admit structural Unit fragments");
-    }
-
-    let functions = fragments
-        .functions
-        .iter()
-        .map(|fragment| {
-            project_function(
-                fragment,
-                return_bytes,
-                projected
-                    .applied_frames()
-                    .iter()
-                    .find(|row| row.machine == fragment.machine),
-                staged.source().frame_layout(),
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    if functions.is_empty() {
-        return Err("optimized native publication requires at least one function");
-    }
-
-    Ok(MachineCodePlan {
-        psi: fragments.psi,
-        target: fragments.target,
-        entry: fragments.entry,
-        functions,
-    })
-}
-
-fn project_function(
-    fragment: &machine_code::FunctionFragment,
-    return_bytes: &[u8],
-    applied_frame: Option<&FunctionAppliedFrameProtocol>,
-    frame_layout: Option<&machine_emission::frame_layout::ValidatedTargetFrameLayout>,
-) -> Result<MachineCodeFunction, &'static str> {
-    let stack = unit_stack_evidence(fragment, return_bytes, applied_frame, frame_layout)?;
-    // A framed function opens its block after the prologue and places the
-    // return after the epilogue that restores the frame.
-    let (block_offset, return_offset) = match applied_frame {
-        Some(row) => {
-            let [epilogue] = row.epilogues.as_slice() else {
-                return Err("optimized framed Unit fragment requires one applied epilogue");
-            };
-            (
-                row.prologue_byte_count,
-                row.prologue_byte_count + epilogue.byte_count,
-            )
-        }
-        None => (0, 0),
-    };
-    let [block] = fragment.blocks.as_slice() else {
-        return Err(
-            "optimized native publication currently admits one return-only block per function",
-        );
-    };
-    let [instruction] = block.instructions.as_slice() else {
-        return Err(
-            "optimized native publication currently admits one return-only instruction per function",
-        );
-    };
-    let machine_code::FunctionFragmentControlProvenance::Return { psi_return_edge } =
-        instruction.control
-    else {
-        return Err("optimized native publication currently admits only Unit returns");
-    };
-    if instruction.alternative.family != MachineAlternativeFamily::ReturnUnit
-        || instruction.branch.is_some()
-        || !instruction.provenance.operations.is_empty()
-        || !instruction.provenance.values.is_empty()
-        || !instruction.provenance.obligations.is_empty()
-        || instruction.provenance.edges.as_slice() != [psi_return_edge]
-        || !fragment.provenance.operations.is_empty()
-        || fragment.provenance.edges.as_slice() != [psi_return_edge]
-        || fragment.bytes.get(return_offset as usize..) != Some(return_bytes)
-        || block.offset != block_offset
-        || block.byte_count != fragment.byte_count.saturating_sub(block_offset)
-        || instruction.offset != return_offset
-        || instruction.bytes != return_bytes
-        || usize::try_from(fragment.byte_count).ok() != Some(fragment.bytes.len())
-    {
-        return Err("optimized Unit return fragment is not an exact publication projection");
-    }
-
-    Ok(MachineCodeFunction {
-        machine: fragment.machine,
-        attachment: fragment.attachment,
-        fixed_integer_scalar_abi: None,
-        mixed_structural_scalar_abi: None,
-        structural_call_scalar_return: None,
-        unit_scalar_abi: None,
-        provenance: fragment.provenance.clone(),
-        bytes: fragment.bytes.clone(),
-        x86_scalar_fma: Vec::new(),
-        x86_scalar_fma_occurrences: Vec::new(),
-        x86_floating_control: None,
-        unit_stack: Some(stack),
-        unit_parameter_homes: Vec::new(),
-        unit_parameters: Vec::new(),
-        scalar_stack: None,
-        internal_calls: Vec::new(),
-        foreign_calls: Vec::new(),
-        internal_unit_calls: Vec::new(),
-        internal_unit_scalar_calls: Vec::new(),
-        installed_provider_unit_scalar_calls: Vec::new(),
-        dynamic_calls: Vec::new(),
-        stored_dynamic_calls: Vec::new(),
-        dynamic_parameter_calls: Vec::new(),
-        forwarded_dynamic_parameter_calls: Vec::new(),
-        forwarded_dynamic_descriptor_calls: Vec::new(),
-        unit_scalar_homes: Vec::new(),
-        unit_integer_constants: Vec::new(),
-        unit_affine_scalar_records: Vec::new(),
-        unit_structural_scalar_field_stores: Vec::new(),
-        unit_write_only_primitive_stores: Vec::new(),
-        scalar_structural_scalar_field_stores: Vec::new(),
-        unit_affine_cleanup: Some(machine_code::UnitAffineCleanupRecord {
-            psi_edge: psi_return_edge,
-            structural_types: Vec::new(),
-            locals: Vec::new(),
-            actions: Vec::new(),
-            code_offset: 0,
-            byte_count: fragment.bytes.len(),
-        }),
-        scalar_affine_cleanup: None,
-        scalar_control_affine_cleanups: Vec::new(),
-        scalar_structural_parameters: Vec::new(),
-        scalar_structural_parameter_homes: Vec::new(),
-        ranked_u32_countdown: None,
-        semantic_code_attribution: vec![SemanticCodeAttribution {
-            site: SemanticCodeSite::Edge(psi_return_edge),
-            operation_ordinal: 0,
-            code_offset: 0,
-            byte_count: fragment.bytes.len(),
-        }],
-        port_effects: Vec::new(),
-        boundary_settlements: Vec::new(),
-        structural_return: None,
-    })
+    Ok((publication.into_plan(), physical_evidence_scope))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use machine_code::{
-        FunctionFragment, FunctionFragmentBlockSpan, FunctionFragmentControlProvenance,
-        FunctionFragmentInstructionSpan,
-    };
-    use selected_instructions::{
-        MachineAlternativeKey, SelectedBlockId, SelectedInstructionId,
-        SelectedInstructionProvenance,
-    };
-    use semantic_vocabulary::{EdgeId, MachineId};
-    use target_operations::TerminalPsiProvenance;
-
-    const X86_RETURN: &[u8] = &[0xc3];
-    const AARCH64_RETURN: &[u8] = &[0xc0, 0x03, 0x5f, 0xd6];
-
-    fn return_fragment(return_bytes: &[u8]) -> FunctionFragment {
-        let edge = EdgeId::new(7).expect("edge");
-        let byte_count = return_bytes.len() as u64;
-        FunctionFragment {
-            machine: MachineId::new(3).expect("machine"),
-            attachment: None,
-            provenance: TerminalPsiProvenance {
-                operations: Vec::new(),
-                edges: vec![edge],
-            },
-            byte_count,
-            bytes: return_bytes.to_vec(),
-            blocks: vec![FunctionFragmentBlockSpan {
-                block: SelectedBlockId(0),
-                offset: 0,
-                byte_count,
-                instructions: vec![FunctionFragmentInstructionSpan {
-                    instruction: SelectedInstructionId(0),
-                    alternative: MachineAlternativeKey {
-                        family: MachineAlternativeFamily::ReturnUnit,
-                        variant: 0,
-                    },
-                    offset: 0,
-                    bytes: return_bytes.to_vec(),
-                    branch: None,
-                    internal_machine_fixup: None,
-                    provenance: SelectedInstructionProvenance {
-                        operations: Vec::new(),
-                        values: Vec::new(),
-                        edges: vec![edge],
-                        obligations: Vec::new(),
-                        fuel: Vec::new(),
-                    },
-                    control: FunctionFragmentControlProvenance::Return {
-                        psi_return_edge: edge,
-                    },
-                }],
-            }],
-        }
-    }
-
-    #[test]
-    fn exact_return_projects_explicit_empty_unit_custody() {
-        for return_bytes in [X86_RETURN, AARCH64_RETURN] {
-            let projected =
-                project_function(&return_fragment(return_bytes), return_bytes, None, None)
-                    .expect("exact Unit return");
-            assert_eq!(projected.bytes, return_bytes);
-            let stack = projected.unit_stack.expect("Unit stack evidence");
-            assert!(stack.frame.is_none());
-            assert!(stack.aarch64_return_link.is_none());
-            assert_eq!(stack.stack_alignment, 16);
-            assert!(projected.unit_affine_cleanup.is_some());
-            assert_eq!(projected.semantic_code_attribution.len(), 1);
-        }
-    }
-
-    #[test]
-    fn altered_return_family_or_bytes_rejects() {
-        for return_bytes in [X86_RETURN, AARCH64_RETURN] {
-            let mut wrong_family = return_fragment(return_bytes);
-            wrong_family.blocks[0].instructions[0].alternative.family =
-                MachineAlternativeFamily::ReturnI64;
-            assert!(project_function(&wrong_family, return_bytes, None, None).is_err());
-
-            let mut wrong_bytes = return_fragment(return_bytes);
-            wrong_bytes.blocks[0].instructions[0].bytes[0] = 0x90;
-            assert!(project_function(&wrong_bytes, return_bytes, None, None).is_err());
-        }
-    }
-
-    #[test]
-    fn one_architectures_return_encoding_rejects_under_the_other() {
-        assert!(
-            project_function(&return_fragment(X86_RETURN), AARCH64_RETURN, None, None).is_err()
-        );
-        assert!(
-            project_function(&return_fragment(AARCH64_RETURN), X86_RETURN, None, None).is_err()
-        );
-    }
-    /// An empty machine selected for optimization joins Terminal Psi to object
-    /// custody. Only x86-64 is exercised: an authored empty machine resolves to
-    /// `CanonicalFixedFrameBodyV1`, not the Unit baseline route, and that route
-    /// takes the AAPCS64 leaf exemption, so its AArch64 function is still a
-    /// bare `ret` the object boundary rejects. `TASKS_OPTIMIZER.md` owns that.
+    /// The compiler reaches object custody through the backend's public
+    /// fragment publication entry, without constructing native records itself.
     #[test]
     fn optimized_empty_machine_reaches_object_custody() {
-        {
-            let (target, expected_bytes) = (target::NativeTarget::linux_x64(), 1_usize);
+        for (target, expected_bytes) in [
+            (target::NativeTarget::windows_x64(), 1_usize),
+            (target::NativeTarget::linux_x64(), 1),
+            (target::NativeTarget::linux_arm64(), 20),
+            (target::NativeTarget::macos_arm64(), 20),
+        ] {
             let checked = crate::tests::fixtures::checked_source::checked(
                 "data Main {} machine Main::launch() {}",
             );
@@ -467,10 +166,9 @@ mod tests {
                 physical.into_function_fragment_emission_source(),
             )
             .expect("optimized function-fragment emission");
-            let projected =
-                ProjectedFragments::from_emission(emitted).expect("applied frame protocol");
-            let plan =
-                project_return_only_unit_fragments(&projected).expect("return-only projection");
+            let publication = machine_emission::publish_function_fragments(emitted)
+                .expect("native fragment publication");
+            let plan = publication.plan();
 
             let [function] = plan.functions.as_slice() else {
                 panic!("one projected Unit function");
@@ -483,7 +181,7 @@ mod tests {
             );
             assert_eq!(stack.frame.is_some(), stack.aarch64_return_link.is_some());
 
-            let object = image_emission::build_object_artifact(&plan)
+            let object = image_emission::build_object_artifact(plan)
                 .expect("optimized empty machine reaches object custody");
             assert_eq!(object.target(), target);
             assert_eq!(object.text_bytes(), function.bytes.as_slice());

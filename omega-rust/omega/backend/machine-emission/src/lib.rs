@@ -7,6 +7,10 @@ mod function_realization;
 pub use function_realization::*;
 mod fragment_emission;
 pub use fragment_emission::*;
+mod native_publication;
+pub use native_publication::{
+    FragmentNativePublicationError, StagedFragmentNativePublication, publish_function_fragments,
+};
 mod text_placement;
 pub use text_placement::custody::*;
 pub use text_placement::{

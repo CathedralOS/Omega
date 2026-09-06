@@ -6,10 +6,10 @@
 //! frame bytes and the target-owned geometry that produced them; it emits no
 //! instructions and admits no frame of its own.
 
+use crate::frame_layout::ReturnAddressFrameCustody;
 use machine_code::{
     Aarch64ReturnLinkEvidence, FunctionAppliedFrameProtocol, StackAdjustmentPair, UnitStackEvidence,
 };
-use machine_emission::frame_layout::ReturnAddressFrameCustody;
 
 /// Derive the object boundary's Unit stack evidence from the applied frame
 /// bytes and the target-owned geometry that produced them. A frameless route
@@ -18,7 +18,7 @@ pub(super) fn unit_stack_evidence(
     fragment: &machine_code::FunctionFragment,
     return_bytes: &[u8],
     applied_frame: Option<&FunctionAppliedFrameProtocol>,
-    frame_layout: Option<&machine_emission::frame_layout::ValidatedTargetFrameLayout>,
+    frame_layout: Option<&crate::frame_layout::ValidatedTargetFrameLayout>,
 ) -> Result<UnitStackEvidence, &'static str> {
     // A zero-byte protocol adds no prologue or epilogue, which is the shape a
     // frameless x86-64 Unit leaf keeps and the object boundary admits there.
