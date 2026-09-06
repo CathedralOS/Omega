@@ -36,4 +36,5 @@ chain obligations.
 | `COMPOSED_ARTIFACT.md` | Exact evaluator-tape plus Gamma-source executable identity and atomic publication rule. | Replace only with an equally explicit executable composition. |
 | `evaluator/gamma_evaluator.beta` | Readable immediate-prior-rung implementation. | Replace with a smaller or more complete Beta implementation. |
 | `evaluator/gamma_evaluator_bytecode.tape` | Platform-independent executable derived from the Beta source. | Regenerate atomically when the evaluator source changes. |
+| `derivation_checker/` | Source-owned outer request admission for the planned Gamma derivation checker; no complete checker or proof-accepting entry yet. | Replace only with a complete checker that retains the same bounded input custody. |
 | `bootstrap/concatenative/` | Downgraded former Gamma implementation and receipts. | Delete after the new Gamma-to-Delta bootstrap edge supersedes its remaining evidence. |

@@ -1,0 +1,16 @@
+(def admit_derivation_request () Int
+  (let request_length Int (input)
+    (if (lt request_length 24)
+      (admission_rejected 1 request_length)
+      (let identity_failure Int (admission_identity_failure)
+        (if (lt identity_failure 0)
+          (let reserved_failure Int (admission_reserved_failure)
+            (if (lt reserved_failure 0)
+              (let high_failure Int (admission_high_length_failure)
+                (if (lt high_failure 0)
+                  (admission_sections request_length
+                    (admission_length 8) (admission_length 12)
+                    (admission_length 16))
+                  (admission_rejected 3 high_failure)))
+              (admission_rejected 2 reserved_failure)))
+          (admission_rejected 2 identity_failure))))))
