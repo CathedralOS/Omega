@@ -12,6 +12,9 @@ mod affine_call_result;
 #[path = "terminal_psi_structural_return/projected_call_result.rs"]
 mod projected_call_result;
 
+#[path = "terminal_psi_structural_return/projected_result_fragments.rs"]
+mod projected_result_fragments;
+
 #[cfg(unix)]
 #[path = "terminal_psi_structural_return/affine_call_result/host.rs"]
 mod affine_call_result_host;

@@ -1674,14 +1674,18 @@ signature and declared service reach. Result custody is installed only after
 the call's input transfers and completion receipts; it grants no input claim
 completion. Native production also admits one leading ordinary identity result
 followed by projected Unit disposers, with no other live roots. Its claim-free,
-unqualified record or fixed-array result occupies exactly eight or sixteen bytes,
-aligned to eight, with complete eight-byte direct-register fragments. The call
-stores those fragments into a distinct result home before later projected copies;
+unqualified record or fixed-array result retains the direct structural-return
+ABI limits below. Each direct-register fragment must have an existing native
+load/store width of one, two, four, or eight bytes. Aggregate result homes align
+to at least eight bytes while retaining the exact logical byte extent; alignment
+padding precedes the home and cannot authorize an oversized store. The call
+stores each fragment at its actual width into a distinct result home before
+later projected copies;
 the result is not relabeled as an input parameter or a tagged sum. Assignment,
 object validation, and installation replay retain the real producer/result,
 independently reconstruct the store bytes and intervals, reject overlapping
 homes, and reconstruct the residual or empty complement. Boundary-result native
-projection, partial-width fragment stores, anonymous projected helper-result
+projection, multi-instruction fragment packing, anonymous projected helper-result
 operands, claims, nominal destruction, and partial construction remain outside
 this native slice.
 
