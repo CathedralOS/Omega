@@ -37,7 +37,14 @@ Epsilon evaluator.
   by concrete compiler-edge certificates as an ordinary Gamma program run by
   the Beta evaluator. It validates an explicit derivation for an independently
   reconstructed proposition and performs no proof search, artifact discovery,
-  deployment policy, or source-to-obligation inference. Acceptance: malformed,
+  deployment policy, or source-to-obligation inference. Follow the
+  [ground equality implementation design](wiki/architecture/bootstrap_chain/derivation_calculus.md):
+  specify the concrete encoding/profile, implement conservative theory formation
+  and explicit equality rules, then author the complete Beta definition package
+  and owner-fixed encoding proposition. The first certificate must cover the
+  entire selected Gamma evaluator's Beta source and persisted Alpha tape;
+  rule-unit tests or assembler agreement cannot replace it. Acceptance: that
+  full certificate passes with measured storage, size, depth, and time; malformed,
   cyclic, missing-premise, wrong-subject, wrong-rule, and resource-exhausted
   certificates cannot accept within the published Gamma bounds.
 
