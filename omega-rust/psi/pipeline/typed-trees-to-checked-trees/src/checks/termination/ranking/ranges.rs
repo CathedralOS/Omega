@@ -5,18 +5,33 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 
-pub(super) fn violation(
+mod relational;
+
+pub(super) struct RangeProof {
+    /// Only the relational tier also checks strict decrease on every exact
+    /// self-edge. Static membership must still pass the existing descent owner.
+    pub strict_decrease_proven: bool,
+}
+
+pub(super) fn check(
     program: &TypedTrees,
     machine: &Machine,
     range: &language_semantics::RankRange,
     order: &RankingOrder,
     measure: DecreaseMeasure,
-) -> Option<String> {
+) -> Result<RangeProof, String> {
     if proves_range(program, machine, order, measure) == Some(true) {
-        return None;
+        return Ok(RangeProof {
+            strict_decrease_proven: false,
+        });
+    }
+    if relational::prove(program, machine, measure, order) {
+        return Ok(RangeProof {
+            strict_decrease_proven: true,
+        });
     }
     let separator = if range.ceiling_inclusive { "..=" } else { ".." };
-    Some(format!(
+    Err(format!(
         "cannot prove rank range `{}{separator}{}` for the rank produced by the selected view",
         range.floor, range.ceiling,
     ))

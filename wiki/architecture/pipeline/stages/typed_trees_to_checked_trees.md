@@ -1679,6 +1679,21 @@ Current ownership is:
   requires it to remain pinned. Named-state transport, other dependent endpoints,
   mutable premises, and custom-view range facts remain unproved in this tier;
   normalized display strings and concrete caller literals are not evidence.
+  `ranking/ranges/relational.rs` adds an exact single-state relational tier
+  when the static range proof is insufficient. It establishes entry membership
+  from declared bounds and machine requirements without borrowing a backedge
+  guard, including on acyclic bodies. Each actual self-edge then proves
+  membership, fixed range endpoints, and strict descent using simultaneous
+  parameter substitution and its live guards. The shared
+  `validation/src/contract_entailment/ranking_range.rs` query uses the existing
+  strict-symbol arithmetic engine; evaluated prefix expressions undergo
+  builtin-meaning checks separately from guard hypotheses. An `IncreasingTo`
+  limit remains pinned, while either ranked `BoundedDistance` subject may
+  change. Raw distance represents the natural rank only after its nonnegative
+  branch is proved; the original clamped static tier remains intact. Range
+  membership alone cannot authorize termination. A successful static range
+  proof still follows the existing decrease route; named-state, mutable,
+  custom-view, and call-component range transport need further proof support.
   Parameter delivery establishes the range these proofs consume:
   `validation/src/calls/argument_bounds.rs` applies the shared store-containment
   check to numeric arguments using their evaluation snapshots and guard polarity.
