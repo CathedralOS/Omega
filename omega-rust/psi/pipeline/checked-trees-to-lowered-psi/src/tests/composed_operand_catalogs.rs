@@ -329,3 +329,358 @@ fn closed_sum_computed_operand_keeps_payload_for_the_following_call() {
         );
     }
 }
+
+const CLOSED_SUM_UNIT_SOURCE: &str = r#"
+        machine identity(value: i32) -> i32 { value }
+        data ByteRead { case Eof; case Byte(value: i32 [0..=255]); }
+        boundary trait Console {
+            machine read_byte() -> ByteRead reaches Console;
+            machine write_byte(value: i32) reaches Console;
+            machine exit_process(value: i32) reaches Console;
+        }
+        machine consume(value: i32) reaches Console {
+            Console::write_byte(value);
+        }
+        data Main { console: Console; }
+        machine Main::main(&mut self) reaches Console {
+            let result: ByteRead = self.console.read_byte();
+            transition result {
+                ByteRead::Byte { value } -> byte(value)
+                ByteRead::Eof -> eof()
+            }
+            state byte(&mut self, value: i32 [0..=255]) {
+                consume(identity(value));
+                self.console.exit_process(value);
+            }
+            state eof(&mut self) { self.console.exit_process(70); }
+        }
+        "#;
+
+#[test]
+fn closed_sum_payload_calls_an_observable_ordinary_unit_body() {
+    let checked = checked_source(CLOSED_SUM_UNIT_SOURCE);
+    let lowered = roundtrip(&checked);
+    assert_eq!(lowered.semantic_module.machines.len(), 3);
+    assert!(lowered.semantic_module.machines.iter().any(|machine| {
+        machine.id != lowered.semantic_module.entry
+            && machine.blocks.iter().any(|block| {
+                block
+                    .operations
+                    .iter()
+                    .any(|operation| matches!(operation.kind, OperationKind::BoundaryCall { .. }))
+            })
+    }));
+}
+
+#[test]
+fn closed_sum_unit_closure_shares_helpers_and_preserves_payload_and_cleanup() {
+    for qualified in [false, true] {
+        for trailing in [false, true] {
+            let source = CLOSED_SUM_UNIT_SOURCE
+                .replace(
+                    "machine consume(value: i32)",
+                    "data Empty {}\n machine consume(value: i32)",
+                )
+                .replace(
+                    "Console::write_byte(value);",
+                    r#"
+                    Console::write_byte(identity(value));
+                    forward(identity(value));
+                "#,
+                )
+                .replace(
+                    "data Main {",
+                    r#"
+                    machine forward(value: i32) reaches Console {
+                        let first: Empty = Empty {};
+                        let second: Empty = Empty {};
+                        Console::write_byte(identity(value));
+                    }
+                    data Main {
+                "#,
+                )
+                .replace(
+                    "consume(identity(value));",
+                    r#"
+                    self.console.write_byte(value);
+                    consume(identity(identity(value)));
+                "#,
+                )
+                .replace(
+                    "self.console.exit_process(value);",
+                    "self.console.exit_process(value); consume(identity(value));",
+                )
+                .replace(
+                    "self.console.exit_process(70);",
+                    "consume(identity(70i32));",
+                );
+            let source = if qualified {
+                source
+                    .replace("data Empty {}", "data Empty {} data Relay {}")
+                    .replace("consume(", "Relay::consume(")
+            } else {
+                source
+            };
+            let source = if trailing {
+                source
+                    .replace("consume(identity(value));", "consume(identity(value))")
+                    .replace("consume(identity(70i32));", "consume(identity(70i32))")
+            } else {
+                source
+            };
+            let checked = checked_source(&source);
+            let lowered = roundtrip(&checked);
+            assert_eq!(lowered.semantic_module.machines.len(), 4);
+            assert_closed_sum_unit_catalog(&checked, &lowered);
+            assert_closed_sum_unit_source_custody(&checked);
+            let artifact = terminal_production::produce_terminal_artifact(&checked, "Main::main")
+                .expect("complete ordinary callees survive Terminal publication");
+            assert_eq!(
+                terminal_codec::decode_module(artifact.semantic_bytes()).unwrap(),
+                lowered.semantic_module
+            );
+        }
+    }
+}
+
+fn assert_closed_sum_unit_source_custody(checked: &CheckedTrees) {
+    let plans = &checked.facts.flow.terminal_unit_effects.composed_machines;
+    let (plan_index, state_index, operation_index) = plans
+        .iter()
+        .enumerate()
+        .find_map(|(plan_index, plan)| {
+            plan.states
+                .iter()
+                .enumerate()
+                .find_map(|(state_index, state)| {
+                    state
+                        .operations
+                        .iter()
+                        .position(|operation| {
+                            matches!(
+                                operation,
+                                checked_trees::CheckedUnitEffectOperationPlan::CallUnit { .. }
+                            )
+                        })
+                        .map(|operation_index| (plan_index, state_index, operation_index))
+                })
+        })
+        .expect("closed-sum ordinary Unit operation");
+    let checked_trees::CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+        target_machine: entry_boundary,
+        ..
+    } = plans[plan_index].states[0].operations[0]
+    else {
+        panic!("closed-sum entry boundary")
+    };
+    let mut changed = checked.clone();
+    changed.facts.flow.terminal_unit_effects.composed_machines[plan_index]
+        .provider_attachment_requirements
+        .retain(|requirement| requirement.boundary != entry_boundary);
+    assert!(
+        lower_machine(&changed, "Main::main").is_err(),
+        "ordinary callee ownership cannot erase the root's entry-boundary requirement"
+    );
+    let mut changed = checked.clone();
+    changed.facts.flow.terminal_unit_effects.composed_machines[plan_index].states[state_index]
+        .operations[operation_index] =
+        checked_trees::CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+            statement_index: 0,
+            declaration_ordinal: 0,
+            type_identity: "Empty".to_owned(),
+        };
+    assert!(
+        lower_machine(&changed, "Main::main").is_err(),
+        "a fabricated non-call leaf operation is not authored evidence"
+    );
+    for (handle, root) in checked.facts.values.scalar_computations.roots.iter() {
+        if !matches!(
+            root.role,
+            checked_trees::CheckedScalarExpressionRole::UnitCallArgument { .. }
+        ) {
+            continue;
+        }
+        let mut changed = checked.clone();
+        changed
+            .facts
+            .values
+            .scalar_computations
+            .roots
+            .get_mut(handle)
+            .statement_ordinal += 1;
+        assert!(
+            lower_machine(&changed, "Main::main").is_err(),
+            "operand coordinate drift rejects"
+        );
+    }
+    let checked_trees::CheckedUnitEffectOperationPlan::CallUnit { target_state, .. } =
+        &plans[plan_index].states[state_index].operations[operation_index]
+    else {
+        unreachable!();
+    };
+    let (handle, _) = checked
+        .facts
+        .flow
+        .control
+        .calls
+        .iter()
+        .find(|(_, call)| call.target_symbol == *target_state && call.call_ordinal == 0)
+        .expect("captured closed-sum leaf call");
+    let mut changed = checked.clone();
+    changed
+        .facts
+        .flow
+        .control
+        .calls
+        .get_mut(handle)
+        .target_symbol = symbols::SymbolHandle::invalid();
+    assert!(
+        lower_machine(&changed, "Main::main").is_err(),
+        "captured leaf target drift rejects"
+    );
+}
+
+fn assert_closed_sum_unit_catalog(checked: &CheckedTrees, lowered: &LoweredPsi) {
+    let module = &lowered.semantic_module;
+    let mut blocks = std::collections::BTreeSet::new();
+    let mut operations = std::collections::BTreeSet::new();
+    let mut edges = std::collections::BTreeSet::new();
+    let mut values = std::collections::BTreeSet::new();
+    let mut places = std::collections::BTreeSet::new();
+    for machine in &module.machines {
+        for place in &machine.structural_places {
+            assert!(places.insert(place.id));
+        }
+        for value in machine.parameters.iter().chain(machine.result.scalar_ref()) {
+            assert!(values.insert(value.id));
+        }
+        for block in &machine.blocks {
+            assert!(blocks.insert(block.id));
+            for value in &block.parameters {
+                assert!(values.insert(value.id));
+            }
+            for operation in &block.operations {
+                assert!(operations.insert(operation.id));
+                if let Some(value) = operation.result.scalar_ref() {
+                    assert!(values.insert(value.id));
+                }
+            }
+            for edge in block.terminator.edges() {
+                assert!(edges.insert(edge));
+            }
+        }
+    }
+    let source_helper = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "identity")
+        .unwrap();
+    let mut helper_targets = std::collections::BTreeSet::new();
+    let mut helper_callers = Vec::new();
+    for occurrence in &lowered.source_call_occurrences {
+        if occurrence.source_target != source_helper.symbol {
+            continue;
+        }
+        if !helper_callers.contains(&occurrence.source_state) {
+            helper_callers.push(occurrence.source_state);
+        }
+        let operation = module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| &block.operations)
+            .find(|operation| operation.id == occurrence.terminal_operation)
+            .unwrap();
+        let OperationKind::Call { callee, .. } = operation.kind else {
+            panic!("exact scalar helper call");
+        };
+        helper_targets.insert(callee);
+    }
+    assert_eq!(helper_targets.len(), 1);
+    assert_eq!(
+        helper_callers.len(),
+        4,
+        "byte, eof, consume, and forward share identity"
+    );
+    let caller = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let entry = caller
+        .blocks
+        .iter()
+        .find(|block| block.id == caller.entry)
+        .unwrap();
+    let Terminator::StructuralCase { source, .. } = entry.terminator else {
+        panic!("closed-sum root");
+    };
+    assert!(
+        entry
+            .operations
+            .iter()
+            .any(|operation| matches!(&operation.result,
+        terminal_psi::OperationResult::Structural(result) if result.place == source))
+    );
+    let completion = caller
+        .blocks
+        .iter()
+        .find(|block| {
+            block
+                .operations
+                .iter()
+                .any(|operation| matches!(operation.kind, OperationKind::CallUnit { .. }))
+                && block
+                    .operations
+                    .iter()
+                    .any(|operation| matches!(operation.kind, OperationKind::BoundaryCall { .. }))
+        })
+        .expect("computed Unit call completes before payload is read again");
+    let boundary = completion
+        .operations
+        .iter()
+        .find_map(|operation| match &operation.kind {
+            OperationKind::BoundaryCall { arguments, .. } => Some(arguments),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(boundary.as_slice(), [completion.parameters[0].id]);
+    let internal = completion
+        .operations
+        .iter()
+        .find_map(|operation| match &operation.kind {
+            OperationKind::CallUnit { arguments, .. } => Some(arguments),
+            _ => None,
+        })
+        .unwrap();
+    assert_ne!(
+        internal, boundary,
+        "computed argument never replaces payload namespace"
+    );
+    let cleanup = module
+        .machines
+        .iter()
+        .find_map(|machine| {
+            let established = machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .filter_map(|operation| match operation.kind {
+                    OperationKind::EstablishTrivialAffineLocal { destination } => Some(destination),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            (established.len() == 2).then_some((machine, established))
+        })
+        .expect("transitive ordinary body retains both affine declarations");
+    assert!(
+        cleanup
+            .0
+            .blocks
+            .iter()
+            .any(|block| matches!(&block.terminator,
+        Terminator::ReturnUnit { trivial_affine_discards, .. }
+        if trivial_affine_discards.as_slice() == [cleanup.1[1], cleanup.1[0]]))
+    );
+}

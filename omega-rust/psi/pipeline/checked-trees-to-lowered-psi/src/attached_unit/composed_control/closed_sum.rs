@@ -102,17 +102,13 @@ fn admit<'a>(
         {
             return unsupported("closed-sum Unit leaf escaped the exact effect-and-return lane");
         }
-        for operation in &leaf.operations {
-            admission::retain_call_boundary(
-                checked,
-                plan.machine,
-                leaf,
-                operation,
-                plans,
-                &mut boundaries,
-            )?;
-        }
     }
+    let (mut leaf_boundaries, internal_targets) =
+        admission::retain_call_targets(checked, plan.machine, &leaves)?;
+    for (boundary, _) in &leaf_boundaries {
+        custody::validate_boundary(custody::ComposedCustody::Empty, boundary)?;
+    }
+    boundaries.append(&mut leaf_boundaries);
     for case in cases {
         let leaf = leaves
             .iter()
@@ -161,7 +157,7 @@ fn admit<'a>(
         entry,
         leaves: vec![first_leaf, second_leaf],
         boundaries,
-        internal_targets: Vec::new(),
+        internal_targets,
         custody: custody::ComposedCustody::Empty,
     })
 }
@@ -221,7 +217,7 @@ fn emit(
 
     let mut next_place = catalogs.next_place;
     let result_place = place_id(allocate_dense(&mut next_place)?);
-    let mut entry_operations = OperationBuffer::new(0);
+    let mut entry_operations = OperationBuffer::new(catalogs.next_operation - 1);
     let operation = entry_operations.allocate();
     entry_operations.record_source_call(
         SourceCallCoordinate {
@@ -251,9 +247,14 @@ fn emit(
         },
     });
 
-    let state_ids = [block_id(1), block_id(2), block_id(3)];
-    let mut next_value = 1_u64;
-    let mut next_edge = 1_u64;
+    let mut next_block = catalogs.next_block;
+    let state_ids = [
+        block_id(allocate_dense(&mut next_block)?),
+        block_id(allocate_dense(&mut next_block)?),
+        block_id(allocate_dense(&mut next_block)?),
+    ];
+    let mut next_value = catalogs.next_value;
+    let mut next_edge = catalogs.next_edge;
     let mut next_operation = entry_operations.next_identity;
     let declaration = catalogs
         .structural_types
@@ -339,7 +340,6 @@ fn emit(
             cases: successors,
         },
     });
-    let mut next_block = dense_identity(state_ids.len())?;
     for ((leaf, parameters), block) in admitted
         .leaves
         .into_iter()

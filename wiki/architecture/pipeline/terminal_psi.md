@@ -3112,9 +3112,10 @@ module. Closed-sum payload execution still requires interpreter case inspection;
 operand support does not supply that missing runtime carrier.
 
 Ordinary Unit-call leaves in the three-state, prefixed, and nested acyclic
-control routes use that evaluator too. A control-state Unit-call prefix completes
-before its guard; the guard and successors use the retained source values after
-operand evaluation. The callee's parameters, statements, transitive calls,
+control routes and closed-sum payload continuations use that evaluator too.
+A control-state Unit-call prefix completes before its guard; the guard and
+successors use the retained source values after operand evaluation. The callee's
+parameters, statements, transitive calls,
 providers, and normal cleanup come from the same complete Unit-body lowering as
 standalone Unit machines. Free callees keep no attachment; a static data
 qualifier does not manufacture a receiver.
@@ -3141,8 +3142,16 @@ The exact source-to-machine map survives dispatch, so callee suspension,
 conformance, and float-source metadata are selected with their actual owners
 rather than treating the composed root as the entire source closure.
 
+Closed-sum continuations retain the structural-result boundary and its exact
+case/payload transfer independently of their ordinary callees. Calls within a
+selected payload leaf preserve that leaf's scalar namespace for subsequent
+operations. Root control blocks, values, operations, edges, and storage places
+use the shared closure's identity counters. The root's provider requirements
+cover its entry boundary and leaf boundaries together; callee requirements
+remain owned by their complete Unit bodies.
+
 Later structural-result initializers and returned calls still need connections
-to the shared evaluator. Internal Unit calls in dynamic-result and closed-sum continuations,
+to the shared evaluator. Internal Unit calls in dynamic-result continuations,
 structural arguments on composed internal calls, and scalar-dependent Unit crash
 predicates remain separate implementation work. Existing control-state signature
 restrictions remain; operand evaluation does not itself add general scalar

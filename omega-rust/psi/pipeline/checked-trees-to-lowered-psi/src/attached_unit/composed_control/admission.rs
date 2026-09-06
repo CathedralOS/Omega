@@ -340,6 +340,39 @@ pub(super) fn admit_call_targets<'a>(
     ),
     LoweringError,
 > {
+    let (boundaries, internal_targets) = retain_call_targets(checked, machine, call_states)?;
+    for (boundary, _) in &boundaries {
+        custody::validate_boundary(custody, boundary)?;
+    }
+    let called_boundaries = call_states
+        .iter()
+        .flat_map(|state| &state.operations)
+        .filter_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. } => {
+                Some(*target_machine)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    super::super::provider_attachments::validate_provider_attachment_requirements(
+        attachment,
+        provider_attachment_requirements,
+        &called_boundaries,
+    )?;
+    Ok((boundaries, internal_targets))
+}
+
+pub(super) fn retain_call_targets<'a>(
+    checked: &'a CheckedTrees,
+    machine: symbols::SymbolHandle,
+    call_states: &[&'a checked_trees::CheckedComposedUnitControlStatePlan],
+) -> Result<
+    (
+        Vec<(&'a CheckedBoundaryMachinePlan, String)>,
+        Vec<(&'a checked_trees::CheckedUnitEffectMachinePlan, String)>,
+    ),
+    LoweringError,
+> {
     let plans = &checked.facts.flow.terminal_unit_effects;
     let mut boundaries = Vec::new();
     let mut internal_targets = Vec::new();
@@ -366,7 +399,7 @@ pub(super) fn admit_call_targets<'a>(
                         &mut internal_targets,
                     )?;
                 }
-                _ => unreachable!("call-state shape was validated"),
+                _ => return unsupported("composed Unit call state contains a non-call operation"),
             }
         }
     }
@@ -381,24 +414,6 @@ pub(super) fn admit_call_targets<'a>(
     {
         return unsupported("composed Unit internal targets have duplicate canonical identities");
     }
-    for (boundary, _) in &boundaries {
-        custody::validate_boundary(custody, boundary)?;
-    }
-    let called_boundaries = call_states
-        .iter()
-        .flat_map(|state| &state.operations)
-        .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. } => {
-                Some(*target_machine)
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    super::super::provider_attachments::validate_provider_attachment_requirements(
-        attachment,
-        provider_attachment_requirements,
-        &called_boundaries,
-    )?;
     Ok((boundaries, internal_targets))
 }
 
