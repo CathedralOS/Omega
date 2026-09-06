@@ -57,18 +57,11 @@ pub(super) fn validate_partial_affine_cleanup_shape(
                     .iter()
                     .any(|argument| {
                         argument.access == StructuralAccess::Owned
-                            && machine
-                                .structural_parameters
-                                .iter()
-                                .find(|parameter| parameter.place == argument.place)
-                                .is_some_and(|parameter| {
-                                    parameter.multiplicity == StructuralMultiplicity::Affine
-                                        && is_partial_affine_path(
-                                            module,
-                                            parameter.structural_type,
-                                            &argument.path,
-                                        )
-                                })
+                            && partial_affine_root_type(machine, argument.place).is_some_and(
+                                |structural_type| {
+                                    is_partial_affine_path(module, structural_type, &argument.path)
+                                },
+                            )
                     })
                     .then_some((
                         block,
@@ -92,12 +85,37 @@ pub(super) fn validate_partial_affine_cleanup_shape(
         machine: machine.id,
         block,
     };
-    let Some((block, ..)) = field_calls.first() else {
+    let Some((block, _, _, arguments, _)) = field_calls.first() else {
         return Err(invalid(
             partial_returns
                 .first()
                 .map_or(machine.entry, |block| block.id),
         ));
+    };
+    let [root_argument] = arguments.as_slice() else {
+        return Err(invalid(block.id));
+    };
+    let root_place = root_argument.place;
+    let root_type =
+        partial_affine_root_type(machine, root_place).ok_or_else(|| invalid(block.id))?;
+    let root_parameter = machine
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == root_place);
+    let root_is_self = root_parameter.is_some_and(|parameter| parameter.is_self);
+    let root_position = root_parameter.map_or(0, |parameter| parameter.position);
+    let producer = if root_parameter.is_none() {
+        let Some(StructuralPlaceKind::OperationResult { producer, .. }) = machine
+            .structural_places
+            .iter()
+            .find(|place| place.id == root_place)
+            .map(|place| &place.kind)
+        else {
+            return Err(invalid(block.id));
+        };
+        Some(*producer)
+    } else {
+        None
     };
     let partial_block = match partial_returns.as_slice() {
         [partial_block] => Some(*partial_block),
@@ -109,9 +127,23 @@ pub(super) fn validate_partial_affine_cleanup_shape(
             .iter()
             .any(|(candidate, ..)| candidate.id != block.id)
         || !matches!(machine.result, TerminalMachineResult::Unit)
-        || block.operations.len() != field_calls.len()
-        || machine.structural_parameters.len() != 1
-        || machine.structural_places.len() != 1
+        || block.operations.len() != field_calls.len() + usize::from(producer.is_some())
+        || if let Some(producer) = producer {
+            machine.blocks.len() != 1
+                || block.id != machine.entry
+                || block
+                    .operations
+                    .first()
+                    .is_none_or(|operation| operation.id != producer)
+                || machine.structural_parameters.len() > 1
+                || machine.structural_places.len() != machine.structural_parameters.len() + 1
+                || machine.structural_parameters.iter().any(|parameter| {
+                    parameter.is_self
+                        || partial_affine_root_type(machine, parameter.place).is_none()
+                })
+        } else {
+            machine.structural_parameters.len() != 1 || machine.structural_places.len() != 1
+        }
         || !machine.entry_claims.is_empty()
         || !machine.content_entry_claims.is_empty()
         || !machine.content_identity_reshuffles.is_empty()
@@ -119,13 +151,10 @@ pub(super) fn validate_partial_affine_cleanup_shape(
     {
         return Err(invalid(block.id));
     }
-    let [root] = machine.structural_parameters.as_slice() else {
-        unreachable!()
-    };
     let indexed_projection = module
         .structural_types
         .iter()
-        .find(|declaration| declaration.id == root.structural_type)
+        .find(|declaration| declaration.id == root_type)
         .is_some_and(|declaration| {
             matches!(declaration.shape, StructuralTypeShape::FixedArray { .. })
         })
@@ -137,17 +166,16 @@ pub(super) fn validate_partial_affine_cleanup_shape(
                     .any(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)))
             })
         });
-    if root.multiplicity != StructuralMultiplicity::Affine
-        || !root.qualifications.is_empty()
-        || !machine.structural_places.iter().any(|place| {
-            place.id == root.place
+    if root_parameter.is_some_and(|root| {
+        !machine.structural_places.iter().any(|place| {
+            place.id == root_place
                 && place.kind
                     == StructuralPlaceKind::Parameter {
                         position: root.position,
                         is_self: root.is_self,
                     }
         })
-    {
+    }) {
         return Err(invalid(block.id));
     }
     let mut moved_paths = BTreeSet::new();
@@ -155,15 +183,13 @@ pub(super) fn validate_partial_affine_cleanup_shape(
         let [argument] = arguments.as_slice() else {
             return Err(invalid(block.id));
         };
-        if argument.place != root.place
+        if argument.place != root_place
             || argument.access != StructuralAccess::Owned
             || !moved_paths.insert(argument.path.clone())
         {
             return Err(invalid(block.id));
         }
-        let Some(moved_type) =
-            resolve_structural_path(module, root.structural_type, &argument.path)
-        else {
+        let Some(moved_type) = resolve_structural_path(module, root_type, &argument.path) else {
             return Err(invalid(block.id));
         };
         let Some(callee) = machines.get(callee_id).copied() else {
@@ -186,6 +212,10 @@ pub(super) fn validate_partial_affine_cleanup_shape(
             return Err(invalid(block.id));
         }
     }
+    // Crashes abandon the current frontier; they never invent a disposal edge.
+    if matches!(block.terminator, Terminator::Crash { .. }) {
+        return Ok(());
+    }
     if partial_block.is_none() {
         let Terminator::ReturnUnit {
             trivial_affine_discards,
@@ -196,10 +226,9 @@ pub(super) fn validate_partial_affine_cleanup_shape(
         };
         if machine.blocks.len() != 1
             || !block.parameters.is_empty()
-            || root.position != 0
-            || root.is_self
-            || root.access != StructuralAccess::Owned
-            || partial_affine_residuals(module, root.structural_type, &moved_paths, 0)
+            || root_position != 0
+            || root_is_self
+            || partial_affine_residuals(module, root_type, &moved_paths, 0)
                 .is_none_or(|residuals| !residuals.is_empty())
             || !trivial_affine_discards.is_empty()
             || !machine.published_service_ceiling.is_empty()
@@ -213,7 +242,7 @@ pub(super) fn validate_partial_affine_cleanup_shape(
     }
     let Some(expected_residuals) = partial_affine_residuals(
         module,
-        root.structural_type,
+        root_type,
         &moved_paths,
         match &block.terminator {
             Terminator::ReturnUnitPartialAffine {
@@ -238,9 +267,8 @@ pub(super) fn validate_partial_affine_cleanup_shape(
             || block.id != machine.entry
             || !block.parameters.is_empty()
             || !machine.parameters.is_empty()
-            || root.position != 0
-            || root.is_self
-            || root.access != StructuralAccess::Owned
+            || root_position != 0
+            || root_is_self
             || !machine.published_service_ceiling.is_empty()
             || !machine.contract.requires.is_empty()
             || !machine.contract.ensures.is_empty()
@@ -250,7 +278,7 @@ pub(super) fn validate_partial_affine_cleanup_shape(
         || residual_affine_discards.len() != expected_residuals.len()
         || residual_affine_discards.iter().zip(expected_residuals).any(
             |(residual, (path, structural_type))| {
-                residual.place != root.place
+                residual.place != root_place
                     || residual.path != path
                     || residual.structural_type != structural_type
             },

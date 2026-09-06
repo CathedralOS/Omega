@@ -625,14 +625,15 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
                 );
             }
             for discard in residual_affine_discards {
-                let Some(parameter) = machine
+                let parameter = machine
                     .structural_parameters
                     .iter()
-                    .find(|parameter| parameter.place == discard.place)
-                else {
-                    return malformed("partial affine cleanup root is not a structural parameter");
-                };
-                if parameter.multiplicity != StructuralMultiplicity::Affine
+                    .find(|parameter| parameter.place == discard.place);
+                let supported_root = parameter.map_or_else(
+                    || is_plain_affine_call_result(machine, discard.place),
+                    |parameter| parameter.multiplicity == StructuralMultiplicity::Affine,
+                );
+                if !supported_root
                     || discard.path.is_empty()
                     || trivial_affine_discards.contains(&discard.place)
                     || machine
@@ -644,7 +645,10 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
                         "partial affine cleanup is not a distinct claim-free affine path",
                     );
                 }
-                if validate_structural_path(module, parameter.structural_type, &discard.path)?
+                let Some(root_type) = structural_place_type(machine, discard.place) else {
+                    return malformed("partial affine cleanup has no exact structural root type");
+                };
+                if validate_structural_path(module, root_type, &discard.path)?
                     != discard.structural_type
                 {
                     return malformed("partial affine cleanup leaf type does not match its path");
@@ -1724,6 +1728,55 @@ fn structural_place_type(
                 }
             })
         })
+}
+
+/// Result cleanup may reuse a call's existing owned place, but a construction
+/// local or a merely matching type declaration does not establish that custody.
+fn is_plain_affine_call_result(
+    machine: &TerminalMachine,
+    place: semantic_vocabulary::PlaceId,
+) -> bool {
+    let mut places = machine
+        .structural_places
+        .iter()
+        .filter(|candidate| candidate.id == place);
+    let Some(declaration) = places.next() else {
+        return false;
+    };
+    if places.next().is_some() {
+        return false;
+    }
+    let StructuralPlaceKind::OperationResult {
+        producer,
+        structural_type,
+    } = declaration.kind
+    else {
+        return false;
+    };
+    let mut operations = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| operation.id == producer);
+    let Some(operation) = operations.next() else {
+        return false;
+    };
+    if operations.next().is_some()
+        || !matches!(
+            operation.kind,
+            OperationKind::CallStructuralWithScalarArguments { .. }
+                | OperationKind::BoundaryCall { .. }
+        )
+    {
+        return false;
+    }
+    matches!(&operation.result, OperationResult::Structural(result)
+        if result.place == place
+            && result.structural_type == structural_type
+            && result.multiplicity == StructuralMultiplicity::Affine
+            && result.qualifications.is_empty()
+            && result.projected_qualifications.is_empty()
+            && result.claims.is_empty())
 }
 
 fn validate_claim_indices(

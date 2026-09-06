@@ -31,6 +31,9 @@ use terminal_verifier::{
 #[path = "structural_unit/borrowed_frontier.rs"]
 mod borrowed_frontier;
 
+#[path = "structural_unit/result_residuals.rs"]
+mod result_residuals;
+
 #[path = "structural_unit/write_only_attenuation.rs"]
 mod write_only_attenuation;
 
