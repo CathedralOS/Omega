@@ -24,7 +24,10 @@ pub(super) fn finish_artifact(
         target: source.target(),
     };
     let output_revision = revision_identity(roots, &trace.functions);
-    let layout = source.with_replayed_functions(trace.functions);
+    let mut program = source.program().clone();
+    program.functions = trace.functions;
+    program.identity = program.recomputed_identity();
+    let layout = std::sync::Arc::new(program);
     let output = layout.identity();
     let policy = X86BranchRelaxationPolicy::X86RelaxConditionalBranchesToRel8V1;
     let identity = artifact_identity(

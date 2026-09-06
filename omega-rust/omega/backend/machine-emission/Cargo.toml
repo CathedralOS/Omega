@@ -19,6 +19,7 @@ post-allocation-machine-to-post-allocation-machine = { path = "../../pipeline/po
 post-allocation-machine-to-selected-form-encoding = { path = "../../pipeline/post-allocation-machine-to-selected-form-encoding" }
 register-homes-to-post-allocation-machine = { path = "../../pipeline/register-homes-to-post-allocation-machine" }
 selected-form-encoding-to-resolved-layout = { path = "../../pipeline/selected-form-encoding-to-resolved-layout" }
+resolved-layout-to-resolved-layout = { path = "../../pipeline/resolved-layout-to-resolved-layout" }
 selected-instructions-to-register-homes = { path = "../../pipeline/selected-instructions-to-register-homes" }
 register-model = { path = "../../representations/register-model" }
 selected-instructions = { path = "../../representations/selected-instructions" }
@@ -59,4 +60,5 @@ test-support = [
     "selected-instructions-to-register-homes/test-support",
     "post-allocation-machine-to-selected-form-encoding/test-support",
     "selected-form-encoding-to-resolved-layout/test-support",
+    "resolved-layout-to-resolved-layout/test-support",
 ]

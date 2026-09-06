@@ -30,10 +30,8 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
     ) -> &register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan {
         &self.current.machine
     }
-    pub fn resolved_layout(
-        &self,
-    ) -> &selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout {
-        &self.current.layout
+    pub fn resolved_layout(&self) -> &machine_code::ResolvedMachineLayout {
+        &self.current.program.layout
     }
     pub fn selected_plan(&self) -> &selected_instructions::SelectedInstructionPlan {
         &self.current.program.selected

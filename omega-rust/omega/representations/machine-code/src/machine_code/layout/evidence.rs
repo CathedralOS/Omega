@@ -14,3 +14,7 @@ impl X86BranchRelaxationIdentity {
         self.0
     }
 }
+
+pub mod relaxation;
+pub mod relaxation_identity;
+pub use relaxation::*;

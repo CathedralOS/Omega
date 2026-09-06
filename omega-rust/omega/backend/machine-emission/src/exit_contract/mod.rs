@@ -3,12 +3,14 @@
 mod compute;
 mod error;
 mod identity;
+mod layout_optimization;
 mod model;
 mod stage;
 mod validation;
 mod validation_rules;
 
 pub use error::*;
+pub use layout_optimization::*;
 pub use model::*;
 pub use stage::*;
 
@@ -39,15 +41,19 @@ pub fn stage_whole_function_exit_contract_with_post_allocation_machine_optimizat
         &crate::ValidatedTargetFrameProtocolEncoding,
     )>,
 ) -> Result<ValidatedWholeFunctionExitContract, WholeFunctionExitContractError> {
-    let layout_custody =
-        validation_rules::post_allocation_layout_custody(machine, encoding, layout, optimization)?;
+    let layout_custody = validation_rules::post_allocation_layout_custody(
+        machine,
+        encoding,
+        layout.program(),
+        optimization,
+    )?;
     let contract = match frame {
         Some((frame, protocol)) => compute::compute_with_frame(
             selected,
             machine,
             physical,
             encoding,
-            layout,
+            layout.program(),
             layout_custody,
             frame,
             protocol,
@@ -57,7 +63,7 @@ pub fn stage_whole_function_exit_contract_with_post_allocation_machine_optimizat
             machine,
             physical,
             encoding,
-            layout,
+            layout.program(),
             layout_custody,
         )?,
     };

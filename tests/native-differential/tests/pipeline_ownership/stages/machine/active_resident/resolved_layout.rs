@@ -93,9 +93,13 @@ fn active_resident_resolved_layout_rejects_pre_layout_layout_and_receipt_mutatio
     corrupt_allocation_recovery_realization_layout_for_test(&mut corrupt_layout);
     assert!(matches!(
         validate_allocation_recovery_function_relative_realization(&corrupt_layout),
-        Err(AllocationRecoveryFunctionRelativeRealizationError::Layout(
-            OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch
-        ))
+        Err(
+            AllocationRecoveryFunctionRelativeRealizationError::LayoutOptimization(
+                ResolvedLayoutOptimizationError::Baseline(
+                    OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch
+                )
+            )
+        )
     ));
 
     let mut corrupt_receipt =

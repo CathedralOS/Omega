@@ -1,6 +1,9 @@
 //! Direct ordinary function-relative realization with exact fixed-frame custody.
 
 use super::super::{assembly::*, carriers::*, error::*, prelude::*};
+use resolved_layout_to_resolved_layout::{
+    execute_resolved_layout_optimization, validate_resolved_layout_optimization,
+};
 use selected_instructions_to_register_homes::{AllocationSource, RetainedAllocation};
 
 pub fn stage_fixed_frame_function_relative_realization(
@@ -24,27 +27,41 @@ pub fn stage_fixed_frame_function_relative_realization(
     let layout =
         stage_optimized_resolved_selected_form_layout(selected, &machine, physical, &encoding)
             .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
+    let layout_optimization = execute_resolved_layout_optimization(
+        selected,
+        &machine,
+        physical,
+        &encoding,
+        None,
+        &layout,
+        &current
+            .selections()
+            .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout),
+        current.budget_per_pass(),
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)?;
     let frame = super::super::frame::stage_frame(
         &current,
         &machine,
         TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
         budget,
     )?;
-    let exit_contract = stage_whole_function_exit_contract_with_frame(
+    let exit_contract = stage_whole_function_exit_contract_for_layout(
         selected,
         &machine,
         physical,
         &encoding,
+        None,
         &layout,
-        frame.layout(),
-        frame.protocol(),
+        &layout_optimization,
+        Some((frame.layout(), frame.protocol())),
     )
     .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
     let manifest = expected_fixed_frame_manifest(
         &current,
         &machine,
         &encoding,
-        &layout,
+        layout_optimization.layout(),
         frame.layout(),
         frame.protocol(),
         &exit_contract,
@@ -64,6 +81,7 @@ pub fn stage_fixed_frame_function_relative_realization(
         machine,
         encoding,
         layout,
+        layout_optimization,
         frame,
         exit_contract,
         manifest,
@@ -97,14 +115,19 @@ pub fn validate_fixed_frame_function_relative_realization(
         &staged.encoding,
     )
     .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
-    validate_optimized_resolved_selected_form_layout(
+    validate_resolved_layout_optimization(
         selected,
         &staged.machine,
         physical,
         &staged.encoding,
+        None,
         &staged.layout,
+        &current
+            .selections()
+            .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout),
+        &staged.layout_optimization,
     )
-    .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
+    .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)?;
     super::super::frame::validate_frame(
         &current,
         &staged.machine,
@@ -112,14 +135,15 @@ pub fn validate_fixed_frame_function_relative_realization(
         TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
     )?;
     let frame = &staged.frame;
-    validate_whole_function_exit_contract_with_frame(
+    validate_whole_function_exit_contract_for_layout(
         selected,
         &staged.machine,
         physical,
         &staged.encoding,
+        None,
         &staged.layout,
-        frame.layout(),
-        frame.protocol(),
+        &staged.layout_optimization,
+        Some((frame.layout(), frame.protocol())),
         &staged.exit_contract,
     )
     .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
@@ -127,7 +151,7 @@ pub fn validate_fixed_frame_function_relative_realization(
         &current,
         &staged.machine,
         &staged.encoding,
-        &staged.layout,
+        staged.layout(),
         frame.layout(),
         frame.protocol(),
         &staged.exit_contract,

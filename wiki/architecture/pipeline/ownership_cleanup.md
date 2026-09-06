@@ -33,6 +33,14 @@ Competing Psi entrances, orphan outputs and competing selected-instruction
 successors remain defects until the actual program route is connected;
 renaming their crates does not satisfy this acceptance condition.
 
+The layout sequence separates baseline construction in
+`selected-form-encoding-to-resolved-layout` from optional relaxation in
+`resolved-layout-to-resolved-layout`. Empty and selected layout phases expose
+one raw `ResolvedMachineLayout`; only their checked stage entrances establish
+custody. Retained raw data must not act as an unchecked baseline admission or
+require a different downstream representation. This boundary is part of the
+connected route, not acceptance of the remaining owner and physical-route work.
+
 | Whole move | What must disappear or change |
 | --- | --- |
 | Connect the visible stage sequence | Keep `terminal-psi-to-abstract-operations` as the Omega program entrance. Consolidate remaining supporting calculations under their owning program stages without introducing alternate downstream representations. |

@@ -286,7 +286,7 @@ fn x86_xor_zero_reaches_direct_whole_function_exit_with_exact_custody() {
     assert_eq!(realization.baseline_encoding(), &baseline_encoding);
     assert_eq!(realization.encoding(), &selected_encoding);
     assert_eq!(realization.baseline_layout(), &baseline_layout);
-    assert_eq!(realization.layout(), &selected_layout);
+    assert_eq!(realization.layout(), selected_layout.program());
     assert_eq!(realization.exit_contract(), &exit_contract);
     assert_eq!(
         realization.custody().optimization().optimization(),

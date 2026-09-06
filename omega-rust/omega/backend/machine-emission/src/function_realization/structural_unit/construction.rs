@@ -1,11 +1,12 @@
 use selected_instructions_to_register_homes::{AllocationSource, RetainedAllocation};
 
-use crate::stage_whole_function_exit_contract;
+use crate::stage_whole_function_exit_contract_for_layout;
 use post_allocation_machine_to_selected_form_encoding::stage_optimized_layout_independent_selected_form_encoding;
 use register_homes_to_post_allocation_machine::{
     StagedOptimizedPostAllocationMachinePlan,
     validate_optimized_post_allocation_machine_plan_custody,
 };
+use resolved_layout_to_resolved_layout::execute_resolved_layout_optimization;
 use selected_form_encoding_to_resolved_layout::stage_optimized_resolved_selected_form_layout;
 
 use super::custody::structural_unit_realization_receipt;
@@ -37,16 +38,44 @@ pub(super) fn construct_structural_unit_function_relative_realization(
     let layout =
         stage_optimized_resolved_selected_form_layout(selected, &machine, physical, &encoding)
             .map_err(OptimizedStructuralUnitFunctionRelativeRealizationError::Layout)?;
-    let exit_contract =
-        stage_whole_function_exit_contract(selected, &machine, physical, &encoding, &layout)
-            .map_err(OptimizedStructuralUnitFunctionRelativeRealizationError::Exit)?;
-    let manifest = expected_manifest(&current, &machine, &encoding, &layout, &exit_contract)?;
+    let layout_optimization = execute_resolved_layout_optimization(
+        selected,
+        &machine,
+        physical,
+        &encoding,
+        None,
+        &layout,
+        &current
+            .selections()
+            .project_phase(optimization_core::OptimizationExecutionPhase::FunctionRelativeLayout),
+        current.budget_per_pass(),
+    )
+    .map_err(OptimizedStructuralUnitFunctionRelativeRealizationError::LayoutOptimization)?;
+    let exit_contract = stage_whole_function_exit_contract_for_layout(
+        selected,
+        &machine,
+        physical,
+        &encoding,
+        None,
+        &layout,
+        &layout_optimization,
+        None,
+    )
+    .map_err(OptimizedStructuralUnitFunctionRelativeRealizationError::Exit)?;
+    let manifest = expected_manifest(
+        &current,
+        &machine,
+        &encoding,
+        layout_optimization.layout(),
+        &exit_contract,
+    )?;
     let custody = structural_unit_realization_receipt(source, &machine, &exit_contract, &manifest);
     Ok(StagedOptimizedStructuralUnitFunctionRelativeRealization {
         allocation,
         machine,
         encoding,
         layout,
+        layout_optimization,
         exit_contract,
         manifest,
         custody,

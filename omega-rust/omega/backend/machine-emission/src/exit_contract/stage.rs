@@ -1,4 +1,7 @@
 use register_model::ValidatedPhysicalRegisterModel;
+use resolved_layout_to_resolved_layout::{
+    StagedOptimizedX86BranchRelaxation, validate_optimized_x86_branch_relaxation,
+};
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use crate::ValidatedTargetFrameProtocolEncoding;
@@ -7,10 +10,8 @@ use post_allocation_machine_to_post_allocation_machine::StagedOptimizedAarch64Cb
 use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 use selected_form_encoding_to_resolved_layout::{
-    StagedOptimizedResolvedSelectedFormLayout, StagedOptimizedX86BranchRelaxation,
-    validate_optimized_resolved_selected_form_layout,
+    StagedOptimizedResolvedSelectedFormLayout, validate_optimized_resolved_selected_form_layout,
     validate_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion,
-    validate_optimized_x86_branch_relaxation,
 };
 
 use super::{
@@ -37,7 +38,7 @@ pub fn stage_whole_function_exit_contract_with_frame<S: ValidatedSelectedAnalysi
         machine,
         physical,
         encoding,
-        layout,
+        layout.program(),
         WholeFunctionExitLayoutCustody::BaselineNearLayoutV1,
         frame,
         protocol,
@@ -69,7 +70,7 @@ pub fn validate_whole_function_exit_contract_with_frame<S: ValidatedSelectedAnal
         machine,
         physical,
         encoding,
-        layout,
+        layout.program(),
         WholeFunctionExitLayoutCustody::BaselineNearLayoutV1,
         Some((frame, protocol)),
         contract.contract(),
@@ -91,7 +92,7 @@ pub fn stage_whole_function_exit_contract<S: ValidatedSelectedAnalysis>(
         machine,
         physical,
         encoding,
-        layout,
+        layout.program(),
         WholeFunctionExitLayoutCustody::BaselineNearLayoutV1,
     )?;
     let validated = ValidatedWholeFunctionExitContract {
@@ -119,7 +120,7 @@ pub fn validate_whole_function_exit_contract<S: ValidatedSelectedAnalysis>(
         machine,
         physical,
         encoding,
-        layout,
+        layout.program(),
         WholeFunctionExitLayoutCustody::BaselineNearLayoutV1,
         None,
         contract.contract(),
@@ -224,7 +225,7 @@ pub fn stage_whole_function_exit_contract_after_aarch64_cbnz_fusion<
         machine,
         physical,
         encoding,
-        layout,
+        layout.program(),
         layout_custody,
     )?;
     let validated = ValidatedWholeFunctionExitContract {
@@ -262,7 +263,7 @@ pub fn validate_whole_function_exit_contract_after_aarch64_cbnz_fusion<
         machine,
         physical,
         encoding,
-        layout,
+        layout.program(),
         layout_custody,
         None,
         contract.contract(),

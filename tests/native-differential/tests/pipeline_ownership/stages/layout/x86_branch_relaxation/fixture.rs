@@ -5,23 +5,7 @@ use crate::tests::*;
 pub(super) fn stage_with_budget(
     budget: OptimizationWorkBudget,
 ) -> Result<StagedOptimizedX86BranchRelaxation, OptimizedX86BranchRelaxationError> {
-    let (semantic, proof) = disconnected_conditional_artifact();
-    let selections =
-        OptimizationSelections::new([Optimization::X86RelaxConditionalBranchesToRel8V1]).unwrap();
-    let optimized = optimize_artifact_sections(
-        &semantic,
-        &proof,
-        &AdmissionProfile::default(),
-        ExplicitOptimizationRequest::new(selections, selected_lowering_budget()).unwrap(),
-    )
-    .unwrap();
-    let target =
-        lower_optimized_to_target_operations(optimized, NativeTarget::linux_x64()).unwrap();
-    let selected = stage_optimized_instruction_selection(target).unwrap();
-    let liveness = stage_optimized_liveness(selected).unwrap();
-    let ranges = stage_optimized_live_ranges(liveness).unwrap();
-    let legality = stage_optimized_allocation_legality(ranges).unwrap();
-    let homes = stage_optimized_register_homes(legality).unwrap();
+    let homes = physical_homes();
     let machine = stage_optimized_post_allocation_machine_plan(&homes).unwrap();
     let selected_stage = homes
         .legality_stage()
@@ -50,6 +34,26 @@ pub(super) fn stage_with_budget(
         &baseline_layout,
         budget,
     )
+}
+
+pub(super) fn physical_homes() -> StagedOptimizedRegisterHomes {
+    let (semantic, proof) = disconnected_conditional_artifact();
+    let selections =
+        OptimizationSelections::new([Optimization::X86RelaxConditionalBranchesToRel8V1]).unwrap();
+    let optimized = optimize_artifact_sections(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        ExplicitOptimizationRequest::new(selections, selected_lowering_budget()).unwrap(),
+    )
+    .unwrap();
+    let target =
+        lower_optimized_to_target_operations(optimized, NativeTarget::linux_x64()).unwrap();
+    let selected = stage_optimized_instruction_selection(target).unwrap();
+    let liveness = stage_optimized_liveness(selected).unwrap();
+    let ranges = stage_optimized_live_ranges(liveness).unwrap();
+    let legality = stage_optimized_allocation_legality(ranges).unwrap();
+    stage_optimized_register_homes(legality).unwrap()
 }
 
 pub(super) fn direct_realization() -> StagedFunctionRelativeLayoutOptimizationRealization {

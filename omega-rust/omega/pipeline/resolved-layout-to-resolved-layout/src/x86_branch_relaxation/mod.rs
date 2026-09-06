@@ -3,7 +3,7 @@
 mod catalog;
 mod compute;
 mod error;
-mod identity;
+use machine_code::layout::evidence::relaxation_identity as identity;
 mod model;
 mod validation;
 

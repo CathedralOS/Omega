@@ -9,7 +9,7 @@ use post_allocation_machine_to_post_allocation_machine::{
 use selected_instructions_to_register_homes::AllocationRecoveryRuleCatalogError;
 use target::Architecture;
 
-use selected_form_encoding_to_resolved_layout::FunctionRelativeLayoutCatalogError;
+use resolved_layout_to_resolved_layout::FunctionRelativeLayoutCatalogError;
 
 use super::*;
 mod wrong_architecture;

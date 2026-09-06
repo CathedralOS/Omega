@@ -6,9 +6,9 @@ use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use crate::ValidatedTargetFrameProtocolEncoding;
 use crate::frame_layout::ValidatedTargetFrameLayout;
+use machine_code::ResolvedMachineLayout;
 use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
-use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
 
 use super::{
     error::WholeFunctionExitContractError,
@@ -31,7 +31,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
     staged_machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     encoding: &StagedOptimizedSelectedFormEncoding,
-    layout: &StagedOptimizedResolvedSelectedFormLayout,
+    layout: &ResolvedMachineLayout,
     layout_custody: WholeFunctionExitLayoutCustody,
 ) -> Result<WholeFunctionExitContract, WholeFunctionExitContractError> {
     compute_inner(
@@ -50,7 +50,7 @@ pub(super) fn compute_with_frame<S: ValidatedSelectedAnalysis>(
     staged_machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     encoding: &StagedOptimizedSelectedFormEncoding,
-    layout: &StagedOptimizedResolvedSelectedFormLayout,
+    layout: &ResolvedMachineLayout,
     layout_custody: WholeFunctionExitLayoutCustody,
     frame: &ValidatedTargetFrameLayout,
     protocol: &ValidatedTargetFrameProtocolEncoding,
@@ -67,12 +67,12 @@ pub(super) fn compute_with_frame<S: ValidatedSelectedAnalysis>(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn compute_inner<S: ValidatedSelectedAnalysis>(
+pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
     selected: &S,
     staged_machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     encoding: &StagedOptimizedSelectedFormEncoding,
-    layout: &StagedOptimizedResolvedSelectedFormLayout,
+    layout: &ResolvedMachineLayout,
     layout_custody: WholeFunctionExitLayoutCustody,
     frame_inputs: Option<(
         &ValidatedTargetFrameLayout,

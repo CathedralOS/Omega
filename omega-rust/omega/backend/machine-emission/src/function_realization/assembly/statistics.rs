@@ -2,7 +2,7 @@ use super::super::prelude::*;
 use super::super::{error::*, model::*};
 
 pub(crate) fn function_relative_statistics(
-    layout: &StagedOptimizedResolvedSelectedFormLayout,
+    layout: &ResolvedMachineLayout,
 ) -> Result<
     FunctionRelativeOptimizationRealizationStatistics,
     FunctionRelativeOptimizationRealizationError,

@@ -11,7 +11,7 @@ pub(in crate::function_realization) fn expected_fixed_frame_manifest(
     allocation: &AllocationOutput<'_>,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     encoding: &StagedOptimizedSelectedFormEncoding,
-    layout: &StagedOptimizedResolvedSelectedFormLayout,
+    layout: &ResolvedMachineLayout,
     frame: &ValidatedTargetFrameLayout,
     protocol: &ValidatedTargetFrameProtocolEncoding,
     exit_contract: &ValidatedWholeFunctionExitContract,

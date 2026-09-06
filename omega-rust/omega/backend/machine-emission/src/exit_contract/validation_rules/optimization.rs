@@ -1,14 +1,14 @@
+use machine_code::ResolvedMachineLayout;
 use post_allocation_machine_to_post_allocation_machine::StagedOptimizedPostAllocationMachineOptimization;
 use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
-use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
 
 use super::super::{error::WholeFunctionExitContractError, model::WholeFunctionExitLayoutCustody};
 
 pub(in crate::exit_contract) fn post_allocation_layout_custody(
     machine: &StagedOptimizedPostAllocationMachinePlan,
     encoding: &StagedOptimizedSelectedFormEncoding,
-    layout: &StagedOptimizedResolvedSelectedFormLayout,
+    layout: &ResolvedMachineLayout,
     optimization: &StagedOptimizedPostAllocationMachineOptimization,
 ) -> Result<WholeFunctionExitLayoutCustody, WholeFunctionExitContractError> {
     let normalized = optimization
@@ -42,7 +42,7 @@ fn generic_layout_custody(
 pub(in crate::exit_contract) fn validate_layout_custody(
     machine: &StagedOptimizedPostAllocationMachinePlan,
     encoding: &StagedOptimizedSelectedFormEncoding,
-    layout: &StagedOptimizedResolvedSelectedFormLayout,
+    layout: &ResolvedMachineLayout,
     custody: WholeFunctionExitLayoutCustody,
 ) -> Result<(), WholeFunctionExitContractError> {
     let encoding_optimization = encoding.post_allocation_machine_optimization();

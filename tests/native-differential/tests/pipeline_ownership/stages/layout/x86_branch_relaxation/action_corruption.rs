@@ -12,8 +12,10 @@ fn authenticated_action_corruption_rejects_at_the_public_realization_boundary() 
     assert_eq!(
         validate_function_relative_layout_optimization_realization_custody(&realization),
         Err(
-            FunctionRelativeOptimizationRealizationError::X86BranchRelaxation(
-                OptimizedX86BranchRelaxationError::ArtifactMismatch,
+            FunctionRelativeOptimizationRealizationError::LayoutOptimization(
+                ResolvedLayoutOptimizationError::Relaxation(
+                    OptimizedX86BranchRelaxationError::ArtifactMismatch,
+                ),
             ),
         ),
     );

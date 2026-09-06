@@ -12,7 +12,7 @@ use crate::{
     ResolvedSelectedFunctionLayout,
 };
 
-use super::model::{
+use super::{
     X86BranchRelaxationAction, X86BranchRelaxationAttempt, X86BranchRelaxationAttemptOutcome,
     X86BranchRelaxationIdentity, X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,
 };
@@ -21,15 +21,15 @@ const RELAXATION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation.v3";
 const REVISION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation-revision.v3";
 
 #[derive(Clone, Copy)]
-pub(super) struct RevisionRoots {
-    pub(super) source: ResolvedSelectedFormLayoutIdentity,
-    pub(super) selected: selected_instructions::SelectedInstructionPlanIdentity,
-    pub(super) machine: physical_instructions::PostAllocationMachineIdentity,
-    pub(super) pre_layout: machine_code::SelectedFormEncodingIdentity,
-    pub(super) target: NativeTarget,
+pub struct RevisionRoots {
+    pub source: ResolvedSelectedFormLayoutIdentity,
+    pub selected: selected_instructions::SelectedInstructionPlanIdentity,
+    pub machine: physical_instructions::PostAllocationMachineIdentity,
+    pub pre_layout: crate::SelectedFormEncodingIdentity,
+    pub target: NativeTarget,
 }
 
-pub(super) fn revision_identity(
+pub fn revision_identity(
     roots: RevisionRoots,
     functions: &[ResolvedSelectedFunctionLayout],
 ) -> X86BranchRelaxationRevisionIdentity {
@@ -37,11 +37,11 @@ pub(super) fn revision_identity(
     hasher.update(REVISION_SCHEMA);
     encode_roots(&mut hasher, roots);
     encode_functions(&mut hasher, functions);
-    X86BranchRelaxationRevisionIdentity(hasher.finalize().into())
+    X86BranchRelaxationRevisionIdentity::from_bytes(hasher.finalize().into())
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn artifact_identity(
+pub fn artifact_identity(
     roots: RevisionRoots,
     policy: X86BranchRelaxationPolicy,
     budget: OptimizationWorkBudget,
@@ -132,7 +132,7 @@ fn encode_functions(hasher: &mut Sha256, functions: &[ResolvedSelectedFunctionLa
                 hasher.update(&row.bytes);
                 match row.branch.as_deref() {
                     None => hasher.update([0]),
-                    Some(machine_code::ResolvedBranchEvidence::Conditional(branch)) => {
+                    Some(crate::ResolvedBranchEvidence::Conditional(branch)) => {
                         hasher.update([1]);
                         hasher.update([match branch.predicate {
                             ResolvedConditionalBranchPredicate::NonZeroV1 => 0,
@@ -149,7 +149,7 @@ fn encode_functions(hasher: &mut Sha256, functions: &[ResolvedSelectedFunctionLa
                         hasher.update(branch.byte_displacement.to_le_bytes());
                         encode_effects(hasher, &branch.decoded_effects);
                     }
-                    Some(machine_code::ResolvedBranchEvidence::Jump(jump)) => {
+                    Some(crate::ResolvedBranchEvidence::Jump(jump)) => {
                         hasher.update([2]);
                         hasher.update(jump.source_block.0.to_le_bytes());
                         hasher.update(jump.target_edge.get().to_le_bytes());

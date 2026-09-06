@@ -12,8 +12,8 @@ use target::{Architecture, NativeTarget};
 
 use machine_code::{SelectedFormEncodingState, SelectedFormMachineDisposition};
 
+use machine_code::ResolvedMachineLayout;
 use machine_code::SelectedFormEncoding;
-use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
 
 use super::super::{
     error::WholeFunctionExitContractError,
@@ -86,7 +86,7 @@ pub(in crate::exit_contract) fn unique_encoding_rows<'a>(
 }
 
 pub(in crate::exit_contract) fn unique_layout_rows(
-    layout: &StagedOptimizedResolvedSelectedFormLayout,
+    layout: &ResolvedMachineLayout,
 ) -> Result<
     BTreeMap<
         (semantic_vocabulary::MachineId, SelectedInstructionId),

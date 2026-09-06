@@ -234,7 +234,7 @@ enablement and order.
 | Selected lowering | `selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/mod.rs` | adjacent `catalog.rs` | `literal_fold/` |
 | Allocation recovery | `selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/mod.rs` | adjacent `catalog.rs` | `fixed_view_copy/`, `pressure_rematerialization/` |
 | Post-allocation machine | `post-allocation-machine-to-post-allocation-machine/src/rules/mod.rs` | `rules/catalog.rs` | `rules/peephole_matching/`, then `rules/<isa>/<exact-rule>/` |
-| Function-relative layout | `selected-form-encoding-to-resolved-layout/src/x86_branch_relaxation/mod.rs` | adjacent `catalog.rs` | compute and independent validation |
+| Function-relative layout | `resolved-layout-to-resolved-layout/src/x86_branch_relaxation/mod.rs` | adjacent `catalog.rs` | compute and independent validation |
 
 Runtime condition legalization follows the same mirrored taxonomy as leaf
 legalization. `source/conditions/mod.rs` is the small producer coordination

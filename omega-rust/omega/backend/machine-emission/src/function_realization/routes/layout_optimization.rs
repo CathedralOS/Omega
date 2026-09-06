@@ -31,39 +31,44 @@ pub fn stage_function_relative_layout_optimization_realization(
     let baseline_layout =
         stage_optimized_resolved_selected_form_layout(selected, &machine, physical, &encoding)
             .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
-    let relaxation = stage_optimized_x86_branch_relaxation(
+    let layout_optimization = stage_layout_optimization(
         selected,
         &machine,
         physical,
         &encoding,
         &baseline_layout,
+        selections,
         current.budget_per_pass(),
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::X86BranchRelaxation)?;
-    let exit_contract = stage_whole_function_exit_contract_after_x86_branch_relaxation(
+    )?;
+    let exit_contract = crate::stage_whole_function_exit_contract_for_layout(
         selected,
         &machine,
         physical,
         &encoding,
+        None,
         &baseline_layout,
-        &relaxation,
+        &layout_optimization,
+        None,
     )
     .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
+    let relaxation = layout_optimization.relaxation().ok_or(
+        FunctionRelativeOptimizationRealizationError::MissingFunctionRelativeLayoutOptimization,
+    )?;
     let manifest = expected_direct_manifest(
         &current,
         &machine,
         &encoding,
         &baseline_layout,
-        &relaxation,
+        &layout_optimization,
         &exit_contract,
     )?;
-    let custody = direct_custody_receipt(source, &machine, &relaxation, &exit_contract, &manifest);
+    let custody = direct_custody_receipt(source, &machine, relaxation, &exit_contract, &manifest);
     Ok(StagedFunctionRelativeLayoutOptimizationRealization {
         allocation,
         machine,
         encoding,
         baseline_layout,
-        relaxation,
+        layout_optimization,
         exit_contract,
         manifest,
         custody,
@@ -116,22 +121,24 @@ pub fn validate_function_relative_layout_optimization_realization_custody(
         &staged.baseline_layout,
     )
     .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
-    validate_optimized_x86_branch_relaxation(
+    validate_layout_optimization(
         selected,
         &staged.machine,
         physical,
         &staged.encoding,
         &staged.baseline_layout,
-        &staged.relaxation,
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::X86BranchRelaxation)?;
-    validate_whole_function_exit_contract_after_x86_branch_relaxation(
+        &staged.layout_optimization,
+        selections,
+    )?;
+    crate::validate_whole_function_exit_contract_for_layout(
         selected,
         &staged.machine,
         physical,
         &staged.encoding,
+        None,
         &staged.baseline_layout,
-        &staged.relaxation,
+        &staged.layout_optimization,
+        None,
         &staged.exit_contract,
     )
     .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
@@ -140,7 +147,7 @@ pub fn validate_function_relative_layout_optimization_realization_custody(
         &staged.machine,
         &staged.encoding,
         &staged.baseline_layout,
-        &staged.relaxation,
+        &staged.layout_optimization,
         &staged.exit_contract,
     )?;
     if manifest.record != staged.manifest.record {
@@ -149,7 +156,7 @@ pub fn validate_function_relative_layout_optimization_realization_custody(
     let custody = direct_custody_receipt(
         source,
         &staged.machine,
-        &staged.relaxation,
+        staged.relaxation(),
         &staged.exit_contract,
         &manifest,
     );
