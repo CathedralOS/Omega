@@ -428,7 +428,6 @@ struct LoweredDirectCallBinding {
     result_type: ScalarType,
     arguments: Vec<LoweredDirectExpression>,
     crash_continuations: Vec<checked_trees::CrashRouteBucket>,
-    crash_scope: ScalarCallCrashScope,
     parameter_relative_crash_routes: Vec<checked_trees::CrashRouteBucket>,
 }
 

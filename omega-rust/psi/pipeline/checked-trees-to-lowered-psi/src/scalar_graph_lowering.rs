@@ -703,7 +703,6 @@ pub(super) fn lower_scalar_call(
         result_type,
         arguments,
         crash_continuations: crash_continuations.to_vec(),
-        crash_scope,
         parameter_relative_crash_routes: target_contract.crash.published().to_vec(),
     })
 }
