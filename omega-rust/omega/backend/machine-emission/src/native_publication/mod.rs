@@ -3,8 +3,8 @@
 //! Frame application, byte intervals, stack custody and MachineCodeFunction
 //! construction belong to machine emission. The compiler supplies the selected
 //! execution and separately joins the result to product evidence. Publication
-//! currently accepts return-only Unit functions and scalar leaves; unsupported
-//! bodies reject rather than falling back to a different emitter.
+//! currently accepts return-only Unit functions, scalar leaves and direct-return
+//! scalar decisions. Unsupported bodies reject without an alternate emitter.
 
 mod scalar;
 mod unit_stack;
@@ -152,7 +152,21 @@ fn project_leaf_fragments(projected: &ProjectedFragments) -> Result<MachineCodeP
                 return Err("native fragment is detached from its target function");
             }
             if let Some(abi) = &target_function.fixed_integer_scalar_abi {
-                return scalar::project_function(fragment, abi, fragments.target.architecture);
+                let abstract_function = staged
+                    .source()
+                    .optimized_target()
+                    .optimized()
+                    .plan()
+                    .functions
+                    .iter()
+                    .find(|function| function.machine == fragment.machine)
+                    .ok_or("native scalar fragment has no current abstract function")?;
+                return scalar::project_function(
+                    fragment,
+                    abi,
+                    abstract_function,
+                    fragments.target.architecture,
+                );
             }
             project_function(
                 fragment,

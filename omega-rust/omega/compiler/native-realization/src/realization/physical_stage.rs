@@ -6,6 +6,7 @@ use crate::realization::model::NativeRealizationCoreRequest;
 use crate::realization::target_stage::{NativeTargetStageEvidence, NativeTargetStageResult};
 use diagnostics::Diagnostic;
 
+mod fragment_shape;
 #[cfg(test)]
 mod tests;
 
@@ -21,8 +22,8 @@ pub(crate) struct OptimizedNativePhysicalStage {
 
 /// One completed physical-routing stage result.
 ///
-/// Unit returns and scalar leaves share the fragment result with selected
-/// execution. Richer ordinary and ranked programs still use baseline assignment
+/// Unit returns and supported scalar bodies share the fragment result with
+/// selected execution. Richer ordinary and ranked programs still use baseline assignment
 /// until their ABI, call and control facts reach the same fragment postcondition.
 #[derive(Debug)]
 pub(crate) enum NativePhysicalStageResult {
@@ -43,7 +44,7 @@ pub(crate) fn lower_realization_physical_stage(
             // Transitional physical split only. Target production and its
             // retained translation evidence no longer depend on this selection.
             if request.optimization_selections.is_empty()
-                && !(fragment_leaf_program(&optimized_target)
+                && !(fragment_program(&optimized_target)
                     && optimized_target.provider_installation().is_none()
                     && request.settlements.is_empty()
                     && request.compiler_builtins.is_empty()
@@ -102,7 +103,7 @@ fn return_only_fragment_program(plan: &abstract_operations::AbstractOperationPla
         })
 }
 
-fn fragment_leaf_program(
+fn fragment_program(
     target: &abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
 ) -> bool {
     let plan = target.optimized().plan();
@@ -122,6 +123,9 @@ fn fragment_leaf_program(
         else {
             return false;
         };
+        if fragment_shape::scalar_conditional(function, native) {
+            return true;
+        }
         function.attachment.is_none()
             && function.structural_parameters.is_empty()
             && function.entry_claims.is_empty()

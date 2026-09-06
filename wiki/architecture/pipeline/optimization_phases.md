@@ -300,19 +300,32 @@ route and silently fall back. Consequently every selected-pipeline result owns a
 non-optional function-relative manifest. The remaining transitional split is one
 layer out: `NativePhysicalStageResult` still carries assigned operations for
 ranked programs and ordinary identity programs beyond the supported fragment
-publication shape. Return-only Unit programs and free `u64` constant/parameter
-leaves use the shared fragment stages even with empty selections. These scalar
-leaves retain their target ABI, keep incoming parameter precolors, and explicitly
+publication shape. Return-only Unit programs, free `u64` constant/parameter
+leaves, and direct-return scalar comparisons use the shared fragment stages
+even with empty selections. The conditional migration covers two distinct
+register parameters compared with unsigned equality or signed/unsigned
+less-than and less-or-equal, returning `u64` constants from two separate arms.
+Scalar leaves retain their target ABI, keep incoming parameter precolors, and explicitly
 copy a returned parameter into a separate return-constrained virtual value.
 Calls, structural parameters, cleanup, callbacks and provider settlements remain
-outside this scalar migration. This boundary is checked before execution; a failure never
+outside this scalar migration. So do common-return blocks and successor argument
+transfers: the source frontend currently produces that richer shape for scalar
+conditionals. The direct-return controls therefore start at separately authored,
+verified Terminal products, not a claim of source-conditional coverage.
+This boundary is checked before execution; a failure never
 selects the old route. Identity fragment publication preserves the original
 physical-evidence scope only after checking the retained empty selection identity.
 Every optimizer-owned arm then enters one function-fragment
-emission stage. Native projection admits Unit returns and the scalar leaves above;
+emission stage. Native projection admits Unit returns and the scalar bodies above;
 it does not inspect which physical optimization variant produced them. Scalar
 publication binds the exact ABI, bytes and semantic intervals, with independent
-object/stack replay. Microsoft-x64 leaf frames retain the incoming stack when
+object/stack replay. Conditional evidence retains the actual taken predicate and
+both physical successors rather than borrowing the older emitter's false-taken
+layout. Replay decodes the branch independently and carries common-prefix stack
+depth into each returning arm. Both arms must restore the incoming stack. The
+taken edge owns the branch interval; the fallthrough edge has a zero-width
+coordinate at the next instruction. Both retain their one semantic conditional
+ordinal. Microsoft-x64 leaf frames retain the incoming stack when
 empty and align any allocated storage; outgoing calls still need a home-area
 contract and are not admitted by that frame policy. The
 public request surface uses the closed post-Terminal selection type, so this

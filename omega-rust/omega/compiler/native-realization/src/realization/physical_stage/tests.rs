@@ -5,6 +5,8 @@ use crate::realization::optimized_fragment_projection::{
     OptimizedFragmentPublicationRequest, emit_optimized_fragments,
 };
 use crate::realization::target_stage::lower_realization_target_stage;
+mod conditional;
+mod conditional_fixture;
 
 #[test]
 fn scalar_leaf_fragments_reach_native_object_publication() {
@@ -59,7 +61,7 @@ fn scalar_leaf_fragments_reach_native_object_publication() {
                     )
                     .unwrap();
                 assert!(
-                    fragment_leaf_program(&target_program),
+                    fragment_program(&target_program),
                     "default production must select this same route"
                 );
                 let physical = crate::stage_optimized_verified_physical_pipeline(
