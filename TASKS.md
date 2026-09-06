@@ -370,12 +370,15 @@ Owners include
   mutable borrow. Acceptance includes read rejection, exact write coverage,
   unwind/return behavior, and both Linux targets.
 
-  Resolve an attached `&write self` through its exact data declaration in
-  `validation/src/write_only_borrows.rs`: `Self` currently fails the supported
-  referee lookup even for a plain record. Reconcile receiver-root identity as
-  well, so direct and projected writes check while old-value reads reject for
-  non-observation, not merely for an unsupported type. Do not infer permission
-  from the attached declaration's fields.
+  Implicit receiver calls need exact non-observing call admission in
+  `validation/src/write_only_borrows/receiver.rs`; the current checked route
+  requires explicit `&write` arguments. Do not treat an implicit receiver as
+  readable merely to dispatch it.
+
+  Bind bare attached-field projections through their exact declaration in
+  `typed-trees-to-checked-trees/src/authored_selections.rs`: `inner.value = 17`
+  passes write-only access validation but leaves its `CheckedMember` selection
+  unresolved. The explicit `self.inner.value` spelling completes checking.
 
   Native referent identity follows `STRUCTURAL-BORROW-IDENTITY` below; it is
   not an owner-policy blocker. Preserve write-only non-observation independently

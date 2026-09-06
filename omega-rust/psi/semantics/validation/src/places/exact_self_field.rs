@@ -39,6 +39,25 @@ pub fn exact_self_field<'program>(
     {
         return None;
     }
+    exact_attached_field(
+        program,
+        machine,
+        member.member_symbol,
+        member.member.as_str(),
+    )
+}
+
+/// Rejoin an attached field's original or inherited declaration identity.
+/// The caller establishes that the expression denotes this receiver's storage.
+pub(crate) fn exact_attached_field<'program>(
+    program: &'program TypedTrees,
+    machine: &Machine,
+    field_symbol: SymbolHandle,
+    field_name: &str,
+) -> Option<&'program DataField> {
+    if !machine.symbol.is_valid() || !machine.attached_data_symbol.is_valid() {
+        return None;
+    }
     let mut owners = program
         .data_definitions()
         .iter()
@@ -47,14 +66,8 @@ pub fn exact_self_field<'program>(
     if owners.next().is_some() {
         return None;
     }
-    let field = exact_data_member_field(
-        program,
-        owner,
-        SymbolHandle::invalid(),
-        member.member.as_str(),
-        None,
-    )?;
-    if !member.member_symbol.is_valid() || member.member_symbol == field.symbol {
+    let field = exact_data_member_field(program, owner, SymbolHandle::invalid(), field_name, None)?;
+    if !field_symbol.is_valid() || field_symbol == field.symbol {
         return Some(field);
     }
 
@@ -76,7 +89,7 @@ pub fn exact_self_field<'program>(
         .child_handles(machine.symbol)?
         .filter(|symbol| program.symbols.get(*symbol).kind == SymbolKind::Field)
         .nth(ordinal)?;
-    (member.member_symbol == inherited
+    (field_symbol == inherited
         && program.symbols.get(inherited).parent == machine.symbol
         && program.symbols.name(inherited) == field.name.as_str())
     .then_some(field)

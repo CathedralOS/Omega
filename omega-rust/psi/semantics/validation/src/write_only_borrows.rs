@@ -9,9 +9,12 @@ use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
+mod receiver;
+
 #[derive(Clone)]
 struct WriteOnlyRoot {
     symbol: SymbolHandle,
+    receiver_machine: SymbolHandle,
     name: String,
     referee: TypeReferenceHandle,
     is_parameter: bool,
@@ -39,6 +42,11 @@ pub(crate) fn validate_checked_write_only_slice(
                     };
                     Some(WriteOnlyRoot {
                         symbol: parameter.symbol,
+                        receiver_machine: if parameter.is_self {
+                            machine.symbol
+                        } else {
+                            SymbolHandle::invalid()
+                        },
                         name: parameter.name.as_str().to_owned(),
                         referee: *referee,
                         is_parameter: true,
@@ -66,6 +74,7 @@ pub(crate) fn validate_checked_write_only_slice(
                         };
                         Some(WriteOnlyRoot {
                             symbol: local.symbol,
+                            receiver_machine: SymbolHandle::invalid(),
                             name: local.name.as_str().to_owned(),
                             referee: *referee,
                             is_parameter: false,
@@ -85,7 +94,9 @@ pub(crate) fn validate_checked_write_only_slice(
             }
 
             for root in &roots {
-                if !is_supported_checked_referee(program, root.referee) {
+                if !is_supported_checked_referee(program, root.referee)
+                    && receiver::record(program, root).is_none()
+                {
                     diagnostics.push(Diagnostic::error(format!(
                         "machine `{}` state `{}` parameter `{}` uses `&write` with `{}`; the current checked slice supports unrestricted primitive scalars, recursively literal fixed arrays whose ultimate elements are unrestricted primitive scalars or eligible material `[copy]` records or sums, forwarding-only byte slices, non-generic invariant-free checked records, and closed material `[copy]` sums as atomic whole values",
                         machine.name,
@@ -199,10 +210,17 @@ fn closed_write_only_data(
     else {
         return None;
     };
+    closed_write_only_data_by_symbol(program, *symbol)
+}
+
+fn closed_write_only_data_by_symbol(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<&DataDefinition> {
     let definition = program
         .data_definitions()
         .iter()
-        .find(|definition| definition.symbol == *symbol)?;
+        .find(|definition| definition.symbol == symbol)?;
     (definition.supply_mode == language_semantics::DataSupplyMode::CheckedShape
         && definition.lifetime_parameters.is_empty()
         && program.data_type_parameters(definition).is_empty()
@@ -285,6 +303,9 @@ fn whole_root_replacement_is_supported(program: &TypedTrees, root: &WriteOnlyRoo
         || fixed_unrestricted_write_only_array_length(program, root.referee).is_some()
         || is_unrestricted_write_only_record(program, root.referee)
         || is_unrestricted_write_only_sum(program, root.referee)
+        || receiver::record(program, root).is_some_and(|definition| {
+            definition.properties.multiplicity == language_semantics::Multiplicity::Unrestricted
+        })
 }
 
 /// Resolve `root.record_field...leaf`, where every receiver is an admitted
@@ -305,30 +326,49 @@ fn write_only_record_field_type(
         members.push(cursor);
         cursor = member.receiver;
     }
-    let root = direct_write_only_root(program, cursor, roots)?;
+    let (root, mut receiver_type, starts_at_receiver) =
+        if let Some(root) = direct_write_only_root(program, cursor, roots) {
+            (root, root.referee, true)
+        } else {
+            let (root, field) = receiver::bare_field(program, cursor, roots)?;
+            if field.relevance.is_erased() {
+                return None;
+            }
+            if members.is_empty() {
+                return Some(field.type_reference);
+            }
+            (root, field.type_reference, false)
+        };
     if members.is_empty() {
         return None;
     }
 
-    let mut receiver_type = root.referee;
     for (index, member_handle) in members.iter().rev().enumerate() {
         let ExpressionNode::Member(member) = program.expression_table.expression(*member_handle)
         else {
             unreachable!("member path was collected above")
         };
-        let definition = write_only_record(program, receiver_type)?;
-        let field = program
-            .data_members(definition)
-            .iter()
-            .find_map(|candidate| {
-                let DataMember::Field(field) = candidate else {
-                    return None;
-                };
-                ((member.member_symbol.is_valid() && field.symbol == member.member_symbol)
-                    || (!member.member_symbol.is_valid()
-                        && field.name.as_str() == member.member.as_str()))
-                .then_some(field)
-            })?;
+        let definition = if index == 0 && starts_at_receiver && root.receiver_machine.is_valid() {
+            receiver::record(program, root)?
+        } else {
+            write_only_record(program, receiver_type)?
+        };
+        let field = if index == 0 && starts_at_receiver && root.receiver_machine.is_valid() {
+            receiver::field(program, root, *member_handle)?
+        } else {
+            program
+                .data_members(definition)
+                .iter()
+                .find_map(|candidate| {
+                    let DataMember::Field(field) = candidate else {
+                        return None;
+                    };
+                    ((member.member_symbol.is_valid() && field.symbol == member.member_symbol)
+                        || (!member.member_symbol.is_valid()
+                            && field.name.as_str() == member.member.as_str()))
+                    .then_some(field)
+                })?
+        };
         if field.relevance.is_erased() {
             return None;
         }
@@ -496,6 +536,7 @@ fn validate_statement(
             );
         }
         StatementNode::Call(call) => {
+            receiver::validate_statement_call(program, machine, state, call, roots, diagnostics);
             for argument in program.statement_table.expression_handles(call.arguments) {
                 validate_call_argument(program, machine, state, *argument, roots, diagnostics);
             }
@@ -786,7 +827,17 @@ fn validate_transition_target(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match program.statement_table.transition_target(target) {
-        TransitionTargetNode::Named { arguments, .. } => {
+        TransitionTargetNode::Named {
+            path, arguments, ..
+        } => {
+            receiver::validate_state_transfer(
+                program,
+                machine,
+                state,
+                path.symbol,
+                roots,
+                diagnostics,
+            );
             for argument in program.statement_table.expression_handles(*arguments) {
                 validate_expression(program, machine, state, *argument, roots, diagnostics);
             }
@@ -829,7 +880,10 @@ fn validate_expression(
 ) {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
-            if let Some(root) = roots.iter().find(|root| path.head_symbol == root.symbol) {
+            if let Some(root) = roots
+                .iter()
+                .find(|root| receiver::mentions_name(program, root, path))
+            {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{machine}` state `{state}` reads write-only parameter `{}`; `&write` permits replacement or exact `&write` forwarding, never observation",
                     root.name,
@@ -958,7 +1012,11 @@ fn direct_write_only_root<'a>(
         .name_path_members(path.members)
         .len()
         == 1)
-        .then(|| roots.iter().find(|root| path.head_symbol == root.symbol))
+        .then(|| {
+            roots
+                .iter()
+                .find(|root| receiver::matches_name(program, root, path))
+        })
         .flatten()
 }
 
@@ -969,7 +1027,7 @@ fn mentioned_write_only_root<'a>(
 ) -> Option<&'a WriteOnlyRoot> {
     roots
         .iter()
-        .find(|root| expression_mentions_symbol(program, expression, root.symbol))
+        .find(|root| expression_mentions_root(program, expression, root))
 }
 
 fn expression_mentions_write_only_root(
@@ -980,53 +1038,51 @@ fn expression_mentions_write_only_root(
     mentioned_write_only_root(program, expression, roots).is_some()
 }
 
-fn expression_mentions_symbol(
+fn expression_mentions_root(
     program: &TypedTrees,
     expression: ExpressionHandle,
-    symbol: SymbolHandle,
+    root: &WriteOnlyRoot,
 ) -> bool {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Name(path) => path.head_symbol == symbol,
-        ExpressionNode::Borrow(value) => expression_mentions_symbol(program, value.target, symbol),
+        ExpressionNode::Name(path) => receiver::mentions_name(program, root, path),
+        ExpressionNode::Borrow(value) => expression_mentions_root(program, value.target, root),
         ExpressionNode::ArrayLiteral(values) => program
             .expression_table
             .expression_handles(*values)
             .iter()
-            .any(|value| expression_mentions_symbol(program, *value, symbol)),
+            .any(|value| expression_mentions_root(program, *value, root)),
         ExpressionNode::Atomic(atomic) => {
-            expression_mentions_symbol(program, atomic.value, symbol)
-                || expression_mentions_symbol(program, atomic.result, symbol)
+            expression_mentions_root(program, atomic.value, root)
+                || expression_mentions_root(program, atomic.result, root)
         }
         ExpressionNode::Binary(binary) => {
-            expression_mentions_symbol(program, binary.left, symbol)
-                || expression_mentions_symbol(program, binary.right, symbol)
+            expression_mentions_root(program, binary.left, root)
+                || expression_mentions_root(program, binary.right, root)
         }
-        ExpressionNode::Cast(cast) => expression_mentions_symbol(program, cast.value, symbol),
+        ExpressionNode::Cast(cast) => expression_mentions_root(program, cast.value, root),
         ExpressionNode::Call(call) => {
-            (call.receiver.is_valid() && expression_mentions_symbol(program, call.receiver, symbol))
+            (call.receiver.is_valid() && expression_mentions_root(program, call.receiver, root))
                 || program
                     .expression_table
                     .expression_handles(call.arguments)
                     .iter()
-                    .any(|argument| expression_mentions_symbol(program, *argument, symbol))
+                    .any(|argument| expression_mentions_root(program, *argument, root))
         }
         ExpressionNode::Indexed(indexed) => {
-            expression_mentions_symbol(program, indexed.collection, symbol)
-                || expression_mentions_symbol(program, indexed.index, symbol)
+            expression_mentions_root(program, indexed.collection, root)
+                || expression_mentions_root(program, indexed.index, root)
         }
-        ExpressionNode::Member(member) => {
-            expression_mentions_symbol(program, member.receiver, symbol)
-        }
+        ExpressionNode::Member(member) => expression_mentions_root(program, member.receiver, root),
         ExpressionNode::Range(range) => {
-            expression_mentions_symbol(program, range.start, symbol)
-                || expression_mentions_symbol(program, range.end, symbol)
+            expression_mentions_root(program, range.start, root)
+                || expression_mentions_root(program, range.end, root)
         }
         ExpressionNode::StructLiteral(literal) => program
             .expression_table
             .struct_fields(literal.fields)
             .iter()
-            .any(|field| expression_mentions_symbol(program, field.value, symbol)),
-        ExpressionNode::Unary(unary) => expression_mentions_symbol(program, unary.operand, symbol),
+            .any(|field| expression_mentions_root(program, field.value, root)),
+        ExpressionNode::Unary(unary) => expression_mentions_root(program, unary.operand, root),
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
