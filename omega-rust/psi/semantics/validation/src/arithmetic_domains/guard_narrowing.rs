@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 use super::*;
 
 mod arrivals;
+mod parameter_bounds;
 pub use arrivals::arrival_integer_expression_bounds;
 
 #[cfg(test)]
@@ -449,6 +450,7 @@ pub(super) fn narrow_env_by_condition(
             return;
         }
     }
+    parameter_bounds::narrow(program, machine, state, env, condition, positive);
     // An immutable singleton parameter is the same integer at every
     // evaluation, so it supplies the literal-equivalent bound without reading
     // an initializer or borrowing facts from another state's same-spelled name.

@@ -16,6 +16,37 @@ pub fn immutable_integer_expression_bounds(
     Some((value.interval.low?, value.interval.high?))
 }
 
+/// Retain one-sided carrier bounds when projecting an exact builtin guard.
+/// An unrestricted u64 has a useful zero floor even though its ceiling does
+/// not fit the interval engine's i64 endpoint representation.
+pub(super) fn builtin_comparison_intervals(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<(Interval, Interval)> {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let spelling = match binary.operator {
+        BinaryOperator::Less => OperatorSpelling::Less,
+        BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
+        BinaryOperator::Greater => OperatorSpelling::Greater,
+        BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
+        _ => return None,
+    };
+    let left = bounds(program, machine, state, binary.left)?;
+    let right = bounds(program, machine, state, binary.right)?;
+    typed_trees::operator::has_builtin_spelled_expression_meaning(
+        program,
+        machine.symbol,
+        expression,
+        spelling,
+        &[left.type_reference, right.type_reference],
+    )
+    .then_some((left.interval, right.interval))
+}
+
 struct Bounds {
     interval: Interval,
     primitive: Option<PrimitiveType>,
