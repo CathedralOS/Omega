@@ -168,6 +168,13 @@ valid only when that machine makes no direct boundary calls; ordinary callees
 retain their own requirements. Field retention alone grants neither service
 reach nor a boundary binding. No new field kind or special empty root is needed.
 
+A provider-backed attachment may also retain one ordinary `self` parameter at
+structural position zero with the exact attachment type. Terminal and Omega
+optimization-unit validation preserve its access and multiplicity separately
+from the provider roots; those roots are still never runtime arguments. This
+signature check supplies no receiver storage. Native entry provisioning must
+construct and lend the selected receiver through the generated entry bridge.
+
 The adjacent first Fused Service-parameter slice uses the same zero-payload
 structural vocabulary without treating an authored boundary-opaque value as an
 ordinary empty record. Checked plans carry a separate exact receipt joining the

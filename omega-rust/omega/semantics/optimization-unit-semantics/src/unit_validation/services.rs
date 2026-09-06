@@ -342,8 +342,8 @@ pub(crate) fn boundary_structural_signature_matches(
 }
 
 /// Replay Terminal's exact attachment/self half of a structural signature.
-/// An attachment need not have a runtime `self` parameter (provider-backed
-/// specializations deliberately do not), but every retained `self` must be the
+/// An attachment need not have a runtime `self` parameter, including a
+/// provider-backed specialization, but every retained `self` must be the
 /// unique parameter whose type is that attachment.
 pub(crate) fn structural_signature_matches(
     parameters: &[terminal_psi::StructuralParameterDeclaration],
