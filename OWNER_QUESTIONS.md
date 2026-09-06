@@ -198,38 +198,3 @@ This decision blocks only the macOS GUI publication destination and the retained
 receipt pair. It does not block flat Mach-O emission, the ad-hoc code signature,
 the sealed-container and installation-replay custody the flat receipt already
 exercises, or any non-Darwin target.
-
-<a id="anonymous-integer-remainder"></a>
-
-## Q6 — Anonymous integer remainder
-
-Systems code uses compile-time remainder to partition capacity and normalize
-indexes. For `(0 - 3) % 2`, should the anonymous result be `-1`, `1`, or require
-an explicit integer landing before remainder is defined?
-
-Chapter 5 defines fixed-width `%` as dividend-sign remainder. Its
-[exact anonymous division and landing rule](wiki/language_guide/chapter_5_expressions_evaluation.md#exact-anonymous-division-and-landing)
-does not choose an anonymous remainder convention: rational division has no
-implicit truncated quotient from which to derive one.
-
-The ruling must state which quotient/remainder law applies to which operand
-kinds. For typed integers under Exact, the mathematical equality
-`a = q * b + r` relates the truncating integer quotient and dividend-sign
-remainder, subject to the existing division preconditions. This does not
-itself prove every intermediate in a machine-typed evaluation of the identity
-safe; other arithmetic policies also retain their own overflow rules.
-With anonymous rational `/`, `(a / b) * b` already equals `a`
-for nonzero `b`; adding a nonzero remainder cannot preserve that identity.
-If anonymous `%` is admitted, name its associated integer-quotient convention
-rather than silently treating rational `/` as that quotient. Future algebra
-contracts must not assert `a == (a / b) * b + a % b` across both operand kinds
-without these distinctions.
-
-This is an existing arithmetic spelling, not a proposed new surface. Current
-context-free integer evaluators use truncating `BigInt::div_rem`; that
-implementation is not a ruling on anonymous signed remainder.
-
-Only the ambiguous anonymous remainder behavior remains owner-blocked.
-Fixed-width division/remainder and exact anonymous addition, subtraction,
-multiplication, division, and their landing diagnostics are implementation work
-under the existing rules.

@@ -505,8 +505,18 @@ Owners include
   follow the guide's boundaries identically before and after optimization.
   Pin the practical alignment case: `(4097 / 4096) * 4096` is 4097 with a
   warning; `(4097u32 / 4096) * 4096` is 4096 without one.
-  Only anonymous signed remainder awaits the
-  [remainder ruling](OWNER_QUESTIONS.md#anonymous-integer-remainder).
+  Implement [typed integer quotient and remainder](wiki/language_guide/chapter_5_expressions_evaluation.md#typed-integer-quotient-and-remainder)
+  across operator resolution, constant evaluation, and proof consumption.
+  Literal-only `%` must reject even with an integer destination or in proof
+  context, including positive and exactly-divisible operands. Builtin proof
+  `Int` must evaluate truncating division and dividend-sign remainder without
+  machine-width bounds; preserve those semantics in retained proof terms and
+  independent checking. Acceptance: positive/negative dividend and divisor
+  combinations satisfy the paired integer law, zero divisors fail admission,
+  `a: Int` selects integer operations with anonymous integral operands, and
+  existing fixed-width policies and exact anonymous `/` remain unchanged.
+  Audit all admission paths rather than treating one evaluator's decline as
+  evidence of a language-wide rejection.
   Acceptance: implicit cross-state use rejects, while explicit renamed
   transfers retain exact contracts, field selection, ownership and cleanup
   without requiring a runtime copy. Wrong results, mismatched output origins,

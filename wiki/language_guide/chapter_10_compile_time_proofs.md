@@ -679,6 +679,16 @@ proof embedding target for fixed-width integers and addresses. Its order has no
 floor, so ranking views over it must produce a
 well-founded `Nat` rank or carry a proven floor.
 
+Builtin `Int` is already an integer type for
+[typed integer quotient and remainder](chapter_5_expressions_evaluation.md#typed-integer-quotient-and-remainder):
+`a / b` truncates toward zero and `a % b` is dividend-sign remainder, both
+requiring a nonzero divisor. Their results are unbounded; no machine-width
+landing or runtime layout is introduced. In a proof with `a: Int`, `a % 2`
+selects `Int` remainder, while literal-only `-3 % 2` still lacks a typed
+operand and rejects. Exact unbounded evaluation does not reinterpret integer
+division as rational division. This is the required contract; remaining
+operator evaluation and proof support is tracked on the execution board.
+
 Repeated projections of one exact contract parameter, result, Terminal value,
 structural float leaf, or exact-bit literal denote one proof term only when the
 verifier reconstructs the same format, projection operation, and recognized
