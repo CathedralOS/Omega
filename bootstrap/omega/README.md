@@ -56,8 +56,8 @@ members. `tools/bootstrap/source_closure.py` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current six-member
-manifest materializes 13,572 lines / 464,741 bytes with SHA-256
-`621f507b214f0f26ba3c9d4d36a1bb54a26bdeecbcdffcc24a2cb1a266ab8cde`.
+manifest materializes 13,632 lines / 466,179 bytes with SHA-256
+`e0d1d44bc815d08ebf59f8333c80440c3b44f2e61b40a12ca5ccd8eb3751c8e3`.
 The six authoring files preserve one Epsilon translation unit and its packed
 diagnostic coordinates.
 
@@ -92,6 +92,9 @@ states of one canonical invocation. Its retained slices sequence empty,
 trivia-only, ordinary `use path::member;`, basic `[pub] data`, and ordinary
 machine roots whose current bodies contain neutral path calls and simple
 assignments.
+The explicit slow [complete-D parser customer](../../tests/bootstrap/omega-parser/README.md)
+checks this manifested implementation through the lower chain. Sum-valued
+parser guards use Epsilon case transitions; scalar equality is not a sum test.
 One mixed root table preserves authored use/data/machine order. Optionally
 public ordinary machines retain an arbitrary name-like path, optional
 parentheses containing a comma-separated state-parameter list, and a body from

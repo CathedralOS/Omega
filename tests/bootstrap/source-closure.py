@@ -175,8 +175,8 @@ class SourceClosure(unittest.TestCase):
         closures = [
             (ROOT / "tests/bootstrap/epsilon-source-closure/fixture.sources", 89,
              "528f65b2e2d9666db1c1f3930c9f5784bbfc1497e3b7225b26cb3eee34d2924c", None),
-            (Path(os.environ["OMEGA_PATH_OMEGA_COMPILER_SOURCES"]), 464741,
-             "621f507b214f0f26ba3c9d4d36a1bb54a26bdeecbcdffcc24a2cb1a266ab8cde", None),
+            (Path(os.environ["OMEGA_PATH_OMEGA_COMPILER_SOURCES"]), 466179,
+             "e0d1d44bc815d08ebf59f8333c80440c3b44f2e61b40a12ca5ccd8eb3751c8e3", None),
             (Path(os.environ["OMEGA_PATH_EPSILON_COMPILER_SOURCES"]), 610428,
              "656c57b59d1ea8923343496b032d10ef8980e89e3c39b3855feae5498611a1c0", None),
             (Path(os.environ["OMEGA_PATH_DELTA_COMPILER_SOURCES"]), 155533,
