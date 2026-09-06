@@ -35,7 +35,13 @@ pub(super) fn collect_state_argument_facts_from_statement(
                 collected,
             );
             // RHS effects and values are evaluated before replacing the target.
-            let next_length = expression_indexable_length(program, facts, assignment.value);
+            let next_length = expression_indexable_length(
+                program,
+                machine,
+                context.state,
+                facts,
+                assignment.value,
+            );
             let next_integer = expression_integer_value(program, facts, assignment.value);
             facts.invalidate_assignment_bounds(
                 &program.expression_table.display_name(assignment.target),
@@ -52,6 +58,7 @@ pub(super) fn collect_state_argument_facts_from_statement(
             collect_state_argument_facts_for_call(
                 program,
                 machine,
+                context.state,
                 facts,
                 call.target_symbol,
                 program.statement_table.expression_handles(call.arguments),
@@ -78,8 +85,14 @@ pub(super) fn collect_state_argument_facts_from_statement(
                 local.initial_value,
                 collected,
             );
-            let length = expression_indexable_length(program, facts, local.initial_value)
-                .or_else(|| fixed_array_type_length(program, local.type_reference));
+            let length = expression_indexable_length(
+                program,
+                machine,
+                context.state,
+                facts,
+                local.initial_value,
+            )
+            .or_else(|| fixed_array_type_length(program, local.type_reference));
             let integer = expression_integer_value(program, facts, local.initial_value);
             facts.define_local(local.symbol, local.name.to_string(), length, integer);
             seed_boolean_guard_local(
@@ -169,6 +182,7 @@ fn collect_state_argument_facts_from_target(
             collect_state_argument_facts_for_call(
                 program,
                 machine,
+                context.state,
                 facts,
                 target_state.symbol,
                 program.statement_table.expression_handles(*arguments),

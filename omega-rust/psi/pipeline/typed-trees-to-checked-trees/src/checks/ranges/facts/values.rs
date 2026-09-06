@@ -4,24 +4,15 @@ use typed_trees::expression::ExpressionHandle;
 use super::RangeFacts;
 
 impl RangeFacts<'_> {
-    pub(in crate::checks::ranges) fn field_length(
-        &self,
-        symbol: SymbolHandle,
-        name: Option<&str>,
-    ) -> Option<usize> {
-        if symbol.is_valid()
-            && let Some(length) = self
-                .fields
-                .iter()
-                .find_map(|(field, _, length)| (*field == symbol).then_some(*length))
-        {
-            return Some(length);
+    pub(in crate::checks::ranges) fn field_length(&self, symbol: SymbolHandle) -> Option<usize> {
+        if !symbol.is_valid() {
+            return None;
         }
-
-        self.fields.iter().find_map(|(_, field_name, length)| {
-            name.is_some_and(|name| name == field_name)
-                .then_some(*length)
-        })
+        // A same-named field may have another extent or be an unknown-length
+        // slice. Missing identity must fall back to the receiver's type.
+        self.fields
+            .iter()
+            .find_map(|(field, _, length)| (*field == symbol).then_some(*length))
     }
 
     pub(in crate::checks::ranges) fn local_length(

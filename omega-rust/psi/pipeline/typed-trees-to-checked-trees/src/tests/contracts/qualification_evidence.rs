@@ -3,6 +3,51 @@ use facts::{FactOrigin, FactPayload};
 use language_semantics::{DomainEstablishmentRoute, QualificationEvidenceOrigin};
 
 #[test]
+fn checked_boundary_adapter_defers_issuance_to_the_boundary_call() {
+    let source = r#"
+data Token { value: u64; }
+domain Token::Issued established by TokenIssuer::issue;
+boundary trait TokenIssuer {
+    machine issue(token: Token) -> Token ensures result in Token::Issued;
+}
+data Adapter {}
+machine Adapter::issue(token: Token) -> Token satisfies TokenIssuer::issue { token }
+data Main { issuer: TokenIssuer; }
+machine consume(token: Token in Issued) -> Token { token as Token }
+machine Main::run(&self, token: Token) -> Token { let issued: Token = self.issuer.issue(token); consume(issued) }
+"#;
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("issuance belongs to the admitted boundary, not the adapter body");
+    let delegated = source.replace(
+        "satisfies TokenIssuer::issue { token }",
+        "satisfies TokenIssuer::issue { transition { _ -> done(token) } state done(token: Token) -> Token { token } }",
+    );
+    lower_typed_trees(parse_typed_trees(&delegated))
+        .expect("the boundary result is admitted even when the adapter returns from a named state");
+    let direct = source.replace("self.issuer.issue(token)", "Adapter::issue(token)");
+    let diagnostics = lower_typed_trees(parse_typed_trees(&direct))
+        .expect_err("a direct adapter call must not originate the boundary qualification");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("requires")),
+        "{diagnostics:#?}"
+    );
+    let explicit = source.replace(
+        "satisfies TokenIssuer::issue { token }",
+        "satisfies TokenIssuer::issue ensures result in Token::Issued { token }",
+    );
+    let diagnostics = lower_typed_trees(parse_typed_trees(&explicit))
+        .expect_err("an authored adapter guarantee still requires proof");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove ensures contract")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
 fn exclusive_boundary_receiver_establishes_its_exact_routed_result() {
     let source = r#"
 data Guard [linear] {

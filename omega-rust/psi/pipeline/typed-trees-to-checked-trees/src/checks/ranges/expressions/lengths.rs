@@ -1,10 +1,14 @@
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::machine::Machine;
+use typed_trees::state::State;
 
 use super::super::facts::RangeFacts;
 use super::integers::provable_range_bounds;
 
 pub(in crate::checks::ranges) fn expression_indexable_length(
     program: &typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
     facts: &RangeFacts<'_>,
     expression: ExpressionHandle,
 ) -> Option<usize> {
@@ -16,10 +20,10 @@ pub(in crate::checks::ranges) fn expression_indexable_length(
         ExpressionNode::Call(call)
             if matches!(call.target.as_str(), "as_slice" | "as_mut_slice") =>
         {
-            fixed_array_expression_length(program, facts, call.receiver)
+            fixed_array_expression_length(program, machine, state, facts, call.receiver)
         }
         ExpressionNode::Indexed(indexed) => {
-            match expression_indexable_length(program, facts, indexed.collection) {
+            match expression_indexable_length(program, machine, state, facts, indexed.collection) {
                 // Known-length base: the subslice length is bounded by the base.
                 Some(length) => range_result_length(program, facts, indexed.index, length),
                 // Unknown-length base (e.g. a slice parameter): a window over
@@ -28,9 +32,12 @@ pub(in crate::checks::ranges) fn expression_indexable_length(
                 None => fixed_range_window_length(program, facts, indexed.index),
             }
         }
-        ExpressionNode::Member(member) => {
-            facts.field_length(member.member_symbol, Some(member.member.as_str()))
-        }
+        ExpressionNode::Member(member) => facts.field_length(member.member_symbol).or_else(|| {
+            super::super::types::expression_type_reference(program, machine, state, expression)
+                .and_then(|type_reference| {
+                    super::super::arrays::fixed_array_type_length(program, type_reference)
+                })
+        }),
         ExpressionNode::Name(path) => facts.local_length(
             path.symbol,
             program
@@ -39,7 +46,9 @@ pub(in crate::checks::ranges) fn expression_indexable_length(
                 .last()
                 .map(|name| name.as_str()),
         ),
-        ExpressionNode::Borrow(inner) => expression_indexable_length(program, facts, inner.target),
+        ExpressionNode::Borrow(inner) => {
+            expression_indexable_length(program, machine, state, facts, inner.target)
+        }
         _ => None,
     }
 }
@@ -86,15 +95,17 @@ fn fixed_range_window_length(
 
 fn fixed_array_expression_length(
     program: &typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
     facts: &RangeFacts<'_>,
     expression: ExpressionHandle,
 ) -> Option<usize> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(inner) => {
-            fixed_array_expression_length(program, facts, inner.target)
+            fixed_array_expression_length(program, machine, state, facts, inner.target)
         }
-        ExpressionNode::Member(member) => {
-            facts.field_length(member.member_symbol, Some(member.member.as_str()))
+        ExpressionNode::Member(_) => {
+            expression_indexable_length(program, machine, state, facts, expression)
         }
         ExpressionNode::Name(path) => facts.local_length(
             path.symbol,

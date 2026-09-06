@@ -1,6 +1,7 @@
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
+use typed_trees::state::State;
 
 use super::{MergedFact, ParameterFacts, StateArgumentFacts};
 use crate::checks::ranges::expressions::{expression_indexable_length, expression_integer_value};
@@ -10,6 +11,7 @@ use crate::checks::ranges::proofs::unknown_length_index_is_proven;
 pub(super) fn collect_state_argument_facts_for_call(
     program: &typed_trees::TypedTrees,
     machine: &Machine,
+    state: &State,
     facts: &RangeFacts<'_>,
     target_symbol: SymbolHandle,
     arguments: &[ExpressionHandle],
@@ -66,16 +68,16 @@ pub(super) fn collect_state_argument_facts_for_call(
         .filter(|parameter| !parameter.is_self)
         .zip(arguments.iter().copied())
     {
-        parameter
-            .length
-            .merge(expression_indexable_length(program, facts, argument));
+        parameter.length.merge(expression_indexable_length(
+            program, machine, state, facts, argument,
+        ));
         parameter
             .integer
             .merge(expression_integer_value(program, facts, argument));
         let minimum_length = facts
             .minimum_length(&program.expression_table.display_name(argument))
             .or_else(|| {
-                expression_indexable_length(program, facts, argument)
+                expression_indexable_length(program, machine, state, facts, argument)
                     .and_then(|length| i64::try_from(length).ok())
             });
         parameter.minimum_length.merge_lower(minimum_length);
@@ -96,7 +98,9 @@ pub(super) fn collect_state_argument_facts_for_call(
             if collection_parameter == index_parameter {
                 continue;
             }
-            if argument_is_proven_index_for_collection(program, facts, collection, index) {
+            if argument_is_proven_index_for_collection(
+                program, machine, state, facts, collection, index,
+            ) {
                 index_proofs.push(super::ParameterIndexProof {
                     collection_parameter,
                     index_parameter,
@@ -109,11 +113,13 @@ pub(super) fn collect_state_argument_facts_for_call(
 
 fn argument_is_proven_index_for_collection(
     program: &typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
     facts: &RangeFacts<'_>,
     collection: ExpressionHandle,
     index: ExpressionHandle,
 ) -> bool {
-    if let Some(length) = expression_indexable_length(program, facts, collection) {
+    if let Some(length) = expression_indexable_length(program, machine, state, facts, collection) {
         if let Some(index_value) = expression_integer_value(program, facts, index) {
             return index_value >= 0
                 && usize::try_from(index_value).is_ok_and(|index| index < length);
