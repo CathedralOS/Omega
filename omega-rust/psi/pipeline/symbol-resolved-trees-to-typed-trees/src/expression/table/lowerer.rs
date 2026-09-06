@@ -376,13 +376,14 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 self.lower_membership_expression(membership)
             }
             resolved::expression::ExpressionNode::Member(member) => {
+                let member_symbol = self.indexed_member_symbol(member);
                 let receiver = self.lower(member.receiver)?;
                 Ok(self
                     .target()
                     .insert(typed::expression::ExpressionNode::Member(
                         typed::expression::TableMemberExpression {
                             receiver,
-                            member_symbol: member.member_symbol,
+                            member_symbol,
                             member: lower_name(&member.member),
                             case_variant: member.case_variant.as_ref().map(lower_name),
                         },

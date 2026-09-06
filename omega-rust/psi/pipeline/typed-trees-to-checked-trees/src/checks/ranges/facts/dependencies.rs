@@ -1,7 +1,11 @@
 //! Exact typed reads behind the range checker's legacy expression labels.
 
+mod captures;
+mod reads;
 #[cfg(test)]
 mod tests;
+
+use reads::collect_reads;
 
 use super::RangeFacts;
 use crate::flow::{CanonicalPlace, canonical_place_from_expression_in_state};
@@ -130,7 +134,7 @@ impl RangeFacts<'_> {
                 other.label == row.label
                     && (other.machine != row.machine
                         || other.state != row.state
-                        || other.reads != row.reads)
+                        || !same_reads(program, other.reads.as_deref(), row.reads.as_deref()))
             }) {
                 continue;
             }
@@ -142,140 +146,6 @@ impl RangeFacts<'_> {
     }
 }
 
-fn collect_reads(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-    statement_index: usize,
-    expression: ExpressionHandle,
-    reads: &mut Vec<CanonicalPlace>,
-    depth: usize,
-) -> bool {
-    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
-        return false;
-    }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => true,
-        ExpressionNode::Binary(binary) => {
-            collect_reads(
-                program,
-                machine,
-                state,
-                statement_index,
-                binary.left,
-                reads,
-                depth + 1,
-            ) && collect_reads(
-                program,
-                machine,
-                state,
-                statement_index,
-                binary.right,
-                reads,
-                depth + 1,
-            )
-        }
-        ExpressionNode::Unary(unary) => collect_reads(
-            program,
-            machine,
-            state,
-            statement_index,
-            unary.operand,
-            reads,
-            depth + 1,
-        ),
-        ExpressionNode::Cast(cast) => collect_reads(
-            program,
-            machine,
-            state,
-            statement_index,
-            cast.value,
-            reads,
-            depth + 1,
-        ),
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
-            if !has_resolved_read_identity(program, expression, 0) {
-                return false;
-            }
-            let Some(mut place) = canonical_place_from_expression_in_state(
-                program,
-                state.symbol,
-                statement_index,
-                expression,
-            ) else {
-                return false;
-            };
-            let facts::PlaceRoot::Symbol(root) = place.root else {
-                return false;
-            };
-            if !root.is_valid()
-                || place
-                    .segments
-                    .iter()
-                    .any(|segment| crate::flow::place_segment_has_unresolved_identity(*segment))
-            {
-                return false;
-            }
-            crate::flow::normalize_attached_place_root(
-                program,
-                machine.symbol,
-                state.symbol,
-                &mut place,
-            );
-            let root_is_current = place.root == facts::PlaceRoot::Symbol(machine.symbol)
-                || program.state_parameters(state).iter().any(|parameter| parameter.symbol == root)
-                || program.statement_table.statements(state.statement_nodes).iter().take(statement_index).any(|statement| {
-                    matches!(statement, typed_trees::statement::StatementNode::LocalData(local) if local.symbol == root)
-                });
-            if !root_is_current
-                || place.segments.iter().any(|segment| {
-                    !matches!(
-                        segment,
-                        facts::PlaceSegment::Field { .. } | facts::PlaceSegment::Case { .. }
-                    )
-                })
-            {
-                return false;
-            }
-            if !reads.contains(&place) {
-                reads.push(place);
-            }
-            true
-        }
-        // Calls can read implicit storage; atomic and indexed operands need
-        // their own complete read/selector evidence, not an argument-only scan.
-        _ => false,
-    }
-}
-
-/// Contextual place lookup can recover a name for ordinary source analysis.
-/// Preservation needs the typed identity carriers before that recovery runs.
-fn has_resolved_read_identity(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    depth: usize,
-) -> bool {
-    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
-        return false;
-    }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Name(path) => {
-            let members = program.expression_table.name_path_members(path.members);
-            let symbols = program
-                .expression_table
-                .name_path_member_symbols(path.member_symbols);
-            crate::lookup::first_valid_name_path_symbol(path, &program.expression_table).is_some()
-                && (members.len() <= 1 || members.len() == symbols.len())
-                && symbols.iter().all(|symbol| symbol.is_valid())
-        }
-        ExpressionNode::Member(member) => {
-            member.member_symbol.is_valid()
-                && has_resolved_read_identity(program, member.receiver, depth + 1)
-        }
-        _ => false,
-    }
-}
-
 fn places_overlap(program: &TypedTrees, left: &CanonicalPlace, right: &CanonicalPlace) -> bool {
     crate::flow::normalized_event_place_root(program, left.root)
         == crate::flow::normalized_event_place_root(program, right.root)
@@ -284,4 +154,38 @@ fn places_overlap(program: &TypedTrees, left: &CanonicalPlace, right: &Canonical
             &left.segments,
             &right.segments,
         )
+}
+
+fn same_reads(
+    program: &TypedTrees,
+    left: Option<&[CanonicalPlace]>,
+    right: Option<&[CanonicalPlace]>,
+) -> bool {
+    let (Some(left), Some(right)) = (left, right) else {
+        return false;
+    };
+    let equal = |left: &CanonicalPlace, right: &CanonicalPlace| {
+        left.root == right.root
+            && left.segments.len() == right.segments.len()
+            && left
+                .segments
+                .iter()
+                .zip(&right.segments)
+                .all(|(left, right)| match (*left, *right) {
+                    (
+                        facts::PlaceSegment::Index { expression: left },
+                        facts::PlaceSegment::Index { expression: right },
+                    ) => program
+                        .expression_table
+                        .expressions_structurally_equal(left, right),
+                    (left, right) => crate::flow::canonical_place_segments_equal(left, right),
+                })
+    };
+    // Separate guard occurrences may copy the same typed selector tree into
+    // different arena slots. Compare their meaning, not those allocation slots.
+    left.iter()
+        .all(|read| right.iter().any(|other| equal(read, other)))
+        && right
+            .iter()
+            .all(|read| left.iter().any(|other| equal(read, other)))
 }
