@@ -1968,6 +1968,7 @@ impl TerminalExecution {
                             .zip(&boundary_declaration.structural_parameters)
                             .filter(|(argument, parameter)| {
                                 argument.path.is_empty()
+                                    && parameter.access == StructuralAccess::Owned
                                     && parameter.multiplicity
                                         != StructuralMultiplicity::Unrestricted
                             })
