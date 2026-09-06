@@ -9,6 +9,7 @@ use symbols::SymbolHandle;
 use crate::{call_site_argument_expressions, call_target_parameters, find_call_site};
 
 mod components;
+mod lineage;
 
 /// Derive checked termination premises from exact selected call contracts.
 ///
@@ -468,7 +469,7 @@ fn derive_machine_summary(
         return Some(no_guarantee(machine.symbol));
     }
 
-    let parameter_lineage = state_parameter_lineage(program, flow, machine);
+    let parameter_lineage = lineage::StateParameterLineage::derive(program, flow, machine);
     let entry_parameter_roots = program
         .machine_states(machine)
         .first()
@@ -561,7 +562,7 @@ fn derive_machine_summary(
                     }
                     continue;
                 }
-                let instances = resolve_through_state_lineage(&parameter_lineage, local_instance)?;
+                let instances = parameter_lineage.resolve(local_instance)?;
                 for instance in instances {
                     if !entry_parameter_roots.contains(&instance.subject.root) {
                         // Arbitrary local values still cannot become caller
@@ -785,75 +786,6 @@ fn call_argument_subject_with_parameters(
     subject_from_place(place.root, &place.segments)
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum ParameterLineage {
-    Unseen,
-    Exact(Vec<ProgressSubject>),
-    Ambiguous,
-}
-
-fn state_parameter_lineage(
-    program: &typed_trees::TypedTrees,
-    flow: &FlowFacts,
-    machine: &typed_trees::machine::Machine,
-) -> Vec<(SymbolHandle, ParameterLineage)> {
-    let states = program.machine_states(machine);
-    let mut lineage = states
-        .iter()
-        .flat_map(|state| program.state_parameters(state))
-        .map(|parameter| (parameter.symbol, ParameterLineage::Unseen))
-        .collect::<Vec<_>>();
-    if let Some(entry) = states.first() {
-        for parameter in program.state_parameters(entry) {
-            set_parameter_lineage(
-                &mut lineage,
-                parameter.symbol,
-                ParameterLineage::Exact(vec![ProgressSubject {
-                    root: parameter.symbol,
-                    projections: Vec::new(),
-                }]),
-            );
-        }
-    }
-
-    loop {
-        let previous = lineage.clone();
-        for (_, state_flow) in flow
-            .control
-            .states
-            .iter()
-            .filter(|(_, state)| state.machine_symbol == machine.symbol)
-        {
-            for call in flow.control.calls.span_or_empty(state_flow.calls) {
-                let Some(target) =
-                    local_state_transition_target(program, machine, state_flow, call)
-                else {
-                    continue;
-                };
-                let target_parameters = program.state_parameters(target);
-                for parameter in target_parameters {
-                    let incoming = call_argument_subject_with_parameters(
-                        program,
-                        machine,
-                        state_flow,
-                        call,
-                        target_parameters,
-                        parameter.symbol,
-                    )
-                    .map(|subject| resolve_subject_lineage(&previous, subject))
-                    .unwrap_or(ParameterLineage::Ambiguous);
-                    merge_parameter_lineage(&mut lineage, parameter.symbol, incoming);
-                }
-            }
-        }
-        if lineage == previous {
-            break;
-        }
-    }
-
-    lineage
-}
-
 fn is_local_state_transition(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -882,94 +814,6 @@ fn local_state_transition_target<'program>(
     let target_index =
         super::graph::named_transition_target_state_index(program, machine, call.target_symbol)?;
     program.machine_states(machine).get(target_index)
-}
-
-fn resolve_subject_lineage(
-    lineage: &[(SymbolHandle, ParameterLineage)],
-    subject: ProgressSubject,
-) -> ParameterLineage {
-    let Some((_, root)) = lineage.iter().find(|(symbol, _)| *symbol == subject.root) else {
-        return ParameterLineage::Ambiguous;
-    };
-    match root {
-        ParameterLineage::Unseen => ParameterLineage::Unseen,
-        ParameterLineage::Ambiguous => ParameterLineage::Ambiguous,
-        ParameterLineage::Exact(roots) => ParameterLineage::Exact(
-            roots
-                .iter()
-                .map(|root| {
-                    let mut resolved = root.clone();
-                    resolved
-                        .projections
-                        .extend(subject.projections.iter().copied());
-                    resolved
-                })
-                .collect(),
-        ),
-    }
-}
-
-fn resolve_through_state_lineage(
-    lineage: &[(SymbolHandle, ParameterLineage)],
-    premise: ProgressPremise,
-) -> Option<Vec<ProgressPremise>> {
-    let ParameterLineage::Exact(subjects) = resolve_subject_lineage(lineage, premise.subject)
-    else {
-        return None;
-    };
-    Some(
-        subjects
-            .into_iter()
-            .map(|subject| ProgressPremise {
-                profile: premise.profile,
-                subject,
-            })
-            .collect(),
-    )
-}
-
-fn set_parameter_lineage(
-    lineage: &mut [(SymbolHandle, ParameterLineage)],
-    symbol: SymbolHandle,
-    value: ParameterLineage,
-) {
-    if let Some((_, retained)) = lineage
-        .iter_mut()
-        .find(|(candidate, _)| *candidate == symbol)
-    {
-        *retained = value;
-    }
-}
-
-fn merge_parameter_lineage(
-    lineage: &mut [(SymbolHandle, ParameterLineage)],
-    symbol: SymbolHandle,
-    incoming: ParameterLineage,
-) {
-    let Some((_, retained)) = lineage
-        .iter_mut()
-        .find(|(candidate, _)| *candidate == symbol)
-    else {
-        return;
-    };
-    match (&*retained, incoming) {
-        (_, ParameterLineage::Unseen) => {}
-        (ParameterLineage::Unseen, value) => *retained = value,
-        (ParameterLineage::Exact(_), ParameterLineage::Exact(right)) => {
-            let ParameterLineage::Exact(retained) = retained else {
-                unreachable!()
-            };
-            for subject in right {
-                if !retained.contains(&subject) {
-                    retained.push(subject);
-                }
-            }
-        }
-        (ParameterLineage::Exact(_), ParameterLineage::Ambiguous) => {
-            *retained = ParameterLineage::Ambiguous;
-        }
-        (ParameterLineage::Ambiguous, _) => {}
-    }
 }
 
 fn admitted_receipt_covers(

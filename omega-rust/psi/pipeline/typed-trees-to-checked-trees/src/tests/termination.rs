@@ -6,6 +6,7 @@ mod crash_routes;
 mod data_facts;
 mod joint_rankings;
 mod operational_contracts;
+mod progress_lineage;
 mod proof_slices;
 mod rank_ranges;
 mod ranking;
