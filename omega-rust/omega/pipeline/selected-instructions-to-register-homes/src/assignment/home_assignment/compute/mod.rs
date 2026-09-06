@@ -24,7 +24,7 @@ pub(crate) fn compute_terminal_register_homes(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> Result<RegisterHomePlan, RegisterHomeError> {
     if legality.receipt().ranges() != ranges.receipt().identity()
         || legality.receipt().register_environment() != register_environment

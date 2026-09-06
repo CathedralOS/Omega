@@ -36,7 +36,7 @@ pub fn validate_optimized_register_home_custody(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         homes.plan().clone(),
     )
     .map_err(OptimizedRegisterHomeCustodyError::Revalidation)?;
@@ -88,7 +88,7 @@ pub fn validate_optimized_register_home_after_fixed_view_copy_custody(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         homes.plan().clone(),
     )
     .map_err(OptimizedPostCopyRegisterHomeCustodyError::Revalidation)?;

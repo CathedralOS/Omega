@@ -24,7 +24,7 @@ pub(super) fn replay(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     reload_home_policy: ReloadValueHomePolicy,
     reload_home_budget: OptimizationWorkBudget,
     policy: SpillRecoveryWorklistPolicy,

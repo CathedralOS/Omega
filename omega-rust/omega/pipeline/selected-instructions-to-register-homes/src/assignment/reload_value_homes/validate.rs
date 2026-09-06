@@ -20,7 +20,7 @@ pub fn validate_reload_value_homes(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     plan: ReloadValueHomePlan,
 ) -> Result<ValidatedReloadValueHomes, ReloadValueHomeError> {
     let logical_receipt = logical.receipt();

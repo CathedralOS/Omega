@@ -57,12 +57,12 @@ pub(super) fn conservative_baseline_reservation_profile(
     }
 }
 
-pub(super) const fn selected_environment_keys(
+pub(super) fn selected_environment_keys(
     keys: SelectedConstraintKeys,
 ) -> TargetRegisterEnvironmentConstraintKeys {
     TargetRegisterEnvironmentConstraintKeys {
         structural_unit_call: keys.structural_unit_call,
-        call_i64_2_u64_to_u64: keys.call_i64_2_u64_to_u64,
+        call_i64: keys.call_i64,
         materialize_i64: keys.materialize_i64,
         copy_i64: keys.copy_i64,
         add_i64: keys.add_i64,
@@ -82,7 +82,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
     match (target.architecture, target.object_format) {
         (Architecture::X86_64, ObjectFormat::Elf) => Some(SelectedConstraintKeys {
             structural_unit_call: None,
-            call_i64_2_u64_to_u64: Some(isa_x86_64::X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64),
+            call_i64: isa_x86_64::x86_64_system_v_register_call_keys(),
             materialize_i64: X86_64_MATERIALIZE_I64,
             copy_i64: X86_64_COPY_I64,
             add_i64: X86_64_ADD_I64,
@@ -98,7 +98,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
         }),
         (Architecture::X86_64, ObjectFormat::Coff) => Some(SelectedConstraintKeys {
             structural_unit_call: Some(X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR),
-            call_i64_2_u64_to_u64: None,
+            call_i64: Vec::new(),
             materialize_i64: X86_64_MATERIALIZE_I64,
             copy_i64: X86_64_COPY_I64,
             add_i64: X86_64_ADD_I64,
@@ -114,7 +114,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
         }),
         (Architecture::Aarch64, ObjectFormat::Elf) => Some(SelectedConstraintKeys {
             structural_unit_call: None,
-            call_i64_2_u64_to_u64: Some(isa_aarch64::AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64),
+            call_i64: isa_aarch64::aarch64_aapcs64_register_call_keys(),
             materialize_i64: AARCH64_MATERIALIZE_I64,
             copy_i64: AARCH64_COPY_I64,
             add_i64: AARCH64_ADD_I64,
@@ -130,7 +130,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
         }),
         (Architecture::Aarch64, ObjectFormat::MachO) => Some(SelectedConstraintKeys {
             structural_unit_call: None,
-            call_i64_2_u64_to_u64: None,
+            call_i64: Vec::new(),
             materialize_i64: AARCH64_MATERIALIZE_I64,
             copy_i64: AARCH64_COPY_I64,
             add_i64: AARCH64_ADD_I64,

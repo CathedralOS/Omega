@@ -39,7 +39,7 @@ pub(crate) fn compute_terminal_pressure_rematerialization<S: ValidatedSelectedAn
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     policy: PressureRematerializationPolicy,
     budget: OptimizationWorkBudget,
 ) -> Result<PressureRematerializationPlan, PressureRematerializationError> {

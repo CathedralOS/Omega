@@ -236,7 +236,7 @@ fn logical_from_legality(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
         selected_lowering_budget(),
     )

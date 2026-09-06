@@ -21,7 +21,7 @@ pub(super) fn validate(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> Result<(), FixedPrecoloredSegmentHomeError> {
     if requirements.receipt().fixed_intervals() != fixed.receipt().identity()
         || requirements.receipt().ranges() != ranges.receipt().identity()

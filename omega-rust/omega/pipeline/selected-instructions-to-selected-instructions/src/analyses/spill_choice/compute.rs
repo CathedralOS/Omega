@@ -58,7 +58,7 @@ pub(crate) fn compute_terminal_spill_choices(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     policy: SpillChoicePolicy,
     budget: OptimizationWorkBudget,
 ) -> Result<SpillChoicePlan, SpillChoiceError> {
@@ -132,7 +132,7 @@ fn validate_roots(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> Result<(), SpillChoiceError> {
     if legality.receipt().ranges() != ranges.receipt().identity()
         || legality.receipt().register_environment() != register_environment

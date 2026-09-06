@@ -1,22 +1,19 @@
 //! Exact System V AMD64 scalar-call semantic and encoded machine effects.
 
-use register_model::ValidatedRegisterConstraintCatalog;
+use register_model::{RegisterConstraintKey, ValidatedRegisterConstraintCatalog};
 use selected_instructions::{
     MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
     MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
     MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
     MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
-    MachineTrapBehavior, SelectedConstraintKeys,
+    MachineTrapBehavior,
 };
 
 pub(super) fn declaration(
-    keys: SelectedConstraintKeys,
+    constraint: RegisterConstraintKey,
     constraints: &ValidatedRegisterConstraintCatalog,
 ) -> MachineEffectDeclaration {
-    let constraint = keys
-        .call_i64_2_u64_to_u64
-        .expect("scalar-call declaration requires a selected constraint");
     let row = constraints
         .catalog()
         .constraints
@@ -28,6 +25,7 @@ pub(super) fn declaration(
         .view_named("rsp")
         .expect("canonical x86-64 model declares rsp")
         .id;
+    let arity = row.operands.len() - 1;
     MachineEffectDeclaration {
         semantic: MachineSemanticKind::CallI64,
         constraint,
@@ -47,8 +45,8 @@ pub(super) fn declaration(
             size: MachineSizeKnowledge::ExactBytes(5),
             latency: MachineLatencyKnowledge::StableBaselineUnavailable,
             encoded: MachineEncodedEffects {
-                external_operand_reads: vec![0, 1],
-                external_operand_writes: vec![2],
+                external_operand_reads: (0..arity as u16).collect(),
+                external_operand_writes: vec![arity as u16],
                 implicit_unit_uses: row.implicit_uses.clone(),
                 implicit_unit_defs: row.implicit_defs.clone(),
                 implicit_unit_clobbers: row.clobbers.clone(),

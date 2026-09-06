@@ -60,7 +60,7 @@ impl Sources {
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
             selected_instructions_to_register_homes::GeneralizedReloadValueHomePolicy::EpochZeroAndOneBlockLocalLowestCompatibleViewV1,
             budget,
         )
@@ -106,7 +106,7 @@ impl Sources {
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
             policy,
             budget,
         )
@@ -134,7 +134,7 @@ impl Sources {
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
             plan,
         )
     }
@@ -287,7 +287,7 @@ impl Sources {
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
             selected_instructions_to_register_homes::RecursiveReloadValueHomePolicy::CompleteBlockLocalLowestCompatibleViewV1,
             budget,
         )
@@ -317,7 +317,7 @@ impl Sources {
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
             plan,
         )
     }
@@ -342,7 +342,7 @@ impl Sources {
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
             candidate,
         )
     }

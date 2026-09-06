@@ -22,7 +22,7 @@ pub fn validate_allocation_legality(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     plan: AllocationLegalityPlan,
 ) -> Result<ValidatedAllocationLegality, AllocationLegalityError> {
     let target = ranges.plan().target;

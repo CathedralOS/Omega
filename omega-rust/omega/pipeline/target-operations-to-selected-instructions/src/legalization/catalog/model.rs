@@ -31,7 +31,7 @@ pub(in crate::legalization) enum UnitLegalizationMatcherKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::legalization) enum ScalarCallUnitLegalizationMatcherKind {
-    OrderedU64PairCalls,
+    OrderedU64RegisterCalls,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -69,7 +69,7 @@ pub(in crate::legalization) enum UnitLegalizationValidatorKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::legalization) enum ScalarCallUnitLegalizationValidatorKind {
-    OrderedU64PairCalls,
+    OrderedU64RegisterCalls,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

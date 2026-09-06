@@ -53,7 +53,7 @@ pub(super) fn compute_active_resident_rematerialization(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         choice_policy,
         budget,
     )
@@ -78,7 +78,7 @@ pub(super) fn compute_active_resident_rematerialization(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         rematerialization_policy,
         budget,
     )
@@ -98,7 +98,7 @@ pub(super) fn compute_active_resident_rematerialization(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
     )
     .map_err(OptimizedActiveResidentRematerializationError::Legality)?;
     if legality.receipt().entry_transition_count() != 0 {
@@ -115,7 +115,7 @@ pub(super) fn compute_active_resident_rematerialization(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
     )
     .map_err(OptimizedActiveResidentRematerializationError::Homes)?;
     let manifest = project_post_allocation_optimization_manifest(

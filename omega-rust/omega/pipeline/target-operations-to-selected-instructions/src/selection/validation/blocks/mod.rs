@@ -13,7 +13,7 @@ pub(super) fn validate_selected_blocks(
     function_index: usize,
     source: &SourceFunction,
     function: &SelectedFunction,
-    keys: SelectedConstraintKeys,
+    keys: &SelectedConstraintKeys,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
     if function.blocks[0].source_block != source.entry_block

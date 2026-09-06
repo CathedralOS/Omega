@@ -20,7 +20,7 @@ pub fn materialize_allocator_availability(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     policy: AllocatorAvailabilityPolicy,
 ) -> Result<ValidatedAllocatorAvailability, AllocatorAvailabilityError> {
     let plan = compute::compute_terminal_allocator_availability(

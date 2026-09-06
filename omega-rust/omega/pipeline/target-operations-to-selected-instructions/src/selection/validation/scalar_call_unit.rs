@@ -4,37 +4,33 @@ use super::integrity::{validate_block_constraints, validate_def_use};
 use crate::selection::constraints::row;
 use crate::selection::shared::*;
 
-pub(super) fn validate(
+pub(in crate::selection) fn validate(
     function_index: usize,
     source: &SourceScalarCallUnitFunction,
     selected: &SelectedFunction,
+    native_target: target::NativeTarget,
     constraints: &SelectedSelectionConstraints,
+    physical: &ValidatedPhysicalRegisterModel,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
-    let call_key = constraints.keys.call_i64_2_u64_to_u64.ok_or(
-        SelectedInstructionError::UnsupportedSourceShape {
-            function: function_index,
-        },
-    )?;
-    let call_row = row(catalog, call_key)?;
-    if call_row.operands.len() != 3
-        || call_row.operands[0].access != RegisterOperandAccess::Use
-        || call_row.operands[1].access != RegisterOperandAccess::Use
-        || call_row.operands[2].access != RegisterOperandAccess::Def
-        || call_row
-            .operands
-            .iter()
-            .any(|operand| operand.fixed_view.is_none())
-    {
-        return Err(SelectedInstructionError::MissingConstraint(call_key));
-    }
+    let invalid = || SelectedInstructionError::FunctionProjectionMismatch {
+        function: function_index,
+    };
+    let environment = register_environment::validate_target_register_environment(
+        native_target,
+        physical.model().clone(),
+        catalog.catalog().clone(),
+    )
+    .map_err(|_| invalid())?;
     let instruction_count = source
         .operations
         .iter()
         .try_fold(0usize, |count, operation| {
             count.checked_add(match operation {
                 LegalizedScalarCallUnitOperation::Constant(_) => 1,
-                LegalizedScalarCallUnitOperation::Call(_) => 4,
+                LegalizedScalarCallUnitOperation::Call(call) => {
+                    call.arguments.len().checked_add(2)?
+                }
             })
         })
         .ok_or(SelectedInstructionError::FunctionProjectionMismatch {
@@ -93,6 +89,11 @@ pub(super) fn validate(
                     != (SelectedInstructionKind::MaterializeI64 {
                         value: constant.value,
                     })
+                    || instruction
+                        .operands
+                        .iter()
+                        .map(|operand| operand.virtual_register)
+                        .ne([VirtualRegisterId(index as u32)])
                     || instruction.constraint != constraints.keys.materialize_i64
                     || instruction.provenance
                         != (SelectedInstructionProvenance {
@@ -117,15 +118,30 @@ pub(super) fn validate(
             }
             LegalizedScalarCallUnitOperation::Call(source_call) => {
                 let base = cursor;
-                let inputs = source_call.arguments.each_ref().map(|argument| {
-                    prior_definition(source, source_index, argument.source.source_value())
-                        .map(|(register, _)| register)
-                        .ok_or(SelectedInstructionError::FunctionProjectionMismatch {
-                            function: function_index,
-                        })
-                });
-                let [left, right] = inputs;
-                let inputs = [left?, right?];
+                let argument_count = source_call.arguments.len();
+                let call_key = constraints
+                    .keys
+                    .call_i64
+                    .get(argument_count)
+                    .copied()
+                    .ok_or_else(invalid)?;
+                let call_row = row(catalog, call_key)?;
+                crate::selection::scalar_call_abi::validate(
+                    function_index,
+                    source_call,
+                    call_key,
+                    call_row,
+                    &environment,
+                )?;
+                let inputs = source_call
+                    .arguments
+                    .iter()
+                    .map(|argument| {
+                        prior_definition(source, source_index, argument.source.source_value())
+                            .map(|(register, _)| register)
+                            .ok_or_else(invalid)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
                 for (argument_index, input_register) in inputs.into_iter().enumerate() {
                     let instruction = &block.instructions[base + argument_index];
                     let value = source_call.arguments[argument_index].source.source_value();
@@ -163,8 +179,8 @@ pub(super) fn validate(
                         });
                     }
                 }
-                let call = &block.instructions[base + 2];
-                let short_result = VirtualRegisterId((base + 2) as u32);
+                let call = &block.instructions[base + argument_count];
+                let short_result = VirtualRegisterId((base + argument_count) as u32);
                 if call.kind
                     != (SelectedInstructionKind::CallI64 {
                         callee: source_call.callee,
@@ -174,19 +190,17 @@ pub(super) fn validate(
                         .operands
                         .iter()
                         .map(|operand| operand.virtual_register)
-                        .ne([
-                            VirtualRegisterId(base as u32),
-                            VirtualRegisterId((base + 1) as u32),
-                            short_result,
-                        ])
+                        .ne((0..=argument_count)
+                            .map(|index| VirtualRegisterId((base + index) as u32)))
                     || call.provenance
                         != (SelectedInstructionProvenance {
                             operations: vec![source_call.operation],
-                            values: vec![
-                                source_call.arguments[0].source.source_value(),
-                                source_call.arguments[1].source.source_value(),
-                                source_call.result_home.source_value,
-                            ],
+                            values: source_call
+                                .arguments
+                                .iter()
+                                .map(|argument| argument.source.source_value())
+                                .chain(std::iter::once(source_call.result_home.source_value))
+                                .collect(),
                             obligations: source_call.requirement_obligations.clone(),
                             fuel: source_call.fuel.clone(),
                             ..Default::default()
@@ -197,8 +211,8 @@ pub(super) fn validate(
                         instruction: call.id.0,
                     });
                 }
-                let copy_out = &block.instructions[base + 3];
-                let durable_result = VirtualRegisterId((base + 3) as u32);
+                let copy_out = &block.instructions[base + argument_count + 1];
+                let durable_result = VirtualRegisterId((base + argument_count + 1) as u32);
                 if copy_out.kind != SelectedInstructionKind::CopyI64
                     || copy_out.constraint != constraints.keys.copy_i64
                     || copy_out
@@ -217,7 +231,10 @@ pub(super) fn validate(
                         instruction: copy_out.id.0,
                     });
                 }
-                for (register_id, instruction_id) in [(base + 2, base + 2), (base + 3, base + 3)] {
+                for (register_id, instruction_id) in [
+                    (base + argument_count, base + argument_count),
+                    (base + argument_count + 1, base + argument_count + 1),
+                ] {
                     let register = &selected.virtual_registers[register_id];
                     if register.origin
                         != (VirtualRegisterOrigin::InstructionResult {
@@ -234,7 +251,7 @@ pub(super) fn validate(
                         );
                     }
                 }
-                cursor += 4;
+                cursor += argument_count + 2;
             }
         }
     }
@@ -283,13 +300,14 @@ fn prior_definition(
                 offset = offset.checked_add(1)?;
             }
             LegalizedScalarCallUnitOperation::Call(call) => {
+                let argument_count = u32::try_from(call.arguments.len()).ok()?;
                 if call.result_home.source_value == value {
                     return Some((
-                        VirtualRegisterId(offset.checked_add(3)?),
+                        VirtualRegisterId(offset.checked_add(argument_count)?.checked_add(1)?),
                         call.result_definition_site,
                     ));
                 }
-                offset = offset.checked_add(4)?;
+                offset = offset.checked_add(argument_count)?.checked_add(2)?;
             }
         }
     }

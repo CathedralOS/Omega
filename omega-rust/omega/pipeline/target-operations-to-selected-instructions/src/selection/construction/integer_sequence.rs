@@ -17,7 +17,7 @@ pub(super) fn build(
     inputs: &[(ValueId, VirtualRegisterId)],
     first_instruction: u32,
     registers: &mut Vec<VirtualRegister>,
-    keys: SelectedConstraintKeys,
+    keys: &SelectedConstraintKeys,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(Vec<SelectedInstruction>, VirtualRegisterId), SelectedInstructionError> {
     let invalid = || SelectedInstructionError::UnsupportedSourceShape { function };

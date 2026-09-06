@@ -21,7 +21,7 @@ pub fn validate_spill_recovery_choices(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     plan: SpillRecoveryChoicePlan,
 ) -> Result<ValidatedSpillRecoveryChoices, SpillRecoveryChoiceError> {
     let worklist_receipt = worklist.receipt();

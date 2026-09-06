@@ -19,10 +19,10 @@ use terminal_psi::CrashRouteBucket;
 /// Closed attached-Unit scalar-call legalization forms.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ScalarCallUnitLegalizationRecipe {
-    OrderedU64PairCallsThenReturnUnitV1,
+    OrderedU64RegisterCallsThenReturnUnitV1,
 }
 
-/// Ordered straight-line U64 constants and pair-ABI calls before returning Unit.
+/// Ordered straight-line U64 constants and register-ABI calls before returning Unit.
 /// The operation order is authored data, not a fixed legalization topology.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedScalarCallUnitFunction {
@@ -63,7 +63,7 @@ pub struct LegalizedScalarCallUnitCall {
     pub call_plan: CallPlan,
     pub result_home: target_operations::TargetUnitScalarHomeRequirement,
     pub result_definition_site: ValueDefinitionSite,
-    pub arguments: [LegalizedScalarCallUnitArgument; 2],
+    pub arguments: Vec<LegalizedScalarCallUnitArgument>,
     pub requirement_obligations: Vec<ObligationId>,
     pub crash_continuations: Vec<CrashRouteBucket>,
     pub fuel: Vec<FuelSettlement>,

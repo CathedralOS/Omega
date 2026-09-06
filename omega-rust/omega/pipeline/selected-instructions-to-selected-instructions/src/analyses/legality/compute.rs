@@ -24,7 +24,7 @@ pub(super) fn compute_allocation_legality(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         availability.plan().clone(),
     )
     .map_err(OptimizedAllocationLegalityCustodyError::Availability)?;
@@ -38,7 +38,7 @@ pub(super) fn compute_allocation_legality(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
     )
     .map_err(OptimizedAllocationLegalityCustodyError::Analysis)?;
     let replayed = validate_allocation_legality(
@@ -48,7 +48,7 @@ pub(super) fn compute_allocation_legality(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         legality.plan().clone(),
     )
     .map_err(OptimizedAllocationLegalityCustodyError::Revalidation)?;

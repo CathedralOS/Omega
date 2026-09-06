@@ -32,7 +32,7 @@ pub(super) fn seed(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         selected_instructions_to_register_homes::ReloadValueHomePolicy::BlockLocalSingleSpillReloadFirstLowestCompatibleViewV1,
         selected_lowering_budget(),
         selected_instructions_to_register_homes::SpillRecoveryWorklistPolicy::SingleReloadPressureEpochOneV1,
@@ -60,7 +60,7 @@ fn validate(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         plan,
     )
 }

@@ -72,7 +72,7 @@ pub(in crate::assignment) fn replay(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     policy: ReloadValueHomePolicy,
     budget: OptimizationWorkBudget,
 ) -> Result<ReloadValueHomePlan, ReloadValueHomeError> {
@@ -130,7 +130,7 @@ fn validate_source_chain(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> Result<(), ReloadValueHomeError> {
     let logical_receipt = logical.receipt();
     let derived_environment = target_register_environment_identity(

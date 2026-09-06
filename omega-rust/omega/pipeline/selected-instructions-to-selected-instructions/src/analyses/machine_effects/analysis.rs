@@ -19,7 +19,7 @@ pub(super) fn analyze<S: crate::ValidatedSelectedAnalysis>(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         &catalog,
     )
     .map_err(MachineEffectStageError::Analysis)
@@ -37,7 +37,7 @@ pub(super) fn revalidate<S: crate::ValidatedSelectedAnalysis>(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         &catalog,
         effects.plan().clone(),
     )

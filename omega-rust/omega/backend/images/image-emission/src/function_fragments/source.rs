@@ -123,13 +123,16 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     ..
                 } if unit => {
                     let (body, target) = function(source, *callee)?;
-                    target.fixed_integer_scalar_abi.is_some()
+                    target
+                        .fixed_integer_scalar_abi
+                        .as_ref()
+                        .is_some_and(|abi| abi.parameters.len() == arguments.len())
                         && !matches!(body.result, AbstractFunctionResult::Unit)
                         && !body
                             .operations
                             .iter()
                             .any(|operation| matches!(operation, AbstractOperation::Call { .. }))
-                        && arguments.len() == 2
+                        && arguments.len() == body.parameters.len()
                         && requirement_obligations.is_empty()
                         && crash_continuations.is_empty()
                 }

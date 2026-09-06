@@ -58,7 +58,7 @@ identity!(
 );
 identity!(
     TargetRegisterEnvironmentIdentity,
-    b"omega.target-register-environment-identity.v8\0"
+    b"omega.target-register-environment-identity.v9\0"
 );
 
 pub(super) fn physical_register_model_identity(
@@ -147,7 +147,7 @@ pub fn target_register_environment_identity(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: super::TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &super::TargetRegisterEnvironmentConstraintKeys,
 ) -> TargetRegisterEnvironmentIdentity {
     let mut bytes = Vec::new();
     native_target(&mut bytes, target);
@@ -155,7 +155,10 @@ pub fn target_register_environment_identity(
     bytes.extend_from_slice(&constraints.identity().bytes());
     bytes.extend_from_slice(&reservations.identity().bytes());
     optional_constraint_key(&mut bytes, selected_keys.structural_unit_call);
-    optional_constraint_key(&mut bytes, selected_keys.call_i64_2_u64_to_u64);
+    u64_value(&mut bytes, selected_keys.call_i64.len() as u64);
+    for key in &selected_keys.call_i64 {
+        constraint_key(&mut bytes, key.family, key.variant);
+    }
     for key in [
         selected_keys.materialize_i64,
         selected_keys.copy_i64,

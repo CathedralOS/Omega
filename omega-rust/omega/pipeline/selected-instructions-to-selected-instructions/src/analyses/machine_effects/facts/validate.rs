@@ -23,7 +23,7 @@ pub fn validate_pre_allocation_machine_effects<S: ValidatedSelectedAnalysis>(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     catalog: &ValidatedMachineEffectCatalog,
     plan: PreAllocationMachineEffectPlan,
 ) -> Result<ValidatedPreAllocationMachineEffects, MachineEffectError> {
@@ -315,10 +315,10 @@ fn replay_declaration<'a>(
     }
 }
 
-fn copied_selected_keys(keys: TargetRegisterEnvironmentConstraintKeys) -> SelectedConstraintKeys {
+fn copied_selected_keys(keys: &TargetRegisterEnvironmentConstraintKeys) -> SelectedConstraintKeys {
     SelectedConstraintKeys {
         structural_unit_call: keys.structural_unit_call,
-        call_i64_2_u64_to_u64: keys.call_i64_2_u64_to_u64,
+        call_i64: keys.call_i64.clone(),
         materialize_i64: keys.materialize_i64,
         copy_i64: keys.copy_i64,
         add_i64: keys.add_i64,

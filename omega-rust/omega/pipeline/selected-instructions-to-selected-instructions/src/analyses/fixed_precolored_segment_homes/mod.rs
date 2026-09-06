@@ -32,7 +32,7 @@ pub fn assign_fixed_precolored_segment_homes(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     policy: FixedPrecoloredSegmentHomePolicy,
     budget: optimization_core::OptimizationWorkBudget,
 ) -> Result<ValidatedFixedPrecoloredSegmentHomes, FixedPrecoloredSegmentHomeError> {

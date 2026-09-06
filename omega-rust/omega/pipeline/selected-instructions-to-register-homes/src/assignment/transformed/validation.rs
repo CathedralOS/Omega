@@ -44,7 +44,7 @@ pub fn validate_optimized_register_home_after_literal_fold_custody(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         staged.homes.plan().clone(),
     )
     .map_err(OptimizedPostLiteralFoldHomeCustodyError::Assignment)?;
@@ -91,7 +91,7 @@ pub fn validate_optimized_register_home_after_selected_lowering_custody(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         staged.homes.plan().clone(),
     )
     .map_err(OptimizedPostSelectedLoweringHomeCustodyError::Assignment)?;

@@ -22,7 +22,7 @@ pub(super) fn admit<S: ValidatedSelectedAnalysis>(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> Result<(), PressureRematerializationError> {
     if ranges.receipt().selected() != selected.selected_identity()
         || ranges.receipt().optimization_unit() != selected.optimization_unit_identity()

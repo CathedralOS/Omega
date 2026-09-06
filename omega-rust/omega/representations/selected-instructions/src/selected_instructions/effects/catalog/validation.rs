@@ -211,16 +211,26 @@ fn validate_encoded_effects(
     {
         return Err(());
     }
-    if declaration.semantic == MachineSemanticKind::CallI64
-        && (encoded.external_operand_reads != [0, 1]
-            || encoded.external_operand_writes != [2]
+    if declaration.semantic == MachineSemanticKind::CallI64 {
+        let (result, arguments) = constraint.operands.split_last().ok_or(())?;
+        if result.access != RegisterOperandAccess::Def
+            || arguments
+                .iter()
+                .any(|argument| argument.access != RegisterOperandAccess::Use)
+            || !encoded
+                .external_operand_reads
+                .iter()
+                .copied()
+                .eq(arguments.iter().map(|argument| argument.operand))
+            || encoded.external_operand_writes != [result.operand]
             || encoded.implicit_unit_uses != constraint.implicit_uses
             || encoded.implicit_unit_defs != constraint.implicit_defs
             || encoded.implicit_unit_clobbers != constraint.clobbers
             || encoded.trap != MachineEncodedTrapBehavior::MayArchitecturalFaultV1
-            || encoded.control != MachineEncodedControlEffect::DirectRelativeCallV1)
-    {
-        return Err(());
+            || encoded.control != MachineEncodedControlEffect::DirectRelativeCallV1
+        {
+            return Err(());
+        }
     }
     let expected_barrier = match encoded.control {
         MachineEncodedControlEffect::FallThroughV1 => MachineBarrier::None,

@@ -24,7 +24,7 @@ pub(super) fn admit(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     policy: GeneralizedReloadValueHomePolicy,
 ) -> Result<(), GeneralizedReloadValueHomeError> {
     if policy != GeneralizedReloadValueHomePolicy::EpochZeroAndOneBlockLocalLowestCompatibleViewV1 {

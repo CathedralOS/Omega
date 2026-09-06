@@ -14,7 +14,7 @@ fn logical_spill_operations_replay_the_active_resident_pressure_case_on_both_arc
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
             SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
             selected_lowering_budget(),
         )
@@ -138,7 +138,7 @@ fn logical_spill_v1_refuses_an_incoming_victim() {
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         AllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 {
             views: vec![sole_view],
         },
@@ -156,7 +156,7 @@ fn logical_spill_v1_refuses_an_incoming_victim() {
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
         selected_lowering_budget(),
     )
@@ -199,7 +199,7 @@ fn logical_spill_validation_rejects_root_decision_and_namespace_corruption() {
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
         selected_lowering_budget(),
     )
@@ -371,7 +371,7 @@ fn logical_spill_plan_is_canonical_when_pressure_is_absent() {
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
         selected_lowering_budget(),
     )

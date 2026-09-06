@@ -28,7 +28,7 @@ pub fn rematerialize_selected_active_resident<S: ValidatedSelectedAnalysis>(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     policy: PressureRematerializationPolicy,
     budget: optimization_core::OptimizationWorkBudget,
 ) -> Result<ValidatedPressureRematerialization, PressureRematerializationError> {

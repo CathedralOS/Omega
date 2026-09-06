@@ -30,7 +30,7 @@ pub(super) fn replay<S: ValidatedSelectedAnalysis>(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     policy: GeneralizedSpillRecoveryChoicePolicy,
     budget: OptimizationWorkBudget,
 ) -> Result<GeneralizedSpillRecoveryChoicePlan, GeneralizedSpillRecoveryChoiceError> {
@@ -354,7 +354,7 @@ fn replay_roots(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> Result<(), GeneralizedSpillRecoveryChoiceError> {
     let source = worklist.plan();
     let home = homes.receipt();

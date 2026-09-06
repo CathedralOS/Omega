@@ -72,7 +72,7 @@ pub(super) fn build(
         &inputs,
         0,
         &mut registers,
-        constraints.keys,
+        &constraints.keys,
         catalog,
     )?;
     if registers[result.0 as usize].entry_fixed_view.is_some() {

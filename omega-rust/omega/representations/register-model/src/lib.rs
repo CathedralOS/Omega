@@ -190,14 +190,14 @@ pub struct RegisterConstraintKey {
 
 /// Exact ordinary instruction keys selected by one target register
 /// environment. Named fields prevent positional key drift in its identity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetRegisterEnvironmentConstraintKeys {
     /// Target-applicable bounded structural Unit call. `None` means this
     /// environment does not claim that ABI/ISA form; it is not a dummy row.
     pub structural_unit_call: Option<RegisterConstraintKey>,
-    /// Exact hosted `U64, U64 -> U64` direct-call form, when this environment
-    /// has selected and validated one. Other targets must refuse the form.
-    pub call_i64_2_u64_to_u64: Option<RegisterConstraintKey>,
+    /// Target-owned register-call keys indexed by argument count, including zero.
+    /// Empty means this environment supplies no scalar register-call form.
+    pub call_i64: Vec<RegisterConstraintKey>,
     pub materialize_i64: RegisterConstraintKey,
     pub copy_i64: RegisterConstraintKey,
     pub add_i64: RegisterConstraintKey,
@@ -1609,10 +1609,10 @@ mod tests {
                 family: RegisterConstraintFamily::Call,
                 variant: 2,
             }),
-            call_i64_2_u64_to_u64: Some(RegisterConstraintKey {
+            call_i64: vec![RegisterConstraintKey {
                 family: RegisterConstraintFamily::Call,
                 variant: 3,
-            }),
+            }],
             materialize_i64: instruction_key(1),
             copy_i64: instruction_key(5),
             add_i64: instruction_key(6),
@@ -1631,7 +1631,7 @@ mod tests {
             &physical,
             &constraints,
             &reservations,
-            keys,
+            &keys,
         );
         assert_eq!(
             identity,
@@ -1640,7 +1640,7 @@ mod tests {
                 &physical,
                 &constraints,
                 &reservations,
-                keys,
+                &keys,
             )
         );
 
@@ -1669,7 +1669,7 @@ mod tests {
                     &physical,
                     &constraints,
                     &reservations,
-                    keys,
+                    &keys,
                 )
             );
         }
@@ -1677,56 +1677,56 @@ mod tests {
         for changed_keys in [
             TargetRegisterEnvironmentConstraintKeys {
                 structural_unit_call: None,
-                ..keys
+                ..keys.clone()
             },
             TargetRegisterEnvironmentConstraintKeys {
-                call_i64_2_u64_to_u64: None,
-                ..keys
+                call_i64: Vec::new(),
+                ..keys.clone()
             },
             TargetRegisterEnvironmentConstraintKeys {
                 materialize_i64: instruction_key(11),
-                ..keys
+                ..keys.clone()
             },
             TargetRegisterEnvironmentConstraintKeys {
                 copy_i64: instruction_key(15),
-                ..keys
+                ..keys.clone()
             },
             TargetRegisterEnvironmentConstraintKeys {
                 add_i64: instruction_key(16),
-                ..keys
+                ..keys.clone()
             },
             TargetRegisterEnvironmentConstraintKeys {
                 add_i64_immediate: instruction_key(17),
-                ..keys
+                ..keys.clone()
             },
             TargetRegisterEnvironmentConstraintKeys {
                 subtract_i64: instruction_key(18),
-                ..keys
+                ..keys.clone()
             },
             TargetRegisterEnvironmentConstraintKeys {
                 subtract_i64_immediate: instruction_key(19),
-                ..keys
+                ..keys.clone()
             },
             TargetRegisterEnvironmentConstraintKeys {
                 compare_i64_zero: instruction_key(12),
-                ..keys
+                ..keys.clone()
             },
             TargetRegisterEnvironmentConstraintKeys {
                 compare_i64: instruction_key(21),
-                ..keys
+                ..keys.clone()
             },
             TargetRegisterEnvironmentConstraintKeys {
                 conditional_branch: instruction_key(13),
                 jump: instruction_key(23),
-                ..keys
+                ..keys.clone()
             },
             TargetRegisterEnvironmentConstraintKeys {
                 return_i64: instruction_key(14),
-                ..keys
+                ..keys.clone()
             },
             TargetRegisterEnvironmentConstraintKeys {
                 return_unit: instruction_key(15),
-                ..keys
+                ..keys.clone()
             },
         ] {
             assert_ne!(
@@ -1736,7 +1736,7 @@ mod tests {
                     &physical,
                     &constraints,
                     &reservations,
-                    changed_keys,
+                    &changed_keys,
                 )
             );
         }

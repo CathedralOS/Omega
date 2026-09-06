@@ -8,7 +8,7 @@ mod integrity;
 mod ordinary_roster;
 mod projected_structural_call_return;
 mod roots;
-mod scalar_call_unit;
+pub(super) mod scalar_call_unit;
 mod scalar_leaf;
 mod shared_return;
 mod structural_unit;
@@ -42,7 +42,7 @@ pub fn validate_selected_instructions(
             source,
             selected,
             target,
-            constraints.keys,
+            &constraints.keys,
             catalog,
         )?;
     }

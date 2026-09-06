@@ -30,7 +30,7 @@ fn explicit_one_view_availability_reaches_real_pressure_and_recovery_on_both_arc
                 environment.physical(),
                 environment.constraints(),
                 environment.reservations(),
-                environment.allocation_constraint_keys(),
+                &environment.allocation_constraint_keys(),
                 AllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 {
                     views: vec![sole_view, sole_view],
                 },
@@ -44,7 +44,7 @@ fn explicit_one_view_availability_reaches_real_pressure_and_recovery_on_both_arc
                 environment.physical(),
                 environment.constraints(),
                 environment.reservations(),
-                environment.allocation_constraint_keys(),
+                &environment.allocation_constraint_keys(),
                 AllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 {
                     views: vec![RegisterViewId(u16::MAX)],
                 },
@@ -72,7 +72,7 @@ fn explicit_one_view_availability_reaches_real_pressure_and_recovery_on_both_arc
                 environment.physical(),
                 environment.constraints(),
                 environment.reservations(),
-                environment.allocation_constraint_keys(),
+                &environment.allocation_constraint_keys(),
                 AllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 {
                     views: vec![reserved_view.id],
                 },
@@ -85,7 +85,7 @@ fn explicit_one_view_availability_reaches_real_pressure_and_recovery_on_both_arc
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
             AllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 {
                 views: vec![sole_view],
             },
@@ -105,7 +105,7 @@ fn explicit_one_view_availability_reaches_real_pressure_and_recovery_on_both_arc
                 environment.physical(),
                 environment.constraints(),
                 environment.reservations(),
-                environment.allocation_constraint_keys(),
+                &environment.allocation_constraint_keys(),
                 noncanonical,
             ),
             Err(AllocatorAvailabilityError::NonCanonicalPlan)
@@ -145,7 +145,7 @@ fn explicit_one_view_availability_reaches_real_pressure_and_recovery_on_both_arc
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
             SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
             OptimizationWorkBudget::new(100, 100, 1_000, 100, 1).unwrap(),
         )
@@ -206,7 +206,7 @@ fn two_explicit_u12_exact_add_folds_close_one_view_pressure_on_both_architecture
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
             AllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 {
                 views: vec![sole_view],
             },
@@ -224,7 +224,7 @@ fn two_explicit_u12_exact_add_folds_close_one_view_pressure_on_both_architecture
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
             SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
             budget(),
         )
@@ -249,7 +249,7 @@ fn two_explicit_u12_exact_add_folds_close_one_view_pressure_on_both_architecture
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
             LiteralFoldPolicy::EXACT_ADD_V1,
             budget(),
         )
@@ -277,7 +277,7 @@ fn two_explicit_u12_exact_add_folds_close_one_view_pressure_on_both_architecture
                 environment.physical(),
                 environment.constraints(),
                 environment.reservations(),
-                environment.allocation_constraint_keys(),
+                &environment.allocation_constraint_keys(),
                 corrupted_recipe,
             ),
             Err(selected_instructions_to_register_homes::LiteralFoldError::DecisionMismatch { .. })
@@ -299,7 +299,7 @@ fn two_explicit_u12_exact_add_folds_close_one_view_pressure_on_both_architecture
                 foreign_environment.physical(),
                 foreign_environment.constraints(),
                 foreign_environment.reservations(),
-                environment.allocation_constraint_keys(),
+                &environment.allocation_constraint_keys(),
                 fold_one.plan().clone(),
             ),
             Err(selected_instructions_to_register_homes::LiteralFoldError::RootMismatch)
@@ -324,7 +324,7 @@ fn two_explicit_u12_exact_add_folds_close_one_view_pressure_on_both_architecture
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
         )
         .unwrap();
         let choices_one = choose_spill_victims(
@@ -334,7 +334,7 @@ fn two_explicit_u12_exact_add_folds_close_one_view_pressure_on_both_architecture
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
             SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
             budget(),
         )
@@ -367,7 +367,7 @@ fn two_explicit_u12_exact_add_folds_close_one_view_pressure_on_both_architecture
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
             LiteralFoldPolicy::EXACT_ADD_V1,
             budget(),
         )
@@ -383,7 +383,7 @@ fn two_explicit_u12_exact_add_folds_close_one_view_pressure_on_both_architecture
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
         )
         .unwrap();
         let choices_two = choose_spill_victims(
@@ -393,7 +393,7 @@ fn two_explicit_u12_exact_add_folds_close_one_view_pressure_on_both_architecture
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
             SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
             budget(),
         )
@@ -412,7 +412,7 @@ fn two_explicit_u12_exact_add_folds_close_one_view_pressure_on_both_architecture
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
         )
         .unwrap();
         assert_eq!(
@@ -443,7 +443,7 @@ fn two_explicit_u12_exact_add_folds_close_one_view_pressure_on_both_architecture
                 staged_environment.physical(),
                 staged_environment.constraints(),
                 staged_environment.reservations(),
-                staged_environment.allocation_constraint_keys(),
+                &staged_environment.allocation_constraint_keys(),
             ),
             Err(RegisterHomeError::NoCompatibleHome { .. })
         ));

@@ -10,11 +10,11 @@ pub(super) struct ValidationImmediateRows<'a> {
     pub(super) subtract: Option<&'a RegisterInstructionConstraint>,
 }
 
-pub(super) fn reconstruct_immediate_rows(
-    constraints: &ValidatedRegisterConstraintCatalog,
-    keys: TargetRegisterEnvironmentConstraintKeys,
+pub(super) fn reconstruct_immediate_rows<'a>(
+    constraints: &'a ValidatedRegisterConstraintCatalog,
+    keys: &TargetRegisterEnvironmentConstraintKeys,
     policy: LiteralFoldPolicy,
-) -> Result<ValidationImmediateRows<'_>, LiteralFoldError> {
+) -> Result<ValidationImmediateRows<'a>, LiteralFoldError> {
     let find = |key| {
         constraints
             .catalog()

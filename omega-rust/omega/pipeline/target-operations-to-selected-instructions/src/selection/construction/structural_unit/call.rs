@@ -10,7 +10,7 @@ pub(super) fn build(
     source: &SourceStructuralUnitFunction,
     plan: &LegalizedOperationPlan,
     layout: SelectedMicrosoftX64OwnedIndirectPairLayout,
-    keys: SelectedConstraintKeys,
+    keys: &SelectedConstraintKeys,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<Option<SelectedStructuralUnitCallInstruction>, SelectedInstructionError> {
     source

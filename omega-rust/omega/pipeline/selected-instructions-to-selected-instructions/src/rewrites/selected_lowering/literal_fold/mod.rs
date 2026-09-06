@@ -24,7 +24,7 @@ pub fn fold_selected_incoming_literal<S: ValidatedSelectedAnalysis>(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     policy: LiteralFoldPolicy,
     budget: optimization_core::OptimizationWorkBudget,
 ) -> Result<ValidatedLiteralFold, LiteralFoldError> {

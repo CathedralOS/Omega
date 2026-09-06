@@ -23,7 +23,7 @@ pub(super) fn compute_terminal_pre_allocation_machine_effects<S: ValidatedSelect
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     catalog: &ValidatedMachineEffectCatalog,
 ) -> Result<PreAllocationMachineEffectPlan, MachineEffectError> {
     let source = selected.selected_plan();
@@ -149,7 +149,7 @@ fn compute_structural_call(
 fn validate_catalog_roots(
     target: target::NativeTarget,
     constraints: &ValidatedRegisterConstraintCatalog,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     catalog: &ValidatedMachineEffectCatalog,
 ) -> Result<(), MachineEffectError> {
     if catalog.catalog().target != target {
@@ -164,10 +164,12 @@ fn validate_catalog_roots(
     Ok(())
 }
 
-fn terminal_selected_keys(keys: TargetRegisterEnvironmentConstraintKeys) -> SelectedConstraintKeys {
+fn terminal_selected_keys(
+    keys: &TargetRegisterEnvironmentConstraintKeys,
+) -> SelectedConstraintKeys {
     SelectedConstraintKeys {
         structural_unit_call: keys.structural_unit_call,
-        call_i64_2_u64_to_u64: keys.call_i64_2_u64_to_u64,
+        call_i64: keys.call_i64.clone(),
         materialize_i64: keys.materialize_i64,
         copy_i64: keys.copy_i64,
         add_i64: keys.add_i64,

@@ -31,7 +31,7 @@ fn exact_add_rule_rejects_action_corruption() {
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
             corrupted,
         ),
         Err(LiteralFoldError::DecisionMismatch { function: 0 })

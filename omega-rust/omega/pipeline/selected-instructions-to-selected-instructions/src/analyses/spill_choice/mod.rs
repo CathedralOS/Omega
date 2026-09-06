@@ -20,7 +20,7 @@ pub fn choose_spill_victims(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     policy: SpillChoicePolicy,
     budget: optimization_core::OptimizationWorkBudget,
 ) -> Result<ValidatedSpillChoices, SpillChoiceError> {

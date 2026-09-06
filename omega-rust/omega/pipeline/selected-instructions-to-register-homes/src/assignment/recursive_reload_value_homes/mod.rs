@@ -26,7 +26,7 @@ pub fn assign_recursive_reload_value_homes(
     physical: &register_model::ValidatedPhysicalRegisterModel,
     constraints: &register_model::ValidatedRegisterConstraintCatalog,
     reservations: &register_model::ValidatedRegisterReservationProfile,
-    selected_keys: register_model::TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &register_model::TargetRegisterEnvironmentConstraintKeys,
     policy: RecursiveReloadValueHomePolicy,
     budget: optimization_core::OptimizationWorkBudget,
 ) -> Result<ValidatedRecursiveReloadValueHomes, RecursiveReloadValueHomeError> {

@@ -126,9 +126,6 @@ pub(super) fn replay(
             LegalizedScalarCallUnitOperation::Call(call) => {
                 let (operation, result, callee, arguments) =
                     call_parts(native, abstract_operation, function)?;
-                let [left, right] = arguments else {
-                    return Err(Error::NonCanonicalLegalizedPlan);
-                };
                 let source_for =
                     |value: &ValueId| -> Result<TargetUnitScalarArgumentSource, LegalizationError> {
                         let mut found =
@@ -153,7 +150,11 @@ pub(super) fn replay(
                             _ => Err(Error::NonCanonicalLegalizedPlan),
                         }
                     };
-                replay_call_sources(native, [source_for(left)?, source_for(right)?], function)?;
+                let sources = arguments
+                    .iter()
+                    .map(source_for)
+                    .collect::<Result<Vec<_>, _>>()?;
+                replay_call_sources(native, &sources, function)?;
                 replay_call(
                     function, block.id, ordinal, native, node, operation, result, call,
                 )?;

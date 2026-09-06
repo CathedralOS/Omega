@@ -143,7 +143,7 @@ fn exact_target_legal_and_selected_call_chain_survives_on_both_isas() {
         assert_eq!(legal_caller.machine, caller);
         assert_eq!(
             legal_caller.recipe,
-            ScalarCallUnitLegalizationRecipe::OrderedU64PairCallsThenReturnUnitV1
+            ScalarCallUnitLegalizationRecipe::OrderedU64RegisterCallsThenReturnUnitV1
         );
         let calls = legal_caller
             .operations
@@ -211,13 +211,7 @@ fn exact_target_legal_and_selected_call_chain_survives_on_both_isas() {
         );
         let call_constraint = staged
             .register_environment()
-            .constraint(
-                staged
-                    .register_environment()
-                    .selected_keys()
-                    .call_i64_2_u64_to_u64
-                    .unwrap(),
-            )
+            .constraint(staged.register_environment().selected_keys().call_i64[2])
             .unwrap();
         for (instruction_index, operation, values, registers) in [
             (

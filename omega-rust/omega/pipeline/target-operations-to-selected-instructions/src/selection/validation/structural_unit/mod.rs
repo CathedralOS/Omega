@@ -9,7 +9,7 @@ use crate::selection::shared::*;
 pub(super) struct ReconstructedStructuralUnitContract<'catalog> {
     pub(super) layout: SelectedMicrosoftX64OwnedIndirectPairLayout,
     function: usize,
-    keys: SelectedConstraintKeys,
+    keys: &'catalog SelectedConstraintKeys,
     catalog: &'catalog ValidatedRegisterConstraintCatalog,
 }
 
@@ -24,7 +24,7 @@ impl<'catalog> ReconstructedStructuralUnitContract<'catalog> {
 pub(super) fn reconstruct_structural_unit_contract<'catalog>(
     function: usize,
     source: &SourceStructuralUnitFunction,
-    keys: SelectedConstraintKeys,
+    keys: &'catalog SelectedConstraintKeys,
     catalog: &'catalog ValidatedRegisterConstraintCatalog,
 ) -> Result<ReconstructedStructuralUnitContract<'catalog>, SelectedInstructionError> {
     let layout = layout::reconstruct_structural_unit_layout(function, source)?;

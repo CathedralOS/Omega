@@ -17,7 +17,7 @@ pub fn validate_allocator_availability(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     plan: AllocatorAvailabilityPlan,
 ) -> Result<ValidatedAllocatorAvailability, AllocatorAvailabilityError> {
     if plan.register_environment != register_environment || plan.physical != physical.identity() {

@@ -38,7 +38,7 @@ pub(crate) fn compute_terminal_literal_fold<S: ValidatedSelectedAnalysis>(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     policy: LiteralFoldPolicy,
     budget: OptimizationWorkBudget,
 ) -> Result<LiteralFoldPlan, LiteralFoldError> {

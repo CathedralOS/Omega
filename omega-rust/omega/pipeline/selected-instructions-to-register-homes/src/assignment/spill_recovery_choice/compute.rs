@@ -61,7 +61,7 @@ pub(super) fn compute(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     policy: SpillRecoveryChoicePolicy,
     budget: OptimizationWorkBudget,
 ) -> Result<SpillRecoveryChoicePlan, SpillRecoveryChoiceError> {
@@ -131,7 +131,7 @@ fn admit_roots(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> Result<(), SpillRecoveryChoiceError> {
     let receipt = worklist.receipt();
     let environment = target_register_environment_identity(

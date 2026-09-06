@@ -44,19 +44,11 @@ pub fn validate_machine_effect_catalog(
     if catalog
         .declarations
         .windows(2)
-        .any(|pair| pair[0].semantic >= pair[1].semantic)
+        .any(|pair| pair[0].semantic > pair[1].semantic)
     {
         return Err(MachineEffectCatalogValidationError::NonCanonicalDeclarations);
     }
-    let expected = MachineSemanticKind::ALL
-        .into_iter()
-        .filter_map(|semantic| {
-            catalog
-                .selected_keys
-                .for_semantic(semantic)
-                .map(|constraint| (semantic, constraint))
-        })
-        .collect::<Vec<_>>();
+    let expected = catalog.selected_keys.declaration_keys();
     if catalog.declarations.len() != expected.len()
         || catalog
             .declarations

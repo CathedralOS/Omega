@@ -12,11 +12,11 @@ pub(super) struct ImmediateRows<'a> {
     pub(super) subtract: Option<&'a RegisterInstructionConstraint>,
 }
 
-pub(super) fn select_immediate_rows(
-    constraints: &ValidatedRegisterConstraintCatalog,
-    keys: TargetRegisterEnvironmentConstraintKeys,
+pub(super) fn select_immediate_rows<'a>(
+    constraints: &'a ValidatedRegisterConstraintCatalog,
+    keys: &TargetRegisterEnvironmentConstraintKeys,
     policy: LiteralFoldPolicy,
-) -> Result<ImmediateRows<'_>, LiteralFoldError> {
+) -> Result<ImmediateRows<'a>, LiteralFoldError> {
     let find = |key| {
         constraints
             .catalog()

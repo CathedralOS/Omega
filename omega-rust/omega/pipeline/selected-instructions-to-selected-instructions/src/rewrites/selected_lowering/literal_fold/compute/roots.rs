@@ -24,7 +24,7 @@ pub(super) fn validate_literal_fold_roots<S: ValidatedSelectedAnalysis>(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> Result<(), LiteralFoldError> {
     if ranges.receipt().selected() != selected.selected_identity()
         || ranges.receipt().optimization_unit() != selected.optimization_unit_identity()

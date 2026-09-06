@@ -45,7 +45,7 @@ pub(crate) fn compute_terminal_fixed_view_copies(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     policy: FixedViewCopyPolicy,
     budget: OptimizationWorkBudget,
 ) -> Result<FixedViewCopyPlan, FixedViewCopyError> {

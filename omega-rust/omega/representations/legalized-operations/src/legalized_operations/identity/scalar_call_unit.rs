@@ -25,7 +25,8 @@ pub(super) fn encode_scalar_call_unit_function(
         function.provenance.edges.iter().map(|edge| edge.get()),
     );
     bytes.push(match function.recipe {
-        ScalarCallUnitLegalizationRecipe::OrderedU64PairCallsThenReturnUnitV1 => 0,
+        // Tag 0 belonged to the retired fixed-pair recipe.
+        ScalarCallUnitLegalizationRecipe::OrderedU64RegisterCallsThenReturnUnitV1 => 1,
     });
     bytes.extend_from_slice(&function.entry_block.get().to_le_bytes());
     if ordered {
@@ -130,6 +131,7 @@ fn encode_call(bytes: &mut Vec<u8>, call: &LegalizedScalarCallUnitCall) {
     encode_call_plan(bytes, &call.call_plan);
     encode_home(bytes, call.result_home);
     encode_definition_site(bytes, call.result_definition_site);
+    encode_len(bytes, call.arguments.len());
     for argument in &call.arguments {
         bytes.extend_from_slice(&argument.parameter_index.to_le_bytes());
         encode_argument_source(bytes, argument.source);

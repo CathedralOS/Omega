@@ -9,7 +9,7 @@ pub(super) fn validate(
     return_id: u32,
     register: VirtualRegisterId,
     source: &SourceLeaf,
-    keys: SelectedConstraintKeys,
+    keys: &SelectedConstraintKeys,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
     if !matches!(source.value, SourceLeafValue::EntryParameter { .. })

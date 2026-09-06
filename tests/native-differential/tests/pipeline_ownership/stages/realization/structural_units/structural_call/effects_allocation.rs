@@ -59,7 +59,7 @@ pub(super) fn analyze_and_allocate_structural_call(
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
             &catalog,
             corrupted,
         )
@@ -147,7 +147,7 @@ pub(super) fn analyze_and_allocate_structural_call(
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
             corrupted,
         )
         .is_err()
@@ -199,7 +199,7 @@ pub(super) fn analyze_and_allocate_structural_call(
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
             corrupted,
         )
         .is_err()

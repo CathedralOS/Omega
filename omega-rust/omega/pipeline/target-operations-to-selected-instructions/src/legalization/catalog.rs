@@ -162,10 +162,10 @@ const fn unit_form() -> LegalizationFormDescriptor {
 const fn scalar_call_unit_form() -> LegalizationFormDescriptor {
     LegalizationFormDescriptor {
         recipe: LegalizationFormRecipe::ScalarCallUnit(
-            ScalarCallUnitLegalizationRecipe::OrderedU64PairCallsThenReturnUnitV1,
+            ScalarCallUnitLegalizationRecipe::OrderedU64RegisterCallsThenReturnUnitV1,
         ),
         producer_matcher: LegalizationProducerMatcherKind::ScalarCallUnit(
-            ScalarCallUnitLegalizationMatcherKind::OrderedU64PairCalls,
+            ScalarCallUnitLegalizationMatcherKind::OrderedU64RegisterCalls,
         ),
         constraints: LegalizationShapeConstraints::ScalarCallUnit(ScalarCallUnitShapeConstraints {
             block_count: 1,
@@ -173,12 +173,12 @@ const fn scalar_call_unit_form() -> LegalizationFormDescriptor {
             scalar_parameter_count: 0,
         }),
         cost: LegalizationStructuralCost {
-            // Lower bound: one constant, one pair call with its copies, return.
-            projected_selected_instruction_count: 6,
+            // Lower bound: a zero-argument call, its result copy, and return.
+            projected_selected_instruction_count: 3,
             introduced_temporary_count: 0,
         },
         validator: LegalizationValidatorKind::ScalarCallUnit(
-            ScalarCallUnitLegalizationValidatorKind::OrderedU64PairCalls,
+            ScalarCallUnitLegalizationValidatorKind::OrderedU64RegisterCalls,
         ),
     }
 }

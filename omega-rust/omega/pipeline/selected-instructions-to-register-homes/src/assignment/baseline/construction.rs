@@ -33,7 +33,7 @@ pub(super) fn construct_optimized_register_homes(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
     )
     .map_err(OptimizedRegisterHomeCustodyError::Assignment)?;
     let replayed = validate_register_homes(
@@ -43,7 +43,7 @@ pub(super) fn construct_optimized_register_homes(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         homes.plan().clone(),
     )
     .map_err(OptimizedRegisterHomeCustodyError::Revalidation)?;
@@ -94,7 +94,7 @@ pub(super) fn construct_optimized_register_homes_after_fixed_view_copies(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
     )
     .map_err(OptimizedPostCopyRegisterHomeCustodyError::Assignment)?;
     let replayed = validate_register_homes(
@@ -104,7 +104,7 @@ pub(super) fn construct_optimized_register_homes_after_fixed_view_copies(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         homes.plan().clone(),
     )
     .map_err(OptimizedPostCopyRegisterHomeCustodyError::Revalidation)?;

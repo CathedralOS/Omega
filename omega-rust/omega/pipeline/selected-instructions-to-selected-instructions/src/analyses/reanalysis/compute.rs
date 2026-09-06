@@ -38,7 +38,7 @@ pub(super) fn compute_selected_reanalysis(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
     )
     .map_err(OptimizedSelectedReanalysisError::AllocationLegality)?;
     require_no_transitions(&legality)?;

@@ -35,7 +35,7 @@ pub(super) fn validate_function(
         physical,
         catalog,
     )?;
-    validate_selected_blocks(function_index, source, function, constraints.keys, catalog)?;
+    validate_selected_blocks(function_index, source, function, &constraints.keys, catalog)?;
     for block in &function.blocks {
         validate_block_constraints(function_index, block, function, catalog)?;
     }
@@ -48,7 +48,7 @@ pub(super) fn validate_unit_function(
     function_index: usize,
     source: &SourceUnitFunction,
     function: &SelectedFunction,
-    keys: SelectedConstraintKeys,
+    keys: &SelectedConstraintKeys,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
     let expected_provenance = SelectedInstructionProvenance {
@@ -102,7 +102,7 @@ pub(super) fn validate_structural_unit_function(
     source: &SourceStructuralUnitFunction,
     selected: &SelectedStructuralUnitFunction,
     plan: &LegalizedOperationPlan,
-    keys: SelectedConstraintKeys,
+    keys: &SelectedConstraintKeys,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
     if plan.target != target::NativeTarget::uefi_x64() {

@@ -59,7 +59,7 @@ pub fn validate_spill_choices(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     plan: SpillChoicePlan,
 ) -> Result<ValidatedSpillChoices, SpillChoiceError> {
     if plan.legality != legality.receipt().identity()

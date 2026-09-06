@@ -169,7 +169,7 @@ fn zero_vreg_unit_return_reaches_replayed_homes_and_machine_custody() {
                 environment.physical(),
                 environment.constraints(),
                 environment.reservations(),
-                environment.allocation_constraint_keys(),
+                &environment.allocation_constraint_keys(),
                 corrupted_legality,
             ),
             Err(AllocationLegalityError::FunctionMismatch { function: 0 })
@@ -203,7 +203,7 @@ fn zero_vreg_unit_return_reaches_replayed_homes_and_machine_custody() {
                 environment.physical(),
                 environment.constraints(),
                 environment.reservations(),
-                environment.allocation_constraint_keys(),
+                &environment.allocation_constraint_keys(),
                 corrupted_homes,
             ),
             Err(RegisterHomeError::FunctionMismatch { function: 0 })

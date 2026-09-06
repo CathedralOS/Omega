@@ -27,7 +27,7 @@ pub(super) fn compute_fixed_view_copies(
         environment.physical(),
         environment.constraints(),
         environment.reservations(),
-        environment.allocation_constraint_keys(),
+        &environment.allocation_constraint_keys(),
         policy,
         budget,
     )

@@ -5,10 +5,10 @@ use register_model::{
 
 use crate::FixedViewCopyError;
 
-pub(super) fn validated_copy_row(
-    constraints: &ValidatedRegisterConstraintCatalog,
-    keys: TargetRegisterEnvironmentConstraintKeys,
-) -> Result<&RegisterInstructionConstraint, FixedViewCopyError> {
+pub(super) fn validated_copy_row<'a>(
+    constraints: &'a ValidatedRegisterConstraintCatalog,
+    keys: &TargetRegisterEnvironmentConstraintKeys,
+) -> Result<&'a RegisterInstructionConstraint, FixedViewCopyError> {
     let Some(row) = constraints
         .catalog()
         .constraints

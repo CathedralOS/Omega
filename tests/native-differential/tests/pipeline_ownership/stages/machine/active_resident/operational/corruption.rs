@@ -41,7 +41,7 @@ fn active_resident_rule_rejects_action_and_enclosing_custody_corruption() {
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
             corrupted_plan,
         ),
         Err(PressureRematerializationError::DecisionMismatch { .. })

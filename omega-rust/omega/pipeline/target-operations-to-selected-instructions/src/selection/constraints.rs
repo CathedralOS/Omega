@@ -38,7 +38,7 @@ pub(super) fn instruction(
 }
 
 pub(super) fn require_key_rows(
-    keys: SelectedConstraintKeys,
+    keys: &SelectedConstraintKeys,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
     for key in [

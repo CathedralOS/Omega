@@ -50,7 +50,7 @@ pub(super) fn build(
         } => (operation, fuel, left, right, true, true, false),
         _ => return Err(invalid()),
     };
-    let keys = constraints.keys;
+    let keys = &constraints.keys;
     let class = row(catalog, keys.materialize_i64)?.operands[0].class;
     let scalar_type = ScalarType::Integer(source.abi.result.scalar_type);
     let mut registers = Vec::new();

@@ -9,7 +9,7 @@ pub(super) fn validate(
     instruction_ids: [u32; 4],
     registers: [VirtualRegisterId; 3],
     source: &SourceLeaf,
-    keys: SelectedConstraintKeys,
+    keys: &SelectedConstraintKeys,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
     let (obligation, operations, values, operation_fuel, left, right, kind, key) =

@@ -35,7 +35,7 @@ fn transition_free_register_homes_are_deterministic_and_cfg_exact() {
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
-            environment.allocation_constraint_keys(),
+            &environment.allocation_constraint_keys(),
             decoded,
         )
         .unwrap();
@@ -187,7 +187,7 @@ fn transition_free_register_homes_are_deterministic_and_cfg_exact() {
                 environment.physical(),
                 environment.constraints(),
                 environment.reservations(),
-                environment.allocation_constraint_keys(),
+                &environment.allocation_constraint_keys(),
                 decoded,
             ),
             Err(RegisterHomeError::VirtualRegisterMismatch { .. })

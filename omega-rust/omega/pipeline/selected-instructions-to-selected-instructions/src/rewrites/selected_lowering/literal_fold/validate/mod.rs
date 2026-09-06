@@ -37,7 +37,7 @@ pub fn validate_literal_fold<S: ValidatedSelectedAnalysis>(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     plan: LiteralFoldPlan,
 ) -> Result<ValidatedLiteralFold, LiteralFoldError> {
     validate_literal_fold_roots(
