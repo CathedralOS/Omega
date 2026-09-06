@@ -420,14 +420,17 @@ fn build_leaf(
             false,
             None,
         )?;
-        let CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. } = &operation else {
-            return None;
-        };
-        if !boundaries
-            .iter()
-            .any(|boundary| boundary.machine == *target_machine && boundary.result.is_unit())
-        {
-            return None;
+        match &operation {
+            CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
+                if boundaries.iter().any(|boundary| {
+                    boundary.machine == *target_machine && boundary.result.is_unit()
+                }) => {}
+            CheckedUnitEffectOperationPlan::CallUnit {
+                structural_arguments,
+                claim_transfers,
+                ..
+            } if structural_arguments.is_empty() && claim_transfers.is_empty() => {}
+            _ => return None,
         }
         operations.push(operation);
     }

@@ -516,7 +516,7 @@ Owners include
   operator calls and borrowed/projected operands and writes.
   Extend computed scalar call operands to later structural-result initializers,
   structural returned calls, internal Unit calls
-  in dynamic-result and closed-sum continuations,
+  in dynamic-result continuations,
   and structural arguments on composed internal calls. Retain exact
   evaluation order across guards and other argument effects, including projected
   and borrowed operand staging.

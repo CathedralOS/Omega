@@ -32,10 +32,19 @@ pub(super) fn checked_provider_attachment_requirements(
     let [(field, provider_type_identity)] = provider_fields.as_slice() else {
         return provider_fields.is_empty().then(Vec::new);
     };
+    // These callees own their provider requirements; they do not use this
+    // attachment's provider field or transfer structural custody through it.
+    let independent_unit_call = |operation: &CheckedUnitEffectOperationPlan| {
+        matches!(operation,
+            CheckedUnitEffectOperationPlan::CallUnit {
+                structural_arguments, claim_transfers, ..
+            } if structural_arguments.is_empty() && claim_transfers.is_empty())
+    };
     let call_operations = operations
         .iter()
         .filter(|operation| {
-            !matches!(
+            !independent_unit_call(operation)
+                && !matches!(
                 operation,
                 CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                     | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
@@ -50,7 +59,7 @@ pub(super) fn checked_provider_attachment_requirements(
         || structural_parameters
             .iter()
             .any(|parameter| !parameter.is_self)
-        || call_operations.is_empty()
+        || (call_operations.is_empty() && !operations.iter().any(independent_unit_call))
     {
         return None;
     }
