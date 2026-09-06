@@ -17,8 +17,7 @@ impl Drop for Fixture {
 
 #[test]
 fn composed_unit_arguments_reach_published_terminal_and_native_provider_custody() {
-    check_publication(
-        r#"
+    let source = r#"
 data Main {}
 machine Main::main(&mut self) {
     let selected: u64 = 1u64;
@@ -26,8 +25,15 @@ machine Main::main(&mut self) {
     state yes() { relay(identity(7u8)); }
     state no() { relay(identity(9u8)); }
 }
-"#,
-    );
+"#;
+    for source in [
+        source.to_owned(),
+        source
+            .replace("relay(identity(7u8));", "relay(identity(7u8))")
+            .replace("relay(identity(9u8));", "relay(identity(9u8))"),
+    ] {
+        check_publication(&source);
+    }
 }
 
 #[test]

@@ -3112,6 +3112,18 @@ providers, and normal cleanup come from the same complete Unit-body lowering as
 standalone Unit machines. Free callees keep no attachment; a static data
 qualifier does not manufacture a receiver.
 
+The supported composed-control leaves accept either a semicolon call or a final
+Unit call expression. This includes boundary leaves after dynamic scalar-result
+dispatch and the final boundary call in a closed-sum payload leaf. Only the
+selected leaf evaluates its operands and invokes its callee. A trailing expression
+retains its exact state, statement coordinate, and captured outer call even for
+pure or zero operands; it is not rewritten into a discard or another state's
+call. Calls before transitions still require statement syntax. Result, signature,
+structural-custody, and control-topology restrictions are unchanged.
+Provider-field receivers rejoin the exact attached storage declaration through
+the existing inherited-field mapping; missing or conflicting receiver stamps
+cannot be recovered from their spelling during publication.
+
 The composed root and its ordinary callees select one type, boundary, service,
 and helper catalog before assigning identities. Scalar helpers shared by root
 operands and callee bodies have one machine identity. The root graph consumes the

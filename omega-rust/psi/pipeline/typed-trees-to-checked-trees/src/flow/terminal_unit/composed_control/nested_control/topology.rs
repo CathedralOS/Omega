@@ -55,7 +55,12 @@ pub(super) fn admit<'a>(
             statements if conditional_parts(statements).is_some() && !saw_leaf => {
                 controls.push(state)
             }
-            [StatementNode::Call(_)] if signatures[state_index(states, state)?].is_empty() => {
+            [statement]
+                if signatures[state_index(states, state)?].is_empty()
+                    && (matches!(statement, StatementNode::Call(_))
+                        || super::super::super::control::tail_call(program, state, 0)
+                            .is_some()) =>
+            {
                 saw_leaf = true;
                 leaves.push(state)
             }
