@@ -188,7 +188,13 @@ pub(super) fn collect_state_argument_facts<'program>(
                 seed_state_argument_facts(&mut facts, state, &previous);
             }
 
-            for statement in program.statement_table.statements(state.statement_nodes) {
+            for (statement_index, statement) in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+            {
+                facts.statement_index = statement_index;
                 collect_state_argument_facts_from_statement(
                     &context,
                     &mut facts,

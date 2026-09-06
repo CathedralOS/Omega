@@ -48,9 +48,7 @@ pub(super) fn check_statement<'program>(
             let next_length =
                 expression_indexable_length(program, machine, state, facts, assignment.value);
             let next_integer = expression_integer_value(program, facts, assignment.value);
-            facts.invalidate_assignment_bounds(
-                &program.expression_table.display_name(assignment.target),
-            );
+            facts.invalidate_assignment_bounds(program, machine, state, statement);
             if let Some((symbol, name)) = expression_name(program, assignment.target) {
                 facts.assign_local(symbol, name, next_length, next_integer);
                 seed_boolean_guard_local(
@@ -84,7 +82,7 @@ pub(super) fn check_statement<'program>(
             }
             let paths = call_frames
                 .and_then(|frames| frames.may_write_frame(machine, call).into_complete_paths());
-            facts.invalidate_call_writes(program, state, paths.as_deref());
+            facts.invalidate_call_writes(program, machine, state, paths.as_deref());
             // R4 witness mint, checker tier: a BOUNDARY callee's `ensures
             // <param> <= K` bounds the `&mut` out-argument's place the
             // moment the call returns (the boundary model's citable fact).

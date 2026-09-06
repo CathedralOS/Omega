@@ -90,7 +90,7 @@ pub(super) fn check_expression<'program>(
                     .expression_write_frame(machine, expression)
                     .into_complete_paths()
             });
-            facts.invalidate_call_writes(program, state, paths.as_deref());
+            facts.invalidate_call_writes(program, machine, state, paths.as_deref());
         }
         ExpressionNode::Cast(cast) => {
             // A §5b RECAST's operand is an ADDRESS the view starts at, not an

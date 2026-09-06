@@ -43,9 +43,7 @@ pub(super) fn collect_state_argument_facts_from_statement(
                 assignment.value,
             );
             let next_integer = expression_integer_value(program, facts, assignment.value);
-            facts.invalidate_assignment_bounds(
-                &program.expression_table.display_name(assignment.target),
-            );
+            facts.invalidate_assignment_bounds(program, machine, context.state, statement);
             if let Some((symbol, name)) = expression_name(program, assignment.target) {
                 facts.assign_local(symbol, name, next_length, next_integer);
                 seed_boolean_guard_local(context, facts, symbol, name, assignment.value);
@@ -67,7 +65,7 @@ pub(super) fn collect_state_argument_facts_from_statement(
             let paths = context
                 .call_frames
                 .and_then(|frames| frames.may_write_frame(machine, call).into_complete_paths());
-            facts.invalidate_call_writes(program, context.state, paths.as_deref());
+            facts.invalidate_call_writes(program, machine, context.state, paths.as_deref());
             // R4 witness mint in the COLLECTION pass too: boundary ensures
             // bound the &mut argument places, so a later transition can
             // transport the fact into its target's params.

@@ -117,8 +117,7 @@ mod tests {
         facts.prove_index_upper_bound("original".into(), 5);
         facts.alias_index("original", "cut");
 
-        facts.invalidate_assignment_bounds("original");
-        facts.invalidate_assignment_bounds("floor");
+        facts.invalidate_relational_bounds(|name| matches!(name, "original" | "floor"));
         facts.alias_index("cut", "last");
         facts.alias_index("original", "later");
 

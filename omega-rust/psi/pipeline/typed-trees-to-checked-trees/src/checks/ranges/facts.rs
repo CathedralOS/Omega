@@ -1,5 +1,6 @@
 use symbols::SymbolHandle;
 
+mod dependencies;
 mod invalidation;
 mod proofs;
 mod values;
@@ -8,6 +9,7 @@ mod values;
 pub(super) struct RangeFacts<'field> {
     pub(super) checked_operators: Option<&'field checked_trees::CheckedOperatorFacts>,
     pub(super) statement_index: usize,
+    expression_dependencies: Vec<dependencies::ExpressionDependencies>,
     fields: &'field [(SymbolHandle, String, usize)],
     integer_fields: Vec<(SymbolHandle, String, i64)>,
     locals: Vec<(SymbolHandle, String, usize)>,
@@ -47,6 +49,7 @@ impl<'field> RangeFacts<'field> {
         Self {
             checked_operators: None,
             statement_index: 0,
+            expression_dependencies: Vec::new(),
             fields,
             integer_fields: Vec::new(),
             locals: Vec::new(),
