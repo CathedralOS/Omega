@@ -51,6 +51,24 @@ pub(super) fn check_exit_ensures(
                 | facts::FactPayload::ContractPropositionApplication { fact, .. } => Some(fact),
                 _ => None,
             };
+            // An owner-authorized boundary result is established at the admitted
+            // crossing. Its checked adapter does not originate that authority;
+            // direct calls already refuse this authorization in call_contract_evidence.
+            // Authored adapter guarantees have no such record and remain obligations.
+            let admitted_boundary_result = facts.proof.contract_facts.iter().any(|(_, inherited)| {
+                inherited.kind == checked_trees::ContractProofFactKind::Ensures
+                    && Some(inherited.fact) == contract
+                    && inherited.qualification_authorization.is_some()
+                    && matches!(
+                        inherited.owner,
+                        checked_trees::ContractProofFactOwner::MachineState { machine_symbol, state_symbol }
+                            if machine_symbol == state_flow.machine_symbol
+                                && state_symbol == state_flow.state_symbol
+                    )
+            });
+            if admitted_boundary_result {
+                continue;
+            }
             let missing_origins = facts
                 .flow
                 .control

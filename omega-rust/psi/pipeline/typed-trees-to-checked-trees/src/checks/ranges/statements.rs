@@ -45,7 +45,8 @@ pub(super) fn check_statement<'program>(
                 diagnostics,
             );
             // RHS effects and values are evaluated before replacing the target.
-            let next_length = expression_indexable_length(program, facts, assignment.value);
+            let next_length =
+                expression_indexable_length(program, machine, state, facts, assignment.value);
             let next_integer = expression_integer_value(program, facts, assignment.value);
             facts.invalidate_assignment_bounds(
                 &program.expression_table.display_name(assignment.target),
@@ -112,8 +113,9 @@ pub(super) fn check_statement<'program>(
                 local.initial_value,
                 diagnostics,
             );
-            let length = expression_indexable_length(program, facts, local.initial_value)
-                .or_else(|| fixed_array_type_length(program, local.type_reference));
+            let length =
+                expression_indexable_length(program, machine, state, facts, local.initial_value)
+                    .or_else(|| fixed_array_type_length(program, local.type_reference));
             let integer = expression_integer_value(program, facts, local.initial_value);
             facts.define_local(local.symbol, local.name.to_string(), length, integer);
             seed_boolean_guard_local(

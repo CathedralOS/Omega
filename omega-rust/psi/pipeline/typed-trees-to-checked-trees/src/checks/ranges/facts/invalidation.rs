@@ -141,7 +141,8 @@ mod tests {
 
     #[test]
     fn unknown_call_retires_dynamic_values_and_relations_not_declared_extents() {
-        let fields = [(SymbolHandle::invalid(), "fixed".to_owned(), 2)];
+        let fixed_field = SymbolHandle::from_arena_index(1);
+        let fields = [(fixed_field, "fixed".to_owned(), 2)];
         let mut facts = RangeFacts::new(&fields);
         facts.define_local(SymbolHandle::invalid(), "index", None, Some(0));
         facts.define_local(SymbolHandle::invalid(), "view", Some(2), None);
@@ -158,9 +159,6 @@ mod tests {
         );
         assert!(!facts.index_is_proven("view", "index"));
         assert!(!facts.index_upper_bound_is_proven("index", 2));
-        assert_eq!(
-            facts.field_length(SymbolHandle::invalid(), Some("fixed")),
-            Some(2)
-        );
+        assert_eq!(facts.field_length(fixed_field), Some(2));
     }
 }

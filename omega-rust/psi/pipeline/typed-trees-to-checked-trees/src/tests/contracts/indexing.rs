@@ -1,6 +1,50 @@
 use super::*;
 
 #[test]
+fn same_named_array_fields_use_the_receivers_length() {
+    let source = r#"
+data Small { entries: [u64; 32]; }
+data Large { entries: [u64; 512]; }
+machine read(candidate: Large, index: u64 [0..=511]) -> u64 {
+    candidate.entries[index]
+}
+"#;
+    lower_typed_trees(parse_typed_trees(source))
+        .expect("the unrelated 32-element field must not shorten Large.entries");
+    let invalid = r#"
+data Large { entries: [u64; 512]; }
+data Small { entries: [u64; 32]; }
+machine read(candidate: Small, index: u64 [0..=511]) -> u64 {
+    candidate.entries[index]
+}
+"#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(invalid))
+        .expect_err("the unrelated 512-element field must not enlarge Small.entries");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("within length 32"))
+    );
+}
+
+#[test]
+fn unrelated_array_field_cannot_prove_a_slice_fields_length() {
+    let source = r#"
+data Fixed { entries: [u64; 512]; }
+data Dynamic { entries: [u64]; }
+machine read(candidate: &Dynamic) -> u64 { candidate.entries[31] }
+"#;
+    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+        .expect_err("a slice does not inherit an unrelated fixed array's length");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
 fn carries_machine_contract_facts_into_checked_proof_facts() {
     let machine_symbol = SymbolHandle::from_arena_index(5);
 

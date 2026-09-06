@@ -23,6 +23,7 @@ pub(super) fn collect_state_argument_facts_from_expression(
         collect_state_argument_facts_for_call(
             program,
             context.machine,
+            context.state,
             facts,
             call.target_symbol,
             arguments,

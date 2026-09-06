@@ -65,11 +65,14 @@ pub(super) fn check_indexed_access(
     // attributed to the governing operator contract (e.g. `Slice::range`).
     let attribution = attribution.as_deref();
 
-    let length = expression_indexable_length(program, facts, indexed.collection).or_else(|| {
-        expression_type_reference(program, machine, state, indexed.collection).and_then(
-            |type_reference| super::super::arrays::fixed_array_type_length(program, type_reference),
-        )
-    });
+    let length = expression_indexable_length(program, machine, state, facts, indexed.collection)
+        .or_else(|| {
+            expression_type_reference(program, machine, state, indexed.collection).and_then(
+                |type_reference| {
+                    super::super::arrays::fixed_array_type_length(program, type_reference)
+                },
+            )
+        });
     let proven = if let Some(length) = length {
         check_known_length_index(
             program,
@@ -325,8 +328,8 @@ fn check_known_length_index(
                 let shown_label = initializer_label.unwrap_or(&index_label);
                 let message = if !upper_bound_proven {
                     format!(
-                        "cannot prove index `{}` is within length {}",
-                        shown_label, length
+                        "cannot prove index `{}` is within length {} in {}::{}",
+                        shown_label, length, machine.name, state.name
                     )
                 } else {
                     format!(
