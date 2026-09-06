@@ -570,8 +570,9 @@ Owners include
   structural returned calls, and structural arguments on composed internal
   calls. Retain exact evaluation order across guards and other argument effects,
   including projected and borrowed operand staging.
-  Extend structural actuals of scalar-returning boundary callees to construction
-  locals and nested structural-result expressions in ordinary Unit call closures.
+  Extend structural actuals of scalar-returning boundary callees to nested
+  structural-result expressions and construction carriers beyond the existing
+  empty-record prefix and single-i64-field local in ordinary Unit call closures.
   Rejoin exact source/evaluation custody and remove only the cleanup transferred
   by the call; linear structural-result claims need their owning result plan.
   Complete mixed-signature runtime requirement transport for call-bearing

@@ -35,12 +35,14 @@ pub(super) fn has_statement_shape(
     program: &TypedTrees,
     facts: &CheckFacts,
     state: &typed_trees::state::State,
+    construction_statement_count: usize,
 ) -> bool {
     program
         .statement_table
         .statements(state.statement_nodes)
         .iter()
         .enumerate()
+        .skip(construction_statement_count)
         .all(|(index, statement)| match statement {
             StatementNode::Call(_) => true,
             StatementNode::Expression(_) => {
@@ -65,9 +67,12 @@ pub(super) fn build(
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     entry_claims: &[CheckedUnitEntryClaimPlan],
     calls: &[&checked_trees::FlowCallFact],
+    trivial_affine_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
+    affine_scalar_record_locals: &[AffineScalarRecordLocal],
+    construction_statement_count: usize,
 ) -> Option<StatementSequence> {
     let mut operations = Vec::new();
-    let mut local_count = 0_usize;
+    let mut local_count = construction_statement_count;
     let mut scalar_count = 0_usize;
     let mut structural_results = Vec::new();
     let mut call_count = 0_usize;
@@ -77,6 +82,7 @@ pub(super) fn build(
         .statements(state.statement_nodes)
         .iter()
         .enumerate()
+        .skip(construction_statement_count)
     {
         let statement_index = u32::try_from(index).ok()?;
         let mut structural_result = None;
@@ -182,8 +188,8 @@ pub(super) fn build(
                 machine,
                 state,
                 structural_parameters,
-                &[],
-                &[],
+                trivial_affine_locals,
+                affine_scalar_record_locals,
                 entry_claims,
                 nested,
                 false,
@@ -212,8 +218,8 @@ pub(super) fn build(
             machine,
             state,
             structural_parameters,
-            &[],
-            &[],
+            trivial_affine_locals,
+            affine_scalar_record_locals,
             entry_claims,
             call,
             false,

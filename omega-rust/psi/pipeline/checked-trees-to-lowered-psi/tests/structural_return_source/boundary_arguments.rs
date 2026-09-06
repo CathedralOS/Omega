@@ -214,6 +214,379 @@ fn unit_caller_transfers_linear_claim_into_scalar_boundary_wrapper() {
 }
 
 #[test]
+fn unit_wrapper_consumes_empty_record_local() {
+    let source = constructed_wrapper_source("", "");
+    assert_constructed_wrapper_execution(&source);
+}
+
+#[test]
+fn unit_wrapper_consumes_scalar_record_local() {
+    let source = constructed_wrapper_source("value: i64;", "value: 7i64");
+    assert_constructed_wrapper_execution(&source);
+}
+
+fn assert_constructed_wrapper_execution(source: &str) {
+    let original = checked(source);
+    let artifact = unit_wrapper_artifact(&original);
+    let module = decode_module(&artifact.0).unwrap();
+    let root = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    assert!(root.structural_parameters.is_empty());
+    assert!(root.entry_claims.is_empty());
+    let (call, local_place) = root
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| {
+            if let terminal_psi::OperationKind::CallStructuralScalar {
+                structural_arguments,
+                claim_transfers,
+                ..
+            } = &operation.kind
+            {
+                assert_eq!(structural_arguments.len(), 1);
+                assert!(structural_arguments[0].path.is_empty());
+                assert!(claim_transfers.is_empty());
+                Some((operation.id, structural_arguments[0].place))
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    let mut execution = TerminalExecution::start_artifact(
+        &artifact.0,
+        &artifact.1,
+        &AdmissionProfile::default(),
+        &[],
+    )
+    .unwrap();
+    assert!(execution.live_affine_frontier().next().is_none());
+    let mut observer = ObserveSettlement {
+        expected_opaque_identity: Some(local_place.get()),
+        reject: true,
+        ..ObserveSettlement::default()
+    };
+    let mut meter = TerminalFuelMeter::with_allowance(0);
+    let mut reached_call = false;
+    for _ in 0..128 {
+        let status = execution
+            .resume_with_effect_handler(&mut meter, &mut observer)
+            .unwrap();
+        let TerminalExecutionStatus::SponsorExhausted(exhaustion) = status else {
+            panic!("expected exact-fuel pause: {status:?}");
+        };
+        if exhaustion.site == terminal_fuel::FuelChargeSite::Operation(call) {
+            let frontier = execution.live_affine_frontier().collect::<Vec<_>>();
+            assert_eq!(frontier.len(), 1);
+            assert_eq!(frontier[0].place, local_place);
+            reached_call = true;
+            break;
+        }
+        meter.replenish(1).unwrap();
+    }
+    assert!(reached_call, "local establishes before its consuming call");
+    assert!(observer.calls.is_empty());
+    assert!(matches!(
+        execution.resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer),
+        Err(TerminalInterpretError::EffectRejected { .. })
+    ));
+    assert!(execution.effects().is_empty());
+    assert_eq!(execution.live_affine_frontier().count(), 1);
+    observer.reject = false;
+    assert_eq!(
+        execution
+            .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer)
+            .unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(
+        observer.calls,
+        [
+            vec![unsigned(70), unsigned(70)],
+            vec![unsigned(70), unsigned(70)]
+        ]
+    );
+    assert_eq!(observer.receipts[0], observer.receipts[1]);
+    assert_eq!(execution.effects().len(), 1);
+    assert!(execution.live_affine_frontier().next().is_none());
+
+    for mutation in 0..3 {
+        let mut changed = module.clone();
+        let root = changed
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == changed.entry)
+            .unwrap();
+        if mutation == 0 {
+            let cleanup = root
+                .blocks
+                .iter_mut()
+                .find_map(|block| {
+                    if let Terminator::ReturnUnit {
+                        trivial_affine_discards,
+                        ..
+                    } = &mut block.terminator
+                    {
+                        Some(trivial_affine_discards)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap();
+            cleanup.push(local_place);
+        } else if mutation == 1 {
+            for block in &mut root.blocks {
+                block.operations.retain(|operation| {
+                    !matches!(
+                        operation.kind,
+                        terminal_psi::OperationKind::EstablishTrivialAffineLocal { .. }
+                            | terminal_psi::OperationKind::EstablishAffineScalarRecord { .. }
+                    )
+                });
+            }
+        } else {
+            let operation = root
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.operations)
+                .find(|operation| operation.id == call)
+                .unwrap();
+            let terminal_psi::OperationKind::CallStructuralScalar {
+                structural_arguments,
+                ..
+            } = &mut operation.kind
+            else {
+                unreachable!()
+            };
+            structural_arguments[0].access = terminal_psi::StructuralAccess::SharedBorrow;
+        }
+        assert!(
+            terminal_verifier::verify_module(
+                &changed,
+                &terminal_codec::decode_proof_bundle(&artifact.1).unwrap(),
+                &AdmissionProfile::default()
+            )
+            .is_err(),
+            "constructed local Terminal mutation {mutation}"
+        );
+    }
+    let mut changed = original.clone();
+    let root = changed
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter_mut()
+        .find(|machine| {
+            machine.operations.iter().any(|operation| {
+                matches!(operation, CheckedUnitEffectOperationPlan::ScalarCall { .. })
+            })
+        })
+        .unwrap();
+    let call = root
+        .operations
+        .iter_mut()
+        .find(|operation| matches!(operation, CheckedUnitEffectOperationPlan::ScalarCall { .. }))
+        .unwrap();
+    let CheckedUnitEffectOperationPlan::ScalarCall {
+        structural_arguments,
+        ..
+    } = call
+    else {
+        unreachable!()
+    };
+    match &mut structural_arguments[0].source {
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal {
+            declaration_ordinal,
+        }
+        | checked_trees::CheckedUnitStructuralArgumentSourcePlan::AffineScalarRecordLocal {
+            declaration_ordinal,
+        } => *declaration_ordinal += 1,
+        _ => panic!("constructed local source"),
+    }
+    assert!(checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter").is_err());
+}
+
+fn constructed_wrapper_source(fields: &str, values: &str) -> String {
+    unit_wrapper_source()
+        .replace(
+            "pub data Receipt [linear] { value: u64; }",
+            &format!("pub data Receipt {{ {fields} }}"),
+        )
+        .replace(
+            "Root::enter(receipt: Receipt) reaches PortIo {",
+            &format!(
+                "Root::enter() reaches PortIo {{ let receipt: Receipt = Receipt {{ {values} }};"
+            ),
+        )
+}
+
+#[test]
+fn unit_wrapper_constructor_source_and_permission_mutations_reject() {
+    let original = checked(&constructed_wrapper_source("value: i64;", "value: 7i64"));
+    for mutation in 0..3 {
+        let mut changed = original.clone();
+        let root = changed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Root::enter")
+            .unwrap();
+        let root_symbol = root.symbol;
+        let state = &changed.machine_states(root)[0];
+        let StatementNode::LocalData(local) =
+            &changed.statement_table.statements(state.statement_nodes)[0]
+        else {
+            unreachable!()
+        };
+        let local_symbol = local.symbol;
+        let ExpressionNode::StructLiteral(literal) =
+            changed.expression_table.expression(local.initial_value)
+        else {
+            unreachable!()
+        };
+        let field = &changed.expression_table.struct_fields(literal.fields)[0];
+        let expression = field.value;
+        let field_symbol = field.field_symbol;
+        if mutation == 0 {
+            let ExpressionNode::Integer(value) =
+                changed.typed.expression_table.expression_mut(expression)
+            else {
+                unreachable!()
+            };
+            *value = value.with_landing(numerics::literals::IntegerLanding {
+                landed_type: numerics::literals::LandedIntegerType::U64,
+                domain: numerics::arithmetic::ArithmeticDomain::Exact,
+            });
+        } else if mutation == 1 {
+            let handle = changed.typed.data_members.iter().find_map(|(handle, member)| {
+                matches!(member, typed_trees::data::DataMember::Field(field) if field.symbol == field_symbol).then_some(handle)
+            }).unwrap();
+            let typed_trees::data::DataMember::Field(field) =
+                changed.typed.data_members.get_mut(handle)
+            else {
+                unreachable!()
+            };
+            field.relevance = language_core::BindingRelevance::Erased;
+        } else {
+            let event = changed
+                .facts
+                .flow
+                .ownership
+                .permissions
+                .iter()
+                .find_map(|(_, event)| {
+                    (event.machine_symbol == root_symbol
+                        && event.root == facts::PlaceRoot::Symbol(local_symbol))
+                    .then_some(event.clone())
+                })
+                .unwrap();
+            changed.facts.flow.ownership.permissions.insert(event);
+        }
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter").is_err(),
+            "constructor source custody mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn unit_wrapper_constructor_value_cannot_drift_from_source() {
+    let mut original = checked(&constructed_wrapper_source("value: i64;", "value: 7i64"));
+    let replacement = checked(&constructed_wrapper_source("value: i64;", "value: 8i64"));
+    let value = replacement
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.operations)
+        .find_map(|operation| {
+            if let CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal {
+                value, ..
+            } = operation
+            {
+                Some(value.clone())
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    let retained = original
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.operations)
+        .find_map(|operation| {
+            if let CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal {
+                value, ..
+            } = operation
+            {
+                Some(value)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    assert_ne!(*retained, value);
+    *retained = value;
+    assert!(checked_trees_to_lowered_psi::lower_machine(&original, "Root::enter").is_err());
+}
+
+#[test]
+fn unit_wrapper_cannot_substitute_a_same_typed_local_and_its_cleanup() {
+    let source = constructed_wrapper_source("", "").replace(
+        "let receipt: Receipt =",
+        "let spare: Receipt = Receipt {}; let receipt: Receipt =",
+    );
+    let mut original = checked(&source);
+    unit_wrapper_artifact(&original);
+    let root = original
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter_mut()
+        .find(|machine| machine.trivial_affine_locals.len() == 2)
+        .unwrap();
+    let mut changed_call = false;
+    let mut changed_cleanup = false;
+    for operation in &mut root.operations {
+        match operation {
+            CheckedUnitEffectOperationPlan::ScalarCall {
+                structural_arguments,
+                ..
+            } => {
+                assert_eq!(
+                    structural_arguments[0].source_local_declaration_ordinal(),
+                    Some(1)
+                );
+                structural_arguments[0].source =
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal {
+                        declaration_ordinal: 0,
+                    };
+                changed_call = true;
+            }
+            CheckedUnitEffectOperationPlan::ReturnUnit {
+                trivial_affine_local_discard_ordinals,
+                ..
+            } => {
+                assert_eq!(*trivial_affine_local_discard_ordinals, [0]);
+                *trivial_affine_local_discard_ordinals = vec![1];
+                changed_cleanup = true;
+            }
+            _ => {}
+        }
+    }
+    assert!(changed_call && changed_cleanup);
+    assert!(checked_trees_to_lowered_psi::lower_machine(&original, "Root::enter").is_err());
+}
+
+#[test]
 fn unit_wrapper_forwards_shared_parameter_without_manufacturing_claims() {
     let source = unit_wrapper_source()
         .replace("Receipt [linear]", "Receipt")
@@ -701,6 +1074,7 @@ struct ObserveSettlement {
     receipts: Vec<TerminalStructuralValue>,
     reject: bool,
     erased_reference_self: bool,
+    expected_opaque_identity: Option<u64>,
 }
 
 impl TerminalEffectHandler for ObserveSettlement {
@@ -726,7 +1100,10 @@ impl TerminalEffectHandler for ObserveSettlement {
             let [receipt] = structural_arguments.as_slice() else {
                 panic!("one whole-root receipt");
             };
-            assert_eq!(receipt.opaque_identity, 700);
+            assert_eq!(
+                receipt.opaque_identity,
+                self.expected_opaque_identity.unwrap_or(700)
+            );
             assert!(receipt.path.is_empty());
             self.receipts.push(receipt.clone());
         }

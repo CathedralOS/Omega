@@ -501,6 +501,28 @@ pub(super) fn validate_unit_operation_static(
                     actual,
                 });
             }
+            // This extension moves constructed locals and established affine
+            // results whole. Borrowed parameter calls retain their existing
+            // lane; borrowing a local requires separate staged-loan custody.
+            if let Some((argument_index, argument)) =
+                structural_arguments
+                    .iter()
+                    .enumerate()
+                    .find(|(_, argument)| {
+                        argument.access != StructuralAccess::Owned
+                            && !machine
+                                .structural_parameters
+                                .iter()
+                                .any(|parameter| parameter.place == argument.place)
+                    })
+            {
+                return Err(ModuleError::StructuralArgumentAccessMismatch {
+                    operation: operation.id,
+                    argument_index: argument_index as u32,
+                    expected: StructuralAccess::Owned,
+                    actual: argument.access,
+                });
+            }
             validate_structural_arguments(
                 module,
                 machine,
@@ -508,7 +530,7 @@ pub(super) fn validate_unit_operation_static(
                 &callee.structural_parameters,
                 operation.id,
                 true,
-                StructuralArgumentSourcePolicy::ParametersOrAffineCallResults,
+                StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults,
             )?;
             validate_unit_call_contract_places(callee, operation.id)?;
             validate_service_reach(
@@ -1077,10 +1099,8 @@ fn unit_call_contract_propositions(callee: &TerminalMachine) -> impl Iterator<It
 pub(super) enum StructuralArgumentSourcePolicy {
     OnlyParameters,
     ParametersOrByteSequenceLiterals,
-    /// Scalar-result consumers may move a whole claim-free affine call result.
-    /// Construction locals and record establishments are not part of this lane.
-    ParametersOrAffineCallResults,
-    /// Unit calls retain construction locals and whole ordinary affine results.
+    /// Unit and scalar-result calls retain construction locals and whole
+    /// ordinary affine results.
     ParametersOrAffineLocalsAndCallResults,
     /// Whole record establishments and claim-free affine identity call results.
     /// Frontier validation separately requires their producer to have run.
@@ -1161,8 +1181,7 @@ pub(super) fn validate_structural_arguments(
                             structural_type,
                         } if matches!(
                             source_policy,
-                            StructuralArgumentSourcePolicy::ParametersOrAffineCallResults
-                                | StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
+                            StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
                                 | StructuralArgumentSourcePolicy::ParametersOrAffineOperationResults
                         )
                             && argument.path.is_empty()
@@ -1172,12 +1191,10 @@ pub(super) fn validate_structural_arguments(
                                 .flat_map(|block| &block.operations)
                                 .any(|operation| {
                                     operation.id == producer
-                                        && ((source_policy
-                                            != StructuralArgumentSourcePolicy::ParametersOrAffineCallResults
-                                            && matches!(
-                                                operation.kind,
-                                                OperationKind::EstablishAffineScalarRecord { .. }
-                                            )) || (matches!(
+                                        && (matches!(
+                                            operation.kind,
+                                            OperationKind::EstablishAffineScalarRecord { .. }
+                                        ) || (matches!(
                                                 operation.kind,
                                                 OperationKind::CallStructuralWithScalarArguments { .. }
                                             )
