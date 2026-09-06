@@ -38,7 +38,7 @@ fn reject_source(source: &str, expected: &[&str]) {
 
 #[test]
 fn write_only_parameter_nonobserving_statement_call_checks() {
-    check_source(&caller_source(
+    let checked = check_source(&caller_source(
         "destination",
         "destination.replace(replacement);",
         "machine Record::replace(&write self, replacement: u16) {
@@ -46,6 +46,35 @@ fn write_only_parameter_nonobserving_statement_call_checks() {
          }",
     ))
     .expect("a direct write-only parameter may invoke a checked non-observing method");
+    let caller = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "exercise")
+        .unwrap();
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter()
+        .find(|plan| plan.machine == caller.symbol)
+        .expect("caller retains a Unit plan");
+    let arguments = plan
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            checked_trees::CheckedUnitEffectOperationPlan::CallUnit {
+                structural_arguments,
+                ..
+            } => Some(structural_arguments),
+            _ => None,
+        })
+        .expect("caller retains its method call");
+    assert_eq!(
+        arguments.len(),
+        1,
+        "the retained callee receiver needs one caller argument"
+    );
 }
 
 #[test]

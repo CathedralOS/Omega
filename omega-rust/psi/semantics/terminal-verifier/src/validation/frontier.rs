@@ -211,12 +211,11 @@ pub(super) fn validate_structural_frontier(
             .structural_parameters
             .iter()
             .filter_map(|parameter| {
-                // Access attenuations on ordinary by-value parameters do not
-                // surrender custody. A borrowed receiver is the explicit
-                // exception: `self` remains in the signature but never enters
-                // the machine's by-value ownership frontier.
+                // Only owned parameters enter by-value custody. Borrowed self
+                // and explicit reference parameters obey the same rule;
+                // referent multiplicity does not turn a loan into a transfer.
                 (parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                    && !(parameter.is_self && parameter.access != StructuralAccess::Owned))
+                    && parameter.access == StructuralAccess::Owned)
                     .then_some((parameter.place, parameter.multiplicity))
             })
             .collect(),
@@ -352,6 +351,7 @@ pub(super) fn validate_structural_frontier(
                     .zip(&machines[callee].structural_parameters)
                     .filter_map(|(argument, parameter)| {
                         (argument.path.is_empty()
+                            && parameter.access == StructuralAccess::Owned
                             && parameter.multiplicity != StructuralMultiplicity::Unrestricted)
                             .then_some(argument.place)
                     })
@@ -371,6 +371,7 @@ pub(super) fn validate_structural_frontier(
                         .zip(&boundary.structural_parameters)
                         .filter_map(|(argument, parameter)| {
                             (argument.path.is_empty()
+                                && parameter.access == StructuralAccess::Owned
                                 && parameter.multiplicity != StructuralMultiplicity::Unrestricted)
                                 .then_some(argument.place)
                         })

@@ -28,6 +28,9 @@ use terminal_verifier::{
     verify_module,
 };
 
+#[path = "structural_unit/borrowed_frontier.rs"]
+mod borrowed_frontier;
+
 #[test]
 fn unused_provider_attachment_verifies_without_roots_calls_or_codec() {
     let mut module = unused_provider_attachment_module();

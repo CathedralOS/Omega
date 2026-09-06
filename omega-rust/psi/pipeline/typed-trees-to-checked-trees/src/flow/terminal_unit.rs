@@ -60,6 +60,7 @@ mod composed_control;
 pub(crate) mod control;
 mod dynamic_scalar_calls;
 mod providers;
+mod receiver_calls;
 pub(crate) mod returns;
 mod scalar_locals;
 mod scalar_targets;
@@ -212,6 +213,14 @@ pub(crate) fn build_checked_unit_effect_plans(
             )
         })
         .collect::<Vec<_>>();
+    receiver_calls::reconcile(
+        program,
+        facts,
+        &mut shapes,
+        &mut candidates,
+        selected_operator_applications,
+        selected_ieee_float_fma_applications,
+    );
     let mut composed_machines = build_checked_composed_unit_control_machines(
         program,
         facts,

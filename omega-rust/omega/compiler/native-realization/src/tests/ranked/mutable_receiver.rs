@@ -71,7 +71,7 @@ fn ranked_mutable_receiver_survives_both_native_object_and_image_replays() {
         assert_eq!(replay.access, terminal_psi::StructuralAccess::MutableBorrow);
         assert_eq!(
             replay.multiplicity,
-            terminal_psi::StructuralMultiplicity::Affine
+            terminal_psi::StructuralMultiplicity::Unrestricted
         );
         assert_eq!(physical.place, replay.place);
         assert_eq!(physical.structural_type, replay.structural_type);

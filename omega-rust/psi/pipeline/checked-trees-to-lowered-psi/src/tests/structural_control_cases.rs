@@ -1657,7 +1657,7 @@ fn ranked_countdown_lowers_implicit_mutable_receiver_without_discarding_it() {
     );
     assert_eq!(
         receiver.multiplicity,
-        terminal_psi::StructuralMultiplicity::Affine
+        terminal_psi::StructuralMultiplicity::Unrestricted
     );
     assert!(matches!(
         machine.structural_places.as_slice(),

@@ -147,13 +147,15 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   any write or its exact frame; the bounded single-scalar-store form is not
   a plan for that complete body.
 
-  Ordinary receiver calls must also forward the callee's retained loan.
-  `Receiver::replace(&mut self) { self.value = 17; }` has a receiver plan,
-  but `receiver.replace()` from a Unit caller still supplies no structural
-  argument and Terminal production rejects the arity mismatch. Reconcile
-  checked Unit call arguments with the retained callee signature in
-  `typed-trees-to-checked-trees/src/flow/terminal_unit/calls.rs`; do not drop
-  the callee receiver to make the counts agree.
+  Extend retained receiver forwarding beyond whole borrowed parameters in
+  single-state Unit callers: projected receivers, owned/local receiver roots,
+  composed control flow, and scalar-result receiver callees need exact operand
+  reconciliation. The owning planner is
+  `typed-trees-to-checked-trees/src/flow/terminal_unit/receiver_calls.rs`;
+  preserve the source place, access, and ownership across each supported call
+  shape and validate the resulting Terminal closure. Do not erase a required
+  callee receiver to make argument counts agree. Projected write-only receiver
+  source admission remains separately gated under the borrow implementation.
 
   Acceptance: both tests pass, with every maintained sample reaching checked
   trees and every documented exit oracle observed on its matching host.

@@ -1779,6 +1779,9 @@ pub(super) fn structural_call_arguments(
         }
         let authored_place = if target.is_self {
             if is_reference(program, target.type_reference) {
+                // The completed Unit callee decides whether its borrowed self
+                // survives attachment specialization. receiver_calls rejoins
+                // retained receiver arguments after those plans are available.
                 continue;
             }
             if explicit_self {
@@ -2835,7 +2838,8 @@ fn structural_signature_with_partial_affine(
         };
         let qualifications =
             parameter_qualifications(program, shapes, parameter.type_reference, binders)?;
-        let multiplicity = if parameter.is_self {
+        let multiplicity = if parameter.is_self && !is_reference(program, parameter.type_reference)
+        {
             attachment_multiplicity
         } else {
             crate::checks::type_multiplicity(program, parameter.type_reference)
@@ -2977,7 +2981,10 @@ fn scalar_and_structural_parameters(
             position: source_position,
             is_self: parameter.is_self,
             type_identity,
-            multiplicity: if parameter.is_self {
+            // Borrowed self is the same reference-typed parameter as an
+            // explicit &Record argument. Only owned self carries the attached
+            // data's multiplicity; its referent shape remains attached above.
+            multiplicity: if parameter.is_self && !is_reference(program, parameter.type_reference) {
                 attachment?.1
             } else {
                 crate::checks::type_multiplicity(program, parameter.type_reference)

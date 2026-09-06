@@ -141,7 +141,7 @@ fn assert_receiver_store_with_access(
     assert!(receiver.is_self);
     assert_eq!(receiver.position, 0);
     assert_eq!(receiver.access, access);
-    assert_eq!(receiver.multiplicity, StructuralMultiplicity::Affine);
+    assert_eq!(receiver.multiplicity, StructuralMultiplicity::Unrestricted);
     assert!(receiver.qualifications.is_empty());
     assert!(receiver.projected_qualifications.is_empty());
     let [block] = entry.blocks.as_slice() else {

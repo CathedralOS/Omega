@@ -729,7 +729,7 @@ fn structural_unit_countdown_retains_implicit_mutable_receiver_custody() {
     );
     assert_eq!(
         header_receiver.multiplicity,
-        language_semantics::Multiplicity::Affine
+        language_semantics::Multiplicity::Unrestricted
     );
     let checked_trees::CheckedStructuralUnitControlTerminatorPlan::Conditional {
         when_true,
