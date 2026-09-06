@@ -16,15 +16,25 @@ use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
 fn authored_call_result_cleanup_reaches_current_omega_ownership() {
-    check_authored_call_result_cleanup(false);
+    check_authored_call_result_cleanup(false, true);
 }
 
 #[test]
 fn authored_boundary_result_cleanup_reaches_current_omega_ownership() {
-    check_authored_call_result_cleanup(true);
+    check_authored_call_result_cleanup(true, true);
 }
 
-fn check_authored_call_result_cleanup(boundary: bool) {
+#[test]
+fn free_call_result_cleanup_reaches_current_omega_ownership() {
+    check_authored_call_result_cleanup(false, false);
+}
+
+#[test]
+fn free_boundary_result_cleanup_retains_service_reach_and_ownership() {
+    check_authored_call_result_cleanup(true, false);
+}
+
+fn check_authored_call_result_cleanup(boundary: bool, attached: bool) {
     for (fields, calls, expected) in [
         (
             "left: Token; right: Token;",
@@ -75,12 +85,44 @@ fn check_authored_call_result_cleanup(boundary: bool) {
                 .replace("Root::forward(value);", "Factory::create();");
             source.push_str("boundary trait Factory { machine create() -> Pair reaches Factory; }");
         }
+        if !attached {
+            source = source.replace("Root::", "").replace("Sink::", "");
+        }
         let tokens = Lexer::new(&source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
         let resolved = lower_syntax_trees(&syntax).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
         let checked = lower_typed_trees(typed).expect("check");
-        let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
+        let entry_name = if attached { "Root::enter" } else { "enter" };
+        let partial = &checked
+            .facts
+            .flow
+            .terminal_partial_affine_unit_cleanups
+            .machines;
+        assert_eq!(partial.len(), 1);
+        assert_eq!(
+            partial[0].machine.attachment_type_identity.is_some(),
+            attached
+        );
+        let mut malformed = checked.clone();
+        malformed
+            .facts
+            .flow
+            .terminal_partial_affine_unit_cleanups
+            .machines[0]
+            .machine
+            .attachment_type_identity = if attached {
+            None
+        } else {
+            Some("invented".into())
+        };
+        assert!(matches!(
+            checked_trees_to_lowered_psi::lower_machine(&malformed, entry_name),
+            Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
+                "partial affine Unit cleanup attachment disagrees with its signature"
+            ))
+        ));
+        let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, entry_name)
             .expect("lower authored cleanup");
         let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
         let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");

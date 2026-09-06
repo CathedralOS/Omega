@@ -2596,7 +2596,7 @@ pub(super) fn structural_signature(
         false,
         retain_reference_self,
     )?;
-    scalar.is_empty().then_some((attachment, structural))
+    scalar.is_empty().then_some((attachment?, structural))
 }
 
 pub(super) fn fused_service_scalar_signature(
@@ -2611,7 +2611,7 @@ pub(super) fn fused_service_scalar_signature(
     Vec<CheckedUnitStructuralParameterPlan>,
     Vec<CheckedStructuralScalarParameterPlan>,
 )> {
-    structural_signature_with_partial_affine(
+    let (attachment, structural, scalar) = structural_signature_with_partial_affine(
         program,
         shapes,
         machine,
@@ -2620,7 +2620,8 @@ pub(super) fn fused_service_scalar_signature(
         false,
         true,
         retain_reference_self,
-    )
+    )?;
+    Some((attachment?, structural, scalar))
 }
 
 fn scalar_parameter_signature(
@@ -2635,22 +2636,6 @@ fn scalar_parameter_signature(
         source_position: u32::try_from(position).ok()?,
         primitive_type: program.primitive_type_reference(parameter.type_reference)?,
     })
-}
-
-pub(super) fn free_scalar_signature(
-    program: &TypedTrees,
-    state: &typed_trees::state::State,
-    binders: &[(SymbolHandle, String)],
-) -> Option<Vec<CheckedStructuralScalarParameterPlan>> {
-    if !binders.is_empty() {
-        return None;
-    }
-    program
-        .state_parameters(state)
-        .iter()
-        .enumerate()
-        .map(|(position, parameter)| scalar_parameter_signature(program, position, parameter))
-        .collect()
 }
 
 pub(super) fn free_fused_service_scalar_signature(
@@ -2720,7 +2705,7 @@ pub(super) fn partial_affine_structural_signature(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
-) -> Option<(String, Vec<CheckedUnitStructuralParameterPlan>)> {
+) -> Option<(Option<String>, Vec<CheckedUnitStructuralParameterPlan>)> {
     let (attachment, structural, scalar) = structural_signature_with_partial_affine(
         program, shapes, machine, state, binders, true, false, false,
     )?;
@@ -2741,18 +2726,25 @@ fn structural_signature_with_partial_affine(
     allow_scalar_parameters: bool,
     retain_reference_self: bool,
 ) -> Option<(
-    String,
+    Option<String>,
     Vec<CheckedUnitStructuralParameterPlan>,
     Vec<CheckedStructuralScalarParameterPlan>,
 )> {
     let parameters = program.state_parameters(state);
-    let attached_name = machine.attached_data.as_ref()?;
-    let attached = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.name == *attached_name)?;
-    let attachment_type_identity = shapes.add_attached_data(attached, binders)?;
-    let attachment_multiplicity = attached.properties.multiplicity;
+    let attachment = match machine.attached_data.as_ref() {
+        Some(attached_name) => {
+            let attached = program
+                .data_definitions()
+                .iter()
+                .find(|data| data.name == *attached_name)?;
+            Some((
+                shapes.add_attached_data(attached, binders)?,
+                attached.properties.multiplicity,
+            ))
+        }
+        None if allow_partial_affine => None,
+        None => return None,
+    };
     let shared_primitive_observer_type = (machine.supply_mode == MachineSupplyMode::CheckedBody
         && program
             .statement_table
@@ -2789,7 +2781,7 @@ fn structural_signature_with_partial_affine(
     let mut scalar_parameters = Vec::new();
     let mut fused_service_parameter_count = 0_usize;
     for (position, parameter) in parameters.iter().enumerate() {
-        if parameter.is_const {
+        if parameter.is_const || (parameter.is_self && attachment.is_none()) {
             return None;
         }
         if !parameter.is_self
@@ -2831,7 +2823,7 @@ fn structural_signature_with_partial_affine(
         // not the data-definition symbol. Its carrier is the independently
         // resolved attachment above.
         let (type_identity, fused_service_erasure) = if parameter.is_self {
-            (attachment_type_identity.clone(), None)
+            (attachment.as_ref()?.0.clone(), None)
         } else if typed_trees::service::exact_bound_service_requirement(
             program,
             parameter.type_reference,
@@ -2868,7 +2860,7 @@ fn structural_signature_with_partial_affine(
             parameter_qualifications(program, shapes, parameter.type_reference, binders)?;
         let multiplicity = if parameter.is_self && !is_reference(program, parameter.type_reference)
         {
-            attachment_multiplicity
+            attachment.as_ref()?.1
         } else {
             crate::checks::type_multiplicity(program, parameter.type_reference)
         };
@@ -2910,7 +2902,7 @@ fn structural_signature_with_partial_affine(
         return None;
     }
     Some((
-        attachment_type_identity,
+        attachment.map(|(identity, _)| identity),
         structural_parameters,
         scalar_parameters,
     ))

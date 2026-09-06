@@ -1252,7 +1252,7 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
         machine: CheckedUnitEffectMachinePlan {
             machine: machine.symbol,
             state: state.symbol,
-            attachment_type_identity: Some(attachment_type_identity),
+            attachment_type_identity,
             structural_parameters,
             scalar_parameters: Vec::new(),
             provider_attachment_requirements: Vec::new(),

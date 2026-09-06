@@ -421,8 +421,18 @@ pub(super) fn lower_selected_machine(
         if partial_matches.next().is_some() {
             return unsupported("partial affine Unit cleanup plan is duplicated");
         }
-        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
-            return unsupported("partial affine Unit cleanup requires an attached signature");
+        if !matches!(
+            (
+                selection.signature,
+                plan.machine.attachment_type_identity.is_some()
+            ),
+            (CheckedTerminalSignatureEligibility::Attached, true)
+                | (CheckedTerminalSignatureEligibility::Eligible, false)
+                | (CheckedTerminalSignatureEligibility::FreeUnitEffect, false)
+        ) {
+            return unsupported(
+                "partial affine Unit cleanup attachment disagrees with its signature",
+            );
         }
         return routed_machine(
             lower_partial_affine_unit_cleanup_machine(checked, plan),

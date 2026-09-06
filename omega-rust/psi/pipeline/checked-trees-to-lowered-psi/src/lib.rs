@@ -1231,6 +1231,7 @@ pub fn lower_machine(
     }
     lowered.debug_map = if selection.signature == CheckedTerminalSignatureEligibility::Eligible
         && route != SelectedMachineRoute::UnitEffect
+        && route != SelectedMachineRoute::PartialAffineUnitCleanup
         && route != SelectedMachineRoute::AffineReturn
     {
         checked
