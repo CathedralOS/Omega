@@ -289,13 +289,14 @@ that arm's body. Only after all arms pass does final constructor coverage
 produce code 18 at the match start. These traversal rules, not a global sort of
 candidate offsets, select the published failure.
 
-## Retained frontend contradiction
+## Retained internal contradictions
 
-The embedded internal table currently implements one branch:
+The embedded internal table currently implements these bounded branches:
 
 | Tag | Internal code | Meaning | Coordinate space | Coordinate | Limit/requested |
 | --- | --- | --- | --- | --- | --- |
 | 3 InternalFailure | 1 | retained_frontend_contradiction | 3 internal row | zero-based active typing-continuation row | zero/zero |
+| 3 InternalFailure | 2 | emission_metadata_contradiction | 3 internal row | row 0, singleton complete-program emission record | zero/zero |
 
 An unknown typing-continuation kind publishes this failure only after the
 frame's pair projections succeed and its depth is positive. The top active
@@ -308,6 +309,16 @@ publisher before lowering or output. The
 [internal-boundary controls](../../../../../tests/delta/internal-boundary/README.md)
 exercise actual dispatch and publication using synthetic retained frames;
 those frames are not claimed to arise from admitted Delta source.
+
+The count-only emission path propagates negative retained extents as the private
+sentinel `-1`. The completed program preflight converts that sentinel to code 2
+before resource comparison or the first receipt byte. Its row-zero coordinate
+names the program emission record, not the first corrupt expression, a source
+offset, or a pair address. Nonnegative representable counts still select exact
+payload refusal or ordinary publication. Positive signed overflow, malformed
+pair projections, and late count/replay disagreement retain raw evaluator
+failures. The internal controls separately exercise this preflight and the
+canonical publisher with private retained Gamma plans, not admitted source.
 
 ## Remaining boundary work
 

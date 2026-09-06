@@ -1,7 +1,10 @@
-; Both modes return the running byte count. Count mode never writes.
+; Count mode never writes. Its nonnegative extents use -1 exclusively for
+; corrupt negative metadata; every later advance preserves that failure until
+; the program preflight can return its owned outcome before publication.
+; Positive signed overflow still fails without inventing a requested witness.
 (def emit_advance ((written Int) (amount Int)) Int
   (if (if (lt written 0) 1 (lt amount 0))
-    (fail)
+    -1
     (if (lt (- 9223372036854775807 written) amount)
       (fail)
       (+ written amount))))

@@ -1,35 +1,9 @@
-; Private retained-typing controls, not admitted Delta programs.
+; Private compiler-invariant controls, not admitted Delta programs.
 (def $application () Int 1)
-
-(def internal_test_resume ((mode Int)) Int
-  (if (eq mode 0)
-    (typing_resume (int_type) 1 (typing_frame 8 0 0) 0)
-    (if (eq mode 1)
-      (typing_resume (int_type) 3
-        (typing_frame 0 0
-          (typing_frame 3 (pair 0 (int_type))
-            (typing_frame 3 (pair 0 (int_type)) 0))) 0)
-      (if (eq mode 2)
-        (typing_resume (int_type) 2
-          (typing_frame -1 0 (typing_frame 3 (pair 0 (int_type)) 0)) 0)
-        (if (eq mode 3)
-          (typing_resume (int_type) 0 0 0)
-          (if (eq mode 4)
-            (typing_resume (int_type) 1
-              (typing_frame 3 (pair 0 (int_type)) 0) 0)
-            (if (eq mode 5)
-              (typing_resume (int_type) 1 0 0)
-              (if (eq mode 6)
-                (typing_resume (int_type) 1 (pair 8 0) 0)
-                (typing_resume (int_type) -1 (typing_frame 8 0 0) 0)))))))))
-
 (def main () Int
-  (let result Int (internal_test_resume (read 0))
-    (if (eq (first result) 0)
-      (let observed Int (write (eq (second result) (int_type)))
-        (pair 0 1))
-      (publish_compiler_failure result))))
+  (let mode Int (read 0)
+    (if (lt mode 8) (internal_test_typing mode) (internal_test_metadata mode))))
 
-(def source_length () Int (input))
+(def source_length () Int (if (lt (read 0) 8) (input) 0))
 (def source_read ((index Int)) Int (read index))
-(def compilation_profile () Int 1)
+(def compilation_profile () Int (if (lt (read 0) 9) 1 0))
