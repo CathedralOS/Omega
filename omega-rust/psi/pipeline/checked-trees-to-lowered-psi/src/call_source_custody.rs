@@ -117,12 +117,14 @@ pub(super) fn validate_operation(
         CheckedUnitEffectOperationPlan::ScalarCall { .. }
             | CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
-    ) && arguments.iter().any(|argument| {
-        matches!(
-            argument,
-            checked_trees::CheckedCallScalarArgument::Computation(_)
-        )
-    }) {
+    ) && coordinate.call_ordinal == 0
+        && arguments.iter().any(|argument| {
+            matches!(
+                argument,
+                checked_trees::CheckedCallScalarArgument::Computation(_)
+            )
+        })
+    {
         initializers::validate(checked, caller_machine, caller_state, *coordinate)?;
     }
     let call = authored::locate(

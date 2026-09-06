@@ -133,10 +133,10 @@ pub(in crate::flow) fn append_call_ownership_events(
             continue;
         }
 
-        // A whole ordinary call result is fresh storage, not a read of its
+        // A whole affine call result is fresh storage, not a read of its
         // arguments. Its producer's discovered call owns those argument moves;
         // this consuming call owns just the result expression's transfer.
-        if ordinary_affine_call_result_type(program, machine, state, *argument).is_some() {
+        if affine_call_result_type(program, machine, state, *argument).is_some() {
             append_move_event_for_place(
                 program,
                 sink,
@@ -160,7 +160,7 @@ pub(in crate::flow) fn append_call_ownership_events(
     }
 }
 
-fn ordinary_affine_call_result_type(
+fn affine_call_result_type(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -180,7 +180,7 @@ fn ordinary_affine_call_result_type(
         receiver_path.as_deref(),
         &call.target,
     );
-    let result = find_state(program, target)?.return_type;
+    let result = super::super::calls::call_target_return_type(program, target)?;
     // Retain the owned root type before any referent/qualification stripping.
     // Linear/conditional results still need their explicit claim mapping.
     (matches!(

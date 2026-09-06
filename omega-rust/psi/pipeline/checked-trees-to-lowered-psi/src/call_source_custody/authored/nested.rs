@@ -22,7 +22,7 @@ pub(crate) fn authored_postorder(
     let mut next_ordinal = 0_u32;
     let (statement_root, outer_expression) = match statement {
         StatementNode::Call(call) => {
-            validate_root_receiver(
+            validate_static_receiver(
                 checked,
                 machine.symbol,
                 call.target_symbol,
@@ -86,19 +86,35 @@ pub(crate) fn authored_postorder(
         let mut children = Vec::new();
         let ordinal = match table.expression(expression) {
             ExpressionNode::Call(call) => {
-                if next_ordinal == 0 && expression == outer_expression {
+                let signature = target_signature(checked, machine.symbol, call.target_symbol)?;
+                let outer = next_ordinal == 0 && expression == outer_expression;
+                if signature.boundary
+                    && !outer
+                    && (!direct_argument
+                        || checked.type_multiplicity(signature.return_type)
+                            != language_semantics::Multiplicity::Affine
+                        || !validation::has_plain_owned_contents(
+                            &checked.typed,
+                            signature.return_type,
+                        ))
+                {
+                    return unsupported(
+                        "nested boundary result is not a direct plain-owned affine operand",
+                    );
+                }
+                if outer || signature.boundary {
                     let receiver = if call.receiver.is_valid() {
                         if !table.expression_is_valid(call.receiver) {
-                            return unsupported("nested root has a stale receiver");
+                            return unsupported("nested call has a stale receiver");
                         }
                         let ExpressionNode::Name(name) = table.expression(call.receiver) else {
-                            return unsupported("nested root has a runtime receiver");
+                            return unsupported("nested call has a runtime receiver");
                         };
                         name.symbol
                     } else {
                         SymbolHandle::invalid()
                     };
-                    validate_root_receiver(
+                    validate_static_receiver(
                         checked,
                         machine.symbol,
                         call.target_symbol,
@@ -129,7 +145,7 @@ pub(crate) fn authored_postorder(
                     || call.private_layout_operation.is_some()
                     || calls.contains(&expression)
                 {
-                    return unsupported("nested call has no unique ordinary authored occurrence");
+                    return unsupported("nested call has no unique supported authored occurrence");
                 }
                 calls.push(expression);
                 let arguments = table.expression_handles(call.arguments);
@@ -172,19 +188,23 @@ pub(crate) fn authored_postorder(
     Ok(order)
 }
 
-/// The outer consumer may name an ordinary or bodyless machine, an exact
+/// Calls may name an ordinary or bodyless machine, an exact
 /// boundary-trait requirement, or the caller's nominal requirement parameter.
-/// None of these routes evaluates a receiver. Nested producers use the stricter
-/// ordinary-machine check above.
-fn validate_root_receiver(
+/// None of these routes evaluates a receiver.
+fn validate_static_receiver(
     checked: &CheckedTrees,
     caller: SymbolHandle,
     target: SymbolHandle,
     receiver: SymbolHandle,
     has_receiver: bool,
 ) -> Result<(), LoweringError> {
-    let (parameters, _, target_machine, target_state) = target_parameters(checked, caller, target)?;
-    if parameters.iter().any(|parameter| parameter.is_self) || has_receiver != receiver.is_valid() {
+    let signature = target_signature(checked, caller, target)?;
+    if signature
+        .parameters
+        .iter()
+        .any(|parameter| parameter.is_self)
+        || has_receiver != receiver.is_valid()
+    {
         return unsupported("nested call root has no exact nonself receiver identity");
     }
     if let Some((_, qualifier)) =
@@ -196,7 +216,7 @@ fn validate_root_receiver(
     } else if let Some(owner) = checked
         .machines()
         .iter()
-        .find(|owner| owner.symbol == target_machine)
+        .find(|owner| owner.symbol == signature.machine)
     {
         if !has_receiver || receiver == owner.attached_data_symbol {
             return Ok(());
@@ -211,7 +231,7 @@ fn validate_root_receiver(
             && checked
                 .trait_machine_signatures(definition)
                 .iter()
-                .any(|signature| signature.symbol == target_state)
+                .any(|candidate| candidate.symbol == signature.state)
     }) {
         return Ok(());
     }

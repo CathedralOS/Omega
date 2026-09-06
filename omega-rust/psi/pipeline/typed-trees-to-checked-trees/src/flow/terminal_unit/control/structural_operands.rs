@@ -15,12 +15,14 @@ pub(super) fn for_call<'a>(
     if !calls.iter().any(|nested| {
         nested.statement_index == call.statement_index
             && nested.call_ordinal != 0
-            && facts
-                .flow
-                .terminal_structural_returns
-                .claim_free_affine_machines
-                .iter()
-                .any(|target| target.state == nested.target_symbol)
+            && result(
+                program,
+                facts,
+                machine.symbol,
+                nested.authored_expression,
+                &mut ShapeCollector::new(program),
+            )
+            .is_some()
     }) {
         return Some(Vec::new());
     }
@@ -79,22 +81,17 @@ fn collect<'a>(
         let ExpressionNode::Call(authored) = program.expression_table.expression(*argument) else {
             continue;
         };
-        let target = facts
-            .flow
-            .terminal_structural_returns
-            .claim_free_affine_machines
-            .iter()
-            .find(|plan| plan.state == authored.target_symbol)?;
-        let owner = program
-            .machines()
-            .iter()
-            .find(|owner| owner.symbol == target.machine)?;
-        let target_state = crate::find_state(program, target.state)?;
+        result(
+            program,
+            facts,
+            machine.symbol,
+            *argument,
+            &mut ShapeCollector::new(program),
+        )?;
         if active.contains(argument)
             || output
                 .iter()
                 .any(|prior| prior.authored_expression == *argument)
-            || !program.call_has_no_runtime_receiver(authored, owner, target_state)
             || !authored.machine_arguments.is_empty()
             || !authored.evidence_arguments.is_empty()
             || authored.static_requirement_dispatch.is_some()
@@ -121,4 +118,65 @@ fn collect<'a>(
         output.push(nested);
     }
     Some(())
+}
+
+/// Anonymous results use the same stored-owned shape as named boundary results.
+/// This selects only the source signature; build_call_operation still checks
+/// the complete target contract, arguments, and ownership events.
+pub(in crate::flow::terminal_unit) fn result(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    caller: SymbolHandle,
+    expression: typed_trees::expression::ExpressionHandle,
+    shapes: &mut ShapeCollector<'_>,
+) -> Option<CheckedStructuralResultPlan> {
+    if !program.expression_table.expression_is_valid(expression) {
+        return None;
+    }
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let return_type = crate::values::nested_structural_call_return_type(program, caller, call)?;
+    let mut owners = program.machines().iter().filter_map(|owner| {
+        let [state] = program.machine_states(owner) else {
+            return None;
+        };
+        (state.symbol == call.target_symbol).then_some((owner, state))
+    });
+    let binders = if let Some((owner, state)) = owners.next() {
+        if owners.next().is_some() {
+            return None;
+        }
+        if !owner.supply_mode.is_boundary_declaration() {
+            let mut targets = facts
+                .flow
+                .terminal_structural_returns
+                .claim_free_affine_machines
+                .iter()
+                .filter(|target| target.machine == owner.symbol && target.state == state.symbol);
+            let target = targets.next()?;
+            return (targets.next().is_none()
+                && target.result.multiplicity == Multiplicity::Affine
+                && target.result.qualifications.is_empty())
+            .then(|| target.result.clone());
+        }
+        machine_binders(program, owner)
+    } else {
+        Vec::new()
+    };
+    let CheckedBoundaryMachineResultPlan::Structural {
+        type_identity,
+        multiplicity: Multiplicity::Affine,
+        qualifications,
+    } = boundary_result_plan(program, shapes, return_type, &binders)?
+    else {
+        return None;
+    };
+    qualifications
+        .is_empty()
+        .then_some(CheckedStructuralResultPlan {
+            type_identity,
+            multiplicity: Multiplicity::Affine,
+            qualifications,
+        })
 }

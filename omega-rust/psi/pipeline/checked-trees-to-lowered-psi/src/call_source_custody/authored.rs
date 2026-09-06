@@ -4,7 +4,7 @@ use crate::{CheckedTrees, LoweringError, unsupported};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::signature::StateParameter;
 use checked_trees::statement::StatementNode;
-use checked_trees::types::PrimitiveType;
+use checked_trees::types::{PrimitiveType, TypeReferenceHandle};
 use checked_trees::{CheckedUnitCallCoordinate, NominalMachineUseSite};
 use symbols::SymbolHandle;
 
@@ -130,8 +130,8 @@ pub(crate) fn locate_source(
             _ => return unsupported("call source custody has no supported authored call root"),
         }
     };
-    let (parameters, boundary, target_machine, target_state) =
-        target_parameters(checked, machine.symbol, source_target)?;
+    let target = target_signature(checked, machine.symbol, source_target)?;
+    let parameters = target.parameters;
     let nonself_count = parameters
         .iter()
         .filter(|parameter| !parameter.is_self)
@@ -179,9 +179,9 @@ pub(crate) fn locate_source(
         source_site,
         scalar_arguments,
         structural_arguments,
-        boundary,
-        target_machine,
-        target_state,
+        boundary: target.boundary,
+        target_machine: target.machine,
+        target_state: target.state,
     })
 }
 
@@ -224,11 +224,20 @@ fn expression_call(
     ))
 }
 
-pub(crate) fn target_parameters(
+/// A borrowed view of one exact authored callable.
+pub(crate) struct TargetSignature<'source> {
+    pub parameters: &'source [StateParameter],
+    pub return_type: TypeReferenceHandle,
+    pub boundary: bool,
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+}
+
+pub(crate) fn target_signature(
     checked: &CheckedTrees,
     caller_machine: SymbolHandle,
     source_target: SymbolHandle,
-) -> Result<(&[StateParameter], bool, SymbolHandle, SymbolHandle), LoweringError> {
+) -> Result<TargetSignature<'_>, LoweringError> {
     let program = &checked.typed;
     if !source_target.is_valid() {
         return unsupported("call source custody has no live target identity");
@@ -247,12 +256,13 @@ pub(crate) fn target_parameters(
         if states.next().is_some() || !machine.symbol.is_valid() {
             return unsupported("call source custody disagrees with its authored callee owner");
         }
-        return Ok((
-            program.state_parameters(state),
-            machine.supply_mode.is_boundary_declaration(),
-            machine.symbol,
-            state.symbol,
-        ));
+        return Ok(TargetSignature {
+            parameters: program.state_parameters(state),
+            return_type: state.return_type,
+            boundary: machine.supply_mode.is_boundary_declaration(),
+            machine: machine.symbol,
+            state: state.symbol,
+        });
     }
     let requirement = if let Some((requirement, _)) = intrinsic {
         requirement
@@ -276,10 +286,11 @@ pub(crate) fn target_parameters(
     if signatures.next().is_some() || !signature.symbol.is_valid() {
         return unsupported("call source custody disagrees with its authored boundary requirement");
     }
-    Ok((
-        program.state_signature_parameters(signature),
-        true,
-        signature.symbol,
-        signature.symbol,
-    ))
+    Ok(TargetSignature {
+        parameters: program.state_signature_parameters(signature),
+        return_type: signature.return_type,
+        boundary: true,
+        machine: signature.symbol,
+        state: signature.symbol,
+    })
 }

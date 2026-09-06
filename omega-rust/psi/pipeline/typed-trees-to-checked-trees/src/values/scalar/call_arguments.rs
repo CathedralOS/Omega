@@ -138,31 +138,16 @@ pub(super) fn nested_structural_call_sites<'program>(
             {
                 return None;
             }
-            let mut targets = program.machines().iter().filter_map(|owner| {
-                let target = program.machine_states(owner).first()?;
-                (target.symbol == call.target_symbol).then_some((owner, target))
-            });
-            let (owner, target) = targets.next()?;
-            if targets.next().is_some()
-                || owner.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-                || !target.return_type.is_valid()
-                || program
-                    .primitive_type_reference(target.return_type)
-                    .is_some()
-                || matches!(
-                    program
-                        .type_reference_table
-                        .type_reference(target.return_type),
-                    TypeReferenceNode::Unit
-                )
-                || program.type_multiplicity(target.return_type)
-                    != language_semantics::Multiplicity::Affine
-                || !validation::has_plain_owned_contents(program, target.return_type)
-                || !program.call_has_no_runtime_receiver(call, owner, target)
-                || source.has_receiver != call.receiver.is_valid()
+            nested_structural_call_return_type(program, machine.symbol, call)?;
+            if source.has_receiver != call.receiver.is_valid()
                 || source.receiver_symbol
                     != if call.receiver.is_valid() {
-                        owner.attached_data_symbol
+                        let ExpressionNode::Name(name) =
+                            program.expression_table.expression(call.receiver)
+                        else {
+                            return None;
+                        };
+                        name.symbol
                     } else {
                         symbols::SymbolHandle::invalid()
                     }
@@ -178,4 +163,81 @@ pub(super) fn nested_structural_call_sites<'program>(
             ))
         })
         .collect()
+}
+
+/// One source eligibility judgment feeds pure/computed operands and structural
+/// scheduling. A checked producer plan and its exact result shape are joined
+/// later; this early selector creates no result or ownership evidence.
+pub(crate) fn nested_structural_call_return_type(
+    program: &TypedTrees,
+    caller: symbols::SymbolHandle,
+    call: &typed_trees::expression::TableCallExpression,
+) -> Option<TypeReferenceHandle> {
+    if !call.target_symbol.is_valid()
+        || !call.machine_arguments.is_empty()
+        || !call.evidence_arguments.is_empty()
+        || call.static_requirement_dispatch.is_some()
+        || call.quotient_operation.is_some()
+        || call.private_layout_operation.is_some()
+    {
+        return None;
+    }
+    let mut targets = program.machines().iter().filter_map(|owner| {
+        let target = program.machine_states(owner).first()?;
+        (target.symbol == call.target_symbol).then_some((owner, target))
+    });
+    let return_type = if let Some((owner, target)) = targets.next() {
+        if targets.next().is_some()
+            || (owner.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+                && !owner.supply_mode.is_boundary_declaration())
+            || !program.call_has_no_runtime_receiver(call, owner, target)
+        {
+            return None;
+        }
+        target.return_type
+    } else {
+        let selected = program.machine_parameter_signature(call.target_symbol);
+        let requirement = match selected {
+            Some((owner, signature)) if owner.symbol == caller => signature.symbol,
+            Some(_) => return None,
+            None => call.target_symbol,
+        };
+        let mut signatures = program
+            .traits()
+            .iter()
+            .filter(|definition| definition.is_boundary)
+            .flat_map(|definition| {
+                program
+                    .trait_machine_signatures(definition)
+                    .iter()
+                    .filter(move |signature| signature.symbol == requirement)
+                    .map(move |signature| (definition, signature))
+            });
+        let (definition, signature) = signatures.next()?;
+        if signatures.next().is_some()
+            || program
+                .state_signature_parameters(signature)
+                .iter()
+                .any(|parameter| parameter.is_self)
+            || if selected.is_some() {
+                call.receiver.is_valid()
+            } else {
+                !program.expression_table.expression_is_valid(call.receiver)
+                    || !matches!(program.expression_table.expression(call.receiver),
+                        ExpressionNode::Name(name) if name.symbol == definition.symbol)
+            }
+        {
+            return None;
+        }
+        signature.return_type
+    };
+    (return_type.is_valid()
+        && program.primitive_type_reference(return_type).is_none()
+        && !matches!(
+            program.type_reference_table.type_reference(return_type),
+            TypeReferenceNode::Unit
+        )
+        && program.type_multiplicity(return_type) == language_semantics::Multiplicity::Affine
+        && validation::has_plain_owned_contents(program, return_type))
+    .then_some(return_type)
 }
