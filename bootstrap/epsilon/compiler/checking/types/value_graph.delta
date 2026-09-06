@@ -179,12 +179,22 @@
 (def epsilon_validate_recursive_edges ((source EpsilonSourceView)
   (search EpsilonValueEdgeList) (allEdges EpsilonValueEdgeList))
   EpsilonTypeFormationCandidate
+  (epsilon_validate_recursive_edges_fold source
+    (epsilon_reverse_value_edges search NoEpsilonValueEdges) allEdges
+    NoEpsilonTypeFormationCandidate))
+
+; Reverse only the candidate traversal spine, not the graph used by each
+; reachability query. Keep the original right-associated candidate selection.
+(def epsilon_validate_recursive_edges_fold ((source EpsilonSourceView)
+  (search EpsilonValueEdgeList) (allEdges EpsilonValueEdgeList)
+  (candidate EpsilonTypeFormationCandidate)) EpsilonTypeFormationCandidate
   (match search
-    (NoEpsilonValueEdges NoEpsilonTypeFormationCandidate)
+    (NoEpsilonValueEdges candidate)
     ((MoreEpsilonValueEdges item rest)
-      (epsilon_type_formation_candidate_min
-        (epsilon_recursive_edge_candidate source item allEdges)
-        (epsilon_validate_recursive_edges source rest allEdges)))))
+      (epsilon_validate_recursive_edges_fold source rest allEdges
+        (epsilon_type_formation_candidate_min
+          (epsilon_recursive_edge_candidate source item allEdges)
+          candidate)))))
 
 (def epsilon_form_collected_types ((source EpsilonSourceView)
   (collected EpsilonCollectedProgram)) EpsilonTypeFormationOutcome

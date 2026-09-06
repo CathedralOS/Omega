@@ -236,6 +236,10 @@ marking every edge in a value cycle at its named-reference coordinate without
 expanding every path through a shared acyclic graph. Candidate identity is now
 exactly its reason and packed coordinate; same-anchor reason equality derives
 from the total reason mapping rather than a parallel integer discriminator.
+The recursive-edge candidate fold reverses its search spine and accumulates
+right-associated minima. Each reachability query still uses the unchanged full
+edge graph; edge count no longer retains one pending return per query. This
+does not bound the separate depth of a reachability search through owner types.
 The member-type candidate fold reverses the member spine and merges each
 candidate on the left of the accumulated result. This preserves the original
 right-associated conflict behavior with bounded call depth. Declaration and
@@ -248,13 +252,19 @@ minimum. State width therefore consumes no pending return frame per state.
 The [checking-invariant controls](../../../tests/epsilon/checking-invariants/README.md)
 pin this association with synthetic overlapping coordinates. They test the
 private candidate algebra, not acceptance of an Epsilon source with those spans.
-The winning
-candidate is promoted after successful census. D56's final type-
+Data-shape selection and catalog unknown-owner selection likewise reverse only
+their declaration traversal spine and retain the original merge ordering.
+The winning candidate is promoted after successful census. D56's final type-
 formation entry subjudgment runs before that promotion: no authored
 `Main::main` owner/name candidate yields only `MissingEntry` at source extent;
 once one exists, every malformed or
-absent supporting component is `InvalidEntry`. Entry facts do not enter the
-later body/control candidate carrier. The retained expression facts now support
+absent supporting component is `InvalidEntry`. The Console, Main, and entry
+declaration scans retain their original forward seen flags in tail folds.
+Every candidate inside those scans has reason `InvalidEntry`, so their minimum
+is associative and a forward accumulator cannot introduce a conflict. Missing
+components are still considered at the end, and defects never short-circuit
+later checks. Entry facts do not enter the later body/control candidate carrier.
+The retained expression facts now support
 the implemented local block-exit pass. Remaining body/control judgments,
 application storage realization, and complete execution remain open.
 

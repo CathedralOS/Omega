@@ -59,8 +59,15 @@
 
 (def epsilon_catalog_unknown_machine_owner_candidate
   ((rows EpsilonCatalogDeclarationList)) EpsilonFinalCandidate
+  (epsilon_catalog_unknown_machine_owner_fold
+    (epsilon_reverse_catalog_declarations rows NoEpsilonCatalogDeclarations)
+    NoEpsilonFinalCandidate))
+
+(def epsilon_catalog_unknown_machine_owner_fold
+  ((rows EpsilonCatalogDeclarationList) (candidate EpsilonFinalCandidate))
+  EpsilonFinalCandidate
   (match rows
-    (NoEpsilonCatalogDeclarations NoEpsilonFinalCandidate)
+    (NoEpsilonCatalogDeclarations candidate)
     ((MoreEpsilonCatalogDeclarations row rest)
       (let current EpsilonFinalCandidate
         (match row
@@ -76,8 +83,8 @@
               ((EpsilonCatalogUnknownMachineOwner unknownOwner)
                 (epsilon_final_candidate_add UnknownName
                   (epsilon_name_start unknownOwner) NoEpsilonFinalCandidate)))))
-        (epsilon_final_candidate_merge current
-          (epsilon_catalog_unknown_machine_owner_candidate rest))))))
+        (epsilon_catalog_unknown_machine_owner_fold rest
+          (epsilon_final_candidate_merge current candidate))))))
 
 (def epsilon_catalog_find_owner ((source EpsilonSourceView) (target EpsilonName)
   (rows EpsilonCatalogDeclarationList)) EpsilonCatalogOwnerLookup

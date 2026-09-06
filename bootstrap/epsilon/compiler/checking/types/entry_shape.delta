@@ -179,11 +179,20 @@
 (def epsilon_console_declarations_candidate ((source EpsilonSourceView)
   (declarations EpsilonDeclarationList) (extent Int) (seenConsole Int))
   EpsilonTypeFormationCandidate
+  (epsilon_console_declarations_fold source declarations extent seenConsole
+    NoEpsilonTypeFormationCandidate))
+
+; These entry scans produce only InvalidEntry candidates, so their minimum is
+; associative. Carry it forward while retaining each scan's authored seen flags.
+(def epsilon_console_declarations_fold ((source EpsilonSourceView)
+  (declarations EpsilonDeclarationList) (extent Int) (seenConsole Int)
+  (candidate EpsilonTypeFormationCandidate)) EpsilonTypeFormationCandidate
   (match declarations
     (NoEpsilonDeclarations
-      (if seenConsole
-        NoEpsilonTypeFormationCandidate
-        (EpsilonTypeFormationCandidateAt InvalidEntry extent)))
+      (epsilon_type_formation_candidate_min candidate
+        (if seenConsole
+          NoEpsilonTypeFormationCandidate
+          (EpsilonTypeFormationCandidateAt InvalidEntry extent))))
     ((MoreEpsilonDeclarations item rest)
       (let current EpsilonTypeFormationCandidate
         (match item
@@ -202,14 +211,14 @@
               NoEpsilonTypeFormationCandidate))
           ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
             NoEpsilonTypeFormationCandidate))
-        (epsilon_type_formation_candidate_min current
-          (epsilon_console_declarations_candidate source rest extent
-            (match item
-              ((EpsilonBoundaryDeclaration start end name machines)
-                (if (epsilon_name_is_console_type source name) 1 seenConsole))
-              ((EpsilonDataDeclaration start end name members) seenConsole)
-              ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
-                seenConsole))))))))
+        (epsilon_console_declarations_fold source rest extent
+          (match item
+            ((EpsilonBoundaryDeclaration start end name machines)
+              (if (epsilon_name_is_console_type source name) 1 seenConsole))
+            ((EpsilonDataDeclaration start end name members) seenConsole)
+            ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
+              seenConsole))
+          (epsilon_type_formation_candidate_min candidate current))))))
 
 (def epsilon_main_members_candidate ((source EpsilonSourceView)
   (members EpsilonDataMemberList) (extent Int) (seenConsole Int))
@@ -243,11 +252,18 @@
 (def epsilon_main_declarations_candidate ((source EpsilonSourceView)
   (declarations EpsilonDeclarationList) (extent Int) (seenMain Int))
   EpsilonTypeFormationCandidate
+  (epsilon_main_declarations_fold source declarations extent seenMain
+    NoEpsilonTypeFormationCandidate))
+
+(def epsilon_main_declarations_fold ((source EpsilonSourceView)
+  (declarations EpsilonDeclarationList) (extent Int) (seenMain Int)
+  (candidate EpsilonTypeFormationCandidate)) EpsilonTypeFormationCandidate
   (match declarations
     (NoEpsilonDeclarations
-      (if seenMain
-        NoEpsilonTypeFormationCandidate
-        (EpsilonTypeFormationCandidateAt InvalidEntry extent)))
+      (epsilon_type_formation_candidate_min candidate
+        (if seenMain
+          NoEpsilonTypeFormationCandidate
+          (EpsilonTypeFormationCandidateAt InvalidEntry extent))))
     ((MoreEpsilonDeclarations item rest)
       (let isMain Int
         (match item
@@ -275,9 +291,9 @@
               ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
                 NoEpsilonTypeFormationCandidate))
             NoEpsilonTypeFormationCandidate)
-          (epsilon_type_formation_candidate_min current
-            (epsilon_main_declarations_candidate source rest extent
-              (if isMain 1 seenMain))))))))
+          (epsilon_main_declarations_fold source rest extent
+            (if isMain 1 seenMain)
+            (epsilon_type_formation_candidate_min candidate current)))))))
 
 (def epsilon_entry_signature_valid ((inputs EpsilonMachineInputs)
   (returnType EpsilonOptionalType)) Int
@@ -292,11 +308,18 @@
 (def epsilon_entry_declarations_candidate ((source EpsilonSourceView)
   (declarations EpsilonDeclarationList) (extent Int) (seenEntry Int))
   EpsilonTypeFormationCandidate
+  (epsilon_entry_declarations_fold source declarations extent seenEntry
+    NoEpsilonTypeFormationCandidate))
+
+(def epsilon_entry_declarations_fold ((source EpsilonSourceView)
+  (declarations EpsilonDeclarationList) (extent Int) (seenEntry Int)
+  (candidate EpsilonTypeFormationCandidate)) EpsilonTypeFormationCandidate
   (match declarations
     (NoEpsilonDeclarations
-      (if seenEntry
-        NoEpsilonTypeFormationCandidate
-        (EpsilonTypeFormationCandidateAt InvalidEntry extent)))
+      (epsilon_type_formation_candidate_min candidate
+        (if seenEntry
+          NoEpsilonTypeFormationCandidate
+          (EpsilonTypeFormationCandidateAt InvalidEntry extent))))
     ((MoreEpsilonDeclarations item rest)
       (let isEntry Int
         (match item
@@ -317,9 +340,9 @@
                   (EpsilonTypeFormationCandidateAt InvalidEntry start)
                   NoEpsilonTypeFormationCandidate)))
             NoEpsilonTypeFormationCandidate)
-          (epsilon_type_formation_candidate_min current
-            (epsilon_entry_declarations_candidate source rest extent
-              (if isEntry 1 seenEntry))))))))
+          (epsilon_entry_declarations_fold source rest extent
+            (if isEntry 1 seenEntry)
+            (epsilon_type_formation_candidate_min candidate current)))))))
 
 (def epsilon_entry_shape_candidate ((source EpsilonSourceView)
   (declarations EpsilonDeclarationList)) EpsilonTypeFormationCandidate
