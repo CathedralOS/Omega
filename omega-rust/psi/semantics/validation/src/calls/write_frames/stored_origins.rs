@@ -29,6 +29,7 @@ pub(super) fn has_aggregate_case_shape(
 
 pub(super) use frozen_bindings::assignment_replaces_case_binding;
 pub(super) use frozen_bindings::statement_exposes_frozen_binding;
+pub(super) use frozen_bindings::{call_exposes_frozen_binding, expression_exposes_frozen_binding};
 
 pub(super) use projections::reference_leaves_before_statement_for_query;
 pub(super) use projections::symbolic_reference_leaves;

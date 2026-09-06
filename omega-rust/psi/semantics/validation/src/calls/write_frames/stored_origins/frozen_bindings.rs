@@ -16,25 +16,52 @@ pub(in crate::calls::write_frames) fn statement_exposes_frozen_binding(
     statement: &typed_trees::statement::StatementNode,
     stored: &[StoredLocalOrigins],
 ) -> bool {
-    use crate::calls::write_frames::{
-        caller_aliases::expression_any, statement_value_expression_roots,
-    };
-    use typed_trees::{expression::ExpressionNode, statement::StatementNode};
-    if let StatementNode::Call(call) = statement
-        && receiver_allows_replacement(program, call.target_symbol)
-        && statement_receiver_exposes_binding(program, state, call, stored)
-    {
-        return true;
+    use crate::calls::write_frames::statement_value_expression_roots;
+    use typed_trees::statement::StatementNode;
+    if let StatementNode::Call(call) = statement {
+        return call_exposes_frozen_binding(program, machine, state, call, stored);
     }
-    statement_value_expression_roots(program, statement).into_iter().any(|expression| {
-        super::expression_borrows_carrier_binding(program, machine, state, expression, stored)
-            || expression_any(program, expression, |expression| {
-                matches!(program.expression_table.expression(expression),
+    statement_value_expression_roots(program, statement)
+        .into_iter()
+        .any(|expression| {
+            expression_exposes_frozen_binding(program, machine, state, expression, stored)
+        })
+}
+
+pub(in crate::calls::write_frames) fn call_exposes_frozen_binding(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    call: &typed_trees::statement::TableCall,
+    stored: &[StoredLocalOrigins],
+) -> bool {
+    (receiver_allows_replacement(program, call.target_symbol)
+        && statement_receiver_exposes_binding(program, state, call, stored))
+        || program
+            .statement_table
+            .expression_handles(call.arguments)
+            .iter()
+            .any(|expression| {
+                expression_exposes_frozen_binding(program, machine, state, *expression, stored)
+            })
+}
+
+pub(in crate::calls::write_frames) fn expression_exposes_frozen_binding(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+    stored: &[StoredLocalOrigins],
+) -> bool {
+    use crate::calls::write_frames::caller_aliases::expression_any;
+    use typed_trees::expression::ExpressionNode;
+    super::expression_borrows_carrier_binding(program, machine, state, expression, stored)
+        || expression_any(program, expression, |expression| {
+            matches!(program.expression_table.expression(expression),
                     ExpressionNode::Call(call) if receiver_allows_replacement(program, call.target_symbol)
                         && (target_replaces_case_binding(program, call.receiver, stored)
                             || target_replaces_reference_binding(program, call.receiver, stored, false)))
-            })
-    })
+        })
 }
 
 fn receiver_allows_replacement(program: &TypedTrees, target: symbols::SymbolHandle) -> bool {

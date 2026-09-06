@@ -1005,6 +1005,12 @@ Current ownership is:
   intermediate aliases cannot recover identity from a missing symbol's name.
   The exact query validates both the relative projection and actual caller
   source, and rejects reference-binding exposure in any call operand.
+  Owned input carriers seed the same shared/exclusive reference leaves for
+  statement-prefix identity queries. Each loaded input leaf requires its exact
+  nominal declaration and one frozen Field/Case reference boundary. All prior
+  statements must preserve that binding; later statements do not affect an
+  earlier query. Possible input cases do not establish a selected payload.
+  A carrier behind another reference still needs its own load relation.
   Local literal carriers retain shared as well as exclusive reference leaves
   for this query. Loading a frozen Field/Case leaf validates the exact prior
   declaration, nominal selectors, retained case selection, and one canonical
@@ -1034,7 +1040,11 @@ Current ownership is:
   A pure terminal reference expression transports the referent without
   replacing its binding; effectful results retain the exposure fence.
   `flow/reference_places.rs` adapts that structural origin and checks earlier
-  operand writes against both the local binding and its referent. Contract
+  operand writes against both the local binding and its referent. The shared
+  `reference_subjects/bindings.rs` query also applies binding-exposure checks
+  to each earlier operand with its recovered prefix, including empty-frame
+  mutable ancestor methods and shared-slot borrows. It does not inspect later
+  operands or treat implicit referent receivers as slot exposure. Contract
   domain checking may then match an existing call-entry fact for the exact
   referent; it neither reconstructs a declaration-time fact nor mints a domain.
   Arithmetic validation checks the right-hand side against pre-store facts,

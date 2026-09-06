@@ -3,6 +3,8 @@
 use super::*;
 use facts::PlaceSegment;
 
+pub(super) mod bindings;
+
 /// Retain an unresolved read-only binding without claiming a storage identity.
 /// Only the exact-reference prefix query uses this marker, after checking RHS
 /// effects and binding exposure. Write-capable carriers must remain opaque to
@@ -97,8 +99,7 @@ pub(super) fn local_origin(
         return None;
     }
     let mut source = origin.source.clone();
-    let source_type = source_root_type(program, machine, state, index, source.root)?;
-    validate_owned_projection(program, source_type, &source.segments)?;
+    validate_source_projection(program, machine, state, index, &source, &prefix.stored)?;
     // A reference local left in the result has not been canonically resolved.
     // It is not evidence that the similarly named slot kept its old referent.
     if statements[..index].iter().any(|statement| {
@@ -329,9 +330,10 @@ fn frozen_reference_origin(
     .then_some(origin)
 }
 
-/// Result queries seed owned input leaves only after the helper's frozen-input
-/// checks. Those symbolic boundaries can be exported for caller substitution;
-/// they are not concrete referents supplied by a type-only ordinary query.
+/// Reference queries seed owned input leaves and validate their stability
+/// through the queried prefix. A helper result additionally checks its whole
+/// body before exporting that boundary for caller substitution. Neither query
+/// supplies a qualification merely from the input's declared type.
 fn validate_source_projection(
     program: &TypedTrees,
     machine: &Machine,

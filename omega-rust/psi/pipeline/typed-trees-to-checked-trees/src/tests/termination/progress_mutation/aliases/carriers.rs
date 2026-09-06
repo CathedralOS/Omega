@@ -2,6 +2,7 @@ use super::*;
 
 mod adversarial;
 mod effects;
+mod inputs;
 mod queries;
 mod results;
 
