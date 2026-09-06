@@ -216,7 +216,9 @@ fn requires_orders_operands(
             let typed_trees::domain::ProofFact::Expression(expression) = fact else {
                 continue;
             };
-            if let Some(found) = conjunct_orders(program, *expression, &left_label, &right_label) {
+            if let Some(found) =
+                conjunct_orders(program, machine, *expression, &left_label, &right_label)
+            {
                 floor = Some(floor.map_or(found, |existing: i64| existing.max(found)));
             }
         }
@@ -235,6 +237,7 @@ fn requires_orders_operands(
 /// spelling at any depth of an `&&` conjunction; flipped `>=`/`>` normalize.
 fn conjunct_orders(
     program: &TypedTrees,
+    machine: &Machine,
     guard: ExpressionHandle,
     left_label: &str,
     right_label: &str,
@@ -243,8 +246,20 @@ fn conjunct_orders(
         return None;
     };
     match binary.operator {
-        BinaryOperator::And => conjunct_orders(program, binary.left, left_label, right_label)
-            .or_else(|| conjunct_orders(program, binary.right, left_label, right_label)),
+        BinaryOperator::And => {
+            conjunct_orders(program, machine, binary.left, left_label, right_label).or_else(|| {
+                conjunct_orders(program, machine, binary.right, left_label, right_label)
+            })
+        }
+        _ if !guard_narrowing::has_builtin_ordering(
+            program,
+            machine,
+            program.machine_states(machine).first(),
+            guard,
+        ) =>
+        {
+            None
+        }
         BinaryOperator::LessOrEqual | BinaryOperator::Less => {
             let lo = program.expression_table.display_name(binary.left);
             let hi = program.expression_table.display_name(binary.right);

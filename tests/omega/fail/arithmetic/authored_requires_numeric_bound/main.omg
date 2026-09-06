@@ -1,0 +1,9 @@
+// An authored comparison does not establish the builtin numeric ordering.
+// The ordinary subtraction must still reject its unproved u64 lower bound.
+operator >= u64::custom(left: u64, right: u64) -> bool;
+
+machine subtract(left: u64, right: u64) -> u64
+requires left >= right;
+{
+    left - right
+}
