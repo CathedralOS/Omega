@@ -60,9 +60,21 @@ publication checks its returned count against the preflight count; disagreement
 remains an internal invariant failure, not a resource refusal.
 
 Preflight accumulation and node summaries use checked nonnegative addition, never
-saturation. An arithmetic contradiction fails before any wrapped count can be
-admitted or published; it does not invent a resource-12 requested witness.
-Canonical internal-failure publication remains separate unfinished work.
+saturation. Negative metadata propagates the private failure sentinel `-1`
+through every subsequent count operation. Before publication, the coordinator
+turns that result into canonical `InternalFailure` code 2
+(`emission_metadata_contradiction`), internal-row space 3, row 0, with zero
+limit/requested. Row 0 identifies the singleton complete-program emission
+record; it does not claim to locate the first corrupt child or a source byte.
+This is a retained-metadata invariant, not a source-admission refusal.
+
+Positive signed overflow still fails before any wrapped count can be admitted
+or published. It does not invent a resource-12 requested witness or classify an
+unrepresentable complete demand as corrupt metadata. Canonical handling of that
+case, malformed structural projections, and late replay disagreement remain
+unfinished. In particular, the latter cannot append a failure frame after
+already written receipt bytes; its existing raw evaluator failure discards
+publication.
 Serialization summaries cost two additional immutable pairs per Gamma node:
 one for the extent and one for the optional unary-word prefix described below.
 Full Epsilon recompilation remains a storage regression check.

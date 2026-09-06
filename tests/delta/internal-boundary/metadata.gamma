@@ -1,0 +1,57 @@
+; Corrupt cached extents are private retained-IR controls, never source syntax.
+; Preserve a real integer atom payload while replacing only its cached extent.
+(def metadata_test_atom ((extent Int)) Int
+  (pair 5 (pair 0 (pair (pair extent 0) 0))))
+
+(def metadata_test_program ((name Int) (count Int) (parameters Int) (body Int)) Int
+  (gamma_program 1 (pair (gamma_definition name count parameters body) 0)))
+
+(def metadata_test_publish ((program Int)) Int
+  (let result Int (publish_checked_program (compilation_profile) program)
+    (if (eq (first result) 0)
+      (let published Int (write (second result)) (pair 0 1))
+      (publish_compiler_failure result))))
+
+(def metadata_test_body ((mode Int)) Int
+  (if (eq mode 8)
+    (metadata_test_atom -1)
+    (if (eq mode 11)
+      (gamma_call (gamma_word 102 1) 2
+        (pair (metadata_test_atom -1) (pair (gamma_integer 0) 0)))
+      (if (eq mode 12)
+        (gamma_let (gamma_word 120 1) (gamma_integer 0)
+          (gamma_call (gamma_word 102 1) 1 (pair (metadata_test_atom -1) 0)))
+        (if (eq mode 24) (metadata_test_atom 16777212) (gamma_integer 0))))))
+
+; Exact scalar comparisons observe the sentinel without serializing negative Int.
+; Positive addition overflow deliberately remains the underlying Gamma trap249.
+(def metadata_test_count ((mode Int)) Int
+  (if (eq mode 13)
+    (eq (emit_advance -1 3) -1)
+    (if (eq mode 14)
+      (eq (emit_advance -9223372036854775808 0) -1)
+      (if (eq mode 15)
+        (eq (emit_advance 0 -1) -1)
+        (if (eq mode 16)
+          (eq (emit_advance 9223372036854775807 -9223372036854775808) -1)
+          (if (eq mode 17)
+            (eq (emit_advance -1 9223372036854775807) -1)
+            (if (eq mode 18)
+              (eq (emit_advance 0 0) 0)
+              (if (eq mode 19)
+                (eq (emit_advance 9223372036854775807 0) 9223372036854775807)
+                (if (eq mode 20)
+                  (eq (emit_advance 9223372036854775806 1) 9223372036854775807)
+                  (if (eq mode 21)
+                    (emit_advance 9223372036854775807 1)
+                    (emit_advance 9223372036854775806 2)))))))))))
+
+(def internal_test_metadata ((mode Int)) Int
+  (if (if (lt mode 13) 0 (lt mode 23))
+    (let observed Int (write (metadata_test_count mode)) (pair 0 1))
+    (let name Int
+      (if (eq mode 9) (metadata_test_atom -1) (gamma_word 102 1))
+      (let count Int (if (eq mode 10) 1 0)
+        (let parameters Int (if count (pair (metadata_test_atom -1) 0) 0)
+          (metadata_test_publish
+            (metadata_test_program name count parameters (metadata_test_body mode))))))))

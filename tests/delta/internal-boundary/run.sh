@@ -21,8 +21,10 @@ esac
 INTERNAL_TMP=$(mktemp -d)
 trap 'rm -rf -- "$INTERNAL_TMP"' EXIT HUP INT TERM
 python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+    "$GATE_DIR/controls.gamma.sources" "$INTERNAL_TMP/controls.gamma"
+python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$INTERNAL_TMP/diagnostic.gamma" \
-    --prefix "$GATE_DIR/main.gamma"
+    --prefix "$INTERNAL_TMP/controls.gamma"
 python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$INTERNAL_TMP/canonical.gamma" \
     --prefix "$OMEGA_PATH_DELTA_COMPILER_SOURCE"

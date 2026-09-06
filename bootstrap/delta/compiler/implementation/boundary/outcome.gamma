@@ -11,6 +11,11 @@
 (def compiler_retained_frontend_contradiction ((row Int)) Int
   (compiler_failure 3 3 1 row 0 0))
 
+; Internal code 2: emission_metadata_contradiction. Row zero is the singleton
+; complete-program emission record, not a source offset or a corrupt node ID.
+(def compiler_emission_metadata_contradiction () Int
+  (compiler_failure 3 3 2 0 0 0))
+
 (def compiler_failure ((tag Int) (space Int) (code Int) (coordinate Int)
   (limit Int) (requested Int)) Int
   (pair tag (pair space (pair code (pair coordinate (pair limit requested))))))

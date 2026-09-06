@@ -342,6 +342,12 @@ saturated. A count above 16,777,212 returns `Incomplete` code 12 in emitted-payl
 coordinate space 2, at byte 16,777,212, with limit 16,777,212 and the exact
 complete requested count. Count and publication share formatting ownership;
 no partial artifact precedes this refusal.
+Negative retained emission counts propagate to completed preflight and report
+`InternalFailure` code 2 (`emission_metadata_contradiction`) before publication,
+at internal row 0 with zero limit/requested. This row identifies the singleton
+complete-program emission record, not the corrupt child or an authored source
+location. Positive signed count overflow and late replay disagreement remain
+raw evaluator failures; they are not yet canonical DCOUT outcomes.
 Grammar implements D30's 1,024-level expression `parse_depth` profile: bodies
 start at level 1, expression children including atoms advance by one, and match
 arm bodies are at their enclosing match's level plus one. Declaration, parameter,
