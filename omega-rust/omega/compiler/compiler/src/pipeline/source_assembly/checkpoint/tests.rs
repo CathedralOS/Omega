@@ -116,7 +116,26 @@ fn separately_prepared_exact_children_have_identical_source_assembly() {
         &mut checkpoint_timings,
     )
     .expect("prepare immutable source checkpoint");
-    let (child_count, child) = checkpoint
+    let shared_checkpoint = checkpoint.clone();
+    assert!(Arc::ptr_eq(
+        &checkpoint.source_storage,
+        &shared_checkpoint.source_storage
+    ));
+    assert!(Arc::ptr_eq(
+        &checkpoint.package_imports,
+        &shared_checkpoint.package_imports
+    ));
+    assert!(Arc::ptr_eq(
+        checkpoint
+            .package_source_inputs
+            .as_ref()
+            .expect("retained package inputs"),
+        shared_checkpoint
+            .package_source_inputs
+            .as_ref()
+            .expect("shared package inputs"),
+    ));
+    let (child_count, child) = shared_checkpoint
         .for_exact_target("windows_x86_64", Some(&inputs))
         .expect("exact child source inputs should match")
         .assemble(&mut checkpoint_timings)
@@ -161,11 +180,13 @@ fn failing_target_child_does_not_change_a_successful_sibling() {
         ImmutableSourceParseCheckpoint::prepare(&fixture.main, Some(&fixture.inputs), &mut timings)
             .expect("prepare immutable source checkpoint");
     let (_, before) = checkpoint
+        .clone()
         .for_exact_target("windows_x86_64", Some(&windows))
         .expect("windows child should match checkpoint")
         .assemble(&mut timings)
         .expect("windows child should parse");
     let linux_result = checkpoint
+        .clone()
         .for_exact_target("linux_x86_64", Some(&linux))
         .expect("linux child source inputs should match checkpoint")
         .assemble(&mut timings);
@@ -220,6 +241,7 @@ fn exact_child_rejects_source_input_and_generated_physical_substitution() {
     )
     .expect("changed graph should remain internally valid");
     let mismatch = checkpoint
+        .clone()
         .for_exact_target("windows_x86_64", Some(&changed_inputs))
         .err()
         .expect("source-input substitution must reject before child assembly");
@@ -237,4 +259,55 @@ fn exact_child_rejects_source_input_and_generated_physical_substitution() {
         panic!("generated source must not replace a physical source")
     };
     assert!(collision[0].message.contains("collides with physical"));
+}
+
+#[test]
+fn single_use_checkpoint_moves_syntax_storage_for_exact_and_targetless_children() {
+    let fixture = Fixture::new(false);
+    fs::write(&fixture.main, "const ANSWER: u32 = 42;\n")
+        .expect("write standalone checkpoint source");
+    fs::remove_file(fixture.main.with_file_name("build.omg"))
+        .expect("remove the authored build file from the standalone fixture");
+
+    for target_name in [None, Some("windows_x86_64")] {
+        let mut timings = CompileTimings::default();
+        let checkpoint = ImmutableSourceParseCheckpoint::prepare(&fixture.main, None, &mut timings)
+            .expect("prepare standalone checkpoint");
+        let original_roots = checkpoint.source_storage.syntax_trees.root_item_handles();
+        assert!(!original_roots.is_empty());
+        let original_roots_pointer = original_roots.as_ptr();
+        let assemble = |checkpoint: ImmutableSourceParseCheckpoint,
+                        timings: &mut CompileTimings| {
+            match target_name {
+                Some(target_name) => checkpoint
+                    .for_exact_target(target_name, None)
+                    .expect("standalone exact child should match")
+                    .assemble(timings),
+                None => checkpoint.assemble_targetless(None, timings),
+            }
+            .expect("assemble standalone child")
+        };
+        let (shared_count, shared) = assemble(checkpoint.clone(), &mut timings);
+        assert_ne!(
+            shared.syntax_trees.root_item_handles().as_ptr(),
+            original_roots_pointer
+        );
+        let (owned_count, owned) = assemble(checkpoint, &mut timings);
+        assert_eq!(
+            owned.syntax_trees.root_item_handles().as_ptr(),
+            original_roots_pointer
+        );
+        assert_eq!(owned_count, shared_count);
+        assert_eq!(owned.syntax_trees, shared.syntax_trees);
+        assert_eq!(owned.sources, shared.sources);
+        assert_eq!(owned.build_source_id, shared.build_source_id);
+        assert_eq!(
+            owned.source_scoped_top_level_bindings,
+            shared.source_scoped_top_level_bindings
+        );
+        assert_eq!(
+            owned.generated_source_custody,
+            shared.generated_source_custody
+        );
+    }
 }

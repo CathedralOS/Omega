@@ -24,13 +24,14 @@ pub(in crate::pipeline) struct ImmutableSourceParseCheckpoint {
     root_path: PathBuf,
     source_storage: Arc<SourceStorage>,
     build_source_id: Option<source::SourceId>,
-    package_imports: Vec<ReconciledPackageImportRequest>,
-    package_source_inputs: Option<package_compilation::PackageCompilationSourceInputs>,
+    package_imports: Arc<[ReconciledPackageImportRequest]>,
+    package_source_inputs: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
 }
 
-/// One exact-target child borrowing a shared immutable source checkpoint.
+/// One exact-target child consuming its checkpoint reference. Cloned checkpoints
+/// share immutable storage until assembly needs an independently owned child.
 pub(in crate::pipeline) struct ExactTargetSourceAssembly<'a> {
-    checkpoint: &'a ImmutableSourceParseCheckpoint,
+    checkpoint: ImmutableSourceParseCheckpoint,
     target_name: &'a str,
     package_inputs: Option<&'a PackageCompilationInputs>,
 }
@@ -92,13 +93,13 @@ impl ImmutableSourceParseCheckpoint {
             root_path: root_path.to_path_buf(),
             source_storage: Arc::new(source_storage),
             build_source_id,
-            package_imports,
-            package_source_inputs: package_inputs.map(PackageCompilationInputs::source_inputs),
+            package_imports: package_imports.into(),
+            package_source_inputs: package_inputs.map(|inputs| Arc::new(inputs.source_inputs())),
         })
     }
 
     pub(in crate::pipeline) fn for_exact_target<'a>(
-        &'a self,
+        self,
         target_name: &'a str,
         package_inputs: Option<&'a PackageCompilationInputs>,
     ) -> Result<ExactTargetSourceAssembly<'a>, Vec<Diagnostic>> {
@@ -111,7 +112,7 @@ impl ImmutableSourceParseCheckpoint {
     }
 
     pub(in crate::pipeline) fn assemble_targetless(
-        &self,
+        self,
         package_inputs: Option<&PackageCompilationInputs>,
         timings: &mut CompileTimings,
     ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
@@ -123,7 +124,10 @@ impl ImmutableSourceParseCheckpoint {
         &self,
         package_inputs: Option<&PackageCompilationInputs>,
     ) -> Result<(), Vec<Diagnostic>> {
-        if package_inputs.map(PackageCompilationInputs::source_inputs) != self.package_source_inputs
+        if package_inputs
+            .map(PackageCompilationInputs::source_inputs)
+            .as_ref()
+            != self.package_source_inputs.as_deref()
         {
             return Err(vec![Diagnostic::error(
                 "package source inputs do not match the immutable source checkpoint",
@@ -139,12 +143,12 @@ impl ImmutableSourceParseCheckpoint {
     }
 
     fn assemble(
-        &self,
+        self,
         target_name: Option<&str>,
         package_inputs: Option<&PackageCompilationInputs>,
         timings: &mut CompileTimings,
     ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
-        let mut source_storage = (*self.source_storage).clone();
+        let mut source_storage = Arc::unwrap_or_clone(self.source_storage);
         let mut imports = ImportQueue::default();
         for (_, source) in source_storage.files.iter() {
             imports.mark_loaded(source.path.clone());
@@ -160,7 +164,7 @@ impl ImmutableSourceParseCheckpoint {
             None => Vec::new(),
         };
         if let Some(package_inputs) = package_inputs {
-            for request in &self.package_imports {
+            for request in self.package_imports.iter() {
                 imports.enqueue(vec![request.resolve_for_exact_target(package_inputs)?])?;
             }
         }
