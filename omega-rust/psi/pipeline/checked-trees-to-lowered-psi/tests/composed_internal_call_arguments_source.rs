@@ -206,6 +206,11 @@ fn execute(
 }
 
 fn ordinary_source(qualified: bool, prefix: bool) -> (String, usize) {
+    ordinary_source_spelling(qualified, prefix, false)
+}
+
+fn ordinary_source_spelling(qualified: bool, prefix: bool, trailing: bool) -> (String, usize) {
+    let terminator = if trailing { "" } else { ";" };
     let owner = if qualified { "Relay::" } else { "" };
     let control = if prefix {
         format!(
@@ -241,10 +246,10 @@ fn ordinary_source(qualified: bool, prefix: bool) -> (String, usize) {
         machine Main::main({parameters}) {{
             {control}
             state yes() {{
-                {owner}relay((Scalar::identity(identity(255u8)) as u16) + 1u16, identity(7u8) as u16);
+                {owner}relay((Scalar::identity(identity(255u8)) as u16) + 1u16, identity(7u8) as u16){terminator}
             }}
             state no() {{
-                {owner}relay(Scalar::identity(identity(3u8)) as u16, identity(19u8) as u16);
+                {owner}relay(Scalar::identity(identity(3u8)) as u16, identity(19u8) as u16){terminator}
             }}
         }}
     "#
@@ -256,23 +261,25 @@ fn ordinary_source(qualified: bool, prefix: bool) -> (String, usize) {
 #[test]
 fn ordinary_unit_leaf_bodies_preserve_parameters_statement_order_and_transitive_effects() {
     for qualified in [false, true] {
-        let (source, states) = ordinary_source(qualified, false);
-        let artifact = artifact(&checked(&source), states);
-        for selected in [false, true] {
-            let (status, effects) = execute(&artifact, &[selected]);
-            assert_eq!(
-                status,
-                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
-            );
-            let [first, second] = if selected { [256, 7] } else { [3, 19] };
-            assert_eq!(
-                effects,
-                vec![
-                    vec![unsigned(first), unsigned(second)],
-                    vec![unsigned(second), unsigned(first)]
-                ],
-                "both observable statements execute once inside the selected ordinary callee"
-            );
+        for trailing in [false, true] {
+            let (source, states) = ordinary_source_spelling(qualified, false, trailing);
+            let artifact = artifact(&checked(&source), states);
+            for selected in [false, true] {
+                let (status, effects) = execute(&artifact, &[selected]);
+                assert_eq!(
+                    status,
+                    TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+                );
+                let [first, second] = if selected { [256, 7] } else { [3, 19] };
+                assert_eq!(
+                    effects,
+                    vec![
+                        vec![unsigned(first), unsigned(second)],
+                        vec![unsigned(second), unsigned(first)]
+                    ],
+                    "both observable statements execute once inside the selected ordinary callee"
+                );
+            }
         }
     }
 }
@@ -280,25 +287,27 @@ fn ordinary_unit_leaf_bodies_preserve_parameters_statement_order_and_transitive_
 #[test]
 fn computed_unit_prefix_keeps_original_boolean_namespace_for_nested_control() {
     for qualified in [false, true] {
-        let (source, states) = ordinary_source(qualified, true);
-        let artifact = artifact(&checked(&source), states);
-        for (first, second) in [(false, false), (false, true), (true, false), (true, true)] {
-            let (status, effects) = execute(&artifact, &[first, second]);
-            assert_eq!(
-                status,
-                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
-            );
-            let [left, right] = if first && second { [256, 7] } else { [3, 19] };
-            assert_eq!(
-                effects,
-                vec![
-                    vec![unsigned(41), unsigned(43)],
-                    vec![unsigned(43), unsigned(41)],
-                    vec![unsigned(left), unsigned(right)],
-                    vec![unsigned(right), unsigned(left)],
-                ],
-                "prefix completes before the guard and does not replace its retained input values"
-            );
+        for trailing in [false, true] {
+            let (source, states) = ordinary_source_spelling(qualified, true, trailing);
+            let artifact = artifact(&checked(&source), states);
+            for (first, second) in [(false, false), (false, true), (true, false), (true, true)] {
+                let (status, effects) = execute(&artifact, &[first, second]);
+                assert_eq!(
+                    status,
+                    TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+                );
+                let [left, right] = if first && second { [256, 7] } else { [3, 19] };
+                assert_eq!(
+                    effects,
+                    vec![
+                        vec![unsigned(41), unsigned(43)],
+                        vec![unsigned(43), unsigned(41)],
+                        vec![unsigned(left), unsigned(right)],
+                        vec![unsigned(right), unsigned(left)],
+                    ],
+                    "prefix completes before the guard and does not replace its retained input values"
+                );
+            }
         }
     }
 }

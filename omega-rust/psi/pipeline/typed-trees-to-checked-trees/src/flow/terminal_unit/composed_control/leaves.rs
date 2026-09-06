@@ -1,4 +1,4 @@
-//! One exact boundary effect followed by Unit return.
+//! One exact ordinary or boundary Unit call followed by Unit return.
 
 use super::*;
 
@@ -11,9 +11,14 @@ pub(super) fn build(
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     entry_claims: &[CheckedUnitEntryClaimPlan],
 ) -> Option<CheckedComposedUnitControlStatePlan> {
-    let [StatementNode::Call(_)] = program.statement_table.statements(state.statement_nodes) else {
+    let [statement] = program.statement_table.statements(state.statement_nodes) else {
         return None;
     };
+    if !matches!(statement, StatementNode::Call(_))
+        && super::super::control::tail_call(program, state, 0).is_none()
+    {
+        return None;
+    }
     let flow = state_flow(facts, machine.symbol, state.symbol)?;
     let calls = super::super::control::outer_calls(
         program,

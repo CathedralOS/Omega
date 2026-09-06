@@ -62,6 +62,10 @@ fn artifact(
             ExpressionNode::Call(_)
         ));
     }
+    verified_artifact(checked)
+}
+
+fn verified_artifact(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) {
     let lowered = checked_trees_to_lowered_psi::lower_machine(checked, "Root::enter")
         .expect("Unit expression call lowers");
     let semantic = encode_module(&lowered.semantic_module).unwrap();
@@ -653,4 +657,116 @@ fn integer_unit_tail_preserves_nested_exact_casts_and_arithmetic_obligations() {
                 .collect::<Vec<_>>()
         ]
     );
+}
+
+#[test]
+fn multistate_pure_and_zero_operand_tails_retain_exact_source_occurrences() {
+    for has_argument in [false, true] {
+        let signature = if has_argument { "value: bool" } else { "" };
+        let yes_argument = if has_argument { "true" } else { "" };
+        let no_argument = if has_argument { "false" } else { "" };
+        let checked = checked(&format!(
+            r#"
+            boundary trait Sink {{ machine record({signature}); }}
+            data Root {{}}
+            machine Root::enter(selected: bool) {{
+                transition selected {{ true -> yes() _ -> no() }}
+                state yes() {{ Sink::record({yes_argument}) }}
+                state no() {{ Sink::record({no_argument}) }}
+            }}
+        "#
+        ));
+        let root = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Root::enter")
+            .unwrap();
+        let states = checked.typed.machine_states(root);
+        let [_, yes, no] = states else {
+            panic!("three authored states")
+        };
+        let expressions = [yes, no].map(|state| {
+            let [StatementNode::Expression(expression)] = checked
+                .typed
+                .statement_table
+                .statements(state.statement_nodes)
+            else {
+                panic!("one authored leaf expression")
+            };
+            assert!(
+                !checked
+                    .facts
+                    .values
+                    .scalar_computations
+                    .roots
+                    .iter()
+                    .any(|(_, root)| root.state == state.symbol),
+                "pure and zero-operand leaves do not need a computation root"
+            );
+            *expression
+        });
+        let artifact = verified_artifact(&checked);
+        for selected in [false, true] {
+            let mut observer = Observe::default();
+            let result = interpret_terminal_artifact_with_effect_handler_measured(
+                &artifact.0,
+                &artifact.1,
+                &AdmissionProfile::default(),
+                &[TerminalScalarValue::Boolean(selected)],
+                &[],
+                &mut observer,
+            )
+            .unwrap();
+            assert_eq!(result.value(), TerminalExecutionResult::Unit);
+            assert_eq!(
+                observer.0,
+                vec![if has_argument {
+                    vec![TerminalScalarValue::Boolean(selected)]
+                } else {
+                    Vec::new()
+                }]
+            );
+        }
+        let control = &checked.facts.flow.control;
+        let yes_flow = control
+            .states
+            .iter()
+            .map(|(_, state)| state)
+            .find(|state| state.machine_symbol == root.symbol && state.state_symbol == yes.symbol)
+            .unwrap();
+        let [call] = control.calls.span(yes_flow.calls).unwrap() else {
+            panic!("one outer call")
+        };
+        let call_handle = control
+            .calls
+            .iter()
+            .find_map(|(handle, candidate)| std::ptr::eq(candidate, call).then_some(handle))
+            .unwrap();
+        for mutate_capture in [false, true] {
+            let mut changed = checked.clone();
+            if mutate_capture {
+                changed
+                    .facts
+                    .flow
+                    .control
+                    .calls
+                    .get_mut(call_handle)
+                    .authored_expression = expressions[1];
+            } else {
+                let StatementNode::Expression(expression) = &mut changed
+                    .typed
+                    .statement_table
+                    .statements_mut(yes.statement_nodes)[0]
+                else {
+                    unreachable!()
+                };
+                *expression = expressions[1];
+            }
+            assert!(
+                checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter").is_err(),
+                "another state's same-target call cannot replace this occurrence: argument={has_argument}, capture={mutate_capture}"
+            );
+        }
+    }
 }

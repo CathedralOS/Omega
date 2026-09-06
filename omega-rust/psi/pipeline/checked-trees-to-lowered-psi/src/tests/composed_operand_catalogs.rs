@@ -1,6 +1,7 @@
 //! Operand helpers coexist with dynamic realizations and closed-sum payloads.
 
 use super::*;
+use typed_trees::{expression::ExpressionNode, statement::StatementNode};
 
 fn roundtrip(checked: &CheckedTrees) -> LoweredPsi {
     let lowered = lower_machine(checked, "Main::main").expect("computed leaves lower");
@@ -32,10 +33,130 @@ fn roundtrip(checked: &CheckedTrees) -> LoweredPsi {
     lowered
 }
 
+fn assert_trailing_provider_field_custody(checked: &CheckedTrees) {
+    let program = &checked.typed;
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .unwrap();
+    let Some((receiver, self_expression, inherited, expression)) =
+        program.machine_states(machine).iter().find_map(|state| {
+            let StatementNode::Expression(expression) = program
+                .statement_table
+                .statements(state.statement_nodes)
+                .last()?
+            else {
+                return None;
+            };
+            let ExpressionNode::Call(call) = program.expression_table.expression(*expression)
+            else {
+                return None;
+            };
+            let ExpressionNode::Member(member) = program.expression_table.expression(call.receiver)
+            else {
+                return None;
+            };
+            Some((
+                call.receiver,
+                member.receiver,
+                member.member_symbol,
+                *expression,
+            ))
+        })
+    else {
+        // The other fixture spelling uses statement calls.
+        return;
+    };
+    let field = validation::exact_self_field(program, machine, receiver)
+        .unwrap()
+        .symbol;
+    let other_field = program
+        .data_definitions()
+        .iter()
+        .find_map(|data| {
+            program
+                .data_members(data)
+                .iter()
+                .find_map(|member| match member {
+                    typed_trees::data::DataMember::Field(candidate)
+                        if candidate.symbol != field =>
+                    {
+                        Some(candidate.symbol)
+                    }
+                    typed_trees::data::DataMember::Variant(variant) => program
+                        .data_payload_fields(variant)
+                        .iter()
+                        .find_map(|candidate| {
+                            (candidate.symbol != field).then_some(candidate.symbol)
+                        }),
+                    _ => None,
+                })
+        })
+        .expect("another live storage field");
+    let (captured, call) = checked
+        .facts
+        .flow
+        .control
+        .calls
+        .iter()
+        .find(|(_, call)| call.authored_expression == expression && call.call_ordinal == 0)
+        .unwrap();
+    assert_eq!(call.receiver_symbol, field);
+    assert_ne!(
+        inherited, field,
+        "inherited scope slot is not storage identity"
+    );
+    for mutation in 0..5 {
+        let mut changed = checked.clone();
+        match mutation {
+            0 | 1 => {
+                let ExpressionNode::Member(member) =
+                    changed.typed.expression_table.expression_mut(receiver)
+                else {
+                    unreachable!()
+                };
+                member.member_symbol = if mutation == 0 {
+                    symbols::SymbolHandle::invalid()
+                } else {
+                    other_field
+                };
+            }
+            2 | 3 => {
+                let ExpressionNode::Name(name) = changed
+                    .typed
+                    .expression_table
+                    .expression_mut(self_expression)
+                else {
+                    unreachable!()
+                };
+                if mutation == 2 {
+                    name.symbol = other_field;
+                } else {
+                    name.head_symbol = other_field;
+                }
+            }
+            4 => {
+                changed
+                    .facts
+                    .flow
+                    .control
+                    .calls
+                    .get_mut(captured)
+                    .receiver_symbol = inherited
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            lower_machine(&changed, "Main::main").is_err(),
+            "provider-field source/capture mutation={mutation} must reject"
+        );
+    }
+}
+
 #[test]
 fn dynamic_continuation_operands_preserve_forwarding_and_helper_identities() {
-    let checked = checked_source(
-        r#"
+    let source = r#"
         boundary trait Console {
             machine exit_process(return_code: i32) reaches Console;
         }
@@ -65,55 +186,68 @@ fn dynamic_continuation_operands_preserve_forwarding_and_helper_identities() {
         requires 0i32 == 0i32
         ensures 0i32 == 0i32
         { value }
-    "#,
-    );
-    let [plan] = checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .dynamic_dispatch
-        .direct_scalar_calls
-        .as_slice()
-    else {
-        panic!("one authored dynamic scalar continuation");
-    };
-    assert_eq!(plan.forwarding_transfers.len(), 1);
-    assert!(plan.unit_continuation.is_some());
-    let lowered = roundtrip(&checked);
-    assert_eq!(lowered.semantic_module.machines.len(), 6);
-    assert_eq!(lowered.source_call_occurrences.len(), 8);
-    let dynamic = &lowered.semantic_module.dynamic_dispatch;
-    assert_eq!(dynamic.parameters.len(), 2);
-    assert_eq!(dynamic.arguments.len(), 2);
-    assert_eq!(dynamic.parameter_dispatches.len(), 1);
-    let caller = lowered
-        .semantic_module
-        .machines
-        .iter()
-        .find(|machine| machine.id == lowered.semantic_module.entry)
-        .unwrap();
-    let operations = caller
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .collect::<Vec<_>>();
-    assert_eq!(
-        operations
+    "#;
+    for source in [
+        source.to_owned(),
+        source
+            .replace(
+                "exit_process(helper(70i32));",
+                "exit_process(helper(70i32))",
+            )
+            .replace(
+                "exit_process(helper(71i32));",
+                "exit_process(helper(71i32))",
+            ),
+    ] {
+        let checked = checked_source(&source);
+        let [plan] = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .dynamic_dispatch
+            .direct_scalar_calls
+            .as_slice()
+        else {
+            panic!("one authored dynamic scalar continuation");
+        };
+        assert_eq!(plan.forwarding_transfers.len(), 1);
+        assert!(plan.unit_continuation.is_some());
+        let lowered = roundtrip(&checked);
+        assert_trailing_provider_field_custody(&checked);
+        assert_eq!(lowered.semantic_module.machines.len(), 6);
+        assert_eq!(lowered.source_call_occurrences.len(), 8);
+        let dynamic = &lowered.semantic_module.dynamic_dispatch;
+        assert_eq!(dynamic.parameters.len(), 2);
+        assert_eq!(dynamic.arguments.len(), 2);
+        assert_eq!(dynamic.parameter_dispatches.len(), 1);
+        let caller = lowered
+            .semantic_module
+            .machines
             .iter()
-            .filter(|operation| matches!(operation.kind, OperationKind::BoundaryCall { .. }))
-            .count(),
-        2
-    );
-    assert!(
-        caller.blocks.len() > 3,
-        "operand evaluation retains private blocks"
-    );
+            .find(|machine| machine.id == lowered.semantic_module.entry)
+            .unwrap();
+        let operations = caller
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            operations
+                .iter()
+                .filter(|operation| matches!(operation.kind, OperationKind::BoundaryCall { .. }))
+                .count(),
+            2
+        );
+        assert!(
+            caller.blocks.len() > 3,
+            "operand evaluation retains private blocks"
+        );
+    }
 }
 
 #[test]
 fn closed_sum_computed_operand_keeps_payload_for_the_following_call() {
-    let checked = checked_source(
-        r#"
+    let source = r#"
         machine identity(value: i32) -> i32 { value }
         data ByteRead { case Eof; case Byte(value: i32 [0..=255]); }
         boundary trait Console {
@@ -134,56 +268,64 @@ fn closed_sum_computed_operand_keeps_payload_for_the_following_call() {
             }
             state eof(&mut self) { self.console.exit_process(70); }
         }
-    "#,
-    );
-    // StructuralCase payload execution is not implemented by the interpreter;
-    // codec roundtrips and independent verification cover this representation.
-    let lowered = roundtrip(&checked);
-    assert_eq!(lowered.semantic_module.machines.len(), 2);
-    assert_eq!(lowered.source_call_occurrences.len(), 6);
-    let caller = lowered
-        .semantic_module
-        .machines
-        .iter()
-        .find(|machine| machine.id == lowered.semantic_module.entry)
-        .unwrap();
-    assert!(matches!(
-        caller.blocks[0].terminator,
-        Terminator::StructuralCase { .. }
-    ));
-    let operations = caller
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .collect::<Vec<_>>();
-    assert_eq!(
-        operations
+    "#;
+    for source in [
+        source.to_owned(),
+        source
+            .replace("exit_process(value);", "exit_process(value)")
+            .replace("exit_process(70);", "exit_process(70)"),
+    ] {
+        let checked = checked_source(&source);
+        // StructuralCase payload execution is not implemented by the interpreter;
+        // codec roundtrips and independent verification cover this representation.
+        let lowered = roundtrip(&checked);
+        assert_trailing_provider_field_custody(&checked);
+        assert_eq!(lowered.semantic_module.machines.len(), 2);
+        assert_eq!(lowered.source_call_occurrences.len(), 6);
+        let caller = lowered
+            .semantic_module
+            .machines
             .iter()
-            .filter(|operation| matches!(operation.kind, OperationKind::BoundaryCall { .. }))
-            .count(),
-        4
-    );
-    let (completion, arguments) = caller
-        .blocks
-        .iter()
-        .find_map(|block| {
-            let arguments = block
-                .operations
+            .find(|machine| machine.id == lowered.semantic_module.entry)
+            .unwrap();
+        assert!(matches!(
+            caller.blocks[0].terminator,
+            Terminator::StructuralCase { .. }
+        ));
+        let operations = caller
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            operations
                 .iter()
-                .filter_map(|operation| {
-                    if let OperationKind::BoundaryCall { arguments, .. } = &operation.kind {
-                        Some(arguments)
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<_>>();
-            (arguments.len() == 2).then_some((block, arguments))
-        })
-        .expect("computed write and subsequent exit share the leaf completion");
-    assert_eq!(arguments[1].as_slice(), [completion.parameters[0].id]);
-    assert_ne!(
-        arguments[0], arguments[1],
-        "later use selects retained payload, not computed operand slot"
-    );
+                .filter(|operation| matches!(operation.kind, OperationKind::BoundaryCall { .. }))
+                .count(),
+            4
+        );
+        let (completion, arguments) = caller
+            .blocks
+            .iter()
+            .find_map(|block| {
+                let arguments = block
+                    .operations
+                    .iter()
+                    .filter_map(|operation| {
+                        if let OperationKind::BoundaryCall { arguments, .. } = &operation.kind {
+                            Some(arguments)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                (arguments.len() == 2).then_some((block, arguments))
+            })
+            .expect("computed write and subsequent exit share the leaf completion");
+        assert_eq!(arguments[1].as_slice(), [completion.parameters[0].id]);
+        assert_ne!(
+            arguments[0], arguments[1],
+            "later use selects retained payload, not computed operand slot"
+        );
+    }
 }

@@ -79,20 +79,29 @@ fn encoded(checked: &checked_trees::CheckedTrees, state_count: usize) -> (Vec<u8
             .iter()
             .find(|state| state.symbol == root.state)
             .unwrap();
-        let StatementNode::Call(call) = &checked
+        let statement = &checked
             .typed
             .statement_table
-            .statements(state.statement_nodes)[root.statement_ordinal as usize]
-        else {
-            panic!("operand root belongs to an authored leaf call");
-        };
-        assert!(
-            checked
+            .statements(state.statement_nodes)[root.statement_ordinal as usize];
+        let arguments = match statement {
+            StatementNode::Call(call) => checked
                 .typed
                 .statement_table
-                .expression_handles(call.arguments)
-                .contains(&computations.nodes.get(root.root).authored_root)
-        );
+                .expression_handles(call.arguments),
+            StatementNode::Expression(expression) => {
+                let ExpressionNode::Call(call) =
+                    checked.typed.expression_table.expression(*expression)
+                else {
+                    panic!("authored Unit expression is a call");
+                };
+                checked
+                    .typed
+                    .expression_table
+                    .expression_handles(call.arguments)
+            }
+            _ => panic!("operand root belongs to an authored leaf call"),
+        };
+        assert!(arguments.contains(&computations.nodes.get(root.root).authored_root));
     }
     let lowered = checked_trees_to_lowered_psi::lower_machine(checked, "Main::main")
         .expect("composed operand evaluation lowers");
@@ -171,6 +180,11 @@ fn start(artifact: &(Vec<u8>, Vec<u8>), arguments: &[TerminalScalarValue]) -> Te
 }
 
 fn arithmetic_source(topology: usize) -> (String, usize) {
+    arithmetic_source_spelling(topology, false)
+}
+
+fn arithmetic_source_spelling(topology: usize, trailing: bool) -> (String, usize) {
+    let terminator = if trailing { "" } else { ";" };
     let entry = match topology {
         0 => "transition first { true -> yes() _ -> no() }",
         1 => {
@@ -181,6 +195,7 @@ fn arithmetic_source(topology: usize) -> (String, usize) {
         }
         _ => unreachable!(),
     };
+    let entry = entry.replace("2u16);", &format!("2u16){terminator}"));
     let parameters = if topology == 2 {
         "first: bool, second: bool"
     } else {
@@ -196,11 +211,11 @@ fn arithmetic_source(topology: usize) -> (String, usize) {
             {entry}
             state yes() {{
                 Sink::finish((Scalar::identity(identity(255u8)) as u16) + 1u16,
-                             identity(7u8) as u16, 1u16);
+                             identity(7u8) as u16, 1u16){terminator}
             }}
             state no() {{
                 Sink::finish(Scalar::identity(identity(255u8)) as u16,
-                             identity(7u8) as u16, 3u16);
+                             identity(7u8) as u16, 3u16){terminator}
             }}
         }}
     "#
@@ -212,42 +227,49 @@ fn arithmetic_source(topology: usize) -> (String, usize) {
 #[test]
 fn selected_leaves_evaluate_nested_operands_across_three_control_shapes() {
     for topology in 0..3 {
-        let (source, state_count) = arithmetic_source(topology);
-        let checked = checked(&source);
-        let artifact = encoded(&checked, state_count);
-        for (first, second) in [(false, false), (true, false), (true, true)] {
-            let mut arguments = vec![TerminalScalarValue::Boolean(first)];
-            if topology == 2 {
-                arguments.push(TerminalScalarValue::Boolean(second));
+        for trailing in [false, true] {
+            let (source, state_count) = arithmetic_source_spelling(topology, trailing);
+            let checked = checked(&source);
+            let artifact = encoded(&checked, state_count);
+            for (first, second) in [(false, false), (true, false), (true, true)] {
+                let mut arguments = vec![TerminalScalarValue::Boolean(first)];
+                if topology == 2 {
+                    arguments.push(TerminalScalarValue::Boolean(second));
+                }
+                let mut execution = start(&artifact, &arguments);
+                let mut observer = ObserveCalls::default();
+                assert_eq!(
+                    execution
+                        .resume_with_effect_handler(
+                            &mut TerminalFuelMeter::unbounded(),
+                            &mut observer
+                        )
+                        .unwrap(),
+                    TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+                );
+                let expected = if !first {
+                    [255, 7, 3]
+                } else if topology == 2 && !second {
+                    [7, 255, 2]
+                } else {
+                    [256, 7, 1]
+                };
+                assert_eq!(
+                    observer.calls,
+                    vec![expected.map(|value| unsigned(16, value)).to_vec()]
+                );
             }
-            let mut execution = start(&artifact, &arguments);
-            let mut observer = ObserveCalls::default();
-            assert_eq!(
-                execution
-                    .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer)
-                    .unwrap(),
-                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
-            );
-            let expected = if !first {
-                [255, 7, 3]
-            } else if topology == 2 && !second {
-                [7, 255, 2]
-            } else {
-                [256, 7, 1]
-            };
-            assert_eq!(
-                observer.calls,
-                vec![expected.map(|value| unsigned(16, value)).to_vec()]
-            );
         }
     }
 }
 
 #[test]
 fn unselected_leaves_and_short_circuit_operands_do_not_crash() {
-    for (first, second) in [(false, true), (true, false), (false, false)] {
-        let source = format!(
-            r#"
+    for trailing in [false, true] {
+        let terminator = if trailing { "" } else { ";" };
+        for (first, second) in [(false, true), (true, false), (false, false)] {
+            let source = format!(
+                r#"
         machine abort() -> bool crashes Abort {{ crash Abort; }}
         machine trap() -> bool crashes Trap {{ crash Trap; }}
         boundary trait Sink {{ machine finish(first: bool, second: bool); }}
@@ -256,46 +278,47 @@ fn unselected_leaves_and_short_circuit_operands_do_not_crash() {
         crashes Abort crashes Trap {{
             transition selected {{ true -> yes() _ -> no() }}
             state yes() {{
-                Sink::finish({first} && abort(), {second} || trap());
+                Sink::finish({first} && abort(), {second} || trap()){terminator}
             }}
-            state no() {{ Sink::finish(false, true); }}
+            state no() {{ Sink::finish(false, true){terminator} }}
         }}
     "#
-        );
-        let checked = checked(&source);
-        let artifact = encoded(&checked, 3);
-        for selected in [false, true] {
-            let cause = if !selected {
-                None
-            } else if first {
-                Some(terminal_psi::CrashCause::Abort)
-            } else if !second {
-                Some(terminal_psi::CrashCause::Trap)
-            } else {
-                None
-            };
-            let mut execution = start(&artifact, &[TerminalScalarValue::Boolean(selected)]);
-            let mut observer = ObserveCalls::default();
-            let result = execution
-                .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer);
-            if let Some(cause) = cause {
-                assert!(
-                    matches!(&result, Ok(TerminalExecutionStatus::Crashed(crash)) if crash.cause == cause),
-                    "selected={selected}, expected={cause:?}, actual={result:?}"
-                );
-                assert!(observer.calls.is_empty());
-            } else {
-                assert_eq!(
-                    result.unwrap(),
-                    TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
-                );
-                assert_eq!(
-                    observer.calls,
-                    vec![vec![
-                        TerminalScalarValue::Boolean(false),
-                        TerminalScalarValue::Boolean(true)
-                    ]]
-                );
+            );
+            let checked = checked(&source);
+            let artifact = encoded(&checked, 3);
+            for selected in [false, true] {
+                let cause = if !selected {
+                    None
+                } else if first {
+                    Some(terminal_psi::CrashCause::Abort)
+                } else if !second {
+                    Some(terminal_psi::CrashCause::Trap)
+                } else {
+                    None
+                };
+                let mut execution = start(&artifact, &[TerminalScalarValue::Boolean(selected)]);
+                let mut observer = ObserveCalls::default();
+                let result = execution
+                    .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer);
+                if let Some(cause) = cause {
+                    assert!(
+                        matches!(&result, Ok(TerminalExecutionStatus::Crashed(crash)) if crash.cause == cause),
+                        "selected={selected}, expected={cause:?}, actual={result:?}"
+                    );
+                    assert!(observer.calls.is_empty());
+                } else {
+                    assert_eq!(
+                        result.unwrap(),
+                        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+                    );
+                    assert_eq!(
+                        observer.calls,
+                        vec![vec![
+                            TerminalScalarValue::Boolean(false),
+                            TerminalScalarValue::Boolean(true)
+                        ]]
+                    );
+                }
             }
         }
     }
@@ -303,41 +326,44 @@ fn unselected_leaves_and_short_circuit_operands_do_not_crash() {
 
 #[test]
 fn first_leaf_argument_crash_precedes_later_call_even_under_exact_casts() {
-    for (first, second, cause) in [
-        ("Abort", "Trap", terminal_psi::CrashCause::Abort),
-        ("Trap", "Abort", terminal_psi::CrashCause::Trap),
-    ] {
-        let source = format!(
-            r#"
+    for trailing in [false, true] {
+        let terminator = if trailing { "" } else { ";" };
+        for (first, second, cause) in [
+            ("Abort", "Trap", terminal_psi::CrashCause::Abort),
+            ("Trap", "Abort", terminal_psi::CrashCause::Trap),
+        ] {
+            let source = format!(
+                r#"
             machine first() -> u8 crashes {first} {{ crash {first}; }}
             machine second() -> u8 crashes {second} {{ crash {second}; }}
             boundary trait Sink {{ machine finish(first: u16, second: u16); }}
             data Main {{}}
             machine Main::main(selected: bool) crashes Abort crashes Trap {{
                 transition selected {{ true -> yes() _ -> no() }}
-                state yes() {{ Sink::finish(first() as u16, second() as u16); }}
-                state no() {{ Sink::finish(second() as u16, first() as u16); }}
+                state yes() {{ Sink::finish(first() as u16, second() as u16){terminator} }}
+                state no() {{ Sink::finish(second() as u16, first() as u16){terminator} }}
             }}
         "#
-        );
-        let artifact = encoded(&checked(&source), 3);
-        for selected in [true, false] {
-            let mut execution = start(&artifact, &[TerminalScalarValue::Boolean(selected)]);
-            let mut observer = ObserveCalls::default();
-            let expected = if selected {
-                cause
-            } else if cause == terminal_psi::CrashCause::Abort {
-                terminal_psi::CrashCause::Trap
-            } else {
-                terminal_psi::CrashCause::Abort
-            };
-            let result = execution
-                .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer);
-            assert!(
-                matches!(&result, Ok(TerminalExecutionStatus::Crashed(crash)) if crash.cause == expected),
-                "selected={selected}, expected={expected:?}, actual={result:?}"
             );
-            assert!(observer.calls.is_empty());
+            let artifact = encoded(&checked(&source), 3);
+            for selected in [true, false] {
+                let mut execution = start(&artifact, &[TerminalScalarValue::Boolean(selected)]);
+                let mut observer = ObserveCalls::default();
+                let expected = if selected {
+                    cause
+                } else if cause == terminal_psi::CrashCause::Abort {
+                    terminal_psi::CrashCause::Trap
+                } else {
+                    terminal_psi::CrashCause::Abort
+                };
+                let result = execution
+                    .resume_with_effect_handler(&mut TerminalFuelMeter::unbounded(), &mut observer);
+                assert!(
+                    matches!(&result, Ok(TerminalExecutionStatus::Crashed(crash)) if crash.cause == expected),
+                    "selected={selected}, expected={expected:?}, actual={result:?}"
+                );
+                assert!(observer.calls.is_empty());
+            }
         }
     }
 }
@@ -482,86 +508,93 @@ fn nominal_boundary_leaf_calls_keep_authored_callable_identity() {
 
 #[test]
 fn composed_operand_roots_and_nested_occurrences_rejoin_their_source_leaf() {
-    let (source, state_count) = arithmetic_source(2);
-    let checked = checked(&source);
-    encoded(&checked, state_count);
-    let plans = &checked.facts.values.scalar_computations;
-    let roots = plans
-        .roots
-        .iter()
-        .filter(|(_, root)| {
-            matches!(
-                root.role,
-                CheckedScalarExpressionRole::BoundaryCallArgument { .. }
-            )
-        })
-        .collect::<Vec<_>>();
-    for (handle, root) in &roots {
-        let other = roots
+    for trailing in [false, true] {
+        let (source, state_count) = arithmetic_source_spelling(2, trailing);
+        let checked = checked(&source);
+        encoded(&checked, state_count);
+        let plans = &checked.facts.values.scalar_computations;
+        let roots = plans
+            .roots
             .iter()
-            .find(|(_, other)| other.state != root.state)
-            .unwrap()
-            .1;
-        for mutation in 0..3 {
-            let mut changed = checked.clone();
-            let plans = &mut changed.facts.values.scalar_computations;
-            match mutation {
-                0 => plans.roots.get_mut(*handle).root = other.root,
-                1 => plans.nodes.get_mut(root.root).authored_root = arena::Handle::invalid(),
-                2 => plans.roots.get_mut(*handle).statement_ordinal += 1,
-                _ => unreachable!(),
+            .filter(|(_, root)| {
+                matches!(
+                    root.role,
+                    CheckedScalarExpressionRole::BoundaryCallArgument { .. }
+                )
+            })
+            .collect::<Vec<_>>();
+        for (handle, root) in &roots {
+            let other = roots
+                .iter()
+                .find(|(_, other)| other.state != root.state)
+                .unwrap()
+                .1;
+            for mutation in 0..3 {
+                let mut changed = checked.clone();
+                let plans = &mut changed.facts.values.scalar_computations;
+                match mutation {
+                    0 => plans.roots.get_mut(*handle).root = other.root,
+                    1 => plans.nodes.get_mut(root.root).authored_root = arena::Handle::invalid(),
+                    2 => plans.roots.get_mut(*handle).statement_ordinal += 1,
+                    _ => unreachable!(),
+                }
+                assert!(
+                    checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err()
+                );
             }
-            assert!(checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err());
         }
-    }
-    for (_, node) in plans.nodes.iter() {
-        let CheckedScalarComputationKind::Call { source_call, .. } = node.kind else {
-            continue;
-        };
-        let authored = checked
-            .facts
-            .flow
-            .control
-            .calls
-            .get(source_call)
-            .authored_expression;
-        let ExpressionNode::Call(call) = checked.typed.expression_table.expression(authored) else {
-            unreachable!();
-        };
-        if call.receiver.is_valid() {
-            let receiver = call.receiver;
-            let argument = checked
-                .typed
-                .expression_table
-                .expression_handles(call.arguments)[0];
-            let mut changed = checked.clone();
-            let ExpressionNode::Call(call) =
-                changed.typed.expression_table.expression_mut(authored)
+        for (_, node) in plans.nodes.iter() {
+            let CheckedScalarComputationKind::Call { source_call, .. } = node.kind else {
+                continue;
+            };
+            let authored = checked
+                .facts
+                .flow
+                .control
+                .calls
+                .get(source_call)
+                .authored_expression;
+            let ExpressionNode::Call(call) = checked.typed.expression_table.expression(authored)
             else {
                 unreachable!();
             };
-            call.receiver = argument;
-            assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
-                "computed leaf helper cannot discard a runtime receiver in place of its static qualifier"
-            );
+            if call.receiver.is_valid() {
+                let receiver = call.receiver;
+                let argument = checked
+                    .typed
+                    .expression_table
+                    .expression_handles(call.arguments)[0];
+                let mut changed = checked.clone();
+                let ExpressionNode::Call(call) =
+                    changed.typed.expression_table.expression_mut(authored)
+                else {
+                    unreachable!();
+                };
+                call.receiver = argument;
+                assert!(
+                    checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+                    "computed leaf helper cannot discard a runtime receiver in place of its static qualifier"
+                );
+                let mut changed = checked.clone();
+                let ExpressionNode::Name(path) =
+                    changed.typed.expression_table.expression_mut(receiver)
+                else {
+                    unreachable!();
+                };
+                path.symbol = symbols::SymbolHandle::invalid();
+                assert!(
+                    checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err()
+                );
+            }
             let mut changed = checked.clone();
-            let ExpressionNode::Name(path) =
-                changed.typed.expression_table.expression_mut(receiver)
-            else {
-                unreachable!();
-            };
-            path.symbol = symbols::SymbolHandle::invalid();
+            changed
+                .facts
+                .flow
+                .control
+                .calls
+                .get_mut(source_call)
+                .authored_expression = arena::Handle::invalid();
             assert!(checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err());
         }
-        let mut changed = checked.clone();
-        changed
-            .facts
-            .flow
-            .control
-            .calls
-            .get_mut(source_call)
-            .authored_expression = arena::Handle::invalid();
-        assert!(checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err());
     }
 }

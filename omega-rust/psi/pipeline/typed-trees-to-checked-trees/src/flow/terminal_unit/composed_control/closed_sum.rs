@@ -383,9 +383,10 @@ fn build_leaf(
     )?;
     let statements = program.statement_table.statements(state.statement_nodes);
     if statements.is_empty()
-        || statements
-            .iter()
-            .any(|statement| !matches!(statement, StatementNode::Call(_)))
+        || statements.iter().enumerate().any(|(index, statement)| {
+            !matches!(statement, StatementNode::Call(_))
+                && super::super::control::tail_call(program, state, index).is_none()
+        })
     {
         return None;
     }

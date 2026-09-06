@@ -19,9 +19,34 @@ pub(crate) fn validate(
     let ExpressionNode::Call(authored) = checked.expression_table.expression(expression) else {
         return unsupported("computed result initializer has no authored call");
     };
-    let receiver = match checked.expression_table.expression(authored.receiver) {
-        ExpressionNode::Name(path) if authored.receiver.is_valid() => path.symbol,
-        _ => symbols::SymbolHandle::invalid(),
+    let receiver = if authored.receiver.is_valid() {
+        if !checked
+            .expression_table
+            .expression_is_valid(authored.receiver)
+        {
+            return unsupported("captured outer call has no live receiver expression");
+        }
+        match checked.expression_table.expression(authored.receiver) {
+            ExpressionNode::Name(path) if path.symbol.is_valid() => path.symbol,
+            ExpressionNode::Member(member) if member.member_symbol.is_valid() => {
+                let (machine, _) =
+                    crate::scalar_source_custody::authored_state(checked, caller_state)?;
+                if machine.symbol != caller_machine {
+                    return unsupported("captured outer receiver has a different caller");
+                }
+                // Attached machines retain inherited field symbols. Rejoin
+                // the exact declared storage field, as call capture does,
+                // without recovering an absent or conflicting source stamp.
+                validation::exact_self_field(&checked.typed, machine, authored.receiver)
+                    .ok_or(LoweringError::Unsupported(
+                        "captured outer receiver is not its exact attached self field",
+                    ))?
+                    .symbol
+            }
+            _ => return unsupported("captured outer call has no supported receiver identity"),
+        }
+    } else {
+        symbols::SymbolHandle::invalid()
     };
     let control = &checked.facts.flow.control;
     let mut states = control
