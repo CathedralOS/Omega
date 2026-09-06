@@ -63,13 +63,17 @@ The current evaluator uses these Alpha memory regions:
 0x01500000..0x01d00000   temporary value stack
 0x01e00000..0x01f00000   function activation rows
 0x01f00000..0x02000000   nested-call context rows
-0x02000000..0x0e000000   immutable pair nodes
 0x0e000000..0x0efffffc   buffered output bytes
+0x10000000..0x40000000   immutable pair nodes
 ```
 
-The Alpha tape occupies low memory and the hidden Alpha call stack grows down
-from `0x10000000`. Every evaluator-owned extent is preflighted before use; the
-hidden Alpha stack is discharged by the containment argument below.
+The selected AlphaBootstrapV3 realization provides 1 GiB of memory. The Alpha
+tape occupies low memory and the hidden Alpha call stack still grows down
+from `0x10000000`. Pairs grow upward from that boundary, without overlapping
+the stack or moving the output buffer. The former pair region
+`0x02000000..0x0e000000` is unused. Every evaluator-owned extent is preflighted
+before use; the hidden Alpha stack is discharged by the containment argument
+below.
 
 ## Exact capacities
 
@@ -87,7 +91,7 @@ only an extent beyond the end is refused.
 | nested expression lists | evaluator recursion, prechecked during census | 255 lists |
 | nested call contexts | three-word rows, slot zero reserved | 256 contexts |
 | active function frames | six-word rows | 257 reachable frames |
-| immutable pairs | five-word `(marker, left, left kind, right, right kind)` nodes | 5,033,164 pairs |
+| immutable pairs | five-word `(marker, left, left kind, right, right kind)` nodes | 20,132,659 pairs |
 | buffered output | bytes published after result validation | 16,777,212 bytes |
 
 The request maximum includes its four-byte length. Consequently a source with
@@ -98,7 +102,7 @@ selects status 1 instead.
 
 Function and environment insertion preflight the next count before deriving a
 row address. The value stack preflights the complete 16-byte next entry. Pair
-allocation preflights the complete 40-byte node; its arena has 32 unusable tail
+allocation preflights the complete 40-byte node; its arena has 8 unusable tail
 bytes after the maximum whole-node count. Output preflights each buffered byte.
 A scalar transformer may emit at most 16,777,211 bytes with `write` before its
 final byte. An application result may publish all 16,777,212 buffered bytes.
@@ -136,7 +140,13 @@ per active Gamma frame, plus 512 fixed helper slots, is
 `16 * 256 * 257 + 512 = 1,053,184` return addresses, or 8,425,472 bytes. The
 output buffer stops at `0x0efffffc`, leaving 16,777,220 bytes below Alpha's
 initial `0x10000000` stack pointer. The hidden stack therefore remains more than
-8 MiB above every evaluator-owned allocation even at the conservative bound.
+8 MiB above every lower-memory allocation even at the conservative bound.
+The pair arena starts at the initial stack pointer and grows upward, while
+every live return address is strictly below it. Its complete-node preflight
+keeps all pair stores below Alpha's `0x40000000` memory end. Pair projection
+requires the retained pair kind, an allocated aligned node in this same upper
+arena, and its marker; integer values do not acquire pointer provenance by
+matching a relocated address.
 
 Every other memory access is based on one of the preflighted extents above, a
 source/input span within the retained request, a fixed table inside the tape,
@@ -148,12 +158,12 @@ outcome. Gamma has no time or fuel bound; a nonterminating program diverges.
 
 The selected implementation is
 [`evaluator/gamma_evaluator.beta`](evaluator/gamma_evaluator.beta), a 1,632-line,
-46,479-byte addressed Beta program assembling to an 8,355-byte Alpha tape. Its
+46,482-byte addressed Beta program assembling to an 8,355-byte Alpha tape. Its
 current SHA-256 identities are:
 
 ```text
-Beta source  eabf2de565a9165cf3e8cfeb1917a1de76c9847641807199648bd2e1ee9a6427
-Alpha tape   c2ad4740ef13c676455439cc4666a5515c3b61f91d31736a0c8f60fd40b6d98e
+Beta source  6ef6ad5da234e61207bce4d8c262a596f3dfd19b55377121fb60978852408207
+Alpha tape   591c8417ca82b38d544c2fcf67f85ae6ff3e01002e9d015421339b8dd216df2e
 ```
 
 Proper-tail execution, static validation of unreachable bodies, exact resource
@@ -164,3 +174,12 @@ pins exact source
 and tape identities plus exact/adjacent function, syntax-depth, and call-context
 boundaries; the fixed identity makes the remaining arithmetic extent arguments
 above reviewable against one immutable subject rather than a host model.
+
+The separate [heap-boundary gate](../../tests/gamma/heap-boundary/README.md)
+executes ordinary Gamma allocation loops at the exact whole-node maximum and
+one beyond it, under scalar and application publication. It also crosses the
+previous 5,033,164-pair ceiling. This profile increase is driven by the actual
+complete-D parser customer: the prior evaluator exhausted its immutable heap
+with raw application status 252 before publishing the twelve-invocation result.
+It does not change Gamma meaning, allocate an unbounded heap, or convert an
+outer evaluator failure into an Epsilon observation.

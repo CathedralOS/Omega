@@ -14,7 +14,7 @@
 # offset). Loader: M[0..L-1] = tape, pc = 0, R[i] = 0, sp = 0x10000000 (grows down).
 import sys
 
-MEMSIZE = 0x10000000 + 16          # sp starts at 0x10000000 and grows down; a little headroom above
+MEMSIZE = 0x40000000              # AlphaBootstrapV3; sp still starts at 0x10000000
 MASK = (1 << 64) - 1
 INT_MIN = -(1 << 63)
 

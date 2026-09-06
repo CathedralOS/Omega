@@ -46,6 +46,10 @@ if [ "$ALPHA_VERIFY_MODE" = full ]; then
       ALPHA_DEVELOPER_DIR=$(xcode-select -p 2>/dev/null || true)
       ALPHA_CLANG=$ALPHA_DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang
       ALPHA_SDK=$ALPHA_DEVELOPER_DIR/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
+      if [ ! -x "$ALPHA_CLANG" ] || [ ! -d "$ALPHA_SDK" ]; then
+        ALPHA_CLANG=$(xcrun --find clang 2>/dev/null || true)
+        ALPHA_SDK=$(xcrun --show-sdk-path 2>/dev/null || true)
+      fi
       if [ -x "$ALPHA_CLANG" ] && [ -d "$ALPHA_SDK" ]; then
         TMP=$(mktemp -d)
         if "$ALPHA_CLANG" -arch arm64 -isysroot "$ALPHA_SDK" -Wl,-no_uuid \
@@ -62,7 +66,7 @@ if [ "$ALPHA_VERIFY_MODE" = full ]; then
         fi
         rm -rf "$TMP"
       else
-        echo "provenance SKIP — selected Xcode clang or macOS SDK not found"
+        echo "provenance SKIP — selected Xcode/CommandLineTools clang or macOS SDK not found"
       fi
       unset ALPHA_DEVELOPER_DIR ALPHA_CLANG ALPHA_SDK
       ;;

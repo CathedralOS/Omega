@@ -19,7 +19,7 @@ emits no Gamma or Alpha code.
 ## Measurements
 
 ```text
-1,632-line / 46,479-byte canonical addressed Beta with named control targets
+1,632-line / 46,482-byte canonical addressed Beta with named control targets
 8,355-byte evaluator tape
 ```
 
@@ -47,6 +47,11 @@ branches, forward and parameterized calls, recursion, compiler I/O, and quiet
 invalid/trap outcomes. Exact and adjacent gates pin the 4,096-function census,
 255-list syntax depth, and 256-context ordinary-call limits without inflating
 the routine gate with multi-megabyte output or heap witnesses.
+The separate [heap-boundary gate](../heap-boundary/README.md) owns full selected
+pair-capacity and adjacent-refusal controls, including buffered-prefix
+suppression. Scalar-forgery controls cover both the previous heap address and
+the current first live pair address, `268435456`; a numerically correct address
+does not replace the evaluator's pair provenance kind.
 
 `function_lookup.py` supplies 16 additional authored-source controls. Distinct
 function results are called in one fixed order while declaration and `main`
@@ -62,7 +67,7 @@ sorted pointer index by exact name. The index occupies
 `0x01228000..0x01230000` inside the existing function partition, under the
 unchanged 4,096-row preflight. The 16 controls pin lookup, row payloads, and
 failure ownership independently of this implementation. The complete gate
-runs 71 evaluator invocations, including the augmentation and capacity pairs.
+runs 73 evaluator invocations, including the augmentation and capacity pairs.
 
 ## Limitations
 

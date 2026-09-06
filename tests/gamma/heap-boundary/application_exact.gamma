@@ -1,0 +1,11 @@
+(def $application () Int 1)
+
+(def allocate ((remaining Int)) Int
+  (if (eq remaining 0)
+    (pair 0 1)
+    (let retained Int (pair remaining 0)
+      (allocate (- remaining 1)))))
+
+(def main () Int
+  (let buffered Int (write 65)
+    (allocate 20132658)))

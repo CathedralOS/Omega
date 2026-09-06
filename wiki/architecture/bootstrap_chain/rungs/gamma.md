@@ -19,6 +19,12 @@ the scalar/effect plus self-augmentation gates. It executes the unchanged
 85-line source augmenter, produces its exact source receipt, and evaluates the
 expanded program to byte 42.
 
+The selected addressed Beta source is 46,482 bytes. Its AlphaBootstrapV3 heap
+partition admits 20,132,659 immutable pairs of 40 bytes each, with eight unusable
+tail bytes; the output buffer and initial hidden-stack pointer do not move.
+The explicit slow [heap gate](../../../../tests/gamma/heap-boundary/README.md)
+checks full capacity, adjacent refusal, and buffered-prefix suppression.
+
 Exact function lookup uses a sorted pointer index inside the existing private
 function partition. Authored row order, application-marker ownership, and the
 4,096-function limit are unchanged; the evaluator still retains no AST.

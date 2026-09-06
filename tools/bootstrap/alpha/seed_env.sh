@@ -6,7 +6,7 @@
 # macOS arm64 differs in three ways, all OS-imposed: a Mach-O seed
 # (alpha_arm64_macos), the hole at a different file offset, and a mandatory
 # re-sign after stamping (dd invalidates the code signature; Apple Silicon
-# refuses to exec an invalid one). AlphaBootstrapV2 gives both containers one
+# refuses to exec an invalid one). AlphaBootstrapV3 gives both containers one
 # exact 16 MiB hole including the four-byte length.
 ALPHA_SEED_HOLE_SIZE=16777216
 ALPHA_MAX_RAW_TAPE_SIZE=16777212
@@ -41,7 +41,7 @@ stamp_seed() {
   }
   L=$(wc -c < "$tape" | tr -d ' ')
   if [ "$L" -gt "$ALPHA_MAX_RAW_TAPE_SIZE" ]; then
-    printf 'stamp_seed: tape (%s bytes) exceeds %s-byte AlphaBootstrapV2 raw maximum\n' \
+    printf 'stamp_seed: tape (%s bytes) exceeds %s-byte AlphaBootstrapV3 raw maximum\n' \
       "$L" "$ALPHA_MAX_RAW_TAPE_SIZE" >&2
     return 1
   fi

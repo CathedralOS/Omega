@@ -161,12 +161,12 @@ version also avoids a persistent trie and balanced byte rope because it uses
 fixed indexed item/label arenas and streams only after complete validation.
 One twelve-word item row arena and one two-word label row arena consume
 117,440,064 bytes; with Delta's 1 MiB static base they end at byte 118,488,640,
-below Alpha's 256 MiB memory bound. Row fields carry nominal owner/type checks
-instead of relying on fourteen parallel-array conventions.
+below Alpha's then-selected 256 MiB memory bound. Row fields carry nominal
+owner/type checks instead of relying on fourteen parallel-array conventions.
 The customer retains a 1,048,572-byte bounded comparison envelope; scaling its
 fourteen-word-per-item fixed arenas to the selected 16 MiB Alpha profile would
-exceed Alpha's 256 MiB memory and is not evidence against the selected
-Functional representation. It does not independently replay emitted bytes. Connecting actual Epsilon lowering
+exceed Alpha's then-selected 256 MiB memory and is not evidence against the
+selected Functional representation. It does not independently replay emitted bytes. Connecting actual Epsilon lowering
 and deciding whether symbolic prevalidation is sufficient remain required before
 selecting normative Delta.
 
