@@ -46,6 +46,9 @@ mod indexed_structural_store;
 #[path = "unit/affine_identity_calls.rs"]
 mod affine_identity_calls;
 
+#[path = "unit/boundary_borrows.rs"]
+mod boundary_borrows;
+
 #[test]
 fn unit_artifact_interprets_as_a_value_less_normal_result() {
     let (semantic, proof) = artifact_sections();

@@ -148,6 +148,11 @@ interpretation evaluates the scalar values before invoking the effect handler;
 and Omega abstract lowering preserves them without reinterpretation. The
 optional primitive scalar remains the independent result lane.
 
+Whole affine borrows retain the caller's value across boundary completion;
+only owned arguments transfer custody. The owner's eventual cleanup remains
+separate from the borrowed call, including when another argument in the same
+call is consumed.
+
 Vocabulary 27 also admits a first-class immutable borrowed byte-sequence shape,
 an exact raw-octet literal establishment, and that local literal as a structural
 argument to a bodyless boundary. The codec, verifier, and interpreter preserve
