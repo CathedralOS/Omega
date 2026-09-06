@@ -5,11 +5,13 @@ use super::{validate_exit_contract, validate_selected_relaxation};
 #[allow(clippy::too_many_arguments)]
 pub(in super::super) fn validate_realization_artifacts<S: ValidatedSelectedAnalysis>(
     selected: &S,
+    allocation: &selected_instructions_to_register_homes::AllocationOutput<'_>,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &register_model::ValidatedPhysicalRegisterModel,
     encoding: &StagedOptimizedSelectedFormEncoding,
     baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
     relaxation: Option<&StagedOptimizedX86BranchRelaxation>,
+    frame: Option<&super::super::UnitSavedReturnAddressFrame>,
     exit_contract: &ValidatedWholeFunctionExitContract,
     selections: &OptimizationSelections,
 ) -> Result<(), FunctionRelativeOptimizationRealizationError> {
@@ -34,13 +36,27 @@ pub(in super::super) fn validate_realization_artifacts<S: ValidatedSelectedAnaly
         relaxation,
         selections,
     )?;
-    validate_exit_contract(
-        selected,
-        machine,
-        physical,
-        encoding,
-        baseline_layout,
-        relaxation,
-        exit_contract,
-    )
+    super::super::unit::frame::validate_unit_frame(allocation, machine, frame)?;
+    match frame {
+        Some(frame) => validate_whole_function_exit_contract_with_frame(
+            selected,
+            machine,
+            physical,
+            encoding,
+            super::final_layout(baseline_layout, relaxation),
+            frame.layout(),
+            frame.protocol(),
+            exit_contract,
+        )
+        .map_err(FunctionRelativeOptimizationRealizationError::ExitContract),
+        None => validate_exit_contract(
+            selected,
+            machine,
+            physical,
+            encoding,
+            baseline_layout,
+            relaxation,
+            exit_contract,
+        ),
+    }
 }

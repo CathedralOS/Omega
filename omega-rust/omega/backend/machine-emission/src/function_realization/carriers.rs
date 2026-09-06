@@ -197,6 +197,7 @@ pub struct StagedSelectedLoweringFunctionRelativeRealization {
     pub(super) encoding: StagedOptimizedSelectedFormEncoding,
     pub(super) baseline_layout: StagedOptimizedResolvedSelectedFormLayout,
     pub(super) relaxation: Option<StagedOptimizedX86BranchRelaxation>,
+    pub(super) frame: Option<super::UnitSavedReturnAddressFrame>,
     pub(super) exit_contract: ValidatedWholeFunctionExitContract,
     pub(super) manifest: ValidatedFunctionRelativeOptimizationRealizationManifest,
     pub(super) custody: StagedSelectedLoweringFunctionRelativeRealizationCustodyReceipt,
@@ -224,6 +225,13 @@ impl StagedSelectedLoweringFunctionRelativeRealization {
     }
     pub fn layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
         final_layout(&self.baseline_layout, self.relaxation.as_ref())
+    }
+    pub const fn frame(&self) -> Option<&super::UnitSavedReturnAddressFrame> {
+        self.frame.as_ref()
+    }
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn frame_mut_for_test(&mut self) -> &mut Option<super::UnitSavedReturnAddressFrame> {
+        &mut self.frame
     }
     pub const fn exit_contract(&self) -> &ValidatedWholeFunctionExitContract {
         &self.exit_contract

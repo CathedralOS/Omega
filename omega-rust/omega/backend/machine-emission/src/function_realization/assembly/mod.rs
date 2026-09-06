@@ -30,6 +30,7 @@ pub(super) fn build_realization(
         StagedOptimizedSelectedFormEncoding,
         StagedOptimizedResolvedSelectedFormLayout,
         Option<StagedOptimizedX86BranchRelaxation>,
+        Option<super::UnitSavedReturnAddressFrame>,
         ValidatedWholeFunctionExitContract,
         ValidatedFunctionRelativeOptimizationRealizationManifest,
     ),
@@ -54,26 +55,41 @@ pub(super) fn build_realization(
         selections,
         budget,
     )?;
-    let exit_contract = stage_exit_contract(
-        selected,
-        machine,
-        physical,
-        &encoding,
-        &baseline_layout,
-        relaxation.as_ref(),
-    )?;
+    let frame = super::unit::frame::stage_unit_frame(allocation, machine)?;
+    let exit_contract = match frame.as_ref() {
+        Some(frame) => stage_whole_function_exit_contract_with_frame(
+            selected,
+            machine,
+            physical,
+            &encoding,
+            final_layout(&baseline_layout, relaxation.as_ref()),
+            frame.layout(),
+            frame.protocol(),
+        )
+        .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?,
+        None => stage_exit_contract(
+            selected,
+            machine,
+            physical,
+            &encoding,
+            &baseline_layout,
+            relaxation.as_ref(),
+        )?,
+    };
     let manifest = expected_manifest(
         allocation,
         machine,
         &encoding,
         &baseline_layout,
         relaxation.as_ref(),
+        frame.as_ref(),
         &exit_contract,
     )?;
     Ok((
         encoding,
         baseline_layout,
         relaxation,
+        frame,
         exit_contract,
         manifest,
     ))

@@ -1,4 +1,7 @@
-use machine_code::{MachineCodeFunction, MachineCodePlan, SemanticCodeSite};
+use machine_code::{
+    Aarch64ReturnLinkEvidence, MachineCodeFunction, MachineCodePlan, SemanticCodeSite,
+    StackAdjustmentPair, UnitStackEvidence,
+};
 use optimization_core::{
     FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
     FunctionRelativeOptimizationRealizationManifestIdentity, OptimizationSelectionIdentity,
@@ -115,7 +118,7 @@ pub(crate) fn validate_selected_lowering_publication_object(
 }
 
 fn validate_return_only_machine_plan(plan: &MachineCodePlan) -> Result<(), &'static str> {
-    let return_bytes = cohort_return_bytes(plan.target)?;
+    let shape = cohort_return_shape(plan.target)?;
     if plan.functions.is_empty() {
         return Err("selected-lowering publication requires at least one machine function");
     }
@@ -127,7 +130,7 @@ fn validate_return_only_machine_plan(plan: &MachineCodePlan) -> Result<(), &'sta
         }
         previous = Some(function.machine);
         entry_count += usize::from(function.machine == plan.entry);
-        validate_return_only_machine_function(function, return_bytes)?;
+        validate_return_only_machine_function(function, &shape)?;
     }
     if entry_count != 1 {
         return Err("selected-lowering machine plan does not contain exactly one entry");
@@ -137,7 +140,7 @@ fn validate_return_only_machine_plan(plan: &MachineCodePlan) -> Result<(), &'sta
 
 fn validate_return_only_machine_function(
     function: &MachineCodeFunction,
-    return_bytes: &[u8],
+    shape: &ReturnOnlyShape,
 ) -> Result<(), &'static str> {
     let [return_edge] = function.provenance.edges.as_slice() else {
         return Err("selected-lowering return-only function requires one Terminal return edge");
@@ -152,7 +155,7 @@ fn validate_return_only_machine_function(
         return Err("selected-lowering return-only function requires Unit cleanup custody");
     };
     if !function.provenance.operations.is_empty()
-        || function.bytes.as_slice() != return_bytes
+        || function.bytes.as_slice() != shape.bytes
         || function.fixed_integer_scalar_abi.is_some()
         || function.mixed_structural_scalar_abi.is_some()
         || function.structural_call_scalar_return.is_some()
@@ -160,9 +163,7 @@ fn validate_return_only_machine_function(
         || !function.x86_scalar_fma.is_empty()
         || !function.x86_scalar_fma_occurrences.is_empty()
         || function.x86_floating_control.is_some()
-        || stack.frame.is_some()
-        || stack.aarch64_return_link.is_some()
-        || stack.stack_alignment != 16
+        || stack != shape.stack
         || !function.unit_parameter_homes.is_empty()
         || !function.unit_parameters.is_empty()
         || function.scalar_stack.is_some()
@@ -208,7 +209,7 @@ fn validate_return_only_machine_function(
 fn validate_return_only_object(
     object: &image_emission::ObjectArtifact,
 ) -> Result<(), &'static str> {
-    let return_bytes = cohort_return_bytes(object.target())?;
+    let shape = cohort_return_shape(object.target())?;
     if object.functions().is_empty()
         || !object.private_functions().is_empty()
         || object.relocations().record_count() != 0
@@ -240,7 +241,7 @@ fn validate_return_only_object(
         expected_text_offset = expected_text_offset
             .checked_add(function.byte_count)
             .ok_or("selected-lowering object text size overflows")?;
-        validate_return_only_object_function(object, function, return_bytes)?;
+        validate_return_only_object_function(object, function, &shape)?;
     }
     if entry_count != 1 || expected_text_offset != object.text_bytes().len() {
         return Err(
@@ -253,7 +254,7 @@ fn validate_return_only_object(
 fn validate_return_only_object_function(
     object: &image_emission::ObjectArtifact,
     function: &image_emission::ObjectFunction,
-    return_bytes: &[u8],
+    shape: &ReturnOnlyShape,
 ) -> Result<(), &'static str> {
     let [return_edge] = function.provenance.edges.as_slice() else {
         return Err("selected-lowering object function requires one Terminal return edge");
@@ -273,7 +274,7 @@ fn validate_return_only_object_function(
         return Err("selected-lowering object function requires one edge attribution");
     };
     if !function.provenance.operations.is_empty()
-        || function.bytes(object) != return_bytes
+        || function.bytes(object) != shape.bytes
         || function.fixed_integer_scalar_abi.is_some()
         || function.mixed_structural_scalar_abi.is_some()
         || function.structural_call_scalar_return.is_some()
@@ -281,8 +282,8 @@ fn validate_return_only_object_function(
         || !function.x86_scalar_fma.is_empty()
         || !function.x86_scalar_fma_occurrences.is_empty()
         || function.x86_floating_control.is_some()
-        || stack.frame_bytes != 0
-        || stack.local_peak_bytes != 0
+        || stack.frame_bytes != shape.frame_bytes()
+        || stack.local_peak_bytes != shape.frame_bytes()
         || stack.stack_alignment != 16
         || function.scalar_stack.is_some()
         || !function.unit_call_stacks.is_empty()
@@ -324,20 +325,58 @@ fn validate_return_only_object_function(
     Ok(())
 }
 
-/// Exact return encoding the cohort admits for this target.
-///
-/// The cohort is one bare return instruction, so the architecture is fully
-/// described by the bytes it must contain. Returning them here keeps the
-/// admitted target set and the admitted text in one place.
-fn cohort_return_bytes(target: NativeTarget) -> Result<&'static [u8], &'static str> {
+/// Independent exact-byte and stack check for return-only publication. AArch64
+/// uses the same sixteen-byte saved-link frame as ordinary Unit emission;
+/// selected execution cannot change the calling convention to a bare return.
+struct ReturnOnlyShape {
+    bytes: &'static [u8],
+    stack: UnitStackEvidence,
+}
+
+impl ReturnOnlyShape {
+    fn frame_bytes(&self) -> u32 {
+        self.stack.frame.map_or(0, |frame| frame.byte_size)
+    }
+}
+
+fn cohort_return_shape(target: NativeTarget) -> Result<ReturnOnlyShape, &'static str> {
     if target.pointer_size != 8 || target.pointer_alignment != 8 {
         return Err(
             "selected-lowering return-only publication requires an eight-byte pointer target",
         );
     }
     Ok(match target.architecture {
-        Architecture::X86_64 => &[0xc3],
-        Architecture::Aarch64 => &[0xc0, 0x03, 0x5f, 0xd6],
+        Architecture::X86_64 => ReturnOnlyShape {
+            bytes: &[0xc3],
+            stack: UnitStackEvidence {
+                frame: None,
+                aarch64_return_link: None,
+                stack_alignment: 16,
+            },
+        },
+        Architecture::Aarch64 => ReturnOnlyShape {
+            // sub sp, sp, #16; str x30, [sp]; ldr x30, [sp];
+            // add sp, sp, #16; ret
+            bytes: &[
+                0xff, 0x43, 0x00, 0xd1, 0xfe, 0x03, 0x00, 0xf9, 0xfe, 0x03, 0x40, 0xf9, 0xff, 0x43,
+                0x00, 0x91, 0xc0, 0x03, 0x5f, 0xd6,
+            ],
+            stack: UnitStackEvidence {
+                frame: Some(StackAdjustmentPair {
+                    byte_size: 16,
+                    allocation_offset: 0,
+                    allocation_byte_count: 4,
+                    release_offset: 12,
+                    release_byte_count: 4,
+                }),
+                aarch64_return_link: Some(Aarch64ReturnLinkEvidence {
+                    frame_byte_offset: 0,
+                    store_offset: 4,
+                    load_offset: 8,
+                }),
+                stack_alignment: 16,
+            },
+        },
     })
 }
 
@@ -564,6 +603,53 @@ mod tests {
 
         assert_ne!(baseline.identity(), changed.identity());
         assert_eq!(baseline.machine_projection(), changed.machine_projection());
+    }
+
+    #[test]
+    fn aarch64_publication_requires_exact_saved_link_bytes_and_custody() {
+        let mut admitted = plan(1);
+        admitted.target = NativeTarget::linux_arm64();
+        let shape = cohort_return_shape(admitted.target).unwrap();
+        let function = &mut admitted.functions[0];
+        function.bytes = shape.bytes.to_vec();
+        function.unit_stack = Some(shape.stack);
+        function.unit_affine_cleanup.as_mut().unwrap().byte_count = shape.bytes.len();
+        function.semantic_code_attribution[0].byte_count = shape.bytes.len();
+        let binding = derive_selected_lowering_publication_binding(terminal(), input(&admitted, 3))
+            .expect("saved-link return publication");
+        let object = image_emission::build_object_artifact(&admitted).unwrap();
+        validate_selected_lowering_publication_object(&binding, &object).unwrap();
+
+        for corruption in 0..7 {
+            let mut changed = admitted.clone();
+            let function = &mut changed.functions[0];
+            let stack = function.unit_stack.as_mut().unwrap();
+            match corruption {
+                0 => stack.frame = None,
+                1 => stack.aarch64_return_link = None,
+                2 => stack.frame.as_mut().unwrap().byte_size = 32,
+                3 => stack.frame.as_mut().unwrap().release_offset = 8,
+                4 => {
+                    stack
+                        .aarch64_return_link
+                        .as_mut()
+                        .unwrap()
+                        .frame_byte_offset = 8
+                }
+                5 => function.bytes[4] ^= 1,
+                6 => function.bytes[12] ^= 1,
+                _ => unreachable!(),
+            }
+            assert!(
+                derive_selected_lowering_publication_binding(terminal(), input(&changed, 3))
+                    .is_err(),
+                "frame corruption {corruption} must reject before publication"
+            );
+            assert!(
+                image_emission::build_object_artifact(&changed).is_err(),
+                "object replay must independently reject frame corruption {corruption}"
+            );
+        }
     }
 
     #[test]

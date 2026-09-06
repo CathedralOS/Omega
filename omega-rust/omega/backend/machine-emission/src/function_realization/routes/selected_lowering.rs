@@ -14,7 +14,7 @@ pub fn stage_selected_lowering_function_relative_realization(
     let source = selected_lowering_source(&current)?;
     validate_optimized_post_allocation_machine_plan_custody(&current, &machine)
         .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
-    let (encoding, baseline_layout, relaxation, exit_contract, manifest) =
+    let (encoding, baseline_layout, relaxation, frame, exit_contract, manifest) =
         build_realization(&current, &machine)?;
     let custody = custody_receipt(source, &machine, &exit_contract, &manifest);
     Ok(StagedSelectedLoweringFunctionRelativeRealization {
@@ -23,6 +23,7 @@ pub fn stage_selected_lowering_function_relative_realization(
         encoding,
         baseline_layout,
         relaxation,
+        frame,
         exit_contract,
         manifest,
         custody,
@@ -48,11 +49,13 @@ pub fn validate_selected_lowering_function_relative_realization_custody(
     }
     validate_realization_artifacts(
         current.selected(),
+        &current,
         &staged.machine,
         current.register_environment().physical(),
         &staged.encoding,
         &staged.baseline_layout,
         staged.relaxation.as_ref(),
+        staged.frame.as_ref(),
         &staged.exit_contract,
         current.selections(),
     )?;
@@ -62,6 +65,7 @@ pub fn validate_selected_lowering_function_relative_realization_custody(
         &staged.encoding,
         &staged.baseline_layout,
         staged.relaxation.as_ref(),
+        staged.frame.as_ref(),
         &staged.exit_contract,
     )?;
     if replayed.record != staged.manifest.record {

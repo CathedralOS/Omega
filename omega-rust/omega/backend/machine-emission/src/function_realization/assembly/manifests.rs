@@ -196,11 +196,19 @@ pub(in crate::function_realization) fn expected_manifest(
     encoding: &StagedOptimizedSelectedFormEncoding,
     baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
     relaxation: Option<&StagedOptimizedX86BranchRelaxation>,
+    frame: Option<&super::super::UnitSavedReturnAddressFrame>,
     exit_contract: &ValidatedWholeFunctionExitContract,
 ) -> Result<
     ValidatedFunctionRelativeOptimizationRealizationManifest,
     FunctionRelativeOptimizationRealizationError,
 > {
+    let expected_frame = match frame {
+        Some(frame) => machine_code::WholeFunctionFrameDisposition::CanonicalFixedFrameV1 {
+            layout: frame.layout().receipt().identity(),
+            protocol: frame.protocol().receipt().identity(),
+        },
+        None => machine_code::WholeFunctionFrameDisposition::FramelessV1,
+    };
     let source = selected_lowering_source(allocation)?;
     let completion = source.source();
     let selections = allocation.selections();
@@ -214,7 +222,8 @@ pub(in crate::function_realization) fn expected_manifest(
         .for_phase(OptimizationExecutionPhase::PostAllocationMachine)
         .identity();
     let post = allocation.post_allocation_manifest().record();
-    if completion.selections() != selections.identity()
+    if exit_contract.contract().frame != expected_frame
+        || completion.selections() != selections.identity()
         || completion.selected_lowering_selections() != selected_lowering_selections
         || post.selected_lowering_completion != Some(completion.identity())
         || post.selected != completion.final_selected()
@@ -270,7 +279,13 @@ pub(in crate::function_realization) fn expected_manifest(
         layout_policy: baseline_layout.policy(),
         scope: FunctionRelativeOptimizationRealizationScope::FunctionRelativeFragmentsWithValidatedWholeFunctionExitV1,
         statistics,
-        frame: FunctionRelativeFrameDisposition::Unavailable,
+        frame: match frame {
+            Some(frame) => FunctionRelativeFrameDisposition::CanonicalFixedFrameV1 {
+                layout: frame.layout().receipt().identity(),
+                protocol: frame.protocol().receipt().identity(),
+            },
+            None => FunctionRelativeFrameDisposition::Unavailable,
+        },
         machine_emission: unavailable,
         section_placement: unavailable,
         symbols: unavailable,
