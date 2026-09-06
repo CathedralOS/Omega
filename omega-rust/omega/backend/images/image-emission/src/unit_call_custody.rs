@@ -6,6 +6,7 @@
 //! emits relocations or executable bytes.
 
 mod projected_copy;
+pub(crate) mod result_home;
 
 use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
 use machine_code::{
@@ -209,7 +210,9 @@ pub(super) fn structural_result_matches_return(
     result: &machine_code::InternalStructuralCallResult,
     returned: &StructuralReturnRecord,
 ) -> bool {
-    let common = result.operation_result.structural_type == returned.result.structural_type
+    let common = (result.result_home.is_none()
+        || result.function_result.place == returned.result.place)
+        && result.operation_result.structural_type == returned.result.structural_type
         && result.operation_result.multiplicity == returned.result.multiplicity
         && result.operation_result.qualifications == returned.result.qualifications
         && result.operation_result.projected_qualifications
@@ -712,7 +715,26 @@ pub(super) fn validate_internal_unit_call_custody(
         .iter()
         .filter_map(|transfer| usize::try_from(transfer.argument_index).ok())
         .collect::<std::collections::BTreeSet<_>>();
-    let projected_home = if projected_argument_indexes.is_empty() {
+    let projected_result = crate::affine_projected_calls::exact_projected_affine_result(
+        parameter_homes,
+        internal_unit_calls,
+        affine_cleanup,
+    );
+    if custody
+        .structural_result
+        .as_ref()
+        .is_some_and(|result| result.result_home.is_some())
+        && projected_result.is_none()
+    {
+        return Err(invalid());
+    }
+    let projected_home = if projected_argument_indexes.is_empty()
+        || projected_result.is_some_and(|result| {
+            custody
+                .arguments
+                .iter()
+                .all(|argument| argument.place == result.operation_result.place)
+        }) {
         None
     } else {
         let [home] = parameter_homes else {
@@ -815,6 +837,10 @@ pub(super) fn validate_internal_unit_call_custody(
                                         && projected.structural_type == home.structural_type
                                 }))
                     });
+                let result_source = projected_result.zip(affine_cleanup).is_some_and(|(result, cleanup)| {
+                    crate::affine_projected_calls::exact_owned_result_projection(
+                        argument, result, &cleanup.structural_types)
+                });
                 let local_source = affine_cleanup
                     .and_then(|cleanup| {
                         cleanup.locals.iter().find(|(_, place, structural_type)| {
@@ -907,7 +933,7 @@ pub(super) fn validate_internal_unit_call_custody(
                     && argument.destination.locations.is_empty();
                 argument.destination != *destination
                     || argument.call_stack_bytes != expected_call_stack_bytes
-                    || (!parameter_source && !local_source && !affine_scalar_record_source)
+                    || (!parameter_source && !result_source && !local_source && !affine_scalar_record_source)
                     || (argument.byte_count == 0 && !zero_byte_argument)
                     || argument.bytes.len() != argument.byte_count
                     || argument
@@ -940,6 +966,7 @@ pub(super) fn validate_internal_unit_call_custody(
                                 || argument.element_stride.is_some()
                         }
                         _ if exact_write_only_argument(argument_index, argument) => false,
+                        _ if result_source => false,
                         _ if argument.access == terminal_psi::StructuralAccess::Owned
                             && parameter_homes.iter().any(|home| {
                                 home.place == argument.place
@@ -1039,7 +1066,7 @@ pub(super) fn validate_internal_unit_call_custody(
                 return false;
             }
             argument.path.is_empty()
-                || (!fully_consumed_affine_parameter
+                || (!fully_consumed_affine_parameter && projected_result.is_none()
                     && affine_cleanup.is_none_or(|cleanup| {
                         !cleanup.actions.iter().any(|action| {
                             matches!(action,
@@ -1144,6 +1171,31 @@ fn validate_mixed_argument_bytes_and_order(
             .release_offset
             .checked_add(area.release_byte_count)
             .ok_or_else(invalid)?;
+    }
+    if let Some(home) = custody
+        .structural_result
+        .as_ref()
+        .and_then(|result| result.result_home.as_ref())
+    {
+        if home.code_offset != cursor
+            || !result_home::exact_storage(
+                target,
+                custody,
+                function_stack.frame_bytes,
+                &function.unit_parameter_homes,
+                &function.unit_scalar_homes,
+                function
+                    .unit_stack
+                    .and_then(|stack| stack.aarch64_return_link)
+                    .map(|link| link.frame_byte_offset),
+            )
+        {
+            return Err(invalid());
+        }
+        cursor = cursor.checked_add(home.byte_count).ok_or_else(invalid)?;
+        if function.bytes.get(home.code_offset..cursor) != Some(home.bytes.as_slice()) {
+            return Err(invalid());
+        }
     }
     if custody
         .code_offset

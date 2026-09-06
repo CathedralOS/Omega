@@ -9,11 +9,12 @@ use terminal_psi::{ClaimTransfer, CrashRouteBucket, StructuralFieldType, Structu
 #[allow(clippy::too_many_arguments)]
 pub(super) fn assign_result_call(
     machine: MachineId,
-    attachment: Option<StructuralTypeId>,
+    _attachment: Option<StructuralTypeId>,
     body: &TargetUnitBody,
     target: NativeTarget,
     psi_operation: OperationId,
     result: &terminal_psi::StructuralOperationResult,
+    result_home: Option<&target_operations::TargetStructuralHomeRequirement>,
     callee: MachineId,
     callee_result: &terminal_psi::StructuralResultDeclaration,
     call_plan: &calling_conventions::CallPlan,
@@ -25,6 +26,8 @@ pub(super) fn assign_result_call(
     crash_continuations: &[CrashRouteBucket],
     preceding_operations: &[TargetUnitOperation],
     assigned_scalar_homes: &BTreeMap<ValueId, AssignedUnitScalarHome>,
+    assigned_structural_homes: &mut BTreeMap<PlaceId, AssignedStructuralHome>,
+    next_home: &mut u32,
 ) -> Result<AssignedUnitOperation, AssignmentError> {
     let invalid = || AssignmentError::StructuralScalarCallCustodyMismatch {
         machine,
@@ -81,8 +84,7 @@ pub(super) fn assign_result_call(
         .iter()
         .find(|parameter| parameter.place == argument.place)
         .ok_or_else(invalid)?;
-    if attachment.is_some()
-        || !exact_carrier
+    if !exact_carrier
         || exact_shape != Some(argument.shape)
         || expected_plan != *call_plan
         || call_plan.parameters.len() != scalar_arguments.len() + 1
@@ -159,9 +161,33 @@ pub(super) fn assign_result_call(
             })
         })
         .collect::<Result<Vec<_>, AssignmentError>>()?;
+    let result_home = result_home
+        .map(|requirement| {
+            if requirement.result != *result
+                || requirement.layout
+                    != target_operations::TargetStructuralHomeLayout::Aggregate(argument.shape)
+                || !matches!(argument.shape.byte_size, 8 | 16)
+                || argument.shape.alignment != 8
+                || !scalar_arguments.is_empty()
+                || body
+                    .parameters
+                    .iter()
+                    .any(|parameter| parameter.place == result.place)
+            {
+                return Err(invalid());
+            }
+            super::structural_homes::assign(
+                psi_operation,
+                requirement,
+                assigned_structural_homes,
+                next_home,
+            )
+        })
+        .transpose()?;
     Ok(AssignedUnitOperation::StructuralResultCall {
         psi_operation,
         result: result.clone(),
+        result_home,
         callee,
         callee_result: callee_result.clone(),
         call_plan: call_plan.clone(),

@@ -46,7 +46,7 @@ fn width(remaining: u32) -> u16 {
 pub(super) fn x86(
     bytes: &mut Vec<u8>,
     copy: &AssignedAggregateCopy,
-    home: &X86UnitParameterHome,
+    home: &X86UnitStructuralHome,
     call_stack_bytes: u32,
 ) -> Result<(), EmissionError> {
     let (pointer, temporary) = destination(copy, call_stack_bytes)?;
@@ -109,7 +109,7 @@ pub(super) fn x86(
 pub(super) fn aarch64(
     instructions: &mut Vec<u32>,
     copy: &AssignedAggregateCopy,
-    home: &Aarch64UnitParameterHome,
+    home: &Aarch64UnitStructuralHome,
     call_stack_bytes: u32,
 ) -> Result<(), EmissionError> {
     let (pointer, temporary) = destination(copy, call_stack_bytes)?;

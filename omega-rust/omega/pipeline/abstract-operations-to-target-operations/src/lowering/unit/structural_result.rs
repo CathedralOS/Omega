@@ -141,7 +141,6 @@ pub(super) fn lower_structural_result_call(
     )?;
     if !supported_shape
         || (scalar.is_some() && aggregate_shape != ValueShape::integer(8, 8))
-        || function.attachment.is_some()
         || !function.published_service_ceiling.is_empty()
         || result.place == source_argument.place
         || callee_result.place == callee_structural.place
@@ -208,11 +207,38 @@ pub(super) fn lower_structural_result_call(
         .as_ref()
         .ok_or(LoweringError::UnsupportedStructuralReturn(function.machine))?;
     require_direct_structural_fragments(function.machine, result_placement)?;
+    let needs_home = function.operations.iter().any(|operation| {
+        matches!(operation, AbstractOperation::CallUnit { structural_arguments, .. }
+            if structural_arguments.iter().any(|argument| argument.place == result.place
+                && !argument.path.is_empty()))
+    });
+    if needs_home
+        && (scalar.is_some()
+            || !matches!(
+                aggregate_shape,
+                ValueShape {
+                    byte_size: 8 | 16,
+                    alignment: 8,
+                    class: ValueClass::Integer
+                }
+            )
+            || !operations.is_empty())
+    {
+        return Err(LoweringError::UnsupportedOperationInUnitFunction(
+            function.machine,
+        ));
+    }
+    let result_home = needs_home.then(|| target_operations::TargetStructuralHomeRequirement {
+        defining_operation: *psi_operation,
+        result: result.clone(),
+        layout: target_operations::TargetStructuralHomeLayout::Aggregate(aggregate_shape),
+    });
     operations.push(TargetUnitOperation::StructuralResultCall {
         psi_operation: *psi_operation,
         result: result.clone(),
         callee: *callee,
         callee_result: callee_result.clone(),
+        result_home,
         call_plan: call_plan.clone(),
         scalar_arguments: scalar
             .into_iter()

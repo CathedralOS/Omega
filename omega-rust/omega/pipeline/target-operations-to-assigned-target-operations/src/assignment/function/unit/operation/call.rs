@@ -67,6 +67,7 @@ pub(super) fn assign(
     operation: &TargetUnitOperation,
     preceding_operations: &[TargetUnitOperation],
     assigned_scalar_homes: &mut BTreeMap<ValueId, AssignedUnitScalarHome>,
+    assigned_structural_homes: &BTreeMap<PlaceId, AssignedStructuralHome>,
     target: NativeTarget,
 ) -> Result<AssignedUnitOperation, AssignmentError> {
     let TargetUnitOperation::Call {
@@ -311,7 +312,10 @@ pub(super) fn assign(
                             })
                             && *establishment != *psi_operation
                 );
-                !parameter_source && !exact_trivial_local && !exact_affine_scalar_record
+                let exact_result_source = exact_structural_result_source(
+                    body, preceding_operations, assigned_structural_homes, argument,
+                );
+                !parameter_source && !exact_trivial_local && !exact_affine_scalar_record && !exact_result_source
             }) {
                 return Err(invalid());
             }
@@ -352,4 +356,48 @@ pub(super) fn assign(
             crash_continuations: crash_continuations.clone(),
         }
     })
+}
+
+fn exact_structural_result_source(
+    body: &target_operations::TargetUnitBody,
+    preceding: &[TargetUnitOperation],
+    homes: &BTreeMap<PlaceId, AssignedStructuralHome>,
+    argument: &target_operations::TargetStructuralArgument,
+) -> bool {
+    let Some(home) = homes.get(&argument.place) else {
+        return false;
+    };
+    let requirement = &home.requirement;
+    let target_operations::TargetStructuralHomeLayout::Aggregate(shape) = requirement.layout else {
+        return false;
+    };
+    let result = &requirement.result;
+    result.place == argument.place
+        && result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+        && result.qualifications.is_empty()
+        && result.projected_qualifications.is_empty()
+        && result.claims.is_empty()
+        && affine_projection::exact_owned_path(body, result.structural_type, shape, argument)
+        && preceding
+            .iter()
+            .filter(|operation| {
+                matches!(operation,
+                    TargetUnitOperation::StructuralResultCall {
+                        psi_operation, result: produced, result_home: Some(required), call_plan, ..
+                    } if *psi_operation == requirement.defining_operation
+                        && produced == result && required == requirement
+                        && call_plan.result.as_ref() == Some(&argument.source)
+                )
+            })
+            .count()
+            == 1
+        && !preceding.iter().any(|operation| match operation {
+            TargetUnitOperation::Call { arguments, .. } => arguments.iter().any(|prior| {
+                prior.place == argument.place
+                    && prior.access == terminal_psi::StructuralAccess::Owned
+                    && (prior.path.starts_with(&argument.path)
+                        || argument.path.starts_with(&prior.path))
+            }),
+            _ => false,
+        })
 }

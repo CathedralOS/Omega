@@ -75,11 +75,22 @@ pub struct InternalUnitCallRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InternalStructuralCallResult {
     pub operation_result: terminal_psi::StructuralOperationResult,
+    pub result_home: Option<InternalStructuralResultHomeRecord>,
     pub function_result: StructuralResultDeclaration,
     pub returned_claim_transfers: Vec<terminal_psi::StructuralResultClaimTransfer>,
     pub returned_claims: Vec<ClaimId>,
     pub caller_result_placement: ValuePlacement,
     pub callee_result_placement: ValuePlacement,
+}
+
+/// Exact stores preserving a structural call result in its durable caller home.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InternalStructuralResultHomeRecord {
+    pub requirement: target_operations::TargetStructuralHomeRequirement,
+    pub home_byte_offset: u32,
+    pub code_offset: usize,
+    pub byte_count: usize,
+    pub bytes: Vec<u8>,
 }
 
 /// Real emitted fixed-width integer call in an attached Unit body.

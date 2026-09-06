@@ -27,6 +27,34 @@ pub(super) fn lower_unit_return(
             if nonreturning_boundary && !cleanup_actions.is_empty() {
                 return Err(LoweringError::InvalidLinuxExitGroupShape(function.machine));
             }
+            if operations.iter().any(|operation| {
+                matches!(
+                    operation,
+                    TargetUnitOperation::StructuralResultCall {
+                        result_home: Some(_),
+                        ..
+                    }
+                )
+            }) {
+                super::projected_result::validate_cleanup(
+                    function,
+                    parameters,
+                    operations,
+                    structural_types,
+                    functions,
+                    cleanup_actions,
+                )
+                .ok_or(LoweringError::UnsupportedOperationInUnitFunction(
+                    function.machine,
+                ))?;
+                operations.push(TargetUnitOperation::Return {
+                    psi_edge: *psi_edge,
+                    cleanup_actions: cleanup_actions.clone(),
+                });
+                provenance.edges.push(*psi_edge);
+                *returned = true;
+                return Ok(());
+            }
             let local_places = operations
                 .iter()
                 .filter_map(|operation| match operation {

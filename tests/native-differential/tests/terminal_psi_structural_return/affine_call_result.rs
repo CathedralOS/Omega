@@ -5,8 +5,7 @@ use assigned_target_operations::AssignedUnitOperation;
 use target_operations::TargetUnitOperation;
 
 #[cfg(unix)]
-#[path = "affine_call_result/host.rs"]
-mod host;
+use super::affine_call_result_host as host;
 
 #[test]
 fn affine_call_result_without_scalar_arguments_reaches_native_cleanup() {

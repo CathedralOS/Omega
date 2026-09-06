@@ -62,7 +62,8 @@ pub(super) fn assign(
     else {
         return Err(invalid());
     };
-    if declared_cases.len() != cases.len() || source.layout.cases.len() != cases.len() {
+    let layout = source.layout.sum().ok_or_else(invalid)?;
+    if declared_cases.len() != cases.len() || layout.cases.len() != cases.len() {
         return Err(invalid());
     }
 
@@ -76,7 +77,7 @@ pub(super) fn assign(
             .iter()
             .filter(|field| !field.relevance.is_erased())
             .collect::<Vec<_>>();
-        let layout_fields = &source.layout.cases[case_index].fields;
+        let layout_fields = &layout.cases[case_index].fields;
         let mut payloads = Vec::with_capacity(case.payloads.len());
         for payload in &case.payloads {
             let field_index = relevant_fields

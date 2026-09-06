@@ -176,11 +176,14 @@ pub(super) fn lower_structural_unit_call(
         .zip(callee_shapes)
         .zip(callee_plan.parameters.iter().skip(scalar_arguments.len()))
         .map(|(((argument, callee_parameter), shape), destination)| {
+            let result_source = super::projected_result::source(operations, argument.place);
             let (source_structural_type, source_shape, source_placement) =
                 if let Some(source) = parameters_by_place.get(&argument.place).copied() {
                     (source.structural_type, source.shape, &source.placement)
                 } else if let Some(source) = local_sources_by_place.get(&argument.place) {
                     (source.structural_type, source.shape, &source.placement)
+                } else if let Some((home, placement)) = result_source {
+                    (home.result.structural_type, home.layout.shape(), placement)
                 } else {
                     return Err(LoweringError::UnknownStructuralArgumentPlace {
                         machine: function.machine,
@@ -216,12 +219,13 @@ pub(super) fn lower_structural_unit_call(
                     [] => (source_structural_type, source_shape, 0, None, None),
                     path if argument.access == StructuralAccess::Owned
                         && callee_parameter.multiplicity == StructuralMultiplicity::Affine
-                        && parameters_by_place
-                            .get(&argument.place)
-                            .is_some_and(|source| {
-                                source.access == StructuralAccess::Owned
-                                    && source.multiplicity == StructuralMultiplicity::Affine
-                            }) =>
+                        && (result_source.is_some()
+                            || parameters_by_place.get(&argument.place).is_some_and(
+                                |source| {
+                                    source.access == StructuralAccess::Owned
+                                        && source.multiplicity == StructuralMultiplicity::Affine
+                                },
+                            )) =>
                     {
                         let (selected_type, selected_shape, offset) =
                             resolve_structural_projection_path(

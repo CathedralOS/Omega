@@ -10,6 +10,7 @@ mod dynamic_parameter;
 mod forwarded_dynamic_parameter;
 mod preflight;
 mod projected_argument;
+mod projected_result;
 mod return_unit;
 mod scalar_call;
 mod scalar_definitions;

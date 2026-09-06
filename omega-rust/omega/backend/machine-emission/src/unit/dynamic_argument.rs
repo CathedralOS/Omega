@@ -18,7 +18,7 @@ use target_operations::{CallSiteOwner, TargetDynamicDescriptorInstanceArgument};
 
 use super::scalar_call::emit_unit_scalar_result;
 use super::{
-    Aarch64UnitParameterHome, X86UnitParameterHome, emit_aarch64_unit_call, emit_x86_64_unit_call,
+    Aarch64UnitStructuralHome, X86UnitStructuralHome, emit_aarch64_unit_call, emit_x86_64_unit_call,
 };
 use crate::{
     EmissionError, aarch64_load_base, aarch64_store_base, aarch64_unit_memory_access,
@@ -33,8 +33,8 @@ pub(super) fn emit_forwarded_dynamic_descriptor_call(
     owner: semantic_vocabulary::MachineId,
     target: NativeTarget,
     functions: &[AssignedFunction],
-    x86_homes: &[X86UnitParameterHome],
-    aarch64_homes: &[Aarch64UnitParameterHome],
+    x86_homes: &[X86UnitStructuralHome],
+    aarch64_homes: &[Aarch64UnitStructuralHome],
     bytes: &mut Vec<u8>,
     internal_calls: &mut Vec<InternalCallRelocation>,
     operation_ordinal: usize,
@@ -729,7 +729,7 @@ fn target_instance(
 fn emit_x86_instance(
     bytes: &mut Vec<u8>,
     argument: &AssignedDynamicDescriptorArgument,
-    homes: &[X86UnitParameterHome],
+    homes: &[X86UnitStructuralHome],
     operation: semantic_vocabulary::OperationId,
 ) -> Result<(u32, bool, usize, usize), EmissionError> {
     let home = homes
@@ -798,7 +798,7 @@ fn emit_x86_table_address(
 fn emit_aarch64_instance(
     bytes: &mut Vec<u8>,
     argument: &AssignedDynamicDescriptorArgument,
-    homes: &[Aarch64UnitParameterHome],
+    homes: &[Aarch64UnitStructuralHome],
     operation: semantic_vocabulary::OperationId,
 ) -> Result<(u32, bool, usize, usize), EmissionError> {
     let home = homes

@@ -30,10 +30,13 @@ pub(super) fn validate_projected_cleanup(
         AssignedUnitOperation::Call { copies, .. } => copies.iter().any(|copy| {
             copy.access == StructuralAccess::Owned
                 && !copy.path.is_empty()
-                && body.parameters.iter().any(|parameter| {
+                && (body.parameters.iter().any(|parameter| {
                     parameter.place == copy.place
                         && parameter.multiplicity == StructuralMultiplicity::Affine
-                })
+                }) || body.operations.iter().any(|producer| matches!(producer,
+                    AssignedUnitOperation::StructuralResultCall { result, result_home: Some(_), .. }
+                        if result.place == copy.place && result.multiplicity == StructuralMultiplicity::Affine
+                )))
         }),
         AssignedUnitOperation::Return {
             cleanup_actions, ..
@@ -60,8 +63,7 @@ fn exact_projected_cleanup(
     let [parameter] = body.parameters.as_slice() else {
         return None;
     };
-    if !empty_attachment(attachment, &body.structural_types)
-        || !body.scalar_parameters.is_empty()
+    if !body.scalar_parameters.is_empty()
         || parameter.multiplicity != StructuralMultiplicity::Affine
         || parameter.access != StructuralAccess::Owned
         || !parameter.projected_qualifications.is_empty()
@@ -77,11 +79,67 @@ fn exact_projected_cleanup(
     else {
         return None;
     };
+    let mut operations = BTreeSet::new();
+    let (root_place, root_type, source_placement, calls, result_root) = match calls.split_first() {
+        Some((
+            producer @ AssignedUnitOperation::StructuralResultCall {
+                psi_operation,
+                result,
+                copies,
+                claim_transfers,
+                returned_claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+                ..
+            },
+            remaining,
+        )) => {
+            let (home, placement) = super::structural_homes::call_home(producer).ok()??;
+            let [copy] = copies.as_slice() else {
+                return None;
+            };
+            if copy.place != parameter.place
+                || copy.root_structural_type != parameter.structural_type
+                || copy.structural_type != parameter.structural_type
+                || copy.source != parameter.placement
+                || copy.access != StructuralAccess::Owned
+                || !copy.path.is_empty()
+                || result.place == parameter.place
+                || result.structural_type != parameter.structural_type
+                || home.requirement.result != *result
+                || !claim_transfers.is_empty()
+                || !returned_claim_transfers.is_empty()
+                || !requirement_obligations.is_empty()
+                || !crash_continuations.is_empty()
+                || remaining.is_empty()
+            {
+                return None;
+            }
+            operations.insert(*psi_operation);
+            (
+                result.place,
+                result.structural_type,
+                placement,
+                remaining,
+                true,
+            )
+        }
+        _ => (
+            parameter.place,
+            parameter.structural_type,
+            &parameter.placement,
+            calls,
+            false,
+        ),
+    };
+    if !result_root && !empty_attachment(attachment, &body.structural_types) {
+        return None;
+    }
     let residuals = cleanup_actions
         .iter()
         .map(|action| match action {
             TerminalAffineCleanupAction::DiscardResidual(residual)
-                if residual.place == parameter.place =>
+                if residual.place == root_place =>
             {
                 Some(residual)
             }
@@ -89,7 +147,6 @@ fn exact_projected_cleanup(
         })
         .collect::<Option<Vec<_>>>()?;
     let mut moved = Vec::new();
-    let mut operations = BTreeSet::new();
     for operation in calls {
         let AssignedUnitOperation::Call {
             psi_operation,
@@ -108,9 +165,9 @@ fn exact_projected_cleanup(
         if !operations.insert(*psi_operation)
             || !scalar_arguments.is_empty()
             || !claim_transfers.is_empty()
-            || copy.place != parameter.place
+            || copy.place != root_place
             || copy.access != StructuralAccess::Owned
-            || copy.root_structural_type != parameter.structural_type
+            || copy.root_structural_type != root_type
             || copy.path.is_empty()
         {
             return None;
@@ -118,17 +175,12 @@ fn exact_projected_cleanup(
         moved.push((copy.path.as_slice(), copy.structural_type));
     }
     // Validate the evidence-sized complement before layout work or array walks.
-    if !exact_partial_cleanup_partition(
-        &body.structural_types,
-        parameter.structural_type,
-        &moved,
-        &residuals,
-    ) {
+    if !exact_partial_cleanup_partition(&body.structural_types, root_type, &moved, &residuals) {
         return None;
     }
-    let mut layouts = Layouts::new(&body.structural_types, parameter.structural_type)?;
-    let root_shape = layouts.shape(parameter.structural_type)?;
-    let metadata = layouts.root_array_metadata(parameter.structural_type)?;
+    let mut layouts = Layouts::new(&body.structural_types, root_type)?;
+    let root_shape = layouts.shape(root_type)?;
+    let metadata = layouts.root_array_metadata(root_type)?;
     let incoming = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
@@ -160,8 +212,7 @@ fn exact_projected_cleanup(
             return None;
         };
         let copy = &copies[0];
-        let (leaf_type, leaf_shape, offset) =
-            layouts.project(parameter.structural_type, &copy.path)?;
+        let (leaf_type, leaf_shape, offset) = layouts.project(root_type, &copy.path)?;
         let outgoing = evaluate_call_plan(
             CallingPolicy::native_for_target(target),
             &CallSignature {
@@ -173,7 +224,7 @@ fn exact_projected_cleanup(
         if copy.structural_type != leaf_type
             || copy.shape != leaf_shape
             || copy.source_byte_offset != offset
-            || copy.source != parameter.placement
+            || copy.source != *source_placement
             || (copy.fixed_array_length, copy.element_stride) != metadata
             || copy.destination != outgoing.parameters[0]
             || *call_plan != outgoing
@@ -194,7 +245,7 @@ fn exact_projected_cleanup(
         let [callee_parameter] = callee_body.parameters.as_slice() else {
             return None;
         };
-        if !empty_attachment(function.attachment, &callee_body.structural_types)
+        if (!result_root && !empty_attachment(function.attachment, &callee_body.structural_types))
             || !callee_body.scalar_parameters.is_empty()
             || callee_body.call_plan != outgoing
             || callee_parameter.structural_type != leaf_type
@@ -219,7 +270,7 @@ fn exact_projected_cleanup(
         }) {
             return None;
         }
-        if indexed
+        if (indexed || result_root)
             && !matches!(callee_body.operations.as_slice(),
             [AssignedUnitOperation::Return { cleanup_actions, .. }]
                 if cleanup_actions.as_slice() == [TerminalAffineCleanupAction::DiscardRoot(callee_parameter.place)])
@@ -227,7 +278,7 @@ fn exact_projected_cleanup(
             return None;
         }
     }
-    Some(parameter.place)
+    Some(root_place)
 }
 
 fn empty_attachment(

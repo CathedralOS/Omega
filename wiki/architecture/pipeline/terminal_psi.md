@@ -1672,9 +1672,22 @@ at Unit return. Structural boundary results use the same producer, type,
 availability, and ownership reconstruction while retaining their boundary
 signature and declared service reach. Result custody is installed only after
 the call's input transfers and completion receipts; it grants no input claim
-completion. Native projected cleanup remains parameter-rooted. This does not
-admit result-root residual cleanup in native production, anonymous projected
-helper-result operands, claims, nominal destruction, or partial construction.
+completion. Native production also admits one leading ordinary identity result
+followed by projected Unit disposers, with no other live roots. Its claim-free,
+unqualified record or fixed-array result occupies exactly eight or sixteen bytes,
+aligned to eight, with complete eight-byte direct-register fragments. The call
+stores those fragments into a distinct result home before later projected copies;
+the result is not relabeled as an input parameter or a tagged sum. Assignment,
+object validation, and installation replay retain the real producer/result,
+independently reconstruct the store bytes and intervals, reject overlapping
+homes, and reconstruct the residual or empty complement. Boundary-result native
+projection, partial-width fragment stores, anonymous projected helper-result
+operands, claims, nominal destruction, and partial construction remain outside
+this native slice.
+
+The checked-source native result-root entrance currently uses static attached
+Unit machines; free Unit callers still need the corresponding checked control
+plan production. A static attachment supplies no implicit receiver argument.
 
 The straight-line Unit return slice carries explicit no-code cleanup for owned
 affine structural parameters that have no claim rows. The checked plan derives
@@ -4001,16 +4014,18 @@ source and result placements. Indirect Microsoft x64 aggregate returns remain
 unsupported. The one-scalar-side-argument form retains its single-u64-field
 record restriction. Assignment, object validation, and installation replay
 retain distinct source/result identities and reject invented claims or cleanup.
-This producer support does not provide native projected call-result cleanup;
-that still needs result homes, projected copies, and residual-custody replay.
+Projected call-result cleanup has the narrower stored-result width contract
+described above; whole-value return support does not imply arbitrary result-home
+or projection support.
 
 A free Unit caller can invoke this identity producer without scalar arguments
 and discard the whole returned affine owner at its return edge. The call
 transfers the input; cleanup names the distinct operation-result place, never
 the transferred input. Native assignment and publication retain the exact
 callee result, direct ABI fragments, call occurrence, and cleanup edge.
-Immediate no-code disposal requires no saved result slot. This does not make
-the returned registers available as storage for subsequent projected consumers.
+Immediate no-code disposal requires no saved result slot. A subsequent projected
+consumer instead requires explicit result stores under the bounded result-root
+schedule above; returned registers alone are not persistent storage.
 
 An ordinary call to that producer can initialize an immutable structural local
 in a free or attached Unit body. The checked `StructuralCall` retains its

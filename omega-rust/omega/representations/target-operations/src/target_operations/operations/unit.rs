@@ -154,15 +154,14 @@ pub enum TargetUnitOperation {
         requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
-    /// One bounded mixed-input call whose whole affine structural result is
-    /// retained only until the immediately following Unit return discards it.
-    /// The result has no invented scalar home: its ABI placement and semantic
-    /// custody remain explicit until physical replay.
+    /// One whole-input affine call. A later projected consumer requires real
+    /// structural storage; immediate whole-result disposal requires no home.
     StructuralResultCall {
         psi_operation: OperationId,
         result: StructuralOperationResult,
         callee: MachineId,
         callee_result: StructuralResultDeclaration,
+        result_home: Option<TargetStructuralHomeRequirement>,
         call_plan: CallPlan,
         scalar_arguments: Vec<TargetUnitScalarCallArgument>,
         arguments: Vec<TargetStructuralArgument>,

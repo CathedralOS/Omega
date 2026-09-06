@@ -136,6 +136,7 @@ pub(super) fn assign(
             operation,
             preceding_operations,
             assigned_scalar_homes,
+            assigned_structural_homes,
             target,
         )?,
         TargetUnitOperation::ScalarCall {
@@ -190,6 +191,7 @@ pub(super) fn assign(
         TargetUnitOperation::StructuralResultCall {
             psi_operation,
             result,
+            result_home,
             callee,
             callee_result,
             call_plan,
@@ -206,6 +208,7 @@ pub(super) fn assign(
             target,
             *psi_operation,
             result,
+            result_home.as_ref(),
             *callee,
             callee_result,
             call_plan,
@@ -217,6 +220,8 @@ pub(super) fn assign(
             crash_continuations,
             preceding_operations,
             assigned_scalar_homes,
+            assigned_structural_homes,
+            next_frame_home,
         )?,
         TargetUnitOperation::StructuralScalarCallWithDynamicArguments {
             psi_operation,

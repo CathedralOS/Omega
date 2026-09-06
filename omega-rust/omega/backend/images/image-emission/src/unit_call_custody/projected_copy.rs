@@ -258,7 +258,12 @@ fn x86_pointer_load(bytes: &mut Vec<u8>, register: u8, offset: u32, width: u16) 
     Some(())
 }
 
-fn x86_stack_store(bytes: &mut Vec<u8>, register: u8, offset: u32, width: u16) -> Option<()> {
+pub(super) fn x86_stack_store(
+    bytes: &mut Vec<u8>,
+    register: u8,
+    offset: u32,
+    width: u16,
+) -> Option<()> {
     let prefix = 0x40 | (((register >> 3) & 1) << 2);
     match width {
         1 | 4 => bytes.push(prefix),
@@ -276,7 +281,7 @@ fn x86_stack_store(bytes: &mut Vec<u8>, register: u8, offset: u32, width: u16) -
     Some(())
 }
 
-fn aarch64_stack_store(register: u8, offset: u32, width: u16) -> Option<u32> {
+pub(super) fn aarch64_stack_store(register: u8, offset: u32, width: u16) -> Option<u32> {
     // The scaled load and store encodings differ only in the load bit.
     expected_aarch64_stack_load(register, offset, width).map(|load| load & !0x0040_0000)
 }

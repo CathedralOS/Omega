@@ -118,7 +118,14 @@ pub(super) fn lower(
     else {
         return Err(LoweringError::UnsupportedStructuralSum(declaration.id));
     };
-    if declared_cases.len() != cases.len() || source_home.layout.cases.len() != cases.len() {
+    let source_layout =
+        source_home
+            .layout
+            .sum()
+            .ok_or(LoweringError::UnsupportedOperationInUnitFunction(
+                function.machine,
+            ))?;
+    if declared_cases.len() != cases.len() || source_layout.cases.len() != cases.len() {
         return Err(LoweringError::UnsupportedOperationInUnitFunction(
             function.machine,
         ));
@@ -150,7 +157,7 @@ pub(super) fn lower(
             .iter()
             .filter(|field| !field.relevance.is_erased())
             .collect::<Vec<_>>();
-        if relevant_fields.len() != source_home.layout.cases[case_tag].fields.len() {
+        if relevant_fields.len() != source_layout.cases[case_tag].fields.len() {
             return Err(LoweringError::UnsupportedOperationInUnitFunction(
                 function.machine,
             ));
@@ -177,7 +184,7 @@ pub(super) fn lower(
             let shape = fixed_native_integer_shape(integer_type).ok_or(
                 LoweringError::UnsupportedOperationInUnitFunction(function.machine),
             )?;
-            let layout = source_home.layout.cases[case_tag].fields[field_ordinal];
+            let layout = source_layout.cases[case_tag].fields[field_ordinal];
             if layout.shape != shape {
                 return Err(LoweringError::UnsupportedOperationInUnitFunction(
                     function.machine,
