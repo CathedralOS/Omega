@@ -4,7 +4,7 @@ use super::*;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 
-pub(super) fn validate(
+pub(crate) fn validate(
     checked: &CheckedTrees,
     caller_machine: symbols::SymbolHandle,
     caller_state: symbols::SymbolHandle,
@@ -19,7 +19,7 @@ pub(super) fn validate(
         return unsupported("computed result operands have no authored initializer");
     };
     if machine.symbol != caller_machine
-        || !validation::unit_result_initializer_call_is_supported(
+        || !validation::result_initializer_call_is_supported(
             &checked.typed,
             machine,
             local.initial_value,

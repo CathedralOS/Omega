@@ -7,7 +7,7 @@ pub(super) fn emit_composed_unit_control(
     plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
     admitted: admission::AdmittedComposedUnit<'_>,
     mut catalogs: catalogs::ComposedCatalogs,
-) -> Result<ComposedLowered, LoweringError> {
+) -> Result<SourceMappedLowered, LoweringError> {
     let entry = admitted.entry;
     let mut next_value = catalogs.next_value;
     let entry_parameters = entry
@@ -440,7 +440,7 @@ pub(super) fn finish_module(
     mut machines: Vec<TerminalMachine>,
     mut catalogs: catalogs::ComposedCatalogs,
     mut source_call_occurrences: Vec<LoweredSourceCallOccurrence>,
-) -> Result<ComposedLowered, LoweringError> {
+) -> Result<SourceMappedLowered, LoweringError> {
     let mut source_machine_ids = catalogs.scalar_calls.machine_ids.clone();
     if !source_machine_ids
         .iter()
@@ -515,7 +515,7 @@ pub(super) fn finish_module(
 fn retain_source_owners(
     terminal: LoweredPsi,
     source_machine_ids: Vec<(symbols::SymbolHandle, MachineId)>,
-) -> Result<ComposedLowered, LoweringError> {
+) -> Result<SourceMappedLowered, LoweringError> {
     if source_machine_ids.len() != terminal.semantic_module.machines.len()
         || source_machine_ids
             .iter()
@@ -542,7 +542,7 @@ fn retain_source_owners(
                 ))
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    Ok(ComposedLowered {
+    Ok(SourceMappedLowered {
         terminal,
         source_machine_ids,
     })

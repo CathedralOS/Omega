@@ -70,7 +70,7 @@ pub(crate) fn build_checked_scalar_computation_plans(
                 };
                 if let StatementNode::LocalData(local) = statement {
                     let argument_roots = !local.is_mutable
-                        && validation::unit_result_initializer_call_is_supported(
+                        && validation::result_initializer_call_is_supported(
                             program,
                             machine,
                             local.initial_value,

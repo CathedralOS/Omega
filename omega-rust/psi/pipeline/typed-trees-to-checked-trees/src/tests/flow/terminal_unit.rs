@@ -3,6 +3,7 @@ use checked_trees::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole,
 };
 
+mod boundary_result_operands;
 mod calls;
 mod cleanup;
 mod composed_call_arguments;

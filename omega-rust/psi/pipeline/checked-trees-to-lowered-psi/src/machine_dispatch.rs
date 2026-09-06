@@ -70,6 +70,12 @@ pub(super) struct LoweredSelectedMachine {
     pub(super) exact_sources: Option<Vec<(symbols::SymbolHandle, semantic_vocabulary::MachineId)>>,
 }
 
+pub(crate) struct SourceMappedLowered {
+    pub(crate) terminal: LoweredPsi,
+    /// Exact catalog owners, ordered by the emitted machine table.
+    pub(crate) source_machine_ids: Vec<(symbols::SymbolHandle, semantic_vocabulary::MachineId)>,
+}
+
 pub fn select_terminal_machine<'checked>(
     checked: &'checked CheckedTrees,
     machine_name: &str,
@@ -384,10 +390,12 @@ pub(super) fn lower_selected_machine(
         if selection.signature != CheckedTerminalSignatureEligibility::Attached {
             return unsupported("result-bearing boundary custody requires an attached signature");
         }
-        return routed_machine(
-            lower_boundary_scalar_return_machine(checked, plan),
-            SelectedMachineRoute::BoundaryScalarReturn,
-        );
+        let lowered = lower_boundary_scalar_return_machine(checked, plan)?;
+        return Ok(LoweredSelectedMachine {
+            terminal: lowered.terminal,
+            route: SelectedMachineRoute::BoundaryScalarReturn,
+            exact_sources: Some(lowered.source_machine_ids),
+        });
     }
     if let Some(plan) = checked
         .facts

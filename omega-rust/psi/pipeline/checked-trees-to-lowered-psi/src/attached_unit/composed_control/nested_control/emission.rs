@@ -7,7 +7,7 @@ pub(super) fn emit(
     plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
     admitted: super::admission::AdmittedNested<'_>,
     mut catalogs: super::super::catalogs::ComposedCatalogs,
-) -> Result<ComposedLowered, LoweringError> {
+) -> Result<SourceMappedLowered, LoweringError> {
     let control_count = admitted.controls.len();
     let mut next_block = catalogs.next_block;
     let state_ids = (0..plan.states.len())

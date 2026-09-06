@@ -5,7 +5,7 @@ use super::*;
 pub(super) fn lower(
     checked: &CheckedTrees,
     plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
-) -> Result<ComposedLowered, LoweringError> {
+) -> Result<SourceMappedLowered, LoweringError> {
     let admitted = admit(checked, plan)?;
     let catalogs = catalogs::lower_composed_catalogs(checked, plan, &admitted)?;
     emit(checked, plan, admitted, catalogs)
@@ -171,7 +171,7 @@ fn emit(
     plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
     admitted: admission::AdmittedComposedUnit<'_>,
     mut catalogs: catalogs::ComposedCatalogs,
-) -> Result<ComposedLowered, LoweringError> {
+) -> Result<SourceMappedLowered, LoweringError> {
     let entry = admitted.entry;
     let CheckedComposedUnitControlTerminatorPlan::ClosedSum { result, cases } = &entry.terminator
     else {

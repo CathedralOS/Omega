@@ -1,11 +1,17 @@
 //! Result-bearing boundary custody lowering.
 
 use super::*;
+use crate::attached_unit::argument_evaluation;
+use crate::machine_dispatch::SourceMappedLowered;
+use crate::scalar_call_closure::embedded::EmbeddedScalarCalls;
+
+mod source_custody;
 
 pub(super) fn lower_boundary_scalar_return_machine(
     checked: &CheckedTrees,
     plan: &CheckedBoundaryScalarReturnMachinePlan,
-) -> Result<LoweredPsi, LoweringError> {
+) -> Result<SourceMappedLowered, LoweringError> {
+    source_custody::validate(checked, plan)?;
     crate::call_source_custody::validate_operation(
         checked,
         plan.machine,
@@ -209,28 +215,37 @@ pub(super) fn lower_boundary_scalar_return_machine(
     }
     let mut operations = OperationBuffer::new(0);
     let mut next_value_identity = 1_u64;
-    let arguments = scalar_arguments
+    let mut next_block = 1_u64;
+    let mut next_edge = 1_u64;
+    let roots = scalar_arguments
         .iter()
-        .zip(&boundary_scalar_parameters)
-        .map(|(argument, target_type)| {
-            let argument = lower_checked_scalar_expression(argument.as_pure().ok_or(
-                LoweringError::Unsupported(
-                    "boundary return operands require a connected computation fragment",
-                ),
-            )?)?;
-            if argument.scalar_type() != *target_type {
-                return unsupported(
-                    "result-bearing boundary scalar argument type disagrees with its declaration",
-                );
-            }
-            Ok(emit_direct_expression(
-                &argument,
-                &[],
-                &mut next_value_identity,
-                &mut operations,
-            ))
+        .filter_map(|argument| match argument {
+            checked_trees::CheckedCallScalarArgument::Computation(root) => Some(*root),
+            checked_trees::CheckedCallScalarArgument::Pure(_) => None,
         })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
+        .collect::<Vec<_>>();
+    let scalar_calls =
+        EmbeddedScalarCalls::prepare_computations(checked, &roots, &[plan.machine], 1)?;
+    let mut source_machine_ids = vec![(plan.machine, machine_id(1))];
+    source_machine_ids.extend_from_slice(&scalar_calls.machine_ids);
+    let mut evaluation = argument_evaluation::Evaluation::new(&mut next_block)?;
+    let arguments = evaluation.arguments(
+        checked,
+        plan.machine,
+        plan.state,
+        &plan.boundary_call,
+        &mut Vec::new(),
+        &mut next_value_identity,
+        &mut next_block,
+        &mut next_edge,
+        &mut operations,
+        &mut scalar_calls.emission_context(),
+    )?;
+    let arguments =
+        argument_evaluation::validated_values(arguments.as_deref(), &boundary_scalar_parameters)?
+            .into_iter()
+            .map(|value| value.id)
+            .collect();
     let scalar_type = terminal_scalar_type(plan.result_type)?;
     let call_result = ValueDeclaration {
         id: value_id(next_value_identity),
@@ -300,6 +315,17 @@ pub(super) fn lower_boundary_scalar_return_machine(
         selected_ieee_float_fmas: selected_ieee_float_fma_occurrences,
         ..
     } = operations;
+    evaluation.blocks.push(Block {
+        id: evaluation.current,
+        parameters: evaluation.parameters,
+        operations: operations[evaluation.operation_start..].to_vec(),
+        terminator: Terminator::Return {
+            edge: edge_id(allocate_dense(&mut next_edge)?),
+            value: call_result.id,
+            cleanup_actions: Vec::new(),
+        },
+    });
+    evaluation.blocks.sort_by_key(|block| block.id);
     let machine = TerminalMachine {
         id: machine_id(1),
         attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
@@ -328,20 +354,14 @@ pub(super) fn lower_boundary_scalar_return_machine(
         content_entry_claims,
         content_identity_reshuffles: Vec::new(),
         content_partition_compositions: Vec::new(),
-        entry: block_id(1),
-        blocks: vec![Block {
-            id: block_id(1),
-            parameters: Vec::new(),
-            operations,
-            terminator: Terminator::Return {
-                edge: edge_id(1),
-                value: call_result.id,
-                cleanup_actions: Vec::new(),
-            },
-        }],
+        entry: evaluation.entry,
+        blocks: evaluation.blocks,
         contract: MachineContract {
             id: contract_id(1),
-            crash_routes: Vec::new(),
+            crash_routes: lower_checked_crash_route_buckets(
+                &lower_checked_crash_routes(checked, plan.machine)?,
+                &[],
+            )?,
             requires: Vec::new(),
             ensures: Vec::new(),
             outcome_specific_ensures: Vec::new(),
@@ -381,8 +401,12 @@ pub(super) fn lower_boundary_scalar_return_machine(
         source_call_occurrences,
         selected_ieee_float_fma_occurrences,
     };
+    scalar_calls.append_to(&mut lowered)?;
     finalize_operation_proofs(&mut lowered)?;
-    Ok(lowered)
+    Ok(SourceMappedLowered {
+        terminal: lowered,
+        source_machine_ids,
+    })
 }
 
 fn lower_boundary_scalar_domains(

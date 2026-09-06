@@ -6,7 +6,7 @@
 
 use super::*;
 
-mod argument_evaluation;
+pub(crate) mod argument_evaluation;
 mod call_closure;
 mod catalog;
 mod claims;

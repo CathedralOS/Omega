@@ -1889,10 +1889,18 @@ pub(super) fn build_boundary_scalar_return_machine(
         return None;
     }
     let state_flow = state_flow(facts, machine.symbol, state.symbol)?;
-    let [call] = facts.flow.control.calls.span_or_empty(state_flow.calls) else {
+    let source_calls = facts.flow.control.calls.span(state_flow.calls)?;
+    let outer_calls = outer_calls(program, facts, machine.symbol, state, source_calls)?;
+    let [call] = outer_calls.as_slice() else {
         return None;
     };
-    if call.statement_index != 0 || call.call_ordinal != 0 {
+    if call.statement_index != 0
+        || call.call_ordinal != 0
+        || call.authored_expression != local.initial_value
+        || !program
+            .expression_table
+            .expression_is_valid(local.initial_value)
+    {
         return None;
     }
     let boundary_call = build_call_operation(
