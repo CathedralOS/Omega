@@ -397,7 +397,7 @@ fn prepare_arm<'program>(
 /// Read a transition arm's guard as a comparison fact. The dispatch lowering
 /// wraps each arm's guard as `scrutinee == true` / `scrutinee == false`;
 /// unwrap the wrapper and fold the polarity into the comparison operator.
-fn guard_arm_comparison(
+pub(super) fn guard_arm_comparison(
     engine: &mut Engine<'_>,
     guard: ExpressionHandle,
     expected: bool,
@@ -588,7 +588,7 @@ fn instantiated_hypothesis(
 /// Atoms that are neither mapped parameters nor `result` (mod-term and
 /// proof-view atoms embed parameter names in their rendered form) cannot be
 /// instantiated and fail the substitution.
-fn apply_argument_map(
+pub(super) fn apply_argument_map(
     polynomial: &Polynomial,
     argument_map: &BTreeMap<String, Polynomial>,
 ) -> Option<Polynomial> {

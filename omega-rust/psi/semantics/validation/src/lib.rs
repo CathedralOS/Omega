@@ -179,6 +179,9 @@ pub use contract_entailment::integer_embedding_sources_equal;
 pub use contract_entailment::is_arm_pattern_marker;
 pub use contract_entailment::transparent_proposition_application_entailed;
 pub use contract_entailment::{MatchedLawGuarantee, matched_machine_law_guarantees};
+pub use contract_entailment::{
+    RankingRangeEdgeProof, RankingRangeMeasure, prove_ranking_range_edge, prove_ranking_range_entry,
+};
 pub use float_projection_invocations::{
     ValidatedFloatMeaningEqualityProposition, ValidatedFloatMeaningProjectionInvocation,
 };

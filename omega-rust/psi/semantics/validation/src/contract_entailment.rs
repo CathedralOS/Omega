@@ -73,6 +73,11 @@ use typed_trees::trait_definition::TraitDefinition;
 mod arithmetic_judgment;
 mod exit_coverage;
 mod inductive_judgment;
+mod ranking_range;
+
+pub use ranking_range::{
+    RankingRangeEdgeProof, RankingRangeMeasure, prove_ranking_range_edge, prove_ranking_range_entry,
+};
 mod law_conformance;
 mod quotient_congruence;
 mod structural_judgment;

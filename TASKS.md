@@ -153,13 +153,16 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
 - **TERMINATION-RANKING-CHECKS.** Complete the documented flow-dependent
   rank-range checks in
   `typed-trees-to-checked-trees/src/checks/termination/ranking/`.
-  Rank constraints beyond immutable single-state parameter bounds need exact
-  named-state arrivals and live guard
-  facts, including pinned dependent endpoints beyond the selected view's bound.
+  Named-state and machine-call-component ranges need exact arrival mappings
+  for ranked subjects and pinned endpoints. Mutable premises need live
+  write-frame evidence. The static range tier still routes directly to the
+  existing descent recognizer: when membership is already proved but that
+  recognizer cannot prove an otherwise valid decrease, it must also be able to
+  consume the relational edge proof without conflating membership and descent.
   Custom scalar views and slice-length ranges need their produced-rank facts.
   These are implementation gaps, not grounds to weaken the range obligation.
 
-  Acceptance: named-state and flow-dependent rank ranges accept proved
+  Acceptance: named-state and call-component rank ranges accept proved
   constraints while changed endpoints and intervening writes invalidate their
   premises. Preserve the private-witness/public-guarantee split described in
   chapter 3 and the

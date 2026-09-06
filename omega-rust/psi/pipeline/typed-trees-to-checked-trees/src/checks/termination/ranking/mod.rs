@@ -315,10 +315,12 @@ pub(super) fn machine_decrease_outcome(
         };
     }
 
-    if let Some(range) = witness.rank_range.as_ref()
-        && let Some(message) = ranges::violation(program, machine, range, &order, measure)
-    {
-        return DecreaseOutcome::Rejected(message);
+    if let Some(range) = witness.rank_range.as_ref() {
+        match ranges::check(program, machine, range, &order, measure) {
+            Ok(proof) if proof.strict_decrease_proven => return DecreaseOutcome::Proven,
+            Ok(_) => {}
+            Err(message) => return DecreaseOutcome::Rejected(message),
+        }
     }
 
     let adjacency = graph::machine_adjacency(program, machine);
