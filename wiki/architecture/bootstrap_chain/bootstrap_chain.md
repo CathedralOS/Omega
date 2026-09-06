@@ -62,7 +62,10 @@ reconstruction are executable. The
 selected 1,632-line Beta-written Gamma evaluator and its 8,355-byte tape run
 the typed scalar/effect and self-augmentation gates. Proper tail execution,
 static validation, provenance-tagged immutable pairs, and bounded output are
-implemented with exact profile outcomes. The selected Gamma-authored Delta compiler has a
+implemented with exact profile outcomes. The selected AlphaBootstrapV3 Gamma
+heap admits 20,132,659 pairs; its full-capacity and adjacent-refusal witnesses
+are an explicit slow gate, separate from routine scalar/effect checks.
+The selected Gamma-authored Delta compiler has a
 passing stage for finite arbitrary-field recursive ADTs plus exhaustive matches,
 including two-field List and three-field Bytes-rope witnesses; the
 complete edge remains open. The Delta-written Epsilon evaluator and

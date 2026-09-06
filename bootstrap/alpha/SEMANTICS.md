@@ -30,9 +30,10 @@ A configuration is `σ = (pc, M, R, sp)` plus the two I/O byte streams:
 | `in` | input stream: a sequence of bytes (process stdin); `read` consumes its head |
 | `out`| output stream: bytes appended by `write` (process stdout) |
 
-`MEMSIZE` is an implementation parameter; the committed AlphaBootstrapV2 seeds
-use 256 MiB (`0x10000000`). `sp` is initialized to `0x10000000` and the stack
-grows **down**.
+`MEMSIZE` is an implementation parameter; the selected AlphaBootstrapV3 seeds
+use 1 GiB (`0x40000000`). `sp` remains initialized to `0x10000000` and the stack
+grows **down**. The added memory is above that unchanged stack origin; raising
+the memory extent does not move the stack or change any opcode transition.
 
 ## 2. Values and arithmetic
 
@@ -143,13 +144,14 @@ rung doc; they are **not** yet specified behavior:
   or fault. A trust root *should* trap; until it does, programs must stay in
   bounds and this document does not assign a meaning to violations.
 - **Memory size is fixed** (`MEMSIZE`, and the tape hole) rather than an
-  execution parameter with a defined out-of-memory result. AlphaBootstrapV2
-  selects 256 MiB of semantic memory and an exact 16 MiB stamped hole,
+  execution parameter with a defined out-of-memory result. AlphaBootstrapV3
+  selects 1 GiB of semantic memory and an exact 16 MiB stamped hole,
   including the four-byte length, for a 16,777,212-byte raw-tape maximum.
   Capacity is not part of Alpha's opcode semantics; the same admitted tape runs
   identically on both platform realizations.
 
-Everything in §5–§7 is pinned by `tests/alpha/conformance.sh`; §8 is deliberately out of
+Everything in §5–§7 and the selected in-bounds memory extent are pinned by
+`tests/alpha/conformance.sh`; undefined out-of-range behavior remains out of
 scope until the hardening lands.
 
 ## 9. Conformance

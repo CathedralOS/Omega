@@ -13,7 +13,8 @@ audited Alpha VM + admitted Beta compiler tape
   -> Omega-written product compiler C for alpha_bootstrap
 ```
 
-Alpha is unchanged. Beta is the trusted imperative tape-assembly language.
+Alpha's opcode semantics are unchanged. Beta is the trusted imperative
+tape-assembly language.
 Gamma is the small typed scalar/effect functional language evaluated directly
 by Beta. Delta is the richer typed functional language needed to write the
 Epsilon evaluator.

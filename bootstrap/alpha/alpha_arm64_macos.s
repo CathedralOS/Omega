@@ -13,7 +13,7 @@
 //
 // VM model (observable semantics identical to the x64 seed):
 //   vregs[]  64-bit register file, byte-indexed            (bss, x19)
-//   mem[]    flat ~256 MB zeroed byte memory; tape at [0]   (bss, x20)
+//   mem[]    flat 1 GiB semantic byte memory; tape at [0]   (bss, x20)
 //   pc       absolute pointer into mem                      (x21)
 //   sp       call-stack byte offset, grows down from 256 MB (x22)
 // A program tape [4-byte LE length][bytecode] is stamped into the __tape hole;
@@ -30,8 +30,9 @@
 //
 // Build (reproducible — -no_uuid drops the nondeterministic Mach-O UUID, so the
 // binary is byte-identical across builds modulo the OS code signature):
-//   clang -arch arm64 -Wl,-no_uuid -o alpha_arm64_macos alpha_arm64_macos.s
-// `verify.sh` re-derives the committed binary this way and checks it matches.
+//   clang -arch arm64 -isysroot SDK -Wl,-no_uuid -o alpha_arm64_macos alpha_arm64_macos.s
+// tests/bootstrap/alpha-beta-edge.sh selects Xcode or xcrun's CommandLineTools
+// clang/SDK and re-derives the binary with these flags (signature excluded).
 // ============================================================================
 .global _main
 .align 4
@@ -313,7 +314,7 @@ h_halt:
     ldp  x29, x30, [sp], #16
     ret
 .zerofill __DATA,__bss,vregs,0x800,3
-.zerofill __DATA,__bss,mem,0x10010000,4
+.zerofill __DATA,__bss,mem,0x40010000,4
 .zerofill __DATA,__bss,io_byte,8,3
 .section __DATA,__tape
 .global _tape

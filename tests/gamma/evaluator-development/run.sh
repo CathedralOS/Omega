@@ -37,8 +37,8 @@ from pathlib import Path
 from function_lookup import fixtures as function_lookup_fixtures
 
 artifacts = (
-    ("BETA", 46479, "eabf2de565a9165cf3e8cfeb1917a1de76c9847641807199648bd2e1ee9a6427"),
-    ("TAPE", 8355, "c2ad4740ef13c676455439cc4666a5515c3b61f91d31736a0c8f60fd40b6d98e"),
+    ("BETA", 46482, "6ef6ad5da234e61207bce4d8c262a596f3dfd19b55377121fb60978852408207"),
+    ("TAPE", 8355, "591c8417ca82b38d544c2fcf67f85ae6ff3e01002e9d015421339b8dd216df2e"),
 )
 for name, size, digest in artifacts:
     data = Path(os.environ[name]).read_bytes()
@@ -171,6 +171,12 @@ negative = {
     ),
     "forged pair arithmetic": (
         b"(def main () Int (let p Int (pair 7 8) (first (+ 33554432 0))))\n", 2,
+    ),
+    "forged pair literal at current heap base": (
+        b"(def main () Int (let p Int (pair 7 8) (first 268435456)))\n", 2,
+    ),
+    "forged pair arithmetic at current heap base": (
+        b"(def main () Int (let p Int (pair 7 8) (first (+ 268435456 0))))\n", 2,
     ),
     "pair equality": (
         b"(def main () Int (eq (pair 1 2) (pair 1 2)))\n", 2,

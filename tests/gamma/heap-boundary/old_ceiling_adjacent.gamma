@@ -1,0 +1,7 @@
+(def allocate ((remaining Int)) Int
+  (if (eq remaining 0)
+    65
+    (let retained Int (pair remaining 0)
+      (allocate (- remaining 1)))))
+
+(def main () Int (allocate 5033165))

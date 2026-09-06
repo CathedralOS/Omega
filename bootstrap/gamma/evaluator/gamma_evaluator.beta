@@ -29,8 +29,8 @@
         imm r95 0x1300000
         imm r96 0x1500000
         imm r97 0x1d00000
-        imm ra0 0x2000000
-        imm ra1 0xe000000
+        imm ra0 0x10000000
+        imm ra1 0x40000000
         mov rb0 r90
         imm rb1 0xfffffc
         mov r0 r92
@@ -1203,7 +1203,7 @@
 
 0x1890: ; validate_pair:
         mov r6 r0
-        imm r1 0x2000000
+        imm r1 0x10000000
         jlt r6 r1 0x19f2 ; -> authored_trap:
         jlt r6 ra0 0x18bc ; -> validate_pair_extent:
         jmp 0x19f2 ; -> authored_trap:
