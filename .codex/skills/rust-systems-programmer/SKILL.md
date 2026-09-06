@@ -19,7 +19,7 @@ The conventions below guide new code. Explicit destination requirements take pre
 
 Before proposing a storage or threading change, trace input ownership, work scheduling, output production, and the consuming callers. Establish the contract that survives the change: result order, identity/handles, error and cancellation behavior, and peak memory. Decide whether the storage is temporary scratch or a durable representation. Choose a compatible layout before changing code.
 
-For Omega, consult its README and AGENTS.md: durable lowered child lists use arenas, `Handle<T>`, and `HandleSpan<T>`; temporary worker buffers may use vectors. Squalr's partitioned ownership principle can support that design without replacing it. Arena publication may be required work. Paged storage alone does not make concurrent mutation safe; inspect the arena's actual API and ownership contract.
+Where the destination uses durable arena handles or indexed storage, preserve its identity and publication rules; temporary worker buffers need not dictate the persistent layout. Paged storage alone does not make concurrent mutation safe. Inspect the actual mutation, initialization, and reclamation APIs before proposing concurrent publication. The linked reference includes an Omega example.
 
 For concrete examples, read [Squalr source patterns](references/squalr-patterns.md) when working on storage, parallelism, or SIMD. Follow the named producer and consumer symbols in the actual checkout when available. Examples describe tradeoffs, not mandatory dependencies or universal layouts.
 
@@ -39,7 +39,7 @@ Squalr illustrates this at multiple levels: snapshots contain regions; region re
 
 Parallelize substantial independent regions or batches, with each task reading its input and owning its output. Keep inner scalar/SIMD loops free of locks, per-element task scheduling, and shared result appends. Choose task granularity that amortizes scheduling while leaving enough independent work to balance workers.
 
-Reuse the project's worker pool. Trace work invoked inside each worker, including nested thread creation and configured stack reservations. Distinguish reserved address space from committed/resident memory. Account for nested parallel work, available cores, and memory bandwidth; more tasks do not automatically mean more throughput. Keep a sequential path for small workloads. Aggregate progress and counters at useful batch boundaries rather than contending on every result.
+Reuse an existing executor when its stack size, blocking, thread-affinity, isolation, and failure contracts fit the work; otherwise preserve the required execution boundary. Trace work invoked inside each worker, including nested thread creation and configured stack sizes. Distinguish configured capacity, virtual reservation, and committed/resident memory; the configured size alone does not measure any of the latter. Account for nested parallel work, available cores, and memory bandwidth; more tasks do not automatically mean more throughput. Keep a sequential path for small workloads. Aggregate progress and counters at useful batch boundaries rather than contending on every result.
 
 Inspect the entire path after the parallel loop: merging, sorting, counting, serialization, and publication can become the serial bottleneck. Preserve partitions through subsequent stages where possible, and reduce only the metadata that actually needs aggregation.
 
@@ -141,7 +141,7 @@ mod tests {
 
 Test reusable logic near its implementation using `#[cfg(test)]`, and test command/adapter integration through the destination's existing test harness. Prefer deterministic input buffers or mocked I/O over live processes for library tests. Test frontend behavior when the change concerns that frontend; command tests alone do not establish UI behavior.
 
-Cover the changed success path and relevant failure or boundary cases. For a bug fix, leave a regression test that fails on the original behavior. If a test cannot run, state the limitation and what would enable it; never substitute an empty passing test for evidence.
+Cover the changed success path and relevant failure or boundary cases. When changing scheduling or result collection, test deliberately reordered completions with explicit synchronization, preserving result identity/order, complete result delivery, and the existing error or panic propagation contract; do not rely on timing sleeps. For a bug fix, leave a regression test that fails on the original behavior. If a test cannot run, state the limitation and what would enable it; never substitute an empty passing test for evidence.
 
 Remove newly unused imports and dead helpers, run formatting and relevant tests/checks using the destination's toolchain, and inspect the diff. Report what was actually verified and any untested platform or runtime behavior. Follow the destination's rules for task notes and commits; this skill does not impose Squalr's session workflow on another repository.
 
