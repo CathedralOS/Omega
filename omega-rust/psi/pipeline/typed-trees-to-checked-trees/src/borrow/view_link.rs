@@ -21,7 +21,8 @@
 //!   rule 1); zero ref inputs leaves the output unlinked (historical behavior);
 //!   two or more are ambiguous and must be disambiguated with a lifetime.
 //!
-//! For aggregate results, input references include structurally carried leaves.
+//! For aggregate results or owned inputs carrying references, input references
+//! include structurally carried leaves even when the output is a direct reference.
 //! Explicit lifetimes select one input parameter and every leaf carrying that
 //! lifetime within it; each must supply the result's access. Elision requires
 //! one contained source, not one parameter containing several unnamed sources.
@@ -46,8 +47,8 @@ pub(crate) enum ViewReturnSource {
     /// is the ordinal among NON-SELF parameters, which equals the positional
     /// argument index at a call site.
     Parameter { non_self_index: usize },
-    /// A borrow-carrying aggregate maps each carried field to the one input
-    /// named by that field's instantiated lifetime.
+    /// Each result reference maps to the input named by its instantiated
+    /// lifetime. A direct reference result has an empty output owner path.
     Fields { fields: Vec<ViewReturnFieldSource> },
     /// The signature is ambiguous or ill-formed; the declaration check turns
     /// this into a diagnostic and the loan attributor tracks no loan.
@@ -126,8 +127,16 @@ pub(crate) fn resolve_signature_view_return_source(
         }
     }
 
-    if !is_reference_type(program, return_type) {
-        return aggregate_view_return_source(program, parameters, return_type);
+    if !is_reference_type(program, return_type)
+        || parameters.iter().any(|parameter| {
+            !is_reference_type(program, parameter.type_reference)
+                && returns_borrow(program, parameter.type_reference)
+        })
+    {
+        // A direct result can forward a reference carried by an owned input.
+        // It has an empty output path but the same structural input lifetime
+        // frontier as a reference returned inside another carrier.
+        return structural_view_return_source(program, parameters, return_type);
     }
 
     match reference_lifetime(program, return_type) {
@@ -189,7 +198,7 @@ pub(crate) use carried_lifetimes::{
     DeclarationLifetimeFrontier, declaration_lifetime_frontier, substituted_result_is_view_free,
 };
 
-fn aggregate_view_return_source(
+fn structural_view_return_source(
     program: &TypedTrees,
     parameters: &[StateParameter],
     return_type: TypeReferenceHandle,

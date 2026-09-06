@@ -1,6 +1,6 @@
 use crate::borrow::view_link::{
     ViewReturnSource, is_borrow_carrying_data, is_mutably_borrow_carrying_data,
-    resolve_signature_view_return_source, resolve_view_return_source,
+    resolve_signature_view_return_source,
 };
 use crate::context::*;
 use crate::semantic_calls::find_state;
@@ -204,6 +204,19 @@ fn reference_local_borrow_loans(
     else {
         return Vec::new();
     };
+    if let Some(mut loans) = returned_carriers::result_loans(
+        program,
+        state.symbol,
+        statement_index,
+        machine_symbol,
+        local_data,
+        local_data.initial_value,
+        &[],
+        loan_trackers,
+    ) {
+        returned_carriers::attenuate(&mut loans, &local_access);
+        return loans;
+    }
     let indexed_recast_place = literal_indexed_recast_borrow_place(
         program,
         state,
@@ -473,6 +486,24 @@ fn borrowed_initializer_loans(
 ) -> Vec<StatementBorrowLoan> {
     match initializer.kind {
         BorrowedInitializerKind::Reference { is_mutable } => {
+            if let Some(mut loans) = returned_carriers::result_loans(
+                program,
+                state_symbol,
+                statement_index,
+                machine_symbol,
+                local_data,
+                initializer.expression,
+                &initializer.owner_path,
+                loan_trackers,
+            ) {
+                if !is_mutable {
+                    returned_carriers::attenuate(
+                        &mut loans,
+                        &checked_trees::BorrowAccessKind::Read,
+                    );
+                }
+                return loans;
+            }
             // Aggregate leaves obey the same source-selection law as call
             // arguments. A leaf may itself be a view-producing helper call;
             // routing it through the call-aware resolver keeps the selected
@@ -531,17 +562,16 @@ fn aggregate_expression_borrow_loans(
 ) -> Vec<StatementBorrowLoan> {
     match program.expression_table.expression(expression) {
         checked_trees::expression::ExpressionNode::Call(call) => {
-            let field_loans = helper_call_aggregate_borrow_loans(
+            if let Some(field_loans) = returned_carriers::result_loans(
                 program,
                 state_symbol,
                 statement_index,
                 machine_symbol,
                 local_data,
-                call,
+                expression,
                 owner_path_prefix,
                 loan_trackers,
-            );
-            if !field_loans.is_empty() {
+            ) {
                 return field_loans;
             }
 
@@ -574,6 +604,18 @@ fn aggregate_expression_borrow_loans(
         checked_trees::expression::ExpressionNode::Name(_)
         | checked_trees::expression::ExpressionNode::Member(_)
         | checked_trees::expression::ExpressionNode::Indexed(_) => {
+            if let Some(loans) = returned_carriers::result_loans(
+                program,
+                state_symbol,
+                statement_index,
+                machine_symbol,
+                local_data,
+                expression,
+                owner_path_prefix,
+                loan_trackers,
+            ) {
+                return loans;
+            }
             let Some(source) = borrow_access_place(
                 program,
                 state_symbol,
@@ -657,6 +699,21 @@ fn helper_call_aggregate_borrow_loans(
                     loan_trackers,
                     &mut carried_arguments,
                 );
+            }
+            let mut owner_path = owner_path_prefix.to_vec();
+            owner_path.extend(field.owner_path.iter().copied());
+            if let Some(mut loans) = returned_carriers::result_loans(
+                program,
+                state_symbol,
+                statement_index,
+                machine_symbol,
+                local_data,
+                argument,
+                &owner_path,
+                loan_trackers,
+            ) {
+                returned_carriers::attenuate(&mut loans, &field.kind);
+                return loans;
             }
             let Some(place) = argument_borrow_loan_place(
                 program,
@@ -794,15 +851,30 @@ fn call_view_return_source(
     program: &typed_trees::TypedTrees,
     target_symbol: SymbolHandle,
 ) -> ViewReturnSource {
+    let Some((parameters, return_type)) = call_view_signature(program, target_symbol) else {
+        return ViewReturnSource::NotApplicable;
+    };
+    resolve_signature_view_return_source(program, parameters, return_type)
+}
+
+fn call_view_signature(
+    program: &typed_trees::TypedTrees,
+    target_symbol: SymbolHandle,
+) -> Option<(
+    &[typed_trees::signature::StateParameter],
+    typed_trees::types::TypeReferenceHandle,
+)> {
     if let Some(target_state) = find_state(program, target_symbol) {
-        return resolve_view_return_source(program, target_state);
+        return Some((
+            program.state_parameters(target_state),
+            target_state.return_type,
+        ));
     }
     if let Some((_, signature)) = program.machine_parameter_signature(target_symbol) {
-        return resolve_signature_view_return_source(
-            program,
+        return Some((
             program.state_signature_parameters(signature),
             signature.return_type,
-        );
+        ));
     }
     for trait_definition in program.traits() {
         if let Some(signature) = program
@@ -810,14 +882,13 @@ fn call_view_return_source(
             .iter()
             .find(|signature| signature.symbol == target_symbol)
         {
-            return resolve_signature_view_return_source(
-                program,
+            return Some((
                 program.state_signature_parameters(signature),
                 signature.return_type,
-            );
+            ));
         }
     }
-    ViewReturnSource::NotApplicable
+    None
 }
 
 /// The loan place for a call argument that the called machine's returned view

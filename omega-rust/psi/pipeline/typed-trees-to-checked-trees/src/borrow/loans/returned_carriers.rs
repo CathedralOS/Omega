@@ -4,6 +4,169 @@
 use super::*;
 use crate::borrow::view_link::ViewReturnFieldSource;
 
+/// Follow finite call operands without collapsing carried source leaves into
+/// the single-place query used for bare reference inputs.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn result_loans(
+    program: &typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    machine_symbol: SymbolHandle,
+    local_data: &checked_trees::statement::TableLocalData,
+    mut expression: ExpressionHandle,
+    owner_path: &[BorrowOwnerSegment],
+    loan_trackers: &[StateLoanTracker],
+) -> Option<Vec<StatementBorrowLoan>> {
+    let mut access_limits = Vec::new();
+    loop {
+        let call = match program.expression_table.expression(expression) {
+            checked_trees::expression::ExpressionNode::Call(call) => call,
+            checked_trees::expression::ExpressionNode::Indexed(indexed) => {
+                let loans = result_loans(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    machine_symbol,
+                    local_data,
+                    indexed.collection,
+                    &[],
+                    loan_trackers,
+                )?;
+                let index = program
+                    .expression_table
+                    .constant_integer_value(indexed.index)
+                    .and_then(|value| usize::try_from(value).ok());
+                let loans = loans
+                    .into_iter()
+                    .filter_map(|mut loan| {
+                        let suffix = match loan.owner_path.as_slice() {
+                            [] => &[][..],
+                            [BorrowOwnerSegment::FixedIndex(candidate), suffix @ ..]
+                                if index.is_none_or(|index| index == *candidate) =>
+                            {
+                                suffix
+                            }
+                            [BorrowOwnerSegment::DynamicIndex, suffix @ ..] => suffix,
+                            _ => return None,
+                        };
+                        let mut path = owner_path.to_vec();
+                        path.extend_from_slice(suffix);
+                        loan.owner_path = path;
+                        Some(loan)
+                    })
+                    .collect();
+                return Some(limit_access(loans, &access_limits));
+            }
+            checked_trees::expression::ExpressionNode::Member(member) => {
+                let loans = result_loans(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    machine_symbol,
+                    local_data,
+                    member.receiver,
+                    &[],
+                    loan_trackers,
+                )?;
+                let field = facts::effective_member_symbol(program, member.receiver, member);
+                let loans = loans
+                    .into_iter()
+                    .filter_map(|mut loan| {
+                        let suffix = match loan.owner_path.as_slice() {
+                            [] => &[][..],
+                            [BorrowOwnerSegment::Field(candidate), suffix @ ..]
+                                if !field.is_valid() || *candidate == field =>
+                            {
+                                suffix
+                            }
+                            [
+                                BorrowOwnerSegment::Case(variant),
+                                BorrowOwnerSegment::Field(candidate),
+                                suffix @ ..,
+                            ] if (!field.is_valid() || *candidate == field)
+                                && member.case_variant.as_ref().is_none_or(|selected| {
+                                    program.symbols.name(*variant) == selected.as_str()
+                                }) =>
+                            {
+                                suffix
+                            }
+                            _ => return None,
+                        };
+                        let mut path = owner_path.to_vec();
+                        path.extend_from_slice(suffix);
+                        loan.owner_path = path;
+                        Some(loan)
+                    })
+                    .collect();
+                return Some(limit_access(loans, &access_limits));
+            }
+            checked_trees::expression::ExpressionNode::Borrow(borrow) => {
+                access_limits.push(match borrow.access {
+                    language_semantics::ReferenceAccess::Shared => {
+                        checked_trees::BorrowAccessKind::Read
+                    }
+                    language_semantics::ReferenceAccess::Mutable => {
+                        checked_trees::BorrowAccessKind::Mutable
+                    }
+                    language_semantics::ReferenceAccess::WriteOnly => {
+                        checked_trees::BorrowAccessKind::WriteOnly
+                    }
+                });
+                expression = borrow.target;
+                continue;
+            }
+            _ => return None,
+        };
+        if let Some((_, reference)) = call_view_signature(program, call.target_symbol)
+            && let Some(access) = reference_borrow_access_kind(program, reference)
+        {
+            access_limits.push(access);
+        }
+        expression = match call_view_return_source(program, call.target_symbol) {
+            ViewReturnSource::Fields { .. } => {
+                let loans = helper_call_aggregate_borrow_loans(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    machine_symbol,
+                    local_data,
+                    call,
+                    owner_path,
+                    loan_trackers,
+                );
+                return Some(limit_access(loans, &access_limits));
+            }
+            ViewReturnSource::Parameter { non_self_index } => *program
+                .expression_table
+                .expression_handles(call.arguments)
+                .get(non_self_index)?,
+            ViewReturnSource::SelfReceiver => call.receiver,
+            ViewReturnSource::NotApplicable | ViewReturnSource::Ambiguous(_) => return None,
+        };
+    }
+}
+
+fn limit_access(
+    mut loans: Vec<StatementBorrowLoan>,
+    limits: &[checked_trees::BorrowAccessKind],
+) -> Vec<StatementBorrowLoan> {
+    for access in limits.iter().rev() {
+        attenuate(&mut loans, access);
+    }
+    loans
+}
+
+pub(super) fn attenuate(
+    loans: &mut [StatementBorrowLoan],
+    access: &checked_trees::BorrowAccessKind,
+) {
+    for loan in loans {
+        if loan.kind == checked_trees::BorrowAccessKind::Mutable {
+            loan.kind = access.clone();
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn argument_loans(
     program: &typed_trees::TypedTrees,

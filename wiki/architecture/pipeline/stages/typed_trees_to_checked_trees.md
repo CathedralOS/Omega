@@ -732,6 +732,12 @@ Current ownership is:
   loans, call accesses, and last-use updates,
   `borrow/loans.rs` owns local loan creation/rebasing,
   `borrow/loans/aggregate.rs` owns structural aggregate-initializer traversal,
+  `borrow/loans/returned_carriers.rs` transports declaration-derived input
+  lifetime leaves through direct or aggregate results, nested call operands,
+  and result-field/element projections without reducing multiple sources to one
+  place. Runtime element selection conservatively retains all candidate loans.
+  This attribution does not admit projected temporary owned moves whose
+  ownership-place compatibility remains unresolved.
   `borrow/loans/owner_paths.rs` owns owner/place projection conversion and
   matching,
   `borrow/loans/types.rs` owns reference-type classification for loan
@@ -1171,6 +1177,15 @@ Current ownership is:
   mutable-to-shared attenuation with the same referee; write-only attenuation
   stays explicit. A reference result cannot use a scalar-call fallback to match
   an owned argument type or an unrelated shared referee.
+  `validation/src/expression_types/reference_values.rs` applies that same
+  reference-type correspondence to exact declared member values, including
+  attached `self` fields and nested concrete nominal projections. Missing
+  ordinary member symbols resolve only within the declared nominal owner;
+  conflicting retained selectors, missing roots, and unrelated referees reject.
+  Forwarding a reference field is not a borrow of its carrier slot. Loan
+  attribution remains separate: a direct result from an owned input carrier
+  uses the same complete structural lifetime frontier as an aggregate result,
+  with an empty result path and all matching input source paths retained.
   Parameter binding mutability is separate from declared reference access:
   `mut` on an owned by-value parameter does not require a caller loan, and a
   mutable shared-reference binding cannot forward exclusive access. Constraint
@@ -1300,7 +1315,7 @@ Current ownership is:
   the same concrete nominal declaration. They do not erase type arguments or
   constraints or replace lifetime validation.
   This result evidence is storage information, not loan or lifetime authority.
-  It does not remove terminal-reference typing or nested value-call realization
+  It does not replace terminal-reference typing or remove nested value-call realization
   restrictions; a successful origin query alone is not full source acceptance.
   Reference origins retain an exact source symbol and structural selectors
   separately from their may-write footprint. Indexing may coarsen that footprint
