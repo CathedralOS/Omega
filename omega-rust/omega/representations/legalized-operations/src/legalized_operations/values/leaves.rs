@@ -1,6 +1,6 @@
 //! values leaves in the legalized operations program.
 
-use crate::{LegalizationTheorem, LegalizedTemporaryId};
+use crate::{LegalizationTheorem, LegalizedExactIntegerSequence, LegalizedTemporaryId};
 use optimization_core::AcceptedObligationFactIdentity;
 use optimization_unit::FuelSettlement;
 use optimization_unit::ValueDefinitionSite;
@@ -87,54 +87,7 @@ pub enum LegalizedLeafValue {
         left: LegalizedImmediate,
         right: LegalizedImmediate,
     },
-    ActiveResidentExactAddChain(Box<LegalizedActiveResidentExactAddChain>),
-    ActiveResidentExactAddBridgeChain(Box<LegalizedActiveResidentExactAddBridgeChain>),
-    ActiveResidentExactAddOriginalVictimChain(
-        Box<LegalizedActiveResidentExactAddOriginalVictimChain>,
-    ),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LegalizedActiveResidentExactAddChain {
-    pub resident: LegalizedImmediate,
-    pub left: LegalizedImmediate,
-    pub right: LegalizedImmediate,
-    pub inner: LegalizedExactAdd,
-    pub middle: LegalizedExactAdd,
-    pub result: LegalizedExactAdd,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LegalizedActiveResidentExactAddBridgeChain {
-    pub resident: LegalizedImmediate,
-    pub left: LegalizedImmediate,
-    pub right: LegalizedImmediate,
-    pub inner: LegalizedExactAdd,
-    pub middle: LegalizedExactAdd,
-    pub bridge: LegalizedExactAdd,
-    pub result: LegalizedExactAdd,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LegalizedActiveResidentExactAddOriginalVictimChain {
-    pub resident: LegalizedImmediate,
-    pub left: LegalizedImmediate,
-    pub right: LegalizedImmediate,
-    pub inner: LegalizedExactAdd,
-    pub middle: LegalizedExactAdd,
-    pub bridge: LegalizedExactAdd,
-    pub join: LegalizedExactAdd,
-    pub result: LegalizedExactAdd,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LegalizedExactAdd {
-    pub source_value: ValueId,
-    pub obligation: ObligationId,
-    pub accepted_fact: AcceptedObligationFactIdentity,
-    pub operation: OperationId,
-    pub definition_site: ValueDefinitionSite,
-    pub fuel: Vec<FuelSettlement>,
+    ExactIntegerSequence(LegalizedExactIntegerSequence),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

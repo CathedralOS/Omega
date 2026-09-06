@@ -1,5 +1,7 @@
 //! Optimizer module role: executable entrance. Representation-owned validation for retained legalized-operation values.
 
+mod integer_sequences;
+
 use crate::legalized_operations::*;
 use optimization_unit::OwnershipEvent;
 use terminal_psi::ClaimTransfer;

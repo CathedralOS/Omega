@@ -3,8 +3,7 @@ use super::leaf::{replay_edge_fuel, replay_leaf};
 use super::shared::*;
 use super::validators::{scalar_validator_accepts, validate_unit_form};
 use crate::legalization::catalog::{
-    LegalizationFormRecipe, LegalizationShapeConstraints, LegalizationValidatorKind,
-    legalization_form_for_recipe,
+    LegalizationFormRecipe, LegalizationValidatorKind, legalization_form_for_recipe,
 };
 
 pub(super) fn replay_unit_function(
@@ -141,6 +140,17 @@ pub(super) fn replay_function(
         return Err(Error::UnsupportedIntegerShape { function });
     }
 
+    if proposed.recipe == LegalizationRecipe::ReturnU64ExactIntegerSequenceConditionalV1
+        && (!matches!(
+            proposed.when_true.value,
+            LegalizedLeafValue::ExactIntegerSequence(_)
+        ) || !matches!(
+            proposed.when_false.value,
+            LegalizedLeafValue::Immediate { .. }
+        ))
+    {
+        return Err(Error::NonCanonicalLegalizedPlan);
+    }
     let form = legalization_form_for_recipe(LegalizationFormRecipe::Scalar(proposed.recipe))
         .ok_or(Error::NonCanonicalLegalizedPlan)?;
     let LegalizationValidatorKind::Scalar(validator) = form.validator else {
@@ -154,7 +164,10 @@ pub(super) fn replay_function(
         return Err(Error::NonCanonicalLegalizedPlan);
     }
 
-    let LegalizationShapeConstraints::Scalar(constraints) = form.constraints else {
+    let Some(constraints) = form.constraints.scalar([
+        optimized.blocks[1].nodes.len(),
+        optimized.blocks[2].nodes.len(),
+    ]) else {
         return Err(Error::NonCanonicalLegalizedPlan);
     };
     if constraints.condition != condition.shape

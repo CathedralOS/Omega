@@ -4,7 +4,7 @@ use legalized_operations::{
     UnitLegalizationRecipe,
 };
 
-const EXPECTED_RECIPES: [LegalizationFormRecipe; 23] = [
+const EXPECTED_RECIPES: [LegalizationFormRecipe; 21] = [
     LegalizationFormRecipe::Scalar(LegalizationRecipe::ReturnU64ImmediateConditionalV1),
     LegalizationFormRecipe::Scalar(LegalizationRecipe::ReturnU64EntryParameterConditionalV1),
     LegalizationFormRecipe::Scalar(LegalizationRecipe::ReturnU64ExactAddImmediateConditionalV1),
@@ -17,15 +17,7 @@ const EXPECTED_RECIPES: [LegalizationFormRecipe; 23] = [
     LegalizationFormRecipe::Scalar(
         LegalizationRecipe::ReturnU64WidenedU8ExactSubtractImmediateConditionalV1,
     ),
-    LegalizationFormRecipe::Scalar(
-        LegalizationRecipe::ReturnU64ActiveResidentExactAddChainConditionalV1,
-    ),
-    LegalizationFormRecipe::Scalar(
-        LegalizationRecipe::ReturnU64ActiveResidentExactAddBridgeChainConditionalV1,
-    ),
-    LegalizationFormRecipe::Scalar(
-        LegalizationRecipe::ReturnU64ActiveResidentExactAddOriginalVictimChainConditionalV1,
-    ),
+    LegalizationFormRecipe::Scalar(LegalizationRecipe::ReturnU64ExactIntegerSequenceConditionalV1),
     LegalizationFormRecipe::Scalar(
         LegalizationRecipe::ReturnU64IntegerEqualParametersConditionalV1,
     ),
@@ -329,4 +321,29 @@ fn scalar_call_unit_catalog_row_requires_ordered_calls_without_fixed_counts() {
     assert_eq!(constraints.block_count, 1);
     assert_eq!(constraints.minimum_call_count, 1);
     assert_eq!(constraints.scalar_parameter_count, 0);
+}
+#[test]
+fn exact_sequence_catalog_uses_source_cardinality_not_canned_counts() {
+    let row = legalization_form_for_recipe(LegalizationFormRecipe::Scalar(
+        LegalizationRecipe::ReturnU64ExactIntegerSequenceConditionalV1,
+    ))
+    .unwrap();
+    assert_eq!(
+        row.constraints,
+        LegalizationShapeConstraints::ScalarSequence
+    );
+    for count in [2, 4, 7, 8, 9, 27] {
+        let shape = row.constraints.scalar([count, 2]).unwrap();
+        assert_eq!(shape.block_offsets, [0, 1, count + 1]);
+        assert_eq!(shape.operation_count, count + 3);
+    }
+    assert!(row.constraints.scalar([0, 2]).is_none());
+    assert!(row.constraints.scalar([5, 3]).is_none());
+    assert!(row.constraints.scalar([usize::MAX, 2]).is_none());
+    assert_ne!(
+        super::legalization_validator_identity(),
+        optimization_core::OptimizationValidatorIdentity::from_canonical_bytes(
+            b"omega.terminal-target-legalization-independent-replay.v23"
+        )
+    );
 }

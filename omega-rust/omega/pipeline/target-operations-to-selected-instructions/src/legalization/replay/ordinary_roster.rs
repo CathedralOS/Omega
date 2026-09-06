@@ -121,9 +121,22 @@ pub(super) fn replay_remaining(
                     {
                         return Err(Error::NonCanonicalLegalizedPlan);
                     }
+                    let expects_sequence = matches!(
+                        target_function.operation,
+                        TargetOperation::ReturnIntegerExpression { .. }
+                    );
+                    if expects_sequence
+                        != matches!(
+                            leaf.leaf.value,
+                            legalized_operations::LegalizedLeafValue::ExactIntegerSequence(_)
+                        )
+                    {
+                        return Err(Error::NonCanonicalLegalizedPlan);
+                    }
                     let recipe = match leaf.leaf.value {
                         legalized_operations::LegalizedLeafValue::Immediate { .. } => legalized_operations::LegalizationRecipe::ReturnU64ImmediateConditionalV1,
                         legalized_operations::LegalizedLeafValue::EntryParameter { .. } => legalized_operations::LegalizationRecipe::ReturnU64EntryParameterConditionalV1,
+                        legalized_operations::LegalizedLeafValue::ExactIntegerSequence(_) => legalized_operations::LegalizationRecipe::ReturnU64ExactIntegerSequenceConditionalV1,
                         _ => return Err(Error::NonCanonicalLegalizedPlan),
                     };
                     let operations = super::leaf::replay_leaf(

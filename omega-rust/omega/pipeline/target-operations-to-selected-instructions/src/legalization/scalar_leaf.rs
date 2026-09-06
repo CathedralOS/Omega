@@ -47,6 +47,14 @@ pub(super) fn control(target: &TargetFunction) -> Option<(IntegerType, TargetInt
                 location: *location,
             },
         ),
+        TargetOperation::ReturnIntegerExpression {
+            psi_edge,
+            source_value,
+            scalar_type,
+            expression,
+        } if super::integer_sequence_input::expression_shape(expression) => {
+            (*scalar_type, *psi_edge, *source_value, expression.clone())
+        }
         _ => return None,
     };
     Some((
@@ -114,8 +122,13 @@ pub(super) fn validate_input<'a>(
             .iter()
             .zip(&abstracted.parameters)
             .zip(&optimized.parameters)
-            .any(|((abi, declared), optimized)| {
-                abi.value != declared.value
+            .enumerate()
+            .any(|(index, ((abi, declared), optimized))| {
+                u32::try_from(index)
+                    .ok()
+                    .map(optimization_unit::ValueDefinitionSite::FunctionParameter)
+                    != Some(optimized.site)
+                    || abi.value != declared.value
                     || abi.value != optimized.value
                     || abi.scalar_type != integer
                     || declared.scalar_type != scalar_type
@@ -142,32 +155,72 @@ pub(super) fn validate_input<'a>(
     {
         return Err(invalid());
     }
-    if let TargetIntegerControl::Return {
-        expression:
-            TargetIntegerExpression::Parameter {
-                source_value,
-                parameter_index,
-                location,
-            },
+    let TargetIntegerControl::Return {
+        expression,
+        source_value,
         ..
-    } = control
-    {
-        let parameter = abi.parameters.get(parameter_index).ok_or_else(invalid)?;
-        let [
-            ValueLocation::Register {
-                register,
-                value_byte_offset: 0,
-                byte_size: 8,
-            },
-        ] = parameter.placement.locations.as_slice()
-        else {
-            return Err(invalid());
-        };
-        if parameter.value != source_value
-            || location != ScalarParameterLocation::Register(*register)
+    } = &control
+    else {
+        return Err(invalid());
+    };
+    if !parameter_locations_match(expression, abi) {
+        return Err(invalid());
+    }
+    if matches!(
+        target.operation,
+        TargetOperation::ReturnIntegerExpression { .. }
+    ) && !super::integer_sequence_input::validate(
+        expression,
+        *source_value,
+        &block.nodes,
+        &optimized.parameters,
+    ) {
+        return Err(invalid());
+    }
+    for parameter in &abi.parameters {
+        let referenced = block.nodes.iter().any(|node| {
+            matches!(&node.operation,
+            abstract_operations::AbstractOperation::ExactIntegerAdd { left, right, .. }
+            | abstract_operations::AbstractOperation::ExactIntegerSubtract { left, right, .. }
+            if *left == parameter.value || *right == parameter.value)
+        });
+        if referenced
+            && !matches!(
+                parameter.placement.locations.as_slice(),
+                [ValueLocation::Register {
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                    ..
+                }]
+            )
         {
             return Err(invalid());
         }
     }
     Ok(abi)
+}
+fn parameter_locations_match(
+    expression: &TargetIntegerExpression,
+    abi: &FixedIntegerScalarFunctionAbi,
+) -> bool {
+    match expression {
+        TargetIntegerExpression::Parameter {
+            source_value,
+            parameter_index,
+            location,
+        } => {
+            let Some(parameter) = abi.parameters.get(*parameter_index) else {
+                return false;
+            };
+            matches!(parameter.placement.locations.as_slice(),
+                [ValueLocation::Register { register, value_byte_offset: 0, byte_size: 8 }]
+                if parameter.value == *source_value && *location == ScalarParameterLocation::Register(*register))
+        }
+        TargetIntegerExpression::ExactAdd { left, right, .. }
+        | TargetIntegerExpression::ExactSubtract { left, right, .. } => {
+            parameter_locations_match(left, abi) && parameter_locations_match(right, abi)
+        }
+        TargetIntegerExpression::Immediate { .. } => true,
+        _ => false,
+    }
 }

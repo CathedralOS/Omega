@@ -1,10 +1,6 @@
 use crate::selection::shared::*;
 
-use super::{
-    active_resident_exact_add_bridge_chain_return, active_resident_exact_add_chain_return,
-    active_resident_exact_add_original_victim_chain_return, exact_binary_return, immediate_return,
-    parameter_return,
-};
+use super::{exact_binary_return, immediate_return, instruction_projection, parameter_return};
 
 pub(super) fn validate(
     function_index: usize,
@@ -14,64 +10,59 @@ pub(super) fn validate(
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
     match (&source.when_true.value, &source.when_false.value) {
-        (SourceLeafValue::ActiveResidentExactAddChain(..), SourceLeafValue::Immediate { .. }) => {
-            active_resident_exact_add_chain_return::validate(
+        (SourceLeafValue::ExactIntegerSequence(sequence), SourceLeafValue::Immediate { .. }) => {
+            let source_leaf = &source.when_true;
+            let block = &function.blocks[1];
+            let result = super::super::integer_sequence::validate(
                 function_index,
-                &function.blocks[1],
-                &source.when_true,
+                sequence,
+                source_leaf.source_value,
+                &[],
+                2,
+                1,
+                &function.virtual_registers[..1 + sequence.steps.len()],
+                &block.instructions,
                 keys,
+                catalog,
+            )?;
+            let SelectedTerminator::Return {
+                instruction,
+                psi_return_edge,
+            } = &block.terminator
+            else {
+                return Err(SelectedInstructionError::BlockProjectionMismatch {
+                    function: function_index,
+                    block: 1,
+                });
+            };
+            if *psi_return_edge != source_leaf.return_edge {
+                return Err(SelectedInstructionError::SuccessorProjectionMismatch {
+                    function: function_index,
+                    block: 1,
+                });
+            }
+            let return_id = 2 + sequence.steps.len() as u32;
+            instruction_projection::validate(
+                function_index,
+                instruction,
+                SelectedInstructionId(return_id),
+                SelectedInstructionKind::ReturnI64,
+                keys.return_i64,
+                &[result],
+                &SelectedInstructionProvenance {
+                    values: vec![source_leaf.source_value],
+                    edges: vec![source_leaf.return_edge],
+                    fuel: source_leaf.return_fuel.clone(),
+                    ..Default::default()
+                },
                 catalog,
             )?;
             immediate_return::validate(
                 function_index,
                 &function.blocks[2],
-                9,
-                10,
-                VirtualRegisterId(7),
-                &source.when_false,
-                keys,
-                catalog,
-            )
-        }
-        (
-            SourceLeafValue::ActiveResidentExactAddBridgeChain(..),
-            SourceLeafValue::Immediate { .. },
-        ) => {
-            active_resident_exact_add_bridge_chain_return::validate(
-                function_index,
-                &function.blocks[1],
-                &source.when_true,
-                keys,
-                catalog,
-            )?;
-            immediate_return::validate(
-                function_index,
-                &function.blocks[2],
-                10,
-                11,
-                VirtualRegisterId(8),
-                &source.when_false,
-                keys,
-                catalog,
-            )
-        }
-        (
-            SourceLeafValue::ActiveResidentExactAddOriginalVictimChain(..),
-            SourceLeafValue::Immediate { .. },
-        ) => {
-            active_resident_exact_add_original_victim_chain_return::validate(
-                function_index,
-                &function.blocks[1],
-                &source.when_true,
-                keys,
-                catalog,
-            )?;
-            immediate_return::validate(
-                function_index,
-                &function.blocks[2],
-                11,
-                12,
-                VirtualRegisterId(9),
+                return_id + 1,
+                return_id + 2,
+                VirtualRegisterId(1 + sequence.steps.len() as u32),
                 &source.when_false,
                 keys,
                 catalog,

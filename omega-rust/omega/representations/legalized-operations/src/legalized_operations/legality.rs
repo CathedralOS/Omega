@@ -30,16 +30,8 @@ pub enum LegalizationRecipe {
     ReturnU64ExactSubtractImmediateConditionalV1,
     ReturnU64WidenedU8ExactAddImmediateConditionalV1,
     ReturnU64WidenedU8ExactSubtractImmediateConditionalV1,
-    /// The true leaf materializes `r`, `a`, and `b`, then computes the exact
-    /// chain `(r + (r + (a + b)))`; the false leaf returns one immediate.
-    ReturnU64ActiveResidentExactAddChainConditionalV1,
-    /// The true leaf keeps `b` live across the first resident use:
-    /// `r + (b + (r + (a + b)))`; the false leaf returns one immediate.
-    ReturnU64ActiveResidentExactAddBridgeChainConditionalV1,
-    /// The true leaf retains the fork/join graph required for an eligible
-    /// original epoch-two victim:
-    /// `r + ((r + (a + b)) + (b + r))`; the false leaf returns one immediate.
-    ReturnU64ActiveResidentExactAddOriginalVictimChainConditionalV1,
+    /// Ordered U64 definitions retaining exact arithmetic evidence and value uses.
+    ReturnU64ExactIntegerSequenceConditionalV1,
     /// Equality of two ordered U64 entry parameters controls two immediate
     /// U64 return arms.
     ReturnU64IntegerEqualParametersConditionalV1,

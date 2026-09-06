@@ -3,7 +3,7 @@
 use crate::tests::*;
 
 #[test]
-fn original_victim_graph_legalization_is_distinct_and_independently_replayed() {
+fn original_victim_graph_legalization_retains_dependencies_and_is_independently_replayed() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let (semantic, proof) =
             conditional_active_resident_exact_add_original_victim_chain_artifact();
@@ -29,23 +29,30 @@ fn original_victim_graph_legalization_is_distinct_and_independently_replayed() {
         let function = legalized.plan().functions[0].conditional();
         assert_eq!(
             function.recipe,
-            LegalizationRecipe::ReturnU64ActiveResidentExactAddOriginalVictimChainConditionalV1,
+            LegalizationRecipe::ReturnU64ExactIntegerSequenceConditionalV1,
         );
-        let LegalizedLeafValue::ActiveResidentExactAddOriginalVictimChain(chain) =
-            &function.when_true.value
-        else {
-            panic!("exact graph retains its distinct legalized carrier")
+        let LegalizedLeafValue::ExactIntegerSequence(sequence) = &function.when_true.value else {
+            panic!("exact graph uses the ordinary ordered sequence")
         };
-        assert_ne!(chain.middle.source_value, chain.bridge.source_value);
-        assert_ne!(chain.join.source_value, chain.result.source_value);
+        assert_eq!(sequence.steps.len(), 8);
+        let legalized_operations::LegalizedIntegerStep::ExactBinary(join) = &sequence.steps[6]
+        else {
+            panic!("the join is the seventh source definition")
+        };
+        let legalized_operations::LegalizedIntegerStep::ExactBinary(result) = &sequence.steps[7]
+        else {
+            panic!("the result follows the join")
+        };
+        assert_eq!(result.right, join.source_value);
+        assert_ne!(join.source_value, result.source_value);
 
         let mut corrupted = legalized.plan().clone();
-        let LegalizedLeafValue::ActiveResidentExactAddOriginalVictimChain(chain) =
+        let LegalizedLeafValue::ExactIntegerSequence(sequence) =
             &mut corrupted.functions[0].conditional_mut().when_true.value
         else {
             unreachable!()
         };
-        std::mem::swap(&mut chain.bridge.operation, &mut chain.join.operation);
+        sequence.steps.swap(5, 6);
         assert!(
             validate_legalized_operations(
                 target.target_operations(),

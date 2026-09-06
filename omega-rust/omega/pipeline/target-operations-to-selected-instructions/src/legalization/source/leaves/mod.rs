@@ -1,24 +1,17 @@
-//! Optimizer module role: executable entrance. Reconstructs one scalar leaf through the exact eight-form catalog, then seals its return envelope.
+//! Optimizer module role: executable entrance. Reconstructs one scalar leaf through ordered scalar operations and catalogued compatibility forms, then seals its return envelope.
 
-mod active_resident_exact_add_bridge_chain;
-mod active_resident_exact_add_chain;
-mod active_resident_exact_add_original_victim_chain;
 mod context;
 mod direct_exact_binary;
 mod entry_parameter;
-mod exact_add;
 mod fuel;
 mod immediate;
 mod operation_projection;
 mod return_projection;
+mod sequence;
 mod widened_exact_binary;
 
 use super::shared::*;
 use context::{DerivedValue, LeafContext};
-pub(super) use exact_add::{
-    is_active_resident_exact_add_bridge_chain, is_active_resident_exact_add_chain,
-    is_active_resident_exact_add_original_victim_chain,
-};
 pub(in crate::legalization::source) use fuel::{exact_edge_fuel, exact_operation_fuel};
 pub(super) use operation_projection::source_operations;
 
@@ -33,6 +26,7 @@ pub(super) fn derive_leaf(
     optimized: &optimization_unit::PsiOptimizationFunction,
     accepted_obligation_facts: &[AcceptedObligationFact],
     temporaries: [LegalizedTemporaryId; 2],
+    ordered_sequence: bool,
 ) -> Result<SourceLeaf, LegalizationError> {
     if nodes.len() != abstract_operations.len()
         || nodes
@@ -65,36 +59,27 @@ pub(super) fn derive_leaf(
         u64_type: ScalarType::Integer(u64_integer_type),
     };
 
-    let (return_node, value) = match expression {
-        TargetIntegerExpression::Immediate { .. } => immediate::derive(&context, expression)?,
-        TargetIntegerExpression::Parameter {
-            parameter_index,
-            location,
-            ..
-        } => entry_parameter::derive(&context, expression, *parameter_index, location)?,
-        TargetIntegerExpression::IntegerWiden {
-            psi_operation,
-            source_type,
-            operand,
-        } => match operand.as_ref() {
-            TargetIntegerExpression::ExactAdd { .. } => {
-                widened_exact_binary::derive_add(&context, *psi_operation, *source_type, operand)?
+    let (return_node, value) = if ordered_sequence {
+        sequence::derive(&context, expression)?
+    } else {
+        match expression {
+            TargetIntegerExpression::Immediate { .. } => immediate::derive(&context, expression)?,
+            TargetIntegerExpression::Parameter {
+                parameter_index,
+                location,
+                ..
+            } => entry_parameter::derive(&context, expression, *parameter_index, location)?,
+            TargetIntegerExpression::IntegerWiden { .. } => {
+                widened_exact_binary::derive_expression(&context, expression)?
             }
-            TargetIntegerExpression::ExactSubtract { .. } => widened_exact_binary::derive_subtract(
-                &context,
-                *psi_operation,
-                *source_type,
-                operand,
-            )?,
+            expression @ TargetIntegerExpression::ExactAdd { .. } => {
+                direct_exact_binary::derive_add(&context, expression)?
+            }
+            expression @ TargetIntegerExpression::ExactSubtract { .. } => {
+                direct_exact_binary::derive_subtract(&context, expression)?
+            }
             _ => return Err(Error::UnsupportedSourceShape { function }),
-        },
-        expression @ TargetIntegerExpression::ExactAdd { .. } => {
-            exact_add::derive(&context, expression)?
         }
-        expression @ TargetIntegerExpression::ExactSubtract { .. } => {
-            direct_exact_binary::derive_subtract(&context, expression)?
-        }
-        _ => return Err(Error::UnsupportedSourceShape { function }),
     };
     return_projection::finalize(&context, return_node, *psi_return_edge, value)
 }

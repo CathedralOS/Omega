@@ -1,17 +1,12 @@
 pub(super) use abstract_operations::{AbstractOperation, AbstractOperationPlan};
 pub(super) use calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
 pub(super) use legalized_operations::{
-    LegalizationTheorem,
-    LegalizedActiveResidentExactAddBridgeChain as SourceActiveResidentExactAddBridgeChain,
-    LegalizedActiveResidentExactAddChain as SourceActiveResidentExactAddChain,
-    LegalizedActiveResidentExactAddOriginalVictimChain as SourceActiveResidentExactAddOriginalVictimChain,
-    LegalizedBoundarySettlement, LegalizedCallUnit, LegalizedCallUnitArgument,
+    LegalizationTheorem, LegalizedBoundarySettlement, LegalizedCallUnit, LegalizedCallUnitArgument,
     LegalizedCallUnitParameter, LegalizedCondition, LegalizedConditionParameter,
-    LegalizedConditionalFunction as SourceFunction, LegalizedExactAdd as SourceExactAdd,
-    LegalizedImmediate as SourceImmediate, LegalizedLeaf as SourceLeaf,
-    LegalizedLeafValue as SourceLeafValue, LegalizedScalarCallUnitArgument,
-    LegalizedScalarCallUnitCall, LegalizedScalarCallUnitConstant, LegalizedScalarCallUnitFunction,
-    LegalizedScalarCallUnitOperation,
+    LegalizedConditionalFunction as SourceFunction, LegalizedImmediate as SourceImmediate,
+    LegalizedLeaf as SourceLeaf, LegalizedLeafValue as SourceLeafValue,
+    LegalizedScalarCallUnitArgument, LegalizedScalarCallUnitCall, LegalizedScalarCallUnitConstant,
+    LegalizedScalarCallUnitFunction, LegalizedScalarCallUnitOperation,
     LegalizedStructuralUnitFunction as SourceStructuralUnitFunction, LegalizedTemporaryId,
     LegalizedUnitFunction as SourceUnitFunction, ScalarCallUnitLegalizationRecipe,
 };

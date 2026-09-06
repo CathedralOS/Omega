@@ -23,6 +23,7 @@ pub(super) use terminal_psi::{
 
 mod fixtures;
 mod identity;
+mod integer_sequences;
 mod validation;
 
 use fixtures::*;

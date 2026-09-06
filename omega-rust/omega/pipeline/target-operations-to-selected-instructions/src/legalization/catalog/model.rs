@@ -21,9 +21,7 @@ pub(in crate::legalization) enum ScalarLegalizationMatcherKind {
     ExactSubtractImmediate,
     WidenedU8ExactAddImmediate,
     WidenedU8ExactSubtractImmediate,
-    ActiveResidentExactAddChain,
-    ActiveResidentExactAddBridgeChain,
-    ActiveResidentExactAddOriginalVictimChain,
+    ExactIntegerSequence,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -61,9 +59,7 @@ pub(in crate::legalization) enum ScalarLegalizationValidatorKind {
     ExactSubtractImmediate,
     WidenedU8ExactAddImmediate,
     WidenedU8ExactSubtractImmediate,
-    ActiveResidentExactAddChain,
-    ActiveResidentExactAddBridgeChain,
-    ActiveResidentExactAddOriginalVictimChain,
+    ExactIntegerSequence,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -148,6 +144,7 @@ pub(in crate::legalization) struct StructuralUnitShapeConstraints {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::legalization) enum LegalizationShapeConstraints {
     Scalar(ScalarShapeConstraints),
+    ScalarSequence,
     Unit(UnitShapeConstraints),
     ScalarCallUnit(ScalarCallUnitShapeConstraints),
     StructuralUnit(StructuralUnitShapeConstraints),
@@ -167,4 +164,28 @@ pub(in crate::legalization) struct LegalizationFormDescriptor {
     pub constraints: LegalizationShapeConstraints,
     pub cost: LegalizationStructuralCost,
     pub validator: LegalizationValidatorKind,
+}
+impl LegalizationShapeConstraints {
+    /// Resolve only cardinality constraints from an existing source roster.
+    /// This constructs no legalized value or validation evidence.
+    pub(in crate::legalization) fn scalar(
+        self,
+        leaf_node_counts: [usize; 2],
+    ) -> Option<ScalarShapeConstraints> {
+        match self {
+            Self::Scalar(shape) => Some(shape),
+            Self::ScalarSequence if leaf_node_counts[0] >= 2 && leaf_node_counts[1] == 2 => {
+                let false_offset = 1usize.checked_add(leaf_node_counts[0])?;
+                Some(ScalarShapeConstraints {
+                    condition: ScalarConditionShape::DirectBooleanParameter,
+                    entry_node_count: 1,
+                    block_offsets: [0, 1, false_offset],
+                    operation_count: false_offset.checked_add(2)?,
+                    leaf_node_counts,
+                    parameter_count: 1,
+                })
+            }
+            _ => None,
+        }
+    }
 }

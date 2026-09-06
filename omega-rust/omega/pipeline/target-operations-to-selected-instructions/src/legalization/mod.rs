@@ -9,6 +9,7 @@ mod catalog;
 mod catalog_tests;
 #[cfg(test)]
 mod condition_tests;
+mod integer_sequence_input;
 mod model;
 mod projected_structural_call_return;
 mod replay;

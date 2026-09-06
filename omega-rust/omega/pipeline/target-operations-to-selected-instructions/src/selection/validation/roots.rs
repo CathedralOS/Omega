@@ -63,6 +63,17 @@ pub(super) fn validate_initial_roots(
                     return source.abi.parameters.len();
                 }
                 legalized_operations::LegalizedFunction::Leaf(source) => {
+                    if let SourceLeafValue::ExactIntegerSequence(sequence) = &source.leaf.value {
+                        return source.abi.parameters.iter().filter(|parameter| {
+                            (parameter.value == source.leaf.source_value
+                                || sequence.steps.iter().any(|step| {
+                                    matches!(step, legalized_operations::LegalizedIntegerStep::ExactBinary(binary)
+                                        if binary.left == parameter.value || binary.right == parameter.value)
+                                }))
+                                && matches!(parameter.placement.locations.as_slice(),
+                                    [ValueLocation::Register { value_byte_offset: 0, byte_size: 8, .. }])
+                        }).count();
+                    }
                     return usize::from(matches!(
                         source.leaf.value,
                         SourceLeafValue::EntryParameter { .. }

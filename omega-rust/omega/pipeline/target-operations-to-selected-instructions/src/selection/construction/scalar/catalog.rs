@@ -4,9 +4,8 @@ use crate::selection::shared::*;
 
 use super::model::{ConstructedScalarBody, ScalarConstructionContext};
 use super::{
-    active_resident_exact_add_bridge_chain, active_resident_exact_add_chain,
-    active_resident_exact_add_original_victim_chain, comparison_immediate_pair, exact_binary_pair,
-    immediate_pair, parameter_pair, zero_comparison_immediate_pair,
+    comparison_immediate_pair, exact_binary_pair, immediate_pair, integer_sequence, parameter_pair,
+    zero_comparison_immediate_pair,
 };
 
 type CandidateClassifier = fn(&SourceFunction) -> bool;
@@ -63,19 +62,9 @@ const SCALAR_FAMILIES: &[ScalarFamilyDescriptor] = &[
         exact_binary_pair::build_widened_exact_subtract,
     ),
     ScalarFamilyDescriptor::new(
-        "active-resident-exact-add-chain",
-        active_resident_exact_add_chain::is_candidate,
-        active_resident_exact_add_chain::build,
-    ),
-    ScalarFamilyDescriptor::new(
-        "active-resident-exact-add-bridge-chain",
-        active_resident_exact_add_bridge_chain::is_candidate,
-        active_resident_exact_add_bridge_chain::build,
-    ),
-    ScalarFamilyDescriptor::new(
-        "active-resident-exact-add-original-victim-chain",
-        active_resident_exact_add_original_victim_chain::is_candidate,
-        active_resident_exact_add_original_victim_chain::build,
+        "exact-integer-sequence",
+        integer_sequence::is_candidate,
+        integer_sequence::build,
     ),
 ];
 

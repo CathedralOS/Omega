@@ -4,6 +4,8 @@ use crate::selection::constraints::{fixed_input_constraint, instruction, row};
 use crate::selection::shared::*;
 use legalized_operations::LegalizedScalarLeafFunction;
 
+mod sequence;
+
 pub(super) fn build(
     function: usize,
     source: &LegalizedScalarLeafFunction,
@@ -37,6 +39,16 @@ pub(super) fn build(
         || return_operand.fixed_view.is_none()
     {
         return Err(invalid());
+    }
+    if matches!(source.leaf.value, SourceLeafValue::ExactIntegerSequence(_)) {
+        return sequence::build(
+            function,
+            source,
+            constraints,
+            physical,
+            catalog,
+            &environment,
+        );
     }
     let mut instructions = Vec::new();
     let source_value = source.leaf.source_value;

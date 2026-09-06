@@ -3,6 +3,7 @@
 mod blocks;
 mod def_use;
 mod functions;
+pub(super) mod integer_sequence;
 mod integrity;
 mod ordinary_roster;
 mod projected_structural_call_return;

@@ -25,17 +25,9 @@ pub(super) fn validate_dense(
                 6,
             ),
             (
-                SourceLeafValue::ActiveResidentExactAddChain(..),
+                SourceLeafValue::ExactIntegerSequence(sequence),
                 SourceLeafValue::Immediate { .. },
-            ) => (8, 11),
-            (
-                SourceLeafValue::ActiveResidentExactAddBridgeChain(..),
-                SourceLeafValue::Immediate { .. },
-            ) => (9, 12),
-            (
-                SourceLeafValue::ActiveResidentExactAddOriginalVictimChain(..),
-                SourceLeafValue::Immediate { .. },
-            ) => (10, 13),
+            ) => (sequence.steps.len() + 2, sequence.steps.len() as u32 + 5),
             (SourceLeafValue::EntryParameter { .. }, SourceLeafValue::EntryParameter { .. }) => {
                 (2, 4)
             }
@@ -468,47 +460,23 @@ pub(super) fn validate_provenance_partition(
                     });
                 }
             }
-            SourceLeafValue::ActiveResidentExactAddChain(chain) => {
-                if block.instructions.len() != 6
-                    || block.instructions[0].provenance.fuel != chain.resident.fuel
-                    || block.instructions[1].provenance.fuel != chain.left.fuel
-                    || block.instructions[2].provenance.fuel != chain.right.fuel
-                    || block.instructions[3].provenance.fuel != chain.inner.fuel
-                    || block.instructions[4].provenance.fuel != chain.middle.fuel
-                    || block.instructions[5].provenance.fuel != chain.result.fuel
-                    || instruction.provenance.fuel != leaf.return_fuel
-                {
-                    return Err(SelectedInstructionError::ProvenancePartitionMismatch {
-                        function: function_index,
-                    });
-                }
-            }
-            SourceLeafValue::ActiveResidentExactAddBridgeChain(chain) => {
-                if block.instructions.len() != 7
-                    || block.instructions[0].provenance.fuel != chain.resident.fuel
-                    || block.instructions[1].provenance.fuel != chain.left.fuel
-                    || block.instructions[2].provenance.fuel != chain.right.fuel
-                    || block.instructions[3].provenance.fuel != chain.inner.fuel
-                    || block.instructions[4].provenance.fuel != chain.middle.fuel
-                    || block.instructions[5].provenance.fuel != chain.bridge.fuel
-                    || block.instructions[6].provenance.fuel != chain.result.fuel
-                    || instruction.provenance.fuel != leaf.return_fuel
-                {
-                    return Err(SelectedInstructionError::ProvenancePartitionMismatch {
-                        function: function_index,
-                    });
-                }
-            }
-            SourceLeafValue::ActiveResidentExactAddOriginalVictimChain(chain) => {
-                if block.instructions.len() != 8
-                    || block.instructions[0].provenance.fuel != chain.resident.fuel
-                    || block.instructions[1].provenance.fuel != chain.left.fuel
-                    || block.instructions[2].provenance.fuel != chain.right.fuel
-                    || block.instructions[3].provenance.fuel != chain.inner.fuel
-                    || block.instructions[4].provenance.fuel != chain.middle.fuel
-                    || block.instructions[5].provenance.fuel != chain.bridge.fuel
-                    || block.instructions[6].provenance.fuel != chain.join.fuel
-                    || block.instructions[7].provenance.fuel != chain.result.fuel
+            SourceLeafValue::ExactIntegerSequence(sequence) => {
+                if block.instructions.len() != sequence.steps.len()
+                    || block
+                        .instructions
+                        .iter()
+                        .zip(&sequence.steps)
+                        .any(|(instruction, step)| {
+                            let fuel = match step {
+                                legalized_operations::LegalizedIntegerStep::Immediate(value) => {
+                                    &value.fuel
+                                }
+                                legalized_operations::LegalizedIntegerStep::ExactBinary(value) => {
+                                    &value.fuel
+                                }
+                            };
+                            instruction.provenance.fuel != *fuel
+                        })
                     || instruction.provenance.fuel != leaf.return_fuel
                 {
                     return Err(SelectedInstructionError::ProvenancePartitionMismatch {

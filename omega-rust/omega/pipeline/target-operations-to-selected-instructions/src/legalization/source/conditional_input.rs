@@ -3,7 +3,7 @@
 use super::conditions::{self, DerivedCondition};
 use super::matchers::match_scalar_form;
 use super::shared::*;
-use crate::legalization::catalog::{LegalizationFormDescriptor, LegalizationShapeConstraints};
+use crate::legalization::catalog::LegalizationFormDescriptor;
 
 pub(super) fn match_input<'a>(
     function: usize,
@@ -45,7 +45,10 @@ pub(super) fn match_input<'a>(
         condition.when_false.control.as_ref(),
     )
     .ok_or(Error::UnsupportedSourceShape { function })?;
-    let LegalizationShapeConstraints::Scalar(constraints) = form.constraints else {
+    let Some(constraints) = form.constraints.scalar([
+        optimized.blocks[1].nodes.len(),
+        optimized.blocks[2].nodes.len(),
+    ]) else {
         return Err(Error::UnsupportedSourceShape { function });
     };
     if optimized.blocks[0].nodes.len() != constraints.entry_node_count

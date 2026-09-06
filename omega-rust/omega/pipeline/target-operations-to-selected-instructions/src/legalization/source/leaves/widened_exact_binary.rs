@@ -269,3 +269,29 @@ fn validate_values(
     }
     Ok(())
 }
+pub(super) fn derive_expression<'a>(
+    context: &LeafContext<'a>,
+    expression: &TargetIntegerExpression,
+) -> Result<DerivedValue<'a>, LegalizationError> {
+    let TargetIntegerExpression::IntegerWiden {
+        psi_operation,
+        source_type,
+        operand,
+    } = expression
+    else {
+        return Err(Error::UnsupportedSourceShape {
+            function: context.function,
+        });
+    };
+    match operand.as_ref() {
+        TargetIntegerExpression::ExactAdd { .. } => {
+            derive_add(context, *psi_operation, *source_type, operand)
+        }
+        TargetIntegerExpression::ExactSubtract { .. } => {
+            derive_subtract(context, *psi_operation, *source_type, operand)
+        }
+        _ => Err(Error::UnsupportedSourceShape {
+            function: context.function,
+        }),
+    }
+}

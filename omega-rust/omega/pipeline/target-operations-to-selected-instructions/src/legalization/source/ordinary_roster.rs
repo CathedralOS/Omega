@@ -98,6 +98,10 @@ pub(super) fn derive_remaining(
                     legalized_operations::LegalizedTemporaryId(0),
                     legalized_operations::LegalizedTemporaryId(1),
                 ],
+                matches!(
+                    target_function.operation,
+                    TargetOperation::ReturnIntegerExpression { .. }
+                ),
             )?;
             let provenance = target_operations::TerminalPsiProvenance {
                 operations: super::leaves::source_operations(&leaf.value),

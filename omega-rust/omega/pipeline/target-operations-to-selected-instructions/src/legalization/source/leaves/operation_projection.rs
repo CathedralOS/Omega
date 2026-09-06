@@ -56,32 +56,15 @@ pub(in crate::legalization::source) fn source_operations(
             *subtract_operation,
             *widen_operation,
         ],
-        SourceLeafValue::ActiveResidentExactAddChain(chain) => vec![
-            chain.resident.constant_operation,
-            chain.left.constant_operation,
-            chain.right.constant_operation,
-            chain.inner.operation,
-            chain.middle.operation,
-            chain.result.operation,
-        ],
-        SourceLeafValue::ActiveResidentExactAddBridgeChain(chain) => vec![
-            chain.resident.constant_operation,
-            chain.left.constant_operation,
-            chain.right.constant_operation,
-            chain.inner.operation,
-            chain.middle.operation,
-            chain.bridge.operation,
-            chain.result.operation,
-        ],
-        SourceLeafValue::ActiveResidentExactAddOriginalVictimChain(chain) => vec![
-            chain.resident.constant_operation,
-            chain.left.constant_operation,
-            chain.right.constant_operation,
-            chain.inner.operation,
-            chain.middle.operation,
-            chain.bridge.operation,
-            chain.join.operation,
-            chain.result.operation,
-        ],
+        SourceLeafValue::ExactIntegerSequence(sequence) => sequence
+            .steps
+            .iter()
+            .map(|step| match step {
+                legalized_operations::LegalizedIntegerStep::Immediate(value) => {
+                    value.constant_operation
+                }
+                legalized_operations::LegalizedIntegerStep::ExactBinary(value) => value.operation,
+            })
+            .collect(),
     }
 }

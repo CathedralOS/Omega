@@ -106,7 +106,10 @@ pub(super) fn derive_source_function(
 ) -> Result<SourceFunction, LegalizationError> {
     let (condition, form) =
         super::conditional_input::match_input(function, target, abstracted, optimized)?;
-    let LegalizationShapeConstraints::Scalar(constraints) = form.constraints else {
+    let Some(constraints) = form.constraints.scalar([
+        optimized.blocks[1].nodes.len(),
+        optimized.blocks[2].nodes.len(),
+    ]) else {
         unreachable!("matched scalar form");
     };
     let entry_node = &optimized.blocks[0].nodes[condition.conditional_node_index];
@@ -160,6 +163,7 @@ pub(super) fn derive_source_function(
         optimized,
         accepted_obligation_facts,
         [LegalizedTemporaryId(0), LegalizedTemporaryId(1)],
+        matches!(form.recipe, LegalizationFormRecipe::Scalar(legalized_operations::LegalizationRecipe::ReturnU64ExactIntegerSequenceConditionalV1)),
     )?;
     let when_false = derive_leaf(
         function,
@@ -171,6 +175,7 @@ pub(super) fn derive_source_function(
         optimized,
         accepted_obligation_facts,
         [LegalizedTemporaryId(2), LegalizedTemporaryId(3)],
+        false,
     )?;
     if let (
         SourceLeafValue::EntryParameter {
