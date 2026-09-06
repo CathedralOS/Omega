@@ -4,6 +4,7 @@ use super::indexes::{
     index_expression_may_overlap_fixed_range_with_selectors,
     index_expressions_may_overlap_with_selectors,
 };
+use crate::flow::place_segment_has_unresolved_identity;
 use checked_trees::{
     BorrowCompatibilityPlaceSide, BorrowCompatibilitySelectorSnapshot, CapturedPlaceContainment,
 };
@@ -12,6 +13,13 @@ pub(super) fn place_segments_containment(
     left: &[facts::PlaceSegment],
     right: &[facts::PlaceSegment],
 ) -> CapturedPlaceContainment {
+    if left
+        .iter()
+        .chain(right)
+        .any(|segment| place_segment_has_unresolved_identity(*segment))
+    {
+        return CapturedPlaceContainment::None;
+    }
     if left.len() == right.len()
         && left
             .iter()
@@ -146,20 +154,25 @@ fn place_segments_may_overlap_evaluated(
     right: &[facts::PlaceSegment],
     selectors: &mut SelectorSnapshotEvaluation<'_>,
 ) -> bool {
-    let shared_len = left.len().min(right.len());
-    left.iter()
-        .take(shared_len)
-        .zip(right.iter().take(shared_len))
-        .enumerate()
-        .all(|(segment_index, (left_segment, right_segment))| {
-            place_segment_pair_may_overlap(
-                program,
-                *left_segment,
-                *right_segment,
-                segment_index,
-                selectors,
-            )
-        })
+    for (segment_index, (&left_segment, &right_segment)) in left.iter().zip(right).enumerate() {
+        // A known prefix may already have proved disjointness. Once nominal
+        // identity is missing, later children cannot establish a divergence.
+        if place_segment_has_unresolved_identity(left_segment)
+            || place_segment_has_unresolved_identity(right_segment)
+        {
+            return true;
+        }
+        if !place_segment_pair_may_overlap(
+            program,
+            left_segment,
+            right_segment,
+            segment_index,
+            selectors,
+        ) {
+            return false;
+        }
+    }
+    true
 }
 
 fn place_segment_pair_may_overlap(
@@ -291,6 +304,29 @@ mod tests {
         program.expression_table.insert(ExpressionNode::Integer(
             numerics::literals::IntegerLiteral::from_value(value),
         ))
+    }
+
+    #[test]
+    fn unresolved_field_does_not_prove_disjointness() {
+        let program = typed_trees::TypedTrees::default();
+        let unresolved = facts::PlaceSegment::default();
+        let resolved = facts::PlaceSegment::Field {
+            symbol: symbols::SymbolHandle::from_arena_index(1),
+        };
+        assert!(place_segments_may_overlap(
+            &program,
+            &[unresolved],
+            &[resolved]
+        ));
+    }
+
+    #[test]
+    fn unresolved_field_does_not_prove_containment() {
+        let unresolved = facts::PlaceSegment::default();
+        assert_eq!(
+            place_segments_containment(&[unresolved], &[unresolved]),
+            CapturedPlaceContainment::None
+        );
     }
 
     #[test]

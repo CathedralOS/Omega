@@ -1,7 +1,20 @@
+/// A missing field or case identity gives no information about its descendants.
+/// Runtime indexes retain their separate conservative selector semantics.
+pub(crate) fn place_segment_has_unresolved_identity(segment: facts::PlaceSegment) -> bool {
+    match segment {
+        facts::PlaceSegment::Field { symbol } => !symbol.is_valid(),
+        facts::PlaceSegment::Case { variant } => !variant.is_valid(),
+        _ => false,
+    }
+}
+
 pub(crate) fn canonical_place_segments_equal(
     left: facts::PlaceSegment,
     right: facts::PlaceSegment,
 ) -> bool {
+    if place_segment_has_unresolved_identity(left) || place_segment_has_unresolved_identity(right) {
+        return false;
+    }
     match (left, right) {
         (
             facts::PlaceSegment::Field {
@@ -84,13 +97,17 @@ pub(crate) fn canonical_place_segments_may_overlap(
     left: &[facts::PlaceSegment],
     right: &[facts::PlaceSegment],
 ) -> bool {
-    let shared_len = left.len().min(right.len());
-    left.iter()
-        .take(shared_len)
-        .zip(right.iter().take(shared_len))
-        .all(|(left_segment, right_segment)| {
-            canonical_place_segment_pair_may_overlap(program, *left_segment, *right_segment)
-        })
+    for (&left_segment, &right_segment) in left.iter().zip(right) {
+        if place_segment_has_unresolved_identity(left_segment)
+            || place_segment_has_unresolved_identity(right_segment)
+        {
+            return true;
+        }
+        if !canonical_place_segment_pair_may_overlap(program, left_segment, right_segment) {
+            return false;
+        }
+    }
+    true
 }
 
 pub(crate) fn canonical_place_joined_segments_may_overlap(
@@ -99,16 +116,17 @@ pub(crate) fn canonical_place_joined_segments_may_overlap(
     suffix: &[facts::PlaceSegment],
     right: &[facts::PlaceSegment],
 ) -> bool {
-    let shared_len = prefix.len().saturating_add(suffix.len()).min(right.len());
-
-    (0..shared_len).all(|index| {
-        let left_segment = if index < prefix.len() {
-            prefix[index]
-        } else {
-            suffix[index - prefix.len()]
-        };
-        canonical_place_segment_pair_may_overlap(program, left_segment, right[index])
-    })
+    for (&left_segment, &right_segment) in prefix.iter().chain(suffix).zip(right) {
+        if place_segment_has_unresolved_identity(left_segment)
+            || place_segment_has_unresolved_identity(right_segment)
+        {
+            return true;
+        }
+        if !canonical_place_segment_pair_may_overlap(program, left_segment, right_segment) {
+            return false;
+        }
+    }
+    true
 }
 
 fn canonical_place_segment_pair_may_overlap(
