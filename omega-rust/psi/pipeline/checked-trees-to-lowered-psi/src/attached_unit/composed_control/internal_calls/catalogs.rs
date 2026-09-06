@@ -110,7 +110,10 @@ pub(in crate::attached_unit::composed_control) fn lower(
                     .iter()
                     .map(|parameter| parameter.scalar_type)
                     .collect(),
-                crash_routes: declaration.contract.crash_routes.clone(),
+                parameter_relative_crash_routes: lower_checked_crash_routes(
+                    checked,
+                    target.machine,
+                )?,
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;

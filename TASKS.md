@@ -525,8 +525,10 @@ Owners include
   including projected and borrowed operand staging.
   Connect scalar-returning boundary callees to ordinary Unit call closures;
   named-root lowering alone does not make them callable from a Unit ProgramEntry.
-  Lower scalar-dependent Unit crash predicates using the same retained argument
-  values; the callee route must not reread caller storage or keep callee-local IDs.
+  Extend scalar-dependent Unit crash predicates to mixed scalar/structural
+  signatures with explicit authored-to-scalar parameter mapping. Retain evaluated
+  arguments and prove computed-argument routes against caller formal ceilings;
+  do not reread caller storage or retain callee-local IDs.
   Complete nonliteral contract arithmetic and callee-result bounds requiring
   caller-specific snapshots beyond immutable scalar formal comparisons; carry
   those facts into nested exact-cast obligations without rereading arguments.

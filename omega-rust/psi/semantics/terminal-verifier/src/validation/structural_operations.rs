@@ -334,7 +334,7 @@ pub(super) fn validate_unit_operation_static(
         }
         OperationKind::CallUnit {
             callee,
-            arguments: _,
+            arguments,
             structural_arguments,
             claim_transfers,
             requirement_obligations,
@@ -468,6 +468,7 @@ pub(super) fn validate_unit_operation_static(
                 module,
                 machine,
                 callee,
+                arguments,
                 structural_arguments,
                 crash_continuations,
                 operation.id,
@@ -475,7 +476,7 @@ pub(super) fn validate_unit_operation_static(
         }
         OperationKind::CallStructuralScalar {
             callee,
-            arguments: _,
+            arguments,
             structural_arguments,
             claim_transfers,
             requirement_obligations,
@@ -532,6 +533,7 @@ pub(super) fn validate_unit_operation_static(
                 module,
                 machine,
                 callee,
+                arguments,
                 structural_arguments,
                 crash_continuations,
                 operation.id,
@@ -879,6 +881,7 @@ pub(super) fn validate_unit_operation_static(
                 module,
                 machine,
                 callee,
+                &[],
                 structural_arguments,
                 crash_continuations,
                 operation.id,
@@ -1728,6 +1731,7 @@ fn validate_unit_call_crash_continuations(
     module: &TerminalModule,
     caller: &TerminalMachine,
     callee: &TerminalMachine,
+    scalar_arguments: &[ValueId],
     arguments: &[StructuralArgument],
     continuations: &[CrashRouteBucket],
     operation: OperationId,
@@ -1764,30 +1768,28 @@ fn validate_unit_call_crash_continuations(
             ))
         })
         .collect::<Result<BTreeMap<_, _>, _>>()?;
-    let expected = substitute_crash_route_places(&callee.contract.crash_routes, &substitutions);
-    if continuations != expected {
+    let mut expected = substitute_crash_route_places(&callee.contract.crash_routes, &substitutions);
+    if !callee.parameters.is_empty() {
+        let scalar_substitutions = callee
+            .parameters
+            .iter()
+            .zip(scalar_arguments)
+            .map(|(parameter, argument)| {
+                (
+                    parameter.id,
+                    ScalarTerm::value(*argument, parameter.scalar_type),
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+        expected = super::crash::substitute_crash_routes(&expected, &scalar_substitutions);
+    }
+    if !super::crash::crash_routes_match(continuations, &expected) {
         return Err(ModuleError::CallCrashContinuationsMismatch {
             operation,
             callee: callee.id,
         });
     }
-    for continuation in continuations {
-        let covered = caller.contract.crash_routes.iter().any(|published| {
-            published.cause == continuation.cause
-                && (published.alternatives == [CrashRouteGuard::Truth]
-                    || continuation
-                        .alternatives
-                        .iter()
-                        .all(|route| published.alternatives.contains(route)))
-        });
-        if !covered {
-            return Err(ModuleError::CallCrashContinuationUncovered {
-                operation,
-                cause: continuation.cause,
-            });
-        }
-    }
-    Ok(())
+    super::crash::validate_call_crash_coverage(caller, continuations, operation)
 }
 
 fn substitute_crash_route_places(

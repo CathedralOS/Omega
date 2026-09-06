@@ -347,28 +347,20 @@ pub(super) fn validate_machine(
                         .collect::<BTreeMap<_, _>>();
                     let expected_crash_continuations =
                         substitute_crash_routes(&callee.contract.crash_routes, &substitutions);
-                    if crash_continuations != expected_crash_continuations {
+                    if !super::crash::crash_routes_match(
+                        &crash_continuations,
+                        &expected_crash_continuations,
+                    ) {
                         return Err(ModuleError::CallCrashContinuationsMismatch {
                             operation: operation.id,
                             callee: callee.id,
                         });
                     }
-                    for continuation in &crash_continuations {
-                        let covered = machine.contract.crash_routes.iter().any(|published| {
-                            published.cause == continuation.cause
-                                && (published.alternatives == [CrashRouteGuard::Truth]
-                                    || continuation
-                                        .alternatives
-                                        .iter()
-                                        .all(|route| published.alternatives.contains(route)))
-                        });
-                        if !covered {
-                            return Err(ModuleError::CallCrashContinuationUncovered {
-                                operation: operation.id,
-                                cause: continuation.cause,
-                            });
-                        }
-                    }
+                    super::crash::validate_call_crash_coverage(
+                        machine,
+                        &crash_continuations,
+                        operation.id,
+                    )?;
                     if !callee.structural_places.is_empty()
                         || !callee.content_entry_claims.is_empty()
                         || !callee.content_identity_reshuffles.is_empty()
