@@ -11,16 +11,16 @@
 // COUNT CARRIERS: byte sizes, alignments, counts, indices, register ordinals,
 // immediates, and nonnegative stack offsets use u64, never addr.
 
-domain [u8; 256]::Utf8
+pub domain [u8; 256]::Utf8
 requires
     valid_utf8(self);
 
-data SystemVEightbyteClass {
+pub data SystemVEightbyteClass {
     case Integer;
     case Sse;
 }
 
-data ValueClass {
+pub data ValueClass {
     case Integer;
     case Float;
     case Reference;
@@ -28,23 +28,23 @@ data ValueClass {
     case Record(first_field: u64, field_count: u64);
 }
 
-data ValueShape {
+pub data ValueShape {
     class: ValueClass;
     byte_size: u64;
     alignment: u64;
 }
 
-data ValueField {
+pub data ValueField {
     shape: u64;
     byte_offset: u64;
 }
 
-data CallbackBinderIdentity {
+pub data CallbackBinderIdentity {
     binder: u64;
     requirement: u64;
 }
 
-data AbiValueClass {
+pub data AbiValueClass {
     case Integer;
     case Float;
     case HomogeneousFloatAggregate(members: u64);
@@ -54,7 +54,7 @@ data AbiValueClass {
     );
 }
 
-data AbiValueShape {
+pub data AbiValueShape {
     class: AbiValueClass;
     byte_size: u64;
     alignment: u64;
@@ -74,7 +74,7 @@ data AbiValueShape {
 // policy cannot establish an identity by inventing an integer, and unknown
 // values reject during plan validation. Calling policy may place declared
 // native entries but cannot create, reorder, or retarget them.
-data NativePlace {
+pub data NativePlace {
     case Parameter(parameter: u64);
     case Field(
         parameter: u64,
@@ -84,29 +84,29 @@ data NativePlace {
     );
 }
 
-data NativeCallbackDemandIdentity {
+pub data NativeCallbackDemandIdentity {
     destination: NativePlace;
     requirement: u64;
 }
 
-data NativeParameterOrigin {
+pub data NativeParameterOrigin {
     case SemanticFormal(formal_ordinal: u64);
     case PrivateCallback(binder: u64, requirement: u64);
 }
 
-data NativeParameterShape {
+pub data NativeParameterShape {
     case Semantic(root: u64);
     case TargetFunctionPointer(byte_size: u64, alignment: u64);
 }
 
-data NativeParameterIdentity {
+pub data NativeParameterIdentity {
     identity: u64;
     native_ordinal: u64;
     origin: NativeParameterOrigin;
     shape: NativeParameterShape;
 }
 
-data BoundarySignature {
+pub data BoundarySignature {
     shapes: [ValueShape; 256];
     shape_count: u64 [0..=256];
     fields: [ValueField; 256];
@@ -123,7 +123,7 @@ data BoundarySignature {
     result: u64;
 }
 
-data MachineRegister {
+pub data MachineRegister {
     case X86Rax;
     case X86Rcx;
     case X86Rdx;
@@ -145,12 +145,12 @@ data MachineRegister {
     case Aarch64V(index: u64);
 }
 
-data IndirectPointerLocation {
+pub data IndirectPointerLocation {
     case Register(register: MachineRegister);
     case Stack(stack_byte_offset: u64, alignment: u64);
 }
 
-data ValueLocation {
+pub data ValueLocation {
     case Register(
         register: MachineRegister,
         value_byte_offset: u64,
@@ -171,13 +171,13 @@ data ValueLocation {
     );
 }
 
-data ValuePlacement {
+pub data ValuePlacement {
     shape: AbiValueShape;
     locations: [ValueLocation; 16];
     location_count: u64 [0..=16];
 }
 
-data CallingConvention {
+pub data CallingConvention {
     case MicrosoftX64;
     case SystemVAMD64;
     case Aapcs64;
@@ -185,12 +185,12 @@ data CallingConvention {
     case LinuxSyscallAarch64;
 }
 
-data RegisterSet {
+pub data RegisterSet {
     registers: [MachineRegister; 64];
     register_count: u64 [0..=64];
 }
 
-data EntryControl {
+pub data EntryControl {
     case CallReturn;
     case SupervisorCall(
         number_register: MachineRegister,
@@ -199,12 +199,12 @@ data EntryControl {
     case InterruptReturn;
 }
 
-data CallbackMaterialization {
+pub data CallbackMaterialization {
     binder: u64;
     destination: NativePlace;
 }
 
-data CallPlan {
+pub data CallPlan {
     convention: CallingConvention;
     parameters: [ValuePlacement; 32];
     parameter_count: u64 [0..=32];
@@ -218,12 +218,12 @@ data CallPlan {
     entry_control: EntryControl;
 }
 
-data MachineRegime {
+pub data MachineRegime {
     case X86Long64;
     case Aarch64A64(exception_level: u64);
 }
 
-data MachineStateSet {
+pub data MachineStateSet {
     general_registers: bool;
     vector_registers: bool;
     flags: bool;
@@ -235,20 +235,20 @@ data MachineStateSet {
     extended_state: bool;
 }
 
-data EntryStack {
+pub data EntryStack {
     case Interrupted;
     case Dedicated(class: u64);
     case ProviderSelected;
 }
 
-data Preemption {
+pub data Preemption {
     case NotApplicable;
     case Masked;
     case Nestable(maximum_depth: u64);
     case ProviderDefined;
 }
 
-data StatePlan {
+pub data StatePlan {
     initial_regime: MachineRegime;
     interrupted_state: MachineStateSet;
     saved_state: MachineStateSet;
@@ -258,27 +258,27 @@ data StatePlan {
     preemption: Preemption;
 }
 
-data BoundaryEntryPlan {
+pub data BoundaryEntryPlan {
     call: CallPlan;
     state: StatePlan;
 }
 
-data CallingPolicyRejection {
+pub data CallingPolicyRejection {
     reason: [u8; 256] in Utf8;
 }
 
-data BoundaryPlanResult {
+pub data BoundaryPlanResult {
     case Accepted(plan: BoundaryEntryPlan);
     case Rejected(reason: CallingPolicyRejection);
 }
 
-trait CallingPolicy {
+pub trait CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult;
 }
 
 // Every Calling<C> relationship first proves the policy type's nominal
 // CallingPolicy conformance. The compiler can then evaluate that selected
 // conformance's plan machine and validate its canonical result.
-trait Calling<C>
+pub trait Calling<C>
 where C satisfies CallingPolicy
 { }
