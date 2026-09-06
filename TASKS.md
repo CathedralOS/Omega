@@ -492,9 +492,8 @@ Owners include
   `narrow_i32_to_u8_trapping` result and `print_squares`'s
   `narrow_u32_to_u8_wrapping` result publish no result range, and the checker
   derives none from their `trap_if` calls, so neither byte proves a class.
-  `print_squares` and `caesar_cipher` additionally store through a dynamic index
-  in a loop, which is not a stable value target, so the class must also survive
-  state edges. An ASCII byte can corrupt an arbitrary Utf8 buffer, so Utf8
+  `print_squares` and `caesar_cipher` additionally need the class to survive
+  loop state edges. An ASCII byte can corrupt an arbitrary Utf8 buffer, so Utf8
   membership alone can never justify the preservation rule. Acceptance:
   `text_samples_compile_from_authored_program_entry_bindings` is green for
   `format_number` and `caesar_cipher`.
