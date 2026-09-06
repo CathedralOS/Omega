@@ -476,14 +476,17 @@ Owners include
   input's exact premise, while unknown writes and reference aliases without
   exact provenance retain no checked guarantee.
 
-  Admit owned subcarrier and element values projected directly from helper
-  results in `flow/ownership/{calls.rs,moves.rs}`. The transient result place
-  currently produces a conservative owned-move conflict with an active carried
-  source loan, independently of returned-reference attribution. Acceptance:
+  Realize nested value-call operands guarded by
+  `validation/src/calls/expression_scanning/result_realization.rs` through the
+  checked/lowered value planning path. Borrow checking can transfer owned
+  helper-result projections, but full checking still rejects the inner call's
+  result as an unrealized operand.
+  Acceptance:
   `select(forward_outer(outer).inner)` and `select(forward_array(values)[0])`
-  transfer the owned value while retaining every selected source loan; a later
-  conflicting source use still rejects. Do not exempt unknown moves from loan
-  compatibility merely because the result's declared type matches.
+  evaluate each call once, retain the inner result home through projection and
+  the outer call, and preserve every selected source loan and linear claim.
+  Remove the nested-call gate only when those result uses have real producers;
+  a correct declared type or source origin alone does not realize a value.
 
 - **NOMINAL-FIELD-FLOW.** Complete declared-field domain evidence in Psi
   semantic facts, flow transfer, and contract consumption. Collection elements

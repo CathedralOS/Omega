@@ -177,5 +177,9 @@ pub(crate) fn owned_call_operand_places(
             root: event.root,
             segments: segments.span_or_empty(event.segments).to_vec(),
         })
+        // Keep the move event for permission accounting, but a projection
+        // contained in a fresh owned result does not move caller storage.
+        // Nested call operands have their own parameter-aligned move checks.
+        .filter(|place| !super::result_storage::is_private_result_place(program, place))
         .collect()
 }

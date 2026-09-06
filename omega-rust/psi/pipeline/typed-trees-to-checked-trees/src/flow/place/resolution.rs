@@ -127,6 +127,10 @@ pub(crate) fn expression_type_symbol(
 
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(inner) => expression_type_symbol(program, inner.target),
+        ExpressionNode::Call(call) => {
+            super::super::calls::call_target_return_type(program, call.target_symbol)
+                .map(|reference| program.type_reference_table.type_symbol(reference))
+        }
         ExpressionNode::Name(path) => {
             let symbol = first_valid_name_path_symbol(path, &program.expression_table)?;
             symbol_type_symbol(program, symbol)

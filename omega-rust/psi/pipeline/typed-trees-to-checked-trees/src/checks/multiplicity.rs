@@ -109,7 +109,7 @@ pub(crate) fn check_linear_obligations(
     facts: &mut CheckFacts,
     incoming_guards: &super::ranges::incoming_guards::IncomingGuardIndex,
 ) -> Result<(), Vec<Diagnostic>> {
-    validate_nominal_drop_moves(program, facts)?;
+    validate_partial_moves(program, facts)?;
     record_permission_events_with_incoming_guards(program, facts, incoming_guards);
     validate_linear_permission_events(program, facts)
 }
@@ -117,8 +117,9 @@ pub(crate) fn check_linear_obligations(
 /// A nominal cleanup machine is entitled to one whole valid value. Reject a
 /// move below any prefix carrying that entitlement; structural records without
 /// nominal cleanup remain decomposable, and moving the entitled value itself
-/// remains legal.
-fn validate_nominal_drop_moves(
+/// remains legal. Temporary partial moves must also retain every linear claim
+/// because there is no remaining local owner for an unselected sibling.
+fn validate_partial_moves(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -139,6 +140,13 @@ fn validate_nominal_drop_moves(
                 {
                     continue;
                 }
+                temporary_results::check_unselected_claims(
+                    program,
+                    state.symbol,
+                    &event,
+                    path,
+                    &mut diagnostics,
+                );
                 for prefix_len in 0..path.len() {
                     if prefix_len == 0 && event_is_owned_self_projection(program, state, &event) {
                         continue;
@@ -169,6 +177,8 @@ fn validate_nominal_drop_moves(
         Err(diagnostics)
     }
 }
+
+mod temporary_results;
 
 fn event_is_owned_self_projection(
     program: &typed_trees::TypedTrees,

@@ -736,8 +736,7 @@ Current ownership is:
   lifetime leaves through direct or aggregate results, nested call operands,
   and result-field/element projections without reducing multiple sources to one
   place. Runtime element selection conservatively retains all candidate loans.
-  This attribution does not admit projected temporary owned moves whose
-  ownership-place compatibility remains unresolved.
+  Attribution does not itself authorize an owned move or realize a nested call.
   `borrow/loans/owner_paths.rs` owns owner/place projection conversion and
   matching,
   `borrow/loans/types.rs` owns reference-type classification for loan
@@ -1028,6 +1027,21 @@ Current ownership is:
   applying the existing loan-compatibility checks. Moving a local carrier inside
   a literal therefore retains its local route rather than creating an unknown
   expression-rooted access. Storage-origin expansion remains separate.
+  `flow/ownership/result_storage.rs` distinguishes a call result's own storage
+  from caller places for owned-argument loan comparisons. It resolves the exact
+  result declaration and every nominal field/case or fixed-array selector;
+  traversing a reference or slice is not a private-storage projection. Unknown
+  targets, types, and selectors remain conservative. The original move events
+  stay available to permission accounting, and nested inputs retain their own
+  parameter-aligned move checks. `flow/ownership/place_types.rs` also types
+  call-rooted places so nominal cleanup checks see each proper prefix.
+  `checks/multiplicity/temporary_results.rs` rejects partial temporary moves
+  leaving an unselected linear claim, using the existing structural frontier
+  and mutually exclusive case paths. A projection carrying the complete linear
+  frontier may transfer it; private storage alone never discharges a claim.
+  Full checking still rejects unrealized nested value-call arguments. A local
+  binding for the projected result separates this realization limit from
+  borrow and permission checking.
   Direct assignment demand stops the same state transfer at the store and
   reports either local-binding replacement or a storage write. Structured
   summaries and statement invalidation use that verdict before projecting local
