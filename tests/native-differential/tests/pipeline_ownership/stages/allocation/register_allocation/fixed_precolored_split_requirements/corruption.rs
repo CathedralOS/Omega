@@ -20,7 +20,7 @@ fn independent_replay_rejects_segment_and_opening_corruption() {
     opening.functions[0].registers[0].fragments[0].segments[0].opening =
         selected_instructions_to_register_homes::FixedPrecoloredSourceSegmentOpening::IncompatibleFixedUseDomainBoundaryV1 {
             incoming: None,
-            site: selected_instructions_to_register_homes::VirtualFixedConstraintSite::Entry,
+            site: selected_instructions::VirtualFixedConstraintSite::Entry,
             destination_view: register_model::RegisterViewId(0),
         };
     assert_eq!(

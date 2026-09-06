@@ -176,11 +176,11 @@ fn encode_len(bytes: &mut Vec<u8>, length: usize) {
 
 #[cfg(test)]
 mod tests {
-    use optimization_core::OptimizationUnitIdentity;
-    use register_model::{RegisterClassId, RegisterOperandAccess, RegisterUnitId, RegisterViewId};
-    use selected_instructions::{
+    use crate::{
         SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
     };
+    use optimization_core::OptimizationUnitIdentity;
+    use register_model::{RegisterClassId, RegisterOperandAccess, RegisterUnitId, RegisterViewId};
     use semantic_vocabulary::{BlockId, EdgeId, FuelScheduleIdentity, MachineId};
     use target::NativeTarget;
 

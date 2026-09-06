@@ -5,6 +5,9 @@
 
 use std::path::{Path, PathBuf};
 
+#[path = "representation_ownership/selected_analysis.rs"]
+mod selected_analysis;
+
 fn repository() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -786,7 +789,6 @@ fn register_home_data_is_independent_of_allocation_authority() {
         "pub struct VirtualRegisterHome {",
         "pub struct RegisterHomeIdentity(",
         "pub struct AllocationLegalityIdentity(",
-        "pub struct LiveRangeIdentity(",
         "pub struct AllocatorAvailabilityIdentity(",
     ] {
         assert_eq!(

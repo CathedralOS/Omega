@@ -21,7 +21,7 @@ pub(crate) use model::{
 
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::SelectedInstruction;
-use selected_instructions_to_register_homes::{BlockLiveness, InstructionLiveness};
+use selected_instructions::{BlockLiveness, InstructionLiveness};
 
 use physical_instructions::PostAllocationMachineInstruction;
 

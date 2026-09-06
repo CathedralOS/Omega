@@ -252,6 +252,12 @@ Physical coordination performs instruction selection, selected-instruction
 optimization, register allocation, and post-allocation machine construction
 once. The selected-instruction X-to-X stage owns selected-lowering execution,
 including liveness and pressure analyses and their reconstruction after a fold.
+Liveness and live-range plans, subordinate rows, and canonical identities live
+under the `selected-instructions` representation root: they describe selected
+virtual instructions before any physical homes exist. Allocation and later
+machine rewrites consume that data directly. Computation, independent replay,
+errors, and sealed validation receipts remain in the selected X-to-X stage;
+constructing or hashing a raw plan grants no validation authority.
 Allocation consumes that result and owns assignment and pressure recovery.
 Required frameless contracts are explicit in the analysis for their consuming
 rewrite or layout policy. Function-relative realization consumes the same

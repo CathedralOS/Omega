@@ -1,13 +1,12 @@
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::{RegisterOperandAccess, RegisterUnitId, ValidatedPhysicalRegisterModel};
+use selected_instructions::LivenessPlan;
 use selected_instructions::{
     MachineAlternativeFamily, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineSizeKnowledge,
     SelectedInstruction, SelectedInstructionKind, SelectedInstructionPlan,
 };
-use selected_instructions_to_register_homes::{
-    LivenessPlan, ValidatedLiveness, ValidatedSelectedAnalysis,
-};
+use selected_instructions_to_register_homes::{ValidatedLiveness, ValidatedSelectedAnalysis};
 use semantic_vocabulary::IntegerValue;
 use target::Architecture;
 
@@ -54,7 +53,7 @@ pub(crate) fn validate_from_parts(
     selected: &SelectedInstructionPlan,
     selected_identity: selected_instructions::SelectedInstructionPlanIdentity,
     liveness: &LivenessPlan,
-    liveness_identity: selected_instructions_to_register_homes::LivenessIdentity,
+    liveness_identity: selected_instructions::LivenessIdentity,
     source: &PostAllocationMachinePlan,
     source_identity: physical_instructions::PostAllocationMachineIdentity,
     physical: &ValidatedPhysicalRegisterModel,
@@ -84,7 +83,7 @@ pub(crate) fn replay_from_parts(
     selected: &SelectedInstructionPlan,
     selected_identity: selected_instructions::SelectedInstructionPlanIdentity,
     liveness: &LivenessPlan,
-    liveness_identity: selected_instructions_to_register_homes::LivenessIdentity,
+    liveness_identity: selected_instructions::LivenessIdentity,
     source: &PostAllocationMachinePlan,
     source_identity: physical_instructions::PostAllocationMachineIdentity,
     physical: &ValidatedPhysicalRegisterModel,
@@ -325,7 +324,7 @@ fn independently_validate_roots(
     selected: &SelectedInstructionPlan,
     selected_identity: selected_instructions::SelectedInstructionPlanIdentity,
     liveness: &LivenessPlan,
-    _liveness_identity: selected_instructions_to_register_homes::LivenessIdentity,
+    _liveness_identity: selected_instructions::LivenessIdentity,
     source: &PostAllocationMachinePlan,
     source_identity: physical_instructions::PostAllocationMachineIdentity,
     physical: &ValidatedPhysicalRegisterModel,

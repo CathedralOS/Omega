@@ -1,12 +1,12 @@
 use std::collections::BTreeSet;
 
 use register_model::{RegisterOperandAccess, ValidatedPhysicalRegisterModel};
+use selected_instructions::{BlockLiveness, InstructionLiveness};
 use selected_instructions::{
     MachineAlternativeFamily, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, SelectedInstruction,
     SelectedInstructionKind,
 };
-use selected_instructions_to_register_homes::{BlockLiveness, InstructionLiveness};
 
 use crate::{Aarch64SameViewCopyElisionError, QualifiedPhysicalOperand};
 use physical_instructions::PostAllocationMachineInstruction;

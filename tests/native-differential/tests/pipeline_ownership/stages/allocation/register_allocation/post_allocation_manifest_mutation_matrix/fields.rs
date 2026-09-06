@@ -3,10 +3,10 @@ use optimization_core::{
 };
 use register_model::TargetRegisterEnvironmentIdentity;
 use selected_instructions::SelectedInstructionPlanIdentity;
+use selected_instructions::{LiveRangeIdentity, LivenessIdentity};
 use selected_instructions_to_register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FixedViewCopyIdentity,
-    LiteralFoldIdentity, LiveRangeIdentity, LivenessIdentity, PressureRematerializationIdentity,
-    RegisterHomeIdentity,
+    LiteralFoldIdentity, PressureRematerializationIdentity, RegisterHomeIdentity,
 };
 use target::{Architecture, ObjectFormat};
 

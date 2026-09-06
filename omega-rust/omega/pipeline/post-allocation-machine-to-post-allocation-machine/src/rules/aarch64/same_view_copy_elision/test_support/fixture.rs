@@ -8,6 +8,10 @@ use register_model::{
     ValidatedPhysicalRegisterModel, validate_physical_register_model,
 };
 use selected_instructions::{
+    BlockLiveness, FunctionLiveness, InstructionLiveness, LiveRangeIdentity, LivenessIdentity,
+    LivenessPlan, LivenessPosition,
+};
+use selected_instructions::{
     MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
     MachineAlternativeKey, MachineEffectCatalogIdentity, MachineEncodedControlEffect,
     MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
@@ -17,10 +21,7 @@ use selected_instructions::{
     SelectedInstructionProvenance, SelectedOperand, SelectedTerminator, VirtualRegister,
     VirtualRegisterId, VirtualRegisterOrigin,
 };
-use selected_instructions_to_register_homes::{
-    AllocationLegalityIdentity, BlockLiveness, FunctionLiveness, InstructionLiveness,
-    LiveRangeIdentity, LivenessIdentity, LivenessPlan, LivenessPosition, RegisterHomeIdentity,
-};
+use selected_instructions_to_register_homes::{AllocationLegalityIdentity, RegisterHomeIdentity};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, ScalarType, ValueId,
 };

@@ -201,7 +201,7 @@ fn independent_replay_rejects_every_choice_surface_and_source_root_corruption() 
                     );
             },
             |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoicePlan| {
-                plan.ranges = selected_instructions_to_register_homes::LiveRangeIdentity::from_bytes([0xc8; 32]);
+                plan.ranges = selected_instructions::LiveRangeIdentity::from_bytes([0xc8; 32]);
             },
             |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoicePlan| {
                 plan.legality = selected_instructions_to_register_homes::AllocationLegalityIdentity::from_bytes([0xc3; 32]);

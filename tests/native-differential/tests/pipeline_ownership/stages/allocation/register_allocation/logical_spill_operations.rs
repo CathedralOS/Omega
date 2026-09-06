@@ -220,8 +220,7 @@ fn logical_spill_validation_rejects_root_decision_and_namespace_corruption() {
     changed.selected = selected_instructions::SelectedInstructionPlanIdentity::from_bytes([91; 32]);
     root_variants.push(changed);
     let mut changed = baseline.clone();
-    changed.ranges =
-        selected_instructions_to_register_homes::LiveRangeIdentity::from_bytes([92; 32]);
+    changed.ranges = selected_instructions::LiveRangeIdentity::from_bytes([92; 32]);
     root_variants.push(changed);
     let mut changed = baseline.clone();
     changed.legality =

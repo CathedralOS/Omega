@@ -1,10 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::analyses::liveness::model::{
-    BlockLiveness, EntryDefinition, FunctionLiveness, InstructionLiveness, LivenessError,
-    LivenessPlan, LivenessPosition, OperandPosition, SuccessorLiveness,
-};
+use crate::analyses::liveness::model::LivenessError;
 use register_model::{RegisterOperandAccess, RegisterUnitId};
+use selected_instructions::{
+    BlockLiveness, EntryDefinition, FunctionLiveness, InstructionLiveness, LivenessPlan,
+    LivenessPosition, OperandPosition, SuccessorLiveness,
+};
 use selected_instructions::{
     SelectedBlock, SelectedFunction, SelectedInstruction, SelectedStructuralUnitFunction,
     VirtualRegisterId, VirtualRegisterOrigin,

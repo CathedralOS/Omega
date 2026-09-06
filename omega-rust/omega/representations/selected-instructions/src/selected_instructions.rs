@@ -6,6 +6,8 @@
 //! `calls` retains the distinct structural ABI shapes. `constraints` and
 //! `effects` describe target restrictions; `provenance` retains semantic,
 //! proof and fuel links. Physical homes belong to the allocated representation.
+//! `liveness` and `live_ranges` retain facts about this selected program and
+//! their canonical identities, without granting analysis admission authority.
 //!
 //! Moving or eliminating an instruction must preserve or explicitly transport
 //! those links. A register copy is not permission to duplicate a linear value.
@@ -16,6 +18,8 @@ pub mod control_flow;
 pub mod effects;
 pub mod identity;
 pub mod instructions;
+pub mod live_ranges;
+pub mod liveness;
 pub mod provenance;
 pub mod values;
 
@@ -57,6 +61,8 @@ pub use identity::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
 };
 pub use instructions::{SelectedInstruction, SelectedInstructionKind};
+pub use live_ranges::*;
+pub use liveness::*;
 pub use provenance::SelectedInstructionProvenance;
 pub use values::{SelectedOperand, VirtualRegister, VirtualRegisterOrigin};
 

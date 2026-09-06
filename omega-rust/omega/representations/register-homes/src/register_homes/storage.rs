@@ -4,8 +4,9 @@ use register_model::{RegisterClassId, RegisterViewId};
 use selected_instructions::VirtualRegisterId;
 use semantic_vocabulary::MachineId;
 
-use crate::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LiveRangeIdentity};
+use crate::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
 use register_model::TargetRegisterEnvironmentIdentity;
+use selected_instructions::LiveRangeIdentity;
 
 /// Bounded physical homes. This table is data, not allocation admission.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -8,16 +8,16 @@ use register_model::{
     ValidatedPhysicalRegisterModel, validate_physical_register_model,
 };
 use selected_instructions::{
+    BlockLiveness, FunctionLiveness, InstructionLiveness, LivenessIdentity, LivenessPlan,
+    LivenessPosition,
+};
+use selected_instructions::{
     MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
     MachineAlternativeKey, MachineEffectCatalogIdentity, MachineEncodedEffects,
     MachineLatencyKnowledge, MachineSizeKnowledge, SelectedBlock, SelectedBlockId,
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionPlan, SelectedInstructionPlanIdentity, SelectedInstructionProvenance,
     SelectedOperand, SelectedTerminator, VirtualRegisterId,
-};
-use selected_instructions_to_register_homes::{
-    BlockLiveness, FunctionLiveness, InstructionLiveness, LivenessIdentity, LivenessPlan,
-    LivenessPosition,
 };
 use semantic_vocabulary::{BlockId, EdgeId, FuelScheduleIdentity, IntegerValue, MachineId};
 use target::NativeTarget;
@@ -236,7 +236,7 @@ fn fixture() -> Fixture {
         identity: source_identity,
         selected: selected_identity,
         effects: PreAllocationMachineEffectIdentity::from_bytes([5; 32]),
-        ranges: selected_instructions_to_register_homes::LiveRangeIdentity::from_bytes([6; 32]),
+        ranges: selected_instructions::LiveRangeIdentity::from_bytes([6; 32]),
         legality: selected_instructions_to_register_homes::AllocationLegalityIdentity::from_bytes(
             [7; 32],
         ),

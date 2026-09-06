@@ -2,14 +2,13 @@ use std::collections::BTreeSet;
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::{RegisterOperandAccess, RegisterUnitId, ValidatedPhysicalRegisterModel};
+use selected_instructions::{BlockLiveness, InstructionLiveness};
 use selected_instructions::{
     MachineAlternativeFamily, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, SelectedInstruction,
     SelectedInstructionKind, SelectedTerminator,
 };
-use selected_instructions_to_register_homes::{
-    BlockLiveness, InstructionLiveness, ValidatedLiveness, ValidatedSelectedAnalysis,
-};
+use selected_instructions_to_register_homes::{ValidatedLiveness, ValidatedSelectedAnalysis};
 use target::Architecture;
 
 use crate::{
@@ -300,8 +299,7 @@ fn validate_roots(inputs: &CbnzFusionInputs<'_>) -> Result<(), Aarch64CbnzFusion
     if machine.identity != inputs.source_identity
         || machine.selected != inputs.selected_identity
         || inputs.selected.target != machine.target
-        || selected_instructions_to_register_homes::liveness_identity(inputs.liveness)
-            != inputs.liveness_identity
+        || selected_instructions::liveness_identity(inputs.liveness) != inputs.liveness_identity
         || inputs.liveness.selected != inputs.selected_identity
         || inputs.liveness.target != machine.target
         || machine.physical_register_model != inputs.physical.identity()

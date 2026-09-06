@@ -60,11 +60,11 @@ fn selected_fixed_constraints_become_exact_precolored_point_intervals() {
         );
         assert!(rows[..2].iter().all(|row| matches!(
             row.site,
-            selected_instructions_to_register_homes::VirtualFixedConstraintSite::Entry
+            selected_instructions::VirtualFixedConstraintSite::Entry
         )));
         assert!(rows[2..].iter().all(|row| matches!(
             row.site,
-            selected_instructions_to_register_homes::VirtualFixedConstraintSite::Operand { .. }
+            selected_instructions::VirtualFixedConstraintSite::Operand { .. }
         )));
     }
 }

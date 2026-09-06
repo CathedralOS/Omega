@@ -17,19 +17,6 @@ impl AllocationLegalityIdentity {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct LiveRangeIdentity(pub(crate) [u8; 32]);
-
-impl LiveRangeIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AllocatorAvailabilityIdentity(pub(crate) [u8; 32]);
 
 impl AllocatorAvailabilityIdentity {

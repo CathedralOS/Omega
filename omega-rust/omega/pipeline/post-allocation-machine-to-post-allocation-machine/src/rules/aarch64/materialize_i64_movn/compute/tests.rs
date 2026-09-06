@@ -238,7 +238,7 @@ fn fixture() -> (
         identity: source_identity,
         selected: selected_identity,
         effects: PreAllocationMachineEffectIdentity::from_bytes([4; 32]),
-        ranges: selected_instructions_to_register_homes::LiveRangeIdentity::from_bytes([5; 32]),
+        ranges: selected_instructions::LiveRangeIdentity::from_bytes([5; 32]),
         legality: selected_instructions_to_register_homes::AllocationLegalityIdentity::from_bytes(
             [6; 32],
         ),

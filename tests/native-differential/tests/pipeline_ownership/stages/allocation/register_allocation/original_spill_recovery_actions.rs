@@ -105,7 +105,7 @@ fn independent_replay_rejects_every_new_root_and_action_surface_mutation() {
                 )
             },
             |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
-                plan.ranges = Some(selected_instructions_to_register_homes::LiveRangeIdentity::from_bytes([0xc2; 32]))
+                plan.ranges = Some(selected_instructions::LiveRangeIdentity::from_bytes([0xc2; 32]))
             },
             |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| plan.selected = None,
             |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| plan.ranges = None,

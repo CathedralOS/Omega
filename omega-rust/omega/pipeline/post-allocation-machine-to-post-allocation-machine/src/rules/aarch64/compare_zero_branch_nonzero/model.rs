@@ -2,11 +2,11 @@ use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::{
     PhysicalRegisterModelIdentity, RegisterUnitId, ValidatedPhysicalRegisterModel,
 };
+use selected_instructions::{LivenessIdentity, LivenessPlan};
 use selected_instructions::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionPlan,
     SelectedInstructionPlanIdentity,
 };
-use selected_instructions_to_register_homes::{LivenessIdentity, LivenessPlan};
 use semantic_vocabulary::{EdgeId, MachineId};
 use target::NativeTarget;
 

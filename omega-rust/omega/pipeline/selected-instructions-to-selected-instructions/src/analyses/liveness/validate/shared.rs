@@ -2,13 +2,15 @@
 
 pub(super) use std::collections::{BTreeMap, BTreeSet};
 
-pub(super) use crate::analyses::liveness::identity::liveness_identity;
 pub(super) use crate::analyses::liveness::model::{
-    BlockLiveness, EntryDefinition, FunctionLiveness, InstructionLiveness, LivenessError,
-    LivenessPlan, LivenessPosition, LivenessValidationReceipt, OperandPosition, SuccessorLiveness,
-    ValidatedLiveness,
+    LivenessError, LivenessValidationReceipt, ValidatedLiveness,
 };
 pub(super) use register_model::{RegisterOperandAccess, RegisterUnitId};
+pub(super) use selected_instructions::liveness_identity;
+pub(super) use selected_instructions::{
+    BlockLiveness, EntryDefinition, FunctionLiveness, InstructionLiveness, LivenessPlan,
+    LivenessPosition, OperandPosition, SuccessorLiveness,
+};
 pub(super) use selected_instructions::{
     SelectedBlock, SelectedFunction, SelectedInstruction, SelectedStructuralUnitFunction,
     SelectedTerminator, VirtualRegisterId, VirtualRegisterOrigin,
