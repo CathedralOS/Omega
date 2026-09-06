@@ -3049,6 +3049,19 @@ no cleanup successor. Arithmetic obligations are finalized on the completed
 selected Unit module, after borrowed-place and cleanup assembly, not on a
 provisional closure used by another lowerer.
 
+Single-state Unit bodies may finish with an authored Unit call expression,
+with omitted or explicit Unit return annotations. Its computed scalar operands
+use the same call-argument roles and evaluator as a semicolon call. Normal Unit
+return follows the completed call; this does not imply stack-frame reuse or
+tail-call optimization. Source normalization keeps the expression instead of
+manufacturing an untyped result local. Validation requires the exact callee to
+return Unit, and lowering rejoins the captured outer expression even when it
+has no scalar operands. Value-returning callees cannot be silently discarded.
+An affine-local prefix remains established in entry and declaration order while
+operand evaluation branches. The verifier requires that exact establishment
+sequence and checks live custody and reverse cleanup on each normal path; a
+crash has no cleanup successor. This does not admit branch-local establishment.
+
 Immutable scalar bare-call result initializers in a single-state Unit caller
 also evaluate scalar operands through those blocks. Ordinary and boundary scalar
 results may follow other scalar locals and Unit or boundary call statements.

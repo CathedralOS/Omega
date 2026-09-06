@@ -16,6 +16,7 @@ mod free_scalar_parameters;
 mod returns;
 mod scalar_sequences;
 mod shared_convergence;
+mod tail_calls;
 
 use checked_trees::{
     CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan,

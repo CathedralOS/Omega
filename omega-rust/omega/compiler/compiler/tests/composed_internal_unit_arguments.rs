@@ -31,6 +31,18 @@ machine Main::main(&mut self) {
 }
 
 #[test]
+fn trailing_unit_call_reaches_published_terminal_and_native_provider_custody() {
+    check_publication(
+        r#"
+data Main {}
+machine Main::main(&mut self) {
+    relay(identity(identity(7u8)))
+}
+"#,
+    );
+}
+
+#[test]
 fn later_scalar_initializers_reach_published_terminal_and_native_provider_custody() {
     check_publication(
         r#"

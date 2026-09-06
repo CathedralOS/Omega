@@ -40,6 +40,9 @@ use terminal_verifier::{
 #[path = "straight_line/false_edge_custody.rs"]
 mod false_edge_custody;
 
+#[path = "straight_line/affine_local_frontier.rs"]
+mod affine_local_frontier;
+
 #[test]
 fn unit_machine_is_a_value_less_normal_return() {
     let module = unit_module();

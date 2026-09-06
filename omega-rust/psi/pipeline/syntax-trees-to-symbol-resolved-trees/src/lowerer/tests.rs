@@ -13,6 +13,7 @@ use tokens_to_syntax_trees::parse_syntax_trees_with_id;
 mod operator_contracts;
 mod selected_operand_hoisting;
 mod state_local_resolution;
+mod unit_tail_calls;
 
 #[test]
 fn seeded_extension_carrier_rebases_selection_suffix_after_later_base_rows() {
