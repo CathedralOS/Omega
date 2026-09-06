@@ -5,7 +5,13 @@ use super::*;
 #[test]
 fn attached_unit_hard_root_lowers_exact_checked_closure_with_dense_identities() {
     let checked = hard_root_checked_fixture();
-    let lowered = lower_machine(&checked, "example::Root::enter")
+    let root_plan = &checked.facts.flow.terminal_unit_effects.machines[0];
+    let acknowledgement_identity = &root_plan.structural_parameters[0].type_identity;
+    let root_identity = root_plan
+        .attachment_type_identity
+        .as_ref()
+        .expect("root attachment");
+    let lowered = lower_machine(&checked, "Root::enter")
         .expect("complete attached Unit closure should lower");
     let module = &lowered.semantic_module;
 
@@ -23,17 +29,30 @@ fn attached_unit_hard_root_lowers_exact_checked_closure_with_dense_identities() 
     let acknowledgement = module
         .structural_types
         .iter()
-        .find(|declaration| declaration.identity == "example::Acknowledgement")
+        .find(|declaration| &declaration.identity == acknowledgement_identity)
         .expect("acknowledgement structural type");
     let StructuralTypeShape::Record { fields } = &acknowledgement.shape else {
         panic!("acknowledgement is a record")
     };
-    assert_eq!(fields.len(), 2);
-    assert_eq!(fields[1].relevance, terminal_psi::BindingRelevance::Erased);
+    assert_eq!(fields.len(), 1);
+    assert_eq!(
+        fields[0].relevance,
+        terminal_psi::BindingRelevance::Relevant
+    );
+    let root = module
+        .structural_types
+        .iter()
+        .find(|declaration| &declaration.identity == root_identity)
+        .expect("authored root structural type");
+    let StructuralTypeShape::Record { fields } = &root.shape else {
+        panic!("root is a record")
+    };
+    assert_eq!(fields.len(), 1);
+    assert_eq!(fields[0].relevance, terminal_psi::BindingRelevance::Erased);
     assert!(matches!(
-        &fields[1].field_type,
+        &fields[0].field_type,
         StructuralFieldType::Erased { type_identity }
-            if type_identity == "named(name(example::Evidence))"
+            if type_identity == "named(name(Evidence))"
     ));
     assert_eq!(module.services[0].id, service_id(1));
     assert_eq!(module.services[0].identity, "PortIo");
@@ -98,7 +117,7 @@ fn attached_unit_hard_root_lowers_exact_checked_closure_with_dense_identities() 
     ));
     assert!(lowered.proof_bundle.evidence.is_empty());
     assert_eq!(
-        lower_machine(&checked, "example::Root::enter")
+        lower_machine(&checked, "Root::enter")
             .expect("repeat lowering")
             .semantic_module,
         *module,
@@ -109,6 +128,10 @@ fn attached_unit_hard_root_lowers_exact_checked_closure_with_dense_identities() 
 #[test]
 fn attached_unit_record_field_custody_crosses_call_and_boundary_settlement() {
     let mut checked = hard_root_checked_fixture();
+    let acknowledgement_identity = checked.facts.flow.terminal_unit_effects.machines[0]
+        .structural_parameters[0]
+        .type_identity
+        .clone();
     let plans = &mut checked.facts.flow.terminal_unit_effects;
     plans
         .structural_types
@@ -119,7 +142,7 @@ fn attached_unit_record_field_custody_crosses_call_and_boundary_settlement() {
     let acknowledgement = plans
         .structural_types
         .iter_mut()
-        .find(|shape| shape.identity == "example::Acknowledgement")
+        .find(|shape| shape.identity == acknowledgement_identity)
         .expect("acknowledgement shape");
     let CheckedUnitStructuralTypeShape::Record { fields } = &mut acknowledgement.shape else {
         panic!("acknowledgement is a record")
@@ -133,7 +156,7 @@ fn attached_unit_record_field_custody_crosses_call_and_boundary_settlement() {
             vec![CheckedUnitStructuralPathSegment::Field("#7".to_owned())];
     }
 
-    let lowered = lower_machine(&checked, "example::Root::enter")
+    let lowered = lower_machine(&checked, "Root::enter")
         .expect("record-field custody should cross the complete Unit closure");
     assert_eq!(
         lowered.semantic_module.machines[0].entry_claims[0].path,
@@ -154,6 +177,10 @@ fn attached_unit_record_field_custody_crosses_call_and_boundary_settlement() {
 #[test]
 fn attached_unit_nested_record_claim_lowers_through_complete_closure() {
     let mut checked = hard_root_checked_fixture();
+    let acknowledgement_identity = checked.facts.flow.terminal_unit_effects.machines[0]
+        .structural_parameters[0]
+        .type_identity
+        .clone();
     let plans = &mut checked.facts.flow.terminal_unit_effects;
     plans.structural_types.extend([
         checked_trees::CheckedUnitStructuralTypePlan {
@@ -176,7 +203,7 @@ fn attached_unit_nested_record_claim_lowers_through_complete_closure() {
     let acknowledgement = plans
         .structural_types
         .iter_mut()
-        .find(|shape| shape.identity == "example::Acknowledgement")
+        .find(|shape| shape.identity == acknowledgement_identity)
         .expect("acknowledgement shape");
     let CheckedUnitStructuralTypeShape::Record { fields } = &mut acknowledgement.shape else {
         panic!("acknowledgement is a record")
@@ -196,7 +223,7 @@ fn attached_unit_nested_record_claim_lowers_through_complete_closure() {
         ];
     }
 
-    let lowered = lower_machine(&checked, "example::Root::enter")
+    let lowered = lower_machine(&checked, "Root::enter")
         .expect("nested record custody should cross the complete Unit closure");
     for machine in &lowered.semantic_module.machines {
         assert_eq!(
@@ -216,7 +243,7 @@ fn attached_unit_nested_record_claim_lowers_through_complete_closure() {
         .semantic_module
         .structural_types
         .iter()
-        .find(|shape| shape.identity == "example::Acknowledgement")
+        .find(|shape| shape.identity == acknowledgement_identity)
         .expect("lowered acknowledgement shape");
     let StructuralTypeShape::Record { fields } = &acknowledgement.shape else {
         panic!("acknowledgement is a record")
@@ -233,6 +260,10 @@ fn attached_unit_nested_record_claim_lowers_through_complete_closure() {
 #[test]
 fn attached_unit_disjoint_sibling_claims_lower_as_one_aggregate_transfer() {
     let mut checked = hard_root_checked_fixture();
+    let acknowledgement_identity = checked.facts.flow.terminal_unit_effects.machines[0]
+        .structural_parameters[0]
+        .type_identity
+        .clone();
     let plans = &mut checked.facts.flow.terminal_unit_effects;
     plans
         .structural_types
@@ -243,7 +274,7 @@ fn attached_unit_disjoint_sibling_claims_lower_as_one_aggregate_transfer() {
     let acknowledgement = plans
         .structural_types
         .iter_mut()
-        .find(|shape| shape.identity == "example::Acknowledgement")
+        .find(|shape| shape.identity == acknowledgement_identity)
         .expect("acknowledgement shape");
     let CheckedUnitStructuralTypeShape::Record { fields } = &mut acknowledgement.shape else {
         panic!("acknowledgement is a record")
@@ -270,12 +301,14 @@ fn attached_unit_disjoint_sibling_claims_lower_as_one_aggregate_transfer() {
         machine.entry_claims[0].path =
             vec![CheckedUnitStructuralPathSegment::Field("#7".to_owned())];
         let mut sibling = machine.entry_claims[0].clone();
-        sibling.claim_identity = unit_claim_at(machine.machine, machine.state, 1);
+        let PermissionClaimIdentity::Established { ordinal, .. } = sibling.claim_identity else {
+            panic!("source fixture establishes its entry claim")
+        };
+        sibling.claim_identity = unit_claim_at(machine.machine, machine.state, ordinal + 1);
         sibling.path = vec![CheckedUnitStructuralPathSegment::Field("#9".to_owned())];
         machine.entry_claims.push(sibling);
     }
-    let root = plans.machines[0].machine;
-    let root_state = plans.machines[0].state;
+    let root_sibling_claim = plans.machines[0].entry_claims[1].claim_identity;
     let CheckedUnitEffectOperationPlan::CallUnit {
         claim_transfers, ..
     } = &mut plans.machines[0].operations[0]
@@ -283,11 +316,10 @@ fn attached_unit_disjoint_sibling_claims_lower_as_one_aggregate_transfer() {
         unreachable!()
     };
     claim_transfers.push(checked_trees::CheckedUnitClaimTransferPlan {
-        claim_identity: unit_claim_at(root, root_state, 1),
+        claim_identity: root_sibling_claim,
         argument_index: 0,
     });
-    let helper = plans.machines[1].machine;
-    let helper_state = plans.machines[1].state;
+    let helper_sibling_claim = plans.machines[1].entry_claims[1].claim_identity;
     let CheckedUnitEffectOperationPlan::BoundaryCall {
         completion_receipts,
         ..
@@ -296,11 +328,11 @@ fn attached_unit_disjoint_sibling_claims_lower_as_one_aggregate_transfer() {
         unreachable!()
     };
     completion_receipts.push(checked_trees::CheckedUnitClaimTransferPlan {
-        claim_identity: unit_claim_at(helper, helper_state, 1),
+        claim_identity: helper_sibling_claim,
         argument_index: 0,
     });
 
-    let lowered = lower_machine(&checked, "example::Root::enter")
+    let lowered = lower_machine(&checked, "Root::enter")
         .expect("both sibling resources should cross the complete Unit closure");
     for machine in &lowered.semantic_module.machines {
         assert_eq!(
@@ -357,7 +389,7 @@ fn attached_unit_affine_argument_lowers_as_an_owned_transfer_without_a_claim_row
     };
     *trivial_affine_discards = vec![0];
 
-    let lowered = lower_machine(&checked, "example::Root::enter")
+    let lowered = lower_machine(&checked, "Root::enter")
         .expect("the checked affine Unit transfer should lower and verify");
     assert_eq!(
         lowered.semantic_module.machines[0].structural_parameters[0].multiplicity,
@@ -374,24 +406,15 @@ fn attached_unit_affine_argument_lowers_as_an_owned_transfer_without_a_claim_row
 
 #[test]
 fn attached_unit_affine_return_lowers_exact_no_code_discard() {
-    let mut checked = hard_root_checked_fixture();
-    let root = &mut checked.facts.flow.terminal_unit_effects.machines[0];
-    root.structural_parameters[0].multiplicity = Multiplicity::Affine;
-    root.entry_claims.clear();
-    root.operations = vec![CheckedUnitEffectOperationPlan::ReturnUnit {
-        statement_index: 0,
-        trivial_affine_local_discard_ordinals: Vec::new(),
-        trivial_affine_discards: vec![0],
-    }];
-    let root_reach_span = checked.facts.service_reaches.root_machines;
-    checked
-        .facts
-        .service_reaches
-        .machines
-        .span_mut_or_empty(root_reach_span)[0]
-        .concrete_effective = language_semantics::ServiceReachRowTable::EMPTY_ROW;
+    let checked = checked_source(
+        r#"
+        data Acknowledgement { sequence: u64; }
+        data Root {}
+        machine Root::enter(acknowledgement: Acknowledgement) {}
+        "#,
+    );
 
-    let lowered = lower_machine(&checked, "example::Root::enter")
+    let lowered = lower_machine(&checked, "Root::enter")
         .expect("checked affine discard should lower as explicit return-edge cleanup");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("the no-call closure should contain only its root")
@@ -421,15 +444,21 @@ fn attached_unit_affine_return_lowers_exact_no_code_discard() {
 #[test]
 fn attached_unit_hard_root_fails_closed_on_missing_transitive_member() {
     let mut checked = hard_root_checked_fixture();
+    let helper = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Helper::run")
+        .expect("authored helper")
+        .symbol;
     checked
         .facts
         .flow
         .terminal_unit_effects
         .machines
-        .retain(|machine| machine.contract_report_fingerprint != 0x202);
+        .retain(|machine| machine.machine != helper);
 
     assert!(matches!(
-        lower_machine(&checked, "example::Root::enter"),
+        lower_machine(&checked, "Root::enter"),
         Err(LoweringError::Unsupported(
             "attached Unit closure is missing a checked transitive machine plan"
         ))
@@ -452,7 +481,7 @@ fn attached_unit_boundary_rejects_missing_canonical_contract_custody() {
         .retain(|capsule| capsule.target_machine() != boundary);
 
     assert_eq!(
-        lower_machine(&checked, "example::Root::enter"),
+        lower_machine(&checked, "Root::enter"),
         Err(LoweringError::Unsupported(
             "Unit boundary target is missing its canonical checked contract identity",
         )),
@@ -469,7 +498,7 @@ fn attached_unit_boundary_rejects_compact_equal_commitment_substitution() {
     assert_eq!(boundary.contract_report_fingerprint, retained_report);
 
     assert_eq!(
-        lower_machine(&checked, "example::Root::enter"),
+        lower_machine(&checked, "Root::enter"),
         Err(LoweringError::Unsupported(
             "Unit boundary target contract compatibility coordinate or strong commitment drifted",
         )),
@@ -479,6 +508,12 @@ fn attached_unit_boundary_rejects_compact_equal_commitment_substitution() {
 #[test]
 fn attached_unit_port_write_requires_exact_direct_checked_port_service() {
     let mut checked = hard_root_checked_fixture();
+    let helper_symbol = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Helper::run")
+        .expect("authored helper")
+        .symbol;
     let empty = language_semantics::ServiceReachRowTable::EMPTY_ROW;
     let helper = checked
         .facts
@@ -486,7 +521,7 @@ fn attached_unit_port_write_requires_exact_direct_checked_port_service() {
         .terminal_unit_effects
         .machines
         .iter_mut()
-        .find(|machine| machine.contract_report_fingerprint == 0x202)
+        .find(|machine| machine.machine == helper_symbol)
         .expect("helper plan");
     let CheckedUnitEffectOperationPlan::PortWrite { service_reach, .. } = &mut helper.operations[0]
     else {
@@ -495,7 +530,7 @@ fn attached_unit_port_write_requires_exact_direct_checked_port_service() {
     service_reach.direct = empty;
 
     assert!(matches!(
-        lower_machine(&checked, "example::Root::enter"),
+        lower_machine(&checked, "Root::enter"),
         Err(LoweringError::Unsupported(
             "port output does not carry the unique exact checked PortIo service"
         ))

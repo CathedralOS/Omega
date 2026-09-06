@@ -296,7 +296,7 @@ fn attached_unit_ordinary_scalar_result_rejects_contract_and_argument_fact_drift
         .push(duplicate);
     assert_eq!(
         rejection_message(&argument),
-        "ordinary Unit scalar call arguments drifted from checked value facts"
+        "call scalar operand has no unique source-bound checked plan"
     );
 }
 
@@ -552,7 +552,7 @@ fn attached_unit_scalar_result_rejects_coordinated_drift_from_original_flow_row(
 
     assert_eq!(
         rejection_message(&checked),
-        "Unit scalar call coordinate and target do not rejoin its original checked flow call"
+        "call source custody has no authored statement"
     );
 }
 
@@ -586,6 +586,6 @@ fn attached_unit_scalar_result_type_and_later_local_use_reject_drift() {
     *position = 1;
     assert_eq!(
         rejection_message(&local_use),
-        "scalar graph integer guard parameter type does not match"
+        "call scalar operand disagrees with its authored argument"
     );
 }

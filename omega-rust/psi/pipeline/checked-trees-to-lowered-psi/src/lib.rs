@@ -104,6 +104,7 @@ use terminal_verifier::{
 mod attached_unit;
 mod boolean_control;
 mod boundary_scalar_return;
+mod call_source_custody;
 mod conformance_applications;
 mod content_conservation;
 mod crash_routes;
@@ -125,6 +126,7 @@ mod retained_borrow_custody;
 mod scalar_call_closure;
 mod scalar_graph_lowering;
 mod scalar_graph_module;
+mod scalar_source_custody;
 mod shared_runtime_parameters;
 mod structural_call_return;
 mod structural_return;
@@ -203,8 +205,6 @@ use structural_types::{
 };
 use unit_cleanup::lower_nominal_affine_unit_cleanup_machine;
 
-#[cfg(test)]
-use checked_trees::CheckedTerminalMachineSelection;
 #[cfg(test)]
 use structural_unit_control::lower_structural_unit_control_machine;
 #[cfg(test)]

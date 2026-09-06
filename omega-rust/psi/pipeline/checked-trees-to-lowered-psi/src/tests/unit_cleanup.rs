@@ -30,24 +30,6 @@ fn nominal_affine_wide_scalar_unit_checked_fixture() -> CheckedTrees {
     lower_typed_trees(typed).expect("check")
 }
 
-fn ordered_one_executable_nominal_affine_checked_fixture() -> CheckedTrees {
-    let source = r#"
-        data Helper {}
-        machine Helper::touch() {}
-        data First {}
-        machine First::drop(&mut self) { Helper::touch(); }
-        data Second {}
-        machine Second::drop(&mut self) {}
-        data Root {}
-        machine Root::enter(first: First, second: Second) {}
-    "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed).expect("check")
-}
-
 #[test]
 fn nominal_affine_unit_cleanup_lowers_exact_target_into_terminal_closure() {
     let checked = nominal_affine_unit_checked_fixture();
@@ -315,44 +297,24 @@ fn nominal_affine_unit_cleanup_lowering_rejects_stale_checked_joins() {
 
 #[test]
 fn ordered_nominal_cleanup_lowering_deduplicates_a_shared_helper_across_two_actions() {
-    let mut checked = ordered_one_executable_nominal_affine_checked_fixture();
+    let checked = checked_source(
+        r#"
+        data Helper {}
+        machine Helper::touch() {}
+        data First {}
+        machine First::drop(&mut self) { Helper::touch(); }
+        data Second {}
+        machine Second::drop(&mut self) { Helper::touch(); }
+        data Root {}
+        machine Root::enter(first: First, second: Second) {}
+        "#,
+    );
     let plan = checked
         .facts
         .flow
         .terminal_nominal_affine_unit_cleanups
         .machines[0]
         .clone();
-    let [empty_cleanup, executable_cleanup] = plan.cleanups.as_slice() else {
-        panic!("fixture has two ordered cleanup actions")
-    };
-    let executable_operation = checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .for_machine(executable_cleanup.cleanup_machine)
-        .expect("executable cleanup target")
-        .operations[0]
-        .clone();
-    let empty_target = checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .machines
-        .iter_mut()
-        .find(|target| target.machine == empty_cleanup.cleanup_machine)
-        .expect("empty cleanup target");
-    empty_target.operations.insert(0, executable_operation);
-    let CheckedUnitEffectOperationPlan::ReturnUnit {
-        statement_index, ..
-    } = empty_target
-        .operations
-        .last_mut()
-        .expect("cleanup target return")
-    else {
-        panic!("cleanup target ends in Unit return")
-    };
-    *statement_index = 1;
-
     let lowered = lower_nominal_affine_unit_cleanup_machine(&checked, &plan)
         .expect("two executable cleanup actions may share one exact helper");
     assert_eq!(

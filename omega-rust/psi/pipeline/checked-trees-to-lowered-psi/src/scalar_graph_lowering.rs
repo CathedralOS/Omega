@@ -6,7 +6,7 @@ mod bindings;
 mod branch_destinations;
 mod computations;
 mod guards;
-mod source_custody;
+use crate::scalar_source_custody as source_custody;
 mod storage;
 
 pub(super) fn checked_scalar_computation_call_targets(

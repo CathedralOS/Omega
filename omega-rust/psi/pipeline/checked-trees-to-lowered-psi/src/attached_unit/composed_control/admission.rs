@@ -479,6 +479,7 @@ pub(super) fn retain_call_boundary<'a>(
     plans: &'a checked_trees::CheckedUnitEffectPlans,
     boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, String)>,
 ) -> Result<(), LoweringError> {
+    crate::call_source_custody::validate_operation(checked, machine, state.state, operation)?;
     let CheckedUnitEffectOperationPlan::BoundaryCall {
         coordinate,
         target_machine,

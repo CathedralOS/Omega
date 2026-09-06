@@ -45,6 +45,16 @@ fn binding_rows(
         .source_bindings
         .iter()
         .filter(|(_, binding)| states.iter().any(|state| state.symbol == binding.state))
+        // This fixture selects a scalar graph, whose direct calls consume
+        // CallArgument. Alternative Unit/boundary rows are consumed and
+        // mutation-tested separately in call_operand_source_custody.
+        .filter(|(_, binding)| {
+            !matches!(
+                binding.role,
+                CheckedScalarExpressionRole::UnitCallArgument { .. }
+                    | CheckedScalarExpressionRole::BoundaryCallArgument { .. }
+            )
+        })
         .map(|(handle, binding)| (handle, binding.clone()))
         .collect()
 }

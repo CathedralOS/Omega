@@ -2989,12 +2989,30 @@ initialized immutable primitive locals; mutable storage keeps its separate
 symbol identity. Missing or conflicting rows, stale handles, reordered symbols,
 and swapped continuation roles reject instead of selecting a matching row from
 an ambiguous set. Shared structural and attached-Unit scalar-root lowering uses
-this same check; boundary and Unit call-operand custody remains separate work.
+this same check.
 Direct scalar call bindings also rejoin the authored callee and result carrier,
 and state transfers rejoin their selected target, including zero-argument calls
 and transfers. A trait-operator realization consumes its existing source-bound
 return only when it agrees with the selected realization plan; lowering does not
 clone the checked program to insert a second return row.
+
+Boundary and ordinary Unit calls retain source-bound scalar arguments through
+their shared checked producer and all existing direct and composed lowering
+paths. Each copied operation argument must agree with the unique checked plan,
+authored operand handle, primitive formal, and caller declaration namespace.
+The dense scalar callee ordinal is distinct from the authored argument index:
+structural arguments advance the latter, and an implicit receiver does not.
+Outer call coordinates and targets rejoin even when there are no scalar
+arguments. Boundary source sites and exact signature or machine-parameter
+requirements remain distinct from ordinary machine owners. A call through a
+nominal machine parameter uses its exact boundary requirement's argument role,
+not the ordinary Unit-call role of an unresolved callable. The checker and
+lowerer share the existing compiler-intrinsic boundary-recognition policy;
+lowering does not independently infer a compatible provider.
+The retained call roots are statement calls and bare calls in immutable local
+initializers or expression statements. Nested and nonzero call occurrences
+still require argument planning at their exact evaluation points; lowering does
+not recover their identity by searching source spans or repeating call traversal.
 
 Computed Boolean guards complete before either branch destination starts. A
 private dispatch block consumes the completed Boolean and retains the source

@@ -3,7 +3,7 @@
 use super::*;
 
 pub(super) struct DirectCall<'a> {
-    source: SourceRoot<'a>,
+    source: SourceRoot,
     target_machine: symbols::SymbolHandle,
     target_state: symbols::SymbolHandle,
     pub arguments: &'a [ExpressionHandle],
@@ -70,7 +70,7 @@ pub(super) fn locate(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(in crate::scalar_graph_lowering) fn validate(
+pub(crate) fn validate(
     checked: &CheckedTrees,
     caller_machine: symbols::SymbolHandle,
     caller_state: symbols::SymbolHandle,
