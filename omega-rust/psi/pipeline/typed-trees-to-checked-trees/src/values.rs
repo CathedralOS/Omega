@@ -50,8 +50,9 @@ pub(crate) fn mutable_scalar_parameter_type(
 pub(crate) use scalar::{
     build_checked_scalar_computation_plans, build_checked_scalar_expression_plans,
     lower_integer_contract_predicate, lower_integer_parameter_range_requirements,
-    lower_machine_entry_boolean_expression, lower_machine_parameter_boolean_expression,
-    lower_state_scalar_expression, lower_unit_scalar_argument, scalar_expression_type,
+    lower_machine_entry_boolean_expression, lower_machine_entry_scalar_contract_expression,
+    lower_machine_parameter_boolean_expression, lower_state_scalar_expression,
+    lower_unit_scalar_argument, scalar_expression_type,
 };
 
 pub(crate) fn build_value_facts(

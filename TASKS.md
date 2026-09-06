@@ -554,9 +554,6 @@ Owners include
   Retain exact entry-value origins for mutable scalar guard operands so unchanged
   entry values can establish published crash routes; a current storage predicate
   alone is not entry-snapshot evidence.
-  Lower nonliteral Boolean entry requirements through free scalar graphs rather
-  than requiring closed literal contracts. Acceptance: a checked `requires flag`
-  invocation executes with a true incoming flag and rejects a false incoming flag.
   Complete [exact anonymous division and landing](wiki/language_guide/chapter_5_expressions_evaluation.md#exact-anonymous-division-and-landing)
   for the remaining parameter and aggregate destinations, numeric policies, float
   landing, constant arguments, and their proof consumers. Preserve exact rational

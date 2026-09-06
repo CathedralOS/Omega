@@ -1203,7 +1203,7 @@ fn build_closed_scalar_value_contract_plan(
                     .then_some(type_reference)
             });
 
-    let lower_clause = |contract: &typed_trees::signature::SignatureContract| {
+    let lower_closed_clause = |contract: &typed_trees::signature::SignatureContract| {
         let [ProofFact::Expression(expression)] = program.proof_facts.span_or_empty(contract.facts)
         else {
             return None;
@@ -1263,6 +1263,29 @@ fn build_closed_scalar_value_contract_plan(
             }
             _ => None,
         }
+    };
+
+    let lower_clause = |contract: &typed_trees::signature::SignatureContract| {
+        lower_closed_clause(contract).or_else(|| {
+            // Keep the established literal encoding and post-state guarantees.
+            // Only requirements may use the invocation-entry Boolean namespace.
+            if contract.kind != SignatureContractKind::Requires {
+                return None;
+            }
+            let [ProofFact::Expression(expression)] =
+                program.proof_facts.span_or_empty(contract.facts)
+            else {
+                return None;
+            };
+            crate::values::lower_machine_entry_scalar_contract_expression(
+                program,
+                operators,
+                machine,
+                *expression,
+                &[],
+            )
+            .map(checked_trees::ClosedScalarContractValue::Predicate)
+        })
     };
 
     let mut requires = Vec::new();
