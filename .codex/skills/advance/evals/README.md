@@ -4,6 +4,12 @@
 pushes to `main`. Evaluating it means running real work sessions, so the harness
 exists mostly to keep those sessions from touching anything real.
 
+The material below records the historical full-session A/B harness and its
+results. Its explicit `baseline` and `regate` commands run full validation;
+they are not prerequisites for ordinary advancement or a small skill edit.
+Current evaluation criteria live in `evals.json` and assess scoped validation,
+result reuse, and refusal to take on unrelated failures. They have not been rerun.
+
 ## Worktrees, and how to make them safe
 
 Use worktrees, under `.claude/wt/` — `.gitignore` already reserves `.claude/*`

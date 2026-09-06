@@ -64,8 +64,10 @@ separately while working; cancel if the queued change needs more implementation.
 
 Capture the exact candidate before running the checks required by `AGENTS.md`
 and the task. Keep the actual exits and keep the worktree clean at that commit.
-The command checks Git state, not test success. Compiler advancement still
-requires its full baseline.
+The command checks Git state, not test success. Compiler advancement uses the
+change-scoped validation policy in `AGENTS.md`; a fresh full baseline is not a
+publication prerequisite. Reuse evidence for unchanged inputs after rebasing,
+and rerun checks whose inputs changed.
 
 Do preparation and initial checks before enqueueing. Finish integration and
 publication within the remaining lease, or rejoin with a new ticket. The deadline

@@ -9,6 +9,12 @@ doctests; use `mbx test --doc` when doctest coverage is needed.
 
 ## Focused development
 
+Choose validation scope using [AGENTS.md](../AGENTS.md#validation-scope). Routine
+advancement uses focused and affected checks; the full baseline below is a
+separate validation mode, not a prerequisite for every checkpoint. The selector
+may conservatively choose all libraries; inspect its reasons before deciding
+whether the task needs that scope or a justified manual selection.
+
 ```sh
 mbx nextest run -p compiler --test canary_suite entry_and_abi::pass_canaries_compile
 mbx nextest run --workspace --lib --no-fail-fast -E 'rdeps(=x86-encoding)'
@@ -65,12 +71,14 @@ Review that map when changing the codec's
 source closure. Arbitrary runtime filesystem reads cannot be inferred reliably
 from Cargo metadata. Narrow selection assumes the same toolchain, host, feature
 flags, environment and external inputs as the verified baseline. If these have
-changed, or baseline evidence is missing, use `--full`.
+changed, or baseline evidence is missing, use `--full` when establishing a full
+baseline is the task. Otherwise use explicitly scoped checks and report their
+limits; do not call an unverified base verified.
 
 The selector replaces only architecture/library test commands during a recheck.
-Formatting, Clippy, workspace checking, and relevant integration/bootstrap gates
-still apply. It does not certify a base, cache results, hide failures, or grant
-a landing reservation. Review the plan and retain its output with test results.
+Formatting, Clippy, workspace checking, and integration/bootstrap gates apply
+according to the validation scope in `AGENTS.md`. It does not certify a base,
+cache results, hide failures, or grant a landing reservation. Review the plan and retain its output with test results.
 Do not edit the worktree during a run. All selected phases run even if architecture
 fails, and any failure produces a nonzero exit status.
 
