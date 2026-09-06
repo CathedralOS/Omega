@@ -1504,7 +1504,7 @@ pub(crate) fn check_range_containment(
 
 /// The declared literal `[a..=b]` of a type reference, ONLY under all-Exact
 /// Constrained shells (non-Exact ranges are deliberately permissive).
-fn enforced_declared_range_interval(
+pub(crate) fn enforced_declared_range_interval(
     program: &TypedTrees,
     handle: TypeReferenceHandle,
 ) -> Option<Interval> {

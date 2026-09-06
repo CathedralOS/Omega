@@ -1,4 +1,4 @@
-use crate::arithmetic_domains::{self, ValueEnv};
+use crate::arithmetic_domains::ValueEnv;
 use crate::expression_types::{
     argument_matches_type_reference_handle, expression_type_name_handle, report_cross_class_store,
     report_data_type_conflict,
@@ -15,6 +15,7 @@ use typed_trees::state::State;
 use typed_trees::statement::TableCall;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+mod argument_bounds;
 mod expression_scanning;
 mod generic_bounds;
 mod generic_requirement;
@@ -26,6 +27,7 @@ mod recursion;
 mod result_use;
 mod write_frames;
 
+use argument_bounds::report_argument_bounds;
 use expression_scanning::receiver_member_chain;
 pub(crate) use expression_scanning::{
     declared_receiver_type_reference, report_local_receiver_value_call,
@@ -846,7 +848,7 @@ pub(crate) fn validate_call_arguments_handles_with_policy_retention(
             // the shape gate already rejects above) are not double-reported. When
             // the classes DO agree (a same-class numeric arg), check the narrowing
             // obligation -- `take_i8(self.i64_field)` would silently truncate.
-            report_narrowing_argument(
+            report_argument_bounds(
                 program,
                 current_machine,
                 current_state,
@@ -969,45 +971,6 @@ fn report_cross_class_argument(
     )
 }
 
-/// Reject a single numeric ARGUMENT that NARROWS into its `parameter` -- a wider
-/// value (`self.big: i64 = 300`) passed where a narrower integer parameter is
-/// expected (`x: i8`), which the backend would otherwise silently truncate
-/// (300 -> 44). Decision-17's narrowing proof obligation, applied at the call
-/// boundary exactly as `check_narrowing_assignment` applies it at the assignment
-/// boundary. Honors dominating guards via the flow-sensitive `value_env`, so a
-/// guarded-in-range argument is not flagged. The argument's OWN arithmetic is
-/// analyzed into a THROWAWAY buffer, so only the narrowing check contributes a
-/// diagnostic here (an arg's exact-overflow obligation is not this gate's job).
-fn report_narrowing_argument(
-    program: &TypedTrees,
-    current_machine: &Machine,
-    current_state: Option<&State>,
-    value_env: &ValueEnv,
-    argument: ExpressionHandle,
-    parameter: &StateParameter,
-    target_name: &str,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let Some(parameter_primitive) = program.primitive_type_reference(parameter.type_reference)
-    else {
-        return;
-    };
-    let owner = format!(
-        "machine `{}` state `{target_name}` argument `{}`",
-        current_machine.name, parameter.name,
-    );
-    arithmetic_domains::check_value_narrowing(
-        program,
-        current_machine,
-        current_state,
-        argument,
-        parameter_primitive,
-        value_env,
-        &owner,
-        diagnostics,
-    );
-}
-
 /// Reject cross-class scalar ARGUMENTS at a VALUE-position call site
 /// (`let r = self.f(self.bool_field)`). The value-position path validates only
 /// type-parameter bounds, so the same cross-class hole the statement/transition
@@ -1126,7 +1089,7 @@ fn validate_value_call_argument_classes_with_receiver(
             callee_state.name.as_str(),
             diagnostics,
         ) {
-            report_narrowing_argument(
+            report_argument_bounds(
                 program,
                 current_machine,
                 Some(current_state),

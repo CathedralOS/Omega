@@ -151,18 +151,19 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   is attributed to a named entry on a board, and this entry is replaced by those.
 
 - **TERMINATION-RANKING-CHECKS.** Complete the documented joint-ranking and
-  rank-range checks in `validation/src/call_cycles.rs` and
+  flow-dependent rank-range checks in `validation/src/call_cycles.rs` and
   `typed-trees-to-checked-trees/src/checks/termination/ranking/`.
   `termination/joint_lexicographic_machine_call_cycle_compile` is rejected by
-  the scalar `m - 1` admission restriction. The negative
-  `termination/rank_range_excludes_floor` hits a blanket nonzero-floor fence,
-  not the promised rank-range proof diagnostic. These are implementation gaps,
-  not grounds to remove the fixtures or weaken their expected behavior.
+  the scalar `m - 1` admission restriction. Rank constraints beyond immutable
+  single-state parameter bounds need exact named-state arrivals and live guard
+  facts, including pinned dependent endpoints beyond the selected view's bound.
+  Custom scalar views and slice-length ranges need their produced-rank facts.
+  These are implementation gaps, not grounds to weaken the range obligation.
 
   Acceptance: the joint lexicographic positive reaches checked trees; stalled
   joint cycles and runtime non-tail cycles still reject for their respective
-  reasons; rank ranges are checked against the produced rank, accepting proved
-  constraints and rejecting the floor-excluding case as unproved. Preserve the
+  reasons; named-state and flow-dependent rank ranges accept proved constraints
+  while changed endpoints and intervening writes invalidate their premises. Preserve the
   private-witness/public-guarantee split described in chapter 3 and the
   [termination brief](wiki/design_briefs/termination_ranking_and_progress.md).
 

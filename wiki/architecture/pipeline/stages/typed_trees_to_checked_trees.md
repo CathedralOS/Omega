@@ -1659,7 +1659,23 @@ Current ownership is:
   `checks/termination/graph.rs` owns direct recursive graph shape checks and
   the shared named-transition target-state normalization consumed by ranking
   and checked-progress subject correspondence,
-  `checks/termination/ranking.rs` owns supported ranking dispatch,
+  `checks/termination/ranking/mod.rs` owns supported ranking dispatch,
+  `checks/termination/ranking/ranges.rs` checks the range of the produced rank,
+  including constraints authored on acyclic bodies. Its immutable single-state
+  tier consumes exact endpoint handles and enforced integer parameter bounds;
+  natural distance is `max(limit - index, 0)`, not the cursor value. Nonzero
+  floors and exclusive ceilings are accepted when proved. A dependent endpoint
+  may reuse the exact view bound only because the decrease proof separately
+  requires it to remain pinned. Named-state transport, other dependent endpoints,
+  mutable premises, and custom-view range facts remain unproved in this tier;
+  normalized display strings and concrete caller literals are not evidence.
+  Parameter delivery establishes the range these proofs consume:
+  `validation/src/calls/argument_bounds.rs` applies the shared store-containment
+  check to numeric arguments using their evaluation snapshots and guard polarity.
+  `validation/src/transitions.rs` resolves both machine-entry and named-state
+  target symbols before validating their signatures. Immutable singleton
+  parameters may supply literal-equivalent guard bounds; varying parameters
+  cannot be treated as constants.
   `checks/termination/ranking/patterns.rs` owns shared recursive-transition and
   parameter-expression matching, `checks/termination/ranking/nat.rs` owns
   natural-number ranking proof shapes, `checks/termination/ranking/nat/guards.rs`

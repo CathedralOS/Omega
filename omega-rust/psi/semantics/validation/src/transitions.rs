@@ -33,8 +33,39 @@ pub(crate) fn validate_transition_target_node(
         return;
     };
 
-    let path = program.statement_table.name_path_members(path.members);
     let arguments = program.statement_table.expression_handles(*arguments);
+
+    // Entry transitions name the machine declaration, whereas named states
+    // name their state declaration. Resolve both exact identities before the
+    // compatibility spelling paths: a generated `entry` state is not found
+    // by looking up the machine's source name in the local state table.
+    if path.symbol.is_valid()
+        && let Some(state) = program.machines().iter().find_map(|machine| {
+            let states = program.machine_states(machine);
+            if machine.symbol == path.symbol {
+                states.first()
+            } else {
+                states.iter().find(|state| state.symbol == path.symbol)
+            }
+        })
+    {
+        validate_transition_arguments_handles(
+            program,
+            current_machine,
+            current_state,
+            value_env,
+            argument_environments,
+            arguments,
+            state.name.as_str(),
+            program.state_parameters(state),
+            state,
+            writable_roots,
+            diagnostics,
+        );
+        return;
+    }
+
+    let path = program.statement_table.name_path_members(path.members);
 
     if path.len() == 1 {
         let Some(state) = machine_symbols.state(path[0].as_str()) else {

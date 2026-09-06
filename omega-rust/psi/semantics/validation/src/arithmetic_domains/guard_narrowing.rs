@@ -449,15 +449,25 @@ pub(super) fn narrow_env_by_condition(
             return;
         }
     }
-    // Identify the (place, literal) sides.
-    let (place_expr, literal, name_on_left) =
-        if let Some(literal) = literal_i64(program, comparison.right) {
-            (comparison.left, literal, true)
-        } else if let Some(literal) = literal_i64(program, comparison.left) {
-            (comparison.right, literal, false)
-        } else {
-            return;
-        };
+    // An immutable singleton parameter is the same integer at every
+    // evaluation, so it supplies the literal-equivalent bound without reading
+    // an initializer or borrowing facts from another state's same-spelled name.
+    let integer_bound = |expression| {
+        literal_i64(program, expression).or_else(|| {
+            let (low, high) =
+                super::immutable_integer_expression_bounds(program, machine, state?, expression)?;
+            (low == high).then_some(low)
+        })
+    };
+    // Identify the (place, constant bound) sides.
+    let (place_expr, literal, name_on_left) = if let Some(literal) = integer_bound(comparison.right)
+    {
+        (comparison.left, literal, true)
+    } else if let Some(literal) = integer_bound(comparison.left) {
+        (comparison.right, literal, false)
+    } else {
+        return;
+    };
     // A negative arm narrows by the NEGATED comparison. A negated EQUALITY
     // is a point exclusion: it tightens an interval only when an END sits
     // exactly on the excluded literal (`n == 0` refuted with `n: u64` gives

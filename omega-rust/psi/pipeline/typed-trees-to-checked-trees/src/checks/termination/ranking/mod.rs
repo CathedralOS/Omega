@@ -1,6 +1,7 @@
 mod lexicographic;
 mod nat;
 mod patterns;
+mod ranges;
 mod slice;
 mod struct_view;
 
@@ -314,11 +315,8 @@ pub(super) fn machine_decrease_outcome(
         };
     }
 
-    // TPR3 slice 3: the `in <range>` rank constraint is CONSUMED here. V1
-    // verifies the structurally-true shape and rejects everything else with
-    // a directed message -- never a silent drop, never an unproven fact.
     if let Some(range) = witness.rank_range.as_ref()
-        && let Some(message) = rank_range_violation(program, range, &order)
+        && let Some(message) = ranges::violation(program, machine, range, &order, measure)
     {
         return DecreaseOutcome::Rejected(message);
     }
@@ -370,54 +368,6 @@ pub(super) fn machine_decrease_outcome(
     }
 
     DecreaseOutcome::Unproven
-}
-
-/// TPR3 slice 3: verify the authored `in <range>` rank constraint against
-/// the resolved view. V1 accepts exactly the shape that is TRUE BY THE
-/// VIEW'S DEFINITION -- floor `0` (every builtin view produces a natural
-/// rank) and a ceiling equal to the argumented view's own bound, spelled
-/// identically and inclusively (`in 0..=limit` on `Nat::IncreasingTo(limit)`:
-/// the rank IS the distance up to that bound). Everything else needs an
-/// invariant proof that does not exist yet and is rejected with a directed
-/// message.
-fn rank_range_violation(
-    program: &typed_trees::TypedTrees,
-    range: &language_semantics::RankRange,
-    order: &RankingOrder,
-) -> Option<String> {
-    if range.floor != "0" {
-        return Some(
-            "a rank floor above the natural floor `0` is not consumed yet (decision 23 \
-             TPR3): every builtin view produces a natural rank -- spell `in 0..=<bound>` \
-             or omit the range"
-                .to_string(),
-        );
-    }
-    match order {
-        RankingOrder::IncreasingTo(limit) => {
-            let bound = decreasing_value_text(program, *limit);
-            if !range.ceiling_inclusive {
-                return Some(format!(
-                    "the rank of `Nat::IncreasingTo({bound})` reaches `{bound}` itself -- \
-                     spell the ceiling inclusively (`in 0..={bound}`)"
-                ));
-            }
-            (range.ceiling != bound).then(|| {
-                format!(
-                    "the rank ceiling `{}` is not the view's own bound `{bound}`: \
-                     only `in 0..={bound}` verifies structurally on \
-                     `Nat::IncreasingTo({bound})` today (decision 23 TPR3)",
-                    range.ceiling
-                )
-            })
-        }
-        _ => Some(
-            "a rank range is only consumed on the argumented `Nat::IncreasingTo(bound)` \
-             today (`in 0..=bound`, decision 23 TPR3) -- other views' ceilings need \
-             invariant proofs that do not exist yet"
-                .to_string(),
-        ),
-    }
 }
 
 /// TPR3 slice 4: the RESOLVED view's explicit spelling for the checked

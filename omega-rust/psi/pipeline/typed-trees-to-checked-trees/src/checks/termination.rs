@@ -44,7 +44,13 @@ pub(crate) fn check_machine_termination(
             continue;
         }
 
-        if !graph::machine_has_cycle(program, machine) {
+        if !graph::machine_has_cycle(program, machine)
+            && !machine
+                .termination_plan
+                .implementation_witness
+                .as_ref()
+                .is_some_and(|witness| witness.rank_range.is_some())
+        {
             continue;
         }
 

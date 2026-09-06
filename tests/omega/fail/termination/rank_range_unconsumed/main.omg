@@ -1,9 +1,5 @@
-// TPR3 slice 3 consumes the witness's `in <range>` rank constraint -- but
-// V1 verifies only the shape that is true by the view's definition
-// (`in 0..=bound` on the argumented `Nat::IncreasingTo(bound)`). A ceiling
-// on a plain descending view would need an invariant proof that does not
-// exist yet, so it is rejected with a directed message -- never silently
-// recorded as an unproven fact.
+// A descending rank over unrestricted u64 is not bounded by 100. The one
+// literal caller does not establish the private body's input contract.
 use omega::language::std::console;
 data Main { console: Console; }
 machine Main::countdown(&mut self, n: u64) -> u64

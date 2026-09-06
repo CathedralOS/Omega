@@ -1,7 +1,6 @@
-// TPR3 slice 3: a rank floor ABOVE the natural floor `0` would need a guard
-// proof that does not exist yet -- rejected with a directed message (every
-// builtin view produces a natural rank, so only floor `0` verifies
-// structurally today).
+// The distance reaches zero when index reaches limit. The authored floor of
+// one is therefore unproved, irrespective of whether nonzero floors are
+// supported for other ranked programs.
 use omega::language::std::console;
 data Main { console: Console; }
 machine Main::climb(&mut self, limit: u64, index: u64)
