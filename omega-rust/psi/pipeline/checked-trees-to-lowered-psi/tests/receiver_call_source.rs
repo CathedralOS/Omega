@@ -21,6 +21,8 @@ use tokens_to_syntax_trees::parse_syntax_trees;
 
 #[path = "receiver_call_source/forwarding.rs"]
 mod forwarding;
+#[path = "receiver_call_source/projections.rs"]
+mod projections;
 
 fn checked_from_source(source: &str) -> checked_trees::CheckedTrees {
     let tokens = Lexer::new(source)

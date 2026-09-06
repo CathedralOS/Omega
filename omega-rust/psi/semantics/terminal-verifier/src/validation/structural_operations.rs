@@ -370,14 +370,15 @@ pub(super) fn validate_unit_operation_static(
             let projected = structural_arguments
                 .iter()
                 .any(|argument| !argument.path.is_empty());
-            let exact_write_only_projection = matches!(
+            let exact_exclusive_projection = matches!(
                 (structural_arguments.as_slice(), callee.structural_parameters.as_slice()),
                 ([argument], [parameter])
                     if is_unrestricted_write_only_subloan(module, machine, parameter, argument)
+                        || is_unrestricted_mutable_subloan(machine, parameter, argument)
             );
             if projected
                 && (machine.result != TerminalMachineResult::Unit
-                    || (!machine.parameters.is_empty() && !exact_write_only_projection)
+                    || (!machine.parameters.is_empty() && !exact_exclusive_projection)
                     || machine.structural_parameters.len() != 1
                     || structural_arguments.len() != 1
                     || callee.structural_parameters.len() != 1)

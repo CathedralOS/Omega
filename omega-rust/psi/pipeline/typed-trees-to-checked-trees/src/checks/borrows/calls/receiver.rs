@@ -1,4 +1,4 @@
-//! An implicit write-only receiver is an exclusive operand of its call.
+//! An implicit mutable or write-only receiver is an exclusive call operand.
 
 use checked_trees::{BorrowAccessKind, BorrowCallFact, CapturedPlace, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
@@ -8,7 +8,7 @@ use typed_trees::types::TypeReferenceNode;
 
 use super::super::overlap::captured_place_compatibility;
 
-pub(super) fn check_write_only_receiver_conflicts(
+pub(super) fn check_exclusive_receiver_conflicts(
     program: &TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
@@ -17,24 +17,34 @@ pub(super) fn check_write_only_receiver_conflicts(
     target_name: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if !call.has_receiver
-        || !crate::call_target_parameters(program, call.target_symbol).is_some_and(|parameters| {
-            parameters.iter().any(|parameter| {
-                parameter.is_self
-                    && matches!(
-                        program
-                            .type_reference_table
-                            .type_reference(parameter.type_reference),
+    if !call.has_receiver {
+        return;
+    }
+    let Some((receiver_access, receiver_name)) =
+        crate::call_target_parameters(program, call.target_symbol).and_then(|parameters| {
+            parameters
+                .iter()
+                .filter(|parameter| parameter.is_self)
+                .find_map(|parameter| {
+                    match program
+                        .type_reference_table
+                        .type_reference(parameter.type_reference)
+                    {
+                        TypeReferenceNode::Reference {
+                            access: ReferenceAccess::Mutable,
+                            ..
+                        } => Some((BorrowAccessKind::Mutable, "mutable")),
                         TypeReferenceNode::Reference {
                             access: ReferenceAccess::WriteOnly,
                             ..
-                        }
-                    )
-            })
+                        } => Some((BorrowAccessKind::WriteOnly, "write-only")),
+                        _ => None,
+                    }
+                })
         })
-    {
+    else {
         return;
-    }
+    };
     let Some(machine) = program
         .machines()
         .iter()
@@ -63,7 +73,7 @@ pub(super) fn check_write_only_receiver_conflicts(
     }) = receiver
     else {
         diagnostics.push(Diagnostic::error(format!(
-            "state `{target_name}` requires an exact place for its write-only receiver"
+            "state `{target_name}` requires an exact place for its {receiver_name} receiver"
         )));
         return;
     };
@@ -77,14 +87,22 @@ pub(super) fn check_write_only_receiver_conflicts(
     );
     if !receiver_is_writable(program, facts, state_flow, entry_constraints, &receiver) {
         diagnostics.push(Diagnostic::error(format!(
-            "state `{target_name}` requires a write-only receiver, but its source is not writable in this state"
+            "state `{target_name}` requires a {receiver_name} receiver, but its source is not writable in this state"
         )));
+    }
+    // Whole mutable-receiver calls already use complete mutation summaries
+    // for field-precise interference (including known-pure helpers). Keep that
+    // existing path after checking source authority; a projected receiver
+    // introduces the exclusive child loan admitted here. Whole write-only
+    // receivers remain strictly exclusive.
+    if receiver_access == BorrowAccessKind::Mutable && receiver.segments.is_empty() {
+        return;
     }
     let overlaps = |place: CapturedPlace, access: &BorrowAccessKind| {
         !captured_place_compatibility(
             program,
             &receiver,
-            &BorrowAccessKind::WriteOnly,
+            &receiver_access,
             &attached_place(program, machine, place),
             access,
         )
@@ -103,7 +121,7 @@ pub(super) fn check_write_only_receiver_conflicts(
             &argument.kind,
         ) {
             diagnostics.push(Diagnostic::error(format!(
-                "state `{target_name}` receives write-only receiver overlapping another argument in the same call"
+                "state `{target_name}` receives {receiver_name} receiver overlapping another argument in the same call"
             )));
         }
     }
@@ -117,7 +135,7 @@ pub(super) fn check_write_only_receiver_conflicts(
             &loan.kind,
         ) {
             diagnostics.push(Diagnostic::error(format!(
-                "state `{target_name}` receives write-only receiver while local borrow `{}` is still active",
+                "state `{target_name}` receives {receiver_name} receiver while local borrow `{}` is still active",
                 program.symbols.name(loan.owner_symbol),
             )));
         }

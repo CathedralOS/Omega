@@ -46,7 +46,7 @@ pub(super) fn reconcile(
                             *target_state,
                         )
                         .is_some_and(|place| {
-                            is_whole_self(program, plan.machine, plan.state, &place)
+                            is_self_root(program, plan.machine, plan.state, &place)
                         })
                 })
             })
@@ -134,6 +134,7 @@ pub(super) fn reconcile(
                 program,
                 plan.machine,
                 plan.state,
+                *coordinate,
                 &plan.structural_parameters,
                 &place,
                 target,
@@ -204,33 +205,30 @@ fn receiver_place(
     crate::flow::canonical_receiver_place_for_call_site(program, machine, state, &site)
 }
 
-fn is_whole_self(
+fn is_self_root(
     program: &TypedTrees,
     machine: SymbolHandle,
     state: SymbolHandle,
     place: &crate::flow::CanonicalPlace,
 ) -> bool {
-    place.segments.is_empty()
-        && crate::find_state(program, state).is_some_and(|state| {
-            program.state_parameters(state).iter().any(|parameter| {
-                parameter.is_self
-                    && matches!(place.root, facts::PlaceRoot::Symbol(root)
+    crate::find_state(program, state).is_some_and(|state| {
+        program.state_parameters(state).iter().any(|parameter| {
+            parameter.is_self
+                && matches!(place.root, facts::PlaceRoot::Symbol(root)
                 if root == machine || root == parameter.symbol)
-            })
         })
+    })
 }
 
 fn receiver_argument(
     program: &TypedTrees,
     machine: SymbolHandle,
     state: SymbolHandle,
+    coordinate: CheckedUnitCallCoordinate,
     parameters: &[CheckedUnitStructuralParameterPlan],
     place: &crate::flow::CanonicalPlace,
     target: &CheckedUnitStructuralParameterPlan,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    if !place.segments.is_empty() {
-        return None;
-    }
     let facts::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
@@ -242,8 +240,7 @@ fn receiver_argument(
         .iter()
         .enumerate()
         .find(|(_, parameter)| usize::try_from(parameter.position).ok() == Some(position))?;
-    if parameter.type_identity != target.type_identity
-        || parameter.qualifications != target.qualifications
+    if parameter.qualifications != target.qualifications
         || parameter.multiplicity != target.multiplicity
     {
         return None;
@@ -259,11 +256,42 @@ fn receiver_argument(
     ) {
         return None;
     }
+    let path = if place.segments.is_empty() {
+        if parameter.type_identity != target.type_identity {
+            return None;
+        }
+        Vec::new()
+    } else {
+        // Reuse the ordinary exact-place resolver and the existing Terminal
+        // field-path mutable subloan contract. The root keeps its container
+        // type; the operand names the leaf, without transferring ownership.
+        if parameter.access != MutableBorrow
+            || target.access != MutableBorrow
+            || parameter.multiplicity != Multiplicity::Unrestricted
+            || !parameter.qualifications.is_empty()
+            || !place
+                .segments
+                .iter()
+                .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. }))
+        {
+            return None;
+        }
+        let (projected, path) = calls::projected_argument_path(
+            program,
+            state,
+            usize::try_from(coordinate.statement_index).ok()?,
+            place,
+        )?;
+        if base_type_identity(program, projected, &[])? != target.type_identity {
+            return None;
+        }
+        path
+    };
     Some(CheckedUnitStructuralArgumentPlan {
         source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
             parameter_index: u32::try_from(index).ok()?,
         },
-        path: Vec::new(),
+        path,
         type_identity: target.type_identity.clone(),
         access: target.access,
     })
