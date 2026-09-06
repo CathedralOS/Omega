@@ -137,6 +137,34 @@ fn fixture(
 }
 
 #[test]
+fn publication_classification_reuses_the_existing_scalar_input() {
+    for target in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+    ] {
+        let (abstracted, targeted, unit) = fixture(target);
+        assert!(crate::legalization::accepts_fragment_publication_input(
+            &targeted,
+            &abstracted,
+            &unit
+        ));
+        let mut changed = targeted.clone();
+        changed.functions[0].fixed_integer_scalar_abi = None;
+        assert!(!crate::legalization::accepts_fragment_publication_input(
+            &changed,
+            &abstracted,
+            &unit
+        ));
+        let mut changed = abstracted.clone();
+        let extra_block = changed.functions[0].block_entries[0].clone();
+        changed.functions[0].block_entries.push(extra_block);
+        assert!(!crate::legalization::accepts_fragment_publication_input(
+            &targeted, &changed, &unit
+        ));
+    }
+}
+
+#[test]
 fn shared_return_selection_preserves_real_blocks_and_binding_edges() {
     for target in [
         target::NativeTarget::windows_x64(),

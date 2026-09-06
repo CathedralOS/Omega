@@ -186,3 +186,18 @@ fn call_mut(
         .nth(index)
         .expect("call fixture")
 }
+
+#[test]
+fn publication_classification_uses_the_existing_unit_grammar() {
+    let (abstracted, targeted, unit) = scalar_call_unit_fixture();
+    assert!(crate::legalization::accepts_fragment_publication_input(
+        &targeted,
+        &abstracted,
+        &unit
+    ));
+    let mut changed = abstracted.clone();
+    changed.functions[0].operations.pop();
+    assert!(!crate::legalization::accepts_fragment_publication_input(
+        &targeted, &changed, &unit
+    ));
+}

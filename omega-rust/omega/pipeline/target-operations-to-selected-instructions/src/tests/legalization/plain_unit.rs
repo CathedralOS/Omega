@@ -36,3 +36,18 @@ fn plain_unit_catalog_form_is_produced_and_independently_replayed() {
     erased.unit_functions.clear();
     assert!(validate_legalized_operations(&target, &abstract_plan, &unit, erased).is_err());
 }
+
+#[test]
+fn publication_classification_uses_the_existing_unit_grammar() {
+    let (abstracted, targeted, unit) = plain_unit_fixture();
+    assert!(crate::legalization::accepts_fragment_publication_input(
+        &targeted,
+        &abstracted,
+        &unit
+    ));
+    let mut changed = abstracted.clone();
+    changed.functions[0].operations.pop();
+    assert!(!crate::legalization::accepts_fragment_publication_input(
+        &targeted, &changed, &unit
+    ));
+}

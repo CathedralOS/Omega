@@ -6,7 +6,7 @@ use crate::realization::model::NativeRealizationCoreRequest;
 use crate::realization::target_stage::{NativeTargetStageEvidence, NativeTargetStageResult};
 use diagnostics::Diagnostic;
 
-mod fragment_shape;
+use target_operations_to_selected_instructions::is_fragment_publication_program;
 #[cfg(test)]
 mod tests;
 
@@ -44,7 +44,7 @@ pub(crate) fn lower_realization_physical_stage(
             // Transitional physical split only. Target production and its
             // retained translation evidence no longer depend on this selection.
             if request.optimization_selections.is_empty()
-                && !(fragment_program(&optimized_target)
+                && !(is_fragment_publication_program(&optimized_target)
                     && optimized_target.provider_installation().is_none()
                     && request.settlements.is_empty()
                     && request.compiler_builtins.is_empty()
@@ -78,87 +78,6 @@ pub(crate) fn lower_realization_physical_stage(
             )))
         }
     }
-}
-
-/// Shapes whose complete ABI and publication already use the fragment path.
-/// This migration boundary is chosen from the current program, never by
-/// trying the new implementation and falling back after an error.
-fn return_only_fragment_program(plan: &abstract_operations::AbstractOperationPlan) -> bool {
-    !plan.functions.is_empty()
-        && plan.functions.iter().all(|function| {
-            function.parameters.is_empty()
-                && function.structural_parameters.is_empty()
-                && matches!(
-                    function.result,
-                    abstract_operations::AbstractFunctionResult::Unit
-                )
-                && matches!(function.block_entries.as_slice(), [block]
-                    if block.block == function.entry && block.operation_offset == 0
-                        && block.parameters.is_empty())
-                && matches!(
-                    function.operations.as_slice(),
-                    [abstract_operations::AbstractOperation::ReturnUnit { cleanup_actions, .. }]
-                        if cleanup_actions.is_empty()
-                )
-        })
-}
-
-fn fragment_program(
-    target: &abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
-) -> bool {
-    let plan = target.optimized().plan();
-    if return_only_fragment_program(plan) {
-        return true;
-    }
-    let scalar_type = semantic_vocabulary::ScalarType::Integer(
-        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
-            .expect("u64"),
-    );
-    !plan.functions.is_empty() && plan.functions.iter().all(|function| {
-        let Some(native) = target
-            .target_operations()
-            .functions
-            .iter()
-            .find(|native| native.machine == function.machine)
-        else {
-            return false;
-        };
-        if fragment_shape::scalar_conditional(function, native) {
-            return true;
-        }
-        if target_operations_to_selected_instructions::is_ordered_scalar_call_unit(
-            target,
-            function.machine,
-        ) {
-            return true;
-        }
-        function.attachment.is_none()
-            && function.structural_parameters.is_empty()
-            && function.entry_claims.is_empty()
-            && function.published_service_ceiling.is_empty()
-            && function
-                .parameters
-                .iter()
-                .all(|parameter| parameter.scalar_type == scalar_type)
-            && matches!(function.result, abstract_operations::AbstractFunctionResult::Scalar(result)
-                if result.scalar_type == scalar_type)
-            && matches!(function.block_entries.as_slice(), [block]
-                if block.block == function.entry && block.operation_offset == 0
-                    && block.parameters.is_empty())
-            && matches!(function.operations.as_slice(),
-                [abstract_operations::AbstractOperation::Return { cleanup_actions, .. }]
-                | [abstract_operations::AbstractOperation::IntegerConstant { .. },
-                   abstract_operations::AbstractOperation::Return { cleanup_actions, .. }]
-                if cleanup_actions.is_empty())
-            && matches!(
-                native.operation,
-                target_operations::TargetOperation::ReturnIntegerImmediate { .. }
-                    | target_operations::TargetOperation::ReturnIntegerParameter {
-                        location: target_operations::ScalarParameterLocation::Register(_),
-                        ..
-                    }
-            )
-    })
 }
 
 fn assign_current_target(

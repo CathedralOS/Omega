@@ -62,7 +62,7 @@ fn scalar_leaf_fragments_reach_native_object_publication() {
                     )
                     .unwrap();
                 assert!(
-                    fragment_program(&target_program),
+                    is_fragment_publication_program(&target_program),
                     "default production must select this same route"
                 );
                 let physical = crate::stage_optimized_verified_physical_pipeline(
@@ -318,19 +318,37 @@ fn selected_return_programs_publish_replayable_native_evidence_on_every_target()
 }
 
 #[test]
-fn result_and_runtime_parameter_programs_stay_outside_return_migration() {
+fn malformed_unit_inputs_reject_at_legalization() {
     let checked =
         crate::tests::fixtures::checked_source::checked("data Main {} machine Main::launch() {}");
     let artifact =
         terminal_production::produce_terminal_artifact(&checked, "Main::launch").unwrap();
-    let input = lower_realization_input(
+    let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
         artifact.semantic_bytes(),
         artifact.proof_bytes(),
         &proof_admission::AdmissionProfile::default(),
     )
     .unwrap();
-    let original = input.plan();
-    assert!(return_only_fragment_program(original));
+    let optimized = crate::optimize_verified_abstract_input(
+        input,
+        crate::compiler_baseline_request_v1(&optimization_core::OptimizationSelections::default()),
+    )
+    .unwrap();
+    let target = abstract_operations_to_target_operations::lower_optimized_to_target_operations(
+        optimized,
+        target::NativeTarget::linux_x64(),
+    )
+    .unwrap();
+    let original = target.optimized().plan();
+    let admitted = |plan: &abstract_operations::AbstractOperationPlan| {
+        target_operations_to_selected_instructions::legalize_target_operations(
+            target.target_operations(),
+            plan,
+            target.optimized().unit(),
+        )
+        .is_ok()
+    };
+    assert!(admitted(original));
     let value = semantic_vocabulary::ValueId::new(1).unwrap();
     let scalar_type = semantic_vocabulary::ScalarType::Integer(
         semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
@@ -340,22 +358,22 @@ fn result_and_runtime_parameter_programs_stay_outside_return_migration() {
     parameterized.functions[0]
         .parameters
         .push(abstract_operations::AbstractParameter { value, scalar_type });
-    assert!(!return_only_fragment_program(&parameterized));
+    assert!(!admitted(&parameterized));
     let mut scalar = original.clone();
     scalar.functions[0].result =
         abstract_operations::AbstractFunctionResult::Scalar(abstract_operations::AbstractResult {
             value,
             scalar_type,
         });
-    assert!(!return_only_fragment_program(&scalar));
+    assert!(!admitted(&scalar));
     let mut extra_block = original.clone();
     extra_block.functions[0]
         .block_entries
         .push(original.functions[0].block_entries[0].clone());
-    assert!(!return_only_fragment_program(&extra_block));
+    assert!(!admitted(&extra_block));
     let mut extra_operation = original.clone();
     extra_operation.functions[0]
         .operations
         .push(original.functions[0].operations[0].clone());
-    assert!(!return_only_fragment_program(&extra_operation));
+    assert!(!admitted(&extra_operation));
 }
