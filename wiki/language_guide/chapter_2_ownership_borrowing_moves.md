@@ -465,7 +465,11 @@ conclusion. For every dynamic selector position consulted by the judgment, the
 row also freezes its forming/active side, place-path position, selector
 coordinate, and exact normalized integer or immutable-symbol value; a
 conservatively unknown coordinate is retained explicitly and grants no positive
-evidence. Rerunning checked-fact validation independently normalizes the exact
+evidence. Missing field or case identities likewise establish neither identity
+nor containment. Disjointness may follow from an earlier known root or path
+divergence, but not from child comparisons beneath an unresolved field or case.
+Mutation-path matching uses the same conservative rule when invalidating facts.
+Rerunning checked-fact validation independently normalizes the exact
 typed formation expression, requires equality with the frozen rows, and then
 replays the relationship. Runtime changes cannot retarget the immutable-symbol
 occurrence captured by an existing loan; typed formation drift rejects.

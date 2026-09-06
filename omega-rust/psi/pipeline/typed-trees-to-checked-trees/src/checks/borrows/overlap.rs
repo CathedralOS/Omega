@@ -1,6 +1,9 @@
 mod indexes;
 mod segments;
 
+#[cfg(test)]
+mod unresolved_identities;
+
 use self::segments::{
     place_segments_containment, place_segments_may_overlap_from_snapshot,
     place_segments_may_overlap_with_snapshot,

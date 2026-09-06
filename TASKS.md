@@ -404,14 +404,6 @@ Owners include
   establish disjointness/containment but cannot extend lifetime, duplicate a
   loan, or replace ownership accounting.
 
-  Make unresolved field/case identities conservative in
-  `typed-trees-to-checked-trees/src/checks/borrows/overlap/segments.rs`.
-  Field comparisons currently treat an invalid handle and a resolved handle as
-  different storage, while two invalid handles compare as identical storage.
-  Unknown identity is neither disjointness nor containment evidence.
-  Acceptance: direct and snapshot-replayed compatibility cannot prove either
-  relation from an unresolved segment; exact disjoint siblings still pass.
-
 - **CALLBACK-PARAMETER-REQUIREMENT.** Implement the nominal
   `where machine Selected satisfies Trait::requirement` binder and retain its
   exact requirement, conformance, envelope refinement, call site, and target
