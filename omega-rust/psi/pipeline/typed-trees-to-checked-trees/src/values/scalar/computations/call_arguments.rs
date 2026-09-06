@@ -5,6 +5,7 @@ impl Builder<'_, '_> {
         &mut self,
         pure: &CheckedScalarExpressionPlans,
         statement: u32,
+        call_ordinal: u32,
         target: SymbolHandle,
         arguments: &[ExpressionHandle],
     ) {
@@ -42,12 +43,12 @@ impl Builder<'_, '_> {
             }
             let role = if boundary {
                 CheckedScalarExpressionRole::BoundaryCallArgument {
-                    call_ordinal: 0,
+                    call_ordinal,
                     argument_ordinal: scalar_ordinal,
                 }
             } else {
                 CheckedScalarExpressionRole::UnitCallArgument {
-                    call_ordinal: 0,
+                    call_ordinal,
                     argument_ordinal: scalar_ordinal,
                 }
             };

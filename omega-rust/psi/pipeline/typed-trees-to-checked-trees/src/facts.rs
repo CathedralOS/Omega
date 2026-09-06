@@ -105,6 +105,13 @@ pub(crate) fn build_check_facts(
         &values.scalar_expressions,
     );
     crate::review_sources::bind_checked_body_call_source_spans(program, &mut flow)?;
+    crate::values::retain_nested_structural_call_arguments(
+        program,
+        &operators,
+        &flow,
+        &mut values.scalar_expressions,
+        &validation_facts.exact_integer_casts,
+    );
     values.scalar_computations = crate::values::build_checked_scalar_computation_plans(
         program,
         &operators,

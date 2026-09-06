@@ -69,7 +69,6 @@ fn collect<'a>(
     if parameters.len() != arguments.len() {
         return None;
     }
-    let initial_count = output.len();
     for (argument, parameter) in arguments.iter().zip(&parameters) {
         if program
             .primitive_type_reference(parameter.type_reference)
@@ -120,15 +119,6 @@ fn collect<'a>(
         )?;
         active.pop();
         output.push(nested);
-    }
-    if output.len() != initial_count && arguments.iter().zip(parameters).any(|(argument, parameter)| {
-        program.primitive_type_reference(parameter.type_reference).is_some()
-            && !matches!(program.expression_table.expression(*argument), ExpressionNode::Name(name) if name.symbol.is_valid())
-    }) {
-        // Other scalar operands still belong to the call's evaluator. They
-        // cannot be moved across structural operand calls without retaining
-        // their own argument-position evaluation and crash/fuel ordering.
-        return None;
     }
     Some(())
 }

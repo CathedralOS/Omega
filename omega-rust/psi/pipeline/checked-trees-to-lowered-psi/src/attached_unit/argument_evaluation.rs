@@ -37,6 +37,64 @@ impl Evaluation {
         operations: &mut OperationBuffer,
         calls: &mut CallEmissionContext<'_>,
     ) -> Result<Option<Vec<ValueDeclaration>>, LoweringError> {
+        self.arguments_slice(
+            checked, machine, state, operation, None, values, next_value, next_block, next_edge,
+            operations, calls,
+        )
+    }
+
+    /// Complete one dense scalar operand at its original call coordinate.
+    /// The caller retains the result in `values` before evaluating another
+    /// operand and uses indices to follow values across private blocks.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn argument_at(
+        &mut self,
+        checked: &CheckedTrees,
+        machine: symbols::SymbolHandle,
+        state: symbols::SymbolHandle,
+        operation: &CheckedUnitEffectOperationPlan,
+        argument_ordinal: usize,
+        values: &mut Vec<ValueDeclaration>,
+        next_value: &mut u64,
+        next_block: &mut u64,
+        next_edge: &mut u64,
+        operations: &mut OperationBuffer,
+        calls: &mut CallEmissionContext<'_>,
+    ) -> Result<ValueDeclaration, LoweringError> {
+        let arguments = self.arguments_slice(
+            checked,
+            machine,
+            state,
+            operation,
+            Some(argument_ordinal),
+            values,
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+            calls,
+        )?;
+        match arguments.as_deref() {
+            Some([argument]) => Ok(*argument),
+            _ => unsupported("call has no single completed scalar operand"),
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn arguments_slice(
+        &mut self,
+        checked: &CheckedTrees,
+        machine: symbols::SymbolHandle,
+        state: symbols::SymbolHandle,
+        operation: &CheckedUnitEffectOperationPlan,
+        argument_ordinal: Option<usize>,
+        values: &mut Vec<ValueDeclaration>,
+        next_value: &mut u64,
+        next_block: &mut u64,
+        next_edge: &mut u64,
+        operations: &mut OperationBuffer,
+        calls: &mut CallEmissionContext<'_>,
+    ) -> Result<Option<Vec<ValueDeclaration>>, LoweringError> {
         let (coordinate, arguments, boundary) = match operation {
             CheckedUnitEffectOperationPlan::CallUnit {
                 coordinate,
@@ -69,6 +127,15 @@ impl Evaluation {
                 ..
             } => (*coordinate, scalar_arguments, true),
             _ => return Ok(None),
+        };
+        let (arguments, argument_ordinal_start) = match argument_ordinal {
+            Some(ordinal) => {
+                let argument = arguments.get(ordinal).ok_or(LoweringError::Unsupported(
+                    "call scalar operand ordinal is outside its argument list",
+                ))?;
+                (std::slice::from_ref(argument), ordinal)
+            }
+            None => (arguments.as_slice(), 0),
         };
         let source_types = values
             .iter()
@@ -122,6 +189,7 @@ impl Evaluation {
             coordinate,
             boundary,
             arguments,
+            argument_ordinal_start,
             &crate::scalar_bindings::ScalarBindings::new(values.len()),
             &source_types,
             0,

@@ -8,6 +8,7 @@ use super::*;
 use crate::runtime_requirements::substitute_runtime_requirement_scalar_values;
 
 pub(crate) mod argument_evaluation;
+mod argument_schedule;
 mod call_closure;
 mod catalog;
 mod claims;
@@ -1236,25 +1237,77 @@ fn assemble_unit_closure(
         let mut affine_scalar_record_places = Vec::<StructuralPlaceDeclaration>::new();
         let mut structural_result_places = Vec::<(StructuralPlaceDeclaration, bool)>::new();
         let mut evaluation = argument_evaluation::Evaluation::new(&mut next_block)?;
-        for operation in &plan.operations[..plan.operations.len() - 1] {
+        let mut staged_arguments = vec![Vec::<usize>::new(); plan.operations.len()];
+        let mut retained_scalar_prefix = 0;
+        for step in argument_schedule::build(checked, plan)? {
             let mut scalar_calls = CallEmissionContext {
                 machine_ids: &machine_ids,
                 requirement_counts: &scalar_requirement_counts,
                 next_obligation_identity: next_call_obligation,
                 obligation_limit: u64::MAX,
             };
-            let evaluated_scalar_arguments = evaluation.arguments(
-                checked,
-                plan.machine,
-                plan.state,
-                operation,
-                &mut scalar_result_values,
-                &mut next_value_identity,
-                &mut next_block,
-                &mut next_edge,
-                &mut operations,
-                &mut scalar_calls,
-            )?;
+            let (operation_index, staged) = match step {
+                argument_schedule::Step::Begin => {
+                    retained_scalar_prefix = scalar_result_values.len();
+                    continue;
+                }
+                argument_schedule::Step::End => {
+                    scalar_result_values.truncate(retained_scalar_prefix);
+                    continue;
+                }
+                argument_schedule::Step::Argument { operation, ordinal } => {
+                    if staged_arguments[operation].len() != ordinal {
+                        return unsupported("staged scalar argument ordinals are not dense");
+                    }
+                    let value = evaluation.argument_at(
+                        checked,
+                        plan.machine,
+                        plan.state,
+                        &plan.operations[operation],
+                        ordinal,
+                        &mut scalar_result_values,
+                        &mut next_value_identity,
+                        &mut next_block,
+                        &mut next_edge,
+                        &mut operations,
+                        &mut scalar_calls,
+                    )?;
+                    next_call_obligation = scalar_calls.next_obligation_identity;
+                    staged_arguments[operation].push(scalar_result_values.len());
+                    scalar_result_values.push(value);
+                    continue;
+                }
+                argument_schedule::Step::Call(index) => (index, true),
+                argument_schedule::Step::Ordinary(index) => (index, false),
+            };
+            let operation = &plan.operations[operation_index];
+            let evaluated_scalar_arguments = if staged {
+                Some(
+                    staged_arguments[operation_index]
+                        .iter()
+                        .map(|index| {
+                            scalar_result_values.get(*index).copied().ok_or(
+                                LoweringError::Unsupported(
+                                    "staged scalar operand lost its retained value",
+                                ),
+                            )
+                        })
+                        .collect::<Result<Vec<_>, _>>()?,
+                )
+            } else {
+                evaluation.arguments(
+                    checked,
+                    plan.machine,
+                    plan.state,
+                    operation,
+                    &mut scalar_result_values,
+                    &mut next_value_identity,
+                    &mut next_block,
+                    &mut next_edge,
+                    &mut operations,
+                    &mut scalar_calls,
+                )?
+            };
             next_call_obligation = scalar_calls.next_obligation_identity;
             let mut source_call = None;
             let kind = match operation {

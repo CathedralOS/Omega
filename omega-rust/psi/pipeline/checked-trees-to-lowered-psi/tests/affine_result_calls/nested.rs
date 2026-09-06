@@ -283,10 +283,8 @@ fn nested_argument_evaluation_does_not_hoist_scalar_computation() {
         machine Main::consume(count: u32, value: Value) {}
         machine Main::caller(count: u32, value: Value) { Main::consume(count ^ 1u32, forward(value)); }";
     let checked = checked(source);
-    assert!(
-        lower_machine(&checked, "Main::caller").is_err(),
-        "mixed operand computations need an argument-position evaluator"
-    );
+    lower_machine(&checked, "Main::caller")
+        .expect("scalar operands evaluate before the following structural call");
 }
 
 #[test]

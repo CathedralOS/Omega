@@ -3859,12 +3859,22 @@ The source eligibility gate and structural producer use the same stored-owned
 type classifier, so reference-bearing or qualified fields cannot acquire this
 route through referent normalization.
 
+Mixed scalar and structural operands use one private argument schedule derived
+from the authored formal positions. Each scalar operand completes in place,
+before the next structural producer or scalar operand. The shared evaluator
+retains completed scalar values across its control blocks; staging indices do
+not become source-local binding ordinals. Scalar operands of nested structural
+producers retain their own captured call coordinate and dense scalar argument
+role, using the namespace from before the enclosing statement. Short-circuit
+branches stay selective, including statically skipped calls. An operand crash
+prevents later arguments and the enclosing invocation from running; it has no
+caller cleanup successor. Fuel exhaustion preserves the completed prefix and
+does not repeat a paid call or transfer on resumption.
+
 This does not widen the native call ABI or admit result projections or
-borrowed/qualified/linear result obligations. Enclosing calls with structural
-operand calls currently accept scalar siblings only as existing named values;
-mixed computations still need an argument-position evaluator that preserves
-crash and fuel order. Projected results need exact residual cleanup alongside
-their retained storage, loans, and claim transfers before those gates can open.
+borrowed/qualified/linear result obligations. Projected results need exact
+residual cleanup alongside their retained storage, loans, and claim transfers
+before those gates can open.
 
 The first internal structural-call slice composes two such checked machines. A
 `CallStructural` operation owns a structural operation-result place with its
