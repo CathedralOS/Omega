@@ -18,34 +18,15 @@ pub(super) fn assign_result(
     let target_operations::TargetBoundaryResult::Structural(requirement) = result else {
         return Ok(AssignedBoundaryResult::Unit);
     };
-    if requirement.defining_operation != operation
-        || requirement.layout.tag_byte_offset != 0
-        || requirement.layout.tag_shape != ValueShape::integer(4, 4)
-        || requirement.layout.shape.byte_size == 0
-        || requirement.layout.shape.alignment == 0
-    {
-        return Err(AssignmentError::ExpressionStackFrameNotEncodable);
-    }
-    *next_home = scalar_call::align_unit_frame_offset(
-        *next_home,
-        u32::from(requirement.layout.shape.alignment),
-    )?;
-    let home = AssignedStructuralHome {
-        requirement: requirement.clone(),
-        byte_offset: *next_home,
-    };
-    *next_home = next_home
-        .checked_add(u32::from(requirement.layout.shape.byte_size))
+    let layout = requirement
+        .layout
+        .sum()
         .ok_or(AssignmentError::ExpressionStackFrameNotEncodable)?;
-    if assigned_homes
-        .insert(requirement.result.place, home.clone())
-        .is_some()
-    {
+    if layout.tag_byte_offset != 0 || layout.tag_shape != ValueShape::integer(4, 4) {
         return Err(AssignmentError::ExpressionStackFrameNotEncodable);
     }
-    if &home.requirement != requirement {
-        return Err(AssignmentError::ExpressionStackFrameNotEncodable);
-    }
+    let home =
+        super::super::structural_homes::assign(operation, requirement, assigned_homes, next_home)?;
     Ok(AssignedBoundaryResult::Structural(home))
 }
 

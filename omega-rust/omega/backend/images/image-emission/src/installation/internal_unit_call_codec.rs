@@ -240,17 +240,50 @@ fn encode_structural_result(
         && result.returned_claim_transfers.is_empty()
         && result.returned_claims.is_empty()
         && result.caller_result_placement == result.callee_result_placement;
-    if !claim_bearing_linear && !claim_free_affine {
+    if (!claim_bearing_linear && !claim_free_affine)
+        || (result.result_home.is_some() && !claim_free_affine)
+    {
         return Err(InstallationError::InvalidInternalUnitCall(machine));
     }
     if claim_free_affine {
-        bytes.extend_from_slice(&[2, 0, 0, 0]);
+        bytes.extend_from_slice(&[if result.result_home.is_some() { 3 } else { 2 }, 0, 0, 0]);
         push_u64(bytes, result.operation_result.place.get());
         push_u64(bytes, result.operation_result.structural_type.get());
         push_u64(bytes, result.function_result.place.get());
         push_u64(bytes, result.function_result.structural_type.get());
         encode_direct_placement(bytes, &result.caller_result_placement)?;
         encode_direct_placement(bytes, &result.callee_result_placement)?;
+        if let Some(home) = &result.result_home {
+            let target_operations::TargetStructuralHomeLayout::Aggregate(shape) =
+                home.requirement.layout
+            else {
+                return Err(InstallationError::InvalidInternalUnitCall(machine));
+            };
+            if home.requirement.result != result.operation_result
+                || home.byte_count != home.bytes.len()
+            {
+                return Err(InstallationError::InvalidInternalUnitCall(machine));
+            }
+            push_u64(bytes, home.requirement.defining_operation.get());
+            encode_shape(bytes, shape)?;
+            push_u32(bytes, home.home_byte_offset);
+            push_u64(
+                bytes,
+                u64::try_from(home.code_offset)
+                    .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?,
+            );
+            push_u64(
+                bytes,
+                u64::try_from(home.byte_count)
+                    .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?,
+            );
+            push_u32(
+                bytes,
+                u32::try_from(home.bytes.len())
+                    .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?,
+            );
+            bytes.extend_from_slice(&home.bytes);
+        }
         return Ok(());
     }
     if result.operation_result.multiplicity != StructuralMultiplicity::Linear
@@ -522,7 +555,7 @@ fn decode_structural_result(
     match tag {
         0 => return Ok(None),
         1 => {}
-        2 => {
+        2 | 3 => {
             let operation_place = PlaceId::new(reader.u64()?)
                 .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
             let structural_type = StructuralTypeId::new(reader.u64()?)
@@ -538,15 +571,45 @@ fn decode_structural_result(
             {
                 return Err(InstallationError::InvalidInternalUnitCall(machine));
             }
+            let operation_result = StructuralOperationResult {
+                place: operation_place,
+                structural_type,
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            };
+            let result_home = if tag == 3 {
+                let defining_operation = OperationId::new(reader.u64()?)
+                    .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
+                let shape = decode_shape(reader)?;
+                let home_byte_offset = reader.u32()?;
+                let code_offset = usize::try_from(reader.u64()?)
+                    .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?;
+                let byte_count = usize::try_from(reader.u64()?)
+                    .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?;
+                let encoded_count = usize::try_from(reader.u32()?)
+                    .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?;
+                if byte_count != encoded_count {
+                    return Err(InstallationError::InvalidInternalUnitCall(machine));
+                }
+                let bytes = reader.take(encoded_count)?.to_vec();
+                Some(machine_code::InternalStructuralResultHomeRecord {
+                    requirement: target_operations::TargetStructuralHomeRequirement {
+                        defining_operation,
+                        result: operation_result.clone(),
+                        layout: target_operations::TargetStructuralHomeLayout::Aggregate(shape),
+                    },
+                    home_byte_offset,
+                    code_offset,
+                    byte_count,
+                    bytes,
+                })
+            } else {
+                None
+            };
             return Ok(Some(InternalStructuralCallResult {
-                operation_result: StructuralOperationResult {
-                    place: operation_place,
-                    structural_type,
-                    multiplicity: StructuralMultiplicity::Affine,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                    claims: Vec::new(),
-                },
+                operation_result,
                 function_result: StructuralResultDeclaration {
                     place: function_place,
                     structural_type: function_type,
@@ -558,6 +621,7 @@ fn decode_structural_result(
                 returned_claims: Vec::new(),
                 caller_result_placement,
                 callee_result_placement,
+                result_home,
             }));
         }
         tag => return Err(InstallationError::InvalidPresenceFlag(tag)),
@@ -630,6 +694,7 @@ fn decode_structural_result(
         returned_claims: vec![returned_claim],
         caller_result_placement,
         callee_result_placement,
+        result_home: None,
     };
     if result.operation_result.structural_type != result.function_result.structural_type
         || result.operation_result.qualifications != result.function_result.qualifications
@@ -641,4 +706,97 @@ fn decode_structural_result(
         return Err(InstallationError::InvalidInternalUnitCall(machine));
     }
     Ok(Some(result))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn affine_result() -> InternalStructuralCallResult {
+        let structural_type = StructuralTypeId::new(7).unwrap();
+        let placement = calling_conventions::ValuePlacement {
+            shape: calling_conventions::ValueShape::integer(8, 8),
+            locations: vec![calling_conventions::ValueLocation::Register {
+                register: calling_conventions::MachineRegister::Aarch64X(0),
+                value_byte_offset: 0,
+                byte_size: 8,
+            }],
+        };
+        InternalStructuralCallResult {
+            operation_result: StructuralOperationResult {
+                place: PlaceId::new(2).unwrap(),
+                structural_type,
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            },
+            function_result: StructuralResultDeclaration {
+                place: PlaceId::new(3).unwrap(),
+                structural_type,
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            },
+            returned_claim_transfers: Vec::new(),
+            returned_claims: Vec::new(),
+            caller_result_placement: placement.clone(),
+            callee_result_placement: placement,
+            result_home: None,
+        }
+    }
+
+    #[test]
+    fn affine_result_home_has_new_tag_and_preserves_legacy_payload() {
+        let machine = MachineId::new(1).unwrap();
+        let mut result = affine_result();
+        let mut legacy = Vec::new();
+        encode_structural_result(&mut legacy, machine, Some(&result)).unwrap();
+        let mut expected = vec![2, 0, 0, 0];
+        for identity in [2, 7, 3, 7] {
+            push_u64(&mut expected, identity);
+        }
+        encode_direct_placement(&mut expected, &result.caller_result_placement).unwrap();
+        encode_direct_placement(&mut expected, &result.callee_result_placement).unwrap();
+        assert_eq!(legacy, expected);
+        assert_eq!(
+            decode_structural_result(&mut Reader::new(&legacy), machine).unwrap(),
+            Some(result.clone())
+        );
+        result.result_home = Some(machine_code::InternalStructuralResultHomeRecord {
+            requirement: target_operations::TargetStructuralHomeRequirement {
+                defining_operation: OperationId::new(5).unwrap(),
+                result: result.operation_result.clone(),
+                layout: target_operations::TargetStructuralHomeLayout::Aggregate(
+                    result.caller_result_placement.shape,
+                ),
+            },
+            home_byte_offset: 8,
+            code_offset: 20,
+            byte_count: 4,
+            bytes: 0xf900_07e0_u32.to_le_bytes().to_vec(),
+        });
+        let mut encoded = Vec::new();
+        encode_structural_result(&mut encoded, machine, Some(&result)).unwrap();
+        assert_eq!(&encoded[..4], &[3, 0, 0, 0]);
+        assert_eq!(&encoded[4..legacy.len()], &legacy[4..]);
+        let mut reader = Reader::new(&encoded);
+        assert_eq!(
+            decode_structural_result(&mut reader, machine).unwrap(),
+            Some(result.clone())
+        );
+        assert_eq!(reader.remaining(), 0);
+        assert!(
+            decode_structural_result(&mut Reader::new(&encoded[..encoded.len() - 1]), machine)
+                .is_err()
+        );
+        result
+            .result_home
+            .as_mut()
+            .unwrap()
+            .requirement
+            .result
+            .place = PlaceId::new(9).unwrap();
+        assert!(encode_structural_result(&mut Vec::new(), machine, Some(&result)).is_err());
+    }
 }

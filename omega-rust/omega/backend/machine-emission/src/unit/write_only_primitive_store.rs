@@ -19,7 +19,7 @@ use super::structural_scalar::{
     emit_x86_64_unit_store_immediate, emit_x86_64_unit_store_register,
 };
 use super::{
-    Aarch64UnitParameterHome, X86UnitParameterHome, aarch64_load_base, aarch64_unit_stack_access,
+    Aarch64UnitStructuralHome, X86UnitStructuralHome, aarch64_load_base, aarch64_unit_stack_access,
     append_aarch64_instructions, emit_x86_64_stack_load_width, unit_scalar_home_record,
     unit_scalar_shape,
 };
@@ -30,8 +30,8 @@ pub(super) fn emit_write_only_primitive_store(
     operation: &AssignedUnitOperation,
     body: &AssignedUnitBody,
     target: NativeTarget,
-    x86_homes: &[X86UnitParameterHome],
-    aarch64_homes: &[Aarch64UnitParameterHome],
+    x86_homes: &[X86UnitStructuralHome],
+    aarch64_homes: &[Aarch64UnitStructuralHome],
     x86_frame_bytes: u32,
     aarch64_frame_bytes: u32,
     established_integer_constants: &BTreeMap<ValueId, (OperationId, IntegerType, IntegerValue)>,

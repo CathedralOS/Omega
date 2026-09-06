@@ -559,9 +559,12 @@ Owners include
   calls, and partial initialization. Cleanup follows reverse establishment and
   exact residual custody; trap/abort edges clean nothing. Acceptance: no affine
   occurrence disappears, duplicates, or is cleaned after transfer.
-  Complete target assignment and native replay for named ordinary and boundary
-  call-result residual cleanup, including result homes and projected copies;
+  Extend native ordinary call-result residual cleanup beyond complete eight-byte
+  direct-register fragments and implement boundary call-result residual cleanup,
+  including result homes and projected copies;
   whole-result disposal does not cover a projected result's residuals.
+  Extend checked-source production of named projected-result schedules from
+  static attached entries to free Unit callers.
   Extend source production to anonymous
   projected helper-result operands. Extend the
   type-directed record/array complement in

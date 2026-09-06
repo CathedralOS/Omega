@@ -176,7 +176,7 @@ pub(super) fn lower_boundary_call(
                         target_operations::TargetStructuralHomeRequirement {
                             defining_operation: *psi_operation,
                             result: result.clone(),
-                            layout,
+                            layout: target_operations::TargetStructuralHomeLayout::Sum(layout),
                         },
                     )
                 }
@@ -344,8 +344,8 @@ pub(super) fn lower_boundary_call(
                         || !matches!(
                             &target_result,
                             target_operations::TargetBoundaryResult::Structural(home)
-                                if home.layout.tag_byte_offset == 0
-                                    && home.layout.tag_shape == ValueShape::integer(4, 4)
+                                if home.layout.sum().is_some_and(|layout| layout.tag_byte_offset == 0
+                                    && layout.tag_shape == ValueShape::integer(4, 4))
                         )
                     {
                         return Err(LoweringError::BoundaryRealizationMismatch(*boundary));

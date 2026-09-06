@@ -11,7 +11,7 @@ use target::{Architecture, NativeTarget, ObjectFormat};
 
 use super::scalar_call::emit_unit_scalar_result;
 use super::{
-    Aarch64UnitParameterHome, X86UnitParameterHome, align_u32,
+    Aarch64UnitStructuralHome, X86UnitStructuralHome, align_u32,
     emit_aarch64_aggregate_copy_from_home, emit_x86_64_aggregate_copy_from_home,
     outgoing_placement_extent, outgoing_placement_extent_with_copy,
 };
@@ -28,8 +28,8 @@ pub(super) fn emit_stored_descriptor(
     owner: semantic_vocabulary::MachineId,
     target: NativeTarget,
     functions: &[AssignedFunction],
-    x86_homes: &[X86UnitParameterHome],
-    aarch64_homes: &[Aarch64UnitParameterHome],
+    x86_homes: &[X86UnitStructuralHome],
+    aarch64_homes: &[Aarch64UnitStructuralHome],
     bytes: &mut Vec<u8>,
     operation_ordinal: usize,
     code_offset: usize,
@@ -325,8 +325,8 @@ pub(super) fn emit_dynamic_call(
     owner: semantic_vocabulary::MachineId,
     target: NativeTarget,
     functions: &[AssignedFunction],
-    x86_homes: &[X86UnitParameterHome],
-    aarch64_homes: &[Aarch64UnitParameterHome],
+    x86_homes: &[X86UnitStructuralHome],
+    aarch64_homes: &[Aarch64UnitStructuralHome],
     bytes: &mut Vec<u8>,
     operation_ordinal: usize,
     code_offset: usize,
@@ -588,7 +588,7 @@ fn emit_x86_64_dynamic_call(
     selected_table_byte_offset: u32,
     initial_selection_ordinal: u32,
     rebound_selection_ordinal: u32,
-    homes: &[X86UnitParameterHome],
+    homes: &[X86UnitStructuralHome],
 ) -> Result<DynamicEmission, EmissionError> {
     let initial_instance = emit_x86_64_instance(
         bytes,
@@ -634,7 +634,7 @@ fn emit_x86_64_dynamic_call(
         Some((offset, bytes.len() - offset))
     };
     let argument_offset = bytes.len();
-    let descriptor_home = X86UnitParameterHome {
+    let descriptor_home = X86UnitStructuralHome {
         place: rebound.place,
         shape: rebound.shape,
         source: rebound.source.clone(),
@@ -716,7 +716,7 @@ fn emit_x86_64_stored_call(
         Some((offset, bytes.len() - offset))
     };
     let argument_offset = bytes.len();
-    let descriptor_home = X86UnitParameterHome {
+    let descriptor_home = X86UnitStructuralHome {
         place: source.place,
         shape: source.shape,
         source: source.source.clone(),
@@ -763,7 +763,7 @@ fn emit_x86_64_instance(
     bytes: &mut Vec<u8>,
     descriptor_offset: u32,
     copy: &AssignedAggregateCopy,
-    homes: &[X86UnitParameterHome],
+    homes: &[X86UnitStructuralHome],
     selection_ordinal: u32,
 ) -> Result<DynamicInstanceMaterializationRecord, EmissionError> {
     let home = homes
@@ -824,7 +824,7 @@ fn emit_aarch64_dynamic_call(
     selected_table_byte_offset: u32,
     initial_selection_ordinal: u32,
     rebound_selection_ordinal: u32,
-    homes: &[Aarch64UnitParameterHome],
+    homes: &[Aarch64UnitStructuralHome],
 ) -> Result<DynamicEmission, EmissionError> {
     let initial_instance = emit_aarch64_instance(
         bytes,
@@ -871,7 +871,7 @@ fn emit_aarch64_dynamic_call(
         Some((offset, 4))
     };
     let argument_offset = bytes.len();
-    let descriptor_home = Aarch64UnitParameterHome {
+    let descriptor_home = Aarch64UnitStructuralHome {
         place: rebound.place,
         shape: rebound.shape,
         source: rebound.source.clone(),
@@ -961,7 +961,7 @@ fn emit_aarch64_stored_call(
         Some((offset, 4))
     };
     let argument_offset = bytes.len();
-    let descriptor_home = Aarch64UnitParameterHome {
+    let descriptor_home = Aarch64UnitStructuralHome {
         place: source.place,
         shape: source.shape,
         source: source.source.clone(),
@@ -1021,7 +1021,7 @@ fn emit_aarch64_stored_call(
 fn emit_x86_64_descriptor_argument(
     bytes: &mut Vec<u8>,
     copy: &AssignedAggregateCopy,
-    home: &X86UnitParameterHome,
+    home: &X86UnitStructuralHome,
     call_stack_bytes: u32,
 ) -> Result<(), EmissionError> {
     let [calling_conventions::ValueLocation::Indirect { pointer, .. }] =
@@ -1055,7 +1055,7 @@ fn emit_x86_64_descriptor_argument(
 fn emit_aarch64_descriptor_argument(
     instructions: &mut Vec<u32>,
     copy: &AssignedAggregateCopy,
-    home: &Aarch64UnitParameterHome,
+    home: &Aarch64UnitStructuralHome,
     call_stack_bytes: u32,
 ) -> Result<(), EmissionError> {
     let [calling_conventions::ValueLocation::Indirect { pointer, .. }] =
@@ -1107,7 +1107,7 @@ fn emit_aarch64_instance(
     bytes: &mut Vec<u8>,
     descriptor_offset: u32,
     copy: &AssignedAggregateCopy,
-    homes: &[Aarch64UnitParameterHome],
+    homes: &[Aarch64UnitStructuralHome],
     selection_ordinal: u32,
 ) -> Result<DynamicInstanceMaterializationRecord, EmissionError> {
     let home = homes

@@ -18,7 +18,7 @@ use target::{Architecture, NativeTarget};
 use target_operations::CallSiteOwner;
 
 use super::{
-    Aarch64UnitParameterHome, X86UnitParameterHome, emit_aarch64_adjust_sp,
+    Aarch64UnitStructuralHome, X86UnitStructuralHome, emit_aarch64_adjust_sp,
     emit_aarch64_aggregate_copy_from_home, emit_x86_64_adjust_sp,
     emit_x86_64_aggregate_copy_from_home, stack_adjustment_pair, unit_scalar_home_record,
     unit_scalar_shape,
@@ -41,8 +41,8 @@ pub(super) fn emit_structural_scalar_field_store(
     body: &AssignedUnitBody,
     attachment: Option<semantic_vocabulary::StructuralTypeId>,
     target: NativeTarget,
-    x86_homes: &[X86UnitParameterHome],
-    aarch64_homes: &[Aarch64UnitParameterHome],
+    x86_homes: &[X86UnitStructuralHome],
+    aarch64_homes: &[Aarch64UnitStructuralHome],
     x86_frame_bytes: u32,
     aarch64_frame_bytes: u32,
     established_integer_constants: &BTreeMap<ValueId, (OperationId, IntegerType, IntegerValue)>,
@@ -405,8 +405,8 @@ pub(super) fn emit_unit_result_call(
     target: NativeTarget,
     functions: &[AssignedFunction],
     preceding_operations: &[AssignedUnitOperation],
-    x86_homes: &[X86UnitParameterHome],
-    aarch64_homes: &[Aarch64UnitParameterHome],
+    x86_homes: &[X86UnitStructuralHome],
+    aarch64_homes: &[Aarch64UnitStructuralHome],
     x86_frame_bytes: u32,
     aarch64_frame_bytes: u32,
     bytes: &mut Vec<u8>,
@@ -569,8 +569,8 @@ pub(super) fn emit_structural_scalar_call(
     target: NativeTarget,
     functions: &[AssignedFunction],
     preceding_operations: &[AssignedUnitOperation],
-    x86_homes: &[X86UnitParameterHome],
-    aarch64_homes: &[Aarch64UnitParameterHome],
+    x86_homes: &[X86UnitStructuralHome],
+    aarch64_homes: &[Aarch64UnitStructuralHome],
     x86_frame_bytes: u32,
     aarch64_frame_bytes: u32,
     bytes: &mut Vec<u8>,
@@ -751,8 +751,8 @@ pub(super) fn emit_structural_result_call(
     target: NativeTarget,
     functions: &[AssignedFunction],
     preceding_operations: &[AssignedUnitOperation],
-    x86_homes: &[X86UnitParameterHome],
-    aarch64_homes: &[Aarch64UnitParameterHome],
+    x86_homes: &[X86UnitStructuralHome],
+    aarch64_homes: &[Aarch64UnitStructuralHome],
     x86_frame_bytes: u32,
     aarch64_frame_bytes: u32,
     bytes: &mut Vec<u8>,
@@ -763,6 +763,7 @@ pub(super) fn emit_structural_result_call(
     let AssignedUnitOperation::StructuralResultCall {
         psi_operation,
         result,
+        result_home: _,
         callee,
         callee_result,
         call_plan,
@@ -924,6 +925,15 @@ pub(super) fn emit_structural_result_call(
     let [argument_interval] = argument_intervals.as_slice() else {
         return Err(invalid());
     };
+    let result_home = super::structural_homes::emit_result_stores(
+        operation,
+        target,
+        match target.architecture {
+            Architecture::X86_64 => x86_frame_bytes,
+            Architecture::Aarch64 => aarch64_frame_bytes,
+        },
+        bytes,
+    )?;
     let (argument_code_offset, argument_byte_count, source_home_byte_offset, call_stack_bytes) =
         *argument_interval;
     Ok(InternalUnitCallRecord {
@@ -934,6 +944,7 @@ pub(super) fn emit_structural_result_call(
         semantic_result: None,
         structural_result: Some(InternalStructuralCallResult {
             operation_result: result.clone(),
+            result_home,
             function_result: callee_result.clone(),
             returned_claim_transfers: Vec::new(),
             returned_claims: Vec::new(),
@@ -1077,7 +1088,7 @@ fn emit_x86_64_mixed_call(
     caller_scalar_parameters: &[target_operations::UnitScalarAbiValue],
     copies: &[assigned_target_operations::AssignedAggregateCopy],
     preceding_operations: &[AssignedUnitOperation],
-    homes: &[X86UnitParameterHome],
+    homes: &[X86UnitStructuralHome],
     frame_bytes: u32,
     internal_calls: &mut Vec<InternalCallRelocation>,
 ) -> Result<
@@ -1195,7 +1206,7 @@ fn emit_aarch64_mixed_call(
     caller_scalar_parameters: &[target_operations::UnitScalarAbiValue],
     copies: &[assigned_target_operations::AssignedAggregateCopy],
     preceding_operations: &[AssignedUnitOperation],
-    homes: &[Aarch64UnitParameterHome],
+    homes: &[Aarch64UnitStructuralHome],
     frame_bytes: u32,
     internal_calls: &mut Vec<InternalCallRelocation>,
 ) -> Result<
@@ -1326,7 +1337,7 @@ fn assigned_integer_result_matches(
 
 pub(super) fn emit_x86_64_unit_store_immediate(
     bytes: &mut Vec<u8>,
-    home: &X86UnitParameterHome,
+    home: &X86UnitStructuralHome,
     field_byte_offset: u32,
     byte_size: u16,
     bits: u64,
@@ -1356,7 +1367,7 @@ pub(super) fn emit_x86_64_unit_store_immediate(
 
 pub(super) fn emit_x86_64_unit_store_register(
     bytes: &mut Vec<u8>,
-    home: &X86UnitParameterHome,
+    home: &X86UnitStructuralHome,
     field_byte_offset: u32,
     byte_size: u16,
     source: target_operations::MachineRegister,
@@ -1418,7 +1429,7 @@ pub(crate) fn emit_x86_64_memory_store_width(
 
 pub(super) fn emit_aarch64_unit_store_immediate(
     bytes: &mut Vec<u8>,
-    home: &Aarch64UnitParameterHome,
+    home: &Aarch64UnitStructuralHome,
     field_byte_offset: u32,
     byte_size: u16,
     bits: u64,
@@ -1459,7 +1470,7 @@ pub(super) fn emit_aarch64_unit_store_immediate(
 
 pub(super) fn emit_aarch64_unit_store_register(
     bytes: &mut Vec<u8>,
-    home: &Aarch64UnitParameterHome,
+    home: &Aarch64UnitStructuralHome,
     field_byte_offset: u32,
     byte_size: u16,
     source: target_operations::MachineRegister,

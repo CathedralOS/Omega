@@ -114,7 +114,7 @@ pub struct AssignedAggregateCopy {
     pub destination: ValuePlacement,
 }
 
-/// Durable caller-frame home assigned to one exact structural boundary
+/// Durable caller-frame home assigned to one exact structural operation
 /// result. The layout is retained whole so emission and artifact replay can
 /// validate tag, payload, size, and alignment without trusting the offset.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -129,6 +129,7 @@ impl AssignedStructuralHome {
     pub fn layout_field(&self, case_index: usize, byte_offset: u32) -> Option<ValueShape> {
         self.requirement
             .layout
+            .sum()?
             .cases
             .get(case_index)?
             .fields
@@ -368,6 +369,7 @@ pub enum AssignedUnitOperation {
     StructuralResultCall {
         psi_operation: OperationId,
         result: StructuralOperationResult,
+        result_home: Option<AssignedStructuralHome>,
         callee: MachineId,
         callee_result: StructuralResultDeclaration,
         call_plan: CallPlan,

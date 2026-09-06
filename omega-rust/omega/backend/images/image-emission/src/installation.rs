@@ -1919,6 +1919,11 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 &function_unit_calls,
                 function.unit_affine_cleanup.as_ref(),
             );
+        let projected_affine_result = crate::affine_projected_calls::exact_projected_affine_result(
+            &function.unit_parameter_homes,
+            &function_unit_calls,
+            function.unit_affine_cleanup.as_ref(),
+        );
         if function.byte_count == 0
             || function.text_offset != expected_text_offset
             || previous_function.is_some_and(|previous| previous >= function.machine)
@@ -2121,8 +2126,9 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 .rev()
                 .filter_map(|call| match call.custody.structural_result.as_ref() {
                     Some(result)
-                        if result.operation_result.multiplicity
-                            == StructuralMultiplicity::Affine
+                        if projected_affine_result.is_none()
+                            && result.operation_result.multiplicity
+                                == StructuralMultiplicity::Affine
                             && result.operation_result.claims.is_empty()
                             && result.returned_claim_transfers.is_empty()
                             && result.returned_claims.is_empty() =>
@@ -2293,6 +2299,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 || discards.len() + residual_discards.len() + nominal_cleanups.len()
                     != cleanup.actions.len()
                 || match (nominal_cleanups.as_slice(), residual_discards.as_slice()) {
+                    _ if projected_affine_result.is_some() => false,
                     ([nominal], []) => {
                         let cleanup_is_executable = exact_nominal_body(nominal);
                         let matching_cleanup_calls = record
@@ -2961,6 +2968,69 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 &function_unit_calls,
                 function.unit_affine_cleanup.as_ref(),
             );
+        let projected_result = crate::affine_projected_calls::exact_projected_affine_result(
+            parameter_homes,
+            &function_unit_calls,
+            affine_cleanup,
+        );
+        if let Some(home) = custody
+            .structural_result
+            .as_ref()
+            .and_then(|result| result.result_home.as_ref())
+        {
+            let stack =
+                function
+                    .unit_stack
+                    .as_ref()
+                    .ok_or(InstallationError::InvalidInternalUnitCall(
+                        installed.machine,
+                    ))?;
+            let call_stack = function
+                .unit_call_stacks
+                .iter()
+                .find(|call| call.owner == custody.owner && call.target == custody.target)
+                .ok_or(InstallationError::InvalidInternalUnitCall(
+                    installed.machine,
+                ))?;
+            let linkage = if record.target.architecture == target::Architecture::X86_64 {
+                8
+            } else {
+                0
+            };
+            let outbound = call_stack.transient_bytes.checked_sub(linkage).ok_or(
+                InstallationError::InvalidInternalUnitCall(installed.machine),
+            )?;
+            let release_bytes = if outbound == 0 {
+                0
+            } else {
+                match record.target.architecture {
+                    target::Architecture::X86_64 => {
+                        crate::unit_stack::x86_64_stack_adjustment(outbound, true).len()
+                    }
+                    target::Architecture::Aarch64 => 4,
+                }
+            };
+            let store_start = call_stack
+                .text_offset
+                .checked_sub(function.text_offset)
+                .and_then(|offset| offset.checked_add(4))
+                .and_then(|offset| offset.checked_add(release_bytes));
+            if projected_result.is_none()
+                || store_start != Some(home.code_offset)
+                || !crate::unit_call_custody::result_home::exact_storage(
+                    record.target,
+                    custody,
+                    stack.frame_bytes,
+                    parameter_homes,
+                    &function.unit_scalar_homes,
+                    None,
+                )
+            {
+                return Err(InstallationError::InvalidInternalUnitCall(
+                    installed.machine,
+                ));
+            }
+        }
         let owner_valid = match custody.owner {
             CallSiteOwner::Operation(operation) => {
                 record.semantic_code_attribution.iter().any(|attribution| {
@@ -3313,6 +3383,10 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                 && argument.source_location == home.location
                                 && (incoming_call || home.location.stack_byte_offset().is_some())
                         });
+                    let result_source = projected_result.zip(affine_cleanup).is_some_and(|(result, cleanup)| {
+                        crate::affine_projected_calls::exact_owned_result_projection(
+                            argument, result, &cleanup.structural_types)
+                    });
                     let local_source = affine_cleanup
                         .and_then(|cleanup| {
                             cleanup
@@ -3371,7 +3445,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                         && argument.source.locations.is_empty()
                         && argument.destination.locations.is_empty();
                     argument.destination != *destination
-                        || (!parameter_source && !local_source)
+                        || (!parameter_source && !result_source && !local_source)
                         || (argument.byte_count == 0 && !zero_byte_argument)
                         || argument.bytes.len() != argument.byte_count
                         || (!argument.path.is_empty()
@@ -3396,6 +3470,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                     || argument.element_stride.is_some()
                             }
                             _ if exact_write_only_argument(argument_index, argument) => false,
+                            _ if result_source => false,
                             _ if argument.access == terminal_psi::StructuralAccess::Owned
                                 && parameter_homes.iter().any(|home| {
                                     home.place == argument.place
@@ -3491,7 +3566,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     return false;
                 }
                 argument.path.is_empty()
-                    || (!fully_consumed_affine_parameter
+                    || (!fully_consumed_affine_parameter && projected_result.is_none()
                         && affine_cleanup.is_none_or(|cleanup| {
                             !cleanup.actions.iter().any(|action| {
                                 matches!(action,

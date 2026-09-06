@@ -249,7 +249,14 @@ pub(super) fn validate_unit_affine_cleanup(
         });
         (cleanup_function, cleanup_body_is_exact)
     };
-    let action_shape_invalid = if cleanup.actions == expected_root_actions {
+    let projected_result = crate::affine_projected_calls::exact_projected_affine_result(
+        parameter_homes,
+        internal_unit_calls,
+        Some(cleanup),
+    );
+    let action_shape_invalid = if projected_result.is_some() {
+        false
+    } else if cleanup.actions == expected_root_actions {
         cleanup
             .actions
             .iter()

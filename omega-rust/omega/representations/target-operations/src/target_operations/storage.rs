@@ -23,17 +23,39 @@ pub struct TargetUnitScalarHomeRequirement {
     pub shape: ValueShape,
 }
 
-/// One structural boundary result that requires durable caller-frame storage.
+/// Exact storage shape, without imposing a sum tag on a plain aggregate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TargetStructuralHomeLayout {
+    Aggregate(ValueShape),
+    Sum(ConventionalSumLayout),
+}
+
+impl TargetStructuralHomeLayout {
+    pub const fn shape(&self) -> ValueShape {
+        match self {
+            Self::Aggregate(shape) => *shape,
+            Self::Sum(layout) => layout.shape,
+        }
+    }
+
+    pub const fn sum(&self) -> Option<&ConventionalSumLayout> {
+        match self {
+            Self::Aggregate(_) => None,
+            Self::Sum(layout) => Some(layout),
+        }
+    }
+}
+
+/// One structural result that requires durable caller-frame storage.
 ///
-/// The semantic result remains target-neutral; the conventional sum layout is
-/// the receiving target lowerer's exact, replayable storage decision. This
-/// first physical lane admits only closed sum/mixed results and never infers a
-/// tag or payload offset from a nominal type spelling.
+/// The semantic result remains target-neutral; its layout is the receiving
+/// target lowerer's exact, replayable storage decision. A sum retains its full
+/// tag/payload layout, while a plain aggregate has no synthetic case or tag.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetStructuralHomeRequirement {
     pub defining_operation: OperationId,
     pub result: StructuralOperationResult,
-    pub layout: ConventionalSumLayout,
+    pub layout: TargetStructuralHomeLayout,
 }
 
 /// Exact source of one whole-root primitive replacement. This is distinct

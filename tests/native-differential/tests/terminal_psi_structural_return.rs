@@ -9,6 +9,13 @@ mod affine_identity;
 #[path = "terminal_psi_structural_return/affine_call_result.rs"]
 mod affine_call_result;
 
+#[path = "terminal_psi_structural_return/projected_call_result.rs"]
+mod projected_call_result;
+
+#[cfg(unix)]
+#[path = "terminal_psi_structural_return/affine_call_result/host.rs"]
+mod affine_call_result_host;
+
 use abstract_operations::{AbstractFunctionResult, AbstractOperation};
 use abstract_operations_to_abstract_operations::validation::validate_verified_psi_optimization_unit;
 use abstract_operations_to_target_operations::lower_to_target_operations;

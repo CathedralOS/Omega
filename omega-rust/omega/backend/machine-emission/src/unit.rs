@@ -30,6 +30,7 @@ mod installed_provider;
 mod projected_copy;
 mod scalar_call;
 mod scalar_transport;
+mod structural_homes;
 pub(crate) mod structural_scalar;
 mod write_only_primitive_store;
 
@@ -176,7 +177,7 @@ fn exact_construction_prefix(
 }
 
 #[derive(Debug, Clone)]
-pub(super) struct X86UnitParameterHome {
+pub(super) struct X86UnitStructuralHome {
     place: semantic_vocabulary::PlaceId,
     shape: ValueShape,
     source: ValuePlacement,
@@ -185,7 +186,7 @@ pub(super) struct X86UnitParameterHome {
 }
 
 #[derive(Debug, Clone)]
-pub(super) struct Aarch64UnitParameterHome {
+pub(super) struct Aarch64UnitStructuralHome {
     place: semantic_vocabulary::PlaceId,
     shape: ValueShape,
     source: ValuePlacement,
@@ -1057,6 +1058,11 @@ pub(super) fn emit_unit_body(
                 claim_transfers,
                 ..
             } => {
+                let (call_x86_homes, call_aarch64_homes) = structural_homes::call_sources(
+                    &body.operations[..operation_ordinal],
+                    &x86_homes,
+                    &aarch64_homes,
+                )?;
                 if !scalar_arguments.is_empty() {
                     operation_site = Some(*psi_operation);
                     internal_unit_calls.push(emit_unit_result_call(
@@ -1065,8 +1071,8 @@ pub(super) fn emit_unit_body(
                         target,
                         functions,
                         &body.operations[..operation_ordinal],
-                        &x86_homes,
-                        &aarch64_homes,
+                        &call_x86_homes,
+                        &call_aarch64_homes,
                         x86_frame_bytes,
                         aarch64_frame_bytes,
                         &mut bytes,
@@ -1086,7 +1092,7 @@ pub(super) fn emit_unit_body(
                             *callee,
                             copies,
                             target,
-                            &x86_homes,
+                            &call_x86_homes,
                             &established_affine_locals,
                             &established_affine_scalar_records,
                             &mut internal_calls,
@@ -1096,7 +1102,7 @@ pub(super) fn emit_unit_body(
                             CallSiteOwner::Operation(*psi_operation),
                             *callee,
                             copies,
-                            &aarch64_homes,
+                            &call_aarch64_homes,
                             &established_affine_locals,
                             &established_affine_scalar_records,
                             &mut internal_calls,
@@ -1356,7 +1362,14 @@ pub(super) fn emit_unit_body(
                     target.architecture,
                     source
                         .byte_offset
-                        .checked_add(u32::from(source.requirement.layout.tag_byte_offset))
+                        .checked_add(u32::from(
+                            source
+                                .requirement
+                                .layout
+                                .sum()
+                                .ok_or(EmissionError::ConditionalBranchEncodingInvalid)?
+                                .tag_byte_offset,
+                        ))
                         .ok_or(EmissionError::ConditionalBranchEncodingInvalid)?,
                     fallthrough.case_tag,
                 )?;
@@ -2099,20 +2112,25 @@ pub(super) fn emit_unit_body(
                         let AssignedBoundaryResult::Structural(home) = result else {
                             return Err(EmissionError::InvalidLinuxReadByteCustody(*boundary));
                         };
+                        let layout = home
+                            .requirement
+                            .layout
+                            .sum()
+                            .ok_or(EmissionError::InvalidLinuxReadByteCustody(*boundary))?;
                         if target.object_format != ObjectFormat::Elf
                             || !scalar_arguments.is_empty()
                             || !runtime_scalar_arguments.is_empty()
                             || !arguments.is_empty()
                             || !byte_sequence_arguments.is_empty()
                             || home.requirement.defining_operation != *psi_operation
-                            || home.requirement.layout.tag_byte_offset != 0
-                            || home.requirement.layout.tag_shape != ValueShape::integer(4, 4)
-                            || home.requirement.layout.shape != ValueShape::integer(8, 4)
-                            || home.requirement.layout.payload_byte_offset != 4
-                            || !home.requirement.layout.common_fields.is_empty()
-                            || home.requirement.layout.cases.len() != 2
-                            || !home.requirement.layout.cases[0].fields.is_empty()
-                            || home.requirement.layout.cases[1].fields.as_slice()
+                            || layout.tag_byte_offset != 0
+                            || layout.tag_shape != ValueShape::integer(4, 4)
+                            || layout.shape != ValueShape::integer(8, 4)
+                            || layout.payload_byte_offset != 4
+                            || !layout.common_fields.is_empty()
+                            || layout.cases.len() != 2
+                            || !layout.cases[0].fields.is_empty()
+                            || layout.cases[1].fields.as_slice()
                                 != [calling_conventions::PackedFieldLayout {
                                     shape: ValueShape::integer(4, 4),
                                     byte_offset: 4,
@@ -2122,7 +2140,7 @@ pub(super) fn emit_unit_body(
                         }
                         let payload_offset = home
                             .byte_offset
-                            .checked_add(u32::from(home.requirement.layout.payload_byte_offset))
+                            .checked_add(u32::from(layout.payload_byte_offset))
                             .ok_or(EmissionError::LinuxReadByteEncoding)?;
                         let encoded = match target.architecture {
                             Architecture::X86_64 => isa_x86_64::encode_linux_read_byte_to_stack(
@@ -2141,7 +2159,7 @@ pub(super) fn emit_unit_body(
                             BoundaryResultRecord::Structural(BoundaryStructuralResultRecord {
                                 defining_operation: home.requirement.defining_operation,
                                 result: home.requirement.result.clone(),
-                                layout: home.requirement.layout.clone(),
+                                layout: layout.clone(),
                                 home_byte_offset: home.byte_offset,
                             });
                     }
@@ -2788,7 +2806,7 @@ pub(super) fn emit_x86_64_unit_call(
     callee: MachineId,
     copies: &[AssignedAggregateCopy],
     target: NativeTarget,
-    homes: &[X86UnitParameterHome],
+    homes: &[X86UnitStructuralHome],
     established_affine_locals: &[(
         OperationId,
         terminal_psi::StructuralPlaceDeclaration,
@@ -2915,7 +2933,7 @@ pub(super) fn emit_aarch64_unit_call(
     owner: CallSiteOwner,
     callee: MachineId,
     copies: &[AssignedAggregateCopy],
-    homes: &[Aarch64UnitParameterHome],
+    homes: &[Aarch64UnitStructuralHome],
     established_affine_locals: &[(
         OperationId,
         terminal_psi::StructuralPlaceDeclaration,
@@ -3211,7 +3229,7 @@ fn validate_assigned_unit_frame(
                 result: AssignedBoundaryResult::Structural(home),
                 ..
             } => {
-                let alignment = u32::from(home.requirement.layout.shape.alignment);
+                let alignment = u32::from(home.requirement.layout.shape().alignment);
                 if alignment == 0 {
                     return Err(EmissionError::InvalidLinuxReadByteCustody(*boundary));
                 }
@@ -3222,7 +3240,25 @@ fn validate_assigned_unit_frame(
                     return Err(EmissionError::InvalidLinuxReadByteCustody(*boundary));
                 }
                 *cursor = cursor
-                    .checked_add(u32::from(home.requirement.layout.shape.byte_size))
+                    .checked_add(u32::from(home.requirement.layout.shape().byte_size))
+                    .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+                None
+            }
+            operation @ AssignedUnitOperation::StructuralResultCall {
+                result_home: Some(_),
+                ..
+            } => {
+                let Some((home, placement)) = structural_homes::call_home(operation)? else {
+                    return Err(EmissionError::UnitCallStackAreaNotEncodable);
+                };
+                *cursor = align_u32(*cursor, u32::from(placement.shape.alignment))?;
+                if home.byte_offset != *cursor {
+                    return Err(EmissionError::InvalidStructuralScalarCallCustody(
+                        home.requirement.defining_operation,
+                    ));
+                }
+                *cursor = cursor
+                    .checked_add(u32::from(placement.shape.byte_size))
                     .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
                 None
             }
@@ -3327,7 +3363,7 @@ pub(super) fn unit_scalar_shape(
 fn x86_unit_parameter_homes(
     body: &AssignedUnitBody,
     target: NativeTarget,
-) -> Result<(Vec<X86UnitParameterHome>, u32), EmissionError> {
+) -> Result<(Vec<X86UnitStructuralHome>, u32), EmissionError> {
     let mut homes = Vec::with_capacity(body.parameters.len());
     let mut cursor = 0_u32;
     for parameter in &body.parameters {
@@ -3350,7 +3386,7 @@ fn x86_unit_parameter_homes(
         } else {
             u32::from(parameter.shape.byte_size)
         };
-        homes.push(X86UnitParameterHome {
+        homes.push(X86UnitStructuralHome {
             place: parameter.place,
             shape: parameter.shape,
             source: parameter.placement.clone(),
@@ -3368,7 +3404,7 @@ fn x86_unit_parameter_homes(
 fn aarch64_unit_parameter_homes(
     body: &AssignedUnitBody,
     target: NativeTarget,
-) -> Result<(Vec<Aarch64UnitParameterHome>, u32, u32), EmissionError> {
+) -> Result<(Vec<Aarch64UnitStructuralHome>, u32, u32), EmissionError> {
     let mut homes = Vec::with_capacity(body.parameters.len());
     let mut cursor = 0_u32;
     for parameter in &body.parameters {
@@ -3391,7 +3427,7 @@ fn aarch64_unit_parameter_homes(
         } else {
             u32::from(parameter.shape.byte_size)
         };
-        homes.push(Aarch64UnitParameterHome {
+        homes.push(Aarch64UnitStructuralHome {
             place: parameter.place,
             shape: parameter.shape,
             source: parameter.placement.clone(),
@@ -3413,7 +3449,7 @@ fn aarch64_unit_parameter_homes(
 
 fn emit_aarch64_stage_unit_parameters(
     instructions: &mut Vec<u32>,
-    homes: &[Aarch64UnitParameterHome],
+    homes: &[Aarch64UnitStructuralHome],
     frame_bytes: u32,
 ) -> Result<(), EmissionError> {
     for home in homes {
@@ -3500,7 +3536,7 @@ fn align_u32(value: u32, alignment: u32) -> Result<u32, EmissionError> {
 
 fn emit_x86_64_stage_unit_parameters(
     bytes: &mut Vec<u8>,
-    homes: &[X86UnitParameterHome],
+    homes: &[X86UnitStructuralHome],
     frame_bytes: u32,
 ) -> Result<(), EmissionError> {
     for home in homes {
@@ -3632,7 +3668,7 @@ fn outgoing_placement_extent_with_copy(placement: &ValuePlacement) -> Result<u32
 fn emit_x86_64_aggregate_copy_from_home(
     bytes: &mut Vec<u8>,
     copy: &AssignedAggregateCopy,
-    home: &X86UnitParameterHome,
+    home: &X86UnitStructuralHome,
     call_stack_bytes: u32,
 ) -> Result<(), EmissionError> {
     if copy.access == terminal_psi::StructuralAccess::Owned
@@ -3781,7 +3817,7 @@ fn emit_x86_64_aggregate_copy_from_home(
 fn emit_aarch64_aggregate_copy_from_home(
     instructions: &mut Vec<u32>,
     copy: &AssignedAggregateCopy,
-    home: &Aarch64UnitParameterHome,
+    home: &Aarch64UnitStructuralHome,
     call_stack_bytes: u32,
 ) -> Result<(), EmissionError> {
     if copy.access == terminal_psi::StructuralAccess::Owned

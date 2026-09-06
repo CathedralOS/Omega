@@ -104,6 +104,7 @@ pub(super) fn emit(
         ));
     }
     call.structural_result = Some(InternalStructuralCallResult {
+        result_home: None,
         operation_result: operation_result.clone(),
         function_result: result.clone(),
         returned_claim_transfers: returned_claim_transfers.clone(),

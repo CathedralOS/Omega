@@ -7,23 +7,32 @@ pub(super) fn exact(
     source: &target_operations::TargetStructuralParameter,
     argument: &target_operations::TargetStructuralArgument,
 ) -> bool {
+    source.access == terminal_psi::StructuralAccess::Owned
+        && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+        && source.projected_qualifications.is_empty()
+        && exact_owned_path(body, source.structural_type, source.shape, argument)
+}
+
+pub(super) fn exact_owned_path(
+    body: &target_operations::TargetUnitBody,
+    root_type: semantic_vocabulary::StructuralTypeId,
+    root_shape: ValueShape,
+    argument: &target_operations::TargetStructuralArgument,
+) -> bool {
     let Some(declarations) = structural_scalar::declaration_map(&body.structural_types) else {
         return false;
     };
-    let Some((leaf_type, leaf_shape, byte_offset)) = structural_scalar::resolve_projection_path(
-        source.structural_type,
-        &argument.path,
-        &declarations,
-    ) else {
+    let Some((leaf_type, leaf_shape, byte_offset)) =
+        structural_scalar::resolve_projection_path(root_type, &argument.path, &declarations)
+    else {
         return false;
     };
-    let Some(root_shape) =
-        structural_scalar::structural_value_shape(source.structural_type, &declarations)
+    let Some(declared_shape) = structural_scalar::structural_value_shape(root_type, &declarations)
     else {
         return false;
     };
     let metadata = match declarations
-        .get(&source.structural_type)
+        .get(&root_type)
         .map(|declaration| &declaration.shape)
     {
         Some(terminal_psi::StructuralTypeShape::FixedArray { element, length }) => {
@@ -41,12 +50,10 @@ pub(super) fn exact(
         }
         _ => (None, None),
     };
-    source.access == terminal_psi::StructuralAccess::Owned
-        && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-        && source.projected_qualifications.is_empty()
-        && source.shape == root_shape
+    root_shape == declared_shape
+        && !argument.path.is_empty()
         && argument.access == terminal_psi::StructuralAccess::Owned
-        && argument.root_structural_type == source.structural_type
+        && argument.root_structural_type == root_type
         && argument.structural_type == leaf_type
         && argument.shape == leaf_shape
         && argument.source_byte_offset == byte_offset
