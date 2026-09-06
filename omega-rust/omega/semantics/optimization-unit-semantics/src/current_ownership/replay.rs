@@ -283,7 +283,11 @@ pub(super) fn validate_current_ownership_cfg(
             let structural_result = match &node.operation {
                 O::EstablishPayloadlessCase { result, .. }
                 | O::EstablishAffineScalarRecord { result, .. }
-                | O::CallStructural { result, .. } => Some(result),
+                | O::CallStructural { result, .. }
+                | O::BoundaryCall {
+                    result: abstract_operations::AbstractBoundaryResult::Structural(result),
+                    ..
+                } => Some(result),
                 _ => None,
             };
             if let Some(result) = structural_result {

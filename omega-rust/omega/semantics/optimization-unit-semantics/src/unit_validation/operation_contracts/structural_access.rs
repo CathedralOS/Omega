@@ -197,7 +197,11 @@ fn structural_operation_result_contract(
             let result = match &node.operation {
                 O::EstablishPayloadlessCase { result, .. }
                 | O::EstablishAffineScalarRecord { result, .. }
-                | O::CallStructural { result, .. } => result,
+                | O::CallStructural { result, .. }
+                | O::BoundaryCall {
+                    result: abstract_operations::AbstractBoundaryResult::Structural(result),
+                    ..
+                } => result,
                 _ => return None,
             };
             (result.place == place).then_some(StructuralSourceContract {

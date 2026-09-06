@@ -126,6 +126,11 @@ pub(crate) fn validate_function_structural_catalog(
                                     ..
                                 }
                                 | O::CallStructural { psi_operation, result, .. }
+                                | O::BoundaryCall {
+                                    psi_operation,
+                                    result: abstract_operations::AbstractBoundaryResult::Structural(result),
+                                    ..
+                                }
                                     if *psi_operation == producer
                                         && result.place == place.id
                                         && result.structural_type == structural_type
@@ -181,7 +186,11 @@ pub(crate) fn validate_function_structural_catalog(
         let structural_result = match &node.operation {
             O::EstablishPayloadlessCase { result, .. }
             | O::EstablishAffineScalarRecord { result, .. }
-            | O::CallStructural { result, .. } => Some(result),
+            | O::CallStructural { result, .. }
+            | O::BoundaryCall {
+                result: abstract_operations::AbstractBoundaryResult::Structural(result),
+                ..
+            } => Some(result),
             _ => None,
         };
         if let Some(result) = structural_result
@@ -218,6 +227,11 @@ pub(crate) fn validate_function_structural_catalog(
             | O::CallStructural {
                 psi_operation,
                 result,
+                ..
+            }
+            | O::BoundaryCall {
+                psi_operation,
+                result: abstract_operations::AbstractBoundaryResult::Structural(result),
                 ..
             } => Some((
                 result.place,

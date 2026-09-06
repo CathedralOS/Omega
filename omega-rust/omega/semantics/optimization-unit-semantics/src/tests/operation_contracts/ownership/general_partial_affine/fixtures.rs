@@ -62,7 +62,13 @@ pub(super) fn unit(
     moves: &[(Vec<StructuralPathSegment>, u64)],
     residuals: &[(Vec<StructuralPathSegment>, u64)],
 ) -> PsiOptimizationUnit {
-    build_unit(structural_types, root_type, moves, residuals, false)
+    build_unit(
+        structural_types,
+        root_type,
+        moves,
+        residuals,
+        RootProducer::Parameter,
+    )
 }
 
 pub(super) fn call_result_unit(
@@ -71,7 +77,35 @@ pub(super) fn call_result_unit(
     moves: &[(Vec<StructuralPathSegment>, u64)],
     residuals: &[(Vec<StructuralPathSegment>, u64)],
 ) -> PsiOptimizationUnit {
-    build_unit(structural_types, root_type, moves, residuals, true)
+    build_unit(
+        structural_types,
+        root_type,
+        moves,
+        residuals,
+        RootProducer::Ordinary,
+    )
+}
+
+pub(super) fn boundary_result_unit(
+    structural_types: Vec<StructuralTypeDeclaration>,
+    root_type: u64,
+    moves: &[(Vec<StructuralPathSegment>, u64)],
+    residuals: &[(Vec<StructuralPathSegment>, u64)],
+) -> PsiOptimizationUnit {
+    build_unit(
+        structural_types,
+        root_type,
+        moves,
+        residuals,
+        RootProducer::Boundary,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum RootProducer {
+    Parameter,
+    Ordinary,
+    Boundary,
 }
 
 fn build_unit(
@@ -79,7 +113,7 @@ fn build_unit(
     root_type: u64,
     moves: &[(Vec<StructuralPathSegment>, u64)],
     residuals: &[(Vec<StructuralPathSegment>, u64)],
-    produce_result: bool,
+    producer: RootProducer,
 ) -> PsiOptimizationUnit {
     let caller = id(1_001, MachineId::new);
     let caller_block = id(1_002, BlockId::new);
@@ -159,7 +193,7 @@ fn build_unit(
         operations,
     )];
     functions.extend(callees);
-    if produce_result {
+    if matches!(producer, RootProducer::Ordinary) {
         // Consume the original parameter once, then use a distinct call-result
         // root for every projected move and residual cleanup action.
         let input = id(8_001, PlaceId::new);
@@ -216,6 +250,51 @@ fn build_unit(
             });
         functions.push(identity);
     }
+    let mut boundary_machines = Vec::new();
+    if matches!(producer, RootProducer::Boundary) {
+        let boundary = id(9_001, semantic_vocabulary::BoundaryMachineId::new);
+        let structural_type = id(root_type, StructuralTypeId::new);
+        functions[0].structural_parameters.clear();
+        functions[0].operations.insert(
+            0,
+            AbstractOperation::BoundaryCall {
+                psi_operation: id(9_002, OperationId::new),
+                result: abstract_operations::AbstractBoundaryResult::Structural(
+                    terminal_psi::StructuralOperationResult {
+                        place: caller_place,
+                        structural_type,
+                        multiplicity: StructuralMultiplicity::Affine,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        claims: Vec::new(),
+                    },
+                ),
+                boundary,
+                arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                completion_claim_sources: Vec::new(),
+                completion_receipts: Vec::new(),
+            },
+        );
+        boundary_machines.push(terminal_psi::BoundaryMachineDeclaration {
+            id: boundary,
+            identity: "validation::general-affine-factory".into(),
+            attachment: None,
+            scalar_parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: terminal_psi::BoundaryMachineResult::Structural(
+                terminal_psi::BoundaryStructuralResultDeclaration {
+                    structural_type,
+                    multiplicity: StructuralMultiplicity::Affine,
+                    qualifications: Vec::new(),
+                },
+            ),
+            requires: Vec::new(),
+            program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
+            published_service_ceiling: Vec::new(),
+        });
+    }
     let mut unit = reconstruct_psi_optimization_unit_seed(
         &AbstractOperationPlan {
             psi: TerminalPsiIdentity {
@@ -224,14 +303,14 @@ fn build_unit(
             },
             entry: caller,
             structural_types,
-            boundary_machines: Vec::new(),
+            boundary_machines,
             provider_candidates: Vec::new(),
             functions,
         },
         FuelScheduleIdentity::new(1).unwrap(),
     )
     .unwrap();
-    if produce_result {
+    if matches!(producer, RootProducer::Ordinary) {
         unit.functions.last_mut().unwrap().verified_contract =
             Some(terminal_psi::MachineContract {
                 id: id(8_008, semantic_vocabulary::ContractId::new),
@@ -240,6 +319,25 @@ fn build_unit(
                 ensures: Vec::new(),
                 outcome_specific_ensures: Vec::new(),
             });
+        crate::tests::refresh_identity(&mut unit);
+    }
+    if matches!(producer, RootProducer::Boundary) {
+        let service = id(9_003, semantic_vocabulary::ServiceId::new);
+        unit.services = vec![terminal_psi::ServiceDeclaration {
+            id: service,
+            identity: "validation::Factory".into(),
+            parents: Vec::new(),
+        }]
+        .into();
+        unit.functions[0].published_service_ceiling = vec![service];
+        unit.boundary_machines[0].published_service_ceiling = vec![service];
+        unit.root_service_reach.installation_dependencies =
+            vec![terminal_psi::InstallationReachDependency {
+                requirement_identity: unit.boundary_machines[0].identity.clone(),
+                upper_bound: vec![service],
+            }];
+        crate::refresh_root_service_reach(&mut unit)
+            .expect("factory requirement retains its installation-bound service reach");
         crate::tests::refresh_identity(&mut unit);
     }
     unit

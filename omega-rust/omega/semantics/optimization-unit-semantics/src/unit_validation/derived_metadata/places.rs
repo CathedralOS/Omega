@@ -38,7 +38,11 @@ pub(crate) fn reconstruct_declared_places(
                 }
                 O::EstablishPayloadlessCase { result, .. }
                 | O::EstablishAffineScalarRecord { result, .. }
-                | O::CallStructural { result, .. } => {
+                | O::CallStructural { result, .. }
+                | O::BoundaryCall {
+                    result: abstract_operations::AbstractBoundaryResult::Structural(result),
+                    ..
+                } => {
                     known_places.insert(result.place);
                 }
                 _ => {}
