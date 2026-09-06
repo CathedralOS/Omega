@@ -125,11 +125,9 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   (`typed-trees-to-checked-trees/src/flow/terminal_unit/control.rs`)
   retries with the borrowed `self` retained as structural parameter 0 carrying
   the reference's access, beside the provider-specialized fields. The retry is
-  transitional; retain a borrowed `self` unconditionally once
-  `validate_provider_attachment_specialization`
-  (`optimization-unit-semantics`) admits a `self` parameter beside provider
-  roots and the entry bridge passes the `ProgramEntry` loan as that parameter,
-  both under `ENTRY-CONTENT-ROOTS` and
+  transitional; retain a borrowed `self` unconditionally once the entry bridge
+  passes the `ProgramEntry` loan as structural parameter 0, under
+  `ENTRY-CONTENT-ROOTS` and
   `INSTALLED-PROGRAM-LOCAL-ROOT-INTRODUCTION` in P1. `cli_mvp` now stops at
   `checked Unit provider candidate has no complete terminal body plan`: the
   std adapter `ConsoleNativeProvider::write_line(console: Console, text: &[u8])`
@@ -202,6 +200,18 @@ Owners include
   none. Acceptance is native execution from an authored entry with exact
   symbol/text/continuation replay and mutation failures for redirected or
   duplicated identities.
+
+  The stored-descriptor fixture
+  `traits/runtime_local_named_dyn_stored_exit` already retains a borrowed
+  receiver beside provider requirements. Finish zero-payload provider-field
+  layout in `abstract-operations-to-target-operations` together with actual
+  receiver provisioning: direct image construction currently names the
+  semantic machine as the process entry, and incoming-argument staging does
+  not allocate or initialize its receiver. Reserve the checked receiver layout
+  beneath admitted initial storage, zero it into a ZII value, and pass its
+  single activation loan through the generated bridge. Cross-emission alone
+  is not acceptance; the fixture must execute with exit 70 on both Linux
+  targets without an externally supplied `self` pointer.
 
 - **UEFI-PHYSICAL-SEMANTIC-ENTRY.** Finish the two-surface UEFI bridge: the
   target-package physical firmware entry remains distinct from the semantic

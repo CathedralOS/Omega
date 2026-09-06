@@ -53,11 +53,18 @@ pub(crate) fn validate_provider_attachment_specialization(
     let Some(attachment) = function.attachment else {
         return Err(invalid());
     };
+    let self_parameters = function
+        .structural_parameters
+        .iter()
+        .filter(|parameter| parameter.is_self)
+        .collect::<Vec<_>>();
+    let invalid_self = match self_parameters.as_slice() {
+        [] => false,
+        [parameter] => parameter.position != 0 || parameter.structural_type != attachment,
+        _ => true,
+    };
     if provider_roots.is_empty()
-        || function
-            .structural_parameters
-            .iter()
-            .any(|parameter| parameter.is_self)
+        || invalid_self
         || provider_roots.windows(2).any(|pair| pair[0].3 >= pair[1].3)
     {
         return Err(invalid());

@@ -98,7 +98,59 @@ fn provider_attachment_specialization_replays_exact_roots_calls_and_nonuse() {
                 is_self: true,
             },
         });
-    assert_invalid(self_parameter);
+    self_parameter.functions[0]
+        .declared_places
+        .insert(parameter_place);
+    refresh_identity(&mut self_parameter);
+    validate_psi_optimization_unit(&self_parameter)
+        .expect("one exact self parameter remains separate from provider requirement roots");
+
+    let mut borrowed_self = self_parameter.clone();
+    borrowed_self.functions[0].structural_parameters[0].multiplicity =
+        terminal_psi::StructuralMultiplicity::Affine;
+    borrowed_self.functions[0].structural_parameters[0].access =
+        terminal_psi::StructuralAccess::MutableBorrow;
+    refresh_identity(&mut borrowed_self);
+    validate_psi_optimization_unit(&borrowed_self)
+        .expect("a borrowed attachment receiver does not become a provider requirement root");
+
+    borrowed_self.functions[0].structural_parameters[0].multiplicity =
+        terminal_psi::StructuralMultiplicity::Unrestricted;
+    borrowed_self.functions[0].structural_parameters[0].access =
+        terminal_psi::StructuralAccess::SharedBorrow;
+    refresh_identity(&mut borrowed_self);
+    validate_psi_optimization_unit(&borrowed_self)
+        .expect("a shared receiver retains the same exact provider requirements");
+
+    let mut displaced_self = self_parameter;
+    let mut ordinary_parameter = displaced_self.functions[0].structural_parameters[0].clone();
+    ordinary_parameter.place = id(455, PlaceId::new);
+    ordinary_parameter.is_self = false;
+    displaced_self.functions[0].structural_parameters[0].position = 1;
+    displaced_self.functions[0]
+        .structural_parameters
+        .insert(0, ordinary_parameter.clone());
+    let self_place = displaced_self.functions[0]
+        .structural_places
+        .last_mut()
+        .unwrap();
+    self_place.kind = StructuralPlaceKind::Parameter {
+        position: 1,
+        is_self: true,
+    };
+    displaced_self.functions[0]
+        .structural_places
+        .push(terminal_psi::StructuralPlaceDeclaration {
+            id: ordinary_parameter.place,
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        });
+    displaced_self.functions[0]
+        .declared_places
+        .insert(ordinary_parameter.place);
+    assert_invalid(displaced_self);
 
     let mut missing_call = baseline.clone();
     let AbstractOperation::BoundaryCall { boundary, .. } =
