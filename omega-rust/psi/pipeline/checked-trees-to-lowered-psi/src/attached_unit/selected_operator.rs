@@ -3,9 +3,8 @@
 use super::*;
 
 mod structural_realizations;
-mod structural_result_realizations;
+pub(super) use crate::affine_return::lower_claim_free_affine_return_machines as lower_selected_structural_result_realizations;
 pub(super) use structural_realizations::lower_selected_structural_scalar_realizations;
-pub(super) use structural_result_realizations::lower_selected_structural_result_realizations;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_selected_operator_scalar_call(

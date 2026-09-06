@@ -58,6 +58,7 @@ pub(super) enum SelectedMachineRoute {
     StructuralCallReturn,
     PayloadlessCaseReturn,
     StructuralReturn,
+    AffineReturn,
     ComposedAttachedUnit,
     StructuralUnitControl,
     UnitEffect,
@@ -486,6 +487,28 @@ pub(super) fn lower_selected_machine(
         return routed_machine(
             lower_structural_return_machine(checked, plan),
             SelectedMachineRoute::StructuralReturn,
+        );
+    }
+    if let Some(plan) = checked
+        .facts
+        .flow
+        .terminal_structural_returns
+        .claim_free_affine_for_machine(selection.machine)
+    {
+        if !matches!(
+            selection.signature,
+            CheckedTerminalSignatureEligibility::Eligible
+                | CheckedTerminalSignatureEligibility::Attached
+        ) || plan.attachment_type_identity.is_some()
+            != (selection.signature == CheckedTerminalSignatureEligibility::Attached)
+        {
+            return unsupported(
+                "affine identity return requires an exact free or attached signature",
+            );
+        }
+        return routed_machine(
+            crate::affine_return::lower_affine_return_machine(checked, selection.machine),
+            SelectedMachineRoute::AffineReturn,
         );
     }
     if let Some(plan) = checked

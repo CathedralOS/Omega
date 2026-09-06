@@ -450,7 +450,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                 else {
                     continue;
                 };
-                retained_type_identities.insert(realization.attachment_type_identity.as_str());
+                retained_type_identities.extend(realization.attachment_type_identity.as_deref());
                 retained_type_identities
                     .insert(realization.structural_parameter.type_identity.as_str());
                 retained_type_identities.insert(result.type_identity.as_str());

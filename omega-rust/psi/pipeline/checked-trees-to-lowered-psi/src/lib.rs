@@ -116,6 +116,7 @@ mod float_meaning_projection;
 mod machine_dispatch;
 mod nonzero_divisor_certificate;
 pub use nonzero_divisor_certificate::produce_checked_canonical_integer_proof;
+mod affine_return;
 mod operation_emission;
 mod payloadless_case_return;
 mod payloadless_guarded_call_return;
@@ -1030,6 +1031,7 @@ pub fn lower_machine(
                 | SelectedMachineRoute::StructuralCallReturn
                 | SelectedMachineRoute::PayloadlessCaseReturn
                 | SelectedMachineRoute::StructuralReturn
+                | SelectedMachineRoute::AffineReturn
                 | SelectedMachineRoute::ComposedAttachedUnit
                 | SelectedMachineRoute::StructuralUnitControl => vec![selection.machine],
             }
@@ -1222,6 +1224,7 @@ pub fn lower_machine(
     }
     lowered.debug_map = if selection.signature == CheckedTerminalSignatureEligibility::Eligible
         && route != SelectedMachineRoute::UnitEffect
+        && route != SelectedMachineRoute::AffineReturn
     {
         checked
             .facts

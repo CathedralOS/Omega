@@ -1,8 +1,79 @@
-//! Bounded claim-free affine structural-result realizations for selected Unit calls.
+//! Whole owned-affine identity returns, shared by ordinary and selected machines.
 
 use super::*;
+use crate::attached_unit::lower_unit_parameters;
 
-pub(in crate::attached_unit) fn lower_selected_structural_result_realizations(
+pub(super) fn lower_affine_return_machine(
+    checked: &CheckedTrees,
+    source_machine: symbols::SymbolHandle,
+) -> Result<LoweredPsi, LoweringError> {
+    let plans = &checked.facts.flow.terminal_structural_returns;
+    let terminal_machine = machine_id(1);
+    let mut semantic_module = TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: terminal_machine,
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
+        reborrow_root_handoffs: Vec::new(),
+        reborrow_restored_call_uses: Vec::new(),
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
+        float_meaning_equalities: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
+        proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
+        closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
+        quotient_correspondences: Vec::new(),
+        machines: Vec::new(),
+    };
+    let plan =
+        plans
+            .claim_free_affine_for_machine(source_machine)
+            .ok_or(LoweringError::Unsupported(
+                "affine identity has no checked return plan",
+            ))?;
+    retain_additional_structural_types(
+        &mut semantic_module,
+        &plans.structural_types,
+        plan.attachment_type_identity.iter().cloned().chain([
+            plan.structural_parameter.type_identity.clone(),
+            plan.result.type_identity.clone(),
+        ]),
+    )?;
+    let type_ids = semantic_module
+        .structural_types
+        .iter()
+        .map(|declaration| (declaration.identity.clone(), declaration.id))
+        .collect::<Vec<_>>();
+    semantic_module.machines = lower_claim_free_affine_return_machines(
+        checked,
+        &[source_machine],
+        &semantic_module.structural_types,
+        &type_ids,
+        &[(source_machine, terminal_machine)],
+        0,
+    )?;
+    Ok(LoweredPsi {
+        semantic_module,
+        proof_bundle: ProofBundle::default(),
+        debug_map: None,
+        source_call_occurrences: Vec::new(),
+        selected_ieee_float_fma_occurrences: Vec::new(),
+    })
+}
+
+pub(super) fn lower_claim_free_affine_return_machines(
     checked: &CheckedTrees,
     roots: &[symbols::SymbolHandle],
     structural_types: &[StructuralTypeDeclaration],
@@ -23,7 +94,20 @@ pub(in crate::attached_unit) fn lower_selected_structural_result_realizations(
                 "selected structural-result closure does not contain one exact checked realization",
             );
         };
-        if realization.structural_parameter.position != 0
+        validate_parameter_partition(checked, realization)?;
+        let mut parameter_positions = realization
+            .scalar_parameters
+            .iter()
+            .map(|parameter| parameter.source_position)
+            .collect::<Vec<_>>();
+        parameter_positions.push(realization.structural_parameter.position);
+        parameter_positions.sort_unstable();
+        if !realization.machine.is_valid()
+            || !realization.state.is_valid()
+            || parameter_positions
+                .iter()
+                .enumerate()
+                .any(|(position, source)| u32::try_from(position).ok() != Some(*source))
             || realization.structural_parameter.is_self
             || realization.structural_parameter.multiplicity != Multiplicity::Affine
             || realization.structural_parameter.access
@@ -33,15 +117,17 @@ pub(in crate::attached_unit) fn lower_selected_structural_result_realizations(
                 .structural_parameter
                 .fused_service_erasure
                 .is_some()
-            || realization.scalar_parameters.len() != 1
-            || realization.scalar_parameters[0].source_position != 1
+            || realization
+                .scalar_parameters
+                .windows(2)
+                .any(|parameters| parameters[0].source_position >= parameters[1].source_position)
             || realization.result.multiplicity != Multiplicity::Affine
             || !realization.result.qualifications.is_empty()
             || realization.result.type_identity != realization.structural_parameter.type_identity
             || realization.return_statement_ordinal != 0
         {
             return unsupported(
-                "selected structural-result realization exceeds the first mixed affine lane",
+                "affine identity return has an invalid signature or result transfer",
             );
         }
         let machine_index =
@@ -112,10 +198,11 @@ pub(in crate::attached_unit) fn lower_selected_structural_result_realizations(
         );
         machines.push(TerminalMachine {
             id: terminal_machine,
-            attachment: Some(lookup_type_id(
-                type_ids,
-                &realization.attachment_type_identity,
-            )?),
+            attachment: realization
+                .attachment_type_identity
+                .as_deref()
+                .map(|identity| lookup_type_id(type_ids, identity))
+                .transpose()?,
             parameters: scalar_parameters,
             structural_parameters,
             ranked_scc: None,
@@ -170,4 +257,59 @@ pub(in crate::attached_unit) fn lower_selected_structural_result_realizations(
         });
     }
     Ok(machines)
+}
+
+/// Rejoin the authored partition before Terminal assigns separate dense scalar
+/// and structural parameter positions. A coordinated position swap is not a
+/// different spelling of the same signature.
+fn validate_parameter_partition(
+    checked: &CheckedTrees,
+    plan: &checked_trees::CheckedClaimFreeAffineStructuralReturnMachinePlan,
+) -> Result<(), LoweringError> {
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == plan.machine)
+        .ok_or(LoweringError::Unsupported(
+            "affine identity has no exact typed machine",
+        ))?;
+    let state = checked
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == plan.state)
+        .ok_or(LoweringError::Unsupported(
+            "affine identity has no exact typed state",
+        ))?;
+    let parameters = checked.state_parameters(state);
+    if parameters.len() != plan.scalar_parameters.len() + 1 {
+        return unsupported(
+            "affine identity parameter partition does not cover its source signature",
+        );
+    }
+    for (position, source) in parameters.iter().enumerate() {
+        let primitive = checked.primitive_type_reference(source.type_reference);
+        if position == plan.structural_parameter.position as usize {
+            if primitive.is_some() || source.is_self || source.is_const {
+                return unsupported(
+                    "affine identity structural position is not an owned source value",
+                );
+            }
+        } else {
+            let matches = plan
+                .scalar_parameters
+                .iter()
+                .filter(|parameter| parameter.source_position as usize == position)
+                .collect::<Vec<_>>();
+            if source.is_self
+                || source.is_const
+                || source.is_mutable
+                || !matches!(matches.as_slice(), [parameter] if Some(parameter.primitive_type) == primitive)
+            {
+                return unsupported(
+                    "affine identity scalar parameters do not rejoin the source partition",
+                );
+            }
+        }
+    }
+    Ok(())
 }
