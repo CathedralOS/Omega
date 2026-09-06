@@ -402,6 +402,41 @@ impl<'program> Engine<'program> {
         self.strict_symbol_bindings_valid
     }
 
+    pub(super) fn bind_strict_arguments(
+        &mut self,
+        arguments: &[StrictArithmeticExpressionBinding],
+    ) -> bool {
+        if !self.strict_symbol_bindings_valid || self.strict_symbol_bindings.is_none() {
+            return false;
+        }
+        // Resolve every actual before extending the table: callee formals are
+        // not caller values, even when another argument binds them first.
+        let Some(resolved) = arguments
+            .iter()
+            .map(|argument| {
+                argument.symbol.is_valid().then_some(())?;
+                Some((argument.symbol, self.normalize(argument.expression)?))
+            })
+            .collect::<Option<Vec<_>>>()
+        else {
+            return false;
+        };
+        let Some(bindings) = &mut self.strict_symbol_bindings else {
+            return false;
+        };
+        for (symbol, polynomial) in resolved {
+            if let Some((_, existing)) = bindings.iter().find(|(candidate, _)| *candidate == symbol)
+            {
+                if existing != &polynomial {
+                    return false;
+                }
+            } else {
+                bindings.push((symbol, polynomial));
+            }
+        }
+        true
+    }
+
     pub(super) fn for_proof_integer_formation(program: &'program TypedTrees) -> Self {
         let mut bindings = Vec::new();
         for (handle, expression) in program.expression_table.iter_expressions() {
@@ -966,6 +1001,16 @@ impl<'program> Engine<'program> {
     /// Normalize a TERM expression to a polynomial. `None` = outside the
     /// engine's language.
     pub(super) fn normalize(&mut self, expression: ExpressionHandle) -> Option<Polynomial> {
+        // Dummy expression storage is an integer zero. An authority-bearing
+        // substitution must not turn a missing or stale operand into a constant.
+        if self.strict_symbol_bindings.is_some()
+            && !self
+                .program
+                .expression_table
+                .expression_is_valid(expression)
+        {
+            return None;
+        }
         let node = self.program.expression_table.expression(expression).clone();
         match node {
             ExpressionNode::Integer(value) => Some(Polynomial::constant(value.value_bignum()?)),

@@ -84,6 +84,8 @@ mod structural_judgment;
 mod structural_terms;
 
 #[cfg(test)]
+mod argument_tests;
+#[cfg(test)]
 mod outcome_tests;
 #[cfg(test)]
 mod proof_view_tests;
@@ -131,6 +133,16 @@ pub enum StrictArithmeticBindingValue {
     Integer(numerics::bignum::BigInt),
 }
 
+/// Bind a callee formal to a mathematical argument in the caller's original
+/// symbol namespace. The caller must establish immutable operands and exact
+/// builtin arithmetic meaning; this query does not establish executable
+/// arithmetic formation or replace its overflow obligations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StrictArithmeticExpressionBinding {
+    pub symbol: symbols::SymbolHandle,
+    pub expression: ExpressionHandle,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StrictArithmeticImplicationJudgment {
     Proven,
@@ -151,8 +163,31 @@ pub fn strict_arithmetic_expression_implication(
     goal: ExpressionHandle,
     bindings: &[StrictArithmeticSymbolBinding],
 ) -> StrictArithmeticImplicationJudgment {
+    strict_arithmetic_expression_implication_with_arguments(
+        program,
+        context_machine,
+        hypotheses,
+        goal,
+        bindings,
+        &[],
+    )
+}
+
+/// Instantiate all arguments simultaneously in the original symbol namespace
+/// before judging the goal. Unknown arguments and conflicting formal bindings
+/// reject even when the hypotheses are inconsistent or the goal is constant.
+/// Argument order cannot give a later argument access to an earlier callee
+/// formal. This supplies mathematical substitution, not executable value custody.
+pub fn strict_arithmetic_expression_implication_with_arguments(
+    program: &TypedTrees,
+    context_machine: &Machine,
+    hypotheses: &[ExpressionHandle],
+    goal: ExpressionHandle,
+    bindings: &[StrictArithmeticSymbolBinding],
+    arguments: &[StrictArithmeticExpressionBinding],
+) -> StrictArithmeticImplicationJudgment {
     let mut engine = Engine::strict_with_symbol_bindings(program, context_machine, bindings);
-    if !engine.strict_symbol_bindings_are_valid() {
+    if !engine.strict_symbol_bindings_are_valid() || !engine.bind_strict_arguments(arguments) {
         return StrictArithmeticImplicationJudgment::Unknown;
     }
     let mut comparisons = Vec::new();

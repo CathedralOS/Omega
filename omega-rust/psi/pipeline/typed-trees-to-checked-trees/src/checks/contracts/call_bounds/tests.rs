@@ -310,3 +310,109 @@ fn assert_call_requirement_rejected(source: &str) {
         "{source}: {diagnostics:#?}"
     );
 }
+
+#[test]
+fn computed_scalar_context_proves_nontrivial_exact_argument_bounds() {
+    for primitive in ["u64", "i64"] {
+        for terminator in [";", ""] {
+            for (operator, literal, minimum) in [("+", 1, 3), ("-", 1, 1), ("*", 2, 4)] {
+                let source = format!(
+                    r#"
+                    data Helper {{}}
+                    machine Helper::bounded(value: {primitive})
+                    requires {minimum}{primitive} <= value {{}}
+                    machine caller(input: {primitive})
+                    requires 2{primitive} <= input, input <= 100{primitive}
+                    {{ Helper::bounded(input {operator} {literal}{primitive}){terminator} }}
+                "#
+                );
+                checked(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+            }
+        }
+    }
+}
+
+#[test]
+fn computed_scalar_context_rejects_unrelated_insufficient_mutable_and_selected_arguments() {
+    for primitive in ["u64", "i64"] {
+        for terminator in [";", ""] {
+            for (actual, minimum, mutable, prefix, selected) in [
+                (format!("other + 0{primitive}"), 1, "", "".to_owned(), false),
+                (format!("input - 1{primitive}"), 2, "", "".to_owned(), false),
+                (
+                    format!("input + 0{primitive}"),
+                    1,
+                    "mut ",
+                    format!("input = 0{primitive};"),
+                    false,
+                ),
+                (format!("input + 1{primitive}"), 3, "", "".to_owned(), true),
+            ] {
+                let declaration = if selected {
+                    format!(
+                        "boundary operator + Meaning::add(left: {primitive}, right: {primitive}) -> {primitive};"
+                    )
+                } else {
+                    String::new()
+                };
+                let source = format!(
+                    r#"
+                    {declaration}
+                    data Helper {{}}
+                    machine Helper::bounded(value: {primitive})
+                    requires {minimum}{primitive} <= value {{}}
+                    machine caller({mutable}input: {primitive}, other: {primitive})
+                    requires 2{primitive} <= input, input <= 100{primitive}
+                    {{ {prefix} Helper::bounded({actual}){terminator} }}
+                "#
+                );
+                assert_call_requirement_rejected(&source);
+            }
+        }
+    }
+}
+
+#[test]
+fn computed_scalar_context_does_not_treat_policy_arithmetic_as_exact() {
+    for primitive in ["u64", "i64"] {
+        for terminator in [";", ""] {
+            for (policy, operator, literal) in [
+                ("Wrapping", "+", 1),
+                ("Saturating", "*", 0),
+                ("Trapping", "*", 0),
+            ] {
+                let source = format!(
+                    r#"
+                    data Helper {{}}
+                    machine Helper::bounded(value: {primitive} in {policy})
+                    requires 2{primitive} <= value {{}}
+                    machine caller(input: {primitive} in {policy})
+                    requires 2{primitive} <= input
+                    crashes Trap
+                    {{ Helper::bounded(input {operator} {literal}{primitive}){terminator} }}
+                "#
+                );
+                assert_call_requirement_rejected(&source);
+            }
+        }
+    }
+}
+
+#[test]
+fn computed_scalar_argument_reflexive_requirement_needs_no_context_hypotheses() {
+    for primitive in ["u64", "i64"] {
+        for terminator in [";", ""] {
+            let source = format!(
+                r#"
+                data Helper {{}}
+                machine Helper::bounded(value: {primitive}) requires value == value {{}}
+                machine caller(input: {primitive})
+                {{ Helper::bounded(input + 1{primitive}){terminator} }}
+            "#
+            );
+            // This stage discharges the call requirement, not the separate
+            // executable Exact addition's Terminal formation obligation.
+            checked(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+        }
+    }
+}

@@ -218,17 +218,26 @@ pub(super) fn lower_unit_effect_closure(
     checked: &CheckedTrees,
     entry: symbols::SymbolHandle,
 ) -> Result<LoweredPsi, LoweringError> {
-    lower_attached_unit_closure_including(checked, entry, &[])
+    lower_shared_unit_closure(checked, entry, &[entry], None).map(|closure| closure.lowered)
 }
 
-pub(super) fn lower_attached_unit_closure_including(
+/// Nominal cleanup assembles the final caller and cleanup contracts itself,
+/// after restoring their full scalar and structural namespaces.
+pub(super) fn lower_nominal_cleanup_closure(
     checked: &CheckedTrees,
     entry: symbols::SymbolHandle,
     additional_roots: &[symbols::SymbolHandle],
 ) -> Result<LoweredPsi, LoweringError> {
     let mut roots = vec![entry];
     roots.extend_from_slice(additional_roots);
-    lower_shared_unit_closure(checked, entry, &roots, None).map(|closure| closure.lowered)
+    assemble_unit_closure(
+        checked,
+        entry,
+        &roots,
+        None,
+        RuntimeRequirementOwner::NominalCleanup,
+    )
+    .map(|closure| closure.lowered)
 }
 
 pub(super) fn lower_shared_unit_closure(
@@ -236,6 +245,28 @@ pub(super) fn lower_shared_unit_closure(
     entry: symbols::SymbolHandle,
     unit_roots: &[symbols::SymbolHandle],
     external: Option<shared_closure::ExternalUnitRoots<'_>>,
+) -> Result<shared_closure::SharedUnitClosure, LoweringError> {
+    assemble_unit_closure(
+        checked,
+        entry,
+        unit_roots,
+        external,
+        RuntimeRequirementOwner::UnitClosure,
+    )
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RuntimeRequirementOwner {
+    UnitClosure,
+    NominalCleanup,
+}
+
+fn assemble_unit_closure(
+    checked: &CheckedTrees,
+    entry: symbols::SymbolHandle,
+    unit_roots: &[symbols::SymbolHandle],
+    external: Option<shared_closure::ExternalUnitRoots<'_>>,
+    requirements_owner: RuntimeRequirementOwner,
 ) -> Result<shared_closure::SharedUnitClosure, LoweringError> {
     let plans = &checked.facts.flow.terminal_unit_effects;
     let reserved_prefix = usize::from(external.is_some());
@@ -900,7 +931,13 @@ pub(super) fn lower_shared_unit_closure(
             let Some(contract) = checked.facts.contract_plans.for_machine(*machine_symbol) else {
                 return Ok((*machine_symbol, Vec::new()));
             };
-            let requirements = if contract.crash.uses_structural_proof_gated_arithmetic() {
+            // Entry requirements also justify body operations and ordinary
+            // calls. Their presence cannot depend on arithmetic in a published
+            // crash ceiling (which may be unconditional or absent).
+            let requirements = if (requirements_owner == RuntimeRequirementOwner::UnitClosure
+                && contract.crash.structural_runtime_requirements().is_some())
+                || contract.crash.uses_structural_proof_gated_arithmetic()
+            {
                 let checked_requirements = contract.crash.structural_runtime_requirements().ok_or(
                     LoweringError::Unsupported(
                         "proof-gated structural arithmetic lacks a complete checked requirement package",

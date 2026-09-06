@@ -196,8 +196,10 @@ pub use contract_entailment::{
     RankingRangeEdgeProof, RankingRangeMeasure, prove_ranking_range_edge, prove_ranking_range_entry,
 };
 pub use contract_entailment::{
-    StrictArithmeticBindingValue, StrictArithmeticImplicationJudgment,
-    StrictArithmeticSymbolBinding, strict_arithmetic_expression_implication,
+    StrictArithmeticBindingValue, StrictArithmeticExpressionBinding,
+    StrictArithmeticImplicationJudgment, StrictArithmeticSymbolBinding,
+    strict_arithmetic_expression_implication,
+    strict_arithmetic_expression_implication_with_arguments,
 };
 pub use float_projection_invocations::{
     ValidatedFloatMeaningEqualityProposition, ValidatedFloatMeaningProjectionInvocation,

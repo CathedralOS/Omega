@@ -3170,6 +3170,17 @@ prove its preconditions. The independent verifier reconstructs scalar and
 structural substitution, including the exact ordering of equality operands.
 Reversed equalities carry explicit symmetry certificates instead of silently
 reordering the proof goal or its premise.
+Pure immutable Exact arithmetic arguments retain their completed result IDs in
+the call requirements. Complete supported integer entry-requirement packages
+remain present even when the caller's crash ceiling is unconditional or absent.
+Nominal cleanup retains ownership of its contextual caller and target contracts;
+the shared Unit closure does not interpret those provisional namespaces as final
+parameters. This does not extend the general runtime contract vocabulary.
+Arithmetic formation obligations precede the call
+obligation; the shared proof producer uses reconstructed operation equations and
+caller facts rather than replacing the argument with its authored expression or
+manufacturing an exact caller premise. Source mathematical substitution does not
+erase the runtime computation or its independently verified overflow obligation.
 Division nonzero and signed overflow bounds, and Exact shift count and value
 bounds, remain required. This does not add mixed projected-argument partial cleanup.
 
@@ -3216,7 +3227,8 @@ inventing a direct boundary requirement from a callee's independent call.
 
 Later structural-result initializers and returned calls still need connections
 to the shared evaluator. Structural arguments on composed internal calls,
-mixed runtime requirement proofs for computed arguments and mutable snapshots,
+mixed runtime requirement proofs for call-bearing arguments, other arithmetic
+policies, and mutable snapshots,
 and caller-ceiling proofs for computed-argument
 routes remain implementation work.
 Existing control-state signature restrictions remain; operand evaluation does

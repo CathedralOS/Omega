@@ -1,7 +1,8 @@
 //! Integer comparison entailment from surviving call-entry facts.
 //!
-//! The arithmetic engine receives only direct immutable parameter atoms and
-//! landed literals. No executable arithmetic or caller storage is replayed.
+//! The arithmetic engine receives immutable parameter atoms, landed literals,
+//! and independently selected Exact addition/subtraction/multiplication trees.
+//! Caller storage and earlier initializers are never replayed.
 
 use super::*;
 use symbols::SymbolHandle;
@@ -11,6 +12,8 @@ use validation::{
     StrictArithmeticBindingValue, StrictArithmeticImplicationJudgment,
     StrictArithmeticSymbolBinding,
 };
+
+mod arguments;
 
 pub(in crate::checks::contracts) fn proves(
     program: &TypedTrees,
@@ -92,13 +95,14 @@ fn prove(
         return None;
     }
     let caller_parameters = program.state_parameters(caller_state);
-    let mut bindings = caller_parameters
+    let bindings = caller_parameters
         .iter()
         .filter_map(|parameter| {
             let primitive = fixed_parameter_type(program, parameter)?;
             Some(binding(parameter.symbol, parameter.symbol, primitive))
         })
         .collect::<Vec<_>>();
+    let mut argument_bindings = Vec::new();
     for (parameter, argument) in parameters.iter().zip(arguments) {
         let Some(primitive) = program.primitive_type_reference(parameter.type_reference) else {
             continue;
@@ -109,60 +113,76 @@ fn prove(
         if fixed_parameter_type(program, parameter) != Some(primitive) {
             return None;
         }
-        let actual = direct_parameter(program, caller_parameters, *argument)?;
-        if fixed_parameter_type(program, actual) != Some(primitive) {
+        if arguments::primitive_type(
+            program,
+            facts,
+            caller_machine.symbol,
+            caller_parameters,
+            *argument,
+        ) != Some(primitive)
+        {
             return None;
         }
-        bindings.push(binding(parameter.symbol, actual.symbol, primitive));
+        argument_bindings.push(validation::StrictArithmeticExpressionBinding {
+            symbol: parameter.symbol,
+            expression: *argument,
+        });
     }
     if !comparison_is_supported(program, facts, callee.symbol, parameters, goal) {
         return None;
     }
-    Some(contexts.iter().any(|context| {
-        let hypotheses = facts
-            .semantic
-            .context_view(facts.semantic.contexts.get(*context))
-            .facts()
-            .filter(|fact| {
-                !matches!(
-                    fact.origin,
-                    facts::FactOrigin::CallRequires | facts::FactOrigin::CallEnsures
-                )
-            })
-            .filter_map(|fact| {
-                // Call substitution lives separately from the authored expression.
-                // This adapter only consumes declaration-shaped caller facts.
-                let expression = match fact.payload {
-                    facts::FactPayload::ContractBooleanExpression {
-                        kind: facts::ContractFactKind::Requires,
-                        expression,
-                        instantiated,
-                        ..
-                    } if !instantiated.is_valid() => expression,
-                    facts::FactPayload::BooleanValue {
-                        expression,
-                        value: true,
-                    } => expression,
-                    _ => return None,
-                };
-                comparison_is_supported(
-                    program,
-                    facts,
-                    caller.machine_symbol,
-                    caller_parameters,
+    // This exact call-entry roster contains simultaneously active overlays,
+    // not alternative arrival paths. Their surviving facts are joint premises.
+    let hypotheses = contexts
+        .iter()
+        .flat_map(|context| {
+            facts
+                .semantic
+                .context_view(facts.semantic.contexts.get(*context))
+                .facts()
+        })
+        .filter(|fact| {
+            !matches!(
+                fact.origin,
+                facts::FactOrigin::CallRequires | facts::FactOrigin::CallEnsures
+            )
+        })
+        .filter_map(|fact| {
+            // Call substitution lives separately from the authored expression.
+            // This adapter only consumes declaration-shaped caller facts.
+            let expression = match fact.payload {
+                facts::FactPayload::ContractBooleanExpression {
+                    kind: facts::ContractFactKind::Requires,
                     expression,
-                )
-                .then_some(expression)
-            })
-            .collect::<Vec<_>>();
-        validation::strict_arithmetic_expression_implication(
+                    instantiated,
+                    ..
+                } if !instantiated.is_valid() => expression,
+                facts::FactPayload::BooleanValue {
+                    expression,
+                    value: true,
+                } => expression,
+                _ => return None,
+            };
+            comparison_is_supported(
+                program,
+                facts,
+                caller.machine_symbol,
+                caller_parameters,
+                expression,
+            )
+            .then_some(expression)
+        })
+        .collect::<Vec<_>>();
+    Some(
+        validation::strict_arithmetic_expression_implication_with_arguments(
             program,
             caller_machine,
             &hypotheses,
             goal,
             &bindings,
-        ) == StrictArithmeticImplicationJudgment::Proven
-    }))
+            &argument_bindings,
+        ) == StrictArithmeticImplicationJudgment::Proven,
+    )
 }
 
 fn is_data_namespace(program: &TypedTrees, symbol: SymbolHandle) -> bool {
