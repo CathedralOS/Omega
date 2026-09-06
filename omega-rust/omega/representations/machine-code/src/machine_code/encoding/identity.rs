@@ -1,7 +1,9 @@
-use calling_conventions::MachineRegister;
-use machine_code::{
-    X86_64SelectedStructuralUnitCallFootprint, X86_64StructuralUnitInternalControlFixup,
+use crate::{
+    SelectedFormInternalMachineFixup, SelectedFormInternalMachineFixupKind,
+    SelectedFormInternalMachineFixupState, X86_64SelectedStructuralUnitCallFootprint,
+    X86_64StructuralUnitInternalControlFixup,
 };
+use calling_conventions::MachineRegister;
 use physical_instructions::PostAllocationMachineIdentity;
 use register_model::{RegisterUnitId, RegisterViewId};
 use selected_instructions::{
@@ -9,13 +11,12 @@ use selected_instructions::{
 };
 use sha2::{Digest, Sha256};
 
-use crate::PostAllocationMachineOptimizationCustody;
+use physical_instructions::PostAllocationMachineOptimizationCustody;
 
 use super::{
     DeferredControlEncodingReason, SelectedFormEncodingCounts, SelectedFormEncodingIdentity,
-    SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormInternalMachineFixup,
-    SelectedFormInternalMachineFixupKind, SelectedFormInternalMachineFixupState,
-    SelectedFormMachineDisposition, SelectedStructuralUnitFunctionEncoding,
+    SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormMachineDisposition,
+    SelectedStructuralUnitFunctionEncoding,
 };
 
 const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v10";
@@ -173,10 +174,10 @@ fn encode_structural_footprint(
 
 fn encode_structural_fixup(hasher: &mut Sha256, fixup: X86_64StructuralUnitInternalControlFixup) {
     hasher.update([match fixup.kind {
-        machine_code::X86_64StructuralUnitInternalControlFixupKind::Relative32FromNextInstructionToInternalMachineV1 => 0,
+        crate::X86_64StructuralUnitInternalControlFixupKind::Relative32FromNextInstructionToInternalMachineV1 => 0,
     }]);
     hasher.update([match fixup.state {
-        machine_code::X86_64StructuralUnitInternalControlFixupState::UnresolvedZeroFieldV1 => 0,
+        crate::X86_64StructuralUnitInternalControlFixupState::UnresolvedZeroFieldV1 => 0,
     }]);
     hasher.update(fixup.callee.get().to_le_bytes());
     hasher.update(fixup.opcode_byte_offset.to_le_bytes());

@@ -15,6 +15,41 @@ fn repository() -> PathBuf {
 }
 
 #[test]
+fn selected_form_encoding_data_outlives_its_producer() {
+    let root = repository();
+    let representation = root.join("omega-rust/omega/representations/machine-code/src");
+    let data = rust_source(&representation);
+    let stage = root
+        .join("omega-rust/omega/pipeline/post-allocation-machine-to-selected-form-encoding/src");
+    let producer = rust_source(&stage);
+    for declaration in [
+        "pub struct SelectedFormEncoding {",
+        "pub struct SelectedFormEncodingRow {",
+        "pub enum SelectedFormEncodingState {",
+        "pub struct SelectedFormDecodedFootprint {",
+        "pub struct SelectedStructuralUnitFunctionEncoding {",
+    ] {
+        assert_eq!(data.matches(declaration).count(), 1, "{declaration}");
+        assert!(
+            !producer.contains(declaration),
+            "producer owns {declaration}"
+        );
+    }
+    assert!(!data.contains("post_allocation_machine_to_post_allocation_machine::"));
+    assert!(!data.contains("pub struct StagedOptimizedSelectedFormEncoding {"));
+    let admission = std::fs::read_to_string(stage.join("model.rs")).unwrap();
+    assert!(admission.contains("Arc<SelectedFormEncoding>"));
+    assert!(admission.contains("pub fn shared_program("));
+    assert!(!admission.contains("pub fn from_program("));
+    let current = std::fs::read_to_string(
+        root.join("omega-rust/omega/backend/machine-emission/src/fragment_emission/current.rs"),
+    )
+    .unwrap();
+    assert!(current.contains("encoding: replay.encoding().shared_program()"));
+    assert!(!current.contains("StagedOptimizedSelectedFormEncoding"));
+}
+
+#[test]
 fn native_coordination_and_target_setup_are_not_program_stages() {
     let root = repository();
     let pipeline = root.join("omega-rust/omega/pipeline");

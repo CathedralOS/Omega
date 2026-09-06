@@ -52,6 +52,10 @@ fn emission_retains_original_current_artifacts_without_the_producer_history() {
                 &retained.layout,
                 &replay.resolved_layout().shared_program()
             ));
+            assert!(Arc::ptr_eq(
+                &retained.encoding,
+                &replay.encoding().shared_program()
+            ));
             assert!(std::ptr::eq(
                 source.encoding().rows().as_ptr(),
                 replay.encoding().rows().as_ptr()
@@ -72,6 +76,12 @@ fn emission_retains_original_current_artifacts_without_the_producer_history() {
             drop(emitted);
             assert_eq!(retained.machine.identity, original_machine);
             assert_eq!(
+                retained.encoding.identity,
+                retained.encoding.recomputed_identity()
+            );
+            assert_eq!(retained.encoding.machine, retained.machine.identity);
+            assert_eq!(retained.layout.pre_layout, retained.encoding.identity);
+            assert_eq!(
                 retained.layout.identity,
                 retained.layout.recomputed_identity()
             );
@@ -88,7 +98,7 @@ fn emission_rejects_individually_canonical_substituted_current_artifacts() {
         OptimizationSelections::default(),
     );
     let other = other.program().clone();
-    for component in 0..5 {
+    for component in 0..6 {
         let mut candidate = source(NativeTarget::linux_x64(), OptimizationSelections::default());
         let program = candidate.program_mut();
         match component {
@@ -97,6 +107,7 @@ fn emission_rejects_individually_canonical_substituted_current_artifacts() {
             2 => program.effects = Arc::clone(&other.effects),
             3 => program.machine = Arc::clone(&other.machine),
             4 => program.layout = Arc::clone(&other.layout),
+            5 => program.encoding = Arc::clone(&other.encoding),
             _ => unreachable!(),
         }
         assert!(
@@ -107,6 +118,24 @@ fn emission_rejects_individually_canonical_substituted_current_artifacts() {
             "component {component}"
         );
     }
+}
+
+#[test]
+fn emission_rejects_reauthenticated_encoding_without_mutating_replay_data() {
+    let mut candidate = source(NativeTarget::linux_x64(), OptimizationSelections::default());
+    let original = candidate.program().clone();
+    let encoding = Arc::make_mut(&mut candidate.program_mut().encoding);
+    encoding.counts.ordinary_encoded += 1;
+    encoding.identity = encoding.recomputed_identity();
+    assert_ne!(encoding.identity, original.encoding.identity);
+    assert_eq!(
+        candidate.replay_for_test().encoding().program(),
+        original.encoding.as_ref()
+    );
+    assert!(matches!(
+        stage_optimized_function_fragment_emission(candidate),
+        Err(FunctionFragmentEmissionError::RootMismatch)
+    ));
 }
 
 #[test]

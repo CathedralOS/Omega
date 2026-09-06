@@ -21,13 +21,14 @@ pub fn corrupt_allocation_recovery_realization_encoding_for_test(
         .encoding
         .rows_mut()
         .iter_mut()
-        .find(|row| matches!(row.state, post_allocation_machine_to_selected_form_encoding::SelectedFormEncodingState::Encoded { .. }))
+        .find(|row| {
+            matches!(
+                row.state,
+                machine_code::SelectedFormEncodingState::Encoded { .. }
+            )
+        })
         .expect("recovery fixture has encoded selected forms");
-    let post_allocation_machine_to_selected_form_encoding::SelectedFormEncodingState::Encoded {
-        bytes,
-        ..
-    } = &mut row.state
-    else {
+    let machine_code::SelectedFormEncodingState::Encoded { bytes, .. } = &mut row.state else {
         unreachable!()
     };
     bytes[0] ^= 1;

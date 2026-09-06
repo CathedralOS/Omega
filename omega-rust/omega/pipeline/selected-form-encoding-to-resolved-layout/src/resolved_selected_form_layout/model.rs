@@ -18,7 +18,7 @@ pub use machine_code::{
     ResolvedStructuralUnitFunctionLayout, SelectedFunctionLayoutPolicy,
 };
 
-use post_allocation_machine_to_selected_form_encoding::{
+use machine_code::{
     SelectedFormEncodingIdentity, SelectedFormMachineOptimizationCustody,
     SelectedFormMovnOptimizationCustody,
 };

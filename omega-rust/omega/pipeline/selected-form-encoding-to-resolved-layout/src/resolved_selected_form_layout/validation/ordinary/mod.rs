@@ -7,13 +7,12 @@
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
+use machine_code::SelectedFormEncodingRow;
 use post_allocation_machine_to_post_allocation_machine::{
     StagedOptimizedAarch64CbnzFusion, StagedOptimizedAarch64SameViewCopyElision,
     StagedOptimizedPostAllocationMachineOptimization,
 };
-use post_allocation_machine_to_selected_form_encoding::{
-    SelectedFormEncodingRow, StagedOptimizedSelectedFormEncoding,
-};
+use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 
 use super::super::{

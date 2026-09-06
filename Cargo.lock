@@ -1526,11 +1526,9 @@ dependencies = [
 name = "post-allocation-machine-to-selected-form-encoding"
 version = "0.1.0"
 dependencies = [
- "calling-conventions",
  "isa-aarch64",
  "isa-x86_64",
  "machine-code",
- "optimization-core",
  "physical-instructions",
  "post-allocation-machine-to-post-allocation-machine",
  "register-homes-to-post-allocation-machine",
@@ -1538,7 +1536,6 @@ dependencies = [
  "selected-instructions",
  "selected-instructions-to-register-homes",
  "semantic-vocabulary",
- "sha2",
  "target",
 ]
 

@@ -4846,11 +4846,22 @@ fn selected_form_encoding_validation_cannot_reenter_its_producer() {
         .join("omega-rust/omega/pipeline/post-allocation-machine-to-selected-form-encoding/src");
     let entrance = std::fs::read_to_string(stage.join("lib.rs"))
         .expect("read selected-form encoding entrance");
+    let validate_candidate = entrance
+        .find("validation::validate(selected, machine, physical, optimization, &artifact)?")
+        .expect("raw encoding candidates enter independent validation");
+    let seal_candidate = entrance
+        .find("Ok(StagedOptimizedSelectedFormEncoding {")
+        .expect("encoding admission has a sealed result");
     assert!(
-        entrance
-            .contains("validation::validate(selected, machine, physical, optimization, artifact)"),
-        "the selected-form encoding entrance must send candidate artifacts into independent validation",
+        validate_candidate < seal_candidate,
+        "admission must follow validation"
     );
+    let replay = entrance
+        .split_once("/// Replay the canonical selected-form encoding join")
+        .expect("public encoding replay entrance")
+        .1;
+    assert!(replay.contains("validation::validate("));
+    assert!(replay.contains("artifact.program()"));
     assert!(
         !entrance.contains("let replayed = compute::compute"),
         "the selected-form encoding validator must not reconstruct artifacts with its producer",

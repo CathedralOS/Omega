@@ -1,8 +1,8 @@
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
-use post_allocation_machine_to_selected_form_encoding::{
-    SelectedFormEncodingState, StagedOptimizedSelectedFormEncoding,
-};
+use machine_code::SelectedFormEncodingState;
+
+use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 
 use super::super::{

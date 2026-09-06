@@ -6,10 +6,8 @@ use super::super::{
 };
 use super::{context::Context, require};
 use machine_code::ResolvedSelectedFormRow;
+use machine_code::{SelectedFormEncodingRow, SelectedFormEncodingState};
 use physical_instructions::PostAllocationMachineInstruction;
-use post_allocation_machine_to_selected_form_encoding::{
-    SelectedFormEncodingRow, SelectedFormEncodingState,
-};
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
     MachineEncodedControlEffect, MachineEncodedMemoryEffect, MachineEncodedStackEffect,

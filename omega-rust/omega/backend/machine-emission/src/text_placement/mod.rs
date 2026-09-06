@@ -12,11 +12,11 @@ pub use statistics::text_section_statistics;
 mod validation;
 
 pub use error::TextPlacementError;
+use machine_code::SelectedStructuralUnitFunctionEncoding;
 use machine_code::{
     FunctionFragmentEmissionPlan, RelocationFreeTextSectionPlacement, ResolvedMachineProgram,
     WholeFunctionExitContract,
 };
-use post_allocation_machine_to_selected_form_encoding::SelectedStructuralUnitFunctionEncoding;
 use register_model::{ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog};
 
 #[derive(Clone, Copy)]

@@ -48,11 +48,8 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
     ) -> &register_environment::ValidatedTargetRegisterEnvironment {
         &self.current.environment
     }
-    pub fn encoding(
-        &self,
-    ) -> &post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding
-    {
-        &self.current.encoding
+    pub fn encoding(&self) -> &machine_code::SelectedFormEncoding {
+        &self.current.program.encoding
     }
     pub fn frame_protocol(&self) -> Option<&crate::ValidatedTargetFrameProtocolEncoding> {
         self.current.frame_protocol.as_ref()

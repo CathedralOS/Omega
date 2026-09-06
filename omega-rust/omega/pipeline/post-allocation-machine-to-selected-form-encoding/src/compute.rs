@@ -12,12 +12,11 @@ use crate::{
 };
 
 use super::{
-    OptimizedSelectedFormEncodingError, SelectedFormEncodingCounts, SelectedFormEncodingRow,
-    SelectedFormEncodingState, SelectedFormMachineDisposition,
-    SelectedStructuralUnitFunctionEncoding, StagedOptimizedSelectedFormEncoding,
-    custody::validate_optimization_roots, identity::encoding_identity,
-    materialization::MaterializationPlan, row_encoding::encode_row,
-    structural_encoding::encode_structural_function,
+    OptimizedSelectedFormEncodingError, SelectedFormEncoding, SelectedFormEncodingCounts,
+    SelectedFormEncodingIdentity, SelectedFormEncodingRow, SelectedFormEncodingState,
+    SelectedFormMachineDisposition, SelectedStructuralUnitFunctionEncoding,
+    custody::validate_optimization_roots, materialization::MaterializationPlan,
+    row_encoding::encode_row, structural_encoding::encode_structural_function,
 };
 
 pub(super) fn compute<S: ValidatedSelectedAnalysis>(
@@ -25,7 +24,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
     staged: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     optimization: Option<&StagedOptimizedPostAllocationMachineOptimization>,
-) -> Result<StagedOptimizedSelectedFormEncoding, OptimizedSelectedFormEncodingError> {
+) -> Result<SelectedFormEncoding, OptimizedSelectedFormEncodingError> {
     let machine = staged.machine().plan();
     if machine.selected != selected.selected_identity() {
         return Err(OptimizedSelectedFormEncodingError::SelectedRootMismatch);
@@ -268,23 +267,17 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
     let counts = encoding_counts(&rows, &structural_unit_functions)?;
     let selected_root = selected.selected_identity();
     let machine_root = staged.machine().receipt().identity();
-    let identity = encoding_identity(
-        selected_root,
-        machine_root,
-        post_allocation_machine_optimization,
-        &rows,
-        &structural_unit_functions,
-        counts,
-    );
-    Ok(StagedOptimizedSelectedFormEncoding {
+    let mut program = SelectedFormEncoding {
         selected: selected_root,
         machine: machine_root,
         post_allocation_machine_optimization,
-        identity,
-        rows: std::sync::Arc::new(rows),
-        structural_unit_functions: std::sync::Arc::new(structural_unit_functions),
+        identity: SelectedFormEncodingIdentity::from_bytes([0; 32]),
+        rows,
+        structural_unit_functions,
         counts,
-    })
+    };
+    program.identity = program.recomputed_identity();
+    Ok(program)
 }
 
 fn encoding_counts(

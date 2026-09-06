@@ -14,10 +14,8 @@ test-support = []
 [dependencies]
 machine-code = { path = "../../representations/machine-code" }
 physical-instructions = { path = "../../representations/physical-instructions" }
-calling-conventions = { path = "../../representations/calling-conventions" }
 isa-aarch64 = { path = "../../backend/instruction_set_architectures/isa-aarch64" }
 isa-x86_64 = { path = "../../backend/instruction_set_architectures/isa-x86_64" }
-optimization-core = { path = "../../representations/optimization-core" }
 post-allocation-machine-to-post-allocation-machine = { path = "../post-allocation-machine-to-post-allocation-machine" }
 selected-instructions-to-register-homes = { path = "../selected-instructions-to-register-homes" }
 register-homes-to-post-allocation-machine = { path = "../register-homes-to-post-allocation-machine" }
@@ -25,4 +23,3 @@ register-model = { path = "../../representations/register-model" }
 selected-instructions = { path = "../../representations/selected-instructions" }
 target = { path = "../../representations/target" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
-sha2 = "0.10.9"

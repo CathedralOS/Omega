@@ -10,9 +10,8 @@ use isa_x86_64::{
     encode_x86_64_selected_u64_less_than_branch_form,
 };
 use physical_instructions::PostAllocationMachineInstruction;
-use post_allocation_machine_to_post_allocation_machine::{
-    Aarch64CbnzFusionAction, QualifiedPhysicalRead,
-};
+use physical_instructions::QualifiedPhysicalRead;
+use post_allocation_machine_to_post_allocation_machine::Aarch64CbnzFusionAction;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{
     MachineEncodedEffects, MachineSizeKnowledge, SelectedBlock, SelectedBlockId,

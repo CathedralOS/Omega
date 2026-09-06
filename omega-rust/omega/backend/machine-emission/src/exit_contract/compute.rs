@@ -158,7 +158,7 @@ fn compute_inner<S: ValidatedSelectedAnalysis>(
         _ => return Err(WholeFunctionExitContractError::InvalidConvention),
     };
 
-    let encoding_rows = unique_encoding_rows(selected_plan, encoding)?;
+    let encoding_rows = unique_encoding_rows(selected_plan, encoding.program())?;
     let layout_rows = unique_layout_rows(layout)?;
     let machine_functions = machine
         .functions

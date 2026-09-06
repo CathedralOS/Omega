@@ -4,11 +4,11 @@ use isa_x86_64::{
     ValidatedX86_64SelectedStructuralUnitCallTemplate,
     validate_x86_64_selected_structural_unit_call_template,
 };
+use machine_code::SelectedStructuralUnitCallEncodingRow;
 use machine_code::{
     ResolvedStructuralUnitCallLayout, StructuralUnitCallFragmentSpan,
     WholeFunctionStructuralUnitCallEvidence,
 };
-use post_allocation_machine_to_selected_form_encoding::SelectedStructuralUnitCallEncodingRow;
 use register_model::{ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog};
 use selected_instructions::SelectedStructuralUnitCallInstruction;
 use selected_instructions::StructuralUnitCallMachineEffects;

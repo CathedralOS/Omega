@@ -1,10 +1,10 @@
 use super::super::{
-    OptimizedSelectedFormEncodingError, SelectedFormEncodingCounts, SelectedFormEncodingState,
-    StagedOptimizedSelectedFormEncoding, identity::encoding_identity,
+    OptimizedSelectedFormEncodingError, SelectedFormEncoding, SelectedFormEncodingCounts,
+    SelectedFormEncodingState,
 };
 
 pub(super) fn validate(
-    artifact: &StagedOptimizedSelectedFormEncoding,
+    artifact: &SelectedFormEncoding,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
     let mut counts = SelectedFormEncodingCounts::default();
     for row in artifact.rows() {
@@ -52,16 +52,45 @@ pub(super) fn validate(
     if artifact.counts != counts {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
-    let identity = encoding_identity(
-        artifact.selected,
-        artifact.machine,
-        artifact.post_allocation_machine_optimization,
-        artifact.rows(),
-        artifact.structural_unit_functions(),
-        counts,
-    );
+    let identity = artifact.recomputed_identity();
     if artifact.identity != identity {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use machine_code::SelectedFormEncodingIdentity;
+    use physical_instructions::PostAllocationMachineIdentity;
+    use selected_instructions::SelectedInstructionPlanIdentity;
+
+    #[test]
+    fn raw_encoding_rejects_reauthenticated_counts_and_stale_identity() {
+        let mut program = SelectedFormEncoding {
+            selected: SelectedInstructionPlanIdentity::from_bytes([1; 32]),
+            machine: PostAllocationMachineIdentity::from_bytes([2; 32]),
+            post_allocation_machine_optimization: None,
+            identity: SelectedFormEncodingIdentity::from_bytes([0; 32]),
+            rows: vec![],
+            structural_unit_functions: vec![],
+            counts: SelectedFormEncodingCounts::default(),
+        };
+        program.identity = program.recomputed_identity();
+        validate(&program).unwrap();
+        let original = program.clone();
+        program.counts.ordinary_encoded = 1;
+        program.identity = program.recomputed_identity();
+        assert!(matches!(
+            validate(&program),
+            Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
+        ));
+        program = original;
+        program.identity = SelectedFormEncodingIdentity::from_bytes([0; 32]);
+        assert!(matches!(
+            validate(&program),
+            Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
+        ));
+    }
 }

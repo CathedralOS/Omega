@@ -45,7 +45,7 @@ pub(super) fn check(
     {
         return Err(WholeFunctionExitContractError::RootMismatch);
     }
-    let encoding_rows = unique_encoding_rows(selected, encoding)?;
+    let encoding_rows = unique_encoding_rows(selected, encoding.program())?;
     let layout_rows = unique_layout_rows(layout)?;
     let mut seen = BTreeSet::new();
     for (claimed, function) in contract.functions.iter().zip(&selected.functions) {

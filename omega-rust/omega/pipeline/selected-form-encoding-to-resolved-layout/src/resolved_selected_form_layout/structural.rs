@@ -4,11 +4,11 @@ use isa_x86_64::{
     X86_64_STRUCTURAL_UNIT_CALL_TEMPLATE_BYTE_COUNT,
 };
 use machine_code::{
-    X86_64StructuralUnitInternalControlFixupKind, X86_64StructuralUnitInternalControlFixupState,
-};
-use post_allocation_machine_to_selected_form_encoding::{
     SelectedFormEncodingState, SelectedFormMachineDisposition,
     SelectedStructuralUnitFunctionEncoding,
+};
+use machine_code::{
+    X86_64StructuralUnitInternalControlFixupKind, X86_64StructuralUnitInternalControlFixupState,
 };
 
 use super::error::OptimizedResolvedSelectedFormLayoutError;
@@ -82,7 +82,7 @@ pub(super) fn layout_structural_unit_function(
 }
 
 fn layout_structural_unit_call(
-    pre: &post_allocation_machine_to_selected_form_encoding::SelectedStructuralUnitCallEncodingRow,
+    pre: &machine_code::SelectedStructuralUnitCallEncodingRow,
 ) -> Result<ResolvedStructuralUnitCallLayout, OptimizedResolvedSelectedFormLayoutError> {
     let fixup = pre.fixup;
     if pre.bytes.len() != X86_64_STRUCTURAL_UNIT_CALL_TEMPLATE_BYTE_COUNT
@@ -145,16 +145,14 @@ mod tests {
     };
     use semantic_vocabulary::{MachineId, OperationId};
 
+    use machine_code::{SelectedFormDecodedFootprint, SelectedStructuralUnitCallEncodingRow};
+    use machine_code::{
+        SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormMachineDisposition,
+        SelectedStructuralUnitFunctionEncoding,
+    };
     use machine_code::{
         X86_64StructuralUnitArgumentPointerWrite, X86_64StructuralUnitCallerCopyWrite,
         X86_64StructuralUnitRootRead,
-    };
-    use post_allocation_machine_to_selected_form_encoding::{
-        SelectedFormDecodedFootprint, SelectedStructuralUnitCallEncodingRow,
-    };
-    use post_allocation_machine_to_selected_form_encoding::{
-        SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormMachineDisposition,
-        SelectedStructuralUnitFunctionEncoding,
     };
     use selected_instructions::{
         MachineAlternativeFamily, MachineCleanupEffect, MachineTrapBehavior,
