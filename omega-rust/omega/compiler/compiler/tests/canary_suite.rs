@@ -1331,6 +1331,8 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "collections/write_first_loop_bound_exceeds_capacity",
     "collections/authored_index_guard_bound",
     "collections/authored_loop_guard_bound",
+    "collections/wrapping_loop_increment_bound",
+    "collections/wrapping_loop_decrement_bound",
     "dependent/data_where_capacity_mismatch_rejected",
     "dependent/data_where_whole_read_during_window_rejected",
     "dependent/dependent_arg_unrelated_rejected",

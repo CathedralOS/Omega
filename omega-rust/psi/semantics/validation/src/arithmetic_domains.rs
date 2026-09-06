@@ -40,6 +40,7 @@ mod expression_analysis;
 mod guard_narrowing;
 mod interval;
 mod invariant_bounds;
+mod monotonic_update;
 mod total_specification;
 mod value_environment;
 
@@ -53,6 +54,7 @@ pub(crate) use guard_narrowing::{
 };
 pub(crate) use interval::Interval;
 pub use invariant_bounds::immutable_integer_expression_bounds;
+pub use monotonic_update::builtin_monotonic_integer_update_bounds;
 pub(crate) use total_specification::{
     validate_abstract_total_specification_arithmetic,
     validate_machine_total_specification_arithmetic, validate_total_specification_arithmetic,

@@ -54,6 +54,8 @@ mod type_references;
 mod wire;
 mod write_only_borrows;
 
+pub use places::exact_self_field;
+
 pub use bound_expression_meaning::{
     has_builtin_bound_expression_meaning, has_builtin_decomposed_guard_meaning,
 };
@@ -180,6 +182,7 @@ pub struct ExactIntegerCastFact {
 }
 
 pub use arithmetic_domains::arrival_integer_expression_bounds;
+pub use arithmetic_domains::builtin_monotonic_integer_update_bounds;
 pub use arithmetic_domains::immutable_integer_expression_bounds;
 pub use contract_entailment::integer_embedding_sources_equal;
 pub use contract_entailment::is_arm_pattern_marker;

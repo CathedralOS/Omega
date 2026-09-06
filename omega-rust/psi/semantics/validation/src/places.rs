@@ -322,9 +322,11 @@ fn lexical_place_declaration_before(
     }
 }
 
+mod exact_self_field;
 mod member_paths;
 mod projected_members;
 mod result_shape;
+pub use exact_self_field::exact_self_field;
 use member_paths::{collect_member_path, data_field_or_payload, data_field_or_payload_type};
 pub(crate) use member_paths::{
     data_definition_for_type, declared_member_path_type, first_unknown_nested_field,

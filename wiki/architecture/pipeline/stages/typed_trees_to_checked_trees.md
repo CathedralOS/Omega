@@ -151,6 +151,15 @@ meaning check grants no range, effect, or lifetime evidence by itself.
 Boolean decomposition checks each consumed child independently: an authored
 comparison in one conjunct does not erase a sufficient builtin bound in another.
 
+Loop-counter monotonicity also retains arithmetic policy. Wrapping updates
+need a no-wrap proof at their actual statement snapshot; the sign of a literal
+step is insufficient. Entry constants and incoming guards establish independent
+head bounds, and normal-result intervals transfer through subsequent updates
+and named-state arrivals. A widening endpoint becomes unknown rather than
+assuming convergence. The proposed monotonicity fact never supplies its own
+no-wrap premise. Direct counter identity follows the exact attached self field,
+and other stores must have a complete disjoint write frame.
+
 Scalar exit proof binds the synthetic `result` to the exact final expression
 or selected returning arm. Authored output parameters instead follow retained
 per-contract reference origins into that state. Domain and scalar proof share
