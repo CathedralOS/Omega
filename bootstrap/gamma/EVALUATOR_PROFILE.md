@@ -64,10 +64,10 @@ The current evaluator uses these Alpha memory regions:
 0x01e00000..0x01f00000   function activation rows
 0x01f00000..0x02000000   nested-call context rows
 0x0e000000..0x0efffffc   buffered output bytes
-0x10000000..0x40000000   immutable pair nodes
+0x10000000..0x70000000   immutable pair nodes
 ```
 
-The selected AlphaBootstrapV3 realization provides 1 GiB of memory. The Alpha
+The selected AlphaBootstrapV4 realization provides 1.75 GiB of memory. The Alpha
 tape occupies low memory and the hidden Alpha call stack still grows down
 from `0x10000000`. Pairs grow upward from that boundary, without overlapping
 the stack or moving the output buffer. The former pair region
@@ -91,7 +91,7 @@ only an extent beyond the end is refused.
 | nested expression lists | evaluator recursion, prechecked during census | 255 lists |
 | nested call contexts | three-word rows, slot zero reserved | 256 contexts |
 | active function frames | six-word rows | 257 reachable frames |
-| immutable pairs | five-word `(marker, left, left kind, right, right kind)` nodes | 20,132,659 pairs |
+| immutable pairs | five-word `(marker, left, left kind, right, right kind)` nodes | 40,265,318 pairs |
 | buffered output | bytes published after result validation | 16,777,212 bytes |
 
 The request maximum includes its four-byte length. Consequently a source with
@@ -102,7 +102,7 @@ selects status 1 instead.
 
 Function and environment insertion preflight the next count before deriving a
 row address. The value stack preflights the complete 16-byte next entry. Pair
-allocation preflights the complete 40-byte node; its arena has 8 unusable tail
+allocation preflights the complete 40-byte node; its arena has 16 unusable tail
 bytes after the maximum whole-node count. Output preflights each buffered byte.
 A scalar transformer may emit at most 16,777,211 bytes with `write` before its
 final byte. An application result may publish all 16,777,212 buffered bytes.
@@ -143,7 +143,7 @@ initial `0x10000000` stack pointer. The hidden stack therefore remains more than
 8 MiB above every lower-memory allocation even at the conservative bound.
 The pair arena starts at the initial stack pointer and grows upward, while
 every live return address is strictly below it. Its complete-node preflight
-keeps all pair stores below Alpha's `0x40000000` memory end. Pair projection
+keeps all pair stores below Alpha's `0x70000000` memory end. Pair projection
 requires the retained pair kind, an allocated aligned node in this same upper
 arena, and its marker; integer values do not acquire pointer provenance by
 matching a relocated address.
@@ -162,8 +162,8 @@ The selected implementation is
 current SHA-256 identities are:
 
 ```text
-Beta source  6ef6ad5da234e61207bce4d8c262a596f3dfd19b55377121fb60978852408207
-Alpha tape   591c8417ca82b38d544c2fcf67f85ae6ff3e01002e9d015421339b8dd216df2e
+Beta source  9ccd93e07a3baa00bba34133e91d15df6f3cc4d670688d06ff3febf82b304904
+Alpha tape   f08544faee5ee3a7aa5969f17004fa708326c38f9fb8ab27dfa9c97cb44ac2e8
 ```
 
 Proper-tail execution, static validation of unreachable bodies, exact resource
@@ -178,7 +178,7 @@ above reviewable against one immutable subject rather than a host model.
 The separate [heap-boundary gate](../../tests/gamma/heap-boundary/README.md)
 executes ordinary Gamma allocation loops at the exact whole-node maximum and
 one beyond it, under scalar and application publication. It also crosses the
-previous 5,033,164-pair ceiling. This profile increase is driven by the actual
+previous 20,132,659-pair ceiling. This profile increase is driven by the actual
 complete-D parser customer: the prior evaluator exhausted its immutable heap
 with raw application status 252 before publishing the twelve-invocation result.
 It does not change Gamma meaning, allocate an unbounded heap, or convert an

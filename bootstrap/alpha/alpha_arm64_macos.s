@@ -13,7 +13,7 @@
 //
 // VM model (observable semantics identical to the x64 seed):
 //   vregs[]  64-bit register file, byte-indexed            (bss, x19)
-//   mem[]    flat 1 GiB semantic byte memory; tape at [0]   (bss, x20)
+//   mem[]    flat 1.75 GiB semantic byte memory; tape at [0] (bss, x20)
 //   pc       absolute pointer into mem                      (x21)
 //   sp       call-stack byte offset, grows down from 256 MB (x22)
 // A program tape [4-byte LE length][bytecode] is stamped into the __tape hole;
@@ -314,7 +314,7 @@ h_halt:
     ldp  x29, x30, [sp], #16
     ret
 .zerofill __DATA,__bss,vregs,0x800,3
-.zerofill __DATA,__bss,mem,0x40010000,4
+.zerofill __DATA,__bss,mem,0x70010000,4
 .zerofill __DATA,__bss,io_byte,8,3
 .section __DATA,__tape
 .global _tape

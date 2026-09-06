@@ -30,7 +30,7 @@
         imm r96 0x1500000
         imm r97 0x1d00000
         imm ra0 0x10000000
-        imm ra1 0x40000000
+        imm ra1 0x70000000
         mov rb0 r90
         imm rb1 0xfffffc
         mov r0 r92

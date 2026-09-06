@@ -25,7 +25,7 @@ materialize_beta_compiler "$TMP/compiler" >/dev/null
 
 "$TMP/compiler" < "$OMEGA_PATH_BETA_COMPILER_SOURCE" > "$TMP/compiler.tape"
 L=$(wc -c < "$TMP/compiler.tape")
-[ "$L" -le "$ALPHA_MAX_RAW_TAPE_SIZE" ] || { echo "FAIL: assembler tape is $L B, exceeds the AlphaBootstrapV3 raw maximum ($ALPHA_MAX_RAW_TAPE_SIZE B)" >&2; exit 1; }
+[ "$L" -le "$ALPHA_MAX_RAW_TAPE_SIZE" ] || { echo "FAIL: assembler tape is $L B, exceeds the AlphaBootstrapV4 raw maximum ($ALPHA_MAX_RAW_TAPE_SIZE B)" >&2; exit 1; }
 
 if ! cmp -s "$TMP/compiler.tape" "$OMEGA_PATH_BETA_COMPILER_TAPE"; then
     echo "FAIL: beta_compiler.beta does not reproduce beta_compiler_bytecode.tape" >&2

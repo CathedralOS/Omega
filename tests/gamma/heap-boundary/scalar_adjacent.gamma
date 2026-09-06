@@ -6,4 +6,4 @@
 
 (def main () Int
   (let buffered Int (write 66)
-    (allocate 20132660)))
+    (allocate 40265319)))
