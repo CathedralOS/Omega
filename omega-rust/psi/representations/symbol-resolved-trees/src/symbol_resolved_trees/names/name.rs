@@ -25,17 +25,19 @@ enum DiagnosticNameText {
 
 impl DiagnosticName {
     pub fn new(text: impl Into<String>, source_span: SourceSpan) -> Self {
+        Self::from_str(&text.into(), source_span)
+    }
+
+    /// Copies borrowed spelling into shared owned storage, retaining its provenance.
+    pub fn from_str(text: &str, source_span: SourceSpan) -> Self {
         Self {
-            text: DiagnosticNameText::Generated(Arc::from(text.into().into_boxed_str())),
+            text: DiagnosticNameText::Generated(Arc::from(text)),
             source_span,
         }
     }
 
     pub fn generated(text: impl Into<String>) -> Self {
-        Self {
-            text: DiagnosticNameText::Generated(Arc::from(text.into().into_boxed_str())),
-            source_span: SourceSpan::default(),
-        }
+        Self::new(text, SourceSpan::default())
     }
 
     pub fn generated_static(text: &'static str) -> Self {
@@ -64,7 +66,7 @@ impl DiagnosticName {
 
 impl From<&str> for DiagnosticName {
     fn from(text: &str) -> Self {
-        Self::generated(text)
+        Self::from_str(text, SourceSpan::default())
     }
 }
 
@@ -115,6 +117,44 @@ impl PartialEq<DiagnosticName> for &str {
 #[cfg(test)]
 mod tests {
     use super::DiagnosticName;
+    use source::{SourceSpan, Span};
+
+    #[test]
+    fn copied_names_own_spelling_and_preserve_provenance() {
+        let mut spelling = String::from("naïve::name");
+        let source_span = SourceSpan::new(Default::default(), Span::new(7, 19));
+        let name = DiagnosticName::from_str(&spelling, source_span);
+        let cloned = name.clone();
+        assert_ne!(name.as_str().as_ptr(), spelling.as_ptr());
+        assert_eq!(name.as_str().as_ptr(), cloned.as_str().as_ptr());
+        spelling.clear();
+        drop(spelling);
+
+        assert_eq!(name.as_str(), "naïve::name");
+        assert_eq!(name.source_span(), source_span);
+        assert!(name.is_source_backed());
+        assert_eq!(name, DiagnosticName::generated_static("naïve::name"));
+        assert_eq!(name.to_string(), "naïve::name");
+        assert_eq!(format!("{name:?}"), "\"naïve::name\"");
+        assert_eq!(DiagnosticName::from(""), DiagnosticName::default());
+    }
+
+    #[test]
+    fn constructors_keep_string_conversion_compatibility() {
+        struct Spelling;
+        impl From<Spelling> for String {
+            fn from(_: Spelling) -> Self {
+                String::from("generated")
+            }
+        }
+
+        assert_eq!(
+            DiagnosticName::new(Spelling, SourceSpan::default()),
+            "generated"
+        );
+        assert_eq!(DiagnosticName::generated(Spelling), "generated");
+        assert_eq!(DiagnosticName::from("generated"), "generated");
+    }
 
     #[test]
     fn static_generated_names_do_not_allocate_owned_text() {

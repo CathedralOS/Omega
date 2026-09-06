@@ -236,7 +236,7 @@ fn lower_nonbinary_expression_node_into_table(
                     TableCallExpression {
                         receiver: ExpressionHandle::invalid(),
                         target_symbol: SymbolHandle::invalid(),
-                        target: DiagnosticName::new("max", call.target.source_span()),
+                        target: DiagnosticName::from_str("max", call.target.source_span()),
                         machine_arguments: Box::default(),
                         arguments,
                         evidence_arguments: Box::default(),
@@ -271,7 +271,7 @@ fn lower_nonbinary_expression_node_into_table(
                     expression_table(lowerer).insert(ExpressionNode::Call(TableCallExpression {
                         receiver: ExpressionHandle::invalid(),
                         target_symbol: SymbolHandle::invalid(),
-                        target: DiagnosticName::new("max", call.target.source_span()),
+                        target: DiagnosticName::from_str("max", call.target.source_span()),
                         machine_arguments: Box::default(),
                         arguments: max_arguments,
                         evidence_arguments: Box::default(),
@@ -292,7 +292,7 @@ fn lower_nonbinary_expression_node_into_table(
                     TableCallExpression {
                         receiver: ExpressionHandle::invalid(),
                         target_symbol: SymbolHandle::invalid(),
-                        target: DiagnosticName::new("min", call.target.source_span()),
+                        target: DiagnosticName::from_str("min", call.target.source_span()),
                         machine_arguments: Box::default(),
                         arguments: min_arguments,
                         evidence_arguments: Box::default(),
