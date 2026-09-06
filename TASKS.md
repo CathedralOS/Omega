@@ -370,18 +370,16 @@ Owners include
   mutable borrow. Acceptance includes read rejection, exact write coverage,
   unwind/return behavior, and both Linux targets.
 
+  Resolve an attached `&write self` through its exact data declaration in
+  `validation/src/write_only_borrows.rs`: `Self` currently fails the supported
+  referee lookup even for a plain record. Reconcile receiver-root identity as
+  well, so direct and projected writes check while old-value reads reject for
+  non-observation, not merely for an unsupported type. Do not infer permission
+  from the attached declaration's fields.
+
   Native referent identity follows `STRUCTURAL-BORROW-IDENTITY` below; it is
   not an owner-policy blocker. Preserve write-only non-observation independently
   of the shared physical reference ABI.
-
-- **RECEIVER-WRITE-ACCESS.** Reject writes through shared `self` during source
-  checking in `typed-trees-to-checked-trees`, rather than relying on absent
-  executable plans. `data Pair { prefix: u8; value: u16; }` with
-  `machine Pair::replace(&self) { self.value = 17; }` currently passes checking;
-  Terminal production rejects because it has no writable receiver plan.
-  Acceptance: direct and projected shared-receiver writes produce source
-  diagnostics, mutable-receiver stores still check, and explicit write-only
-  access retains its non-observing rules.
 
 - **STRUCTURAL-BORROW-IDENTITY.** Enforce the settled
   [structural borrow identity contract](wiki/design_briefs/core_multiplicity_and_linearity.md#structural-borrow-identity-at-native-calls)

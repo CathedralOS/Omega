@@ -870,7 +870,10 @@ following call before returning. `WriteOnlyPrimitiveStore` remains the distinct
 whole-root operation.
 
 The same `StructuralScalarFieldStore` vocabulary now carries an ordinary
-attached-Unit replacement with no dynamic dispatch. Its checked source is one
+attached-Unit replacement with no dynamic dispatch. Source checking rejects
+assignments and explicit exclusive field arguments through a shared or absent
+state receiver; attached fields do not become writable merely by appearing in
+the machine namespace. Its checked source is one
 fixed-integer or Boolean literal, one exact same-typed scalar parameter, or the
 fixed-integer result of one immediately preceding ordinary scalar call or
 selected boundary-operator realization through the sole

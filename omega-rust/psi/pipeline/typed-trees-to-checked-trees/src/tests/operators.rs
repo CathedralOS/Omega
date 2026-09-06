@@ -1100,7 +1100,7 @@ fn records_checked_float_policy_adapters_from_operand_domains() {
         }
 
         machine Main::combine(
-            &self,
+            &mut self,
             saturated: f32 in Saturating,
             trapped: f64 in Trapping,
             quiet: f32
