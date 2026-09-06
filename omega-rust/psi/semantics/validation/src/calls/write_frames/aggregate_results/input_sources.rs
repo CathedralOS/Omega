@@ -32,11 +32,12 @@ pub(super) fn instantiate_source(
     if include_shared
         && super::super::type_reference_is_reference(program, parameter.type_reference)
     {
-        super::super::reference_subjects::validate_owned_projection(
-            program,
-            parameter.type_reference,
-            &relative.source.segments,
-        )?;
+        // The result query validated this projection against the helper's
+        // frozen binding evidence before leaving its namespace. An owned-only
+        // type walk here would discard a proven borrowed-carrier load.
+        if relative.precision != FramePathPrecision::Exact {
+            return None;
+        }
         let origin = resolve_reference(actual, parameter.type_reference, true, inference)?;
         let (_, suffix) = split_place_root(&relative.path);
         return Some(vec![compose_source(

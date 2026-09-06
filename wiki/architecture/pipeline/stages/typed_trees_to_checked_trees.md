@@ -1255,8 +1255,13 @@ Current ownership is:
   Callee-private leaves cannot disappear as an empty caller footprint.
   Exact-reference result queries also retain shared leaves through literals,
   frozen local copies, nested helper results, and by-value input moves. Their
-  body transfer seeds declared owned-input reference boundaries only after
-  checking the input slots against replacement and mutable exposure. A
+  body transfer seeds declared owned-input reference boundaries and boundaries
+  behind one readable input reference, checking the input slots against
+  replacement and mutable exposure. Borrowed-input result projections are
+  validated while the helper's full frozen-binding context is available, before
+  substituting actual caller sources. The caller then composes that proven
+  projection with its own frozen origins; an owned-only type walk cannot replace
+  the helper's load evidence. A
   reconstructed result validates one exact Field/Case reference boundary and
   its owned suffix before caller substitution; it cannot select an owned
   sibling or cross a reference-bearing referent by type alone. Possible input
