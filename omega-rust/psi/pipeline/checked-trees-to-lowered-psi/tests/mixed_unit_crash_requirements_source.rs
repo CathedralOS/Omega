@@ -63,6 +63,152 @@ fn scalar_divisor_requirement_survives_reordered_mixed_unit_call() {
 }
 
 #[test]
+fn computed_scalar_divisor_carries_its_requirement_into_the_mixed_unit_call() {
+    for computation in [
+        "divisor + 0u64",
+        "divisor - 0u64",
+        "divisor * 1u64",
+        "divisor + 1u64",
+    ] {
+        let source = SOURCE.replace(
+            "crashes Abort metrics.current / divisor <= limit\n    { Helper::consume(divisor, metrics, limit); }",
+            &format!("crashes Abort\n    {{ Helper::consume({computation}, metrics, limit); }}"),
+        );
+        let source = if computation == "divisor + 1u64" {
+            source.replace(
+                "requires 1u64 <= divisor\n    crashes Abort\n",
+                "requires 1u64 <= divisor, divisor <= 100u64\n    crashes Abort\n",
+            )
+        } else {
+            source
+        };
+        let lowered = roundtrip(&checked(&source));
+        let root = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .find(|machine| machine.id == lowered.semantic_module.entry)
+            .unwrap();
+        let (arithmetic, arithmetic_obligation) = root
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find_map(|operation| match operation.kind {
+                terminal_psi::OperationKind::ExactIntegerAdd { obligation, .. }
+                | terminal_psi::OperationKind::ExactIntegerSubtract { obligation, .. }
+                | terminal_psi::OperationKind::ExactIntegerMultiply { obligation, .. } => {
+                    Some((operation, obligation))
+                }
+                _ => None,
+            })
+            .expect("authored operand remains an evaluated Exact operation");
+        let terminal_psi::OperationResult::Scalar(result) = arithmetic.result else {
+            panic!("arithmetic publishes the argument value");
+        };
+        let (arguments, requirements) = root
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find_map(|operation| match &operation.kind {
+                terminal_psi::OperationKind::CallUnit {
+                    arguments,
+                    requirement_obligations,
+                    ..
+                } => Some((arguments, requirement_obligations)),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(arguments[0], result.id, "{computation}");
+        assert_eq!(requirements.len(), 1);
+        assert_ne!(requirements[0], arithmetic_obligation);
+        for obligation in [arithmetic_obligation, requirements[0]] {
+            assert!(
+                lowered
+                    .proof_bundle
+                    .evidence
+                    .iter()
+                    .any(|evidence| evidence.obligation == obligation
+                        && matches!(
+                            evidence.route,
+                            proof_admission::EvidenceRoute::CertificateDerived(_)
+                        ))
+            );
+            let mut missing = lowered.proof_bundle.clone();
+            missing
+                .evidence
+                .retain(|evidence| evidence.obligation != obligation);
+            assert!(
+                matches!(terminal_verifier::verify_module(&lowered.semantic_module, &missing, &proof_admission::AdmissionProfile::default()),
+                Err(terminal_verifier::VerificationError::MissingEvidence(rejected)) if rejected == obligation),
+                "{computation}: {obligation:?}"
+            );
+        }
+        let mut missing_definition = lowered.semantic_module.clone();
+        let changed_root = missing_definition
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == root.id)
+            .unwrap();
+        for block in &mut changed_root.blocks {
+            block
+                .operations
+                .retain(|operation| operation.id != arithmetic.id);
+        }
+        assert!(
+            terminal_verifier::validate_module(&missing_definition).is_err(),
+            "undefined computed argument: {computation}"
+        );
+    }
+}
+
+#[test]
+fn computed_argument_keeps_entry_requirements_without_a_crash_ceiling() {
+    let source = SOURCE
+        .replace("crashes Abort metrics.current / divisor <= limit", "")
+        .replace(
+            "Helper::consume(divisor, metrics, limit)",
+            "Helper::consume(divisor + 0u64, metrics, limit)",
+        );
+    let lowered = roundtrip(&checked(&source));
+    assert!(lowered.semantic_module.machines.iter().all(|machine| {
+        machine.contract.crash_routes.is_empty() && machine.contract.requires.len() == 1
+    }));
+}
+
+#[test]
+fn reflexive_call_requirement_cannot_prove_unbounded_argument_addition_safe() {
+    for primitive in ["u64", "i64"] {
+        let source = format!(
+            r#"
+            data Metrics {{ current: {primitive}; }}
+            boundary trait Sink {{ machine record(value: {primitive}); }}
+            data Helper {{}}
+            machine Helper::consume(value: {primitive}, metrics: Metrics)
+            requires value == value
+            {{ Sink::record(value); }}
+            data Main {{}}
+            machine Main::main(metrics: Metrics, input: {primitive})
+            {{ Helper::consume(input + 1{primitive}, metrics); }}
+        "#
+        );
+        let checked = checked(&source);
+        let error = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main")
+            .expect_err("a reflexive call requirement cannot establish Exact addition safety");
+        assert!(
+            matches!(
+                error,
+                checked_trees_to_lowered_psi::LoweringError::OperationProofUnavailable(_)
+            ),
+            "{primitive}: {error:?}"
+        );
+        assert!(
+            terminal_production::produce_terminal_artifact(&checked, "Main::main").is_err(),
+            "unsafe computed arithmetic must not publish: {primitive}"
+        );
+    }
+}
+
+#[test]
 fn literal_first_scalar_equality_requirement_keeps_canonical_value_identity() {
     let source = SOURCE.replace(
         "requires 1u64 <= divisor",

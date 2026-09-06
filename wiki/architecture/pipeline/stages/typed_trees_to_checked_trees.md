@@ -127,9 +127,20 @@ meaning with the original type references. Only a proven implication accepts.
 Prior-call postconditions and instantiated facts cannot be read as raw caller
 expressions; they need their own exact actual-argument substitution and are
 excluded from this adapter.
-Computed arguments, mutable snapshots, and structural projections remain outside
-this source adapter. Source acceptance does not supply a Terminal certificate;
-the emitted call obligation is independently reconstructed and proved afterward.
+Pure immutable actuals may also contain Exact `+`, `-`, and `*` trees. Every
+operation must pass the checked and typed builtin-meaning checks, retain
+matching landed integer carriers, and Exact operand policies. The shared
+arithmetic query substitutes all actuals in the original caller namespace before
+binding any callee formal; conflicting identities reject instead of replacing
+caller facts. Surviving call-entry contexts are simultaneous fact overlays, so
+the query consumes their supported facts together, not as alternative paths.
+This mathematical substitution does not establish arithmetic
+formation: each operation still owes its own overflow proof.
+Mutable snapshots, structural projections, result-producing calls, other numeric
+policies, and other computation kinds remain outside this source adapter. In
+particular, runtime signed remainder is not the proof engine's Euclidean modulo.
+Source acceptance does not supply a Terminal certificate; the emitted call
+obligation is independently reconstructed and proved afterward.
 
 Bounded integer returns consume the shared arithmetic arrival query in
 `validation/src/arithmetic_domains/guard_narrowing/arrivals.rs`. Each source

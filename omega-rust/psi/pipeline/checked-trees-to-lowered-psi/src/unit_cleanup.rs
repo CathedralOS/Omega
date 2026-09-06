@@ -369,7 +369,7 @@ pub(super) fn lower_nominal_affine_unit_cleanup_machine(
         })
         .collect::<Result<Vec<_>, _>>()?;
     let mut lowered =
-        lower_attached_unit_closure_including(&staged, plan.machine, &[cleanup.cleanup_machine])?;
+        lower_nominal_cleanup_closure(&staged, plan.machine, &[cleanup.cleanup_machine])?;
     let type_ids = lowered
         .semantic_module
         .structural_types

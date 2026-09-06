@@ -403,7 +403,7 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
     if closure != expected {
         return unsupported("ordered nominal cleanup closure is not exact");
     }
-    let mut lowered = lower_attached_unit_closure_including(&staged, plan.machine, &roots)?;
+    let mut lowered = lower_nominal_cleanup_closure(&staged, plan.machine, &roots)?;
     let type_ids = lowered
         .semantic_module
         .structural_types

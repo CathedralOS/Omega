@@ -143,7 +143,7 @@ use attached_unit::{
     checked_unit_boundary_identity, checked_unit_call_closure_including,
     checked_unit_target_reach_matches, collect_installation_machine_contract_services,
     collect_published_contract_services, collect_service_summary,
-    lower_attached_unit_closure_including, lower_installation_machine_service_ceiling,
+    lower_installation_machine_service_ceiling, lower_nominal_cleanup_closure,
     lower_published_service_ceiling, lower_structural_arguments, lower_structural_path,
     lower_unit_effect_closure, lower_unit_parameters, unique_unit_machine, validate_transfer_shape,
 };
