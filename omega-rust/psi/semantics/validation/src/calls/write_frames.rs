@@ -415,7 +415,11 @@ fn walk_state_write_prefix_inner(
     let mut locals = Vec::new();
     let mut isolated_local_roots = Vec::new();
     let mut local_alias_origins = Vec::<(String, FramePlaceOrigin)>::new();
-    let mut stored = if matches!(query, Some(StateWriteQuery::ReferenceResult)) {
+    let include_shared = matches!(
+        query,
+        Some(StateWriteQuery::ReferenceBefore(_) | StateWriteQuery::ReferenceResult)
+    );
+    let mut stored = if include_shared {
         parameters
             .iter()
             .filter(|parameter| {
@@ -436,10 +440,6 @@ fn walk_state_write_prefix_inner(
         Vec::new()
     };
     let mut written = Vec::new();
-    let include_shared = matches!(
-        query,
-        Some(StateWriteQuery::ReferenceBefore(_) | StateWriteQuery::ReferenceResult)
-    );
 
     let mut nested_diagnostics = Vec::new();
     let machine_symbols = MachineSymbols::build(program, machine, &mut nested_diagnostics);

@@ -464,7 +464,7 @@ Owners include
   used premise is reconstructed for the exact subject and no qualification or
   similarly shaped row mints one implicitly.
 
-  Complete value origins through incoming, indexed, or replaced reference
+  Complete value origins through reference-loaded, indexed, or replaced
   carriers, owned helper results, and reference-bearing helper results with
   unresolved control-flow or binding transfers in
   `checks/termination/progress/{origins.rs,lineage.rs}`. A mutated aggregate
@@ -475,6 +475,15 @@ Owners include
   projected arrivals and checked helper correspondences derive the replacement
   input's exact premise, while unknown writes and reference aliases without
   exact provenance retain no checked guarantee.
+
+- **PROJECTED-REFERENCE-RECEIVERS.** Retain authored call selections for methods
+  on reference fields of owned input carriers in checked-tree receiver
+  resolution and `authored_selections.rs`. The
+  `progress_mutation/aliases/carriers/inputs/exposure.rs` endpoint fixture
+  reaches an unresolved authored Call selection at finalization. Acceptance:
+  preceding-statement and value-operand forms pass full checking with exact
+  callees and preserved disjoint qualifications; typed frame queries alone
+  are insufficient. Missing or foreign callee identities still reject.
 
 - **NOMINAL-FIELD-FLOW.** Complete declared-field domain evidence in Psi
   semantic facts, flow transfer, and contract consumption. Collection elements

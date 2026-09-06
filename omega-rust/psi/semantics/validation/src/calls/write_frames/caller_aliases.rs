@@ -88,6 +88,7 @@ pub(super) fn caller_name_root_type(
     reference.is_valid().then_some(reference)
 }
 
+#[derive(Clone, Copy)]
 pub(super) enum CallerWriteSite<'query> {
     Call(&'query TableCall),
     Statement(&'query StatementNode),

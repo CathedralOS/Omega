@@ -65,7 +65,7 @@ impl<'program> CallFrameResolver<'program> {
 
     /// Resolve a bare local reference to exact live storage at this prefix.
     /// This query includes shared references, without granting them writes.
-    /// Unknown origins, loaded reference slots, and coarse selectors reject.
+    /// Unknown origins, untracked reference slots, and coarse selectors reject.
     pub fn local_reference_origin_before_statement(
         &self,
         machine: &Machine,
@@ -80,6 +80,33 @@ impl<'program> CallFrameResolver<'program> {
             local,
         )?;
         Some((source.root, source.segments))
+    }
+
+    /// A complete may-write frame does not exempt reference-binding exposure.
+    /// Check only this operand and its preceding statement prefix, not later
+    /// operands or statements. This query never adds write permissions.
+    pub fn expression_reference_bindings_are_stable(
+        &self,
+        machine: &Machine,
+        expression: ExpressionHandle,
+    ) -> bool {
+        super::reference_subjects::bindings::are_stable_at_site(
+            self.program,
+            machine,
+            &self.symbols,
+            CallerWriteSite::Expression(expression),
+        )
+        .is_some()
+    }
+
+    pub fn call_reference_bindings_are_stable(&self, machine: &Machine, call: &TableCall) -> bool {
+        super::reference_subjects::bindings::are_stable_at_site(
+            self.program,
+            machine,
+            &self.symbols,
+            CallerWriteSite::Call(call),
+        )
+        .is_some()
     }
 
     /// Reference-free erased value shape; unlike runtime layout, inline proof
