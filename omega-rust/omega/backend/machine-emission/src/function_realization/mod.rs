@@ -13,6 +13,8 @@ pub use allocation_recovery::*;
 pub use structural_unit::*;
 pub use unit::*;
 mod carriers;
+mod frame;
+pub use frame::FunctionRelativeFrame;
 mod codec;
 mod error;
 mod model;

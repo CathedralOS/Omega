@@ -2,10 +2,7 @@ use optimization_core::FunctionRelativeOptimizationRealizationManifestIdentity;
 use selected_instructions_to_register_homes::{AllocationReplayError, RetainedAllocation};
 
 use crate::ValidatedTargetFrameProtocolEncoding;
-use crate::frame_layout::ValidatedTargetFrameLayout;
-use crate::frame_layout::{
-    NonAuthoritativeCalleeSaveStorageIdentity, ValidatedNonAuthoritativeCalleeSaveStorage,
-};
+use crate::frame_layout::NonAuthoritativeCalleeSaveStorageIdentity;
 use crate::{
     FunctionRelativeOptimizationRealizationError,
     ValidatedFunctionRelativeOptimizationRealizationManifest, ValidatedWholeFunctionExitContract,
@@ -20,10 +17,8 @@ use register_homes_to_post_allocation_machine::{
     StagedOptimizedPostAllocationMachineCustodyReceipt, StagedOptimizedPostAllocationMachinePlan,
 };
 use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
+use selected_instructions_to_register_homes::AllocatedCalleeSavedRequirementIdentity;
 use selected_instructions_to_register_homes::StagedOptimizedRegisterHomeCustodyReceipt;
-use selected_instructions_to_register_homes::{
-    AllocatedCalleeSavedRequirementIdentity, ValidatedAllocatedCalleeSavedRequirements,
-};
 
 /// Exact baseline realization for the currently admitted receiver-free Unit
 /// semantic entry. This carrier proves function-relative bytes and exit
@@ -89,37 +84,8 @@ impl StagedOptimizedUnitFunctionRelativeRealization {
     }
 }
 
-/// The incoming return address of an AArch64 Unit function occupies an exact
-/// frame slot. The ordinary machine emitter saves it in every AArch64 Unit
-/// function and the object boundary requires it, so the optimized route agrees
-/// with them rather than taking the AAPCS64 leaf exemption. An x86-64 Unit
-/// function returns through the caller's activation record and owns no frame,
-/// so it carries none of this.
-#[derive(Debug)]
-pub struct UnitSavedReturnAddressFrame {
-    pub(super) requirements: ValidatedAllocatedCalleeSavedRequirements,
-    pub(super) storage: ValidatedNonAuthoritativeCalleeSaveStorage,
-    pub(super) layout: ValidatedTargetFrameLayout,
-    pub(super) protocol: ValidatedTargetFrameProtocolEncoding,
-}
-
-impl UnitSavedReturnAddressFrame {
-    pub const fn requirements(&self) -> &ValidatedAllocatedCalleeSavedRequirements {
-        &self.requirements
-    }
-
-    pub const fn storage(&self) -> &ValidatedNonAuthoritativeCalleeSaveStorage {
-        &self.storage
-    }
-
-    pub const fn layout(&self) -> &ValidatedTargetFrameLayout {
-        &self.layout
-    }
-
-    pub const fn protocol(&self) -> &ValidatedTargetFrameProtocolEncoding {
-        &self.protocol
-    }
-}
+/// Compatibility name for the Unit saved-return-address frame policy.
+pub type UnitSavedReturnAddressFrame = super::super::FunctionRelativeFrame;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UnitSavedReturnAddressFrameReceipt {

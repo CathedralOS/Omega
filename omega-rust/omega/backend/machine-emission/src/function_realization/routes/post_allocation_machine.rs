@@ -8,8 +8,8 @@ use selected_instructions_to_register_homes::{
 use super::super::{assembly::*, carriers::*, error::*};
 use crate::{
     ValidatedWholeFunctionExitContract,
-    stage_whole_function_exit_contract_with_post_allocation_machine_optimization,
-    validate_whole_function_exit_contract_with_post_allocation_machine_optimization,
+    stage_whole_function_exit_contract_with_post_allocation_machine_optimization_and_frame,
+    validate_whole_function_exit_contract_with_post_allocation_machine_optimization_and_frame,
 };
 use post_allocation_machine_to_post_allocation_machine::{
     StagedOptimizedPostAllocationMachineOptimization,
@@ -55,11 +55,22 @@ where
         &optimization,
     )
     .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachineOptimization)?;
+    let frame = if super::super::frame::ordinary_frame_required(&current, &machine)? {
+        Some(super::super::frame::stage_frame(
+            &current,
+            &machine,
+            crate::frame_layout::TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+            current.budget_per_pass(),
+        )?)
+    } else {
+        None
+    };
     let (baseline_encoding, encoding, baseline_layout, layout, exit_contract) = build_artifacts(
         current.selected(),
         &machine,
         current.register_environment().physical(),
         &optimization,
+        frame.as_ref(),
     )?;
     let manifest = expected_allocated_post_allocation_machine_manifest(
         &current,
@@ -70,6 +81,7 @@ where
         &baseline_layout,
         &layout,
         &exit_contract,
+        frame.as_ref(),
     )?;
     let normalized = optimization
         .custody()
@@ -89,6 +101,7 @@ where
         encoding,
         baseline_layout,
         layout,
+        frame,
         exit_contract,
         manifest,
         custody,
@@ -114,6 +127,19 @@ pub fn validate_post_allocation_machine_function_relative_realization_custody(
         &staged.optimization,
     )
     .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachineOptimization)?;
+    if staged.frame.is_some()
+        != super::super::frame::ordinary_frame_required(&current, &staged.machine)?
+    {
+        return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
+    }
+    if let Some(frame) = &staged.frame {
+        super::super::frame::validate_frame(
+            &current,
+            &staged.machine,
+            frame,
+            crate::frame_layout::TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+        )?;
+    }
     validate_artifacts(
         current.selected(),
         &staged.machine,
@@ -130,6 +156,7 @@ pub fn validate_post_allocation_machine_function_relative_realization_custody(
         &staged.baseline_layout,
         &staged.layout,
         &staged.exit_contract,
+        staged.frame.as_ref(),
     )?;
     if machine != *staged.machine.custody() || manifest.record != staged.manifest.record {
         return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
@@ -156,6 +183,7 @@ fn build_artifacts<S: ValidatedSelectedAnalysis>(
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &register_model::ValidatedPhysicalRegisterModel,
     optimization: &StagedOptimizedPostAllocationMachineOptimization,
+    frame: Option<&super::super::FunctionRelativeFrame>,
 ) -> Result<
     (
         StagedOptimizedSelectedFormEncoding,
@@ -198,13 +226,14 @@ fn build_artifacts<S: ValidatedSelectedAnalysis>(
         )
         .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
     let exit_contract =
-        stage_whole_function_exit_contract_with_post_allocation_machine_optimization(
+        stage_whole_function_exit_contract_with_post_allocation_machine_optimization_and_frame(
             selected,
             machine,
             physical,
             &encoding,
             optimization,
             &layout,
+            frame.map(|frame| (frame.layout(), frame.protocol())),
         )
         .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
     Ok((
@@ -257,13 +286,17 @@ fn validate_artifacts<S: ValidatedSelectedAnalysis>(
         &staged.layout,
     )
     .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
-    validate_whole_function_exit_contract_with_post_allocation_machine_optimization(
+    validate_whole_function_exit_contract_with_post_allocation_machine_optimization_and_frame(
         selected,
         machine,
         physical,
         &staged.encoding,
         optimization,
         &staged.layout,
+        staged
+            .frame
+            .as_ref()
+            .map(|frame| (frame.layout(), frame.protocol())),
         &staged.exit_contract,
     )
     .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)

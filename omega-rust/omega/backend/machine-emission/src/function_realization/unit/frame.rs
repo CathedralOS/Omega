@@ -17,40 +17,13 @@ pub(in crate::function_realization) fn stage_unit_frame(
     if !required(current) {
         return Ok(None);
     }
-    let environment = current.register_environment();
-    let requirements = stage_allocated_callee_saved_requirements(
+    super::super::frame::stage_frame(
         current,
-        AllocatedCalleeSavedRequirementPolicy::AllocatedSelectedWritesIntersectAbiPreservationV1,
-        current.budget_per_pass(),
-    )
-    .map_err(Error::CalleeSavedRequirements)?;
-    let storage = stage_non_authoritative_callee_save_storage(
-        &requirements,
-        environment,
-        NonAuthoritativeCalleeSaveStoragePolicy::CanonicalTargetPreservationGroupsV1,
-        current.budget_per_pass(),
-    )
-    .map_err(Error::CalleeSaveStorage)?;
-    let layout = stage_target_frame_layout(
         machine,
-        &requirements,
-        &storage,
-        environment,
         TargetFrameLayoutPolicy::CanonicalSavedReturnAddressFrameV1,
+        current.budget_per_pass(),
     )
-    .map_err(Error::FrameLayout)?;
-    let protocol = stage_target_frame_protocol_encoding(
-        &layout,
-        environment,
-        TargetFrameProtocolEncodingPolicy::CanonicalFixedFrameV1,
-    )
-    .map_err(Error::FrameProtocol)?;
-    Ok(Some(UnitSavedReturnAddressFrame {
-        requirements,
-        storage,
-        layout,
-        protocol,
-    }))
+    .map(Some)
 }
 
 /// Replay the supplied frame, including required presence. A producer cannot
@@ -66,31 +39,10 @@ pub(in crate::function_realization) fn validate_unit_frame(
     let Some(frame) = frame else {
         return Ok(());
     };
-    let environment = current.register_environment();
-    if frame.layout().plan().policy != TargetFrameLayoutPolicy::CanonicalSavedReturnAddressFrameV1 {
-        return Err(Error::RootMismatch);
-    }
-    validate_allocated_callee_saved_requirements(current, frame.requirements().plan().clone())
-        .map_err(Error::CalleeSavedRequirements)?;
-    validate_non_authoritative_callee_save_storage(
-        frame.requirements(),
-        environment,
-        frame.storage().plan().clone(),
-    )
-    .map_err(Error::CalleeSaveStorage)?;
-    validate_target_frame_layout(
+    super::super::frame::validate_frame(
+        current,
         machine,
-        frame.requirements(),
-        frame.storage(),
-        environment,
-        frame.layout().plan().clone(),
+        frame,
+        TargetFrameLayoutPolicy::CanonicalSavedReturnAddressFrameV1,
     )
-    .map_err(Error::FrameLayout)?;
-    validate_target_frame_protocol_encoding(
-        frame.layout(),
-        environment,
-        frame.protocol().plan().clone(),
-    )
-    .map_err(Error::FrameProtocol)?;
-    Ok(())
 }

@@ -347,11 +347,13 @@ Each call retains its exact ABI and source operation; allocation sees explicit
 argument/result copies and target-owned clobbers. These sequences reach framed
 fragment text and object publication on Linux x64 and Arm64 with empty physical
 phases, including builds retaining a selected Psi phase. Selected physical
-materialization preserves the same call encoding and independent replay, but
-its realization still assumes frameless functions and rejects required
-preserved-register writes. It must join ordinary frame realization before
-those selections can publish calling functions. The outer executable-publication
-join also remains unfinished:
+materialization uses the same frame construction and independent replay as
+ordinary realization. Allocated preservation writes and calls determine frame
+requirements, not selection presence. The optimized body retains its exact
+encoding/layout custody alongside frame geometry and protocol; fragment emission
+and frame application carry both through text and object publication. Removing
+or substituting either side rejects. The outer executable-publication join
+remains unfinished:
 its Unit call records require stack-held results, whereas shared allocation
 can retain results in preserved registers. That join must consume the actual
 physical homes, not manufacture legacy stack records. Other call ABIs and
