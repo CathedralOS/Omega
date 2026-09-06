@@ -1284,7 +1284,8 @@ fn assemble_unit_closure(
         let mut structural_result_places = Vec::<(StructuralPlaceDeclaration, bool)>::new();
         let mut evaluation = argument_evaluation::Evaluation::new(&mut next_block)?;
         let mut staged_arguments = vec![Vec::<usize>::new(); plan.operations.len()];
-        let mut retained_scalar_prefix = 0;
+        let mut retained_scalar_prefix = None;
+        let mut staged_scalar_result = None;
         for step in argument_schedule::build(checked, plan)? {
             let mut scalar_calls = CallEmissionContext {
                 machine_ids: &machine_ids,
@@ -1294,14 +1295,34 @@ fn assemble_unit_closure(
             };
             let (operation_index, staged) = match step {
                 argument_schedule::Step::Begin => {
-                    retained_scalar_prefix = scalar_result_values.len();
+                    if retained_scalar_prefix
+                        .replace(scalar_result_values.len())
+                        .is_some()
+                        || staged_scalar_result.is_some()
+                    {
+                        return unsupported("nested argument staging has an unfinished group");
+                    }
                     continue;
                 }
                 argument_schedule::Step::End => {
-                    scalar_result_values.truncate(retained_scalar_prefix);
+                    let prefix =
+                        retained_scalar_prefix
+                            .take()
+                            .ok_or(LoweringError::Unsupported(
+                                "nested argument staging has no active group",
+                            ))?;
+                    scalar_result_values.truncate(prefix);
+                    // Argument temporaries are never source-local bindings.
+                    // Only the successful outer result extends that namespace.
+                    if let Some(result) = staged_scalar_result.take() {
+                        scalar_result_values.push(result);
+                    }
                     continue;
                 }
                 argument_schedule::Step::Argument { operation, ordinal } => {
+                    let source_value_count = retained_scalar_prefix.ok_or(
+                        LoweringError::Unsupported("staged scalar argument has no source prefix"),
+                    )?;
                     if staged_arguments[operation].len() != ordinal {
                         return unsupported("staged scalar argument ordinals are not dense");
                     }
@@ -1311,6 +1332,7 @@ fn assemble_unit_closure(
                         plan.state,
                         &plan.operations[operation],
                         ordinal,
+                        source_value_count,
                         &mut scalar_result_values,
                         &mut next_value_identity,
                         &mut next_block,
@@ -1323,10 +1345,16 @@ fn assemble_unit_closure(
                     scalar_result_values.push(value);
                     continue;
                 }
-                argument_schedule::Step::Call(index) => (index, true),
-                argument_schedule::Step::Ordinary(index) => (index, false),
+                argument_schedule::Step::Call(index) if retained_scalar_prefix.is_some() => {
+                    (index, true)
+                }
+                argument_schedule::Step::Ordinary(index) if retained_scalar_prefix.is_none() => {
+                    (index, false)
+                }
+                _ => return unsupported("call schedule disagrees with its active argument group"),
             };
             let operation = &plan.operations[operation_index];
+            let source_value_count = retained_scalar_prefix.unwrap_or(scalar_result_values.len());
             let evaluated_scalar_arguments = if staged {
                 Some(
                     staged_arguments[operation_index]
@@ -1665,7 +1693,7 @@ fn assemble_unit_closure(
                     if usize::try_from(result.binding_ordinal)
                         .ok()
                         .and_then(|ordinal| ordinal.checked_add(scalar_parameter_count))
-                        != Some(scalar_result_values.len())
+                        != Some(source_value_count)
                     {
                         return unsupported(
                             "Unit scalar result binding ordinal drifted from source order",
@@ -1857,7 +1885,15 @@ fn assemble_unit_closure(
                         result: terminal_psi::OperationResult::Scalar(value),
                         kind,
                     });
-                    scalar_result_values.push(value);
+                    if staged {
+                        if staged_scalar_result.replace(value).is_some() {
+                            return unsupported(
+                                "nested argument group produces more than one scalar binding",
+                            );
+                        }
+                    } else {
+                        scalar_result_values.push(value);
+                    }
                     continue;
                 }
                 CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value } => {

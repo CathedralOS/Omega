@@ -36,7 +36,8 @@ pub(super) fn build(
         let root = (start..operations.len())
             .find(|index| match &operations[*index] {
                 CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. }
-                | CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. } => {
+                | CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. }
+                | CheckedUnitEffectOperationPlan::ScalarCall { coordinate, .. } => {
                     coordinate.statement_index == statement && coordinate.call_ordinal == 0
                 }
                 _ => false,
@@ -83,6 +84,11 @@ fn append(
             ..
         }
         | CheckedUnitEffectOperationPlan::CallUnit {
+            coordinate,
+            scalar_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::ScalarCall {
             coordinate,
             scalar_arguments,
             ..

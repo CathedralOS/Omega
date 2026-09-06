@@ -306,6 +306,7 @@ fn validate_nested_execution_order(
         let coordinate = match operation {
             CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. }
             | CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. }
+            | CheckedUnitEffectOperationPlan::ScalarCall { coordinate, .. }
                 if coordinate.statement_index == statement_index =>
             {
                 coordinate
@@ -318,7 +319,8 @@ fn validate_nested_execution_order(
         .iter()
         .copied()
         .eq(expected.iter().filter_map(|(ordinal, expression)| {
-            if let ExpressionNode::Call(call) = checked.expression_table.expression(*expression)
+            if *ordinal != 0
+                && let ExpressionNode::Call(call) = checked.expression_table.expression(*expression)
                 && crate::scalar_source_custody::authored_state(checked, call.target_symbol)
                     .is_ok_and(|(_, target)| {
                         checked
