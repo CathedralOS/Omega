@@ -368,6 +368,10 @@ stays only while it names unfinished work, its owning code/design area, any
 real blocker, and a concrete acceptance condition. Remove it when acceptance
 passes — do not append landed substeps, version history, test counts, or
 release notes. Completed limitations are deleted, not retained as status.
+When creating or refining an item for delegation, include enough rationale,
+design links, dependencies, and scope to route it without rediscovering the
+problem. Add only context that affects the assignment; no mandatory field
+template or separate delegation board is needed.
 
 Owner decisions belong in `OWNER_QUESTIONS.md`, not on a board. Before starting
 work, fetch `main` and inspect recent commits in that lane to avoid overlapping
@@ -406,6 +410,36 @@ ticket/claim and the owner's direction.
 See [landing](tools/landing.md) for commands,
 observed-owner recovery, and handling an uncertain network result. This protocol
 coordinates publishing across machines; it does not assign work ownership.
+
+### Agent delegation
+
+Use Astra to coordinate bounded workers when delegation helps. Route fully
+specified work with understood dependencies and measurable acceptance to Luna;
+use Astra or stronger reasoning for cross-component uncertainty, semantic risk,
+or unclear implementation invariants. Choose from the objective and evidence,
+not a claim that a model is universally safe. A single bounded change can stay
+with one agent; parallelize independent work with one edit owner per change.
+
+Assignments need the objective and rationale, anchor files and governing design
+links, ownership boundary, dependencies, acceptance command or artifact, and
+concrete escalation conditions. Read the linked architectural reasoning before
+crossing ownership boundaries; a file list is not sufficient. Investigate code
+and specifications first, then escalate failed checks, uncovered invariants,
+ambiguity, or scope expansion to the coordinator or a stronger model. Confidence
+alone is not evidence. Preserve Zac's design authority and the existing
+`OWNER_QUESTIONS.md` criteria; uncertainty does not automatically create an
+owner question. Never invent semantics or validation evidence to satisfy a gate.
+
+The coordinator owns dispatch, monitoring, result inspection, and integration.
+Use actual agent tools and returned IDs before reporting workers as launched,
+queued, or running; report tool failures as failures. Distinguish implementation
+completed, verification-only completed, diagnosed blocker, and work continuing.
+A diagnosis does not deliver an assigned fix: continue implementation when the
+existing design answers it, or identify the exact missing dependency or decision.
+Consolidate duplicate blockers in the owning board item and hand off concrete
+findings. Follow the dispatch and review steps in
+[advance](.codex/skills/advance/SKILL.md#delegate-a-bounded-assignment), alongside
+the existing isolation, validation, and landing rules.
 
 ### Commit naming
 
