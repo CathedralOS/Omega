@@ -447,6 +447,12 @@ Owners include
   bounded proof separate from general owned-handle design; no owner-policy
   blocker remains.
 
+  Native acceptance also needs the checked transitive machine plan missing
+  from `filesystem/windows_canonicalize_exit`: Terminal production currently
+  refuses its attached Unit closure in
+  `checked-trees-to-lowered-psi/src/attached_unit/call_closure.rs`. Resolve the
+  general call-plan dependency before expecting this fixture to emit.
+
 - **R5.** Finish exact inferred may-write summaries and relational candidates
   for unresolved receivers, boundary-result origins, conditional helper-body
   case refinement, mutable case-state transfer, graph-level aggregate result

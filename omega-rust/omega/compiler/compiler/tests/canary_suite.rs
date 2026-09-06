@@ -1617,28 +1617,16 @@ fn compile_rooted_backend_canary_without_output_for_target(
     canary_dir: &Path,
     target: &str,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
-    compile_rooted_backend_canary_without_output_for_target_and_permission_policy(
-        canary_dir,
-        target,
-        native_realization::current_terminal_authority_permission_policy(),
-    )
-}
-
-fn compile_rooted_backend_canary_without_output_for_target_with_fixture_permissions(
-    canary_dir: &Path,
-    target: &str,
-) -> Result<CompileReport, Vec<Diagnostic>> {
     let build_dir = unique_no_output_build_dir();
     let root_path = canary_dir.join("main.omg");
-    let package_inputs = reviewed_repository_fixture_package_inputs(&root_path, Some(target))?
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "fixture has no repository package inputs",
-            )]
-        })?;
+    let package_inputs = reviewed_repository_fixture_package_inputs(&root_path, Some(target))?;
+    // Use this repository's explicit fixture acceptance policy on both sides
+    // of the package/receiving-policy join, as the artifact-publishing route
+    // does. Tests of a different policy use the explicit-policy helper below.
     let permission_policy = native_realization::terminal_authority_permission_policy_with_rows(
         package_inputs
-            .accepted_semantic_bindings()
+            .iter()
+            .flat_map(|inputs| inputs.accepted_semantic_bindings())
             .flat_map(|binding| binding.terminal_authority_permissions())
             .cloned()
             .collect(),
@@ -1648,17 +1636,18 @@ fn compile_rooted_backend_canary_without_output_for_target_with_fixture_permissi
             "cannot construct repository fixture terminal-authority policy: {error:?}"
         ))]
     })?;
-    let result = compiler::compile(
-        CompileRequest::new(CompilerOptions {
-            root_path,
-            build_dir: Some(build_dir.clone()),
-            target_name: Some(target.into()),
-        })
-        .with_requested_product(RequestedCompileProduct::NativeArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly)
-        .with_terminal_authority_permission_policy(permission_policy)
-        .with_package_inputs(package_inputs),
-    );
+    let mut request = CompileRequest::new(CompilerOptions {
+        root_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: Some(target.into()),
+    })
+    .with_requested_product(RequestedCompileProduct::NativeArtifact)
+    .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly)
+    .with_terminal_authority_permission_policy(permission_policy);
+    if let Some(package_inputs) = package_inputs {
+        request = request.with_package_inputs(package_inputs);
+    }
+    let result = compiler::compile(request);
     let _ = fs::remove_dir_all(&build_dir);
     result
 }

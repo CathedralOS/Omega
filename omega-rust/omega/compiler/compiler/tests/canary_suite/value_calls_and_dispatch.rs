@@ -1688,10 +1688,7 @@ fn runtime_local_named_dyn_stored_return_canary_runs() {
 fn runtime_local_named_dyn_stored_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_LOCAL_NAMED_DYN_STORED_EXIT);
     for target in ["linux_x86_64", "linux_arm64"] {
-        let report =
-            compile_rooted_backend_canary_without_output_for_target_with_fixture_permissions(
-                &canary, target,
-            )
+        let report = compile_rooted_backend_canary_without_output_for_target(&canary, target)
             .unwrap_or_else(|diagnostics| {
                 panic!(
                     "{target} should lower stored descriptor result control:\n{}",
