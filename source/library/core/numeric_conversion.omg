@@ -653,7 +653,8 @@ pub machine narrow_u64_to_i64_saturating(value: u64) -> i64 {
     let signed_max_bits: u64 in Wrapping = 9223372036854775807;
     let selected: u64 in Wrapping =
         (modular_value & low_mask) | (signed_max_bits & high_mask);
-    selected as i64
+    // Expose the result bound without requiring correlation between the masks.
+    (selected & signed_max_bits) as i64
 }
 
 pub machine narrow_u64_to_i64_trapping(value: u64) -> i64 {
