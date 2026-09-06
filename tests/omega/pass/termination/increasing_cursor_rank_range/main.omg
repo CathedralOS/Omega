@@ -1,8 +1,7 @@
 // TPR3 slice 3: the rank-range FACT `in 0..=limit` on the argumented view
 // `Nat::IncreasingTo(limit)` is CONSUMED and verified structurally -- the
 // rank is the distance up to the view's own bound, so `0 <= rank <= limit`
-// holds by definition. (Any other range shape is rejected with a directed
-// message: fail/termination/rank_range_unconsumed + rank_floor_unconsumed.)
+// holds by definition. Other range shapes must prove their own constraints.
 
 data Main {}
 

@@ -1,1 +1,1 @@
-rank floor above the natural floor
+cannot prove rank range `1..=limit`

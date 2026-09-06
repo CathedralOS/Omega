@@ -6,6 +6,7 @@ mod crash_routes;
 mod data_facts;
 mod operational_contracts;
 mod proof_slices;
+mod rank_ranges;
 mod ranking;
 mod write_frame_aggregate_arguments;
 mod write_frame_aggregate_results;

@@ -1,1 +1,1 @@
-rank range is only consumed on the argumented
+cannot prove rank range `0..=100`

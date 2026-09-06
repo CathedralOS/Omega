@@ -1247,10 +1247,8 @@ fn rejects_view_argument_arity_misuse_with_directed_messages() {
     }
 }
 
-/// TPR3 slice 3: the `in <range>` rank constraint is CONSUMED -- v1 accepts
-/// exactly the shape true by the view's definition (`in 0..=limit` on
-/// `Nat::IncreasingTo(limit)`) and records the verified fact in the plan
-/// witness; every other shape gets a directed rejection.
+/// The view's natural distance proves its canonical dependent range and the
+/// private witness retains the constraint independently of the public contract.
 #[test]
 fn rank_range_on_increasing_to_is_consumed_and_recorded() {
     let source = r#"
@@ -1344,27 +1342,26 @@ fn termination_checker_uses_normalized_witness_without_parallel_spans() {
         .expect("normalized witness should independently prove the bounded climb");
 }
 
-/// TPR3 slice 3: the range shapes v1 cannot verify are rejected with
-/// DIRECTED messages -- nonzero floor, ceiling that is not the view's own
-/// bound, exclusive ceiling, and a range on a non-argumented view.
+/// Unproved constraints report the failed rank-range obligation, not a
+/// blanket source-shape restriction.
 #[test]
 fn rank_range_unverifiable_shapes_are_rejected_with_directed_messages() {
     let cases = [
         (
             "terminates by index -> Nat::IncreasingTo(limit) in 1..=limit;",
-            "rank floor above the natural floor",
+            "cannot prove rank range",
         ),
         (
             "terminates by index -> Nat::IncreasingTo(limit) in 0..=index;",
-            "is not the view's own bound",
+            "cannot prove rank range",
         ),
         (
             "terminates by index -> Nat::IncreasingTo(limit) in 0..limit;",
-            "spell the ceiling inclusively",
+            "cannot prove rank range",
         ),
         (
             "terminates by index in 0..=limit;",
-            "rank range is only consumed on the argumented",
+            "cannot prove rank range",
         ),
     ];
     for (clause, expected) in cases {
