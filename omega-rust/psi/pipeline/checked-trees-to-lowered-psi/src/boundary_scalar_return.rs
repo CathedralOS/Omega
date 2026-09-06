@@ -203,6 +203,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
         &parameters,
         &[],
         &[],
+        &[],
         &boundary.structural_parameters,
         &type_ids,
         &structural_types,
@@ -282,6 +283,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
             structural_arguments: lower_structural_arguments(
                 structural_arguments,
                 &parameters,
+                &[],
                 &[],
                 &[],
                 &[],

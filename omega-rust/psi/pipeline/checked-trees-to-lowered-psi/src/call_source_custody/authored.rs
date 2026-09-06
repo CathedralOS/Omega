@@ -12,6 +12,7 @@ pub(crate) struct AuthoredCall {
     pub source_target: SymbolHandle,
     pub source_site: Option<NominalMachineUseSite>,
     pub scalar_arguments: Vec<(ExpressionHandle, PrimitiveType)>,
+    pub structural_arguments: Vec<(u32, ExpressionHandle)>,
     pub boundary: bool,
     pub target_machine: SymbolHandle,
     pub target_state: SymbolHandle,
@@ -121,13 +122,20 @@ pub(crate) fn locate_source(
     }
     let mut explicit = 0usize;
     let mut scalar_arguments = Vec::new();
-    for parameter in parameters {
+    let mut structural_arguments = Vec::new();
+    for (position, parameter) in parameters.iter().enumerate() {
         if parameter.is_self && !explicit_self {
             continue;
         }
         let argument = arguments[explicit];
         explicit += 1;
         let Some(primitive) = program.primitive_type_reference(parameter.type_reference) else {
+            structural_arguments.push((
+                u32::try_from(position).map_err(|_| {
+                    LoweringError::Unsupported("call structural source position exceeds u32")
+                })?,
+                argument,
+            ));
             continue;
         };
         if parameter.is_self
@@ -144,6 +152,7 @@ pub(crate) fn locate_source(
         source_target,
         source_site,
         scalar_arguments,
+        structural_arguments,
         boundary,
         target_machine,
         target_state,

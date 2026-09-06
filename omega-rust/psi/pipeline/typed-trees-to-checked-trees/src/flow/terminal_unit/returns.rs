@@ -1039,6 +1039,7 @@ fn build_structural_call_return_machine(
         call.statement_index,
         false,
         false,
+        &[],
     )?;
     let [argument] = structural_arguments.as_slice() else {
         return None;
@@ -1913,6 +1914,7 @@ pub(super) fn build_boundary_scalar_return_machine(
         call,
         false,
         Some(ExpectedCallValueResult::Scalar(result_type)),
+        &[],
     )?;
     let CheckedUnitEffectOperationPlan::BoundaryCall {
         target_machine,

@@ -1453,6 +1453,7 @@ fn build_checked_machine_with(
                 call,
                 false,
                 Some(ExpectedCallValueResult::Scalar(result.primitive_type)),
+                &[],
             )?;
             operations.push(bind_scalar_call_result(
                 facts,
@@ -1490,6 +1491,7 @@ fn build_checked_machine_with(
                 call,
                 false,
                 Some(ExpectedCallValueResult::Scalar(result.primitive_type)),
+                &[],
             )?;
             operations.push(bind_scalar_call_result(
                 facts,
@@ -1502,6 +1504,7 @@ fn build_checked_machine_with(
             store,
         ));
     } else {
+        let mut structural_result_bindings = Vec::new();
         let call_offset =
             if let Some((application, result)) = selected_scalar_result_local {
                 let operation =
@@ -1570,6 +1573,7 @@ fn build_checked_machine_with(
                     call,
                     false,
                     Some(ExpectedCallValueResult::Structural(&result)),
+                    &[],
                 )?;
                 let operation = match operation {
                     CheckedUnitEffectOperationPlan::BoundaryCall {
@@ -1610,6 +1614,9 @@ fn build_checked_machine_with(
                     }
                     _ => return None,
                 };
+                if let CheckedUnitEffectOperationPlan::StructuralCall { result, .. } = &operation {
+                    structural_result_bindings.push((result.clone(), structural_result_symbol?));
+                }
                 operations.push(operation);
                 1
             } else {
@@ -1620,7 +1627,7 @@ fn build_checked_machine_with(
             if call.statement_index != statement_index || call.call_ordinal != 0 {
                 return None;
             }
-            operations.push(build_call_operation(
+            let operation = build_call_operation(
                 program,
                 facts,
                 machine,
@@ -1632,7 +1639,33 @@ fn build_checked_machine_with(
                 call,
                 false,
                 None,
-            )?);
+                &structural_result_bindings,
+            )?;
+            if let CheckedUnitEffectOperationPlan::CallUnit {
+                structural_arguments,
+                ..
+            } = &operation
+            {
+                for binding_ordinal in structural_arguments
+                    .iter()
+                    .filter_map(|argument| argument.source_structural_result_binding_ordinal())
+                {
+                    let producer = operations.iter_mut().find(|operation| matches!(operation,
+                        CheckedUnitEffectOperationPlan::StructuralCall { result, .. } if result.binding_ordinal == binding_ordinal))?;
+                    let CheckedUnitEffectOperationPlan::StructuralCall {
+                        discard_result_on_return,
+                        ..
+                    } = producer
+                    else {
+                        unreachable!()
+                    };
+                    if !*discard_result_on_return {
+                        return None;
+                    }
+                    *discard_result_on_return = false;
+                }
+            }
+            operations.push(operation);
         }
     }
     let transferred_local_ordinals = operations

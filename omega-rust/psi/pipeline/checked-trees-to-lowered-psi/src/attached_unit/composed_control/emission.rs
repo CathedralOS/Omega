@@ -372,6 +372,7 @@ pub(super) fn emit_boundary_call_operation(
         parameters,
         &[],
         &[],
+        &[],
         &target.checked_structural_parameters,
         type_ids,
         structural_types,
@@ -408,6 +409,7 @@ pub(super) fn emit_boundary_call_operation(
             structural_arguments: lower_structural_arguments(
                 structural_arguments,
                 parameters,
+                &[],
                 &[],
                 &[],
                 &[],

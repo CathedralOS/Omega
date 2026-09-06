@@ -1,6 +1,9 @@
 use super::*;
 use semantic_vocabulary::StructuralPlaceKind;
 
+#[path = "affine_identity_calls/result_uses.rs"]
+mod result_uses;
+
 fn integer(sign: IntegerSign, bits: u16) -> ScalarType {
     ScalarType::Integer(IntegerType::new(sign, bits).unwrap())
 }

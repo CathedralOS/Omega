@@ -1590,6 +1590,7 @@ pub(super) fn structural_crash_route_argument_prefix(
     parameters: &[StructuralParameterDeclaration],
     trivial_affine_locals: &[StructuralPlaceDeclaration],
     affine_scalar_record_locals: &[StructuralPlaceDeclaration],
+    structural_results: &[(StructuralPlaceDeclaration, bool)],
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<Vec<CanonicalStructuralPathSegment>, LoweringError> {
     let mut structural_type = parameters
@@ -1609,16 +1610,19 @@ pub(super) fn structural_crash_route_argument_prefix(
             })
         })
         .or_else(|| {
-            affine_scalar_record_locals.iter().find_map(|local| {
-                (local.id == argument.place)
-                    .then_some(match local.kind {
-                        StructuralPlaceKind::OperationResult {
-                            structural_type, ..
-                        } => Some(structural_type),
-                        _ => None,
-                    })
-                    .flatten()
-            })
+            affine_scalar_record_locals
+                .iter()
+                .chain(structural_results.iter().map(|(place, _)| place))
+                .find_map(|local| {
+                    (local.id == argument.place)
+                        .then_some(match local.kind {
+                            StructuralPlaceKind::OperationResult {
+                                structural_type, ..
+                            } => Some(structural_type),
+                            _ => None,
+                        })
+                        .flatten()
+                })
         })
         .ok_or(LoweringError::Unsupported(
             "structural crash route argument has no caller structural source",

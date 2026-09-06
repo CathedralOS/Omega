@@ -500,6 +500,7 @@ fn assemble_unit_closure(
                             "Unit call does not match the exact checked target state, contract, and reach",
                         );
                     }
+                    structural_calls::validate_consumer(checked, machine, operation, target)?;
                 }
                 CheckedUnitEffectOperationPlan::StructuralCall { .. } => {
                     structural_calls::validate(checked, machine, operation)?;
@@ -1386,6 +1387,7 @@ fn assemble_unit_closure(
                         parameters,
                         &local_places,
                         &affine_scalar_record_places,
+                        &structural_result_places,
                         &target.structural_parameters,
                         &type_ids,
                         &structural_types,
@@ -1400,6 +1402,7 @@ fn assemble_unit_closure(
                         parameters,
                         &local_places,
                         &affine_scalar_record_places,
+                        &structural_result_places,
                         &[],
                     )?;
                     let target_parameters = lowered_machine_parameters
@@ -1484,6 +1487,7 @@ fn assemble_unit_closure(
                                         parameters,
                                         &local_places,
                                         &affine_scalar_record_places,
+                                        &structural_result_places,
                                         &structural_types,
                                     )?,
                                 ),
@@ -1755,6 +1759,7 @@ fn assemble_unit_closure(
                         parameters,
                         &[],
                         &[],
+                        &[],
                         &target.structural_parameters,
                         &type_ids,
                         &structural_types,
@@ -1797,6 +1802,7 @@ fn assemble_unit_closure(
                     let arguments = lower_structural_arguments(
                         structural_arguments,
                         parameters,
+                        &[],
                         &[],
                         &[],
                         &[],
@@ -1896,6 +1902,7 @@ fn assemble_unit_closure(
                         parameters,
                         &[],
                         &[],
+                        &[],
                         std::slice::from_ref(&target.structural_parameter),
                         &type_ids,
                         &structural_types,
@@ -1938,6 +1945,7 @@ fn assemble_unit_closure(
                     let arguments = lower_structural_arguments(
                         structural_arguments,
                         parameters,
+                        &[],
                         &[],
                         &[],
                         &[],
@@ -2134,6 +2142,7 @@ fn assemble_unit_closure(
                         parameters,
                         &[],
                         &[],
+                        &[],
                         &target.structural_parameters,
                         &type_ids,
                         &structural_types,
@@ -2181,6 +2190,7 @@ fn assemble_unit_closure(
                         structural_arguments: lower_structural_arguments(
                             structural_arguments,
                             parameters,
+                            &[],
                             &[],
                             &[],
                             &call_literal_places,
@@ -2251,6 +2261,7 @@ fn assemble_unit_closure(
                         parameters,
                         &[],
                         &[],
+                        &[],
                         &target.structural_parameters,
                         &type_ids,
                         &structural_types,
@@ -2298,6 +2309,7 @@ fn assemble_unit_closure(
                         structural_arguments: lower_structural_arguments(
                             structural_arguments,
                             parameters,
+                            &[],
                             &[],
                             &[],
                             &call_literal_places,
@@ -2419,6 +2431,7 @@ fn assemble_unit_closure(
                         parameters,
                         &[],
                         &[],
+                        &[],
                         &target.structural_parameters,
                         &type_ids,
                         &structural_types,
@@ -2466,6 +2479,7 @@ fn assemble_unit_closure(
                         structural_arguments: lower_structural_arguments(
                             structural_arguments,
                             parameters,
+                            &[],
                             &[],
                             &[],
                             &call_literal_places,
