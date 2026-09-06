@@ -49,7 +49,7 @@ pub fn exact_self_field<'program>(
 
 /// Rejoin an attached field's original or inherited declaration identity.
 /// The caller establishes that the expression denotes this receiver's storage.
-pub(crate) fn exact_attached_field<'program>(
+pub fn exact_attached_field<'program>(
     program: &'program TypedTrees,
     machine: &Machine,
     field_symbol: SymbolHandle,

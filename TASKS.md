@@ -375,11 +375,6 @@ Owners include
   requires explicit `&write` arguments. Do not treat an implicit receiver as
   readable merely to dispatch it.
 
-  Bind bare attached-field projections through their exact declaration in
-  `typed-trees-to-checked-trees/src/authored_selections.rs`: `inner.value = 17`
-  passes write-only access validation but leaves its `CheckedMember` selection
-  unresolved. The explicit `self.inner.value` spelling completes checking.
-
   Native referent identity follows `STRUCTURAL-BORROW-IDENTITY` below; it is
   not an owner-policy blocker. Preserve write-only non-observation independently
   of the shared physical reference ABI.

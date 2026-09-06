@@ -238,10 +238,10 @@ fn write_only_self_bare_attached_fields_cannot_be_observed() {
 }
 
 #[test]
-fn write_only_self_bare_attached_fields_pass_access_validation() {
+fn write_only_self_bare_attached_fields_complete_checking() {
     for body in ["value = 17;", "inner.value = 17;", "inner.values[1] = 17;"] {
-        validation::validate_program(&typed_source(&receiver_source("&write self", "", body)))
-            .expect("bare fields have the same access rules; later member-selection binding is separate");
+        check_source(&receiver_source("&write self", "", body))
+            .expect("bare field access and exact declaration selection both complete");
     }
     check_source(&receiver_source("&write self", "", "value = 17;"))
         .expect("a direct bare field store completes checking");

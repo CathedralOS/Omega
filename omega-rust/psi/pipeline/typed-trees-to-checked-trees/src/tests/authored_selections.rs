@@ -7,6 +7,7 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionTarget, AuthoredDeclarationSelections,
 };
 
+mod attached_fields;
 mod indexed_operators;
 mod projected_receivers;
 
