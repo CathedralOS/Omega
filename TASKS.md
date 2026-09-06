@@ -182,6 +182,14 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   chapter 3 and the
   [termination brief](wiki/design_briefs/termination_ranking_and_progress.md).
 
+- **GUARDED-FUEL-RANGES.** Preserve ordered transition guards when proving
+  state-argument ranges in Psi validation. `AccessPlan::with_bounded` in
+  `source/library/core/layout.omg` rejects `fuel - 1` passed to `advance`
+  despite the selected `fuel > 1` guard and incoming `fuel: u64 [1..=128]`.
+  Acceptance: all `compiler::calling_policy_plans` cases reach their intended
+  checks, while missing guards, stale operands, and out-of-range decrements
+  still reject. Keep the library's bounded fuel and termination contract.
+
 `omega-rust/` remains the production implementation until that contract
 closes. It may remain afterward as a differential implementation while it finds
 real bugs, but Rust agreement is not bootstrap authority and Rust-specific
@@ -437,6 +445,15 @@ Owners include
   Private ranking witnesses stay outside public identity. Acceptance: every
   used premise is reconstructed for the exact subject and no qualification or
   similarly shaped row mints one implicitly.
+
+  Complete per-field value origins across named-state arrivals, live reference
+  aliases, and qualification-preserving helper calls in
+  `checks/termination/progress/{origins.rs,lineage.rs}`. A mutated aggregate
+  cannot use root correspondence as evidence for its previous field values;
+  a may-write frame cannot identify a replacement value. Acceptance: finite
+  projected arrivals and checked helper correspondences derive the replacement
+  input's exact premise, while unknown writes and reference aliases without
+  exact provenance retain no checked guarantee.
 
 - **NOMINAL-FIELD-FLOW.** Complete declared-field domain evidence in Psi
   semantic facts, flow transfer, and contract consumption. Collection elements

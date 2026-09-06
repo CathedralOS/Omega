@@ -274,6 +274,13 @@ premise schemas from the named requirement contract rather than from whichever
 implementation is later substituted. This keeps generic and exported contract
 identity fixed across selection.
 
+A field's unchanged name does not preserve its previous value's progress
+qualification. An owned replacement depends on the source value captured by
+that assignment; later changes to the source slot cannot rewrite the captured
+dependency. Disjoint writes preserve identity. Reference copies preserve live
+aliases, not snapshots of their referents, and need their own exact storage
+correspondence.
+
 The checked-only transition certificate covers an existing statement transfer
 only when both endpoints are exact parameter- or prior-state-local-rooted
 Field/Case places, possibly continued through nested in-bounds `FixedIndex`
