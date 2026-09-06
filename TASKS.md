@@ -351,11 +351,23 @@ Owners include
   mutable borrow. Acceptance includes read rejection, exact write coverage,
   unwind/return behavior, and both Linux targets.
 
-  General native structural mutation and caller-visible writeback are
-  OWNER-BLOCKED on the native structural-parameter identity decision in
-  `OWNER_QUESTIONS.md`. Current projected-store byte and installation tests
-  do not establish mutation of the caller's referent after return. Checked
-  semantics, independent Terminal replay, and interpreter execution can proceed.
+  Native referent identity follows `STRUCTURAL-BORROW-IDENTITY` below; it is
+  not an owner-policy blocker. Preserve write-only non-observation independently
+  of the shared physical reference ABI.
+
+- **STRUCTURAL-BORROW-IDENTITY.** Enforce the settled
+  [structural borrow identity contract](wiki/design_briefs/core_multiplicity_and_linearity.md#structural-borrow-identity-at-native-calls)
+  through structural-signature construction, call argument preparation, and
+  native validation/replay. All borrowed access modes use one classifier and
+  the existing `BorrowedReference` tag; only owned inputs use value-shape ABI
+  selection. Structural producers must require the derived signature result,
+  while generic scalar ABI construction stays available. Acceptance: caller-
+  visible writes, forwarded references, legal synchronized shared observations,
+  write-only non-reading, and register/stack pointer passing work on both Linux
+  targets. Independently formed or substituted access/shape/placement pairs
+  reject; replace the hand-built mutable/direct-copy fixture with a reference
+  case or a rejection control. Do not claim copy equivalence merely because a
+  following callee sees the staged write.
 
 - **BORROW-PROOF-CONVERGENCE.** Make ordinary borrow checking proof-producing
   without allowing propositions to create or amplify authority. Normalize

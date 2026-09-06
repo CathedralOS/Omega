@@ -192,15 +192,109 @@ incoming-stack target ABI placement are independently reconstructed rather
 than trusted from an emitted record. Boolean definitions
 retain their zero-code semantic ordinal and exact one-byte store rather than
 borrowing an integer-definition carrier.
-Native byte and installation replay do not prove caller-visible writeback:
-small structural borrows may still be copied into local homes. General native
-projected mutation remains blocked on the native structural-parameter identity
-decision in `OWNER_QUESTIONS.md`. Terminal interpretation retains referent
-identity across calls and returns independently of that native ABI decision.
+Native byte and installation replay alone do not prove caller-visible mutation.
+The [structural borrow identity contract](#structural-borrow-identity-at-native-calls)
+below is settled; complete enforcement across native signature construction and
+replay remains implementation work. Terminal interpretation already retains
+referent identity across calls and returns. A frame home may hold the original
+pointer rather than copied object bytes; staging alone is not evidence of a
+reference-identity defect.
 Additional assignments, generics, domains/invariants, quotients, sums, nested
 or dynamic array indexes, ranges, aggregate array elements, erased fields,
 bodyless boundary result homes, delayed result uses, and other nonliteral
 values remain outside this rung.
+
+## Structural borrow identity at native calls
+
+Owner-ratified 2026-09-05. This confirms ordinary reference semantics rather
+than introducing a choice between references and snapshots. Every borrowed
+structural argument denotes the original referent throughout its valid loan.
+Small size, a register ABI, or a local frame home cannot change that meaning.
+
+| Semantic access | Unoptimized native parameter contract |
+| --- | --- |
+| `Owned` | Select the value ABI from the referent shape. Physical ABI indirection, if required for an owned value, does not turn it into a borrow. |
+| `SharedBorrow` | Pass a reference to the original storage; retain shared access restrictions. |
+| `MutableBorrow` | Pass a reference to the original storage; retain exclusive mutable access. |
+| `WriteOnlyBorrow` | Pass a reference to the original storage; retain exclusive non-observing access. |
+
+The existing `ValueClass::BorrowedReference` distinguishes reference passing
+structurally: its size/alignment describe the referent, and placement carries
+the original pointer without a caller-side value copy. Do not add a parallel
+`ByValue | ByReference` tag. Shared, mutable, and write-only modes still retain
+distinct semantic access even when their physical placements coincide.
+Type layout computes the referent's shape; parameter ABI derivation separately
+consumes access. Access does not belong in the aggregate-layout evaluator.
+
+### One structural-signature derivation
+
+Use one exhaustive access classifier for structural-signature construction.
+That construction consumes structural parameter declarations and their resolved
+referent shapes, and derives the ABI signature. Unit, scalar-result, and other
+structural-call producers must consume that derived result rather than assemble
+an unrelated `CallSignature` and attach semantic access afterward. Restrict
+construction of the structural result so the helper is mandatory, not merely
+available. Generic ABI signatures remain appropriate for scalar and other
+legitimate non-structural uses; the low-level ABI facility need not depend on
+Terminal declarations.
+
+Signature construction is only one side of the call. Argument preparation must
+also preserve the caller's actual referent, projection, lifetime, and permitted
+access against the callee's parameter declaration. A correctly derived callee
+signature does not validate an unrelated caller pointer or copied argument.
+
+At receiving boundaries, independently validate the semantic access, derived
+shape, placement, and actual argument/home relationship. Reconstructed,
+substituted, or independently supplied plans must not bypass these checks.
+Construction prevents normal producers from forming mismatches; validation and
+physical replay reject mismatches that arrive independently. A fixture which
+bypassed validation demonstrates a missing boundary check, not that the
+inconsistency is undetectable.
+
+### Current implementation and bounded repair
+
+The current `structural_parameter_shape` already selects `BorrowedReference`
+for mutable and write-only access, but lets shared access fall through with
+owned values. The scalar preparation path has a separate access-to-shape
+decision. Consolidate both and all structural-signature producers rather than
+installing parallel exhaustive matches. Existing ABI tests cover reference
+placement; they do not establish that every producer uses it.
+
+The Unit emitter stages an indirect parameter's pointer into a frame home and
+stores through the reloaded pointer. Its direct-home route instead stages value
+bytes and writes the local carrier. Both mechanisms have legitimate uses, but
+neither may redefine borrowed access. The hand-built `assigned_direct_plan`
+fixture in `machine-emission/src/tests/structural_scalar_unit.rs` pairs
+`MutableBorrow` with an integer-shaped direct signature and asserts a direct
+home. It is not a reference-identity proof: move it to the reference route or
+turn the inconsistent pair into a rejection control. Relabel it owned only if
+the behavior being tested genuinely has owned semantics.
+
+The audit covers structural-signature producers, argument preparation, and
+their receiving validation/replay boundaries. It is neither a review of every
+stack home nor a one-fixture fix: manually assembled downstream plans can bypass
+the classifier. Unsupported native forms remain fenced until their complete
+contract is enforced; removing the owner question does not remove those fences.
+
+### Optimizations and acceptance
+
+A copy-based optimization is legal only with a retained occurrence-specific
+equivalence proof covering all permitted observations and relevant exits.
+Copy-in/copy-out is not the default reference contract. Crash does not make
+equivalence inherently impossible or automatic: surviving observers and the
+specified crash behavior determine what must be preserved. A following callee
+seeing a staged write proves nothing about the caller's object after return.
+
+Acceptance must cover caller-visible mutable and write-only writes after
+return, forwarding the same reference through calls and projections, and both
+register-passed and stack-passed pointers. Shared-borrow controls must observe
+legal synchronized mutation through another permitted path during the call,
+not introduce an illegal mutable alias or data race. Preserve address identity
+where the language exposes it, and verify that write-only stores never read
+the destination. Negative controls cover borrowed access paired with a value
+shape/copy placement, caller/callee mismatch, and stale or substituted plans at
+receiving boundaries. Run native controls on both Linux architectures; encoding
+or interpreter-only checks are not substitutes for caller-observation tests.
 
 ## Consumers and cleanup
 
