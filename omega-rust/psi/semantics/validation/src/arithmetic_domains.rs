@@ -41,6 +41,7 @@ mod guard_narrowing;
 mod interval;
 mod invariant_bounds;
 mod monotonic_update;
+mod ordered_values;
 mod total_specification;
 mod value_environment;
 
@@ -55,6 +56,7 @@ pub(crate) use guard_narrowing::{
 pub(crate) use interval::Interval;
 pub use invariant_bounds::immutable_integer_expression_bounds;
 pub use monotonic_update::builtin_monotonic_integer_update_bounds;
+pub use ordered_values::validate_ordered_requirement_call_totality;
 pub(crate) use total_specification::{
     validate_abstract_total_specification_arithmetic,
     validate_machine_total_specification_arithmetic, validate_total_specification_arithmetic,
@@ -384,6 +386,8 @@ pub(crate) fn record_assignment(
     declared_range: Option<Interval>,
 ) {
     if let Some(path) = path {
+        env.ordered_values
+            .retain(|relation| relation.survives(std::slice::from_ref(&path)));
         env.known_u64_values
             .retain(|known, _| !place_paths_overlap(known, &path));
         env.joint_add_upper_bounds.retain(|(left, right)| {

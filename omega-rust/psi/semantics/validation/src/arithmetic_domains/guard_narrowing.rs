@@ -170,6 +170,7 @@ pub(crate) fn requires_value_env(
             }
         }
     }
+    arrivals::seed_state_requirements(program, machine, entry_state, &mut env);
     env
 }
 
@@ -411,6 +412,9 @@ pub(super) fn narrow_env_by_condition(
         return;
     }
     let comparison = *comparison;
+    if let Some(state) = state {
+        ordered_values::record(program, machine, state, env, &comparison, positive);
+    }
     // Float facts are independent from the integer interval lattice. A
     // positive self-equality proves non-NaN; a positive ordered comparison
     // proves both non-NaN and its one-sided bound. Negated IEEE comparisons

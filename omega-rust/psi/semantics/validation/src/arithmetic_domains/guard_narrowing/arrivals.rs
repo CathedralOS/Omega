@@ -71,7 +71,7 @@ pub(super) fn seed_state_requirements(
     {
         for fact in program.proof_facts.span_or_empty(contract.facts) {
             if let ProofFact::Expression(condition) = fact
-                && condition_belongs_to_state(program, state, *condition)
+                && condition_belongs_to_state(program, machine, state, *condition)
             {
                 narrow_env_by_condition(
                     program,
@@ -107,6 +107,7 @@ pub(super) fn seed_state_requirements(
 
 fn condition_belongs_to_state(
     program: &TypedTrees,
+    machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
 ) -> bool {
@@ -124,14 +125,19 @@ fn condition_belongs_to_state(
         }
         ExpressionNode::Member(member) => {
             member.member_symbol.is_valid()
-                && condition_belongs_to_state(program, state, member.receiver)
+                && condition_belongs_to_state(program, machine, state, member.receiver)
         }
         ExpressionNode::Binary(binary) => {
-            condition_belongs_to_state(program, state, binary.left)
-                && condition_belongs_to_state(program, state, binary.right)
+            condition_belongs_to_state(program, machine, state, binary.left)
+                && condition_belongs_to_state(program, machine, state, binary.right)
         }
-        ExpressionNode::Unary(unary) => condition_belongs_to_state(program, state, unary.operand),
+        ExpressionNode::Unary(unary) => {
+            condition_belongs_to_state(program, machine, state, unary.operand)
+        }
         ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) | ExpressionNode::Float(_) => true,
+        ExpressionNode::Call(_) => {
+            ordered_values::operand(program, machine, state, expression).is_some()
+        }
         _ => false,
     }
 }
@@ -292,6 +298,7 @@ impl ArrivalWalk<'_, '_> {
             return;
         }
         let mut bindings = Vec::new();
+        let mut exact_bindings = Vec::new();
         if let Some(target_self) = parameters.iter().find(|parameter| parameter.is_self)
             && let Some(source_self) = self
                 .program
@@ -303,6 +310,16 @@ impl ArrivalWalk<'_, '_> {
                 source_self.name.as_str().to_owned(),
                 target_self.name.as_str().to_owned(),
             ));
+            exact_bindings.push((
+                ordered_values::Operand::parameter(source_self),
+                ordered_values::Operand::parameter(target_self),
+            ));
+            let attachment = ordered_values::Operand::Place {
+                root: self.machine.symbol,
+                fields: Vec::new(),
+                path: "self".to_owned(),
+            };
+            exact_bindings.push((attachment.clone(), attachment));
         }
         for (parameter, argument) in parameters
             .iter()
@@ -312,8 +329,21 @@ impl ArrivalWalk<'_, '_> {
             if let Some(path) = self.bound_place(source, *argument) {
                 bindings.push((path, parameter.name.as_str().to_owned()));
             }
+            if !environment.ordered_values.is_empty()
+                && let Some(value) =
+                    ordered_values::operand(self.program, self.machine, source, *argument)
+            {
+                exact_bindings.push((value, ordered_values::Operand::parameter(parameter)));
+            }
         }
         let mut rebound = environment.rebind(&bindings);
+        for relation in &environment.ordered_values {
+            for relation in relation.rebound(&exact_bindings) {
+                if !rebound.ordered_values.contains(&relation) {
+                    rebound.ordered_values.push(relation);
+                }
+            }
+        }
         for (parameter, interval) in parameters
             .iter()
             .filter(|parameter| !parameter.is_self)

@@ -1212,6 +1212,8 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "arithmetic/exact_integer_cast_unproven",
     "arithmetic/authored_boolean_wrapper_bound",
     "arithmetic/authored_requires_numeric_bound",
+    "arithmetic/stale_named_state_call_bound",
+    "arithmetic/stale_named_state_operand_bound",
     "expressions/arithmetic_domain_mixed",
     "arithmetic/wrapping_target_plain_operands_rejected",
     "arithmetic/u64_literal_into_i64_rejected",

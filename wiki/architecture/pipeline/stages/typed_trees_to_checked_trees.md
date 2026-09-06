@@ -130,6 +130,23 @@ before exposing a bound. Unknown or overlapping writes retire the affected
 facts. Authored requirements remain body-checking assumptions whose callers
 must independently establish them.
 
+`arithmetic_domains/ordered_values.rs` retains ordered operands by resolved
+storage identity, builtin computation meaning, and exact value-call target and
+inputs. Its temporary relations are rebound through explicit state arguments,
+intersected across arrivals, and retired by writes to any nested input. Repeated
+calls require the shared effect and observation-free closure plus concrete
+value-input and builtin-operator custody; an empty write frame alone does not
+establish repeatability. A subtraction consumes the live relation without
+widening its independently computed upper bound. Machine-entry requirements do
+not apply to later same-spelled parameters.
+
+Normal-return equality does not establish total fact denotation. Final checking
+validates eligible scalar calls in authored requirements against the finalized
+unconditional termination facts and absence of crash routes. A runtime guard
+may instead compare repeated results conditional on normal completion, while
+its invocation retains the ordinary crash obligations. Broader call adaptations
+remain outside this concrete value-call analysis.
+
 Local integer guards also project immutable operand intervals through builtin
 ordered comparisons. `guard_narrowing/parameter_bounds.rs` uses the existing
 `invariant_bounds.rs` owner, retaining one-sided carrier bounds: an unrestricted

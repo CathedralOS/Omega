@@ -514,7 +514,11 @@ pub(crate) fn validate_checked_call_candidate<'program>(
         );
         return None;
     }
-    if !has_observation_free_checked_closure(program, machine.symbol, operational) {
+    if !crate::denotational_calls::has_observation_free_checked_closure(
+        program,
+        machine.symbol,
+        operational,
+    ) {
         reject(
             "the selected call closure observes or mutates hidden state, uses atomic/external machinery, or contains a non-checked target",
             diagnostics,
@@ -526,165 +530,6 @@ pub(crate) fn validate_checked_call_candidate<'program>(
         return None;
     }
     Some((*machine, *state))
-}
-
-fn has_observation_free_checked_closure(
-    program: &TypedTrees,
-    machine_symbol: symbols::SymbolHandle,
-    operational: &flow_effects::OperationalPlan,
-) -> bool {
-    let mut pending = vec![machine_symbol];
-    let mut visited = Vec::new();
-    while let Some(current) = pending.pop() {
-        if visited.contains(&current) {
-            continue;
-        }
-        visited.push(current);
-        let Some(machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == current)
-        else {
-            return false;
-        };
-        if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-            || !machine.body_is_present
-            || !program.machine_owned_data(machine).is_empty()
-            || !program
-                .service_reach_rows
-                .services(machine.service_reach_row)
-                .is_empty()
-        {
-            return false;
-        }
-        for state in program.machine_states(machine) {
-            if program
-                .state_parameters(state)
-                .iter()
-                .any(|parameter| parameter.is_mutable)
-            {
-                return false;
-            }
-            for statement in program.statement_table.statements(state.statement_nodes) {
-                use typed_trees::statement::StatementNode;
-                let allowed = match statement {
-                    StatementNode::AssemblyFact(_) | StatementNode::Assignment(_) => false,
-                    StatementNode::Expression(expression) => {
-                        expression_is_fact_observation_free(program, *expression)
-                    }
-                    StatementNode::LocalData(local) => {
-                        !local.is_mutable
-                            && expression_is_fact_observation_free(program, local.initial_value)
-                    }
-                    StatementNode::Call(call) => {
-                        !call.receiver_symbol.is_valid()
-                            && program
-                                .expression_table
-                                .expression_handles(call.arguments)
-                                .iter()
-                                .all(|argument| {
-                                    expression_is_fact_observation_free(program, *argument)
-                                })
-                    }
-                    StatementNode::Transition(transition) => {
-                        transition_is_fact_observation_free(program, transition)
-                    }
-                };
-                if !allowed {
-                    return false;
-                }
-            }
-        }
-        let summaries = operational
-            .machines()
-            .iter()
-            .filter(|summary| summary.symbol == current)
-            .collect::<Vec<_>>();
-        let [summary] = summaries.as_slice() else {
-            return false;
-        };
-        for state in operational.states.span_or_empty(summary.states) {
-            for call in operational.calls.span_or_empty(state.calls) {
-                if !call.target_machine_symbol.is_valid() {
-                    return false;
-                }
-                pending.push(call.target_machine_symbol);
-            }
-        }
-    }
-    true
-}
-
-fn transition_is_fact_observation_free(
-    program: &TypedTrees,
-    transition: &typed_trees::statement::TableTransition,
-) -> bool {
-    use typed_trees::statement::{TransitionGuardNode, TransitionTargetNode};
-    let guard = match transition.guard {
-        TransitionGuardNode::Always => true,
-        TransitionGuardNode::When(expression) => {
-            expression_is_fact_observation_free(program, expression)
-        }
-    };
-    let target = |handle| match program.statement_table.transition_target(handle) {
-        TransitionTargetNode::Named { arguments, .. } => program
-            .expression_table
-            .expression_handles(*arguments)
-            .iter()
-            .all(|argument| expression_is_fact_observation_free(program, *argument)),
-        TransitionTargetNode::Value(expression) => {
-            expression_is_fact_observation_free(program, *expression)
-        }
-        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => true,
-    };
-    guard && target(transition.target) && target(transition.continuation)
-}
-
-fn expression_is_fact_observation_free(program: &TypedTrees, expression: ExpressionHandle) -> bool {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Atomic(_) | ExpressionNode::Borrow(_) => false,
-        ExpressionNode::Binary(binary) => {
-            expression_is_fact_observation_free(program, binary.left)
-                && expression_is_fact_observation_free(program, binary.right)
-        }
-        ExpressionNode::Cast(cast) => expression_is_fact_observation_free(program, cast.value),
-        ExpressionNode::Call(call) => {
-            !call.receiver.is_valid()
-                && program
-                    .expression_table
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .all(|argument| expression_is_fact_observation_free(program, *argument))
-        }
-        ExpressionNode::Indexed(indexed) => {
-            expression_is_fact_observation_free(program, indexed.collection)
-                && expression_is_fact_observation_free(program, indexed.index)
-        }
-        ExpressionNode::Member(member) => {
-            expression_is_fact_observation_free(program, member.receiver)
-        }
-        ExpressionNode::Range(range) => {
-            expression_is_fact_observation_free(program, range.start)
-                && expression_is_fact_observation_free(program, range.end)
-        }
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
-            .struct_fields(literal.fields)
-            .iter()
-            .all(|field| expression_is_fact_observation_free(program, field.value)),
-        ExpressionNode::Unary(unary) => expression_is_fact_observation_free(program, unary.operand),
-        ExpressionNode::ArrayLiteral(values) => program
-            .expression_table
-            .expression_handles(*values)
-            .iter()
-            .all(|value| expression_is_fact_observation_free(program, *value)),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => true,
-    }
 }
 
 pub(crate) fn expression_contains_call_projection(

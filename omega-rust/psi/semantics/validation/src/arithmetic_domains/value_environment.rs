@@ -52,6 +52,7 @@ impl FloatInterval {
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub(crate) struct ValueEnv {
+    pub(super) ordered_values: Vec<ordered_values::Relation>,
     pub(super) intervals: BTreeMap<String, Interval>,
     pub(super) known_u64_values: BTreeMap<String, u64>,
     pub(super) float_intervals: BTreeMap<String, FloatInterval>,
@@ -128,6 +129,7 @@ impl ValueEnv {
     /// Drop all tracked values (after an opaque effect like a call that may
     /// mutate fields through `&mut`, or when leaving the linear prefix).
     pub(crate) fn clear(&mut self) {
+        self.ordered_values.clear();
         self.intervals.clear();
         self.known_u64_values.clear();
         self.float_intervals.clear();
@@ -147,6 +149,8 @@ impl ValueEnv {
     /// A write to a parent invalidates descendants; a write to a descendant
     /// also invalidates any fact recorded for the parent value itself.
     pub(crate) fn invalidate_written_paths(&mut self, written: &[String]) {
+        self.ordered_values
+            .retain(|relation| relation.survives(written));
         let overlaps = |path: &str| {
             written
                 .iter()
@@ -405,6 +409,12 @@ impl ValueEnv {
     /// state from its incoming edge guards.
     pub(crate) fn join(&self, other: &ValueEnv) -> ValueEnv {
         let mut joined = ValueEnv::new();
+        joined.ordered_values.extend(
+            self.ordered_values
+                .iter()
+                .filter(|relation| other.ordered_values.contains(relation))
+                .cloned(),
+        );
         for (path, interval) in &self.intervals {
             if let Some(other_interval) = other.intervals.get(path) {
                 joined
