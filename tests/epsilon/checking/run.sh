@@ -34,8 +34,8 @@ temporary = Path(os.environ["CHECKING_TMP"])
 source = (temporary / "epsilon_compiler.delta").read_bytes()
 driver = (gate / "checking_driver.delta").read_bytes()
 for name, data, size, digest in (
-    ("Epsilon source closure", source, 600123,
-     "e9fcf468f6f791c85bb1a5e40d463656017289de113fc2a47f9ccabdf9b022f5"),
+    ("Epsilon source closure", source, 610428,
+     "656c57b59d1ea8923343496b032d10ef8980e89e3c39b3855feae5498611a1c0"),
     ("checking driver", driver, 944,
      "d6a066af55a4e1b6b95e825120b632b177b774a4eab68a6d366d8d18a4c55e5d"),
 ):

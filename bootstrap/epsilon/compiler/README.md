@@ -25,12 +25,12 @@ normative Epsilon request or observation envelope.
 | Runtime references | [`execution/references.delta`](execution/references.delta) prepares the shared index and complete linear fallback. [`rows.delta`](execution/references/rows.delta) sequences expression ledgers; [`control_rows.delta`](execution/references/control_rows.delta) selects state, subject, and completed-pattern records. [`construction.delta`](execution/references/construction.delta) owns interval insertion, [`buckets.delta`](execution/references/buckets.delta) preserves typed ledger order, and [`lookup.delta`](execution/references/lookup.delta) delegates exact queries. |
 | Projections | [`execution/projections/fields.delta`](execution/projections/fields.delta) selects checked record fields and contextual array/view members; [`indexes.delta`](execution/projections/indexes.delta) evaluates indexes and checks bounds before access. |
 | Views | [`execution/views/slices.delta`](execution/views/slices.delta) sequences base and bound evaluation. [`backing.delta`](execution/views/backing.delta) reads ultimate backing and implements place-only `.as_slice`; [`strings.delta`](execution/views/strings.delta) decodes literal bytes. |
-| Storage | [`execution/storage/homes.delta`](execution/storage/homes.delta) owns runtime roots, reads, writes, and reclamation. [`places.delta`](execution/storage/places.delta) walks projection paths; [`liveness.delta`](execution/storage/liveness.delta) retains backing roots needed by surviving state views. Sibling files own immutable values, sparse children, and local bindings. |
+| Storage | [`execution/storage/homes.delta`](execution/storage/homes.delta) owns runtime roots, reads, writes, and reclamation. [`places.delta`](execution/storage/places.delta) walks projection paths; [`children.delta`](execution/storage/children.delta) selects record-field or indexed-array access. [`arrays.delta`](execution/storage/arrays.delta) validates array extents and delegates to [`arrays/lookup.delta`](execution/storage/arrays/lookup.delta) and [`arrays/updates.delta`](execution/storage/arrays/updates.delta). [`liveness.delta`](execution/storage/liveness.delta) retains backing roots needed by surviving state views. |
 | Console | [`execution/console.delta`](execution/console.delta) sequences argument effects and selects the operation. [`console/input.delta`](execution/console/input.delta) advances sealed input; [`console/output.delta`](execution/console/output.delta) owns byte/line output and exit. |
 | Runtime operations | [`execution/statements.delta`](execution/statements.delta) applies statements. `scalars/` and `control/` own scalar operations and block/state control. |
 | Shared representations | [`representations/`](representations/) groups syntax, parsing outcomes, checked facts, diagnostics, and execution values by concept. |
 
-The 84 authoring members have at most 450 lines each; the root entrance has 26.
+The 87 authoring members have at most 450 lines each; the root entrance has 26.
 Files end at complete top-level Delta forms. They are not independent Delta
 modules: they share one translation unit and the language gains no imports.
 
@@ -48,8 +48,8 @@ source inventory, then concatenates bytes without separators. It does not parse
 or lower Delta. Bootstrap callers use `OMEGA_PATH_EPSILON_COMPILER_SOURCES`
 from the shared role registry rather than reading the entrance as the full source.
 
-The packed evaluator is 11,777 lines / 600,123 bytes, SHA-256
-`e9fcf468f6f791c85bb1a5e40d463656017289de113fc2a47f9ccabdf9b022f5`.
+The packed evaluator is 11,984 lines / 610,428 bytes, SHA-256
+`656c57b59d1ea8923343496b032d10ef8980e89e3c39b3855feae5498611a1c0`.
 When editing a member, update its manifest length and digest; change membership
 explicitly when adding or removing source. Update exact test identities only
 after reviewing the semantic change and its generated receipt.
@@ -103,6 +103,7 @@ sh tests/epsilon/checking/run.sh
 sh tests/epsilon/checking-invariants/run.sh
 sh tests/epsilon/runtime-references/run.sh
 sh tests/epsilon/runtime-invariants/run.sh
+sh tests/epsilon/array-storage/run.sh
 sh tests/epsilon/source-views/run.sh
 sh tests/epsilon/interpreted-omega-experiment/run.sh
 sh tests/delta/staged-compiler/run.sh
@@ -115,7 +116,14 @@ invocation-local homes. Views retain literal, live-place, or existing snapshot
 backing; strings, range slices, `.as_slice`, indexing, lengths, and all four
 Console operations execute in this staging path. Sparse typed zero homes avoid
 eager array allocation; they do not establish the final application's physical
-storage profile. Sum constructors, first-case zero defaults, checked case
+storage profile. Record fields retain exact checked identities in a sparse list;
+array children use an immutable interval tree keyed by element index. Reads and
+updates traverse at most 31 partitions, independent of the number of populated
+elements, and updates share untouched branches. Parent reconstruction has its
+own stack, separate from either child representation. The
+[array-storage gate](../../../tests/epsilon/array-storage/README.md) covers an
+ordinary fill/read workload and private malformed-path controls.
+Sum constructors, first-case zero defaults, checked case
 transitions, and copied payload binders have staging execution paths. The
 [immediate payload establishment rule](../LANGUAGE.md#epsilon-constructor-payload-establishment-order)
 traps as `ByteRange` at a failing byte payload before later arguments run,

@@ -15,3 +15,61 @@
     ((EpsilonNeverType start end) NoEpsilonRuntimeValue)
     ((EpsilonNamedType start end name) NoEpsilonRuntimeValue)
     ((EpsilonViewType start end element) NoEpsilonRuntimeValue)))
+
+(def epsilon_runtime_array_extent ((typeValue EpsilonType)) Int
+  (match typeValue
+    ((EpsilonArrayType start end element lengthValue)
+      (epsilon_integer_literal_value lengthValue))
+    ((EpsilonI32Type start end) 0)
+    ((EpsilonU8Type start end) 0)
+    ((EpsilonNeverType start end) 0)
+    ((EpsilonNamedType start end name) 0)
+    ((EpsilonViewType start end element) 0)))
+
+(def epsilon_runtime_array_index_valid ((extent Int) (index Int)) Int
+  (if (lt extent 1) 0
+    (if (lt 2147483647 extent) 0
+      (if (lt index 0) 0 (lt index extent)))))
+
+; The declared extent owns the index interval; stored metadata cannot replace it.
+(def epsilon_runtime_read_array_child ((typeValue EpsilonType) (index Int)
+  (children EpsilonRuntimeChildren) (defaultValue EpsilonRuntimeValue))
+  EpsilonRuntimeValueLookup
+  (let extent Int (epsilon_runtime_array_extent typeValue)
+    (if (epsilon_runtime_array_index_valid extent index)
+      (match children
+        (NoEpsilonRuntimeChildren (SomeEpsilonRuntimeValue defaultValue))
+        ((EpsilonRuntimeRecordChildren fields) NoEpsilonRuntimeValue)
+        ((EpsilonRuntimeIndexedChildren storedExtent tree)
+          (if (eq extent storedExtent)
+            (epsilon_runtime_array_lookup index 0 extent tree defaultValue)
+            NoEpsilonRuntimeValue)))
+      NoEpsilonRuntimeValue)))
+
+(def epsilon_runtime_array_updated_value ((typeValue EpsilonType) (extent Int)
+  (update EpsilonRuntimeArrayUpdate)) EpsilonRuntimeValueLookup
+  (match update
+    (EpsilonRuntimeArrayInvalid NoEpsilonRuntimeValue)
+    ((EpsilonRuntimeArrayUpdated tree)
+      (SomeEpsilonRuntimeValue
+        (EpsilonRuntimeAggregate typeValue
+          (EpsilonRuntimeIndexedChildren extent tree))))))
+
+(def epsilon_runtime_write_array_child ((typeValue EpsilonType) (index Int)
+  (value EpsilonRuntimeValue) (children EpsilonRuntimeChildren))
+  EpsilonRuntimeValueLookup
+  (let extent Int (epsilon_runtime_array_extent typeValue)
+    (if (epsilon_runtime_array_index_valid extent index)
+      (match children
+        (NoEpsilonRuntimeChildren
+          (epsilon_runtime_array_updated_value typeValue extent
+            (epsilon_runtime_array_insert index value 0 extent
+              EmptyEpsilonRuntimeArrayTree NoEpsilonRuntimeArrayFrames)))
+        ((EpsilonRuntimeRecordChildren fields) NoEpsilonRuntimeValue)
+        ((EpsilonRuntimeIndexedChildren storedExtent tree)
+          (if (eq extent storedExtent)
+            (epsilon_runtime_array_updated_value typeValue extent
+              (epsilon_runtime_array_insert index value 0 extent tree
+                NoEpsilonRuntimeArrayFrames))
+            NoEpsilonRuntimeValue)))
+      NoEpsilonRuntimeValue)))

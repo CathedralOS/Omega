@@ -1,0 +1,50 @@
+
+; One typed projection entrance selects record fields or indexed array children.
+; Bounds/default admission precedes storage lookup and every persistent update.
+(def epsilon_runtime_projection_default ((typeValue EpsilonType)
+  (projection EpsilonRuntimeProjection)) EpsilonRuntimeValueLookup
+  (match projection
+    ((EpsilonRuntimeField owner memberValue)
+      (match typeValue
+        ((EpsilonNamedType start end name)
+          (epsilon_runtime_field_default memberValue))
+        ((EpsilonI32Type start end) NoEpsilonRuntimeValue)
+        ((EpsilonU8Type start end) NoEpsilonRuntimeValue)
+        ((EpsilonNeverType start end) NoEpsilonRuntimeValue)
+        ((EpsilonArrayType start end element lengthValue) NoEpsilonRuntimeValue)
+        ((EpsilonViewType start end element) NoEpsilonRuntimeValue)))
+    ((EpsilonRuntimeIndex index)
+      (epsilon_runtime_index_default typeValue index))))
+
+(def epsilon_runtime_project ((value EpsilonRuntimeValue)
+  (projection EpsilonRuntimeProjection)) EpsilonRuntimeValueLookup
+  (match value
+    ((EpsilonRuntimeInteger integer) NoEpsilonRuntimeValue)
+    ((EpsilonRuntimeSumValue owner caseValue payloads) NoEpsilonRuntimeValue)
+    ((EpsilonRuntimeViewValue view) NoEpsilonRuntimeValue)
+    ((EpsilonRuntimeAggregate typeValue children)
+      (match (epsilon_runtime_projection_default typeValue projection)
+        (NoEpsilonRuntimeValue NoEpsilonRuntimeValue)
+        ((SomeEpsilonRuntimeValue defaultValue)
+          (match projection
+            ((EpsilonRuntimeField owner memberValue)
+              (epsilon_runtime_read_field_child projection children defaultValue))
+            ((EpsilonRuntimeIndex index)
+              (epsilon_runtime_read_array_child typeValue index children defaultValue))))))))
+
+(def epsilon_runtime_with_child ((parent EpsilonRuntimeValue)
+  (projection EpsilonRuntimeProjection) (value EpsilonRuntimeValue))
+  EpsilonRuntimeValueLookup
+  (match parent
+    ((EpsilonRuntimeInteger integer) NoEpsilonRuntimeValue)
+    ((EpsilonRuntimeSumValue owner caseValue payloads) NoEpsilonRuntimeValue)
+    ((EpsilonRuntimeViewValue view) NoEpsilonRuntimeValue)
+    ((EpsilonRuntimeAggregate typeValue children)
+      (match (epsilon_runtime_projection_default typeValue projection)
+        (NoEpsilonRuntimeValue NoEpsilonRuntimeValue)
+        ((SomeEpsilonRuntimeValue defaultValue)
+          (match projection
+            ((EpsilonRuntimeField owner memberValue)
+              (epsilon_runtime_write_field_child typeValue projection value children))
+            ((EpsilonRuntimeIndex index)
+              (epsilon_runtime_write_array_child typeValue index value children))))))))

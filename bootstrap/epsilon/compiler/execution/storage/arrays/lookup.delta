@@ -1,0 +1,33 @@
+
+(def epsilon_runtime_array_midpoint ((lower Int) (upper Int)) Int
+  (+ lower (/ (- upper lower) 2)))
+
+(def epsilon_runtime_array_split_valid ((lower Int) (upper Int) (split Int)) Int
+  (if (lt lower split)
+    (if (lt split upper)
+      (eq split (epsilon_runtime_array_midpoint lower upper))
+      0)
+    0))
+
+(def epsilon_runtime_array_leaf_valid ((lower Int) (upper Int) (index Int)) Int
+  (if (lt index lower) 0 (lt index upper)))
+
+; A compressed leaf can represent one live element in a wider sparse interval.
+; A different in-range index is absent; an out-of-range retained leaf is corrupt.
+(def epsilon_runtime_array_lookup ((index Int) (lower Int) (upper Int)
+  (tree EpsilonRuntimeArrayTree) (defaultValue EpsilonRuntimeValue))
+  EpsilonRuntimeValueLookup
+  (match tree
+    (EmptyEpsilonRuntimeArrayTree (SomeEpsilonRuntimeValue defaultValue))
+    ((LeafEpsilonRuntimeArrayTree storedIndex value)
+      (if (epsilon_runtime_array_leaf_valid lower upper storedIndex)
+        (if (eq index storedIndex)
+          (SomeEpsilonRuntimeValue value)
+          (SomeEpsilonRuntimeValue defaultValue))
+        NoEpsilonRuntimeValue))
+    ((BranchEpsilonRuntimeArrayTree split left right)
+      (if (epsilon_runtime_array_split_valid lower upper split)
+        (if (lt index split)
+          (epsilon_runtime_array_lookup index lower split left defaultValue)
+          (epsilon_runtime_array_lookup index split upper right defaultValue))
+        NoEpsilonRuntimeValue))))

@@ -1,0 +1,55 @@
+
+; Updates share untouched siblings and rebuild only one bounded index path.
+; The explicit frames keep both descent and reconstruction proper-tail calls.
+(def epsilon_runtime_array_rebuild ((tree EpsilonRuntimeArrayTree)
+  (frames EpsilonRuntimeArrayFrames)) EpsilonRuntimeArrayUpdate
+  (match frames
+    (NoEpsilonRuntimeArrayFrames (EpsilonRuntimeArrayUpdated tree))
+    ((EpsilonRuntimeArrayLeftFrame split right rest)
+      (epsilon_runtime_array_rebuild
+        (BranchEpsilonRuntimeArrayTree split tree right) rest))
+    ((EpsilonRuntimeArrayRightFrame split left rest)
+      (epsilon_runtime_array_rebuild
+        (BranchEpsilonRuntimeArrayTree split left tree) rest))))
+
+; Split two distinct, admitted leaves only until their index intervals diverge.
+; No complete array or unused element is materialized.
+(def epsilon_runtime_array_separate ((index Int) (newLeaf EpsilonRuntimeArrayTree)
+  (storedIndex Int) (oldLeaf EpsilonRuntimeArrayTree) (lower Int) (upper Int)
+  (frames EpsilonRuntimeArrayFrames)) EpsilonRuntimeArrayUpdate
+  (let split Int (epsilon_runtime_array_midpoint lower upper)
+    (if (epsilon_runtime_array_split_valid lower upper split)
+      (if (lt index split)
+        (if (lt storedIndex split)
+          (epsilon_runtime_array_separate index newLeaf storedIndex oldLeaf lower split
+            (EpsilonRuntimeArrayLeftFrame split EmptyEpsilonRuntimeArrayTree frames))
+          (epsilon_runtime_array_rebuild
+            (BranchEpsilonRuntimeArrayTree split newLeaf oldLeaf) frames))
+        (if (lt storedIndex split)
+          (epsilon_runtime_array_rebuild
+            (BranchEpsilonRuntimeArrayTree split oldLeaf newLeaf) frames)
+          (epsilon_runtime_array_separate index newLeaf storedIndex oldLeaf split upper
+            (EpsilonRuntimeArrayRightFrame split EmptyEpsilonRuntimeArrayTree frames))))
+      EpsilonRuntimeArrayInvalid)))
+
+(def epsilon_runtime_array_insert ((index Int) (value EpsilonRuntimeValue)
+  (lower Int) (upper Int) (tree EpsilonRuntimeArrayTree)
+  (frames EpsilonRuntimeArrayFrames)) EpsilonRuntimeArrayUpdate
+  (match tree
+    (EmptyEpsilonRuntimeArrayTree
+      (epsilon_runtime_array_rebuild (LeafEpsilonRuntimeArrayTree index value) frames))
+    ((LeafEpsilonRuntimeArrayTree storedIndex previous)
+      (if (epsilon_runtime_array_leaf_valid lower upper storedIndex)
+        (if (eq index storedIndex)
+          (epsilon_runtime_array_rebuild (LeafEpsilonRuntimeArrayTree index value) frames)
+          (epsilon_runtime_array_separate index (LeafEpsilonRuntimeArrayTree index value)
+            storedIndex tree lower upper frames))
+        EpsilonRuntimeArrayInvalid))
+    ((BranchEpsilonRuntimeArrayTree split left right)
+      (if (epsilon_runtime_array_split_valid lower upper split)
+        (if (lt index split)
+          (epsilon_runtime_array_insert index value lower split left
+            (EpsilonRuntimeArrayLeftFrame split right frames))
+          (epsilon_runtime_array_insert index value split upper right
+            (EpsilonRuntimeArrayRightFrame split left frames)))
+        EpsilonRuntimeArrayInvalid))))

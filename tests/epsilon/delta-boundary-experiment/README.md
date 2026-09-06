@@ -1,6 +1,6 @@
 # Delta abstraction-boundary experiment
 
-This experiment asks whether the 11,777-line Delta-authored Epsilon evaluator is
+This experiment asks whether the 11,984-line Delta-authored Epsilon evaluator is
 large because Delta is missing reusable mechanisms, or because Epsilon owns a
 large amount of irreducible language and diagnostic policy.
 
@@ -17,7 +17,7 @@ lines for the corresponding Delta language/compiler implementation.
 | Source span wrapper | 30 start/end helpers | 168 lines | Reject wrapper alone |
 | Candidate minimum fold | 3 candidate types plus 6 merge helpers | 77 lines | Reject generic fold |
 
-Even the impossible combined ceiling is only 868 lines, under 7.4% of the Epsilon
+Even the impossible combined ceiling is only 872 lines, under 7.3% of the Epsilon
 evaluator. The five proposals therefore cannot explain most of the source-size
 explosion.
 
@@ -37,13 +37,14 @@ under current monomorphic Delta. This does not earn that language expansion.
 ## Generic lists
 
 This was the strongest candidate. Twenty-seven declarations have the ordinary
-`Empty | More(item, tail)` shape. The three excluded runtime lists retain
-projection/value children, identifier/value roots, and parameter/value arguments;
+`Empty | More(item, tail)` shape. The four excluded runtime lists retain
+projection/value record children, projection/value parents, identifier/value roots,
+and parameter/value arguments;
 each nonempty node has three fields rather than two.
 
 The source has 28 reverse functions. The analyzer selects the 23 named
 `epsilon_reverse_*`: 22 are the exact list template and one reverses a four-list
-control ledger. Five runtime-prefixed reverses for children, roots, paths,
+control ledger. Five runtime-prefixed reverses for record children, roots, paths,
 argument values, and sum payloads remain outside this measured helper family. Three count
 functions are exact templates. The retained replaceable family is therefore
 52 forms, 254 lines, and 11,809 bytes; it is not a count of every reversal in

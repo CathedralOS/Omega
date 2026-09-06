@@ -33,79 +33,63 @@
       (SomeEpsilonRuntimeValue (epsilon_runtime_zero_value typeValue)))
     ((EpsilonCaseMember start end name payload) NoEpsilonRuntimeValue)))
 
-(def epsilon_runtime_projection_default ((typeValue EpsilonType)
-  (projection EpsilonRuntimeProjection)) EpsilonRuntimeValueLookup
-  (match projection
-    ((EpsilonRuntimeField owner memberValue)
-      (match typeValue
-        ((EpsilonNamedType start end name)
-          (epsilon_runtime_field_default memberValue))
-        ((EpsilonI32Type start end) NoEpsilonRuntimeValue)
-        ((EpsilonU8Type start end) NoEpsilonRuntimeValue)
-        ((EpsilonNeverType start end) NoEpsilonRuntimeValue)
-        ((EpsilonArrayType start end element lengthValue) NoEpsilonRuntimeValue)
-        ((EpsilonViewType start end element) NoEpsilonRuntimeValue)))
-    ((EpsilonRuntimeIndex index)
-      (epsilon_runtime_index_default typeValue index))))
-
-(def epsilon_runtime_find_child ((projection EpsilonRuntimeProjection)
-  (children EpsilonRuntimeChildren)) EpsilonRuntimeValueLookup
+(def epsilon_runtime_find_field_child ((projection EpsilonRuntimeProjection)
+  (children EpsilonRuntimeFieldChildren)) EpsilonRuntimeValueLookup
   (match children
-    (NoEpsilonRuntimeChildren NoEpsilonRuntimeValue)
-    ((MoreEpsilonRuntimeChildren current value rest)
+    (NoEpsilonRuntimeFieldChildren NoEpsilonRuntimeValue)
+    ((MoreEpsilonRuntimeFieldChildren current value rest)
       (if (epsilon_runtime_projections_equal projection current)
         (SomeEpsilonRuntimeValue value)
-        (epsilon_runtime_find_child projection rest)))))
+        (epsilon_runtime_find_field_child projection rest)))))
 
-(def epsilon_runtime_project ((value EpsilonRuntimeValue)
-  (projection EpsilonRuntimeProjection)) EpsilonRuntimeValueLookup
-  (match value
-    ((EpsilonRuntimeInteger integer) NoEpsilonRuntimeValue)
-    ((EpsilonRuntimeSumValue owner caseValue payloads) NoEpsilonRuntimeValue)
-    ((EpsilonRuntimeViewValue view) NoEpsilonRuntimeValue)
-    ((EpsilonRuntimeAggregate typeValue children)
-      (match (epsilon_runtime_projection_default typeValue projection)
-        (NoEpsilonRuntimeValue NoEpsilonRuntimeValue)
-        ((SomeEpsilonRuntimeValue defaultValue)
-          (match (epsilon_runtime_find_child projection children)
-            (NoEpsilonRuntimeValue (SomeEpsilonRuntimeValue defaultValue))
-            ((SomeEpsilonRuntimeValue storedValue)
-              (SomeEpsilonRuntimeValue storedValue))))))))
+(def epsilon_runtime_read_field_child ((projection EpsilonRuntimeProjection)
+  (children EpsilonRuntimeChildren) (defaultValue EpsilonRuntimeValue))
+  EpsilonRuntimeValueLookup
+  (match children
+    (NoEpsilonRuntimeChildren (SomeEpsilonRuntimeValue defaultValue))
+    ((EpsilonRuntimeIndexedChildren extent tree) NoEpsilonRuntimeValue)
+    ((EpsilonRuntimeRecordChildren fields)
+      (match (epsilon_runtime_find_field_child projection fields)
+        (NoEpsilonRuntimeValue (SomeEpsilonRuntimeValue defaultValue))
+        ((SomeEpsilonRuntimeValue storedValue)
+          (SomeEpsilonRuntimeValue storedValue))))))
 
-(def epsilon_runtime_reverse_children ((input EpsilonRuntimeChildren)
-  (output EpsilonRuntimeChildren)) EpsilonRuntimeChildren
+(def epsilon_runtime_reverse_field_children ((input EpsilonRuntimeFieldChildren)
+  (output EpsilonRuntimeFieldChildren)) EpsilonRuntimeFieldChildren
   (match input
-    (NoEpsilonRuntimeChildren output)
-    ((MoreEpsilonRuntimeChildren projection value rest)
-      (epsilon_runtime_reverse_children rest
-        (MoreEpsilonRuntimeChildren projection value output)))))
+    (NoEpsilonRuntimeFieldChildren output)
+    ((MoreEpsilonRuntimeFieldChildren projection value rest)
+      (epsilon_runtime_reverse_field_children rest
+        (MoreEpsilonRuntimeFieldChildren projection value output)))))
 
-(def epsilon_runtime_replace_child ((projection EpsilonRuntimeProjection)
-  (value EpsilonRuntimeValue) (children EpsilonRuntimeChildren)
-  (prefix EpsilonRuntimeChildren)) EpsilonRuntimeChildren
+(def epsilon_runtime_replace_field_child ((projection EpsilonRuntimeProjection)
+  (value EpsilonRuntimeValue) (children EpsilonRuntimeFieldChildren)
+  (prefix EpsilonRuntimeFieldChildren)) EpsilonRuntimeFieldChildren
+  (match children
+    (NoEpsilonRuntimeFieldChildren
+      (epsilon_runtime_reverse_field_children prefix
+        (MoreEpsilonRuntimeFieldChildren projection value NoEpsilonRuntimeFieldChildren)))
+    ((MoreEpsilonRuntimeFieldChildren current previous rest)
+      (if (epsilon_runtime_projections_equal projection current)
+        (epsilon_runtime_reverse_field_children prefix
+          (MoreEpsilonRuntimeFieldChildren current value rest))
+        (epsilon_runtime_replace_field_child projection value rest
+          (MoreEpsilonRuntimeFieldChildren current previous prefix))))))
+
+(def epsilon_runtime_write_field_child ((typeValue EpsilonType)
+  (projection EpsilonRuntimeProjection) (value EpsilonRuntimeValue)
+  (children EpsilonRuntimeChildren))
+  EpsilonRuntimeValueLookup
   (match children
     (NoEpsilonRuntimeChildren
-      (epsilon_runtime_reverse_children prefix
-        (MoreEpsilonRuntimeChildren projection value NoEpsilonRuntimeChildren)))
-    ((MoreEpsilonRuntimeChildren current previous rest)
-      (if (epsilon_runtime_projections_equal projection current)
-        (epsilon_runtime_reverse_children prefix
-          (MoreEpsilonRuntimeChildren current value rest))
-        (epsilon_runtime_replace_child projection value rest
-          (MoreEpsilonRuntimeChildren current previous prefix))))))
-
-(def epsilon_runtime_with_child ((parent EpsilonRuntimeValue)
-  (projection EpsilonRuntimeProjection) (value EpsilonRuntimeValue))
-  EpsilonRuntimeValueLookup
-  (match parent
-    ((EpsilonRuntimeInteger integer) NoEpsilonRuntimeValue)
-    ((EpsilonRuntimeSumValue owner caseValue payloads) NoEpsilonRuntimeValue)
-    ((EpsilonRuntimeViewValue view) NoEpsilonRuntimeValue)
-    ((EpsilonRuntimeAggregate typeValue children)
-      (match (epsilon_runtime_projection_default typeValue projection)
-        (NoEpsilonRuntimeValue NoEpsilonRuntimeValue)
-        ((SomeEpsilonRuntimeValue defaultValue)
-          (SomeEpsilonRuntimeValue
-            (EpsilonRuntimeAggregate typeValue
-              (epsilon_runtime_replace_child projection value children
-                NoEpsilonRuntimeChildren))))))))
+      (SomeEpsilonRuntimeValue
+        (EpsilonRuntimeAggregate typeValue
+          (EpsilonRuntimeRecordChildren
+            (MoreEpsilonRuntimeFieldChildren projection value NoEpsilonRuntimeFieldChildren)))))
+    ((EpsilonRuntimeIndexedChildren extent tree) NoEpsilonRuntimeValue)
+    ((EpsilonRuntimeRecordChildren fields)
+      (SomeEpsilonRuntimeValue
+        (EpsilonRuntimeAggregate typeValue
+          (EpsilonRuntimeRecordChildren
+            (epsilon_runtime_replace_field_child projection value fields
+              NoEpsilonRuntimeFieldChildren)))))))

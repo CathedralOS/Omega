@@ -45,6 +45,14 @@ therefore remain distinct instances.
 
 Record and array snapshots share immutable sparse children. An unwritten child
 uses its declared zero home without allocating the full array or record tree.
+Record children retain a list of exact checked field identities. Array children
+retain their declared extent and an immutable sparse interval tree over indexes.
+An empty tree supplies the typed zero; a compressed leaf stores one index/value;
+a branch splits its current interval at the canonical midpoint. Reads and updates
+validate the visited path, including its saved split and leaf index, not untouched
+siblings. Updates reconstruct only that path and share other branches. At most
+31 partitions cover every admitted positive `i32` extent. Projection-parent
+reconstruction uses a separate stack, never an array or record child list.
 Assignment replaces the selected subtree, including all its descendants;
 binding or returning an aggregate value does not alias its source root. Root
 identifiers are monotonic. Invocation completion removes callee roots without rewinding the
