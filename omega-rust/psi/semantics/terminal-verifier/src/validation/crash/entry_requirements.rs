@@ -97,6 +97,23 @@ fn prove(
             });
         }
     }
+    for (premises, semantic) in [(requirements, false), (semantic_axioms, true)] {
+        for (index, premise) in premises.iter().enumerate() {
+            let premise = ProofNode {
+                conclusion: premise.clone(),
+                rule: if semantic {
+                    ProofRule::SemanticAxiom { index }
+                } else {
+                    ProofRule::Assumption { index }
+                },
+            };
+            if let Some(proof) =
+                common_consequence(goal, premise, requirements.len(), remaining, depth + 1)
+            {
+                return Some(proof);
+            }
+        }
+    }
     let rule = match goal {
         Proposition::Truth => ProofRule::Primitive(PrimitiveJudgment::Truth),
         Proposition::Equal(left, right) if left == right => {
@@ -124,6 +141,78 @@ fn prove(
         conclusion: goal.clone(),
         rule,
     })
+}
+
+/// Eliminate a disjunction only when every alternative proves the same goal.
+/// Branch assumptions occupy the kernel's next local slot and cannot escape
+/// into siblings or the enclosing entry requirement context.
+fn common_consequence(
+    goal: &Proposition,
+    premise: ProofNode,
+    assumption_count: usize,
+    remaining: &mut usize,
+    depth: usize,
+) -> Option<ProofNode> {
+    step(remaining, depth)?;
+    if &premise.conclusion == goal {
+        return Some(premise);
+    }
+    if let (Proposition::Equal(left, right), Proposition::Equal(other_left, other_right)) =
+        (goal, &premise.conclusion)
+        && left == other_right
+        && right == other_left
+    {
+        return Some(ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::EqualitySymmetry {
+                equality: Box::new(premise),
+            },
+        });
+    }
+    match &premise.conclusion {
+        Proposition::Conjunction(children) => {
+            for (conjunct, child) in children.iter().enumerate() {
+                let child = ProofNode {
+                    conclusion: child.clone(),
+                    rule: ProofRule::ConjunctionElimination {
+                        conjunction: Box::new(premise.clone()),
+                        conjunct,
+                    },
+                };
+                if let Some(proof) =
+                    common_consequence(goal, child, assumption_count, remaining, depth + 1)
+                {
+                    return Some(proof);
+                }
+            }
+            None
+        }
+        Proposition::Disjunction(children) => {
+            let mut branches = Vec::new();
+            for child in children {
+                branches.push(common_consequence(
+                    goal,
+                    ProofNode {
+                        conclusion: child.clone(),
+                        rule: ProofRule::Assumption {
+                            index: assumption_count,
+                        },
+                    },
+                    assumption_count + 1,
+                    remaining,
+                    depth + 1,
+                )?);
+            }
+            Some(ProofNode {
+                conclusion: goal.clone(),
+                rule: ProofRule::DisjunctionElimination {
+                    disjunction: Box::new(premise),
+                    branches,
+                },
+            })
+        }
+        _ => None,
+    }
 }
 
 pub(super) fn covers(caller: &TerminalMachine, published: &CrashRouteBucket) -> bool {
@@ -251,5 +340,71 @@ mod tests {
         let mut remaining = MAXIMUM_SEARCH_STEPS;
         assert!(prove(&goal, &[premise], &[], &mut remaining, 0).is_none());
         assert!(remaining > 0);
+    }
+
+    #[test]
+    fn nested_cases_discharge_local_assumptions_for_requirements_and_axioms() {
+        use semantic_vocabulary::{ScalarTerm, ScalarType, ValueId};
+        let identifiers = [1, 2, 3].map(|index| ValueId::new(index).unwrap());
+        let context = PropositionContext::from_value_types(
+            identifiers.map(|identity| (identity, ScalarType::Boolean)),
+        )
+        .unwrap();
+        let [goal, other, third] = identifiers.map(|identity| {
+            Proposition::Equal(
+                ScalarTerm::value(identity, ScalarType::Boolean),
+                ScalarTerm::boolean(true),
+            )
+        });
+        let cases = Proposition::Disjunction(vec![
+            Proposition::Conjunction(vec![goal.clone(), other.clone()]),
+            Proposition::Conjunction(vec![
+                third.clone(),
+                Proposition::Disjunction(vec![
+                    goal.clone(),
+                    Proposition::Conjunction(vec![other.clone(), goal.clone()]),
+                ]),
+            ]),
+        ]);
+        for semantic in [false, true] {
+            let mut requirements = vec![other.clone()];
+            let mut axioms = Vec::new();
+            if semantic {
+                axioms.push(cases.clone());
+            } else {
+                requirements.push(cases.clone());
+            }
+            assert!(establishes(&context, &goal, &requirements, &axioms));
+            assert!(!establishes(&context, &third, &requirements, &axioms));
+            let mut remaining = 3;
+            let premise = ProofNode {
+                conclusion: cases.clone(),
+                rule: if semantic {
+                    ProofRule::SemanticAxiom { index: 0 }
+                } else {
+                    ProofRule::Assumption { index: 1 }
+                },
+            };
+            assert!(
+                common_consequence(
+                    &goal,
+                    premise.clone(),
+                    requirements.len(),
+                    &mut remaining,
+                    0
+                )
+                .is_none()
+            );
+            assert_eq!(remaining, 0);
+            let mut remaining = MAXIMUM_SEARCH_STEPS;
+            let proof =
+                common_consequence(&goal, premise, requirements.len(), &mut remaining, 0).unwrap();
+            check_certificate(&context, &goal, &requirements, &axioms, &proof).unwrap();
+        }
+        let leaking_cases = Proposition::Disjunction(vec![
+            Proposition::Conjunction(vec![goal.clone(), other.clone()]),
+            other,
+        ]);
+        assert!(!establishes(&context, &goal, &[leaking_cases], &[]));
     }
 }

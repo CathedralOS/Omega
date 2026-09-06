@@ -8,6 +8,8 @@ use typed_trees::{
     expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator},
 };
 
+mod consequences;
+
 #[derive(Default)]
 pub(super) struct EntryRequirements {
     pub(super) conjuncts: Vec<CrashPredicateIdentity>,
@@ -25,6 +27,8 @@ pub(super) fn collect(
     let Some(entry) = program.machine_states(machine).first() else {
         return result;
     };
+    let mut common =
+        consequences::Consequences::new(program, parameter_names, content_conservation);
     for contract in program
         .machine_contracts(machine)
         .iter()
@@ -55,8 +59,13 @@ pub(super) fn collect(
                 content_conservation,
                 &mut result.consequences,
             );
+            if let Some(consequences) = common.collect(*expression, false, 0) {
+                result.consequences.extend(consequences);
+            }
         }
     }
+    result.consequences.sort_unstable();
+    result.consequences.dedup();
     // Consequences already retain the exact polarity established at entry.
     // A published spelling such as `flag == false` is covered by `!flag`
     // only after independently checking that the published operator is also
@@ -80,17 +89,7 @@ pub(super) fn collect(
             if !has_exact_entry_meaning(program, machine, operators, parameter_names, *expression) {
                 continue;
             }
-            let Some((operand, negated)) = equivalent_boolean_polarity(program, *expression) else {
-                continue;
-            };
-            let equivalent = crate::facts::canonical_crash_path_predicate(
-                program,
-                operand,
-                negated,
-                parameter_names,
-                content_conservation,
-            );
-            if result.consequences.contains(&equivalent) {
+            if common.establishes(*expression, false, &result.consequences, 0) == Some(true) {
                 result
                     .consequences
                     .push(crate::facts::canonical_crash_path_predicate(
@@ -100,6 +99,8 @@ pub(super) fn collect(
                         parameter_names,
                         content_conservation,
                     ));
+                result.consequences.sort_unstable();
+                result.consequences.dedup();
             }
         }
     }
@@ -160,48 +161,6 @@ fn has_exact_entry_meaning(
         }
     }
     true
-}
-
-/// Peel equivalent builtin Boolean wrappers, not arbitrary consequences of
-/// the requested route. In particular a conjunction's one conjunct cannot
-/// stand in for the complete published conjunction.
-fn equivalent_boolean_polarity(
-    program: &TypedTrees,
-    mut expression: ExpressionHandle,
-) -> Option<(ExpressionHandle, bool)> {
-    let mut negated = false;
-    for _ in 0..64 {
-        match program.expression_table.expression(expression) {
-            ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
-                expression = unary.operand;
-                negated = !negated;
-            }
-            ExpressionNode::Binary(binary)
-                if matches!(
-                    binary.operator,
-                    BinaryOperator::Equal | BinaryOperator::NotEqual
-                ) =>
-            {
-                let (operand, literal) = match (
-                    program.expression_table.expression(binary.left),
-                    program.expression_table.expression(binary.right),
-                ) {
-                    (ExpressionNode::Boolean(literal), _) => (binary.right, *literal),
-                    (_, ExpressionNode::Boolean(literal)) => (binary.left, *literal),
-                    _ => return Some((expression, negated)),
-                };
-                let equality_is_negated = if binary.operator == BinaryOperator::Equal {
-                    negated
-                } else {
-                    !negated
-                };
-                negated = equality_is_negated == literal;
-                expression = operand;
-            }
-            _ => return Some((expression, negated)),
-        }
-    }
-    None
 }
 
 #[cfg(test)]
@@ -265,6 +224,25 @@ mod tests {
             "boundary operator == bool::custom(left: bool, right: bool) -> bool;\nmachine value(flag: bool) -> bool\nrequires flag == true\n{ flag }",
         );
         assert!(requirements(&program, &["flag"]).consequences.is_empty());
+    }
+
+    #[test]
+    fn common_branch_facts_need_exact_builtin_entry_operators() {
+        for carrier in ["bool", "f64"] {
+            let program = typed(&format!(
+                "boundary operator == {carrier}::custom(left: {carrier}, right: {carrier}) -> bool;\n\
+                 machine value(a: bool, b: bool, c: bool) -> bool\n\
+                 requires ((a == true) && b) || ((a == true) && c)\n\
+                 crashes Trap a\n{{ crash Trap; }}",
+            ));
+            let collected = requirements(&program, &["a", "b", "c"]);
+            assert_eq!(collected.consequences.is_empty(), carrier == "bool");
+            assert!(
+                requirements(&program, &["b", "a", "c"])
+                    .consequences
+                    .is_empty()
+            );
+        }
     }
 
     #[test]

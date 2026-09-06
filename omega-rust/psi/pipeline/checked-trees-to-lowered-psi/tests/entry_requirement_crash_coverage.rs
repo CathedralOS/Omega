@@ -116,6 +116,111 @@ fn assert_unconditional_call_trap(source: &str) {
 }
 
 #[test]
+fn common_disjunctive_entry_consequence_covers_unconditional_call() {
+    for (parameters, body) in [
+        ("a: bool, b: bool, c: bool", "trigger()"),
+        (
+            "mut a: bool, mut b: bool, mut c: bool",
+            "a = false; b = false; c = false; trigger()",
+        ),
+    ] {
+        for arguments in ["true, true, false", "true, false, true", "true, true, true"] {
+            let declarations = format!(
+                "machine trigger() -> bool\ncrashes Trap\n{{ crash Trap; }}\n\
+                 machine forward({parameters}) -> bool\nrequires (a && b) || (a && c)\ncrashes Trap a\n{{ {body} }}",
+            );
+            assert_unconditional_call_trap(&with_caller(
+                &declarations,
+                &format!("forward({arguments})"),
+            ));
+        }
+    }
+}
+
+#[test]
+fn nested_disjunctive_entry_consequences_preserve_complete_published_predicates() {
+    for (requirement, route, arguments) in [
+        (
+            "(a && b) || ((a && c) || (a && d))",
+            "a",
+            "true, false, false, true",
+        ),
+        (
+            "(a && b) || ((a && c) || (a && d))",
+            "a",
+            "true, true, false, false",
+        ),
+        (
+            "((a && b) || (a && c)) && ((d && b) || (d && c))",
+            "a && d",
+            "true, true, false, true",
+        ),
+        (
+            "((a && b) || (a && c)) && ((d && b) || (d && c))",
+            "a && d",
+            "true, false, true, true",
+        ),
+    ] {
+        for (parameters, body) in [
+            ("a: bool, b: bool, c: bool, d: bool", "trigger()"),
+            (
+                "mut a: bool, mut b: bool, mut c: bool, mut d: bool",
+                "a = false; b = false; c = false; d = false; trigger()",
+            ),
+        ] {
+            let declarations = format!(
+                "machine trigger() -> bool\ncrashes Trap\n{{ crash Trap; }}\n\
+                 machine forward({parameters}) -> bool\nrequires {requirement}\ncrashes Trap {route}\n{{ {body} }}",
+            );
+            assert_unconditional_call_trap(&with_caller(
+                &declarations,
+                &format!("forward({arguments})"),
+            ));
+        }
+    }
+}
+
+#[test]
+fn a_missing_disjunctive_entry_consequence_cannot_be_repaired_by_body_writes() {
+    for (requirement, route, arguments) in [
+        ("(a && b) || (b && c)", "a", "false, true, true"),
+        (
+            "(a && b) || ((a && c) || (b && c))",
+            "a",
+            "false, true, true",
+        ),
+        ("(a && b) || (a && c)", "a && b", "true, false, true"),
+    ] {
+        for (parameters, body) in [
+            ("a: bool, b: bool, c: bool", "trigger()"),
+            (
+                "mut a: bool, mut b: bool, mut c: bool",
+                "a = true; b = true; c = true; trigger()",
+            ),
+        ] {
+            let declarations = format!(
+                "machine trigger() -> bool\ncrashes Trap\n{{ crash Trap; }}\n\
+                 machine forward({parameters}) -> bool\nrequires {requirement}\ncrashes Trap {route}\n{{ {body} }}",
+            );
+            let source = with_caller(&declarations, &format!("forward({arguments})"));
+            let diagnostics = match lower_typed_trees(typed(&source)) {
+                Err(diagnostics) => diagnostics,
+                Ok(_) => panic!("a missing entry consequence must reject: {source}"),
+            };
+            assert!(
+                diagnostics.iter().any(|diagnostic| {
+                    diagnostic
+                        .message
+                        .contains("call from `forward` to `trigger`")
+                        && diagnostic.message.contains("uncovered Trap crash route")
+                }),
+                "the exact call crash coverage check must reject: {source}: {diagnostics:#?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn negated_entry_requirement_covers_unconditional_call_after_mutable_reassignment() {
     for (parameters, body) in [
         ("flag: bool", "trigger()"),
