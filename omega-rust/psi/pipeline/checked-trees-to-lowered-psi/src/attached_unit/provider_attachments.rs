@@ -20,7 +20,7 @@ pub(super) fn validate_provider_attachment_requirements(
             .count(),
         _ => 0,
     };
-    if (provider_fields == 0) != requirements.is_empty() || provider_fields > 1 {
+    if (provider_fields == 0 && !requirements.is_empty()) || provider_fields > 1 {
         return unsupported(
             "provider-backed attachment field lacks one complete specialization requirement set",
         );

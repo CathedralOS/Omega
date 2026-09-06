@@ -1952,6 +1952,173 @@ fn disjoint_sibling_claim_set_round_trips_as_canonical_identity() {
 }
 
 #[test]
+fn unused_provider_attachment_round_trips_with_exact_relevant_opaque_identity() {
+    let module = unused_provider_attachment_fixture();
+    let bytes = encode_module(&module).expect("unused attachment encodes without roots or calls");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
+    let identity = semantic_fingerprint(&module).unwrap();
+
+    let mut changed = module.clone();
+    let StructuralTypeShape::Record { fields } = &mut changed.structural_types[0].shape else {
+        unreachable!()
+    };
+    fields[0].field_type = StructuralFieldType::Erased {
+        type_identity: "named(name(example::OtherProvider))".into(),
+    };
+    assert_ne!(semantic_fingerprint(&changed).unwrap(), identity);
+
+    let mut erased = module;
+    let StructuralTypeShape::Record { fields } = &mut erased.structural_types[0].shape else {
+        unreachable!()
+    };
+    fields[0].relevance = BindingRelevance::Erased;
+    assert_ne!(semantic_fingerprint(&erased).unwrap(), identity);
+}
+
+#[test]
+fn provider_attachment_encoding_requires_exact_direct_call_roots() {
+    let mut module = unused_provider_attachment_fixture();
+    module.machines[0].blocks[0]
+        .operations
+        .push(provider_boundary_call());
+    let incomplete = Err(CodecError::MalformedStructuralFoundation(
+        "provider-backed attachment specialization is incomplete",
+    ));
+    assert_eq!(encode_module(&module), incomplete);
+
+    module.machines[0]
+        .structural_places
+        .push(provider_attachment_root());
+    let bytes = encode_module(&module).expect("one direct call has its exact provider root");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+
+    module.machines[0].blocks[0].operations.clear();
+    assert_eq!(encode_module(&module), incomplete, "orphan root rejects");
+}
+
+#[test]
+fn unused_provider_attachment_encoding_rejects_runtime_field_projection() {
+    let mut module = unused_provider_attachment_fixture();
+    module.machines[0]
+        .structural_parameters
+        .push(StructuralParameterDeclaration {
+            place: place_id(2),
+            position: 0,
+            is_self: true,
+            structural_type: structural_type_id(1),
+            multiplicity: StructuralMultiplicity::Affine,
+            access: StructuralAccess::SharedBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        });
+    module.machines[0]
+        .structural_places
+        .push(StructuralPlaceDeclaration {
+            id: place_id(2),
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: true,
+            },
+        });
+    module.machines[0].entry_claims.push(EntryClaim {
+        claim: claim_id(1),
+        input: place_id(2),
+        path: vec![StructuralPathSegment::Field("console".into())],
+    });
+    assert_eq!(
+        encode_module(&module),
+        Err(CodecError::MalformedStructuralFoundation(
+            "structural path must retain structural custody",
+        )),
+    );
+}
+
+#[test]
+fn unused_provider_attachment_encoding_rejects_nonattachment_and_multiple_fields() {
+    let mut unattached = unused_provider_attachment_fixture();
+    unattached.machines[0].attachment = None;
+    let incomplete = Err(CodecError::MalformedStructuralFoundation(
+        "provider-backed attachment specialization is incomplete",
+    ));
+    assert_eq!(encode_module(&unattached), incomplete);
+    unattached.machines[0]
+        .structural_places
+        .push(provider_attachment_root());
+    assert_eq!(
+        encode_module(&unattached),
+        incomplete,
+        "a forged root cannot authorize a type"
+    );
+
+    let mut multiple = unused_provider_attachment_fixture();
+    let StructuralTypeShape::Record { fields } = &mut multiple.structural_types[0].shape else {
+        unreachable!()
+    };
+    let mut second = fields[0].clone();
+    second.id = structural_field_id(2);
+    second.identity = "second".into();
+    fields.push(second);
+    assert_eq!(encode_module(&multiple), incomplete);
+}
+
+fn unused_provider_attachment_fixture() -> TerminalModule {
+    let mut module = unit_fixture();
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type_id(1),
+        identity: "example::Main".into(),
+        shape: StructuralTypeShape::Record {
+            fields: vec![StructuralFieldDeclaration {
+                id: structural_field_id(1),
+                identity: "console".into(),
+                relevance: BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Erased {
+                    type_identity: "named(name(example::ConsoleProvider))".into(),
+                },
+            }],
+        },
+    });
+    module.machines[0].attachment = Some(structural_type_id(1));
+    module.boundary_machines.push(BoundaryMachineDeclaration {
+        id: boundary_machine_id(1),
+        identity: "example::Console::write".into(),
+        attachment: None,
+        scalar_parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        result: terminal_psi::BoundaryMachineResult::Unit,
+        requires: Vec::new(),
+        program_local_root_introductions: Vec::new(),
+        content_guarantees: Vec::new(),
+        published_service_ceiling: Vec::new(),
+    });
+    module
+}
+
+fn provider_attachment_root() -> StructuralPlaceDeclaration {
+    StructuralPlaceDeclaration {
+        id: place_id(1),
+        kind: StructuralPlaceKind::ProviderAttachment {
+            attachment: structural_type_id(1),
+            field: structural_field_id(1),
+            boundary: boundary_machine_id(1),
+        },
+    }
+}
+
+fn provider_boundary_call() -> Operation {
+    Operation {
+        id: operation_id(1),
+        result: OperationResult::Unit,
+        kind: OperationKind::BoundaryCall {
+            boundary: boundary_machine_id(1),
+            arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            completion_receipts: Vec::new(),
+        },
+    }
+}
+
+#[test]
 fn structural_foundation_rejects_opaque_relevant_and_nonopaque_erased_fields() {
     let mut opaque_relevant = structural_effect_fixture();
     let StructuralTypeShape::Record { fields } = &mut opaque_relevant.structural_types[0].shape

@@ -527,13 +527,6 @@ Owners include
   entry-parameter cleanup alone
   cannot dispose the untransferred parts of a temporary.
 
-- **UNUSED-PROVIDER-FIELDS.** Represent an unused provider-backed attachment
-  field without inventing a boundary specialization or changing its relevance.
-  Owning areas: provider attachment lowering and Terminal structural-field
-  validation. Acceptance: an attachment whose ordinary callees own all boundary
-  calls publishes with its unused provider field retained; omitting any actual
-  direct-call requirement still rejects.
-
 - **STATE-LOCAL-VALUE-FRONTIER.** Complete live contract/value-fact transport
   across dynamic projections. Extend storage-value operands and executable
   paths to borrowed/projected places and the remaining scalar carriers.

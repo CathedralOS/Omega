@@ -281,19 +281,10 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
                         }
                         StructuralFieldType::Erased { .. }
                             if !field.relevance.is_erased()
-                                && !module.machines.iter().any(|machine| {
-                                    machine.structural_places.iter().any(|place| {
-                                        matches!(
-                                            place.kind,
-                                            StructuralPlaceKind::ProviderAttachment {
-                                                attachment,
-                                                field: provider_field,
-                                                ..
-                                            } if attachment == declaration.id
-                                                && provider_field == field.id
-                                        )
-                                    })
-                                }) =>
+                                && !module
+                                    .machines
+                                    .iter()
+                                    .any(|machine| machine.attachment == Some(declaration.id)) =>
                         {
                             return malformed(
                                 "provider-backed attachment specialization is incomplete",
@@ -721,8 +712,7 @@ fn validate_provider_attachment_foundation(
         _ => true,
     };
     let mut boundaries = BTreeSet::new();
-    if provider_roots.is_empty()
-        || invalid_self
+    if invalid_self
         || provider_roots
             .iter()
             .any(|(root_attachment, field, boundary)| {

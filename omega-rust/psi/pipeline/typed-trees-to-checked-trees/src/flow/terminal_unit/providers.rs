@@ -59,7 +59,6 @@ pub(super) fn checked_provider_attachment_requirements(
         || structural_parameters
             .iter()
             .any(|parameter| !parameter.is_self)
-        || (call_operations.is_empty() && !operations.iter().any(independent_unit_call))
     {
         return None;
     }

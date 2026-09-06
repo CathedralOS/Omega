@@ -102,6 +102,52 @@ fn lowered() -> lowered_psi::LoweredPsi {
 }
 
 #[test]
+fn unused_provider_field_retains_relevance_and_identity_without_boundary_roots() {
+    let source = SOURCE
+        .replace("self.console.write_line(\"Hello, Omega.\");", "")
+        .replace("self.console.exit_process(0);", "")
+        .replace(
+            "machine Main::main(&mut self)\n    reaches Console",
+            "machine Main::main(&mut self)",
+        );
+    let lowered = lower_source(&source);
+    let module = &lowered.semantic_module;
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let attachment = module
+        .structural_types
+        .iter()
+        .find(|declaration| Some(declaration.id) == entry.attachment)
+        .unwrap();
+    let StructuralTypeShape::Record { fields } = &attachment.shape else {
+        panic!("record attachment");
+    };
+    let [provider] = fields.as_slice() else {
+        panic!("one retained provider field");
+    };
+    assert_eq!(provider.identity, "console");
+    assert_eq!(provider.relevance, BindingRelevance::Relevant);
+    assert!(
+        matches!(&provider.field_type, StructuralFieldType::Erased { type_identity }
+        if type_identity == "named(name(Console))")
+    );
+    assert!(module.boundary_machines.is_empty());
+    assert!(
+        !entry
+            .structural_places
+            .iter()
+            .any(|place| matches!(place.kind, StructuralPlaceKind::ProviderAttachment { .. }))
+    );
+    let bytes = terminal_codec::encode_module(module).unwrap();
+    assert_eq!(terminal_codec::decode_module(&bytes).unwrap(), *module);
+    terminal_verifier::verify_module(module, &lowered.proof_bundle, &AdmissionProfile::default())
+        .unwrap();
+}
+
+#[test]
 fn provider_backed_main_retains_attachment_and_exact_installation_requirements() {
     let lowered = lowered();
     assert!(
@@ -261,7 +307,7 @@ fn provider_attachment_tampering_fails_closed() {
             &AdmissionProfile::default(),
         ),
         Err(terminal_verifier::VerificationError::Module(
-            terminal_verifier::ModuleError::InvalidProviderAttachmentSpecialization(_)
+            terminal_verifier::ModuleError::InvalidErasedStructuralField { .. }
         ))
     ));
 }
