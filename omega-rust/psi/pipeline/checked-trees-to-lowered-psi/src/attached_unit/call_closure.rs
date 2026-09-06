@@ -323,9 +323,7 @@ pub(super) fn validate_unit_operation_sequence(
                 *coordinate
             }
             CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. } => {
-                if result.statement_index != result.binding_ordinal
-                    || result.binding_ordinal != next_scalar_binding
-                {
+                if result.binding_ordinal != next_scalar_binding {
                     return unsupported(
                         "Unit scalar expression local is not the next dense source binding",
                     );

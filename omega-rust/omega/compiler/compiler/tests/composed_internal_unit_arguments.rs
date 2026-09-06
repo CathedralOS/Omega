@@ -17,6 +17,39 @@ impl Drop for Fixture {
 
 #[test]
 fn composed_unit_arguments_reach_published_terminal_and_native_provider_custody() {
+    check_publication(
+        r#"
+data Main {}
+machine Main::main(&mut self) {
+    let selected: u64 = 1u64;
+    transition selected { 1u64 -> yes() _ -> no() }
+    state yes() { relay(identity(7u8)); }
+    state no() { relay(identity(9u8)); }
+}
+"#,
+    );
+}
+
+#[test]
+fn later_scalar_initializers_reach_published_terminal_and_native_provider_custody() {
+    check_publication(
+        r#"
+data Main {}
+machine Main::main(&mut self) {
+    let prefix: u8 = 7u8;
+    let first: u8 = identity(identity(prefix));
+    relay(first);
+    let between: u8 = first;
+    let second: u8 = identity(identity(between));
+    relay(second);
+    let third: u8 = identity(first);
+    relay(third);
+}
+"#,
+    );
+}
+
+fn check_publication(entry: &str) {
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -43,14 +76,9 @@ machine write_leaf(value: u8) satisfies Console::write via write_binding();
 machine identity(value: u8) -> u8 { value }
 machine forward(value: u8) { Console::write(value); }
 machine relay(value: u8) { forward(identity(value)); }
-data Main {}
-machine Main::main(&mut self) {
-    let selected: u64 = 1u64;
-    transition selected { 1u64 -> yes() _ -> no() }
-    state yes() { relay(identity(7u8)); }
-    state no() { relay(identity(9u8)); }
-}
-"#,
+@ENTRY@
+"#
+        .replace("@ENTRY@", entry),
     )
     .unwrap();
     fs::write(
@@ -72,7 +100,7 @@ machine build(builder: &mut Build) {
     .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
     let report = compile(request).unwrap_or_else(|diagnostics| {
         panic!(
-            "composed calls must survive complete compiler publication:\n{}",
+            "Unit call arguments must survive complete compiler publication:\n{}",
             diagnostics
                 .iter()
                 .map(ToString::to_string)

@@ -21,11 +21,11 @@ pub(super) fn lower_scalar_expression_local(
     {
         return unsupported("Unit scalar expression local binding drifted from source order");
     }
-    let retained = checked
+    let (binding, retained) = checked
         .facts
         .values
         .scalar_expressions
-        .expression_at(
+        .bound_expression_at(
             state,
             result.statement_index,
             CheckedScalarExpressionRole::LocalInitializer {
@@ -43,6 +43,7 @@ pub(super) fn lower_scalar_expression_local(
         return unsupported("Unit scalar expression locals do not admit short-circuit control");
     }
     let scalar_type = terminal_scalar_type(result.primitive_type)?;
+    crate::scalar_source_custody::validate_pure(checked, binding, scalar_type)?;
     if expression.scalar_type() != scalar_type {
         return unsupported("Unit scalar expression local type disagrees with its binding");
     }

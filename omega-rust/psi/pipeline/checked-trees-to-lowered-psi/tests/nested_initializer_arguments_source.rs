@@ -17,6 +17,9 @@ use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 
+#[path = "nested_initializer_arguments_source/later_results.rs"]
+mod later_results;
+
 const IDENTITIES: &str = r#"
     machine identity(input: u8) -> u8
     requires 0u8 == 0u8

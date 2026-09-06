@@ -3049,16 +3049,23 @@ no cleanup successor. Arithmetic obligations are finalized on the completed
 selected Unit module, after borrowed-place and cleanup assembly, not on a
 provisional closure used by another lowerer.
 
-The first immutable bare-call result initializer in a single-state Unit caller
-also evaluates scalar operands through those blocks. The outer call may return
-an ordinary scalar, a boundary scalar, or a boundary structural value. Operand
-roots use the pre-initializer namespace; only successful outer-call completion
-establishes the result. The result operation owns the outer call, so no duplicate
-whole-initializer computation is emitted. Source eligibility and lowering rejoin
-the exact local initializer, callee, static qualifier, and captured outer flow
-occurrence independently from the nested operand occurrences. Structural results
-retain their existing normal cleanup; forwarding those locals to later calls
-and inspecting sum payloads remain separate work.
+Immutable scalar bare-call result initializers in a single-state Unit caller
+also evaluate scalar operands through those blocks. Ordinary and boundary scalar
+results may follow other scalar locals and Unit or boundary call statements.
+The producer walks those statements in source order. Statement positions include
+intervening calls; dense scalar-binding positions advance only when a local is
+established. Pure primitive locals use the same positional distinction.
+
+Operand roots use the pre-initializer namespace; only successful outer-call
+completion establishes the result. The evaluator retains earlier values across
+successive operand graphs. The result operation owns the outer call, so no
+duplicate whole-initializer computation is emitted. Source eligibility and
+lowering rejoin the exact local initializer, result carrier, declaration namespace,
+callee, static qualifier, and captured outer flow occurrence independently from
+the nested operand occurrences. A boundary structural result still uses the
+first-initializer route and retains its existing normal cleanup; later structural
+initializers, forwarding those locals to later calls, and inspecting sum payloads
+remain separate work.
 
 Composed-control boundary leaves use the same evaluator, including the existing
 three-state, prefixed, nested acyclic, dynamic-result continuation, and closed-sum
@@ -3092,8 +3099,8 @@ The exact source-to-machine map survives dispatch, so callee suspension,
 conformance, and float-source metadata are selected with their actual owners
 rather than treating the composed root as the entire source closure.
 
-Later result initializers and returned calls still need connections to the shared
-evaluator. Internal Unit calls in dynamic-result and closed-sum continuations,
+Later structural-result initializers and returned calls still need connections
+to the shared evaluator. Internal Unit calls in dynamic-result and closed-sum continuations,
 structural arguments on composed internal calls, and scalar-dependent Unit crash
 predicates remain separate implementation work. Existing control-state signature
 restrictions remain; operand evaluation does not itself add general scalar
