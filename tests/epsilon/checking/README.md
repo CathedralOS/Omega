@@ -64,8 +64,29 @@ state census and formed-type folds retained one return context per state.
 The controls require complete checking and exact diagnostics under the existing
 selected evaluator; 260 is a regression width, not a new language limit.
 
-`receipt.tsv` records the measured 698,704-byte checker receipt with SHA-256
-`2ca5247dfa014e588e26533de46f8ca0268c555ad2130f84db28482cfa4ae79e`.
-Every gate run reconstructs this exact receipt before comparing the 52 complete
+Two value-edge controls declare a record with 260 named by-value fields. The
+acyclic record must be accepted; replacing only the last field's type with its
+own record type must report `RecursiveValueType` at that type token (offset
+4,943). Two declaration-width controls contain 64 empty data declarations,
+64 unused machines, and the three entry-support declarations. The valid
+131-declaration source must be accepted; an `i32`-returning `Main::main` must
+report `InvalidEntry` at its machine declaration (offset 2,643). These pairs
+previously ended in outer Gamma status 250 instead of publishing a checker
+observation. They exercise edge/declaration folds under the unchanged selected
+profile; their widths are regression cases, not Epsilon limits or a claim that
+all source sizes fit the evaluator.
+
+Four small entry-support controls preserve the declaration scans' seen-state
+and candidate ordering. A second valid `Console`, `Main`, or `Main::main`
+declaration reports `InvalidEntry` at that declaration's first byte (offsets
+177, 209, and 242). With an authored entry candidate, the census defers these
+reserved duplicates to entry formation. A missing `Console` alongside an
+`i32`-returning entry reports the authored entry defect at offset 32 rather
+than the missing-support candidate at source extent 83. The pre-repair checker
+also publishes these exact diagnostics; the fixtures pin their preservation.
+
+`receipt.tsv` records the measured 700,181-byte checker receipt with SHA-256
+`b8e0c5d2f7eb9bd851fdd13313da56ba0dcf765b36dc322a7995bb14239d5830`.
+Every gate run reconstructs this exact receipt before comparing the 60 complete
 judgments. These controls establish the listed checking relations, not full
 Epsilon conformance, runtime execution, or closure of the Omega bootstrap edge.

@@ -48,8 +48,8 @@ source inventory, then concatenates bytes without separators. It does not parse
 or lower Delta. Bootstrap callers use `OMEGA_PATH_EPSILON_COMPILER_SOURCES`
 from the shared role registry rather than reading the entrance as the full source.
 
-The packed evaluator is 11,763 lines / 599,543 bytes, SHA-256
-`88cabf8b27105f51a10d46c158eeb679fb864e6442755626c690d78a9ca0393c`.
+The packed evaluator is 11,809 lines / 601,955 bytes, SHA-256
+`6d372762df794f5f4725d050a986036e8bd9c7e1d1e8978d56011808e4206aed`.
 When editing a member, update its manifest length and digest; change membership
 explicitly when adding or removing source. Update exact test identities only
 after reviewing the semantic change and its generated receipt.

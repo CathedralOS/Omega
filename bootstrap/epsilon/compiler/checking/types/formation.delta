@@ -403,8 +403,14 @@
 
 (def epsilon_validate_data_shapes ((declarations EpsilonDeclarationList))
   EpsilonTypeFormationCandidate
+  (epsilon_validate_data_shapes_fold
+    (epsilon_reverse_declarations declarations NoEpsilonDeclarations)
+    NoEpsilonTypeFormationCandidate))
+
+(def epsilon_validate_data_shapes_fold ((declarations EpsilonDeclarationList)
+  (candidate EpsilonTypeFormationCandidate)) EpsilonTypeFormationCandidate
   (match declarations
-    (NoEpsilonDeclarations NoEpsilonTypeFormationCandidate)
+    (NoEpsilonDeclarations candidate)
     ((MoreEpsilonDeclarations item rest)
       (let current EpsilonTypeFormationCandidate
         (match item
@@ -414,8 +420,8 @@
             (epsilon_data_shape_candidate name members))
           ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
             NoEpsilonTypeFormationCandidate))
-        (epsilon_type_formation_candidate_min current
-          (epsilon_validate_data_shapes rest))))))
+        (epsilon_validate_data_shapes_fold rest
+          (epsilon_type_formation_candidate_min current candidate))))))
 
 (def epsilon_data_shape_kind ((members EpsilonDataMemberList)) EpsilonDataShapeKind
   (if (epsilon_data_members_have_case members)
