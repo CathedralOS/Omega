@@ -502,7 +502,11 @@ pub(crate) fn validate_transfer_shape(
             continue;
         }
         if let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() {
-            let source = structural_result_source(caller_structural_results, binding_ordinal)?;
+            let source = structural_result_source(
+                caller_structural_results,
+                binding_ordinal,
+                argument.access,
+            )?;
             let StructuralPlaceKind::OperationResult {
                 structural_type, ..
             } = source.kind
@@ -512,9 +516,18 @@ pub(crate) fn validate_transfer_shape(
             if !argument.path.is_empty()
                 || argument.type_identity != target.type_identity
                 || structural_type != lookup_type_id(type_ids, &argument.type_identity)?
-                || argument.access != checked_trees::CheckedStructuralAccess::Owned
-                || target.access != checked_trees::CheckedStructuralAccess::Owned
-                || target.multiplicity != Multiplicity::Affine
+                || !matches!(
+                    argument.access,
+                    checked_trees::CheckedStructuralAccess::Owned
+                        | checked_trees::CheckedStructuralAccess::SharedBorrow
+                )
+                || argument.access != target.access
+                || target.multiplicity
+                    != if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
+                        Multiplicity::Unrestricted
+                    } else {
+                        Multiplicity::Affine
+                    }
                 || target.is_self
                 || !target.qualifications.is_empty()
                 || target.fused_service_erasure.is_some()
@@ -692,16 +705,22 @@ pub(crate) fn lower_structural_arguments(
                 });
             }
             if let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() {
-                let source = structural_result_source(structural_results, binding_ordinal)?;
+                let source = structural_result_source(structural_results, binding_ordinal, argument.access)?;
                 if !argument.path.is_empty()
-                    || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                    || !matches!(argument.access,
+                        checked_trees::CheckedStructuralAccess::Owned
+                            | checked_trees::CheckedStructuralAccess::SharedBorrow)
                 {
-                    return unsupported("Unit structural result argument drifted from whole owned custody");
+                    return unsupported("Unit structural result argument drifted from whole affine custody");
                 }
                 return Ok(StructuralArgument {
                     place: source.id,
                     path: Vec::new(),
-                    access: StructuralAccess::Owned,
+                    access: if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
+                        StructuralAccess::SharedBorrow
+                    } else {
+                        StructuralAccess::Owned
+                    },
                 });
             }
             let source_parameter_index =
@@ -747,6 +766,7 @@ pub(crate) fn lower_structural_arguments(
 fn structural_result_source(
     results: &[(StructuralPlaceDeclaration, bool)],
     binding_ordinal: u32,
+    access: checked_trees::CheckedStructuralAccess,
 ) -> Result<&StructuralPlaceDeclaration, LoweringError> {
     let (source, discard) = results
         .get(usize::try_from(binding_ordinal).map_err(|_| {
@@ -755,7 +775,9 @@ fn structural_result_source(
         .ok_or(LoweringError::Unsupported(
             "Unit structural result binding is not produced",
         ))?;
-    if *discard || !matches!(source.kind, StructuralPlaceKind::OperationResult { .. }) {
+    if (*discard && access == checked_trees::CheckedStructuralAccess::Owned)
+        || !matches!(source.kind, StructuralPlaceKind::OperationResult { .. })
+    {
         return unsupported("Unit structural result argument disagrees with its producer cleanup");
     }
     Ok(source)

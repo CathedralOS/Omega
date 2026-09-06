@@ -826,6 +826,9 @@ pub(super) fn build_static_boundary_requirements(
                 if is_reference(program, parameter.type_reference)
                     && byte_sequence_carrier(program, parameter.type_reference, &[])
                         != Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+                    && !(qualifications.is_empty()
+                        && shared_plain_affine_referent(program, parameter.type_reference)
+                            .is_some())
                 {
                     supported = false;
                     break;

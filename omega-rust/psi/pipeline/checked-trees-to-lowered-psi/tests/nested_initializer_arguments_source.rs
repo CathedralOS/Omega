@@ -35,6 +35,9 @@ mod nested_boundary_arguments;
 #[path = "nested_initializer_arguments_source/boundary_temporaries.rs"]
 mod boundary_temporaries;
 
+#[path = "nested_initializer_arguments_source/shared_result_borrows.rs"]
+mod shared_result_borrows;
+
 #[path = "nested_initializer_arguments_source/boundary_result_custody.rs"]
 mod boundary_result_custody;
 

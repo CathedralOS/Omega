@@ -2466,7 +2466,11 @@ pub(super) fn call_claim_transfers(
                     .source_structural_result_binding_ordinal()
                     .is_none())
                 || !argument.path.is_empty()
-                || argument.access != CheckedStructuralAccess::Owned
+                || (argument.access != CheckedStructuralAccess::Owned
+                    && !(argument
+                        .source_structural_result_binding_ordinal()
+                        .is_some()
+                        && argument.access == CheckedStructuralAccess::SharedBorrow))
             {
                 return None;
             }

@@ -304,6 +304,10 @@ fn consume_results(
         structural_arguments,
         ..
     }
+    | CheckedUnitEffectOperationPlan::ScalarCall {
+        structural_arguments,
+        ..
+    }
     | CheckedUnitEffectOperationPlan::BoundaryCall {
         structural_arguments,
         ..
@@ -317,10 +321,11 @@ fn consume_results(
         ..
     } = consumer
     {
-        for binding_ordinal in structural_arguments
-            .iter()
-            .filter_map(|argument| argument.source_structural_result_binding_ordinal())
-        {
+        for (binding_ordinal, access) in structural_arguments.iter().filter_map(|argument| {
+            argument
+                .source_structural_result_binding_ordinal()
+                .map(|ordinal| (ordinal, argument.access))
+        }) {
             let mut producers = operations.iter_mut().filter(|operation| {
                 matches!(operation,
                 CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
@@ -347,7 +352,12 @@ fn consume_results(
             if result.multiplicity != Multiplicity::Affine || !*discard_result_on_return {
                 return None;
             }
-            *discard_result_on_return = false;
+            match access {
+                CheckedStructuralAccess::Owned => *discard_result_on_return = false,
+                CheckedStructuralAccess::SharedBorrow => {}
+                CheckedStructuralAccess::MutableBorrow
+                | CheckedStructuralAccess::WriteOnlyBorrow => return None,
+            }
         }
     }
     Some(())

@@ -1,4 +1,4 @@
-//! Whole affine result operands share one source move judgment across callees.
+//! Whole affine result operands retain exact source access across callees.
 
 use super::*;
 
@@ -15,14 +15,36 @@ pub(super) fn argument(
     parameter: &StateParameter,
     target_identity: &str,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
+    let access = structural_access_for_type_reference(program, parameter.type_reference)?;
+    let (value_expression, referent) = match access {
+        CheckedStructuralAccess::Owned => (expression, parameter.type_reference),
+        CheckedStructuralAccess::SharedBorrow => {
+            let referee = shared_plain_affine_referent(program, parameter.type_reference)?;
+            let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression)
+            else {
+                return None;
+            };
+            if borrow.access != language_semantics::ReferenceAccess::Shared
+                || !program.expression_table.expression_is_valid(borrow.target)
+                || !matches!(place.root, facts::PlaceRoot::Symbol(_))
+                || exact_structural_argument_access(
+                    program, facts, machine, state, call, place, access,
+                )? != access
+            {
+                return None;
+            }
+            (borrow.target, referee)
+        }
+        CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow => {
+            return None;
+        }
+    };
     if parameter.is_self
         || result.multiplicity != Multiplicity::Affine
         || result.type_identity != target_identity
         || !place.segments.is_empty()
-        || structural_access_for_type_reference(program, parameter.type_reference)?
-            != CheckedStructuralAccess::Owned
-        || program.type_multiplicity(parameter.type_reference) != Multiplicity::Affine
-        || !validation::has_plain_owned_contents(program, parameter.type_reference)
+        || program.type_multiplicity(referent) != Multiplicity::Affine
+        || !validation::has_plain_owned_contents(program, referent)
         || usize::try_from(result.statement_index).ok()? > call.statement_index
     {
         return None;
@@ -31,12 +53,31 @@ pub(super) fn argument(
         facts::PlaceRoot::Symbol(symbol) => {
             if usize::try_from(result.statement_index).ok()? == call.statement_index
                 || !symbol.is_valid()
-                || !matches!(program.expression_table.expression(expression),
+                || !matches!(program.expression_table.expression(value_expression),
                     ExpressionNode::Name(name) if name.symbol == symbol
                         && name.head_symbol == symbol
                         && program.expression_table.name_path_members(name.members).len() == 1)
             {
                 return None;
+            }
+            if access == CheckedStructuralAccess::SharedBorrow {
+                let source_state = crate::find_state(program, state)?;
+                let StatementNode::LocalData(local) = program
+                    .statement_table
+                    .statements(source_state.statement_nodes)
+                    .get(usize::try_from(result.statement_index).ok()?)?
+                else {
+                    return None;
+                };
+                if local.is_mutable
+                    || local.symbol != symbol
+                    || !validation::has_plain_owned_contents(program, local.type_reference)
+                    || program.type_multiplicity(local.type_reference) != Multiplicity::Affine
+                    || base_type_identity(program, local.type_reference, &[])?
+                        != result.type_identity
+                {
+                    return None;
+                }
             }
         }
         // Ordinary and boundary affine producers own anonymous results.
@@ -80,6 +121,16 @@ pub(super) fn argument(
             }
         }
         _ => return None,
+    }
+    if access == CheckedStructuralAccess::SharedBorrow {
+        return Some(CheckedUnitStructuralArgumentPlan {
+            source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: result.binding_ordinal,
+            },
+            path: Vec::new(),
+            type_identity: target_identity.to_owned(),
+            access,
+        });
     }
     let mut events = facts
         .flow

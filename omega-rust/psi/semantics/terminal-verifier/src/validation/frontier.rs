@@ -315,6 +315,7 @@ pub(super) fn validate_structural_frontier(
             snapshots
                 .operation_entries
                 .insert(operation.id, frontier.snapshot());
+            validate_shared_owned_reads(machine, operation, &frontier)?;
             if let OperationKind::EstablishTrivialAffineLocal { destination } = operation.kind
                 && frontier
                     .owned_places
@@ -936,6 +937,67 @@ pub(super) fn validate_structural_frontier(
         }
     }
     Ok(snapshots)
+}
+
+/// Borrowed parameters are supplied by the caller. A shared view of an owned
+/// parameter or result, however, requires this frame to still own that value.
+/// Check every read before committing any outgoing move; repeated shared
+/// arguments do not alter the frontier.
+fn validate_shared_owned_reads(
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+    frontier: &StructuralOwnershipFrontier,
+) -> Result<(), ModuleError> {
+    let arguments = match &operation.kind {
+        OperationKind::CallUnit {
+            structural_arguments,
+            ..
+        }
+        | OperationKind::CallStructuralScalar {
+            structural_arguments,
+            ..
+        }
+        | OperationKind::CallStructural {
+            structural_arguments,
+            ..
+        }
+        | OperationKind::CallStructuralWithScalarArguments {
+            structural_arguments,
+            ..
+        }
+        | OperationKind::BoundaryCall {
+            structural_arguments,
+            ..
+        } => structural_arguments,
+        _ => return Ok(()),
+    };
+    for argument in arguments.iter().filter(|argument| {
+        argument.access == StructuralAccess::SharedBorrow
+            && (machine.structural_places.iter().any(|place| {
+                place.id == argument.place
+                    && matches!(place.kind, StructuralPlaceKind::OperationResult { .. })
+            }) || machine.structural_parameters.iter().any(|parameter| {
+                parameter.place == argument.place
+                    && parameter.access == StructuralAccess::Owned
+                    && parameter.multiplicity == StructuralMultiplicity::Affine
+            }))
+    }) {
+        if frontier.owned_places.get(&argument.place) != Some(&StructuralMultiplicity::Affine) {
+            return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+                operation: operation.id,
+                place: argument.place,
+            });
+        }
+        if frontier.partial_custody_paths.contains_key(&argument.place) {
+            return Err(
+                ModuleError::PartiallyMovedStructuralPlaceUsedWholeAtOperation {
+                    operation: operation.id,
+                    place: argument.place,
+                },
+            );
+        }
+    }
+    Ok(())
 }
 
 fn require_snapshot_match(

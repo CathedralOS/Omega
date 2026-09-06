@@ -107,13 +107,21 @@ pub(crate) fn validate_usage(
                 );
             }
             if !argument.path.is_empty()
-                || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                || !matches!(
+                    argument.access,
+                    checked_trees::CheckedStructuralAccess::Owned
+                        | checked_trees::CheckedStructuralAccess::SharedBorrow
+                )
+                || (argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+                    && producer.coordinate.call_ordinal != 0)
                 || argument.type_identity != result.type_identity
                 || result.multiplicity != Multiplicity::Affine
             {
-                return unsupported("Unit structural result use is not a whole owned affine move");
+                return unsupported(
+                    "Unit structural result use is not a whole affine move or named shared borrow",
+                );
             }
-            consumed = true;
+            consumed = argument.access == checked_trees::CheckedStructuralAccess::Owned;
         }
     }
     if producer.discard == consumed || (producer.coordinate.call_ordinal != 0 && !consumed) {
@@ -257,6 +265,7 @@ pub(crate) fn validate_consumer(
                     );
                 }
                 expression.is_some_and(|expression| {
+                    let (expression, _) = named_result_operand(checked, expression);
                     matches!(
                         checked.expression_table.expression(expression),
                         ExpressionNode::Name(name)
@@ -289,6 +298,16 @@ pub(crate) fn validate_consumer(
                     "Unit structural result argument does not rejoin its exact authored source"
                 });
             }
+            if names_result
+                && producer_coordinate.call_ordinal == 0
+                && expression.is_none_or(|expression| {
+                    named_result_operand(checked, expression).1 != argument.access
+                })
+            {
+                return unsupported(
+                    "Unit structural result access disagrees with its authored operand",
+                );
+            }
         }
         let Some(binding_ordinal) = binding_ordinal else {
             continue;
@@ -301,7 +320,7 @@ pub(crate) fn validate_consumer(
             result.statement_index == coordinate.statement_index
                 && coordinate.call_ordinal < producer.coordinate.call_ordinal
         };
-        if producer.discard
+        if (producer.discard && argument.access == checked_trees::CheckedStructuralAccess::Owned)
             || producer.operation_index >= operation_index
             || !source_order
             || matches!(operation, CheckedUnitEffectOperationPlan::StructuralCall { result: consumer, .. }
@@ -311,9 +330,20 @@ pub(crate) fn validate_consumer(
             || argument.type_identity != result.type_identity
             || parameter.type_identity != result.type_identity
             || !argument.path.is_empty()
-            || argument.access != checked_trees::CheckedStructuralAccess::Owned
-            || parameter.access != checked_trees::CheckedStructuralAccess::Owned
-            || parameter.multiplicity != Multiplicity::Affine
+            || !matches!(
+                argument.access,
+                checked_trees::CheckedStructuralAccess::Owned
+                    | checked_trees::CheckedStructuralAccess::SharedBorrow
+            )
+            || argument.access != parameter.access
+            || (argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+                && producer.coordinate.call_ordinal != 0)
+            || parameter.multiplicity
+                != if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
+                    Multiplicity::Unrestricted
+                } else {
+                    Multiplicity::Affine
+                }
             || parameter.is_self
             || !parameter.qualifications.is_empty()
             || parameter.fused_service_erasure.is_some()
@@ -324,12 +354,29 @@ pub(crate) fn validate_consumer(
                 .iter()
                 .any(|transfer| transfer.argument_index as usize == index)
         {
-            return unsupported(
-                "Unit structural result argument has invalid owned claim-free custody",
-            );
+            return unsupported("Unit structural result argument has invalid claim-free custody");
         }
     }
     Ok(())
+}
+
+fn named_result_operand(
+    checked: &CheckedTrees,
+    expression: checked_trees::expression::ExpressionHandle,
+) -> (
+    checked_trees::expression::ExpressionHandle,
+    checked_trees::CheckedStructuralAccess,
+) {
+    if let ExpressionNode::Borrow(borrow) = checked.expression_table.expression(expression)
+        && borrow.access == language_core::ReferenceAccess::Shared
+    {
+        (
+            borrow.target,
+            checked_trees::CheckedStructuralAccess::SharedBorrow,
+        )
+    } else {
+        (expression, checked_trees::CheckedStructuralAccess::Owned)
+    }
 }
 
 fn validate_nested_execution_order(

@@ -19,6 +19,7 @@ mod returns;
 mod scalar_boundary_targets;
 mod scalar_sequences;
 mod shared_convergence;
+mod shared_result_borrows;
 mod tail_calls;
 
 use checked_trees::{
