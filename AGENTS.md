@@ -311,6 +311,11 @@ may not parse, lower, manufacture semantic evidence, or decide trust.
 
 ## Repository conventions
 
+For Rust implementation, refactoring, and performance review, read the repository's
+[rust-systems-programmer skill](.codex/skills/rust-systems-programmer/SKILL.md).
+Use that exact local copy rather than a same-named global skill; the repository
+contracts below and in README remain authoritative.
+
 The `[READONLY] Coding Conventions` section of [README.md](README.md) is
 authoritative. The ones a default Rust instinct will violate:
 
