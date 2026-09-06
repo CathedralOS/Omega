@@ -130,6 +130,7 @@ pub(super) fn build(
             result
                 .as_ref()
                 .map(|result| ExpectedCallValueResult::Scalar(result.primitive_type)),
+            &[],
         )?;
         operations.push(match result {
             Some(result) => bind_scalar_call_result(facts, operation, result, true)?,

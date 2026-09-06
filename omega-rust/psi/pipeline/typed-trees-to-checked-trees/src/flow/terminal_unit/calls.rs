@@ -539,6 +539,7 @@ pub(super) fn build_call_operation(
     call: &checked_trees::FlowCallFact,
     allow_field_path_projection: bool,
     expected_call_result: Option<ExpectedCallValueResult<'_>>,
+    caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, SymbolHandle)],
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let coordinate = CheckedUnitCallCoordinate {
         statement_index: u32::try_from(call.statement_index).ok()?,
@@ -922,6 +923,7 @@ pub(super) fn build_call_operation(
         call.statement_index,
         true,
         allow_field_path_projection,
+        caller_structural_results,
     )?;
     let scalar_parameters = program
         .state_parameters(target_state)
@@ -1746,6 +1748,7 @@ pub(super) fn structural_call_arguments(
     statement_index: usize,
     allow_fixed_index_projection: bool,
     allow_field_path_projection: bool,
+    caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, SymbolHandle)],
 ) -> Option<Vec<CheckedUnitStructuralArgumentPlan>> {
     let source_parameters = program.state_parameters(caller_state);
     let target_parameters = program.state_parameters(target_state);
@@ -1837,6 +1840,54 @@ pub(super) fn structural_call_arguments(
         } else {
             base_type_identity(program, target.type_reference, &[])?
         };
+        if let Some((result, _)) = caller_structural_results
+            .iter()
+            .find(|(_, symbol)| *symbol == source_symbol)
+        {
+            let exact_transfer = facts.flow.ownership.permissions.iter().any(|(_, event)| {
+                event.machine_symbol == caller_machine.symbol
+                    && event.state_symbol == caller_state.symbol
+                    && event.source
+                        == PermissionEventSource::Call {
+                            statement_index: call.statement_index,
+                            call_ordinal: call.call_ordinal,
+                            target_symbol: call.target_symbol,
+                        }
+                    && event.kind == PermissionEventKind::Transfer
+                    && event.multiplicity == Multiplicity::Affine
+                    && event.access == PermissionAccess::Owned
+                    && event.claim_identity == PermissionClaimIdentity::Unknown
+                    && !event.obligation_live
+                    && event.root == facts::PlaceRoot::Symbol(source_symbol)
+                    && facts
+                        .flow
+                        .ownership
+                        .segments
+                        .span_or_empty(event.segments)
+                        .is_empty()
+            });
+            if target_machine.supply_mode != MachineSupplyMode::CheckedBody
+                || !is_unit(program, target_state.return_type)
+                || usize::try_from(result.statement_index).ok()? >= call.statement_index
+                || result.multiplicity != Multiplicity::Affine
+                || !place.segments.is_empty()
+                || result.type_identity != target_identity
+                || structural_access_for_type_reference(program, target.type_reference)?
+                    != CheckedStructuralAccess::Owned
+                || !exact_transfer
+            {
+                return None;
+            }
+            output.push(CheckedUnitStructuralArgumentPlan {
+                source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    binding_ordinal: result.binding_ordinal,
+                },
+                path: Vec::new(),
+                type_identity: target_identity,
+                access: CheckedStructuralAccess::Owned,
+            });
+            continue;
+        }
         if let Some((local, _)) = caller_trivial_affine_locals
             .iter()
             .find(|(_, symbol)| *symbol == source_symbol)
@@ -2367,6 +2418,9 @@ pub(super) fn call_claim_transfers(
             if (argument.source_local_declaration_ordinal().is_none()
                 && argument
                     .source_affine_scalar_record_local_declaration_ordinal()
+                    .is_none()
+                && argument
+                    .source_structural_result_binding_ordinal()
                     .is_none())
                 || !argument.path.is_empty()
                 || argument.access != CheckedStructuralAccess::Owned

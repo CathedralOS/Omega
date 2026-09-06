@@ -399,6 +399,7 @@ pub(crate) fn validate_transfer_shape(
     caller_parameters: &[StructuralParameterDeclaration],
     caller_trivial_affine_locals: &[StructuralPlaceDeclaration],
     caller_affine_scalar_record_locals: &[StructuralPlaceDeclaration],
+    caller_structural_results: &[(StructuralPlaceDeclaration, bool)],
     target_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
     type_ids: &[(String, StructuralTypeId)],
     structural_types: &[StructuralTypeDeclaration],
@@ -494,6 +495,36 @@ pub(crate) fn validate_transfer_shape(
             }
             continue;
         }
+        if let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() {
+            let source = structural_result_source(caller_structural_results, binding_ordinal)?;
+            let StructuralPlaceKind::OperationResult {
+                structural_type, ..
+            } = source.kind
+            else {
+                return unsupported("Unit structural result source has no producer operation");
+            };
+            if !argument.path.is_empty()
+                || argument.type_identity != target.type_identity
+                || structural_type != lookup_type_id(type_ids, &argument.type_identity)?
+                || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                || target.access != checked_trees::CheckedStructuralAccess::Owned
+                || target.multiplicity != Multiplicity::Affine
+                || target.is_self
+                || !target.qualifications.is_empty()
+                || target.fused_service_erasure.is_some()
+                || transfers.iter().any(|transfer| {
+                    arguments
+                        .get(transfer.argument_index as usize)
+                        .is_some_and(|argument| {
+                            argument.source_structural_result_binding_ordinal()
+                                == Some(binding_ordinal)
+                        })
+                })
+            {
+                return unsupported("Unit structural result argument has invalid checked custody");
+            }
+            continue;
+        }
         let source_parameter_index =
             argument
                 .source_parameter_index()
@@ -570,6 +601,7 @@ pub(crate) fn lower_structural_arguments(
     parameters: &[StructuralParameterDeclaration],
     trivial_affine_locals: &[StructuralPlaceDeclaration],
     affine_scalar_record_locals: &[StructuralPlaceDeclaration],
+    structural_results: &[(StructuralPlaceDeclaration, bool)],
     literal_places: &[PlaceId],
 ) -> Result<Vec<StructuralArgument>, LoweringError> {
     let mut next_literal = 0usize;
@@ -653,6 +685,19 @@ pub(crate) fn lower_structural_arguments(
                     access: StructuralAccess::Owned,
                 });
             }
+            if let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() {
+                let source = structural_result_source(structural_results, binding_ordinal)?;
+                if !argument.path.is_empty()
+                    || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                {
+                    return unsupported("Unit structural result argument drifted from whole owned custody");
+                }
+                return Ok(StructuralArgument {
+                    place: source.id,
+                    path: Vec::new(),
+                    access: StructuralAccess::Owned,
+                });
+            }
             let source_parameter_index =
                 argument
                     .source_parameter_index()
@@ -691,6 +736,23 @@ pub(crate) fn lower_structural_arguments(
                 unsupported("byte-sequence literal place count disagrees with arguments")
             }
         })
+}
+
+fn structural_result_source(
+    results: &[(StructuralPlaceDeclaration, bool)],
+    binding_ordinal: u32,
+) -> Result<&StructuralPlaceDeclaration, LoweringError> {
+    let (source, discard) = results
+        .get(usize::try_from(binding_ordinal).map_err(|_| {
+            LoweringError::Unsupported("Unit structural result binding ordinal exceeds usize")
+        })?)
+        .ok_or(LoweringError::Unsupported(
+            "Unit structural result binding is not produced",
+        ))?;
+    if *discard || !matches!(source.kind, StructuralPlaceKind::OperationResult { .. }) {
+        return unsupported("Unit structural result argument disagrees with its producer cleanup");
+    }
+    Ok(source)
 }
 
 pub(crate) fn lower_structural_path(

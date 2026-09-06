@@ -1179,6 +1179,8 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
     /// constructor results. This source is always the exact whole initialized
     /// local.
     AffineScalarRecordLocal { declaration_ordinal: u32 },
+    /// Exact binding ordinal of an earlier whole structural call result.
+    StructuralResult { binding_ordinal: u32 },
     /// Exact byte sequence passed directly to a bodyless boundary.
     ByteSequenceLiteral { bytes: Vec<u8> },
 }
@@ -1204,6 +1206,7 @@ impl CheckedUnitStructuralArgumentPlan {
             }
             CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::AffineScalarRecordLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. } => None,
         }
     }
@@ -1215,6 +1218,7 @@ impl CheckedUnitStructuralArgumentPlan {
             } => Some(declaration_ordinal),
             CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::AffineScalarRecordLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. } => None,
         }
     }
@@ -1226,6 +1230,19 @@ impl CheckedUnitStructuralArgumentPlan {
             } => Some(declaration_ordinal),
             CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. } => None,
+        }
+    }
+
+    pub fn source_structural_result_binding_ordinal(&self) -> Option<u32> {
+        match self.source {
+            CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
+                Some(binding_ordinal)
+            }
+            CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::AffineScalarRecordLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. } => None,
         }
     }
@@ -1235,6 +1252,7 @@ impl CheckedUnitStructuralArgumentPlan {
             CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { bytes } => Some(bytes),
             CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
             | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
             | CheckedUnitStructuralArgumentSourcePlan::AffineScalarRecordLocal { .. } => None,
         }
     }

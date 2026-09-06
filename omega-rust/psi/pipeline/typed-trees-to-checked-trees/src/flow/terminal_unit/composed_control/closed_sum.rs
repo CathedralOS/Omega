@@ -138,6 +138,7 @@ pub(super) fn build(
         result_call,
         false,
         Some(ExpectedCallValueResult::Structural(&result)),
+        &[],
     )?
     else {
         return None;
@@ -419,6 +420,7 @@ fn build_leaf(
             call,
             false,
             None,
+            &[],
         )?;
         match &operation {
             CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }

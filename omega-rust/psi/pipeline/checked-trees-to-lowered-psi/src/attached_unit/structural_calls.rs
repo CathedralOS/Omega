@@ -4,6 +4,9 @@ use super::*;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 
+mod result_uses;
+pub(super) use result_uses::{validate_consumer, validate_usage};
+
 fn target(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
@@ -40,7 +43,6 @@ pub(super) fn validate(
         service_reach,
         scalar_arguments,
         structural_arguments,
-        discard_result_on_return,
         ..
     } = operation
     else {
@@ -86,7 +88,6 @@ pub(super) fn validate(
         || coordinate.call_ordinal != 0
         || result.statement_index != coordinate.statement_index
         || result.binding_ordinal != 0
-        || !discard_result_on_return
         || result.multiplicity != Multiplicity::Affine
         || result.type_identity != target.result.type_identity
         || target.result.multiplicity != Multiplicity::Affine
@@ -184,6 +185,7 @@ pub(super) fn validate(
             "ordinary structural result or source disagrees with its authored initializer",
         );
     }
+    validate_usage(caller, result)?;
     Ok(())
 }
 
@@ -224,6 +226,7 @@ pub(super) fn emit(
         parameters,
         &[],
         &[],
+        &[],
         std::slice::from_ref(&target.structural_parameter),
         type_ids,
         structural_types,
@@ -244,7 +247,7 @@ pub(super) fn emit(
         .map(|value| value.id)
         .collect();
     let structural_arguments =
-        lower_structural_arguments(structural_arguments, parameters, &[], &[], &[])?;
+        lower_structural_arguments(structural_arguments, parameters, &[], &[], &[], &[])?;
     let id = operations.allocate();
     let place = place_id(allocate_dense(next_place)?);
     let structural_type = lookup_type_id(type_ids, &result.type_identity)?;

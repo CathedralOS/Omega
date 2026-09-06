@@ -3821,8 +3821,19 @@ plain owned aggregate graph as the producer. Verification rejects missing,
 reused, or mismatched result places and ownership obligations. Fixed-fuel
 analysis counts both the invocation and callee body; suspended execution resumes
 without replaying the transfer. Whole affine results can also feed this Terminal
-operation directly, although source result-binding lookup for subsequent uses
-remains unfinished.
+operation directly.
+
+The first ordinary structural initializer can pass its result to a later
+ordinary Unit call. Its checked argument names the exact result-binding ordinal,
+not a parameter or construction-local substitute. Call-initialized affine
+locals participate in the source permission timeline: establishment precedes
+the consuming move, and a second move is rejected. Lowering rejoins the authored
+local, producer, target parameter, and operation-result place. A transferred
+result has no caller disposal; the receiving machine owns its subsequent
+transfer or cleanup. Unused results still require caller cleanup, and the
+verifier rejects forged producers, uses before production, duplicate moves,
+and conflicting cleanup. Result types and crash-route roots use the same
+shared catalog and storage identities as the calls.
 
 This does not widen the native call ABI or admit nested structural operands,
 later structural initializers, result projections, or borrowed/qualified/linear

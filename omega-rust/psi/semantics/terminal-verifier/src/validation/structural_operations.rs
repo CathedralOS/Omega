@@ -391,7 +391,7 @@ pub(super) fn validate_unit_operation_static(
                 &callee.structural_parameters,
                 operation.id,
                 true,
-                StructuralArgumentSourcePolicy::ParametersOrAffineLocals,
+                StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults,
             )?;
             if let Some(argument_index) = structural_arguments
                 .iter()
@@ -1075,7 +1075,8 @@ fn unit_call_contract_propositions(callee: &TerminalMachine) -> impl Iterator<It
 pub(super) enum StructuralArgumentSourcePolicy {
     OnlyParameters,
     ParametersOrByteSequenceLiterals,
-    ParametersOrAffineLocals,
+    /// Unit calls retain construction locals and whole ordinary affine results.
+    ParametersOrAffineLocalsAndCallResults,
     /// Whole record establishments and claim-free affine identity call results.
     /// Frontier validation separately requires their producer to have run.
     ParametersOrAffineOperationResults,
@@ -1139,7 +1140,7 @@ pub(super) fn validate_structural_arguments(
                         StructuralPlaceKind::TrivialAffineLocal {
                             structural_type, ..
                         } if source_policy
-                            == StructuralArgumentSourcePolicy::ParametersOrAffineLocals
+                            == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
                             && argument.path.is_empty() =>
                         {
                             Some((
@@ -1155,7 +1156,7 @@ pub(super) fn validate_structural_arguments(
                             structural_type,
                         } if matches!(
                             source_policy,
-                            StructuralArgumentSourcePolicy::ParametersOrAffineLocals
+                            StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
                                 | StructuralArgumentSourcePolicy::ParametersOrAffineOperationResults
                         )
                             && argument.path.is_empty()
@@ -1168,12 +1169,16 @@ pub(super) fn validate_structural_arguments(
                                         && (matches!(
                                             operation.kind,
                                             OperationKind::EstablishAffineScalarRecord { .. }
-                                        ) || (source_policy
-                                            == StructuralArgumentSourcePolicy::ParametersOrAffineOperationResults
-                                            && matches!(
+                                        ) || (matches!(
                                                 operation.kind,
                                                 OperationKind::CallStructuralWithScalarArguments { .. }
-                                            )))
+                                            )
+                                            && argument.access == StructuralAccess::Owned
+                                            && expected.access == StructuralAccess::Owned
+                                            && expected.multiplicity == StructuralMultiplicity::Affine
+                                            && !expected.is_self
+                                            && expected.qualifications.is_empty()
+                                            && expected.projected_qualifications.is_empty()))
                                         && operation.result.structural().is_some_and(|result| {
                                             result.place == argument.place
                                                 && result.structural_type == structural_type

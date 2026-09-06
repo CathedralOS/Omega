@@ -217,12 +217,6 @@ pub(super) fn validate_unit_operation_sequence(
                 result,
                 discard_result_on_return,
                 ..
-            }
-            | CheckedUnitEffectOperationPlan::StructuralCall {
-                coordinate,
-                result,
-                discard_result_on_return,
-                ..
             } => {
                 if result.statement_index != coordinate.statement_index
                     || coordinate.call_ordinal != 0
@@ -233,6 +227,20 @@ pub(super) fn validate_unit_operation_sequence(
                         "Unit structural result local or call coordinate is not canonical",
                     );
                 }
+                *coordinate
+            }
+            CheckedUnitEffectOperationPlan::StructuralCall {
+                coordinate, result, ..
+            } => {
+                if result.statement_index != coordinate.statement_index
+                    || coordinate.call_ordinal != 0
+                    || result.binding_ordinal != 0
+                {
+                    return unsupported(
+                        "Unit structural result local or call coordinate is not canonical",
+                    );
+                }
+                structural_calls::validate_usage(machine, result)?;
                 *coordinate
             }
             CheckedUnitEffectOperationPlan::BoundaryStructuralCall {

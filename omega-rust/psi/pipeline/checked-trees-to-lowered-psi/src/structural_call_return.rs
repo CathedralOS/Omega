@@ -187,8 +187,14 @@ pub(super) fn lower_structural_call_return_machine(
         return unsupported("structural call content roots do not match the checked signature");
     }
 
-    let structural_arguments =
-        lower_structural_arguments(&plan.call.structural_arguments, &parameters, &[], &[], &[])?;
+    let structural_arguments = lower_structural_arguments(
+        &plan.call.structural_arguments,
+        &parameters,
+        &[],
+        &[],
+        &[],
+        &[],
+    )?;
     let caller = TerminalMachine {
         id: machine_id(1),
         attachment: Some(attachment),
