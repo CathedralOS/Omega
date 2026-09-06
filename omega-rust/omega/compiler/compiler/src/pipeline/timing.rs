@@ -1,7 +1,7 @@
 use crate::pipeline::stage::StageMeta;
 use artifacts::PhaseTiming;
-use core::allocations::AllocationDelta;
-use core::allocations::snapshot as allocation_snapshot;
+use artifacts::allocations::AllocationDelta;
+use artifacts::allocations::snapshot as allocation_snapshot;
 use diagnostics::Diagnostic;
 use std::time::Instant;
 

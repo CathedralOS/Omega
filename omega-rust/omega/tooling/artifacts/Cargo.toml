@@ -15,7 +15,6 @@ external-root-report = ["dep:external-roots"]
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 checked-trees = { path = "../../../psi/representations/checked-trees" }
 typed-trees = { path = "../../../psi/representations/typed-trees" }
-core = { path = "../../representations/core" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 calling-conventions = { path = "../../representations/calling-conventions" }
 effects = { path = "../../representations/effects" }

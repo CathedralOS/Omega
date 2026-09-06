@@ -93,13 +93,6 @@
 //! is the one that added the `SemanticEdge` origin, so an older reader cannot
 //! mistake tag 4 for something it knows. Do not bump it without leaving the same
 //! kind of trace.
-//!
-//! @Cleanup: `storage_region_symbol_name` in `names.rs` has no caller anywhere
-//! in the workspace, its own tests included. It is the only reader of
-//! `core::runtime_storage::RuntimeStorageRegion`, so removing it also
-//! strands that module - see the header of `core`, which wrongly called
-//! that module live on the strength of this import until the call chain was
-//! actually followed.
 
 mod container;
 mod fragment_container;

@@ -26,7 +26,6 @@ package-compilation = { path = "../../build/package-compilation" }
 provider-planning = { path = "../../build/provider-planning" }
 representation-planning = { path = "../../build/representation-planning" }
 trust-model = { path = "../../build/trust-model" }
-core = { path = "../../representations/core" }
 boundary-applications = { path = "../../representations/boundary-applications" }
 optimization-core = { path = "../../representations/optimization-core" }
 abstract-operations-to-target-operations = { path = "../../pipeline/abstract-operations-to-target-operations" }

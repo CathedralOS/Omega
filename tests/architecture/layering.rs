@@ -585,35 +585,30 @@ fn psi_does_not_depend_on_omega() {
 }
 
 #[test]
-fn frontend_implementation_is_psi_owned() {
+fn allocation_reporting_has_no_catch_all_representation_owner() {
     let root = workspace_root();
-    for relative in [
-        "omega-rust/omega/representations/core/src/arithmetic.rs",
-        "omega-rust/omega/representations/core/src/arena/mod.rs",
-        "omega-rust/omega/representations/core/src/atomic.rs",
-        "omega-rust/omega/representations/core/src/bignum.rs",
-        "omega-rust/omega/representations/core/src/byte_predicates.rs",
-        "omega-rust/omega/representations/core/src/cast_form.rs",
-        "omega-rust/omega/representations/core/src/const_value.rs",
-        "omega-rust/omega/representations/core/src/content.rs",
-        "omega-rust/omega/representations/core/src/diagnostics/mod.rs",
-        "omega-rust/omega/representations/core/src/float_semantics.rs",
-        "omega-rust/omega/representations/core/src/inline_assembly.rs",
-        "omega-rust/omega/representations/core/src/literals.rs",
-        "omega-rust/omega/representations/core/src/operator_spelling.rs",
-        "omega-rust/omega/representations/core/src/semantics.rs",
-        "omega-rust/omega/representations/core/src/source",
-        "omega-rust/omega/representations/core/src/span.rs",
-        "omega-rust/omega/representations/core/src/symbols/mod.rs",
-        "omega-rust/omega/representations/core/src/trust.rs",
-        "omega-rust/omega/representations/core/src/value_domain.rs",
-        "omega-rust/omega/representations/core/src/wire.rs",
-    ] {
+    assert!(
+        !root
+            .join("omega-rust/omega/representations/core/Cargo.toml")
+            .exists()
+    );
+    let graph = load_graph();
+    assert!(!graph.contains_key("core"));
+    assert_eq!(graph["artifacts"].layer, "tooling");
+    for consumer in ["compiler", "omega"] {
         assert!(
-            !root.join(relative).exists(),
-            "retired Psi-owned core compatibility surface must not return: {relative}"
+            graph[consumer]
+                .deps
+                .iter()
+                .any(|dependency| dependency == "artifacts")
         );
     }
+    assert!(
+        !graph["object-file"]
+            .deps
+            .iter()
+            .any(|dependency| dependency == "artifacts")
+    );
 }
 
 #[test]
