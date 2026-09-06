@@ -1,5 +1,129 @@
 use super::checks::check_program;
 
+#[test]
+fn a_direct_reference_field_result_keeps_its_source_loan_active() {
+    for (declaration, use_held) in [
+        ("let held: &mut i32 = select(input);", "held"),
+        ("let held: &mut i32 = relay(select(input));", "held"),
+        (
+            "let held: View = View { body: select(input) };",
+            "held.body",
+        ),
+        (
+            "let held: [View; 1] = [View { body: select(input) }];",
+            "held[0].body",
+        ),
+        ("let held: &mut i32 = forward(input).body;", "held"),
+        ("let held: View = make_view(select(input));", "held.body"),
+        (
+            "let held: &mut i32 = select(forward_outer(Outer { inner: input }).inner);",
+            "held",
+        ),
+        (
+            "let held: &mut i32 = select(forward_array([input])[0]);",
+            "held",
+        ),
+    ] {
+        for (operation, admitted) in [("write(other);", true), ("write(source);", false)] {
+            let source = format!(
+                "data View {{ body: &mut i32; }}
+             data Outer {{ inner: View; }}
+             machine forward_outer(value: Outer) -> Outer {{ value }}
+             machine forward_array(value: [View; 1]) -> [View; 1] {{ value }}
+             machine select(value: View) -> &mut i32 {{ value.body }}
+             machine relay(value: &mut i32) -> &mut i32 {{ value }}
+             machine forward(value: View) -> View {{ value }}
+             machine make_view(value: &mut i32) -> View {{ View {{ body: value }} }}
+             machine write(value: &mut i32) {{ value = 1; }}
+             machine exercise(source: &mut i32, other: &mut i32) {{
+                 let input: View = View {{ body: source }};
+                 {declaration}
+                 {operation}
+                 write({use_held});
+             }}"
+            );
+            if declaration.contains("select(forward_outer(")
+                || declaration.contains("select(forward_array(")
+            {
+                let program = typed_program(&source);
+                let machine = program
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.name.as_str() == "exercise")
+                    .unwrap();
+                let state = &program.machine_states(machine)[0];
+                let held = program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .iter()
+                    .find_map(|statement| match statement {
+                        typed_trees::statement::StatementNode::LocalData(local)
+                            if local.name.as_str() == "held" =>
+                        {
+                            Some(local.symbol)
+                        }
+                        _ => None,
+                    })
+                    .unwrap();
+                let facts = crate::build_borrow_facts(&program);
+                let loans = facts
+                    .loans
+                    .iter()
+                    .map(|(_, loan)| loan)
+                    .filter(|loan| loan.owner_symbol == held)
+                    .collect::<Vec<_>>();
+                assert_eq!(loans.len(), 1, "{declaration}");
+                assert_eq!(
+                    loans[0].root_symbol,
+                    program.state_parameters(state)[0].symbol
+                );
+                // Loan transfer is independent of the existing conservative
+                // move check for projected temporary owned values. Do not
+                // remove that gate merely because attribution is now exact.
+                let diagnostics =
+                    check_program(&source).expect_err("projected temporary move gate");
+                assert!(
+                    diagnostics
+                        .iter()
+                        .any(|diagnostic| diagnostic.message.contains(
+                            "receives an owned value while local borrow `input` is still active"
+                        )),
+                    "{declaration}: {diagnostics:#?}"
+                );
+                continue;
+            }
+            if declaration == "let held: &mut i32 = select(input);" {
+                let checked_source =
+                    format!("data Main {{}} machine Main::run(&mut self) {{}} {source}");
+                let result = crate::lower_typed_trees(typed_program(&checked_source));
+                if admitted {
+                    result.expect("raw owned-carrier reference return reaches checked trees");
+                } else {
+                    let diagnostics = result.expect_err("full checking retains the source loan");
+                    assert!(
+                        diagnostics.iter().any(|diagnostic| diagnostic
+                            .message
+                            .contains("while local borrow `held` is still active")),
+                        "{diagnostics:#?}"
+                    );
+                }
+            }
+            if admitted {
+                check_program(&source).expect("a disjoint source remains usable");
+            } else {
+                let diagnostics = check_program(&source)
+                    .expect_err("forwarding the stored reference retains its source loan");
+                assert!(
+                    diagnostics.iter().any(|diagnostic| diagnostic
+                        .message
+                        .contains("while local borrow `held` is still active")),
+                    "{diagnostics:#?}"
+                );
+            }
+        }
+    }
+}
+
 fn single_source(initializer: &str, body: &str, explicit: bool) -> String {
     let (binder, applied, reference) = if explicit {
         ("<'source>", "View<'source>", "&'source mut i32")

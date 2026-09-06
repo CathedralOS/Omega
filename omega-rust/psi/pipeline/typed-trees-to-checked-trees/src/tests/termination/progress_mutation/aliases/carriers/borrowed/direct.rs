@@ -92,7 +92,7 @@ fn direct_exclusive_results_keep_identity_separate_from_helper_writes() {
              { wait_context(selected) }",
             &format!(
                 "machine select(carrier: &mut Carrier) -> &mut Context {{ {assignment}
-                 let selected: &mut Context = carrier.context; selected }}"
+                 carrier.context }}"
             ),
         );
         if preserved {
@@ -111,7 +111,7 @@ fn direct_exclusive_results_keep_identity_separate_from_helper_writes() {
 }
 
 #[test]
-fn raw_exclusive_member_results_have_identity_before_terminal_type_support() {
+fn raw_exclusive_member_results_forward_the_declared_reference_type() {
     let source = source(
         "mut ",
         "mut ",
@@ -120,12 +120,5 @@ fn raw_exclusive_member_results_have_identity_before_terminal_type_support() {
     );
     let program = typed_source(&source);
     adversarial::assert_identity(&program, "borrowed", true);
-    let diagnostics = lower_typed_trees(program)
-        .expect_err("the existing terminal validator only forwards named exclusive references");
-    assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("terminal expression expects `&mut Context`, got `member access`")),
-        "{diagnostics:#?}"
-    );
+    lower_typed_trees(program).expect("an exact reference field is already a reference value");
 }

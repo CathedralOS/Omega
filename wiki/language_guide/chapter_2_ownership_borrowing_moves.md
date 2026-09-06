@@ -636,6 +636,10 @@ annotations, one carried reference in one input supports single-source elision;
 several unnamed carried references do not. Returning an owned carrier preserves
 the captured source loans and their access restrictions, not a borrow of the
 caller's private carrier storage.
+Returning a reference field directly from an owned input uses the same complete
+input lifetime frontier. The result has no enclosing field path, but retains
+every candidate source loan selected by its lifetime. Forwarding that result
+through another call or storing it in a literal cannot discard those loans.
 
 A generic trait requirement may declare a returned carrier whose structural
 lifetime frontier depends on its own type parameters. This is a

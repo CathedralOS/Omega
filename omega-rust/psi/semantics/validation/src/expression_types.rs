@@ -11,6 +11,7 @@ mod cast_validation;
 mod float_cast_proofs;
 mod float_destinations;
 mod operator_validation;
+mod reference_values;
 mod shape_validation;
 mod value_classification;
 
@@ -90,6 +91,16 @@ pub fn argument_matches_type_reference_handle(
             TypeReferenceNode::Reference { access: language_semantics::ReferenceAccess::Shared, referee, .. }
                 if *actual_access == language_semantics::ReferenceAccess::Mutable
                     && program.normalized_type_identity(*actual_referee) == program.normalized_type_identity(*referee));
+    }
+
+    if matches!(
+        program.expression_table.expression(argument),
+        ExpressionNode::Member(_)
+    ) && matches!(
+        program.type_reference_table.type_reference(type_reference),
+        TypeReferenceNode::Reference { .. }
+    ) {
+        return reference_values::member_matches_reference(program, argument, type_reference);
     }
 
     // A reference already stored in a named parameter/local is a value of its
