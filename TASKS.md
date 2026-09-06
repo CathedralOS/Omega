@@ -563,8 +563,6 @@ Owners include
   direct-register fragments and implement boundary call-result residual cleanup,
   including result homes and projected copies;
   whole-result disposal does not cover a projected result's residuals.
-  Extend checked-source production of named projected-result schedules from
-  static attached entries to free Unit callers.
   Extend source production to anonymous
   projected helper-result operands. Extend the
   type-directed record/array complement in

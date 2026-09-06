@@ -1685,9 +1685,12 @@ projection, partial-width fragment stores, anonymous projected helper-result
 operands, claims, nominal destruction, and partial construction remain outside
 this native slice.
 
-The checked-source native result-root entrance currently uses static attached
-Unit machines; free Unit callers still need the corresponding checked control
-plan production. A static attachment supplies no implicit receiver argument.
+Free and static attached Unit machines use the same checked result-root cleanup
+plan, including ordinary and boundary result producers. Signature selection
+rejoins the optional attachment exactly; no attachment means no implicit `self`
+or invented carrier. Free structural disposers use the ordinary typed parameter
+and whole-root cleanup rules. A static attachment supplies no implicit receiver
+argument. The native boundary-result restriction above still applies.
 
 The straight-line Unit return slice carries explicit no-code cleanup for owned
 affine structural parameters that have no claim rows. The checked plan derives

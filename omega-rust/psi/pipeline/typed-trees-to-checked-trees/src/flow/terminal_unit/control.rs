@@ -1084,21 +1084,10 @@ pub(super) fn build_checked_machine_with(
                 let structural =
                     free_selected_operator_structural_signature(program, shapes, state, &binders)?;
                 (None, structural, Vec::new())
-            } else if carries_scalar_parameter
-                || program
-                    .state_parameters(state)
-                    .iter()
-                    .any(|parameter| is_reference(program, parameter.type_reference))
-            {
+            } else {
                 let (structural, scalar) =
                     free_structural_scalar_signature(program, shapes, state, &binders)?;
                 (None, structural, scalar)
-            } else {
-                (
-                    None,
-                    Vec::new(),
-                    free_scalar_signature(program, state, &binders)?,
-                )
             }
         } else if carries_fused_service_parameter {
             let (attachment, structural, scalar) = fused_service_scalar_signature(

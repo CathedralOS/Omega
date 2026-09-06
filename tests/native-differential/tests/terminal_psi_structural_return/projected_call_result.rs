@@ -7,30 +7,38 @@ use super::affine_call_result_host as host;
 
 #[test]
 fn named_affine_result_projection_preserves_its_native_residual() {
-    check("Pair", "result.right", None, 16);
-    check("[Token; 2]", "result[1]", None, 16);
+    check("Pair", "result.right", None, 16, true);
+    check("[Token; 2]", "result[1]", None, 16, true);
 }
 
 #[test]
 fn fully_consumed_affine_results_keep_real_storage_and_empty_cleanup() {
-    check("Pair", "result.right", Some("result.left"), 16);
-    check("[Token; 2]", "result[1]", Some("result[0]"), 16);
-    check("[Token; 1]", "result[0]", None, 8);
+    check("Pair", "result.right", Some("result.left"), 16, true);
+    check("[Token; 2]", "result[1]", Some("result[0]"), 16, true);
+    check("[Token; 1]", "result[0]", None, 8, true);
 }
 
-fn check(carrier: &str, first: &str, second: Option<&str>, byte_size: u16) {
+#[test]
+fn free_unit_callers_retain_projected_result_cleanup_without_an_attachment() {
+    check("Pair", "result.right", None, 16, false);
+    check("[Token; 2]", "result[1]", Some("result[0]"), 16, false);
+}
+
+fn check(carrier: &str, first: &str, second: Option<&str>, byte_size: u16, attached: bool) {
+    let root = if attached { "Root::" } else { "" };
+    let sink = if attached { "Sink::" } else { "" };
     let second_call = second
-        .map(|value| format!("Sink::take({value});"))
+        .map(|value| format!("{sink}take({value});"))
         .unwrap_or_default();
     let source = format!(
         "data Token {{ value: u64; }}
         data Pair {{ left: Token; right: Token; }}
         data Root {{}} data Sink {{}}
-        machine Root::forward(value: {carrier}) -> {carrier} {{ value }}
-        machine Sink::take(value: Token) {{}}
-        machine Root::enter(value: {carrier}) {{
-            let result: {carrier} = Root::forward(value);
-            Sink::take({first}); {second_call}
+        machine {root}forward(value: {carrier}) -> {carrier} {{ value }}
+        machine {sink}take(value: Token) {{}}
+        machine {root}enter(value: {carrier}) {{
+            let result: {carrier} = {root}forward(value);
+            {sink}take({first}); {second_call}
         }}"
     );
     let tokens = Lexer::new(&source).tokenize().unwrap();
@@ -38,7 +46,7 @@ fn check(carrier: &str, first: &str, second: Option<&str>, byte_size: u16) {
     let resolved = lower_syntax_trees(&syntax).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
     let checked = lower_typed_trees(typed).unwrap();
-    let terminal = lower_machine(&checked, "Root::enter").unwrap();
+    let terminal = lower_machine(&checked, &format!("{root}enter")).unwrap();
     let semantic = encode_module(&terminal.semantic_module).unwrap();
     let proof = encode_proof_bundle(&terminal.proof_bundle).unwrap();
     let plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default()).unwrap();
