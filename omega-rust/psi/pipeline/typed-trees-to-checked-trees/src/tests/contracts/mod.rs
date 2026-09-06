@@ -10,6 +10,7 @@ mod bounded_returns;
 mod byte_sequences;
 mod closed_boolean_calls;
 mod contract_entailment_certificates;
+mod entry_requirement_crash_coverage;
 mod fact_call_projections;
 mod indexing;
 mod instantiation;

@@ -12,6 +12,7 @@ use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 
 mod entry_guards;
+mod entry_requirements;
 mod source_fallthrough;
 
 pub(crate) fn infer_path_conditioned_guard_coverage(
@@ -46,6 +47,13 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
             continue;
         }
         let source_fallthrough = source_fallthrough::collect(program, machine);
+        let entry_requirements = entry_requirements::collect(
+            program,
+            machine,
+            &facts.operators,
+            &parameter_names,
+            &content_conservation,
+        );
 
         let checked_sites = crash_plan
             .checked_sites()
@@ -71,7 +79,8 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                         )
                     })
                     .collect::<Vec<_>>();
-                let mut path_predicates = Vec::new();
+                path_guard_conjuncts.extend(entry_requirements.conjuncts.iter().cloned());
+                let mut path_predicates = entry_requirements.consequences.clone();
                 let mut order_relations = Vec::new();
                 let mut integer_disequalities = Vec::new();
                 for guard in applicable_guards {
@@ -165,7 +174,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                         entry_guards::retains_entry_meaning(program, machine, guard.guard())
                     })
                     .collect::<Vec<_>>();
-                let path_guard_conjuncts = applicable_guards
+                let mut path_guard_conjuncts = applicable_guards
                     .iter()
                     .map(|guard| {
                         crate::facts::canonical_crash_path_predicate(
@@ -177,7 +186,8 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                         )
                     })
                     .collect::<Vec<_>>();
-                let mut path_guard_consequences = Vec::new();
+                path_guard_conjuncts.extend(entry_requirements.conjuncts.iter().cloned());
+                let mut path_guard_consequences = entry_requirements.consequences.clone();
                 let mut order_relations = Vec::new();
                 let mut integer_disequalities = Vec::new();
                 for guard in applicable_guards {

@@ -527,14 +527,23 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             )?)
         }
     } else {
-        let contract = closed_scalar_contract_plan(checked, machine)?;
-        if contract.has_outcome_specific_clauses()
-            || !contract.requires().is_empty()
-            || !contract.ensures().is_empty()
+        if plan.has_outcome_specific_clauses()
+            || plan
+                .requires()
+                .iter()
+                .chain(plan.ensures())
+                .any(Option::is_none)
         {
-            return unsupported("an all-crash scalar graph cannot declare a value contract");
+            return unsupported("all-crash scalar contract contains an unsupported clause");
         }
-        PreparedScalarContract::Empty
+        if plan.requires().is_empty() && plan.ensures().is_empty() {
+            PreparedScalarContract::Empty
+        } else {
+            // Entry requirements still constrain a call that never returns.
+            // Retain checked guarantees too; ordinary proof reconstruction,
+            // not the absence of a return edge here, decides their evidence.
+            PreparedScalarContract::Predicates(plan.clone())
+        }
     };
     Ok(PreparedScalarMachine {
         source_machine: machine,

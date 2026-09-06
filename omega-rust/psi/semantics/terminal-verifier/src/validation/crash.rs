@@ -7,6 +7,8 @@ use numerics::{
 
 use super::*;
 
+mod entry_requirements;
+
 pub(super) fn substitute_crash_routes(
     routes: &[CrashRouteBucket],
     substitutions: &BTreeMap<ValueId, ScalarTerm>,
@@ -68,7 +70,12 @@ pub(super) fn validate_call_crash_coverage(
     let forwarded = forwarded_formal_values(caller);
     for continuation in normalized_crash_routes(&substitute_crash_routes(continuations, &forwarded))
     {
-        if !covered(&continuation) {
+        if !covered(&continuation)
+            && !published_routes.iter().any(|published| {
+                published.cause == continuation.cause
+                    && entry_requirements::covers(caller, published)
+            })
+        {
             return Err(ModuleError::CallCrashContinuationUncovered {
                 operation,
                 cause: continuation.cause,
