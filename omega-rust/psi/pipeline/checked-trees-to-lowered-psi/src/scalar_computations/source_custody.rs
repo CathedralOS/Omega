@@ -14,7 +14,7 @@ pub(super) fn validate(
     if !plans.nodes.is_valid(root) {
         return unsupported("scalar computation has no live root");
     }
-    let source = super::super::source_custody::locate(checked, site.state, site.statement, role)?;
+    let source = crate::scalar_source_custody::locate(checked, site.state, site.statement, role)?;
     let destination = if matches!(
         role,
         CheckedScalarExpressionRole::StorageInitializer
@@ -24,6 +24,14 @@ pub(super) fn validate(
     } else {
         symbols::SymbolHandle::invalid()
     };
+    crate::scalar_source_custody::validate_computation_calls(
+        checked,
+        machine,
+        site.state,
+        site.statement,
+        root,
+        source.expression,
+    )?;
     let root = plans.nodes.get(root);
     if source.machine != machine
         || source.expression != root.authored_root

@@ -3010,9 +3010,30 @@ not the ordinary Unit-call role of an unresolved callable. The checker and
 lowerer share the existing compiler-intrinsic boundary-recognition policy;
 lowering does not independently infer a compatible provider.
 The retained call roots are statement calls and bare calls in immutable local
-initializers or expression statements. Nested and nonzero call occurrences
-still require argument planning at their exact evaluation points; lowering does
-not recover their identity by searching source spans or repeating call traversal.
+initializers or expression statements. Unit and boundary statement arguments
+select either a pure expression or an exact checked computation root. Nested
+scalar calls belong to those operand graphs, not additional statement operations.
+The outer call keeps ordinal zero; nested preorder ordinals identify occurrences
+and never determine execution order. Flow calls retain generational authored
+expression handles, so lowering rejoins each nested target and operand root
+without source-span lookup or a second call-ordinal traversal.
+Nested calls may use a resolved data qualifier when the callee has no `self`
+parameter. The qualifier must name that callee's exact attached data owner;
+it is not a runtime receiver, and an arbitrary value receiver is not discarded.
+
+Statement-call operands share the scalar evaluator's ordered private blocks.
+Each completed scalar argument is retained before the next starts, including
+pure Boolean short-circuit siblings. The caller's immutable scalar namespace
+survives the completion block without gaining temporary argument slots. Structural
+places remain in the enclosing Unit machine until the outer call commits their
+transfers; normal cleanup follows existing ownership, while Trap and Abort have
+no cleanup successor. Arithmetic obligations are finalized on the completed
+selected Unit module, after borrowed-place and cleanup assembly, not on a
+provisional closure used by another lowerer.
+
+Computed operands of result initializers, returned calls, and composed-control
+leaves still need connections to that shared evaluator. Their existing pure
+argument paths remain distinct from an unsupported computed plan.
 
 Computed Boolean guards complete before either branch destination starts. A
 private dispatch block consumes the completed Boolean and retains the source

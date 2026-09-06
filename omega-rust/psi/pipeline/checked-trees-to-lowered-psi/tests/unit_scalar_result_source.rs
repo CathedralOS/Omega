@@ -1,5 +1,6 @@
 use checked_trees::{
-    CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitScalarResultBindingPlan,
+    CheckedCallScalarArgument, CheckedScalarExpression, CheckedUnitEffectOperationPlan,
+    CheckedUnitScalarResultBindingPlan,
 };
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -186,11 +187,11 @@ fn attached_unit_ordinary_scalar_result_reaches_later_call_in_terminal_psi() {
         ] if result.binding_ordinal == 0
             && matches!(
                 scalar_arguments.as_slice(),
-                [CheckedScalarExpression::IntegerLiteral { .. }]
+                [CheckedCallScalarArgument::Pure(CheckedScalarExpression::IntegerLiteral { .. })]
             )
             && matches!(
                 consumer_arguments.as_slice(),
-                [CheckedScalarExpression::Local { position: 0, .. }]
+                [CheckedCallScalarArgument::Pure(CheckedScalarExpression::Local { position: 0, .. })]
             )
     ));
 
@@ -394,7 +395,7 @@ fn attached_unit_scalar_expression_local_reaches_later_call_in_terminal_psi() {
             )
             && matches!(
                 scalar_arguments.as_slice(),
-                [CheckedScalarExpression::Local { position: 1, .. }]
+                [CheckedCallScalarArgument::Pure(CheckedScalarExpression::Local { position: 1, .. })]
             )
     ));
 
@@ -580,7 +581,9 @@ fn attached_unit_scalar_result_type_and_later_local_use_reject_drift() {
     else {
         panic!("second operation should consume the scalar result")
     };
-    let [CheckedScalarExpression::Local { position, .. }] = scalar_arguments.as_mut_slice() else {
+    let [CheckedCallScalarArgument::Pure(CheckedScalarExpression::Local { position, .. })] =
+        scalar_arguments.as_mut_slice()
+    else {
         panic!("consumer should use the exact scalar local")
     };
     *position = 1;

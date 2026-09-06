@@ -6,6 +6,7 @@
 
 use super::*;
 
+mod argument_evaluation;
 mod call_closure;
 mod catalog;
 mod claims;
@@ -252,6 +253,11 @@ pub(super) fn lower_attached_unit_closure_including(
     let mut ordinary_scalar_roots = Vec::new();
     let mut selected_scalar_roots = Vec::new();
     for machine_symbol in &closure {
+        for target in crate::scalar_computations::call_targets(checked, *machine_symbol)? {
+            if !ordinary_scalar_roots.contains(&target) {
+                ordinary_scalar_roots.push(target);
+            }
+        }
         for operation in &unique_unit_machine(plans, *machine_symbol)?.operations {
             match operation {
                 CheckedUnitEffectOperationPlan::ScalarCall { target_machine, .. } => {
@@ -1071,7 +1077,26 @@ pub(super) fn lower_attached_unit_closure_including(
         let mut scalar_result_values = scalar_parameters.clone();
         let mut affine_scalar_record_places = Vec::<StructuralPlaceDeclaration>::new();
         let mut structural_result_places = Vec::<(StructuralPlaceDeclaration, bool)>::new();
+        let mut evaluation = argument_evaluation::Evaluation::new(&mut next_block)?;
         for operation in &plan.operations[..plan.operations.len() - 1] {
+            let mut scalar_calls = CallEmissionContext {
+                machine_ids: &machine_ids,
+                requirement_counts: &scalar_requirement_counts,
+                next_obligation_identity: next_call_obligation,
+                obligation_limit: u64::MAX,
+            };
+            let evaluated_scalar_arguments = evaluation.arguments(
+                checked,
+                plan,
+                operation,
+                &mut scalar_result_values,
+                &mut next_value_identity,
+                &mut next_block,
+                &mut next_edge,
+                &mut operations,
+                &mut scalar_calls,
+            )?;
+            next_call_obligation = scalar_calls.next_obligation_identity;
             let mut source_call = None;
             let kind = match operation {
                 CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
@@ -1191,35 +1216,17 @@ pub(super) fn lower_attached_unit_closure_including(
                             "Unit call scalar argument count disagrees with its target",
                         );
                     }
-                    let source_types = scalar_result_values
-                        .iter()
-                        .map(|value| value.scalar_type)
-                        .collect::<Vec<_>>();
-                    let terminal_scalar_arguments = scalar_arguments
-                        .iter()
-                        .zip(&target.scalar_parameters)
-                        .map(|(argument, target)| {
-                            let argument = lower_checked_scalar_expression(argument)?;
-                            if direct_expression_contains_short_circuit(&argument) {
-                                return unsupported(
-                                    "Unit call arguments do not yet admit short-circuit control",
-                                );
-                            }
-                            let target_type = terminal_scalar_type(target.primitive_type)?;
-                            if argument.scalar_type() != target_type {
-                                return unsupported(
-                                    "Unit call scalar argument type disagrees with its target",
-                                );
-                            }
-                            validate_direct_parameter_types(&argument, &source_types)?;
-                            Ok(emit_direct_expression(
-                                &argument,
-                                &scalar_result_values,
-                                &mut next_value_identity,
-                                &mut operations,
-                            ))
-                        })
-                        .collect::<Result<Vec<_>, LoweringError>>()?;
+                    let terminal_scalar_arguments = argument_evaluation::validated_values(
+                        evaluated_scalar_arguments.as_deref(),
+                        &target
+                            .scalar_parameters
+                            .iter()
+                            .map(|parameter| terminal_scalar_type(parameter.primitive_type))
+                            .collect::<Result<Vec<_>, _>>()?,
+                    )?
+                    .iter()
+                    .map(|value| value.id)
+                    .collect();
                     validate_transfer_shape(
                         structural_arguments,
                         claim_transfers,
@@ -1354,7 +1361,6 @@ pub(super) fn lower_attached_unit_closure_including(
                     result,
                     target_machine: realization_machine,
                     target_state: realization_state,
-                    scalar_arguments,
                     ..
                 }
                 | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
@@ -1362,7 +1368,6 @@ pub(super) fn lower_attached_unit_closure_including(
                     result,
                     realization_machine,
                     realization_state,
-                    scalar_arguments,
                     ..
                 } => {
                     let source_target = match operation {
@@ -1408,45 +1413,45 @@ pub(super) fn lower_attached_unit_closure_including(
                     if target_entry.state != *realization_state
                         || prepared_target.result_type
                             != terminal_scalar_type(result.primitive_type)?
-                        || scalar_arguments.len() != target_entry.parameter_types.len()
                     {
                         return unsupported(
                             "Unit scalar call disagrees with its prepared target signature",
                         );
                     }
-                    let source_types = scalar_result_values
-                        .iter()
-                        .map(|value| value.scalar_type)
-                        .collect::<Vec<_>>();
-                    let arguments = scalar_arguments
-                        .iter()
-                        .zip(&target_entry.parameter_types)
-                        .map(|(argument, target_type)| {
+                    let arguments = if let Some(arguments) = evaluated_scalar_arguments.as_deref() {
+                        argument_evaluation::validated_values(
+                            Some(arguments),
+                            &target_entry
+                                .parameter_types
+                                .iter()
+                                .map(|primitive| terminal_scalar_type(*primitive))
+                                .collect::<Result<Vec<_>, _>>()?,
+                        )?
+                    } else {
+                        let CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
+                            scalar_arguments,
+                            ..
+                        } = operation
+                        else {
+                            return unsupported("Unit scalar call has no evaluated arguments");
+                        };
+                        let source_types = scalar_result_values
+                            .iter()
+                            .map(|value| value.scalar_type)
+                            .collect::<Vec<_>>();
+                        if scalar_arguments.len() != target_entry.parameter_types.len() {
+                            return unsupported("selected scalar call argument count disagrees");
+                        }
+                        scalar_arguments.iter().zip(&target_entry.parameter_types).map(|(argument, primitive)| {
                             let argument = lower_checked_scalar_expression(argument)?;
-                            if direct_expression_contains_short_circuit(&argument) {
-                                return unsupported(
-                                    "Unit scalar call arguments do not yet admit short-circuit control",
-                                );
-                            }
-                            let target_type = terminal_scalar_type(*target_type)?;
-                            if argument.scalar_type() != target_type {
-                                return unsupported(
-                                    "Unit scalar call argument type disagrees with its target",
-                                );
+                            let scalar_type = terminal_scalar_type(*primitive)?;
+                            if argument.scalar_type() != scalar_type || direct_expression_contains_short_circuit(&argument) {
+                                return unsupported("selected scalar call has unsupported argument control or carrier");
                             }
                             validate_direct_parameter_types(&argument, &source_types)?;
-                            let id = emit_direct_expression(
-                                &argument,
-                                &scalar_result_values,
-                                &mut next_value_identity,
-                                &mut operations,
-                            );
-                            Ok(ValueDeclaration {
-                                id,
-                                scalar_type: target_type,
-                            })
-                        })
-                        .collect::<Result<Vec<_>, LoweringError>>()?;
+                            Ok(ValueDeclaration { id: emit_direct_expression(&argument, &scalar_result_values, &mut next_value_identity, &mut operations), scalar_type })
+                        }).collect::<Result<Vec<_>, LoweringError>>()?
+                    };
                     let target_contract = checked
                         .facts
                         .contract_plans
@@ -1955,29 +1960,13 @@ pub(super) fn lower_attached_unit_closure_including(
                             "boundary Unit scalar argument count disagrees with its declaration",
                         );
                     }
-                    let scalar_value_types = scalar_result_values
-                        .iter()
-                        .map(|value| value.scalar_type)
-                        .collect::<Vec<_>>();
-                    let arguments = scalar_arguments
-                        .iter()
-                        .zip(target_scalar_parameters)
-                        .map(|(argument, target_type)| {
-                            let argument = lower_checked_scalar_expression(argument)?;
-                            if argument.scalar_type() != *target_type {
-                                return unsupported(
-                                    "boundary Unit scalar argument type disagrees with its declaration",
-                                );
-                            }
-                            validate_direct_parameter_types(&argument, &scalar_value_types)?;
-                            Ok(emit_direct_expression(
-                                &argument,
-                                &scalar_result_values,
-                                &mut next_value_identity,
-                                &mut operations,
-                            ))
-                        })
-                        .collect::<Result<Vec<_>, LoweringError>>()?;
+                    let arguments = argument_evaluation::validated_values(
+                        evaluated_scalar_arguments.as_deref(),
+                        target_scalar_parameters,
+                    )?
+                    .iter()
+                    .map(|value| value.id)
+                    .collect();
                     let literal_count = structural_arguments
                         .iter()
                         .filter(|argument| argument.byte_sequence_literal().is_some())
@@ -2088,29 +2077,13 @@ pub(super) fn lower_attached_unit_closure_including(
                             "boundary scalar argument count disagrees with its declaration",
                         );
                     }
-                    let scalar_value_types = scalar_result_values
-                        .iter()
-                        .map(|value| value.scalar_type)
-                        .collect::<Vec<_>>();
-                    let arguments = scalar_arguments
-                        .iter()
-                        .zip(target_scalar_parameters)
-                        .map(|(argument, target_type)| {
-                            let argument = lower_checked_scalar_expression(argument)?;
-                            if argument.scalar_type() != *target_type {
-                                return unsupported(
-                                    "boundary scalar argument type disagrees with its declaration",
-                                );
-                            }
-                            validate_direct_parameter_types(&argument, &scalar_value_types)?;
-                            Ok(emit_direct_expression(
-                                &argument,
-                                &scalar_result_values,
-                                &mut next_value_identity,
-                                &mut operations,
-                            ))
-                        })
-                        .collect::<Result<Vec<_>, LoweringError>>()?;
+                    let arguments = argument_evaluation::validated_values(
+                        evaluated_scalar_arguments.as_deref(),
+                        target_scalar_parameters,
+                    )?
+                    .iter()
+                    .map(|value| value.id)
+                    .collect();
                     let literal_count = structural_arguments
                         .iter()
                         .filter(|argument| argument.byte_sequence_literal().is_some())
@@ -2272,29 +2245,13 @@ pub(super) fn lower_attached_unit_closure_including(
                             "boundary structural argument count disagrees with its declaration",
                         );
                     }
-                    let scalar_value_types = scalar_result_values
-                        .iter()
-                        .map(|value| value.scalar_type)
-                        .collect::<Vec<_>>();
-                    let arguments = scalar_arguments
-                        .iter()
-                        .zip(target_scalar_parameters)
-                        .map(|(argument, target_type)| {
-                            let argument = lower_checked_scalar_expression(argument)?;
-                            if argument.scalar_type() != *target_type {
-                                return unsupported(
-                                    "boundary structural scalar argument type disagrees with its declaration",
-                                );
-                            }
-                            validate_direct_parameter_types(&argument, &scalar_value_types)?;
-                            Ok(emit_direct_expression(
-                                &argument,
-                                &scalar_result_values,
-                                &mut next_value_identity,
-                                &mut operations,
-                            ))
-                        })
-                        .collect::<Result<Vec<_>, LoweringError>>()?;
+                    let arguments = argument_evaluation::validated_values(
+                        evaluated_scalar_arguments.as_deref(),
+                        target_scalar_parameters,
+                    )?
+                    .iter()
+                    .map(|value| value.id)
+                    .collect();
                     let literal_count = structural_arguments
                         .iter()
                         .filter(|argument| argument.byte_sequence_literal().is_some())
@@ -2651,7 +2608,7 @@ pub(super) fn lower_attached_unit_closure_including(
                     .filter_map(|(place, discard)| discard.then_some(Ok(place.id))),
             )
             .collect::<Result<Vec<_>, _>>()?;
-        let block = block_id(allocate_dense(&mut next_block)?);
+        let block = evaluation.current;
         let edge = edge_id(allocate_dense(&mut next_edge)?);
         let crash_routes =
             if let Some(contract_plan) = checked.facts.contract_plans.for_machine(plan.machine) {
@@ -2664,8 +2621,17 @@ pub(super) fn lower_attached_unit_closure_including(
             } else {
                 Vec::new()
             };
+        evaluation.blocks.push(Block {
+            id: block,
+            parameters: evaluation.parameters,
+            operations: operations[evaluation.operation_start..].to_vec(),
+            terminator: Terminator::ReturnUnit {
+                edge,
+                trivial_affine_discards,
+            },
+        });
+        evaluation.blocks.sort_by_key(|block| block.id);
         let OperationBuffer {
-            operations,
             source_calls,
             selected_ieee_float_fmas,
             ..
@@ -2718,16 +2684,8 @@ pub(super) fn lower_attached_unit_closure_including(
             content_entry_claims,
             content_identity_reshuffles: Vec::new(),
             content_partition_compositions: Vec::new(),
-            entry: block,
-            blocks: vec![Block {
-                id: block,
-                parameters: Vec::new(),
-                operations,
-                terminator: Terminator::ReturnUnit {
-                    edge,
-                    trivial_affine_discards,
-                },
-            }],
+            entry: evaluation.entry,
+            blocks: evaluation.blocks,
             contract: MachineContract {
                 id: contract_id(terminal_machine.get()),
                 crash_routes,
@@ -2879,19 +2837,7 @@ pub(super) fn lower_attached_unit_closure_including(
     });
 
     call_evidence.append(&mut scalar_evidence);
-    let requires_operation_proofs = closure.iter().any(|machine_symbol| {
-        plans.for_machine(*machine_symbol).is_some_and(|machine| {
-            machine.operations.iter().any(|operation| {
-                matches!(
-                    operation,
-                    CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
-                        | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall { .. }
-                        | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { .. }
-                )
-            })
-        })
-    });
-    let mut lowered = LoweredPsi {
+    let lowered = LoweredPsi {
         semantic_module: TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine_id(1),
@@ -2929,9 +2875,6 @@ pub(super) fn lower_attached_unit_closure_including(
         source_call_occurrences,
         selected_ieee_float_fma_occurrences,
     };
-    if requires_operation_proofs {
-        finalize_operation_proofs(&mut lowered)?;
-    }
     Ok(lowered)
 }
 

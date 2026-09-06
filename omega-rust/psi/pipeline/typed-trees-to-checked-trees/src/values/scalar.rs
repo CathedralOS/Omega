@@ -638,6 +638,26 @@ fn retain_call_arguments(
     }
 }
 
+fn call_is_boundary(program: &TypedTrees, target_symbol: symbols::SymbolHandle) -> bool {
+    let requirement_symbol = program
+        .machine_parameter_signature(target_symbol)
+        .map_or(target_symbol, |(_, signature)| signature.symbol);
+    program.machines().iter().any(|machine| {
+        machine.supply_mode.is_boundary_declaration()
+            && program
+                .machine_states(machine)
+                .iter()
+                .any(|candidate| candidate.symbol == target_symbol)
+    }) || program.traits().iter().any(|definition| {
+        definition.is_boundary
+            && program
+                .trait_machine_signatures(definition)
+                .iter()
+                .any(|signature| signature.symbol == requirement_symbol)
+    }) || validation::exact_compiler_intrinsic_boundary_requirement(program, target_symbol)
+        .is_some()
+}
+
 #[allow(clippy::too_many_arguments)]
 fn lower_boundary_call_arguments(
     program: &TypedTrees,
@@ -657,24 +677,7 @@ fn lower_boundary_call_arguments(
         crate::CallSite::Expression { call, .. } => call.target_symbol,
         crate::CallSite::TransitionNamed { .. } => return None,
     };
-    let requirement_symbol = program
-        .machine_parameter_signature(target_symbol)
-        .map_or(target_symbol, |(_, signature)| signature.symbol);
-    let is_boundary =
-        program.machines().iter().any(|machine| {
-            machine.supply_mode.is_boundary_declaration()
-                && program
-                    .machine_states(machine)
-                    .iter()
-                    .any(|candidate| candidate.symbol == target_symbol)
-        }) || program.traits().iter().any(|definition| {
-            definition.is_boundary
-                && program
-                    .trait_machine_signatures(definition)
-                    .iter()
-                    .any(|signature| signature.symbol == requirement_symbol)
-        }) || validation::exact_compiler_intrinsic_boundary_requirement(program, target_symbol)
-            .is_some();
+    let is_boundary = call_is_boundary(program, target_symbol);
     if !is_boundary && !admit_internal_unit {
         return None;
     }
@@ -711,25 +714,27 @@ fn lower_boundary_call_arguments(
             expected_type,
             exact_integer_casts,
         );
-        output.push((
-            argument,
-            CheckedLocatedScalarExpression {
-                state: state.symbol,
-                statement_ordinal,
-                role: if is_boundary {
-                    CheckedScalarExpressionRole::BoundaryCallArgument {
-                        call_ordinal: u32::try_from(call_ordinal).ok()?,
-                        argument_ordinal: u32::try_from(scalar_index).ok()?,
-                    }
-                } else {
-                    CheckedScalarExpressionRole::UnitCallArgument {
-                        call_ordinal: u32::try_from(call_ordinal).ok()?,
-                        argument_ordinal: u32::try_from(scalar_index).ok()?,
-                    }
+        if let Some(lowered) = lowered {
+            output.push((
+                argument,
+                CheckedLocatedScalarExpression {
+                    state: state.symbol,
+                    statement_ordinal,
+                    role: if is_boundary {
+                        CheckedScalarExpressionRole::BoundaryCallArgument {
+                            call_ordinal: u32::try_from(call_ordinal).ok()?,
+                            argument_ordinal: u32::try_from(scalar_index).ok()?,
+                        }
+                    } else {
+                        CheckedScalarExpressionRole::UnitCallArgument {
+                            call_ordinal: u32::try_from(call_ordinal).ok()?,
+                            argument_ordinal: u32::try_from(scalar_index).ok()?,
+                        }
+                    },
+                    expression: lowered,
                 },
-                expression: lowered?,
-            },
-        ));
+            ));
+        }
         scalar_index = scalar_index.checked_add(1)?;
     }
     (explicit_index == explicit_arguments.len()).then_some(output)

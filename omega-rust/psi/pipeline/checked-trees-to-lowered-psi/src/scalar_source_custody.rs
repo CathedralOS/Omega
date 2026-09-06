@@ -6,7 +6,9 @@ use checked_trees::statement::{
     StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
 };
 
+mod computation_calls;
 pub(super) mod direct_calls;
+pub(crate) use computation_calls::validate_computation_calls;
 
 pub(super) struct SourceRoot {
     pub machine: symbols::SymbolHandle,
@@ -68,6 +70,37 @@ pub(super) fn locate(
         .count();
     let absent = symbols::SymbolHandle::invalid();
     let selected = match (authored, role) {
+        (
+            _,
+            CheckedScalarExpressionRole::BoundaryCallArgument {
+                call_ordinal,
+                argument_ordinal,
+            }
+            | CheckedScalarExpressionRole::UnitCallArgument {
+                call_ordinal,
+                argument_ordinal,
+            },
+        ) => {
+            let call = crate::call_source_custody::authored::locate_source(
+                checked,
+                state.symbol,
+                checked_trees::CheckedUnitCallCoordinate {
+                    statement_index: statement,
+                    call_ordinal,
+                },
+            )?;
+            if call.boundary
+                != matches!(
+                    role,
+                    CheckedScalarExpressionRole::BoundaryCallArgument { .. }
+                )
+            {
+                return unsupported("scalar source custody disagrees with its call argument role");
+            }
+            call.scalar_arguments
+                .get(argument_ordinal as usize)
+                .map(|(expression, primitive)| (*expression, absent, *primitive))
+        }
         (
             StatementNode::LocalData(local),
             CheckedScalarExpressionRole::LocalInitializer { binding_ordinal },

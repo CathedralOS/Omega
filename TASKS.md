@@ -487,9 +487,10 @@ Owners include
   evaluation points and activate staged loans at their evaluation points.
   Complete typed computation plans for remaining numeric policies and selected
   operator calls and borrowed/projected operands and writes.
-  Extend source-bound scalar operand plans to nested and nonzero call occurrences
-  in boundary and Unit machines, retaining exact operand evaluation order across
-  guards and other argument effects.
+  Extend computed scalar call operands from Unit/boundary statement calls to
+  result initializers, returned calls, and composed-control leaves. Retain exact
+  evaluation order across guards and other argument effects, including projected
+  and borrowed operand staging.
   Complete nonliteral contract arithmetic and callee-result bounds requiring
   caller-specific snapshots beyond immutable scalar formal comparisons; carry
   those facts into nested exact-cast obligations without rereading arguments.

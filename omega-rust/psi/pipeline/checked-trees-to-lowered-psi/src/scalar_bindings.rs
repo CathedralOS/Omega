@@ -1,6 +1,7 @@
 //! Resolve checked-local storage against the exact current emitted value.
 
 use super::*;
+use crate::scalar_source_custody as source_custody;
 
 #[cfg(test)]
 mod tests;

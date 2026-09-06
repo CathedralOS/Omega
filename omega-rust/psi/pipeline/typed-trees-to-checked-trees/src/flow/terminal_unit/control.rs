@@ -6,6 +6,8 @@ use checked_trees::{
     CheckedStructuralRankedSccEdgePlan, CheckedStructuralRankedSccPlan,
 };
 
+mod call_occurrences;
+
 pub(crate) fn build_checked_structural_unit_control_plans(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -1100,7 +1102,8 @@ fn build_checked_machine_with(
         program.state_parameters(state),
     )?;
     let state_flow = state_flow(facts, machine.symbol, state.symbol)?;
-    let calls = facts.flow.control.calls.span_or_empty(state_flow.calls);
+    let source_calls = facts.flow.control.calls.span_or_empty(state_flow.calls);
+    let calls = call_occurrences::outer_calls(program, facts, machine.symbol, state, source_calls)?;
     let construction = build_affine_array_construction_prefix(
         program, facts, shapes, machine, state, &binders, statements,
     );
@@ -1170,7 +1173,8 @@ fn build_checked_machine_with(
         if selected_scalar_result_local.is_some() || scalar_result_local.is_some() {
             scalar_expression_local_suffix(program, facts, state, statements)?
         } else {
-            Vec::new()
+            super::scalar_locals::scalar_expression_local_prefix(program, facts, state, statements)
+                .unwrap_or_default()
         };
     let scalar_result_local_count = selected_ieee_float_fma_result_locals.as_ref().map_or_else(
         || {
@@ -1354,6 +1358,19 @@ fn build_checked_machine_with(
                 field_identity: local.field_identity.clone(),
                 value: local.value.clone(),
             },
+        );
+    }
+    if scalar_result_local.is_none() && selected_scalar_result_local.is_none() {
+        operations.extend(
+            scalar_expression_locals
+                .iter()
+                .cloned()
+                .map(
+                    |(result, value)| CheckedUnitEffectOperationPlan::EstablishScalarLocal {
+                        result,
+                        value,
+                    },
+                ),
         );
     }
     operations.reserve(calls.len() + 1);
@@ -1672,7 +1689,7 @@ fn build_checked_machine_with(
             state,
             attachment,
             &structural_parameters,
-            calls,
+            source_calls,
             &operations,
         )?,
         None => Vec::new(),

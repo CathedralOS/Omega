@@ -123,7 +123,9 @@ mod quotient_correspondence;
 mod reborrow_restored_call_use;
 mod reborrow_root_handoff;
 mod retained_borrow_custody;
+mod scalar_bindings;
 mod scalar_call_closure;
+mod scalar_computations;
 mod scalar_graph_lowering;
 mod scalar_graph_module;
 mod scalar_source_custody;
@@ -1174,7 +1176,11 @@ pub fn lower_machine(
         &mut lowered.semantic_module,
         &mut lowered.proof_bundle,
     )?;
-    if lowered
+    // Unit closures can be provisional inputs to cleanup/borrow assembly.
+    // Discharge operand obligations only after the selected module is complete.
+    if route == SelectedMachineRoute::UnitEffect {
+        finalize_operation_proofs(&mut lowered)?;
+    } else if lowered
         .semantic_module
         .machines
         .iter()

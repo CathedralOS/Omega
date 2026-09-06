@@ -7,6 +7,7 @@ use checked_trees::{
 };
 use symbols::SymbolHandle;
 
+mod call_arguments;
 mod integers;
 #[cfg(test)]
 mod tests;
@@ -30,10 +31,17 @@ pub(crate) fn build_checked_scalar_computation_plans(
         }
         let states = program.machine_states(machine);
         for state in states {
-            let parameters = program.state_parameters(state);
-            if parameters.iter().any(|parameter| parameter.is_self) {
-                continue;
-            }
+            let scalar_parameters = program
+                .state_parameters(state)
+                .iter()
+                .filter(|parameter| {
+                    program
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_some()
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            let parameters = scalar_parameters.as_slice();
             let Some(parameter_types) = parameters
                 .iter()
                 .map(|parameter| program.primitive_type_reference(parameter.type_reference))
@@ -123,6 +131,10 @@ pub(crate) fn build_checked_scalar_computation_plans(
                     locals: &locals,
                     plans: &mut plans,
                 };
+                if let StatementNode::Call(call) = statement {
+                    builder.record_call_arguments(pure, statement_ordinal, call);
+                    continue;
+                }
                 if let StatementNode::Assignment(assignment) = statement {
                     if let ExpressionNode::Name(name) =
                         program.expression_table.expression(assignment.target)
@@ -379,10 +391,11 @@ impl Builder<'_, '_> {
         }
         match self.program.expression_table.expression(expression).clone() {
             ExpressionNode::Call(call) => {
-                if call.receiver.is_valid()
-                    || !call.machine_arguments.is_empty()
+                if !call.machine_arguments.is_empty()
                     || !call.evidence_arguments.is_empty()
                     || call.static_requirement_dispatch.is_some()
+                    || call.quotient_operation.is_some()
+                    || call.private_layout_operation.is_some()
                 {
                     return None;
                 }
@@ -393,6 +406,12 @@ impl Builder<'_, '_> {
                         .is_some_and(|state| state.symbol == call.target_symbol)
                 })?;
                 let target_state = self.program.machine_states(target_machine).first()?;
+                if !self
+                    .program
+                    .call_has_no_runtime_receiver(&call, target_machine, target_state)
+                {
+                    return None;
+                }
                 if self
                     .program
                     .primitive_type_reference(target_state.return_type)?
@@ -541,12 +560,17 @@ impl Builder<'_, '_> {
             (state.machine_symbol == self.machine && state.state_symbol == self.state)
                 .then_some(state)
         })?;
-        let mut matching = self.flow.control.calls.span_or_empty(state.calls).iter().filter(|call| {
-            call.statement_index == self.statement_index && call.target_symbol == target
-                && matches!(crate::semantic_calls::find_call_site(
-                    self.program, self.machine, self.state, self.statement_index, call.call_ordinal,
-                ), Some(crate::CallSite::Expression { expression: candidate, .. }) if candidate == expression)
-        });
+        let mut matching = self
+            .flow
+            .control
+            .calls
+            .span_or_empty(state.calls)
+            .iter()
+            .filter(|call| {
+                call.statement_index == self.statement_index
+                    && call.target_symbol == target
+                    && call.authored_expression == expression
+            });
         let call = matching.next()?;
         if matching.next().is_some() {
             return None;

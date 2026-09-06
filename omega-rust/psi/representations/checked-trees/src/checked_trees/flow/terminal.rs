@@ -1130,6 +1130,23 @@ pub struct CheckedUnitCallCoordinate {
     pub call_ordinal: u32,
 }
 
+/// One scalar operand of an ordinary Unit or boundary invocation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedCallScalarArgument {
+    Pure(CheckedScalarExpression),
+    /// Exact node selected by the call coordinate's checked computation root.
+    Computation(crate::CheckedScalarComputationHandle),
+}
+
+impl CheckedCallScalarArgument {
+    pub fn as_pure(&self) -> Option<&CheckedScalarExpression> {
+        match self {
+            Self::Pure(expression) => Some(expression),
+            Self::Computation(_) => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedUnitStructuralArgumentSourcePlan {
     /// Dense index into the caller's structural parameter list.
@@ -1406,7 +1423,7 @@ pub enum CheckedUnitEffectOperationPlan {
         target_state: SymbolHandle,
         target_contract_report_fingerprint: u64,
         service_reach: ServiceReachSummary,
-        scalar_arguments: Vec<CheckedScalarExpression>,
+        scalar_arguments: Vec<CheckedCallScalarArgument>,
         structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
         claim_transfers: Vec<CheckedUnitClaimTransferPlan>,
     },
@@ -1422,7 +1439,7 @@ pub enum CheckedUnitEffectOperationPlan {
         target_contract_report_fingerprint: u64,
         target_contract_commitment: crate::MachineContractCommitment,
         service_reach: ServiceReachSummary,
-        scalar_arguments: Vec<CheckedScalarExpression>,
+        scalar_arguments: Vec<CheckedCallScalarArgument>,
     },
     BoundaryCall {
         coordinate: CheckedUnitCallCoordinate,
@@ -1436,7 +1453,7 @@ pub enum CheckedUnitEffectOperationPlan {
         /// Checked primitive arguments in the boundary declaration's dense
         /// scalar-parameter order. Structural arguments retain their separate
         /// custody namespace below.
-        scalar_arguments: Vec<CheckedScalarExpression>,
+        scalar_arguments: Vec<CheckedCallScalarArgument>,
         structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
         completion_receipts: Vec<CheckedUnitClaimTransferPlan>,
     },
@@ -1452,7 +1469,7 @@ pub enum CheckedUnitEffectOperationPlan {
         target_state: SymbolHandle,
         target_contract_report_fingerprint: u64,
         service_reach: ServiceReachSummary,
-        scalar_arguments: Vec<CheckedScalarExpression>,
+        scalar_arguments: Vec<CheckedCallScalarArgument>,
         structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
         completion_receipts: Vec<CheckedUnitClaimTransferPlan>,
     },
@@ -1468,7 +1485,7 @@ pub enum CheckedUnitEffectOperationPlan {
         target_state: SymbolHandle,
         target_contract_report_fingerprint: u64,
         service_reach: ServiceReachSummary,
-        scalar_arguments: Vec<CheckedScalarExpression>,
+        scalar_arguments: Vec<CheckedCallScalarArgument>,
         structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
         completion_receipts: Vec<CheckedUnitClaimTransferPlan>,
         /// One affine result not consumed by a later operation is explicitly
