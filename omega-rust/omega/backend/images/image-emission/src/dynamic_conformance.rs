@@ -435,7 +435,7 @@ fn validate_stored_instance(
         || record.source.place != selection.source.place
         || record.source.access != selection.source.access
         || record.source.path != selection.source.path
-        || record.source_home_byte_offset != home.byte_offset
+        || Some(record.source_home_byte_offset) != home.location.stack_byte_offset()
         || record.source_home_indirect != home.indirect
         || record.source.source != home.source
         || record.source.source.shape != home.shape
@@ -558,7 +558,8 @@ fn validate_stored_argument(
         || argument.structural_type != source.structural_type
         || argument.shape != source.shape
         || argument.source_byte_offset != source.source_byte_offset
-        || argument.source_home_byte_offset != call.establishment.descriptor_home_byte_offset
+        || argument.source_location.stack_byte_offset()
+            != Some(call.establishment.descriptor_home_byte_offset)
         || argument.source != source.source
         || argument.destination != source.destination
         || argument.bytes.len() != argument.byte_count
@@ -689,7 +690,7 @@ fn validate_instance(
         || record.source.place != selection.source.place
         || record.source.access != selection.source.access
         || record.source.path != selection.source.path
-        || record.source_home_byte_offset != home.byte_offset
+        || Some(record.source_home_byte_offset) != home.location.stack_byte_offset()
         || record.source_home_indirect != home.indirect
         || record.source.source != home.source
         || record.source.source.shape != home.shape
@@ -839,7 +840,7 @@ fn validate_argument(
         || argument.structural_type != call.rebound_instance.source.structural_type
         || argument.shape != call.rebound_instance.source.shape
         || argument.source_byte_offset != call.rebound_instance.source.source_byte_offset
-        || argument.source_home_byte_offset != call.descriptor_home_byte_offset
+        || argument.source_location.stack_byte_offset() != Some(call.descriptor_home_byte_offset)
         || argument.source != call.rebound_instance.source.source
         || argument.destination != call.rebound_instance.source.destination
         || argument.bytes.len() != argument.byte_count
@@ -866,7 +867,7 @@ fn expected_argument_bytes(
 ) -> Option<Vec<u8>> {
     let descriptor_home = argument
         .call_stack_bytes
-        .checked_add(argument.source_home_byte_offset)?;
+        .checked_add(argument.source_location.stack_byte_offset()?)?;
     if let [ValueLocation::Indirect { pointer, .. }] = argument.destination.locations.as_slice() {
         return match target.architecture {
             Architecture::X86_64 => {

@@ -173,7 +173,7 @@ fn validate_home_roster(
             home.source.locations.as_slice(),
             [ValueLocation::Indirect { .. }]
         );
-        if home.byte_offset != cursor || home.indirect != indirect {
+        if home.location.stack_byte_offset() != Some(cursor) || home.indirect != indirect {
             return Err(invalid());
         }
         cursor = cursor

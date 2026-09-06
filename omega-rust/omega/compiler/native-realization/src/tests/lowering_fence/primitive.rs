@@ -100,7 +100,12 @@ fn verified_write_only_primitive_store_reaches_exact_machine_emission() {
             .find(|home| home.place == store.destination.place)
             .expect("store destination retains its exact parameter home");
         assert_eq!(store.destination_placement, home.source);
-        assert_eq!(store.parameter_home_byte_offset, home.byte_offset);
+        assert_eq!(
+            machine_code::StructuralSourceLocation::Stack {
+                byte_offset: store.parameter_home_byte_offset,
+            },
+            home.location
+        );
         assert_eq!(store.parameter_home_indirect, home.indirect);
         assert!(!store.bytes.is_empty());
         assert_eq!(

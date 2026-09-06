@@ -1,4 +1,4 @@
-//! Canonical format-78 codec for one installed internal Unit-call row.
+//! Canonical format-80 codec for one installed internal Unit-call row.
 //!
 //! Call ordering, stack composition, and custody validation remain in the
 //! installation parent. This child owns only the exact call-row bytes.
@@ -64,6 +64,7 @@ fn encode_internal_unit_call(
             push_u32(bytes, 0);
         }
     }
+    super::internal_unit_call_source_codec::encode(bytes, &custody.source)?;
     push_u64(bytes, custody.target.get());
     match custody.result {
         None => bytes.extend_from_slice(&[0; 6]),
@@ -156,7 +157,7 @@ fn encode_internal_unit_call(
         push_u64(bytes, argument.structural_type.get());
         encode_shape(bytes, argument.shape)?;
         push_u32(bytes, argument.source_byte_offset);
-        push_u32(bytes, argument.source_home_byte_offset);
+        super::structural_source_codec::encode(bytes, argument.source_location)?;
         push_u32(bytes, argument.call_stack_bytes);
         match (argument.fixed_array_length, argument.element_stride) {
             (Some(length), Some(stride)) => {
@@ -338,6 +339,7 @@ fn decode_internal_unit_call(
         }
         tag => return Err(InstallationError::InvalidCallSiteOwnerTag(tag)),
     };
+    let source = super::internal_unit_call_source_codec::decode(reader)?;
     let target =
         MachineId::new(reader.u64()?).ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
     let result_tag = reader.u8()?;
@@ -436,7 +438,7 @@ fn decode_internal_unit_call(
             .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
         let shape = decode_shape(reader)?;
         let source_byte_offset = reader.u32()?;
-        let source_home_byte_offset = reader.u32()?;
+        let source_location = super::structural_source_codec::decode(reader)?;
         let call_stack_bytes = reader.u32()?;
         let has_array = decode_boolean(reader.u8()?)?;
         if reader.take(3)? != [0; 3] {
@@ -464,7 +466,7 @@ fn decode_internal_unit_call(
             structural_type,
             shape,
             source_byte_offset,
-            source_home_byte_offset,
+            source_location,
             call_stack_bytes,
             fixed_array_length,
             element_stride,
@@ -493,6 +495,7 @@ fn decode_internal_unit_call(
         machine,
         text_offset,
         custody: InternalUnitCallRecord {
+            source,
             owner,
             target,
             result,

@@ -739,6 +739,66 @@ fn object_boundary_rejects_noncanonical_or_incomplete_machine_code_plans() {
 }
 
 #[test]
+fn legacy_internal_call_rejects_an_installed_provider_origin_with_unchanged_bytes() {
+    let mut plan = internal_call_plan(NativeTarget::linux_x64());
+    account_x86_unit_call(&mut plan);
+    build_object_artifact(&plan).expect("valid authored legacy call");
+    let call = &mut plan.functions[1].internal_unit_calls[0];
+    let boundary = semantic_vocabulary::BoundaryMachineId::new(1).unwrap();
+    call.source = machine_code::InternalUnitCallSource::InstalledProvider {
+        boundary,
+        provider: Box::new(terminal_psi::ProviderCandidateConformance {
+            boundary,
+            requirement_identity: "requirement".into(),
+            provider_identity: "provider".into(),
+            candidate_identity: "candidate".into(),
+            candidate: call.target,
+            signature: terminal_psi::ProviderUnitSignature {
+                parameters: Vec::new(),
+            },
+            refinement: terminal_psi::ProviderUnitRefinement {
+                positional_parameters: Vec::new(),
+                required_domains: Vec::new(),
+                realized_service_ceiling: Vec::new(),
+            },
+        }),
+        completion_claim_sources: Vec::new(),
+        completion_receipts: Vec::new(),
+    };
+    assert_eq!(
+        build_object_artifact(&plan),
+        Err(ObjectError::InvalidInternalUnitCallEvidence(machine_id(2)))
+    );
+}
+
+#[test]
+fn legacy_call_free_function_rejects_an_incoming_pointer_role() {
+    let mut plan = two_function_plan();
+    build_object_artifact(&plan).expect("valid legacy leaf roster");
+    plan.functions[0]
+        .unit_parameter_homes
+        .push(UnitParameterHomeRecord {
+            place: semantic_vocabulary::PlaceId::new(1).unwrap(),
+            structural_type: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+            access: terminal_psi::StructuralAccess::Owned,
+            shape: calling_conventions::ValueShape::integer(16, 8),
+            source: calling_conventions::ValuePlacement {
+                shape: calling_conventions::ValueShape::integer(16, 8),
+                locations: Vec::new(),
+            },
+            location: machine_code::StructuralSourceLocation::IncomingIndirectPointer {
+                register: calling_conventions::MachineRegister::X86Rcx,
+            },
+            indirect: true,
+        });
+    assert_eq!(
+        build_object_artifact(&plan),
+        Err(ObjectError::InvalidInternalUnitCallEvidence(machine_id(1)))
+    );
+}
+
+#[test]
 fn x86_internal_call_is_a_typed_relocation_and_the_only_final_text_mutation() {
     let mut plan = internal_call_plan(NativeTarget::linux_x64());
     account_x86_unit_call(&mut plan);
@@ -2314,6 +2374,20 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
+        "b3a739120393461af70443e8d40378b6938949592a6597d9f3be7fdfe2e0e4e0"
+    );
+    // This fixture has no structural homes or calls. Format 80 adds explicit
+    // source-role encodings, so only the version header changes its bytes.
+    // Replacing that header must recover the pinned format-79 fingerprint.
+    let mut previous_bytes = bytes.clone();
+    previous_bytes[8..10].copy_from_slice(&79_u16.to_le_bytes());
+    use sha2::{Digest, Sha256};
+    let mut previous_digest = Sha256::new();
+    previous_digest.update(b"omega-installation-record\0");
+    previous_digest.update(u64::try_from(previous_bytes.len()).unwrap().to_le_bytes());
+    previous_digest.update(&previous_bytes);
+    assert_eq!(
+        format!("{:x}", previous_digest.finalize()),
         "e8a0c22b6e52a11ffea7936a39397252d803965446b77ef4446df9e5afc76edb"
     );
 
@@ -3213,7 +3287,7 @@ fn scalar_three_leaf_cleanup_plan() -> MachineCodePlan {
             shape: ValueShape::integer(0, 1),
             locations: Vec::new(),
         },
-        byte_offset: 0,
+        location: machine_code::StructuralSourceLocation::Stack { byte_offset: 0 },
         indirect: false,
     }];
     function.semantic_code_attribution = [(10, 21, 19), (11, 45, 19), (12, 69, 19)]
@@ -3841,6 +3915,7 @@ fn account_x86_unit_call(plan: &mut MachineCodePlan) {
         }),
     });
     caller.internal_unit_calls = vec![InternalUnitCallRecord {
+        source: machine_code::InternalUnitCallSource::Authored,
         owner: caller.internal_calls[0].owner,
         target: caller.internal_calls[0].target,
         result: None,
@@ -4058,6 +4133,7 @@ fn account_aarch64_unit_call(plan: &mut MachineCodePlan) {
     caller.internal_calls[0].offset = 8;
     caller.internal_calls[0].unit_stack = Some(UnitCallStackEvidence { outbound: None });
     caller.internal_unit_calls = vec![InternalUnitCallRecord {
+        source: machine_code::InternalUnitCallSource::Authored,
         owner: caller.internal_calls[0].owner,
         target: caller.internal_calls[0].target,
         result: None,
@@ -4144,6 +4220,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
         offset: 5,
     };
     let operation_custody = |operation, target| InternalUnitCallRecord {
+        source: machine_code::InternalUnitCallSource::Authored,
         owner: CallSiteOwner::Operation(operation),
         target,
         result: None,
@@ -4312,7 +4389,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                     access: terminal_psi::StructuralAccess::Owned,
                     shape: empty_shape,
                     source: empty_placement.clone(),
-                    byte_offset: 0,
+                    location: machine_code::StructuralSourceLocation::Stack { byte_offset: 0 },
                     indirect: false,
                 }],
                 unit_parameters: vec![UnitParameterRecord {
@@ -4337,6 +4414,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 }],
                 foreign_calls: Vec::new(),
                 internal_unit_calls: vec![InternalUnitCallRecord {
+                    source: machine_code::InternalUnitCallSource::Authored,
                     owner: CallSiteOwner::CleanupAction {
                         edge: edge_id(3),
                         action_ordinal: 0,
@@ -4441,6 +4519,7 @@ fn two_call_edge_owned_cleanup_plan() -> MachineCodePlan {
         offset: 18,
     });
     drop.internal_unit_calls.push(InternalUnitCallRecord {
+        source: machine_code::InternalUnitCallSource::Authored,
         owner: CallSiteOwner::Operation(second_operation),
         target: second_helper,
         result: None,

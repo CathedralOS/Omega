@@ -59,8 +59,6 @@ pub(crate) fn emit_realization_object(
             let (object, physical_evidence_scope) = emit_optimized_fragments(
                 optimized.physical,
                 OptimizedFragmentPublicationRequest {
-                    has_provider_installation: optimized.has_provider_installation,
-                    has_boundary_settlements: !settlements.is_empty(),
                     boundary_application_coverage,
                     optimized_plan: &optimized.optimized_plan,
                     terminal: optimized.terminal,

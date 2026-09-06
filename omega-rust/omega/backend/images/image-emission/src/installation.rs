@@ -34,9 +34,11 @@ mod function_affine_cleanup_codec;
 mod function_codec;
 mod function_parameter_codec;
 mod function_stack_codec;
+mod incoming_structural;
 mod installation_header_codec;
 mod installed_unit_scalar_transport;
 mod internal_unit_call_codec;
+mod internal_unit_call_source_codec;
 mod internal_unit_scalar_call_codec;
 mod mixed_structural_scalar_abi_codec;
 mod port_effect_codec;
@@ -53,6 +55,7 @@ mod structural_record_codec;
 mod structural_return_codec;
 mod structural_scalar_codec;
 mod structural_signature_codec;
+mod structural_source_codec;
 mod trivial_affine_local_codec;
 mod unit_dynamic_descriptor_join;
 mod unit_scalar_abi_codec;
@@ -97,7 +100,7 @@ use structural_scalar_codec::{
 use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joins;
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 79;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 80;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -248,6 +251,21 @@ pub struct InstallationRecord {
 }
 
 impl InstallationRecord {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn functions_mut_for_test(&mut self) -> &mut Vec<InstalledFunction> {
+        &mut self.functions
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn internal_unit_calls_mut_for_test(&mut self) -> &mut Vec<InstalledInternalUnitCall> {
+        &mut self.internal_unit_calls
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn boundary_settlements_mut_for_test(&mut self) -> &mut Vec<ObjectBoundarySettlement> {
+        &mut self.boundary_settlements
+    }
+
     pub const fn psi(&self) -> TerminalPsiIdentity {
         self.psi
     }
@@ -2022,7 +2040,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                 && home.access == retained.access
                                 && home.shape == retained.shape
                                 && home.source == retained.placement
-                                && home.byte_offset == 0
+                                && home.location.stack_byte_offset() == Some(0)
                                 && home.indirect
                                     == matches!(
                                         retained.placement.locations.as_slice(),
@@ -2037,7 +2055,10 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             || !mixed_structural_roster_is_exact
             || function.unit_parameters.len() != function.unit_parameter_homes.len()
             || function.unit_body != function.unit_affine_cleanup.is_some()
-            || (!function.unit_body
+            || (incoming_structural::has_incoming(function)
+                && !incoming_structural::function_is_exact(record, function))
+            || (!incoming_structural::has_incoming(function)
+                && !function.unit_body
                 && !has_scalar_cleanup
                 && (!function.unit_parameters.is_empty()
                     || !function.unit_parameter_homes.is_empty()))
@@ -2745,6 +2766,18 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             InstallationError::InvalidInternalUnitCall(installed.machine),
         )?;
         let custody = &installed.custody;
+        let incoming_call = incoming_structural::has_incoming(function);
+        if (incoming_call && !incoming_structural::call_is_exact(record, function, installed))
+            || (!incoming_call
+                && !matches!(
+                    custody.source,
+                    machine_code::InternalUnitCallSource::Authored
+                ))
+        {
+            return Err(InstallationError::InvalidInternalUnitCall(
+                installed.machine,
+            ));
+        }
         let callee_unit_scalar_abi = function_by_machine
             .get(&custody.target)
             .and_then(|target| target.unit_scalar_abi.as_ref());
@@ -3283,7 +3316,8 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                             argument.root_structural_type == home.structural_type
                                 && argument.source == home.source
                                 && argument.source.shape == home.shape
-                                && argument.source_home_byte_offset == home.byte_offset
+                                && argument.source_location == home.location
+                                && (incoming_call || home.location.stack_byte_offset().is_some())
                         });
                     let local_source = affine_cleanup
                         .and_then(|cleanup| {
@@ -3301,7 +3335,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                         && argument.source.locations.is_empty()
                                         && argument.destination.shape == argument.shape
                                         && argument.destination.locations.is_empty()
-                                        && argument.source_home_byte_offset == 0
+                                        && argument.source_location.stack_byte_offset() == Some(0)
                                         && matches!(
                                             place.kind,
                                             semantic_vocabulary::StructuralPlaceKind::TrivialAffineLocal {
@@ -4703,6 +4737,9 @@ pub enum InstallationError {
     ZeroSemanticCodeAttributionIdentity(&'static str),
     InvalidSemanticCodeSiteTag(u8),
     InvalidCallSiteOwnerTag(u8),
+    InvalidStructuralSourceLocationTag(u8),
+    InvalidInternalUnitCallSourceTag(u8),
+    InvalidProviderCandidateRecord(terminal_codec::CodecError),
     InvalidScalarCallingPolicyTag(u8),
     InvalidScalarEntryControlTag(u8),
     InvalidScalarCallPlanRegister {
@@ -5079,6 +5116,7 @@ mod resource_tests {
             machine: MachineId::new(1).expect("caller"),
             text_offset: 8,
             custody: machine_code::InternalUnitCallRecord {
+                source: machine_code::InternalUnitCallSource::Authored,
                 owner: CallSiteOwner::Operation(OperationId::new(1).expect("call operation")),
                 target: MachineId::new(2).expect("callee"),
                 result: Some(semantic_vocabulary::ScalarType::Boolean),

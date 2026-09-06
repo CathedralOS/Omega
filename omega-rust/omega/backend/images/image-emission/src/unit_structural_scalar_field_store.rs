@@ -58,7 +58,7 @@ fn validate_store(
         || home.access != parameter.access
         || home.shape != parameter.shape
         || store.destination_placement != home.source
-        || store.parameter_home_byte_offset != home.byte_offset
+        || Some(store.parameter_home_byte_offset) != home.location.stack_byte_offset()
         || store.parameter_home_indirect != home.indirect
         || !terminal_psi::is_bounded_structural_scalar_store_path(&store.path)
         || !function
@@ -377,7 +377,12 @@ pub(crate) fn expected_parameter_store_bytes(
             let source_register = x86_terminal_register(source)?;
             let mut bytes = Vec::new();
             if home.indirect {
-                emit_x86_stack_load(&mut bytes, ADDRESS_REGISTER, home.byte_offset, 8)?;
+                emit_x86_stack_load(
+                    &mut bytes,
+                    ADDRESS_REGISTER,
+                    home.location.stack_byte_offset()?,
+                    8,
+                )?;
                 emit_x86_memory_store(
                     &mut bytes,
                     source_register,
@@ -389,7 +394,9 @@ pub(crate) fn expected_parameter_store_bytes(
                 emit_x86_stack_store(
                     &mut bytes,
                     source_register,
-                    home.byte_offset.checked_add(field_byte_offset)?,
+                    home.location
+                        .stack_byte_offset()?
+                        .checked_add(field_byte_offset)?,
                     byte_size,
                 )?;
             }
@@ -404,7 +411,7 @@ pub(crate) fn expected_parameter_store_bytes(
                     aarch64_load_base(8)?,
                     ADDRESS_REGISTER,
                     31,
-                    home.byte_offset,
+                    home.location.stack_byte_offset()?,
                     8,
                 )?);
                 instructions.push(aarch64_access(
@@ -419,7 +426,9 @@ pub(crate) fn expected_parameter_store_bytes(
                     aarch64_store_base(byte_size)?,
                     source_register,
                     31,
-                    home.byte_offset.checked_add(field_byte_offset)?,
+                    home.location
+                        .stack_byte_offset()?
+                        .checked_add(field_byte_offset)?,
                     byte_size,
                 )?);
             }
@@ -521,7 +530,12 @@ fn expected_x86_store(
     let mut bytes = vec![0x49, 0xb8 | (VALUE_REGISTER & 7)];
     bytes.extend_from_slice(&bits.to_le_bytes());
     if home.indirect {
-        emit_x86_stack_load(&mut bytes, ADDRESS_REGISTER, home.byte_offset, 8)?;
+        emit_x86_stack_load(
+            &mut bytes,
+            ADDRESS_REGISTER,
+            home.location.stack_byte_offset()?,
+            8,
+        )?;
         emit_x86_memory_store(
             &mut bytes,
             VALUE_REGISTER,
@@ -530,7 +544,10 @@ fn expected_x86_store(
             byte_size,
         )?;
     } else {
-        let destination = home.byte_offset.checked_add(field_byte_offset)?;
+        let destination = home
+            .location
+            .stack_byte_offset()?
+            .checked_add(field_byte_offset)?;
         emit_x86_stack_store(&mut bytes, VALUE_REGISTER, destination, byte_size)?;
     }
     Some(bytes)
@@ -636,7 +653,7 @@ fn expected_aarch64_store(
             aarch64_load_base(8)?,
             ADDRESS_REGISTER,
             31,
-            home.byte_offset,
+            home.location.stack_byte_offset()?,
             8,
         )?);
         instructions.push(aarch64_access(
@@ -651,7 +668,9 @@ fn expected_aarch64_store(
             aarch64_store_base(byte_size)?,
             VALUE_REGISTER,
             31,
-            home.byte_offset.checked_add(field_byte_offset)?,
+            home.location
+                .stack_byte_offset()?
+                .checked_add(field_byte_offset)?,
             byte_size,
         )?);
     }

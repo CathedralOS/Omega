@@ -31,7 +31,6 @@ pub fn validate_function_fragment_object_artifact(
         || !artifact.forwarded_dynamic_descriptor_tables.is_empty()
         || !artifact.private_functions.is_empty()
         || !artifact.port_effects.is_empty()
-        || !artifact.boundary_settlements.is_empty()
         || !artifact.foreign_calls.is_empty()
         || !layout.normalized_imports.is_empty()
         || !layout.function_symbols.is_empty()
@@ -66,8 +65,8 @@ pub fn validate_function_fragment_object_artifact(
         let fragment = fragments
             .functions
             .iter()
-            .find(|fragment| fragment.machine == placed.machine)
-            .ok_or(Error::Mismatch("placed function has no fragment"))?;
+            .find(|fragment| fragment.machine == placed.machine);
+        let (attachment, provenance) = source::fragment_metadata(source, placed.machine)?;
         let offset = host(placed.section_offset)?;
         let length = host(placed.byte_count)?;
         let entry = placed.machine == text.semantic_entry;
@@ -77,8 +76,8 @@ pub fn validate_function_fragment_object_artifact(
             format!("omega_terminal_machine_{}", placed.machine.get())
         };
         if function.machine != placed.machine
-            || function.attachment != fragment.attachment
-            || function.provenance != fragment.provenance
+            || function.attachment != attachment
+            || function.provenance != *provenance
             || function.fixed_integer_scalar_abi != targeted.fixed_integer_scalar_abi
             || function.text_offset != offset
             || function.byte_count != length
@@ -90,35 +89,16 @@ pub fn validate_function_fragment_object_artifact(
             || symbol.section != SymbolSection::Section(SectionKind::Text)
             || !symbol.import_library.is_empty()
             || (entry && layout.entry_symbol != symbol_handle)
-            || !empty_legacy_records(function)
+            || !empty_unsupported_records(function)
+            || (fragment.is_some()
+                && (!function.internal_unit_calls.is_empty()
+                    || !function.unit_parameters.is_empty()
+                    || !function.unit_parameter_homes.is_empty()))
         {
             return Err(Error::Mismatch(
                 "shared object function or symbol differs from current data",
             ));
         }
-        let unit = matches!(
-            abstracted.result,
-            abstract_operations::AbstractFunctionResult::Unit
-        );
-        let frame = source::frame(source, placed.machine)?;
-        let calls = text
-            .resolved_internal_machine_calls
-            .iter()
-            .filter(|call| call.caller == placed.machine)
-            .collect::<Vec<_>>();
-        stack::validate(
-            unit,
-            (
-                frame.map_or(0, |frame| frame.frame_size_bytes),
-                frame.map_or(16, |frame| frame.abi_stack_alignment_bytes),
-                frame.is_some_and(|frame| frame.contains_call),
-            ),
-            text.target.architecture,
-            &calls,
-            function.unit_stack,
-            function.scalar_stack,
-            &function.unit_call_stacks,
-        )?;
         let start = attribution_cursor;
         while let Some(row) = artifact.semantic_code_attribution.get(attribution_cursor) {
             if row.machine != placed.machine {
@@ -141,17 +121,45 @@ pub fn validate_function_fragment_object_artifact(
             .iter()
             .map(|row| row.attribution)
             .collect::<Vec<_>>();
-        attribution::validate(fragment, abstracted, &rows)?;
+        if let Some(fragment) = fragment {
+            let unit = matches!(
+                abstracted.result,
+                abstract_operations::AbstractFunctionResult::Unit
+            );
+            let frame = source::frame(source, placed.machine)?;
+            let calls = text
+                .resolved_internal_machine_calls
+                .iter()
+                .filter(|call| call.caller == placed.machine)
+                .collect::<Vec<_>>();
+            stack::validate(
+                unit,
+                (
+                    frame.map_or(0, |frame| frame.frame_size_bytes),
+                    frame.map_or(16, |frame| frame.abi_stack_alignment_bytes),
+                    frame.is_some_and(|frame| frame.contains_call),
+                ),
+                text.target.architecture,
+                &calls,
+                function.unit_stack,
+                function.scalar_stack,
+                &function.unit_call_stacks,
+            )?;
+            attribution::validate(fragment, abstracted, &rows)?;
+        } else {
+            super::structural::validate_function(source, function, &rows)?;
+        }
     }
     if attribution_cursor != artifact.semantic_code_attribution.len() {
         return Err(Error::Mismatch(
             "shared object retains a foreign semantic attribution",
         ));
     }
+    super::structural::validate_settlements(source, &artifact.boundary_settlements)?;
     Ok(())
 }
 
-fn empty_legacy_records(function: &ObjectFunction) -> bool {
+fn empty_unsupported_records(function: &ObjectFunction) -> bool {
     function.mixed_structural_scalar_abi.is_none()
         && function.structural_call_scalar_return.is_none()
         && function.unit_scalar_abi.is_none()
@@ -159,7 +167,6 @@ fn empty_legacy_records(function: &ObjectFunction) -> bool {
         && function.x86_scalar_fma_occurrences.is_empty()
         && function.x86_floating_control.is_none()
         && function.scalar_call_stacks.is_empty()
-        && function.internal_unit_calls.is_empty()
         && function.internal_unit_scalar_calls.is_empty()
         && function.installed_provider_unit_scalar_calls.is_empty()
         && function.dynamic_calls.is_empty()
@@ -173,8 +180,6 @@ fn empty_legacy_records(function: &ObjectFunction) -> bool {
         && function.unit_structural_scalar_field_stores.is_empty()
         && function.unit_write_only_primitive_stores.is_empty()
         && function.scalar_structural_scalar_field_stores.is_empty()
-        && function.unit_parameters.is_empty()
-        && function.unit_parameter_homes.is_empty()
         && function.unit_affine_cleanup.is_none()
         && function.scalar_affine_cleanup.is_none()
         && function.scalar_control_affine_cleanups.is_empty()

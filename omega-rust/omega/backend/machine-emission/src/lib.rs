@@ -474,7 +474,7 @@ fn emit_function(
                     access: parameter.access,
                     shape: parameter.shape,
                     source: parameter.placement.clone(),
-                    byte_offset: 0,
+                    location: machine_code::StructuralSourceLocation::Stack { byte_offset: 0 },
                     indirect: true,
                 })
                 .collect();
@@ -662,7 +662,7 @@ fn emit_function(
                     access: parameter.access,
                     shape: parameter.shape,
                     source: parameter.placement.clone(),
-                    byte_offset: 0,
+                    location: machine_code::StructuralSourceLocation::Stack { byte_offset: 0 },
                     indirect: matches!(
                         parameter.placement.locations.as_slice(),
                         [ValueLocation::Indirect { .. }]
@@ -1179,7 +1179,7 @@ fn emit_function(
                 access: parameter.access,
                 shape: parameter.shape,
                 source: parameter.placement.clone(),
-                byte_offset: 0,
+                location: machine_code::StructuralSourceLocation::Stack { byte_offset: 0 },
                 indirect: matches!(
                     parameter.placement.locations.as_slice(),
                     [ValueLocation::Indirect { .. }]

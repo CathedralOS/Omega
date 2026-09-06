@@ -26,6 +26,9 @@ mod proof_bundle;
 mod proof_declaration_wire;
 mod proposition_wire;
 mod provider_candidate_wire;
+pub use provider_candidate_wire::{
+    decode_provider_candidate_record, encode_provider_candidate_record,
+};
 mod publication;
 mod quotient_correspondence_wire;
 mod scalar_term_wire;

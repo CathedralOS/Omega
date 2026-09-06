@@ -4,6 +4,7 @@
 mod attribution;
 mod production;
 mod source;
+mod structural;
 mod validation;
 
 pub use production::build_function_fragment_object_artifact;

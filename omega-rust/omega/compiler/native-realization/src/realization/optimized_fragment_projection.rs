@@ -3,8 +3,6 @@
 use diagnostics::Diagnostic;
 
 pub(super) struct OptimizedFragmentPublicationRequest<'request> {
-    pub(super) has_provider_installation: bool,
-    pub(super) has_boundary_settlements: bool,
     pub(super) boundary_application_coverage:
         Option<&'request boundary_applications::TerminalBoundaryApplicationCoverage>,
     pub(super) optimized_plan: &'request abstract_operations::AbstractOperationPlan,
@@ -23,12 +21,6 @@ pub(super) fn emit_optimized_fragments(
     ),
     Vec<Diagnostic>,
 > {
-    if request.has_provider_installation || request.has_boundary_settlements {
-        return Err(super::diagnostics::realization_error(
-            "fragment object publication",
-            "shared fragment publication does not yet admit provider installation or boundary settlements",
-        ));
-    }
     let source = stage_fragment_object(physical)?;
     let object =
         image_emission::build_function_fragment_object_artifact(&source).map_err(|error| {

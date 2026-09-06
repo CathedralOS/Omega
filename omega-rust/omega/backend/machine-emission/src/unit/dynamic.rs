@@ -1166,7 +1166,9 @@ fn argument_record(
         structural_type: copy.structural_type,
         shape: copy.shape,
         source_byte_offset: copy.source_byte_offset,
-        source_home_byte_offset: descriptor_offset,
+        source_location: machine_code::StructuralSourceLocation::Stack {
+            byte_offset: descriptor_offset,
+        },
         call_stack_bytes,
         fixed_array_length: copy.fixed_array_length,
         element_stride: copy.element_stride,

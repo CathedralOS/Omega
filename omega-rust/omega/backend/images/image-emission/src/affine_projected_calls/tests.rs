@@ -260,7 +260,7 @@ fn home(root: u64, bytes: u16) -> UnitParameterHomeRecord {
             shape,
             locations: Vec::new(),
         },
-        byte_offset: 0,
+        location: machine_code::StructuralSourceLocation::Stack { byte_offset: 0 },
         indirect: false,
     }
 }
@@ -281,7 +281,7 @@ fn argument(
         structural_type: type_id(1),
         shape,
         source_byte_offset: offset,
-        source_home_byte_offset: home.byte_offset,
+        source_location: home.location,
         call_stack_bytes: 0,
         fixed_array_length: length,
         element_stride: stride,
@@ -355,7 +355,7 @@ fn full_path_layout_keeps_root_array_metadata_and_record_root_absence() {
             ..projected.clone()
         },
         InternalUnitCallArgumentRecord {
-            source_home_byte_offset: 1,
+            source_location: machine_code::StructuralSourceLocation::Stack { byte_offset: 1 },
             ..projected.clone()
         },
     ] {
@@ -420,6 +420,7 @@ fn function_closure_checks_calls_and_partition_even_when_cleanup_is_empty() {
         .into_iter()
         .enumerate()
         .map(|(ordinal, moved)| InternalUnitCallRecord {
+            source: machine_code::InternalUnitCallSource::Authored,
             owner: CallSiteOwner::Operation(
                 OperationId::new(u64::try_from(ordinal + 1).unwrap()).unwrap(),
             ),

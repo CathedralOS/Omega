@@ -1,21 +1,21 @@
 use super::super::shared::*;
 
-pub(crate) fn derive_boundary_settlement(
+pub(super) fn validate_input(
     function: usize,
     index: usize,
     target: &TargetUnitOperation,
     abstracted: &AbstractOperation,
     optimized: &optimization_unit::OptimizationNode,
-    caller_parameters: &[LegalizedCallUnitParameter],
+    caller_parameters: &[super::input::Parameter<'_>],
     caller_claims: &[terminal_psi::EntryClaim],
     abstract_plan: &AbstractOperationPlan,
-) -> Result<LegalizedBoundarySettlement, LegalizationError> {
+) -> Result<(), LegalizationError> {
     let TargetUnitOperation::BoundarySettlement {
         psi_operation: target_operation,
         boundary: target_boundary,
         result: target_operations::TargetBoundaryResult::Unit,
         execution,
-        realization: target_operations::BoundaryRealization::ClaimCompletionOnly(realization),
+        realization: target_operations::BoundaryRealization::ClaimCompletionOnly(_),
         scalar_arguments,
         runtime_scalar_arguments,
         arguments: target_arguments,
@@ -26,9 +26,7 @@ pub(crate) fn derive_boundary_settlement(
     else {
         return Err(Error::UnsupportedSourceShape { function });
     };
-    let target_operations::BoundaryExecutionBinding::AdmittedProvider(provider_execution) =
-        execution
-    else {
+    let target_operations::BoundaryExecutionBinding::AdmittedProvider(_) = execution else {
         return Err(Error::UnsupportedSourceShape { function });
     };
     let AbstractOperation::BoundaryCall {
@@ -156,6 +154,55 @@ pub(crate) fn derive_boundary_settlement(
     {
         return Err(Error::UnsupportedSourceShape { function });
     }
+    Ok(())
+}
+
+pub(crate) fn derive_boundary_settlement(
+    function: usize,
+    index: usize,
+    target: &TargetUnitOperation,
+    abstracted: &AbstractOperation,
+    optimized: &optimization_unit::OptimizationNode,
+    caller_parameters: &[LegalizedCallUnitParameter],
+    caller_claims: &[terminal_psi::EntryClaim],
+    abstract_plan: &AbstractOperationPlan,
+) -> Result<LegalizedBoundarySettlement, LegalizationError> {
+    let parameters = caller_parameters
+        .iter()
+        .map(|parameter| super::input::Parameter {
+            semantic: &parameter.semantic,
+            target: &parameter.target,
+        })
+        .collect::<Vec<_>>();
+    validate_input(
+        function,
+        index,
+        target,
+        abstracted,
+        optimized,
+        &parameters,
+        caller_claims,
+        abstract_plan,
+    )?;
+    let TargetUnitOperation::BoundarySettlement {
+        execution: target_operations::BoundaryExecutionBinding::AdmittedProvider(provider_execution),
+        realization: target_operations::BoundaryRealization::ClaimCompletionOnly(realization),
+        ..
+    } = target
+    else {
+        unreachable!()
+    };
+    let AbstractOperation::BoundaryCall {
+        psi_operation,
+        boundary,
+        structural_arguments,
+        completion_claim_sources,
+        completion_receipts,
+        ..
+    } = abstracted
+    else {
+        unreachable!()
+    };
     Ok(LegalizedBoundarySettlement {
         operation: *psi_operation,
         boundary: *boundary,

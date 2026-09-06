@@ -292,7 +292,7 @@ fn validate_store(
         || !home.indirect
         || *placement_byte_size != byte_size
         || *placement_alignment != byte_size.min(8)
-        || store.parameter_home_byte_offset != home.byte_offset
+        || Some(store.parameter_home_byte_offset) != home.location.stack_byte_offset()
         || !store.parameter_home_indirect
         || !function
             .provenance

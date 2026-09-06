@@ -2,6 +2,7 @@
 
 mod disconnected_functions;
 mod leaf_object;
+mod publication;
 mod static_attachment;
 mod structural_call;
 mod structural_return;

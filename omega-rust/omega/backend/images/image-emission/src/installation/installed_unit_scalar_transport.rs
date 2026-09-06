@@ -642,7 +642,7 @@ pub(super) fn validate_installed_unit_structural_scalar_field_stores(
                 || home.access != parameter.access
                 || home.shape != parameter.shape
                 || store.destination_placement != home.source
-                || store.parameter_home_byte_offset != home.byte_offset
+                || Some(store.parameter_home_byte_offset) != home.location.stack_byte_offset()
                 || store.parameter_home_indirect != home.indirect
                 || !terminal_psi::is_bounded_structural_scalar_store_path(&store.path)
                 || !source_is_exact
@@ -1054,7 +1054,7 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                 || !home.indirect
                 || *placement_byte_size != width
                 || *placement_alignment != width.min(8)
-                || store.parameter_home_byte_offset != home.byte_offset
+                || Some(store.parameter_home_byte_offset) != home.location.stack_byte_offset()
                 || !store.parameter_home_indirect
                 || store.byte_count == 0
                 || store.byte_count != store.bytes.len()

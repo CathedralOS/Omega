@@ -2,7 +2,7 @@ use super::super::matchers::MatchedStructuralUnitForm;
 use super::super::shared::*;
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn validate_and_derive_parameters(
+pub(super) fn validate_input(
     function: usize,
     target: &target_operations::TargetFunction,
     abstracted: &abstract_operations::AbstractFunction,
@@ -11,7 +11,7 @@ pub(super) fn validate_and_derive_parameters(
     abstract_plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
     matched: &MatchedStructuralUnitForm<'_>,
-) -> Result<Vec<LegalizedCallUnitParameter>, LegalizationError> {
+) -> Result<(), LegalizationError> {
     let TargetOperation::UnitBody(body) = &target.operation else {
         return Err(Error::UnsupportedSourceShape { function });
     };
@@ -102,22 +102,19 @@ pub(super) fn validate_and_derive_parameters(
         return Err(Error::UnsupportedSourceShape { function });
     }
 
-    let parameters = abstracted
+    if abstracted
         .structural_parameters
         .iter()
         .zip(&body.parameters)
-        .map(|(semantic, target)| {
-            (semantic.place == target.place
-                && semantic.structural_type == target.structural_type
-                && semantic.multiplicity == target.multiplicity
-                && semantic.access == target.access)
-                .then(|| LegalizedCallUnitParameter {
-                    semantic: semantic.clone(),
-                    target: target.clone(),
-                })
-                .ok_or(Error::UnsupportedSourceShape { function })
+        .any(|(semantic, target)| {
+            semantic.place != target.place
+                || semantic.structural_type != target.structural_type
+                || semantic.multiplicity != target.multiplicity
+                || semantic.access != target.access
         })
-        .collect::<Result<Vec<_>, _>>()?;
+    {
+        return Err(Error::UnsupportedSourceShape { function });
+    }
     let expected_places = abstracted
         .structural_parameters
         .iter()
@@ -137,5 +134,40 @@ pub(super) fn validate_and_derive_parameters(
     {
         return Err(Error::UnsupportedSourceShape { function });
     }
-    Ok(parameters)
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn validate_and_derive_parameters(
+    function: usize,
+    target: &target_operations::TargetFunction,
+    abstracted: &abstract_operations::AbstractFunction,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    target_plan: &TargetOperationPlan,
+    abstract_plan: &AbstractOperationPlan,
+    unit: &PsiOptimizationUnit,
+    matched: &MatchedStructuralUnitForm<'_>,
+) -> Result<Vec<LegalizedCallUnitParameter>, LegalizationError> {
+    validate_input(
+        function,
+        target,
+        abstracted,
+        optimized,
+        target_plan,
+        abstract_plan,
+        unit,
+        matched,
+    )?;
+    let TargetOperation::UnitBody(body) = &target.operation else {
+        unreachable!()
+    };
+    Ok(abstracted
+        .structural_parameters
+        .iter()
+        .zip(&body.parameters)
+        .map(|(semantic, target)| LegalizedCallUnitParameter {
+            semantic: semantic.clone(),
+            target: target.clone(),
+        })
+        .collect())
 }

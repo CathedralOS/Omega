@@ -625,7 +625,9 @@ pub(super) fn emit_unit_body(
                     access: parameter.access,
                     shape: parameter.shape,
                     source: parameter.placement.clone(),
-                    byte_offset: home.byte_offset,
+                    location: machine_code::StructuralSourceLocation::Stack {
+                        byte_offset: home.byte_offset,
+                    },
                     indirect: home.indirect,
                 })
                 .collect();
@@ -695,7 +697,9 @@ pub(super) fn emit_unit_body(
                     access: parameter.access,
                     shape: parameter.shape,
                     source: parameter.placement.clone(),
-                    byte_offset: home.byte_offset,
+                    location: machine_code::StructuralSourceLocation::Stack {
+                        byte_offset: home.byte_offset,
+                    },
                     indirect: home.indirect,
                 })
                 .collect();
@@ -1099,6 +1103,7 @@ pub(super) fn emit_unit_body(
                         )?,
                     };
                     internal_unit_calls.push(InternalUnitCallRecord {
+                        source: machine_code::InternalUnitCallSource::Authored,
                         owner: CallSiteOwner::Operation(*psi_operation),
                         target: *callee,
                         result: *result,
@@ -1126,7 +1131,10 @@ pub(super) fn emit_unit_body(
                                         structural_type: copy.structural_type,
                                         shape: copy.shape,
                                         source_byte_offset: copy.source_byte_offset,
-                                        source_home_byte_offset,
+                                        source_location:
+                                            machine_code::StructuralSourceLocation::Stack {
+                                                byte_offset: source_home_byte_offset,
+                                            },
                                         call_stack_bytes,
                                         fixed_array_length: copy.fixed_array_length,
                                         element_stride: copy.element_stride,
@@ -2318,6 +2326,7 @@ pub(super) fn emit_unit_body(
                             }
                         }
                         internal_unit_calls.push(InternalUnitCallRecord {
+                            source: machine_code::InternalUnitCallSource::Authored,
                             owner,
                             target: cleanup.cleanup_machine,
                             result: None,

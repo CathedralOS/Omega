@@ -90,7 +90,7 @@ pub(super) fn validate_completion_custody(
 
 /// Replay the verifier's exact claim-source matching, claim uniqueness, and
 /// canonical receipt ordering after the verified module has been discarded.
-fn completion_receipts_have_exact_custody(
+pub(super) fn completion_receipts_have_exact_custody(
     arguments: &[StructuralArgument],
     sources: &[CompletionClaimSource],
     receipts: &[CompletionReceipt],

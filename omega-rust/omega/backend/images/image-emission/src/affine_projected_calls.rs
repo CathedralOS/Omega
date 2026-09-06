@@ -158,5 +158,8 @@ pub(crate) fn exact_owned_projection(
         && argument.source_byte_offset == byte_offset
         && argument.source == home.source
         && argument.source.shape == home.shape
-        && argument.source_home_byte_offset == home.byte_offset
+        && home
+            .location
+            .stack_byte_offset()
+            .is_some_and(|offset| argument.source_location.stack_byte_offset() == Some(offset))
 }
