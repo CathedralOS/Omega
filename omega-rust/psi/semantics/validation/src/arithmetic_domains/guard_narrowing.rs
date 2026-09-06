@@ -8,6 +8,9 @@ use std::collections::BTreeMap;
 
 use super::*;
 
+mod arrivals;
+pub use arrivals::arrival_integer_expression_bounds;
+
 #[cfg(test)]
 mod tests;
 
@@ -1039,211 +1042,16 @@ fn seed_ensures_conjunct(
     env.narrow(place, interval);
 }
 
-/// Seed a NON-ENTRY state's starting env from its incoming guarded
-/// transitions: `transition dir >= 0 && dir <= 1 { true -> store() }` means
-/// `store`'s body may assume the guard -- the target-state twin of the
-/// same-state arm narrowing. Multiple guarded predecessors join at the facts
-/// every edge establishes and the interval union for each common place.
-/// Strictly conservative; returns an EMPTY env unless ALL entries:
-/// - are guard-TRUE targets from a DIFFERENT state (a continuation
-///   fires on guard-FALSE with its own polarity; a self-loop back edge is
-///   loop-invariant territory, owned by loop_invariants.rs);
-/// - exclude every CALL entry (statement or value position), because calls
-///   carry no guard.
-///
-/// Facts seeded here are body-scoped exactly like any env entry: a write to
-/// the guarded place inside the body replaces its interval.
+/// Join the evaluated arguments and stable facts of every incoming path.
 pub(crate) fn incoming_guard_env(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
 ) -> ValueEnv {
-    use typed_trees::statement::{StatementNode, TransitionTargetNode};
-    let state_name = state.name.as_str();
-    let mut entries: Vec<typed_trees::statement::TransitionGuardNode> = Vec::new();
-    let mut disqualified = false;
-
-    let target_names_state = |handle: typed_trees::statement::TransitionTargetHandle| {
-        if !handle.is_valid() {
-            return false;
-        }
-        match program.statement_table.transition_target(handle) {
-            TransitionTargetNode::Named { path, .. } => program
-                .statement_table
-                .name_path_members(path.members)
-                .last()
-                .is_some_and(|name| name.as_str() == state_name),
-            _ => false,
-        }
-    };
-
-    for source in program.machine_states(machine) {
-        for statement in program.statement_table.statements(source.statement_nodes) {
-            match statement {
-                StatementNode::Transition(transition) => {
-                    if target_names_state(transition.target) {
-                        if source.symbol == state.symbol {
-                            // A self-loop back edge is loop-invariant territory
-                            // (loop_invariants.rs), not entry seeding.
-                            disqualified = true;
-                        } else {
-                            entries.push(transition.guard);
-                        }
-                    }
-                    if target_names_state(transition.continuation) {
-                        disqualified = true;
-                    }
-                }
-                StatementNode::Call(call) if call.target.as_str() == state_name => {
-                    disqualified = true;
-                }
-                _ => {}
-            }
-            if statement_expressions_call_state(program, statement, state_name) {
-                disqualified = true;
-            }
-        }
-    }
-
-    if disqualified || entries.is_empty() {
-        return ValueEnv::new();
-    }
-    // MULTI-predecessor JOIN: a fact holds at state entry only if EVERY guarded
-    // edge implies it -- per place, keep the ones present under every entry's
-    // guard, at the interval UNION (the widest value any edge admits).
-    // Identical funnel guards join to themselves; differing guards keep their
-    // common places at the union of their bounds. An edge whose guard
-    // establishes nothing contributes an empty env, emptying the join (sound:
-    // that edge admits anything).
-    let mut joined =
-        guard_narrowed_env(program, machine, Some(state), &entries[0], &ValueEnv::new());
-    for guard in &entries[1..] {
-        let entry_env = guard_narrowed_env(program, machine, Some(state), guard, &ValueEnv::new());
-        joined = joined.join(&entry_env);
-    }
-    joined
-}
-
-/// Whether any CALL expression inside the statement's expression trees targets
-/// `state_name` (a value-position state entry, which carries no guard).
-fn statement_expressions_call_state(
-    program: &TypedTrees,
-    statement: &typed_trees::statement::StatementNode,
-    state_name: &str,
-) -> bool {
-    use typed_trees::statement::StatementNode;
-    let mut handles: Vec<ExpressionHandle> = Vec::new();
-    match statement {
-        StatementNode::AssemblyFact(_) => {}
-        StatementNode::LocalData(local) => handles.push(local.initial_value),
-        StatementNode::Assignment(assignment) => {
-            handles.push(assignment.target);
-            handles.push(assignment.value);
-        }
-        StatementNode::Expression(expression) => handles.push(*expression),
-        StatementNode::Call(call) => {
-            handles.extend(
-                program
-                    .expression_table
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .copied(),
-            );
-        }
-        StatementNode::Transition(transition) => {
-            if let typed_trees::statement::TransitionGuardNode::When(condition) = &transition.guard
-            {
-                handles.push(*condition);
-            }
-            for handle in [transition.target, transition.continuation] {
-                if !handle.is_valid() {
-                    continue;
-                }
-                match program.statement_table.transition_target(handle) {
-                    typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
-                        handles.extend(
-                            program
-                                .expression_table
-                                .expression_handles(*arguments)
-                                .iter()
-                                .copied(),
-                        )
-                    }
-                    typed_trees::statement::TransitionTargetNode::Value(value) => {
-                        handles.push(*value)
-                    }
-                    _ => {}
-                }
-            }
-        }
-    }
-    handles
+    let mut environment = arrivals::incoming_environments(program, machine)
         .into_iter()
-        .any(|handle| expression_calls_state(program, handle, state_name))
-}
-
-fn expression_calls_state(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    state_name: &str,
-) -> bool {
-    if !expression.is_valid() {
-        return false;
-    }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Atomic(atomic) => expression_calls_state(program, atomic.value, state_name),
-        ExpressionNode::Call(call) => {
-            if call.target.as_str() == state_name {
-                return true;
-            }
-            let receiver = call.receiver;
-            let arguments = call.arguments;
-            (receiver.is_valid() && expression_calls_state(program, receiver, state_name))
-                || program
-                    .expression_table
-                    .expression_handles(arguments)
-                    .iter()
-                    .any(|argument| expression_calls_state(program, *argument, state_name))
-        }
-        ExpressionNode::Binary(binary) => {
-            let (left, right) = (binary.left, binary.right);
-            expression_calls_state(program, left, state_name)
-                || expression_calls_state(program, right, state_name)
-        }
-        ExpressionNode::Unary(unary) => expression_calls_state(program, unary.operand, state_name),
-        ExpressionNode::Member(member) => {
-            expression_calls_state(program, member.receiver, state_name)
-        }
-        ExpressionNode::Indexed(indexed) => {
-            let (collection, index) = (indexed.collection, indexed.index);
-            expression_calls_state(program, collection, state_name)
-                || expression_calls_state(program, index, state_name)
-        }
-        ExpressionNode::Cast(cast) => expression_calls_state(program, cast.value, state_name),
-        ExpressionNode::Borrow(inner) => expression_calls_state(program, inner.target, state_name),
-        ExpressionNode::Range(range) => {
-            let (start, end) = (range.start, range.end);
-            expression_calls_state(program, start, state_name)
-                || expression_calls_state(program, end, state_name)
-        }
-        ExpressionNode::ArrayLiteral(values) => program
-            .expression_table
-            .expression_handles(*values)
-            .iter()
-            .any(|value| expression_calls_state(program, *value, state_name)),
-        ExpressionNode::StructLiteral(literal) => {
-            let fields = literal.fields;
-            program
-                .expression_table
-                .struct_fields(fields)
-                .iter()
-                .any(|field| expression_calls_state(program, field.value, state_name))
-        }
-        ExpressionNode::Name(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::Boolean(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => false,
-    }
+        .find_map(|(symbol, environment)| (symbol == state.symbol).then_some(environment))
+        .unwrap_or_default();
+    arrivals::seed_state_requirements(program, machine, state, &mut environment);
+    environment
 }

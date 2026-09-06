@@ -166,17 +166,6 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   private-witness/public-guarantee split described in chapter 3 and the
   [termination brief](wiki/design_briefs/termination_ranking_and_progress.md).
 
-- **BOUNDED-RETURN-ARRIVAL-FACTS.** Join incoming guards for bounded returns in
-  `psi/semantics/validation/src/arithmetic_domains/` and
-  `psi/semantics/proof/src/obligations.rs` and `checker.rs`, preserving exact
-  source/target parameter bindings and every entry path. Guard-only arrivals
-  cannot rely on an explicitly restated state requirement. Acceptance:
-  `arithmetic/bounded_guard_only_increment` proves its `[0..=4]` result with
-  differently named source and target parameters; an unguarded predecessor,
-  changed argument, or intervening overlapping write still rejects. Calls,
-  continuations, and loops must contribute their actual arrival facts rather
-  than being omitted from the join or matched by parameter spelling.
-
 - **EXACT-CALL-RESULT-RELATIONS.** Carry exact call-result comparisons through
   state arrivals and arithmetic validation in
   `psi/semantics/validation/src/arithmetic_domains/`. The restored

@@ -46,6 +46,7 @@ mod value_environment;
 use dependent_products::{refine_dependent_product, refine_dependent_product_factor};
 use dependent_relations::refine_dependent_subtract;
 use expression_analysis::analyze;
+pub use guard_narrowing::arrival_integer_expression_bounds;
 pub(crate) use guard_narrowing::{
     fall_through_narrowed_env, guard_narrowed_env, incoming_guard_env, requires_value_env,
     seed_out_param_ensures,

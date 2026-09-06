@@ -2,16 +2,16 @@ use super::*;
 use typed_trees::domain::ProofFact;
 use typed_trees::signature::SignatureContractKind;
 
-/// Refine a bounded return using its own authored arrival assumptions. This
+/// Refine a bounded return using joined arrivals and authored assumptions. This
 /// proves the body under those assumptions, not the assumptions themselves:
 /// checked call/transition validation must still discharge every arrival.
-/// Source-state guards are deliberately not matched across parameter names.
+/// The arithmetic query binds source arguments to exact target parameters and
+/// crosses the consuming state's writes before publishing a range.
 pub(super) fn integer_range(
     proof_plan: &ProofPlan<'_>,
     obligation: &BoundedStateReturnObligation,
     context: &AssignmentRangeContext<'_>,
 ) -> Option<IntegerRange> {
-    let declared = integer_range_for_return_value(proof_plan, obligation)?;
     let program = proof_plan.program;
     let machine = program
         .machines()
@@ -28,6 +28,19 @@ pub(super) fn integer_range(
     {
         return None;
     }
+    if let Some((minimum, maximum)) = validation::arrival_integer_expression_bounds(
+        program,
+        obligation.machine_symbol,
+        obligation.state_symbol,
+        obligation.statement_index,
+        obligation.value,
+    ) {
+        return Some(IntegerRange {
+            minimum: BigInt::from_i64(minimum),
+            maximum: BigInt::from_i64(maximum),
+        });
+    }
+    let declared = integer_range_for_return_value(proof_plan, obligation)?;
     let is_entry = program
         .machine_states(machine)
         .first()
