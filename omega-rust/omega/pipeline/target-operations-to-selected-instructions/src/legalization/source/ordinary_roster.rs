@@ -31,7 +31,8 @@ pub(super) fn derive_remaining(
         else {
             return Err(Error::SourceCustodyMismatch);
         };
-        if matches!(target_function.operation, TargetOperation::UnitBody(_)) {
+        let kind = super::publication_input::kind(target_function, abstracted);
+        if kind == super::publication_input::OrdinaryInputKind::Unit {
             if match_scalar_call_unit_form(target_function).is_some() {
                 rosters
                     .scalar_call_unit_functions
@@ -68,9 +69,9 @@ pub(super) fn derive_remaining(
                         matched,
                     )?);
             }
-        } else if let Some((_, control)) =
-            crate::legalization::scalar_leaf::control(target_function)
-        {
+        } else if kind == super::publication_input::OrdinaryInputKind::Leaf {
+            let (_, control) = crate::legalization::scalar_leaf::control(target_function)
+                .expect("classified leaf input");
             let abi = crate::legalization::scalar_leaf::validate_input(
                 index,
                 target.target,
@@ -117,7 +118,7 @@ pub(super) fn derive_remaining(
                         leaf,
                     },
                 ));
-        } else if abstracted.block_entries.len() == 4 {
+        } else if kind == super::publication_input::OrdinaryInputKind::SharedReturn {
             rosters.functions.push(
                 legalized_operations::LegalizedFunction::SharedReturnConditional(
                     super::shared_return::derive(

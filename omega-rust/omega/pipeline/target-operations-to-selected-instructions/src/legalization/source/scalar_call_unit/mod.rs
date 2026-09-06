@@ -9,46 +9,18 @@ mod projection;
 
 use super::shared::*;
 
-/// Migration classification uses the legalization grammar, not trial emission.
-pub(crate) fn is_ordered_scalar_call_unit(
-    target: &abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
-    machine: semantic_vocabulary::MachineId,
+/// The producer and migration classifier share the same borrowed input grammar.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn matches_input(
+    index: usize,
+    function: &target_operations::TargetFunction,
+    abstracted: &abstract_operations::AbstractFunction,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    target: &TargetOperationPlan,
+    plan: &AbstractOperationPlan,
+    unit: &PsiOptimizationUnit,
 ) -> bool {
-    let Some((index, function)) = target
-        .target_operations()
-        .functions
-        .iter()
-        .enumerate()
-        .find(|(_, function)| function.machine == machine)
-    else {
-        return false;
-    };
-    let plan = target.optimized().plan();
-    let unit = target.optimized().unit();
-    let Some(abstracted) = plan
-        .functions
-        .iter()
-        .find(|function| function.machine == machine)
-    else {
-        return false;
-    };
-    let Some(optimized) = unit
-        .functions
-        .iter()
-        .find(|function| function.machine == machine)
-    else {
-        return false;
-    };
-    grammar::match_sequence(
-        index,
-        function,
-        abstracted,
-        optimized,
-        target.target_operations(),
-        plan,
-        unit,
-    )
-    .is_ok()
+    grammar::match_sequence(index, function, abstracted, optimized, target, plan, unit).is_ok()
 }
 
 pub(super) fn derive_source_scalar_call_unit_function(

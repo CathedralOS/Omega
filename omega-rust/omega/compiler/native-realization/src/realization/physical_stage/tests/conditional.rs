@@ -4,6 +4,76 @@ use optimization_core::{Optimization, OptimizationSelections};
 use semantic_vocabulary::IntegerSign;
 
 #[test]
+fn catalog_integer_predicates_use_shared_publication_without_opt_in() {
+    for comparison in [
+        Comparison::NotEqual,
+        Comparison::EqualZero,
+        Comparison::NotEqualZero,
+    ] {
+        let (semantic, proof) = conditional_fixture::artifact(comparison, IntegerSign::Unsigned);
+        for target in [
+            target::NativeTarget::windows_x64(),
+            target::NativeTarget::linux_x64(),
+            target::NativeTarget::linux_arm64(),
+            target::NativeTarget::macos_arm64(),
+        ] {
+            let selected = if target.architecture == target::Architecture::X86_64 {
+                Optimization::X86SelectXorZeroI64MaterializationV1
+            } else {
+                Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1
+            };
+            for selections in [
+                OptimizationSelections::default(),
+                OptimizationSelections::new([selected]).unwrap(),
+            ] {
+                publish(&semantic, &proof, target, &selections);
+            }
+        }
+    }
+}
+
+#[test]
+fn boolean_parameter_publication_waits_for_its_ordinary_scalar_abi() {
+    let (semantic, proof) =
+        conditional_fixture::artifact(Comparison::BooleanParameter, IntegerSign::Unsigned);
+    for target in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+    ] {
+        let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+            &semantic,
+            &proof,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .unwrap();
+        let optimized = crate::optimize_verified_abstract_input(
+            input,
+            crate::compiler_baseline_request_v1(&OptimizationSelections::default()),
+        )
+        .unwrap();
+        let target_program =
+            abstract_operations_to_target_operations::lower_optimized_to_target_operations(
+                optimized, target,
+            )
+            .unwrap();
+        assert!(
+            target_program.target_operations().functions[0]
+                .fixed_integer_scalar_abi
+                .is_none()
+        );
+        assert!(!is_fragment_publication_program(&target_program));
+        // The catalog still admits the form for physical construction. Only
+        // native publication lacks the ordinary Boolean ABI carrier.
+        target_operations_to_selected_instructions::legalize_target_operations(
+            target_program.target_operations(),
+            target_program.optimized().plan(),
+            target_program.optimized().unit(),
+        )
+        .unwrap();
+    }
+}
+
+#[test]
 fn scalar_conditional_fragments_reach_native_object_publication() {
     for (comparison, sign) in [
         (Comparison::Equal, IntegerSign::Unsigned),
@@ -122,7 +192,7 @@ fn publish(
             )
             .unwrap();
         assert!(
-            fragment_program(&target_program),
+            is_fragment_publication_program(&target_program),
             "default production must use the shared stages"
         );
         let physical = crate::stage_optimized_verified_physical_pipeline(
@@ -156,6 +226,21 @@ fn publish(
         },
     )
     .unwrap_or_else(|error| panic!("{target:?} {selections:?}: publication {error:?}"));
+    let image = image_emission::emit_executable_image(&published, 3).unwrap();
+    image_emission::validate_executable_image(&published, &image).unwrap();
+    let record = image_emission::build_installation_record(
+        &image,
+        semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),
+    )
+    .unwrap();
+    let encoded = image_emission::encode_installation_record(&record).unwrap();
+    let decoded = image_emission::decode_installation_record(&encoded).unwrap();
+    image_emission::validate_installation_record(&decoded, &image).unwrap();
+    assert_eq!(
+        image_emission::derive_installation_stack_demand(&decoded, &image, published.entry())
+            .unwrap(),
+        image_emission::derive_stack_demand(&published, published.entry()).unwrap(),
+    );
     if selected_lowering {
         assert!(matches!(
             scope,
@@ -271,7 +356,7 @@ fn source_common_return_conditionals_use_the_shared_native_pipeline() {
 }
 
 #[test]
-fn conditional_migration_excludes_unselected_input_shapes() {
+fn substituted_conditional_inputs_reject_at_legalization() {
     let (semantic, proof) = conditional_fixture::artifact(Comparison::Equal, IntegerSign::Unsigned);
     let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
         &semantic,
@@ -289,31 +374,38 @@ fn conditional_migration_excludes_unselected_input_shapes() {
         target::NativeTarget::linux_x64(),
     )
     .unwrap();
-    let abstracted = &target.optimized().plan().functions[0];
-    let native = &target.target_operations().functions[0];
-    assert!(fragment_shape::scalar_conditional(abstracted, native));
-    let mut wrong_order = abstracted.clone();
+    let plan = target.optimized().plan();
+    let native = target.target_operations();
+    let admitted = |abstracted: &abstract_operations::AbstractOperationPlan,
+                    targeted: &target_operations::TargetOperationPlan| {
+        target_operations_to_selected_instructions::legalize_target_operations(
+            targeted,
+            abstracted,
+            target.optimized().unit(),
+        )
+        .is_ok()
+    };
+    assert!(is_fragment_publication_program(&target));
+    assert!(admitted(plan, native));
+    let mut wrong_order = plan.clone();
     let abstract_operations::AbstractOperation::Conditional {
         when_true,
         when_false,
         ..
-    } = &mut wrong_order.operations[1]
+    } = &mut wrong_order.functions[0].operations[1]
     else {
         unreachable!()
     };
     std::mem::swap(&mut when_true.target, &mut when_false.target);
-    assert!(!fragment_shape::scalar_conditional(&wrong_order, native));
+    assert!(!admitted(&wrong_order, native));
     let mut repeated_parameter = native.clone();
     let target_operations::TargetOperation::ReturnIntegerExpressionConditionalControl {
         condition: target_operations::TargetBooleanExpression::IntegerEqual { left, right, .. },
         ..
-    } = &mut repeated_parameter.operation
+    } = &mut repeated_parameter.functions[0].operation
     else {
         unreachable!()
     };
     *right = left.clone();
-    assert!(!fragment_shape::scalar_conditional(
-        abstracted,
-        &repeated_parameter
-    ));
+    assert!(!admitted(plan, &repeated_parameter));
 }

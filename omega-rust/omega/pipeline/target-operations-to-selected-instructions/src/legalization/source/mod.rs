@@ -1,11 +1,13 @@
 //! Optimizer module role: executable entrance. Canonical source-to-legal construction over the sole ordered form catalog.
 
+mod conditional_input;
 pub(in crate::legalization) mod conditions;
 mod custody;
 mod functions;
 mod leaves;
 mod matchers;
 mod ordinary_roster;
+mod publication_input;
 mod scalar_call_unit;
 mod shared;
 mod shared_return;
@@ -14,8 +16,10 @@ mod structural;
 use crate::legalization::projected_structural_call_return;
 use functions::{derive_source_function, derive_source_unit_function};
 use matchers::{match_scalar_call_unit_form, match_structural_unit_form, match_unit_form};
+#[cfg(test)]
+pub(crate) use publication_input::accepts as accepts_fragment_publication_input;
+pub(crate) use publication_input::is_fragment_publication_program;
 use scalar_call_unit::derive_source_scalar_call_unit_function;
-pub(crate) use scalar_call_unit::is_ordered_scalar_call_unit;
 use shared::*;
 use structural::derive_source_structural_unit_function;
 

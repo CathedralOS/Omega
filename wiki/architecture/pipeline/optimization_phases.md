@@ -320,11 +320,18 @@ route and silently fall back. Consequently every selected-pipeline result owns a
 non-optional function-relative manifest. The remaining transitional split is one
 layer out: `NativePhysicalStageResult` still carries assigned operations for
 ranked programs and ordinary identity programs beyond the supported fragment
-publication shape. Return-only Unit programs, free `u64` constant/parameter
-leaves, and direct- or shared-return scalar comparisons use the shared fragment stages
-even with empty selections. The conditional migration covers two distinct
-register parameters compared with unsigned equality or signed/unsigned
-less-than and less-or-equal, returning `u64` constants from two arms.
+publication shape. The selection stage owns publication-input classification,
+using the same input predicates and ordered form catalog as legalization.
+The coordinator contains no separate scalar grammar and does not try legalization
+or emission before choosing a route. Classification grants no proof or physical
+authority; construction and independent replay still check the exact program.
+Return-only Unit programs, free `u64` constant/parameter leaves, and the catalog's
+integer-ABI conditionals use the shared fragment stages even with empty selections.
+The direct-return conditional forms include unsigned equality and inequality,
+signed/unsigned less-than and less-or-equal, and unsigned equality/inequality
+against zero, returning `u64` constants from two arms. Boolean-parameter forms
+remain outside default fragment publication until the ordinary scalar ABI
+carrier represents Boolean explicitly; catalog membership cannot replace that ABI.
 Source-generated common-return functions retain all four blocks, both jumps,
 the shared result parameter, and every authored successor binding. Selection
 does not duplicate the return or manufacture a different source graph.

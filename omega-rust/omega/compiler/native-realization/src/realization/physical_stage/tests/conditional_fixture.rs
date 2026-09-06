@@ -11,6 +11,10 @@ use terminal_psi::*;
 #[derive(Debug, Clone, Copy)]
 pub(super) enum Comparison {
     Equal,
+    NotEqual,
+    EqualZero,
+    NotEqualZero,
+    BooleanParameter,
     LessThan,
     LessOrEqual,
 }
@@ -44,7 +48,7 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
             cleanup_actions: Vec::new(),
         },
     };
-    let machine = TerminalMachine {
+    let mut machine = TerminalMachine {
         id: MachineId::new(1).unwrap(),
         attachment: None,
         parameters: vec![value(1, parameter), value(2, parameter)],
@@ -66,7 +70,11 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
                     id: OperationId::new(1).unwrap(),
                     result: OperationResult::Scalar(value(3, ScalarType::Boolean)),
                     kind: match comparison {
-                        Comparison::Equal => OperationKind::IntegerEqual {
+                        Comparison::Equal
+                        | Comparison::NotEqual
+                        | Comparison::EqualZero
+                        | Comparison::NotEqualZero
+                        | Comparison::BooleanParameter => OperationKind::IntegerEqual {
                             left: ValueId::new(1).unwrap(),
                             right: ValueId::new(2).unwrap(),
                         },
@@ -97,6 +105,48 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
             crash_routes: Vec::new(),
         },
     };
+    if matches!(comparison, Comparison::EqualZero | Comparison::NotEqualZero) {
+        machine.parameters.pop();
+        machine.blocks[0].operations.insert(
+            0,
+            Operation {
+                id: OperationId::new(1).unwrap(),
+                result: OperationResult::Scalar(value(2, integer)),
+                kind: OperationKind::IntegerConstant {
+                    value: IntegerValue::Unsigned(0),
+                },
+            },
+        );
+    }
+    if matches!(comparison, Comparison::NotEqual | Comparison::NotEqualZero) {
+        machine.blocks[0].operations.push(Operation {
+            id: OperationId::new(1).unwrap(),
+            result: OperationResult::Scalar(value(7, ScalarType::Boolean)),
+            kind: OperationKind::BooleanNot {
+                operand: ValueId::new(3).unwrap(),
+            },
+        });
+        let Terminator::Conditional { condition, .. } = &mut machine.blocks[0].terminator else {
+            unreachable!()
+        };
+        *condition = ValueId::new(7).unwrap();
+    }
+    if matches!(comparison, Comparison::BooleanParameter) {
+        machine.parameters = vec![value(1, ScalarType::Boolean)];
+        machine.blocks[0].operations.clear();
+        let Terminator::Conditional { condition, .. } = &mut machine.blocks[0].terminator else {
+            unreachable!()
+        };
+        *condition = ValueId::new(1).unwrap();
+    }
+    for (index, operation) in machine
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.operations)
+        .enumerate()
+    {
+        operation.id = OperationId::new(u64::try_from(index + 1).unwrap()).unwrap();
+    }
     let module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine.id,

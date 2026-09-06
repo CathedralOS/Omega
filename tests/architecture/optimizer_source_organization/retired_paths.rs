@@ -24,6 +24,7 @@ pub(crate) fn check(audit: &mut Audit) {
     }
 
     for obsolete in [
+        "omega-rust/omega/compiler/native-realization/src/realization/physical_stage/fragment_shape.rs",
         "omega-rust/omega/pipeline/omega-register-homes-to-callee-saved-requirements/Cargo.toml",
         "omega-rust/omega/pipeline/omega-callee-saved-requirements-to-save-storage/Cargo.toml",
         "omega-rust/omega/pipeline/omega-spill-access-constraints-to-frame-requirements/Cargo.toml",
