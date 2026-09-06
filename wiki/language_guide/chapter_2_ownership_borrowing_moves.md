@@ -43,6 +43,13 @@ machine InventorySystem::repair(&mut self) {
 
 After a move, the old binding is no longer usable.
 
+A field or fixed-array element selected from an owned call result belongs to
+that result's storage. Selecting through a reference or slice instead reaches
+borrowed storage and retains its restrictions. A partial move must preserve a
+nominal cleanup machine's whole-value entitlement and cannot discard unselected
+linear siblings. Bind the result to a local when the remaining claims must be
+transferred or consumed separately.
+
 ## Copy Values
 
 Some values are copied instead of moved.

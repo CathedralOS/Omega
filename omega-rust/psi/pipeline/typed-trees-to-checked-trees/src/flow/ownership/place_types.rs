@@ -47,6 +47,12 @@ pub(crate) fn canonical_place_type_reference(
     statement_index: usize,
     place: &CanonicalPlace,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
+    if let facts::PlaceRoot::Expression(expression) = place.root
+        && let ExpressionNode::Call(call) = program.expression_table.expression(expression)
+    {
+        let result = super::super::calls::call_target_return_type(program, call.target_symbol)?;
+        return project_type_reference_from_segments(program, result, &place.segments);
+    }
     let facts::PlaceRoot::Symbol(root_symbol) = place.root else {
         return None;
     };

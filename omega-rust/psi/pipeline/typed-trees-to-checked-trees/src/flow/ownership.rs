@@ -4,6 +4,7 @@ mod calls;
 mod events;
 mod moves;
 mod place_types;
+mod result_storage;
 mod type_references;
 
 use calls::append_call_ownership_events;

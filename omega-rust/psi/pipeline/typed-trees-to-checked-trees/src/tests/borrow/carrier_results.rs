@@ -77,26 +77,27 @@ fn a_direct_reference_field_result_keeps_its_source_loan_active() {
                     loans[0].root_symbol,
                     program.state_parameters(state)[0].symbol
                 );
-                // Loan transfer is independent of the existing conservative
-                // move check for projected temporary owned values. Do not
-                // remove that gate merely because attribution is now exact.
-                let diagnostics =
-                    check_program(&source).expect_err("projected temporary move gate");
-                assert!(
-                    diagnostics
-                        .iter()
-                        .any(|diagnostic| diagnostic.message.contains(
-                            "receives an owned value while local borrow `input` is still active"
-                        )),
-                    "{declaration}: {diagnostics:#?}"
-                );
-                continue;
             }
-            if declaration == "let held: &mut i32 = select(input);" {
+            if declaration == "let held: &mut i32 = select(input);"
+                || declaration.contains("select(forward_outer(")
+                || declaration.contains("select(forward_array(")
+            {
                 let checked_source =
                     format!("data Main {{}} machine Main::run(&mut self) {{}} {source}");
                 let result = crate::lower_typed_trees(typed_program(&checked_source));
-                if admitted {
+                if declaration.contains("select(forward_outer(")
+                    || declaration.contains("select(forward_array(")
+                {
+                    let diagnostics = result.expect_err(
+                        "nested value-call realization remains independent of borrow compatibility",
+                    );
+                    assert!(
+                        diagnostics.iter().any(|diagnostic| diagnostic
+                            .message
+                            .contains("a value-call argument cannot itself be a machine call yet")),
+                        "{diagnostics:#?}"
+                    );
+                } else if admitted {
                     result.expect("raw owned-carrier reference return reaches checked trees");
                 } else {
                     let diagnostics = result.expect_err("full checking retains the source loan");
