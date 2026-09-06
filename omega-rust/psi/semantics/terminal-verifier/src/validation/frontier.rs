@@ -867,20 +867,10 @@ pub(super) fn validate_structural_frontier(
                         if only.id == machine.entry && only.id == block.id
                             && only.parameters.is_empty()
                             && only.operations.is_empty())
-                    && module.structural_types.iter().any(|declaration| {
-                        declaration.id == result.structural_type
-                            && matches!(
-                                &declaration.shape,
-                                StructuralTypeShape::Record { fields }
-                                    if matches!(fields.as_slice(), [field]
-                                        if matches!(
-                                            field.field_type,
-                                            StructuralFieldType::Scalar(
-                                                ScalarType::Integer(integer)
-                                            ) if integer.bits() == 64
-                                        ))
-                            )
-                    });
+                    && super::structural_result_contracts::has_plain_owned_shape(
+                        module,
+                        result.structural_type,
+                    );
                 if (returned_claims.is_empty()
                     && !exact_payloadless_claim_free_return
                     && !exact_affine_parameter_return)

@@ -13,6 +13,9 @@ use terminal_interpreter::{
 };
 use terminal_psi::{StructuralMultiplicity, Terminator};
 
+#[path = "affine_return_source/aggregates.rs"]
+mod aggregates;
+
 const FREE_IDENTITY: &str = r#"
     data Value { number: u64; }
     machine forward(value: Value) -> Value { value }
@@ -194,6 +197,19 @@ fn assert_identity_execution(
 #[test]
 fn an_owned_affine_identity_has_an_independent_structural_result_producer() {
     assert_identity_execution(FREE_IDENTITY, "forward", false, 0, &[], &[]);
+}
+
+#[test]
+fn a_nested_record_identity_preserves_the_whole_owned_result() {
+    assert_identity_execution(
+        "data Inner { number: u64; } data Outer { inner: Inner; count: u32; }
+         machine forward(outer: Outer) -> Outer { outer }",
+        "forward",
+        false,
+        0,
+        &[],
+        &[],
+    );
 }
 
 #[test]

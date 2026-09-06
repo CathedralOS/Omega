@@ -3793,13 +3793,23 @@ Claim-free owned-affine identity returns share one producer between ordinary
 helpers and selected operator realizations. A free helper needs no attachment
 or scalar side argument; static attached helpers retain their attachment.
 The checked signature retains the exact authored positions of the owned input
-and any fixed-width integer side parameters. The producer currently accepts a
-whole, unqualified record containing one `i64` or `u64` field, with no claims,
-nominal cleanup, calls, contracts, or service reach. It emits distinct parameter
-and result places and transfers the input at `ReturnStructural`, preserving
-its opaque identity across fuel exhaustion. This does not widen the selected
-operator call ABI or connect ordinary structural results to caller locals and
-nested operands; those uses still require their own checked result locations.
+and any fixed-width integer side parameters. The producer accepts whole,
+unqualified affine records, sums, and nonempty fixed arrays, including nested
+aggregates and concrete generic instances, with no claims, nominal cleanup,
+calls, contracts, or service reach. Source checking inspects stored fields and
+closed type arguments before referent-oriented shape normalization: reference
+or slice fields, projected linear obligations, erased carriers, and field
+qualifications cannot silently become plain owned storage. Structural type
+retention preserves each concrete array element and field identity. Existing
+Terminal carrier restrictions still apply, including the exclusion of empty
+arrays and standalone bounded-owned byte-sequence types.
+The producer emits distinct parameter and result places and transfers the
+input at `ReturnStructural`, preserving its opaque identity across fuel
+exhaustion. Independent verification follows the complete owned type graph;
+native fragment width does not determine whole-value transfer validity. This
+does not widen the selected operator call ABI or connect ordinary structural
+results to caller locals and nested operands; those uses still require their
+own checked result locations and retained loans or claim transfers.
 
 The first internal structural-call slice composes two such checked machines. A
 `CallStructural` operation owns a structural operation-result place with its
