@@ -1580,6 +1580,32 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                 ));
             }
             match program.expression_table.expression(expression) {
+                ExpressionNode::Name(name) => {
+                    let source_position = parameter_position(program, name, parameters)?;
+                    let parameter = parameters.get(source_position)?;
+                    let primitive_type =
+                        program.primitive_type_reference(parameter.type_reference)?;
+                    if !is_integer(primitive_type) || primitive_type == PrimitiveType::Addr {
+                        return None;
+                    }
+                    // Scalar values use the dense primitive namespace, while
+                    // structural member roots above retain authored positions.
+                    let position = parameters[..source_position]
+                        .iter()
+                        .filter(|parameter| {
+                            program
+                                .primitive_type_reference(parameter.type_reference)
+                                .is_some()
+                        })
+                        .count();
+                    Some((
+                        CheckedScalarExpression::Parameter {
+                            position,
+                            primitive_type,
+                        },
+                        program.arithmetic_domain_for_type_reference(parameter.type_reference),
+                    ))
+                }
                 ExpressionNode::Integer(literal) => Some((
                     CheckedScalarExpression::IntegerLiteral {
                         literal: literal.clone(),

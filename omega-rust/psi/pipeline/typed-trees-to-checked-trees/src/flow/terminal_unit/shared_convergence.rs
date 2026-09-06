@@ -96,6 +96,23 @@ enum SharedBooleanRuntimeInput {
     },
 }
 
+pub(super) fn shared_boolean_has_member_and_integer_inputs(
+    expression: &CheckedScalarExpression,
+    scalar_parameter_count: usize,
+) -> bool {
+    let CheckedScalarExpression::Boolean(expression) = expression else {
+        return false;
+    };
+    shared_boolean_runtime_inputs(expression, scalar_parameter_count).is_some_and(|inputs| {
+        inputs
+            .iter()
+            .any(|input| matches!(input, SharedBooleanRuntimeInput::StructuralField { .. }))
+            && inputs
+                .iter()
+                .any(|input| matches!(input, SharedBooleanRuntimeInput::IntegerScalar(_)))
+    })
+}
+
 type SharedIntegerRuntimeInputs = BTreeSet<SharedBooleanRuntimeInput>;
 type SharedIntegerClassifier =
     fn(&CheckedScalarExpression, usize) -> Option<SharedIntegerRuntimeInputs>;

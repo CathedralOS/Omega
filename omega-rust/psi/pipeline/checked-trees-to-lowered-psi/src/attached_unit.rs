@@ -856,6 +856,32 @@ pub(super) fn lower_shared_unit_closure(
         lowered_claims.push((*machine_symbol, claims.entry_claims, claims.source_claims));
     }
 
+    // Predicate roots use authored positions; Terminal signatures use dense
+    // structural positions. These lowering-only views keep the exact emitted
+    // place/type identities without inserting dummy slots for scalar arguments.
+    let predicate_parameters = closure
+        .iter()
+        .zip(&lowered_machine_parameters)
+        .map(|(symbol, (lowered_symbol, parameters))| {
+            let plan = unique_unit_machine(plans, *symbol)?;
+            if symbol != lowered_symbol || plan.structural_parameters.len() != parameters.len() {
+                return unsupported(
+                    "Unit predicate signature does not match its structural roster",
+                );
+            }
+            let parameters = plan
+                .structural_parameters
+                .iter()
+                .zip(parameters)
+                .map(|(source, terminal)| StructuralParameterDeclaration {
+                    position: source.position,
+                    ..terminal.clone()
+                })
+                .collect::<Vec<_>>();
+            Ok((*symbol, parameters))
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+
     let lowered_machine_runtime_requirements = closure
         .iter()
         .map(|machine_symbol| {
@@ -868,7 +894,7 @@ pub(super) fn lower_shared_unit_closure(
                         "proof-gated structural arithmetic lacks a complete checked requirement package",
                     ),
                 )?;
-                let parameters = lowered_machine_parameters
+                let parameters = predicate_parameters
                     .iter()
                     .find_map(|(symbol, parameters)| {
                         (*symbol == *machine_symbol).then_some(parameters)
@@ -1338,7 +1364,12 @@ pub(super) fn lower_shared_unit_closure(
                         } else {
                             lower_structural_crash_route_buckets(
                                 target_contract.crash.published(),
-                                target_parameters,
+                                &terminal_scalar_values,
+                                &predicate_parameters
+                                    .iter()
+                                    .find(|(symbol, _)| *symbol == *target_machine)
+                                    .expect("every closure target has predicate parameter bindings")
+                                    .1,
                                 &structural_types,
                                 lowered_machine_runtime_requirements
                                     .iter()
@@ -2702,7 +2733,12 @@ pub(super) fn lower_shared_unit_closure(
                 } else {
                     lower_structural_crash_route_buckets(
                         contract_plan.crash.published(),
-                        parameters,
+                        &scalar_parameters,
+                        &predicate_parameters
+                            .iter()
+                            .find(|(symbol, _)| *symbol == plan.machine)
+                            .expect("every closure machine has predicate parameter bindings")
+                            .1,
                         &structural_types,
                         runtime_requirements,
                     )?

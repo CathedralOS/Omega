@@ -2399,6 +2399,31 @@ pub(super) fn build_structural_scalar_return_machine(
             )
         })
         .flatten();
+    // The source-distributed fallback cannot realize mixed member/integer
+    // predicates excluded by the shared Boolean convergence plan.
+    if has_nominal_cleanup
+        && shared_boolean_convergence.is_none()
+        && bindings
+            .iter()
+            .filter_map(|binding| {
+                facts.values.scalar_expressions.expression_at(
+                    state.symbol,
+                    binding.statement_ordinal,
+                    CheckedScalarExpressionRole::LocalInitializer {
+                        binding_ordinal: binding.statement_ordinal,
+                    },
+                )
+            })
+            .chain(std::iter::once(return_expression))
+            .any(|expression| {
+                shared_convergence::shared_boolean_has_member_and_integer_inputs(
+                    expression,
+                    scalar_parameters.len(),
+                )
+            })
+    {
+        return None;
+    }
     Some(CheckedStructuralScalarReturnMachinePlan {
         machine: machine.symbol,
         state: state.symbol,
