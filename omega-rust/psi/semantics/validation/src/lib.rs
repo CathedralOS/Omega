@@ -787,6 +787,9 @@ fn validate_program_internal(
     }
 
     finish_diagnostics(diagnostics)?;
+    // Warning collection follows all formation and flow checks: a warning must
+    // not make a clean assignment skip its range or value-environment update.
+    finish_diagnostics(literals::anonymous_integer_landing_warnings(program))?;
     exact_integer_casts
         .sort_by_key(|fact| (fact.expression.arena_index(), fact.expression.generation()));
     exact_integer_casts.dedup_by(|right, left| {

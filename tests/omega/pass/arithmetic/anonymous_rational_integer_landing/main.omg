@@ -1,0 +1,24 @@
+// Anonymous division preserves fractions until the actual typed destination.
+machine exact_return() -> i32
+ensures result == 7
+{
+    7 / 2 * 2
+}
+
+machine exact_local() -> u32
+ensures result == 4097
+{
+    let value: u32 = (4097 / 4096) * 4096;
+    value
+}
+
+machine typed_quotient() -> i32
+ensures result == 6
+{
+    7i32 / 2 * 2
+}
+
+machine mixed_operand(input: i32 [0..=1]) -> i32
+{
+    input * (4097 / 2 * 2)
+}

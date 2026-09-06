@@ -178,9 +178,22 @@ pub(crate) fn validate_anonymous_integer_range(
     {
         return None;
     }
-    let value = crate::literals::anonymous_integer_value(program, expression, &mut |expression| {
-        crate::literals::has_anonymous_operator_meaning(program, expression)
-    })?;
+    let evaluated =
+        crate::literals::anonymous_numeric_value(program, expression, &mut |expression| {
+            crate::literals::has_anonymous_operator_meaning(program, expression)
+        })?;
+    let Some(value) = evaluated.value.to_integer_exact() else {
+        diagnostics.push(
+            Diagnostic::error(format!(
+                "anonymous value `{}` is not an integer and cannot land in `{}` in {owner}; \
+             type an operand before division if integer division was intended",
+                evaluated.value,
+                primitive.name(),
+            ))
+            .with_source_span(program.expression_table.source_span(expression)),
+        );
+        return Some((Interval::UNBOUNDED, None));
+    };
     if let Some(literal) = crate::literals::land_integer_value(&value, primitive) {
         return Some((literal_interval(&literal), Some(primitive)));
     }

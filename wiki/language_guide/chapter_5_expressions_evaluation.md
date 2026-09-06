@@ -803,9 +803,13 @@ expression-only suppression restriction.
 
 > **Implementation status:** these are the required language and diagnostic
 > rules, not a claim that every compiler path implements them. The shared
-> anonymous integer landing evaluator currently admits only exactly divisible
-> `/`; rational propagation, mixed-expression boundaries, and the warning are
-> tracked in [the execution board](../../TASKS.md).
+> anonymous integer landing evaluator retains exact rational intermediates.
+> Fixed-integer return, local, assignment, cast, and supported mixed-operand
+> paths use this value and diagnose fractional final values. Successful integral
+> landings report the fractional-intermediate warning through the current
+> validation diagnostic route. Argument and aggregate destinations, remaining
+> numeric policies, float and constant-argument consumers, and ordinary warning
+> suppression/report transport remain on [the execution board](../../TASKS.md).
 
 ### Typed integer quotient and remainder
 

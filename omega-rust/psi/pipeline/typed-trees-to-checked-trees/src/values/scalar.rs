@@ -2229,16 +2229,10 @@ fn lower_return_expression(
     result_type: PrimitiveType,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<CheckedScalarExpression> {
-    if let Some(literal) = validation::land_anonymous_integer_expression(
-        program,
-        expression,
-        result_type,
-        |expression| match operators.expression_use(expression) {
-            Some(operator) => operator.status == CheckedOperatorResolutionStatus::BuiltinFallback,
-            None => validation::has_anonymous_operator_meaning(program, expression),
-        },
-    ) {
-        return Some(CheckedScalarExpression::IntegerLiteral { literal });
+    if let Some(value) =
+        land_anonymous_scalar_expression(program, operators, expression, result_type)
+    {
+        return Some(value);
     }
     if result_type == PrimitiveType::Bool {
         return lower_boolean_expression(
@@ -2277,6 +2271,68 @@ fn lower_return_expression(
         Some(actual_type) => (actual_type == result_type).then_some(expression),
         None => land_contextual_integer_literal(expression, result_type),
     }
+}
+
+fn land_anonymous_scalar_expression(
+    program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
+    expression: ExpressionHandle,
+    destination: PrimitiveType,
+) -> Option<CheckedScalarExpression> {
+    validation::land_anonymous_integer_expression(program, expression, destination, |expression| {
+        match operators.expression_use(expression) {
+            Some(operator) => operator.status == CheckedOperatorResolutionStatus::BuiltinFallback,
+            None => validation::has_anonymous_operator_meaning(program, expression),
+        }
+    })
+    .map(|literal| CheckedScalarExpression::IntegerLiteral { literal })
+}
+
+fn lower_scalar_operands(
+    program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
+    binary: &typed_trees::expression::TableBinaryExpression,
+    parameters: &[StateParameter],
+    parameter_types: &[PrimitiveType],
+    locals: &[ScalarLocal],
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
+) -> Option<(
+    (CheckedScalarExpression, ArithmeticDomain),
+    (CheckedScalarExpression, ArithmeticDomain),
+)> {
+    let lower = |expression| {
+        lower_scalar_expression(
+            program,
+            operators,
+            expression,
+            parameters,
+            parameter_types,
+            locals,
+            exact_integer_casts,
+        )
+    };
+    let mut left = lower(binary.left);
+    let mut right = lower(binary.right);
+    // Only the actual peer operand supplies a carrier. A wholly anonymous
+    // subtree is evaluated exactly before landing; typed operations and calls
+    // are rejected by this query and retain their original semantics.
+    if let Some(destination) = right
+        .as_ref()
+        .and_then(|(value, _)| scalar_expression_type(value))
+        && let Some(value) =
+            land_anonymous_scalar_expression(program, operators, binary.left, destination)
+    {
+        left = Some((value, ArithmeticDomain::Exact));
+    }
+    if let Some(destination) = left
+        .as_ref()
+        .and_then(|(value, _)| scalar_expression_type(value))
+        && let Some(value) =
+            land_anonymous_scalar_expression(program, operators, binary.right, destination)
+    {
+        right = Some((value, ArithmeticDomain::Exact));
+    }
+    Some((left?, right?))
 }
 
 fn lower_scalar_expression(
@@ -2342,15 +2398,20 @@ fn lower_scalar_expression(
             if !is_integer(target_type) {
                 return None;
             }
-            let (operand, _) = lower_scalar_expression(
-                program,
-                operators,
-                cast.value,
-                parameters,
-                parameter_types,
-                locals,
-                exact_integer_casts,
-            )?;
+            let operand =
+                land_anonymous_scalar_expression(program, operators, cast.value, target_type)
+                    .or_else(|| {
+                        lower_scalar_expression(
+                            program,
+                            operators,
+                            cast.value,
+                            parameters,
+                            parameter_types,
+                            locals,
+                            exact_integer_casts,
+                        )
+                        .map(|(value, _)| value)
+                    })?;
             construct_integer_cast(program, expression, operand, exact_integer_casts)
         }
         ExpressionNode::Unary(unary)
@@ -2369,19 +2430,10 @@ fn lower_scalar_expression(
             construct_integer_bitwise_not(operand, domain)
         }
         ExpressionNode::Binary(binary) if operator_is_builtin(operators, expression) => {
-            let (left, left_domain) = lower_scalar_expression(
+            let ((left, left_domain), (right, right_domain)) = lower_scalar_operands(
                 program,
                 operators,
-                binary.left,
-                parameters,
-                parameter_types,
-                locals,
-                exact_integer_casts,
-            )?;
-            let (right, right_domain) = lower_scalar_expression(
-                program,
-                operators,
-                binary.right,
+                binary,
                 parameters,
                 parameter_types,
                 locals,
@@ -2768,19 +2820,10 @@ fn lower_boolean_expression(
             ) && operator_is_builtin(operators, expression) =>
         {
             let integer_comparison = (|| {
-                let (left, _) = lower_scalar_expression(
+                let ((left, _), (right, _)) = lower_scalar_operands(
                     program,
                     operators,
-                    binary.left,
-                    parameters,
-                    parameter_types,
-                    locals,
-                    exact_integer_casts,
-                )?;
-                let (right, _) = lower_scalar_expression(
-                    program,
-                    operators,
-                    binary.right,
+                    binary,
                     parameters,
                     parameter_types,
                     locals,

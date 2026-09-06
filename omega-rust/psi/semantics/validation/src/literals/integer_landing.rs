@@ -4,7 +4,7 @@
 
 use numerics::{
     arithmetic::ArithmeticDomain,
-    bignum::BigInt,
+    bignum::{BigInt, BigRational},
     literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType},
 };
 use typed_trees::{
@@ -14,6 +14,7 @@ use typed_trees::{
 };
 
 mod destinations;
+pub(crate) use destinations::anonymous_integer_landing_warnings;
 pub(super) use destinations::append_destination_literals;
 
 #[cfg(test)]
@@ -28,8 +29,8 @@ pub fn land_anonymous_integer_expression(
     destination: PrimitiveType,
     mut builtin: impl FnMut(ExpressionHandle) -> bool,
 ) -> Option<IntegerLiteral> {
-    let value = anonymous_integer_value(program, expression, &mut builtin)?;
-    land_integer_value(&value, destination)
+    let value = anonymous_numeric_value(program, expression, &mut builtin)?;
+    land_integer_value(&value.value.to_integer_exact()?, destination)
 }
 
 pub(crate) fn land_integer_value(
@@ -74,19 +75,27 @@ pub(crate) fn land_integer_value(
     )
 }
 
-pub(crate) fn anonymous_integer_value(
+pub(crate) struct AnonymousNumericValue {
+    pub(crate) value: BigRational,
+    /// First authored fractional intermediate, retained even after cancellation.
+    /// A zero handle means every intermediate remained integral.
+    pub(crate) fractional_origin: ExpressionHandle,
+}
+
+pub(crate) fn anonymous_numeric_value(
     program: &TypedTrees,
     expression: ExpressionHandle,
     builtin: &mut impl FnMut(ExpressionHandle) -> bool,
-) -> Option<BigInt> {
+) -> Option<AnonymousNumericValue> {
     enum Step {
         Enter(ExpressionHandle),
         Leave(ExpressionHandle),
-        Binary(BinaryOperator),
+        Binary(ExpressionHandle, BinaryOperator),
     }
     let mut pending = vec![Step::Enter(expression)];
     let mut active = Vec::new();
-    let mut values: Vec<BigInt> = Vec::new();
+    let mut values: Vec<BigRational> = Vec::new();
+    let mut fractional_origin = ExpressionHandle::invalid();
     while let Some(step) = pending.pop() {
         match step {
             Step::Enter(expression) => {
@@ -97,12 +106,12 @@ pub(crate) fn anonymous_integer_value(
                 }
                 match program.expression_table.expression(expression) {
                     ExpressionNode::Integer(literal) if literal.landing().is_none() => {
-                        values.push(literal.value_bignum()?)
+                        values.push(BigRational::from_integer(literal.value_bignum()?))
                     }
                     ExpressionNode::Binary(binary) if builtin(expression) => {
                         active.push(expression);
                         pending.push(Step::Leave(expression));
-                        pending.push(Step::Binary(binary.operator));
+                        pending.push(Step::Binary(expression, binary.operator));
                         pending.push(Step::Enter(binary.right));
                         pending.push(Step::Enter(binary.left));
                     }
@@ -114,30 +123,27 @@ pub(crate) fn anonymous_integer_value(
                     return None;
                 }
             }
-            Step::Binary(operator) => {
+            Step::Binary(expression, operator) => {
                 let right = values.pop()?;
                 let left = values.pop()?;
-                values.push(match operator {
+                let value = match operator {
                     BinaryOperator::Add => left.add(&right),
                     BinaryOperator::Subtract => left.sub(&right),
                     BinaryOperator::Multiply => left.mul(&right),
-                    // Only exact division is required here. It has the same
-                    // value under integer and rational interpretations; this
-                    // helper does not choose a rule for fractional anonymous
-                    // quotients or signed anonymous remainder.
-                    BinaryOperator::Divide => {
-                        let (quotient, remainder) = left.div_rem(&right)?;
-                        if !remainder.is_zero() {
-                            return None;
-                        }
-                        quotient
-                    }
+                    BinaryOperator::Divide => left.div(&right)?,
                     _ => return None,
-                });
+                };
+                if !fractional_origin.is_valid() && value.to_integer_exact().is_none() {
+                    fractional_origin = expression;
+                }
+                values.push(value);
             }
         }
     }
-    (values.len() == 1).then(|| values.pop()).flatten()
+    (values.len() == 1).then(|| AnonymousNumericValue {
+        value: values.pop().expect("one evaluated anonymous value"),
+        fractional_origin,
+    })
 }
 
 pub fn has_anonymous_operator_meaning(program: &TypedTrees, expression: ExpressionHandle) -> bool {

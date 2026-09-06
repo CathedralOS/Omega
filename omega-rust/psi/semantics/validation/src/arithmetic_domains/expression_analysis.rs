@@ -160,10 +160,43 @@ pub(super) fn analyze(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Analysis {
+    // A complete anonymous subtree chooses its exact value before an integer
+    // operand/destination requests a rendering. Never truncate a child quotient
+    // before a later multiplication can cancel its denominator.
+    if target_primitive.is_some_and(|primitive| integer_bit_width(primitive).is_some())
+        && let Some(evaluated) =
+            crate::literals::anonymous_numeric_value(program, expression, &mut |expression| {
+                crate::literals::has_anonymous_operator_meaning(program, expression)
+            })
+        && evaluated.fractional_origin.is_valid()
+    {
+        let Some(value) = evaluated.value.to_integer_exact() else {
+            diagnostics.push(
+                Diagnostic::error(format!(
+                    "anonymous operand `{}` is not an integer in {owner}; type an operand \
+                 before division if integer division was intended",
+                    evaluated.value,
+                ))
+                .with_source_span(program.expression_table.source_span(expression)),
+            );
+            return NEUTRAL;
+        };
+        let interval = value
+            .to_i64()
+            .map_or(Interval::UNBOUNDED, |value| Interval {
+                low: Some(value),
+                high: Some(value),
+            });
+        return Analysis {
+            domain: None,
+            interval,
+            primitive: None,
+        };
+    }
     match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary) => {
             let operator = binary.operator;
-            let left = analyze(
+            let mut left = analyze(
                 program,
                 machine,
                 state,
@@ -174,7 +207,7 @@ pub(super) fn analyze(
                 owner,
                 diagnostics,
             );
-            let right = analyze(
+            let mut right = analyze(
                 program,
                 machine,
                 state,
@@ -185,6 +218,53 @@ pub(super) fn analyze(
                 owner,
                 diagnostics,
             );
+            if !matches!(
+                operator,
+                BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
+            ) && let Some(primitive) = left
+                .primitive
+                .filter(|primitive| integer_bit_width(*primitive).is_some())
+                .or_else(|| {
+                    right
+                        .primitive
+                        .filter(|primitive| integer_bit_width(*primitive).is_some())
+                })
+                && crate::bound_expression_meaning::has_builtin_bound_expression_meaning(
+                    program, machine, state, expression,
+                )
+            {
+                for (operand, analysis) in [(binary.left, &mut left), (binary.right, &mut right)] {
+                    let Some(evaluated) = crate::literals::anonymous_numeric_value(
+                        program,
+                        operand,
+                        &mut |expression| {
+                            crate::literals::has_anonymous_operator_meaning(program, expression)
+                        },
+                    ) else {
+                        continue;
+                    };
+                    if !evaluated.fractional_origin.is_valid() {
+                        continue;
+                    }
+                    if let Some(literal) = evaluated
+                        .value
+                        .to_integer_exact()
+                        .and_then(|value| crate::literals::land_integer_value(&value, primitive))
+                    {
+                        analysis.interval = literal_interval(&literal);
+                    } else {
+                        diagnostics.push(
+                            Diagnostic::error(format!(
+                                "anonymous operand `{}` cannot land exactly in `{}` in {owner}; \
+                             type an operand before division if integer division was intended",
+                                evaluated.value,
+                                primitive.name(),
+                            ))
+                            .with_source_span(program.expression_table.source_span(operand)),
+                        );
+                    }
+                }
+            }
             let bitwise = matches!(
                 operator,
                 BinaryOperator::BitwiseAnd | BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor
@@ -718,19 +798,51 @@ pub(super) fn analyze(
                     primitive,
                 };
             }
-            // A cast re-types its operand, so the outer target does not flow in.
-            let source = analyze(
-                program,
-                machine,
-                state,
-                cast.value,
-                env,
-                None,
-                ArithmeticDomain::Exact,
-                owner,
-                diagnostics,
-            );
             let primitive = program.primitive_type_reference(cast.target_type);
+            // The explicit cast supplies the first rendering of a wholly
+            // anonymous calculation. Its target cannot retype already-landed
+            // operations, and the enclosing destination never flows inward.
+            let anonymous =
+                crate::literals::anonymous_numeric_value(program, cast.value, &mut |expression| {
+                    crate::literals::has_anonymous_operator_meaning(program, expression)
+                })
+                .filter(|value| value.fractional_origin.is_valid());
+            let source = if let Some(evaluated) = anonymous
+                && let Some(primitive) =
+                    primitive.filter(|primitive| integer_bit_width(*primitive).is_some())
+            {
+                match evaluated
+                    .value
+                    .to_integer_exact()
+                    .and_then(|value| crate::literals::land_integer_value(&value, primitive))
+                {
+                    Some(literal) => Analysis {
+                        domain: None,
+                        interval: literal_interval(&literal),
+                        primitive: Some(primitive),
+                    },
+                    None => {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "anonymous value `{}` cannot land exactly in cast target `{}` in {owner}; \
+                             type an operand before division if integer division was intended",
+                            evaluated.value, primitive.name(),
+                        )).with_source_span(program.expression_table.source_span(cast.value)));
+                        NEUTRAL
+                    }
+                }
+            } else {
+                analyze(
+                    program,
+                    machine,
+                    state,
+                    cast.value,
+                    env,
+                    None,
+                    ArithmeticDomain::Exact,
+                    owner,
+                    diagnostics,
+                )
+            };
             // F4 (the float->int cast ruling): there is NO MODULAR READING
             // of a float, so `f as iN in Wrapping` is a compile error (ch5;
             // the ruling's precedent generalized to the float domain list).

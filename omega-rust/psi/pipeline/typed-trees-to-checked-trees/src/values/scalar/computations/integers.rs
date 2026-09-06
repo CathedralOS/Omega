@@ -89,8 +89,7 @@ impl Builder<'_, '_> {
                 })
             }
             ExpressionNode::Binary(binary) if operator_is_builtin(self.operators, expression) => {
-                let mut left = self.integer_operand(binary.left)?;
-                let mut right = self.integer_operand(binary.right)?;
+                let (mut left, mut right) = self.integer_operands(&binary)?;
                 let (value, domain) = construct_integer_binary(
                     binary.operator,
                     left.value,
@@ -171,12 +170,45 @@ impl Builder<'_, '_> {
         }
     }
 
+    fn integer_operands(
+        &mut self,
+        binary: &typed_trees::expression::TableBinaryExpression,
+    ) -> Option<(IntegerOperand, IntegerOperand)> {
+        let mut left = self.integer_operand(binary.left);
+        let mut right = self.integer_operand(binary.right);
+        // Computations are still visited in authored order. Only a wholly
+        // anonymous subtree can be replaced by a landed value, so a call or
+        // other already-typed computation is never discarded or reevaluated.
+        let land = |expression, destination| {
+            land_anonymous_scalar_expression(self.program, self.operators, expression, destination)
+                .map(|value| IntegerOperand {
+                    value,
+                    domain: ArithmeticDomain::Exact,
+                    computation: CheckedScalarComputationHandle::invalid(),
+                })
+        };
+        if let Some(destination) = right
+            .as_ref()
+            .and_then(|operand| scalar_expression_type(&operand.value))
+            && let Some(operand) = land(binary.left, destination)
+        {
+            left = Some(operand);
+        }
+        if let Some(destination) = left
+            .as_ref()
+            .and_then(|operand| scalar_expression_type(&operand.value))
+            && let Some(operand) = land(binary.right, destination)
+        {
+            right = Some(operand);
+        }
+        Some((left?, right?))
+    }
+
     pub(super) fn integer_comparison(
         &mut self,
         binary: &typed_trees::expression::TableBinaryExpression,
     ) -> Option<CheckedScalarComputationHandle> {
-        let mut left = self.integer_operand(binary.left)?;
-        let mut right = self.integer_operand(binary.right)?;
+        let (mut left, mut right) = self.integer_operands(binary)?;
         let comparison = construct_integer_comparison(binary.operator, left.value, right.value)?;
         let comparison = match comparison {
             CheckedBooleanExpression::Not(value) => *value,
