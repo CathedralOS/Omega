@@ -147,6 +147,18 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   any write or its exact frame; the bounded single-scalar-store form is not
   a plan for that complete body.
 
+  Byte-carrier boundary forwarding must retain the exact source place, path,
+  capacity, and live-length writeback separately from the borrowed-view
+  parameter. `terminal-interpreter::resolve_structural_arguments` and Omega's
+  `abstract-operations-to-target-operations/src/lowering/structural_layout.rs`
+  also reject byte-field projections; accepting them in the verifier alone
+  does not implement the call. Bounded inline storage and borrowed descriptors
+  have different layouts. Add runtime buffer support to the interpreter and
+  an admitted `read_line` realization through native emission and installation
+  replay; each target's `console_impl.omg` declares a bodyless intrinsic.
+  Close this slice with the existing carrier round-trip and sequential-read
+  native canaries, preserving capacity, overwrite, access, and alias checks.
+
   Extend retained receiver forwarding to shared and indexed projections,
   owned/local receiver roots, composed control flow, and scalar-result receiver
   callees. Reconcile each exact receiver operand in
