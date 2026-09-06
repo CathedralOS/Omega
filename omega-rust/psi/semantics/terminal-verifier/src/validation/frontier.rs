@@ -835,18 +835,19 @@ pub(super) fn validate_structural_frontier(
                             })
                         })
                     || exact_unrestricted_parameter_return;
-                let exact_mixed_affine_parameter_return = returned_claims.is_empty()
+                let exact_affine_parameter_return = returned_claims.is_empty()
                     && source_signature.multiplicity == StructuralMultiplicity::Affine
                     && super::structural_result_contracts::has_empty_qualification_rosters(
                         source_signature.qualifications,
                         source_signature.projected_qualifications,
                     )
-                    && matches!(machine.parameters.as_slice(), [parameter]
-                    if matches!(
-                        parameter.scalar_type,
-                        ScalarType::Integer(integer)
-                            if matches!(integer.bits(), 8 | 16 | 32 | 64)
-                    ))
+                    && machine.parameters.iter().all(|parameter| {
+                        matches!(
+                            parameter.scalar_type,
+                            ScalarType::Integer(integer)
+                                if matches!(integer.bits(), 8 | 16 | 32 | 64)
+                        )
+                    })
                     && matches!(machine.structural_parameters.as_slice(), [parameter]
                         if parameter.place == *source
                             && parameter.position == 0
@@ -882,7 +883,7 @@ pub(super) fn validate_structural_frontier(
                     });
                 if (returned_claims.is_empty()
                     && !exact_payloadless_claim_free_return
-                    && !exact_mixed_affine_parameter_return)
+                    && !exact_affine_parameter_return)
                     || returned_claims.windows(2).any(|pair| pair[0] >= pair[1])
                 {
                     return Err(ModuleError::NonCanonicalStructuralReturnClaims {

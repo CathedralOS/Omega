@@ -58,11 +58,10 @@ pub(crate) fn build_checked_structural_return_plans(
             ]
         }))
         .chain(claim_free_affine_machines.iter().flat_map(|plan| {
-            [
-                plan.attachment_type_identity.as_str(),
+            plan.attachment_type_identity.as_deref().into_iter().chain([
                 plan.structural_parameter.type_identity.as_str(),
                 plan.result.type_identity.as_str(),
-            ]
+            ])
         }))
         .collect::<BTreeSet<_>>();
     let retained_domains = machines
@@ -111,7 +110,15 @@ fn build_claim_free_affine_structural_return_machine(
     }
     let binders = machine_binders(program, machine);
     let (attachment_type_identity, structural_parameters, scalar_parameters) =
-        structural_scalar_signature(program, shapes, machine, state, &binders, false)?;
+        if machine.attached_data.is_some() {
+            let (attachment, structural, scalar) =
+                structural_scalar_signature(program, shapes, machine, state, &binders, false)?;
+            (Some(attachment), structural, scalar)
+        } else {
+            let (structural, scalar) =
+                free_structural_scalar_signature(program, shapes, state, &binders)?;
+            (None, structural, scalar)
+        };
     let [structural_parameter] = structural_parameters.as_slice() else {
         return None;
     };
@@ -120,7 +127,8 @@ fn build_claim_free_affine_structural_return_machine(
         || structural_parameter.access != CheckedStructuralAccess::Owned
         || !structural_parameter.qualifications.is_empty()
         || structural_parameter.fused_service_erasure.is_some()
-        || scalar_parameters.is_empty()
+        || program.state_parameters(state).len()
+            != structural_parameters.len() + scalar_parameters.len()
         || scalar_parameters.iter().any(|parameter| {
             !matches!(
                 parameter.primitive_type,
@@ -154,6 +162,7 @@ fn build_claim_free_affine_structural_return_machine(
     }
     let result_type_identity = shapes.add_type(state.return_type, &binders, &[])?;
     if result_type_identity != structural_parameter.type_identity
+        || type_graph_requires_nominal_drop(program, state.return_type)
         || !parameter_qualifications(program, shapes, state.return_type, &binders)?.is_empty()
         || !matches!(
             &shapes.types.get(&result_type_identity)?.shape,

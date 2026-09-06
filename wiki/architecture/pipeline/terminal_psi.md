@@ -3789,6 +3789,18 @@ Declaration ordinals must be dense and establishment order exact. Nominal
 cleanup, nonempty/partial locals, authored contracts, projections, and wider
 cleanup/control shapes fail closed.
 
+Claim-free owned-affine identity returns share one producer between ordinary
+helpers and selected operator realizations. A free helper needs no attachment
+or scalar side argument; static attached helpers retain their attachment.
+The checked signature retains the exact authored positions of the owned input
+and any fixed-width integer side parameters. The producer currently accepts a
+whole, unqualified record containing one `i64` or `u64` field, with no claims,
+nominal cleanup, calls, contracts, or service reach. It emits distinct parameter
+and result places and transfers the input at `ReturnStructural`, preserving
+its opaque identity across fuel exhaustion. This does not widen the selected
+operator call ABI or connect ordinary structural results to caller locals and
+nested operands; those uses still require their own checked result locations.
+
 The first internal structural-call slice composes two such checked machines. A
 `CallStructural` operation owns a structural operation-result place with its
 exact type, multiplicity, qualifications, and caller claim bindings. The call

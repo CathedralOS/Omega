@@ -807,7 +807,7 @@ impl CheckedStructuralReturnPlans {
 pub struct CheckedClaimFreeAffineStructuralReturnMachinePlan {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
-    pub attachment_type_identity: String,
+    pub attachment_type_identity: Option<String>,
     pub structural_parameter: CheckedUnitStructuralParameterPlan,
     pub scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
     pub result: CheckedStructuralResultPlan,
