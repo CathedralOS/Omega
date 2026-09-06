@@ -968,10 +968,10 @@ pub(super) fn build_checked_machine(
         false,
     )
     .or_else(|| {
-        // A borrowed `self` becomes structural parameter 0 only when
-        // the ambient attachment cannot plan the body, so every machine that
-        // planned before keeps its exact shape. Retain it unconditionally once
-        // the entry bridge provisions the receiver and passes its loan.
+        // Retain borrowed self when ambient attachment cannot plan the body.
+        // Completed callee signatures can also demand it during receiver-call
+        // reconciliation. Retain it unconditionally once the entry bridge
+        // provisions the receiver and passes its loan.
         let [state] = program.machine_states(machine) else {
             return None;
         };
@@ -994,7 +994,7 @@ pub(super) fn build_checked_machine(
     })
 }
 
-fn build_checked_machine_with(
+pub(super) fn build_checked_machine_with(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
@@ -1079,7 +1079,12 @@ fn build_checked_machine_with(
                 let structural =
                     free_selected_operator_structural_signature(program, shapes, state, &binders)?;
                 (None, structural, Vec::new())
-            } else if carries_scalar_parameter {
+            } else if carries_scalar_parameter
+                || program
+                    .state_parameters(state)
+                    .iter()
+                    .any(|parameter| is_reference(program, parameter.type_reference))
+            {
                 let (structural, scalar) =
                     free_structural_scalar_signature(program, shapes, state, &binders)?;
                 (None, structural, scalar)

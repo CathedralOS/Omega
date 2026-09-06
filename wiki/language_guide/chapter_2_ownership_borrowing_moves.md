@@ -180,6 +180,12 @@ storage containing no live `T` is a separate feature.
 > scalar-result position. The receiver remains exclusive against explicit
 > arguments and live local loans, even when the callee performs no writes;
 > shared access cannot supply it. Projected receiver calls remain gated.
+> Single-state Unit callers carry whole borrowed receiver parameters and
+> attached `self` through canonical Terminal production and interpretation,
+> including transitive forwarding methods and interleaved scalar parameters.
+> Borrowed `self` uses the reference type's usage multiplicity, just like an
+> explicit reference parameter; its access still controls reading and mutation.
+> This does not provision a native executable's entry receiver.
 > One projected subloan form may pass
 > `&write root.field...leaf` directly to a checked call when the complete field
 > path and leaf meet that same non-observation referee. That direct-call form may
