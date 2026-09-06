@@ -940,6 +940,7 @@ pub fn lower_machine(
         route,
         exact_sources,
     } = lower_selected_machine(checked, selection)?;
+    let has_exact_source_owners = exact_sources.is_some();
     let source_machines =
         if let Some(sources) = &exact_sources {
             sources.iter().map(|(source, _)| *source).collect()
@@ -1101,17 +1102,20 @@ pub fn lower_machine(
             "outcome-specific guarantees require guarded exit and caller-arm lowering",
         );
     }
+    let dynamic_root_application_count = lowered
+        .semantic_module
+        .closed_conformance_applications
+        .iter()
+        .filter(|application| {
+            !has_exact_source_owners || application.owner == lowered.semantic_module.entry
+        })
+        .count();
     if matches!(
         route,
         SelectedMachineRoute::DirectDynamicComposedUnit { .. }
             | SelectedMachineRoute::StoredDynamicComposedUnit { .. }
     ) {
-        if lowered
-            .semantic_module
-            .closed_conformance_applications
-            .len()
-            != 1
-        {
+        if dynamic_root_application_count != 1 {
             return unsupported(
                 "direct dynamic dispatch must publish exactly one closed conformance application",
             );
@@ -1120,12 +1124,7 @@ pub fn lower_machine(
         route,
         SelectedMachineRoute::ReboundDynamicComposedUnit { .. }
     ) {
-        if !(1..=2).contains(
-            &lowered
-                .semantic_module
-                .closed_conformance_applications
-                .len(),
-        ) {
+        if !(1..=2).contains(&dynamic_root_application_count) {
             return unsupported(
                 "rebound dynamic dispatch must publish one or two closed conformance applications",
             );
@@ -1148,6 +1147,21 @@ pub fn lower_machine(
         lower_closed_conformance_applications(
             checked,
             &source_machines,
+            &mut lowered.semantic_module,
+        )?;
+    }
+    if has_exact_source_owners
+        && matches!(
+            route,
+            SelectedMachineRoute::DirectDynamicComposedUnit { .. }
+                | SelectedMachineRoute::ReboundDynamicComposedUnit { .. }
+                | SelectedMachineRoute::StoredDynamicComposedUnit { .. }
+        )
+    {
+        conformance_applications::append_closed_conformance_applications_excluding(
+            checked,
+            &direct_float_source_machines,
+            selection.machine,
             &mut lowered.semantic_module,
         )?;
     }

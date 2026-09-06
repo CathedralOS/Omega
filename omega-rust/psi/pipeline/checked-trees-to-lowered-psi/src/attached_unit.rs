@@ -41,7 +41,7 @@ use catalog::{
 };
 use claims::lower_unit_entry_claims;
 pub(super) use composed_control::dynamic_result::{
-    emit_boundary_leaf as emit_direct_dynamic_boundary_leaf,
+    emit_call_leaf as emit_dynamic_control_leaf,
     lower_control_catalogs as lower_dynamic_control_catalogs,
 };
 pub(super) use composed_control::lower_composed_unit_control_machine;

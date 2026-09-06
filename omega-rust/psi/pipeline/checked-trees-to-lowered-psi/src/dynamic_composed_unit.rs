@@ -97,14 +97,14 @@ enum DynamicLoweringLane<'a> {
 pub(super) fn lower_direct_dynamic_composed_unit_machine(
     checked: &CheckedTrees,
     plan: &CheckedDynamicScalarCallPlan,
-) -> Result<LoweredPsi, LoweringError> {
+) -> Result<crate::machine_dispatch::SourceMappedLowered, LoweringError> {
     lower_dynamic_composed_unit_machine(checked, plan, DynamicLoweringLane::Direct)
 }
 
 pub(super) fn lower_rebound_dynamic_composed_unit_machine(
     checked: &CheckedTrees,
     plan: &CheckedReboundDynamicScalarCallPlan,
-) -> Result<LoweredPsi, LoweringError> {
+) -> Result<crate::machine_dispatch::SourceMappedLowered, LoweringError> {
     lower_dynamic_composed_unit_machine(
         checked,
         &plan.latest,
@@ -115,7 +115,7 @@ pub(super) fn lower_rebound_dynamic_composed_unit_machine(
 pub(super) fn lower_stored_dynamic_composed_unit_machine(
     checked: &CheckedTrees,
     plan: &checked_trees::CheckedStoredDynamicScalarCallPlan,
-) -> Result<LoweredPsi, LoweringError> {
+) -> Result<crate::machine_dispatch::SourceMappedLowered, LoweringError> {
     lower_dynamic_composed_unit_machine(checked, &plan.call, DynamicLoweringLane::Stored(plan))
 }
 
@@ -123,7 +123,7 @@ fn lower_dynamic_composed_unit_machine(
     checked: &CheckedTrees,
     plan: &CheckedDynamicScalarCallPlan,
     lane: DynamicLoweringLane<'_>,
-) -> Result<LoweredPsi, LoweringError> {
+) -> Result<crate::machine_dispatch::SourceMappedLowered, LoweringError> {
     let caller = match lane {
         DynamicLoweringLane::Direct => validate_exact_direct_plan(checked, plan)?,
         DynamicLoweringLane::Rebound(initial) => {
@@ -168,7 +168,7 @@ fn lower_dynamic_composed_unit_machine(
     let call_result_value = value_id(if has_caller_store { 2 } else { 1 });
     let call_result_type = terminal_scalar_type(plan.result.primitive_type)?;
     let source_type = lookup_type_id(&type_ids, &plan.source_type_identity)?;
-    let all_realizations = collect_dynamic_realizations(checked, plan)?;
+    let all_realizations = collect_dynamic_realizations(checked, plan, 2)?;
     let lowered_realizations = retain_realizations_for_lane(&all_realizations, plan, lane)?;
     let selected_realizations = lowered_realizations
         .iter()
@@ -232,6 +232,7 @@ fn lower_dynamic_composed_unit_machine(
         &type_ids,
         caller_machine,
         call_operation,
+        has_descriptor_store.then_some(operation_id(1)),
         source,
         initial_application.as_ref(),
         &application,
@@ -298,7 +299,7 @@ fn lower_dynamic_composed_unit_machine(
         &forwarded_helpers,
     )?;
 
-    Ok(LoweredPsi {
+    let lowered = LoweredPsi {
         semantic_module: TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: caller_machine,
@@ -393,7 +394,46 @@ fn lower_dynamic_composed_unit_machine(
             &forwarded_helpers,
         )?,
         selected_ieee_float_fma_occurrences: Vec::new(),
-    })
+    };
+    retain_dynamic_source_owners(
+        lowered,
+        plan,
+        &lowered_realizations,
+        &forwarded_helpers,
+        Vec::new(),
+    )
+}
+
+fn retain_dynamic_source_owners(
+    terminal: LoweredPsi,
+    plan: &CheckedDynamicScalarCallPlan,
+    realizations: &[LoweredDynamicRealization],
+    helpers: &[ForwardedHelperIds],
+    mut sources: Vec<(symbols::SymbolHandle, MachineId)>,
+) -> Result<crate::machine_dispatch::SourceMappedLowered, LoweringError> {
+    if !sources
+        .iter()
+        .any(|(source, _)| *source == plan.caller_machine)
+    {
+        sources.push((plan.caller_machine, terminal.semantic_module.entry));
+    }
+    sources.extend(
+        realizations
+            .iter()
+            .map(|realization| (realization.source_machine, realization.machine)),
+    );
+    for (index, helper) in helpers.iter().enumerate() {
+        let checked_trees::CheckedDynamicScalarCallOrigin::Forwarded { machine, .. } = plan.origin
+        else {
+            return unsupported("dynamic helper has no forwarded source owner");
+        };
+        let source = plan
+            .forwarding_transfers
+            .get(index)
+            .map_or(machine, |transfer| transfer.caller_machine);
+        sources.push((source, helper.machine));
+    }
+    crate::machine_dispatch::SourceMappedLowered::new(terminal, sources)
 }
 
 fn validate_exact_direct_plan(
@@ -1151,6 +1191,7 @@ fn lower_dynamic_call_custody(
     type_ids: &[(String, semantic_vocabulary::StructuralTypeId)],
     caller_machine: semantic_vocabulary::MachineId,
     call_operation: semantic_vocabulary::OperationId,
+    descriptor_store_operation: Option<semantic_vocabulary::OperationId>,
     latest_source: StructuralArgument,
     initial_application: Option<&ClosedConformanceApplication>,
     application: &ClosedConformanceApplication,
@@ -1359,7 +1400,11 @@ fn lower_dynamic_call_custody(
                 stored_descriptors: vec![TerminalStoredDynamicDescriptor {
                     owner: caller_machine,
                     ordinal: 0,
-                    establishment_operation: operation_id(1),
+                    establishment_operation: descriptor_store_operation.ok_or(
+                        LoweringError::Unsupported(
+                            "stored dynamic descriptor has no allocated establishment operation",
+                        ),
+                    )?,
                     selection_ordinal: 0,
                     aggregate_type_identity: stored.destination_type_identity.clone(),
                     field_identity: stored.destination_field_identity.clone(),
@@ -1865,6 +1910,7 @@ fn lower_dynamic_structural_types_for_source(
 fn collect_dynamic_realizations(
     checked: &CheckedTrees,
     plan: &CheckedDynamicScalarCallPlan,
+    first_machine: u64,
 ) -> Result<Vec<LoweredDynamicRealization>, LoweringError> {
     if plan.realization_callables.is_empty() {
         return unsupported("dynamic conformance has no checked realization callables");
@@ -1884,9 +1930,9 @@ fn collect_dynamic_realizations(
                 return unsupported("dynamic realization callable identity drifted");
             }
             let result = terminal_callable_result(callable.result_type)?;
-            let machine = machine_id(ordinal.checked_add(2).ok_or(LoweringError::Unsupported(
-                "dynamic realization machine identity overflowed",
-            ))?);
+            let machine = machine_id(ordinal.checked_add(first_machine).ok_or(
+                LoweringError::Unsupported("dynamic realization machine identity overflowed"),
+            )?);
             Ok(LoweredDynamicRealization {
                 source_machine: callable.realization_machine,
                 source_state: callable.realization_state,

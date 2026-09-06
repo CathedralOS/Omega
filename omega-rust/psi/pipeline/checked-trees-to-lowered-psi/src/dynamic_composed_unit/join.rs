@@ -516,7 +516,7 @@ fn joined_realizations(
 ) -> Result<Vec<LoweredDynamicRealization>, LoweringError> {
     let mut joined = Vec::new();
     for branch in branches {
-        for candidate in collect_dynamic_realizations(checked, branch)? {
+        for candidate in collect_dynamic_realizations(checked, branch, 2)? {
             if let Some(existing) = joined.iter().find(|existing: &&LoweredDynamicRealization| {
                 existing.source_machine == candidate.source_machine
                     && existing.source_state == candidate.source_state

@@ -3124,13 +3124,14 @@ module. Closed-sum payload execution still requires interpreter case inspection;
 operand support does not supply that missing runtime carrier.
 
 Ordinary Unit-call leaves in the three-state, prefixed, and nested acyclic
-control routes and closed-sum payload continuations use that evaluator too.
-A control-state Unit-call prefix completes before its guard; the guard and
-successors use the retained source values after operand evaluation. The callee's
-parameters, statements, transitive calls,
-providers, and normal cleanup come from the same complete Unit-body lowering as
-standalone Unit machines. Free callees keep no attachment; a static data
-qualifier does not manufacture a receiver.
+control routes, dynamic-result continuations, and closed-sum payload continuations
+use that evaluator too. A control-state Unit-call prefix completes before its
+guard; the guard and successors use the retained source values after operand
+evaluation. The callee's parameters, statements, transitive calls, providers,
+and normal cleanup come
+from the same complete Unit-body lowering as standalone Unit machines.
+Free callees keep no attachment; a static data qualifier does not manufacture
+a receiver.
 
 The supported composed-control leaves accept either a semicolon call or a final
 Unit call expression. This includes boundary leaves after dynamic scalar-result
@@ -3162,12 +3163,22 @@ use the shared closure's identity counters. The root's provider requirements
 cover its entry boundary and leaf boundaries together; callee requirements
 remain owned by their complete Unit bodies.
 
+Direct, rebound, stored, and forwarded dynamic-result continuations retain that
+same ordinary call closure. Shared Unit and scalar identities are assigned
+before dynamic realizations and forwarding helpers; already-emitted calls are
+not renamed. The caller's blocks, values, places, edges, and descriptor
+establishment operation use the shared counters. Dynamic root conformance rows
+remain separate from selected callee applications, with exact source owners
+retained for the whole published module. Only the selected leaf runs its operand
+computations and ordinary body. The existing attachment specialization still
+cannot represent a wholly unused provider-backed field: it rejects without
+inventing a direct boundary requirement from a callee's independent call.
+
 Later structural-result initializers and returned calls still need connections
-to the shared evaluator. Internal Unit calls in dynamic-result continuations,
-structural arguments on composed internal calls, and scalar-dependent Unit crash
-predicates remain separate implementation work. Existing control-state signature
-restrictions remain; operand evaluation does not itself add general scalar
-state-argument transport or computed dispatch guards.
+to the shared evaluator. Structural arguments on composed internal calls and
+scalar-dependent Unit crash predicates remain separate implementation work.
+Existing control-state signature restrictions remain; operand evaluation does
+not itself add general scalar state-argument transport or computed dispatch guards.
 
 Computed Boolean guards complete before either branch destination starts. A
 private dispatch block consumes the completed Boolean and retains the source

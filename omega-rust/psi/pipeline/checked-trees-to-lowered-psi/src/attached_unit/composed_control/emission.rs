@@ -471,7 +471,7 @@ pub(super) fn finish_module(
         source_call_occurrences.append(&mut lowered.source_call_occurrences);
         lowered.source_call_occurrences = source_call_occurrences;
         finalize_operation_proofs(&mut lowered)?;
-        return retain_source_owners(lowered, source_machine_ids);
+        return SourceMappedLowered::new(lowered, source_machine_ids);
     }
     let mut lowered = LoweredPsi {
         semantic_module: TerminalModule {
@@ -509,41 +509,5 @@ pub(super) fn finish_module(
     };
     catalogs.scalar_calls.append_to(&mut lowered)?;
     finalize_operation_proofs(&mut lowered)?;
-    retain_source_owners(lowered, source_machine_ids)
-}
-
-fn retain_source_owners(
-    terminal: LoweredPsi,
-    source_machine_ids: Vec<(symbols::SymbolHandle, MachineId)>,
-) -> Result<SourceMappedLowered, LoweringError> {
-    if source_machine_ids.len() != terminal.semantic_module.machines.len()
-        || source_machine_ids
-            .iter()
-            .enumerate()
-            .any(|(index, (source, id))| {
-                source_machine_ids[..index]
-                    .iter()
-                    .any(|(prior_source, prior_id)| prior_source == source || prior_id == id)
-            })
-    {
-        return unsupported("composed source owners do not match its exact machine catalog");
-    }
-    let source_machine_ids = terminal
-        .semantic_module
-        .machines
-        .iter()
-        .map(|machine| {
-            source_machine_ids
-                .iter()
-                .find(|(_, id)| *id == machine.id)
-                .copied()
-                .ok_or(LoweringError::Unsupported(
-                    "composed emitted machine has no exact source owner",
-                ))
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-    Ok(SourceMappedLowered {
-        terminal,
-        source_machine_ids,
-    })
+    SourceMappedLowered::new(lowered, source_machine_ids)
 }

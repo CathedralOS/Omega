@@ -146,7 +146,13 @@ pub(crate) fn admit_dynamic_continuation<'a>(
     plan: &checked_trees::CheckedDynamicScalarCallPlan,
     continuation: &'a checked_trees::CheckedDynamicUnitContinuationPlan,
     stored: Option<&checked_trees::CheckedStoredDynamicScalarCallPlan>,
-) -> Result<Vec<(&'a CheckedBoundaryMachinePlan, String)>, LoweringError> {
+) -> Result<
+    (
+        Vec<(&'a CheckedBoundaryMachinePlan, String)>,
+        Vec<(&'a checked_trees::CheckedUnitEffectMachinePlan, String)>,
+    ),
+    LoweringError,
+> {
     let [when_true, when_false] = continuation.leaves.as_slice() else {
         return unsupported("direct dynamic continuation requires exactly two effect leaves");
     };
@@ -243,18 +249,14 @@ pub(crate) fn admit_dynamic_continuation<'a>(
         }
     }
     let attachment = exact_attachment_identity(checked, &plan.caller_attachment_type_identity)?;
-    let (boundaries, internal_targets) = admit_call_targets(
+    admit_call_targets(
         checked,
         plan.caller_machine,
         &[when_true, when_false],
         custody::ComposedCustody::Empty,
         attachment,
         &continuation.provider_attachment_requirements,
-    )?;
-    if !internal_targets.is_empty() {
-        return unsupported("direct dynamic continuation retained a non-boundary effect leaf");
-    }
-    Ok(boundaries)
+    )
 }
 
 fn exact_stored_local_drop(

@@ -76,6 +76,41 @@ pub(crate) struct SourceMappedLowered {
     pub(crate) source_machine_ids: Vec<(symbols::SymbolHandle, semantic_vocabulary::MachineId)>,
 }
 
+impl SourceMappedLowered {
+    pub(crate) fn new(
+        terminal: LoweredPsi,
+        sources: Vec<(symbols::SymbolHandle, semantic_vocabulary::MachineId)>,
+    ) -> Result<Self, LoweringError> {
+        if sources.len() != terminal.semantic_module.machines.len()
+            || sources.iter().enumerate().any(|(index, (source, id))| {
+                sources[..index]
+                    .iter()
+                    .any(|(prior_source, prior_id)| prior_source == source || prior_id == id)
+            })
+        {
+            return unsupported("source owners do not match the exact machine catalog");
+        }
+        let source_machine_ids = terminal
+            .semantic_module
+            .machines
+            .iter()
+            .map(|machine| {
+                sources
+                    .iter()
+                    .find(|(_, id)| *id == machine.id)
+                    .copied()
+                    .ok_or(LoweringError::Unsupported(
+                        "emitted machine has no exact source owner",
+                    ))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self {
+            terminal,
+            source_machine_ids,
+        })
+    }
+}
+
 pub fn select_terminal_machine<'checked>(
     checked: &'checked CheckedTrees,
     machine_name: &str,
@@ -104,6 +139,18 @@ fn routed_machine(
         terminal: terminal?,
         route,
         exact_sources: None,
+    })
+}
+
+fn source_mapped_machine(
+    lowered: Result<SourceMappedLowered, LoweringError>,
+    route: SelectedMachineRoute,
+) -> Result<LoweredSelectedMachine, LoweringError> {
+    let lowered = lowered?;
+    Ok(LoweredSelectedMachine {
+        terminal: lowered.terminal,
+        route,
+        exact_sources: Some(lowered.source_machine_ids),
     })
 }
 
@@ -186,7 +233,7 @@ pub(super) fn lower_selected_machine(
         if selection.signature != CheckedTerminalSignatureEligibility::Attached {
             return unsupported("stored dynamic dispatch requires an attached caller");
         }
-        return routed_machine(
+        return source_mapped_machine(
             lower_stored_dynamic_composed_unit_machine(checked, plan),
             SelectedMachineRoute::StoredDynamicComposedUnit {
                 realization_machine: plan.call.realization_machine,
@@ -255,7 +302,7 @@ pub(super) fn lower_selected_machine(
         if selection.signature != CheckedTerminalSignatureEligibility::Attached {
             return unsupported("rebound dynamic dispatch requires an attached caller");
         }
-        return routed_machine(
+        return source_mapped_machine(
             lower_rebound_dynamic_composed_unit_machine(checked, plan),
             SelectedMachineRoute::ReboundDynamicComposedUnit {
                 realization_machine: plan.latest.realization_machine,
@@ -278,7 +325,7 @@ pub(super) fn lower_selected_machine(
         if selection.signature != CheckedTerminalSignatureEligibility::Attached {
             return unsupported("direct dynamic dispatch requires an attached caller");
         }
-        return routed_machine(
+        return source_mapped_machine(
             lower_direct_dynamic_composed_unit_machine(checked, plan),
             SelectedMachineRoute::DirectDynamicComposedUnit {
                 realization_machine: plan.realization_machine,
