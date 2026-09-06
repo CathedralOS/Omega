@@ -15,6 +15,36 @@ use super::{
     instruction_loads::{aarch64_terminal_register, x86_terminal_register},
 };
 
+/// Shared input custody only; each reader still reconstructs ABI and bytes.
+pub(super) fn has_claim_free_affine_identity_custody(returned: &StructuralReturnRecord) -> bool {
+    let exact_shape = match returned.scalar_parameters.as_slice() {
+        [] => {
+            returned.shape.class == calling_conventions::ValueClass::Integer
+                && ((returned.shape.byte_size == 8 && returned.shape.alignment == 8)
+                    || (9..=16).contains(&returned.shape.byte_size))
+        }
+        [_] => returned.shape == calling_conventions::ValueShape::integer(8, 8),
+        _ => false,
+    };
+    exact_shape
+        && returned.parameters.len() == 1
+        && returned.parameters.first() == Some(&returned.source)
+        && returned.source.position == 0
+        && !returned.source.is_self
+        && returned.source.place != returned.result.place
+        && returned.source.structural_type == returned.result.structural_type
+        && returned.source.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+        && returned.result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+        && returned.source.access == terminal_psi::StructuralAccess::Owned
+        && returned.source.qualifications.is_empty()
+        && returned.source.projected_qualifications.is_empty()
+        && returned.result.qualifications.is_empty()
+        && returned.result.projected_qualifications.is_empty()
+        && returned.returned_claims.is_empty()
+        && returned.trivial_affine_locals.is_empty()
+        && returned.trivial_affine_discards.is_empty()
+}
+
 pub(super) fn validate_structural_return_record(
     target: NativeTarget,
     machine: MachineId,
@@ -66,20 +96,7 @@ pub(super) fn validate_structural_return_record(
         && returned.source.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         && returned.result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         && returned.returned_claims.len() == 1;
-    let exact_claim_free_affine_mixed = matches!(returned.scalar_parameters.as_slice(), [scalar]
-        if scalar.placement.shape == scalar_shapes[0])
-        && returned.parameters.len() == 1
-        && returned.source.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-        && returned.result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-        && returned.source.access == terminal_psi::StructuralAccess::Owned
-        && returned.source.qualifications.is_empty()
-        && returned.source.projected_qualifications.is_empty()
-        && returned.result.qualifications.is_empty()
-        && returned.result.projected_qualifications.is_empty()
-        && returned.returned_claims.is_empty()
-        && returned.trivial_affine_locals.is_empty()
-        && returned.trivial_affine_discards.is_empty()
-        && returned.shape == calling_conventions::ValueShape::integer(8, 8);
+    let exact_claim_free_affine = has_claim_free_affine_identity_custody(returned);
     if returned.code_offset != 0
         || end != bytes.len()
         || returned.byte_count == 0
@@ -112,8 +129,9 @@ pub(super) fn validate_structural_return_record(
                 .map(|(operation, _, _)| *operation)
                 .collect::<Vec<_>>()
         || returned.source.structural_type != returned.result.structural_type
+        || returned.source.place == returned.result.place
         || returned.source.multiplicity != returned.result.multiplicity
-        || (!exact_claimful_linear && !exact_claim_free_affine_mixed)
+        || (!exact_claimful_linear && !exact_claim_free_affine)
         || returned.source.qualifications != returned.result.qualifications
         || returned.source.projected_qualifications != returned.result.projected_qualifications
         || returned.shape != returned.source_placement.shape

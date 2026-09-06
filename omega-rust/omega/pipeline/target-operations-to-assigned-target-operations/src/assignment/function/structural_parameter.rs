@@ -35,7 +35,16 @@ pub(super) fn assign(
                 && returned_claims.len() == 1
                 && trivial_affine_discards.len() + 1
                     == parameters.len() + trivial_affine_locals.len();
-            let exact_claim_free_affine_mixed = scalar_parameters.len() == 1
+            let exact_claim_free_affine_shape = match scalar_parameters.len() {
+                0 => {
+                    shape.class == calling_conventions::ValueClass::Integer
+                        && ((shape.byte_size == 8 && shape.alignment == 8)
+                            || (9..=16).contains(&shape.byte_size))
+                }
+                1 => *shape == calling_conventions::ValueShape::integer(8, 8),
+                _ => false,
+            };
+            let exact_claim_free_affine = exact_claim_free_affine_shape
                 && parameters.len() == 1
                 && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine
                 && result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
@@ -77,7 +86,7 @@ pub(super) fn assign(
                 || call_plan.parameters.get(source_index) != Some(source_placement)
                 || call_plan.result.as_ref() != Some(result_placement)
                 || source.place == result.place
-                || (!exact_claimful_linear && !exact_claim_free_affine_mixed)
+                || (!exact_claimful_linear && !exact_claim_free_affine)
                 || source.structural_type != result.structural_type
                 || source.qualifications != result.qualifications
                 || parameters.iter().enumerate().any(|(index, parameter)| {

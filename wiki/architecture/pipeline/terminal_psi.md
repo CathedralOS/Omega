@@ -3977,6 +3977,17 @@ input at `ReturnStructural`, preserving its opaque identity across fuel
 exhaustion. Independent verification follows the complete owned type graph;
 native fragment width does not determine whole-value transfer validity.
 
+The existing assigned native return path accepts a claim-free owned-affine
+record or nonempty fixed-array identity producer without scalar side arguments.
+It retains the direct integer ABI restriction: an eight-byte, eight-aligned
+value or a nine-to-sixteen-byte aggregate, with complete one- or two-register
+source and result placements. Indirect Microsoft x64 aggregate returns remain
+unsupported. The one-scalar-side-argument form retains its single-u64-field
+record restriction. Assignment, object validation, and installation replay
+retain distinct source/result identities and reject invented claims or cleanup.
+This producer support does not provide native projected call-result cleanup;
+that still needs result homes, projected copies, and residual-custody replay.
+
 An ordinary call to that producer can initialize an immutable structural local
 in a free or attached Unit body. The checked `StructuralCall` retains its
 authored occurrence, exact target contract, scalar argument evaluations, and

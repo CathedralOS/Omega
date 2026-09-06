@@ -8,7 +8,7 @@ pub(in crate::lowering) fn lower_structural_return_function(
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<TargetFunction, LoweringError> {
     if let Some(lowered) =
-        lower_claim_free_affine_mixed_return(function, result, target, structural_types)?
+        lower_claim_free_affine_return(function, result, target, structural_types)?
     {
         return Ok(lowered);
     }
@@ -202,14 +202,13 @@ pub(in crate::lowering) fn lower_structural_return_function(
     })
 }
 
-fn lower_claim_free_affine_mixed_return(
+fn lower_claim_free_affine_return(
     function: &AbstractFunction,
     result: &terminal_psi::StructuralResultDeclaration,
     target: NativeTarget,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<Option<TargetFunction>, LoweringError> {
-    let ([scalar_parameter], [structural_parameter], [block_entry], [operation]) = (
-        function.parameters.as_slice(),
+    let ([structural_parameter], [block_entry], [operation]) = (
         function.structural_parameters.as_slice(),
         function.block_entries.as_slice(),
         function.operations.as_slice(),
@@ -226,36 +225,50 @@ fn lower_claim_free_affine_mixed_return(
     else {
         return Ok(None);
     };
-    let ScalarType::Integer(scalar_type) = scalar_parameter.scalar_type else {
-        return Ok(None);
-    };
-    let Some(scalar_shape) = super::super::scalar_abi::fixed_native_integer_shape(scalar_type)
-    else {
-        return Ok(None);
+    let scalar = match function.parameters.as_slice() {
+        [] => None,
+        [parameter] => {
+            let ScalarType::Integer(integer) = parameter.scalar_type else {
+                return Ok(None);
+            };
+            let Some(shape) = super::super::scalar_abi::fixed_native_integer_shape(integer) else {
+                return Ok(None);
+            };
+            Some((*parameter, integer, shape))
+        }
+        _ => return Ok(None),
     };
     let Some(declaration) = structural_types.get(&result.structural_type).copied() else {
         return Err(LoweringError::UnknownStructuralType(result.structural_type));
     };
-    let exact_record = matches!(
-        &declaration.shape,
-        StructuralTypeShape::Record { fields }
-            if matches!(
-                fields.as_slice(),
-                [field]
-                    if matches!(
-                        field.field_type,
-                        StructuralFieldType::Scalar(ScalarType::Integer(integer))
-                            if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
-                                && integer.bits() == 64
-                    )
-            )
-    );
-    if !exact_record
+    let supported_shape = if scalar.is_none() {
+        matches!(
+            &declaration.shape,
+            StructuralTypeShape::Record { .. }
+                | StructuralTypeShape::FixedArray { length: 1.., .. }
+        )
+    } else {
+        matches!(
+            &declaration.shape,
+            StructuralTypeShape::Record { fields }
+                if matches!(
+                    fields.as_slice(),
+                    [field]
+                        if matches!(
+                            field.field_type,
+                            StructuralFieldType::Scalar(ScalarType::Integer(integer))
+                                if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+                                    && integer.bits() == 64
+                        )
+                )
+        )
+    };
+    if !supported_shape
         || !function.entry_claims.is_empty()
         || !function.published_service_ceiling.is_empty()
         || block_entry.block != function.entry
         || block_entry.operation_offset != 0
-        || block_entry.parameters.as_slice() != [*scalar_parameter]
+        || block_entry.parameters != function.parameters
         || structural_parameter.position != 0
         || structural_parameter.is_self
         || structural_parameter.multiplicity != StructuralMultiplicity::Affine
@@ -282,26 +295,25 @@ fn lower_claim_free_affine_mixed_return(
         &mut cache,
         &mut active,
     )?;
-    if structural_shape != ValueShape::integer(8, 8) {
+    if scalar.is_some() && structural_shape != ValueShape::integer(8, 8) {
         return Ok(None);
     }
     let call_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
-            parameters: vec![scalar_shape, structural_shape],
+            parameters: scalar
+                .iter()
+                .map(|(_, _, shape)| *shape)
+                .chain(std::iter::once(structural_shape))
+                .collect(),
             result: Some(structural_shape),
         },
     )
     .map_err(LoweringError::AbiPlan)?;
-    let Some(scalar_placement) = call_plan.parameters.first().cloned() else {
+    let source_index = usize::from(scalar.is_some());
+    let Some(source_placement) = call_plan.parameters.get(source_index).cloned() else {
         return Err(LoweringError::AbiParameterCountMismatch {
-            expected: 2,
-            actual: call_plan.parameters.len(),
-        });
-    };
-    let Some(source_placement) = call_plan.parameters.get(1).cloned() else {
-        return Err(LoweringError::AbiParameterCountMismatch {
-            expected: 2,
+            expected: source_index + 1,
             actual: call_plan.parameters.len(),
         });
     };
@@ -311,6 +323,14 @@ fn lower_claim_free_affine_mixed_return(
         .ok_or(LoweringError::UnsupportedStructuralReturn(function.machine))?;
     require_direct_structural_fragments(function.machine, &source_placement)?;
     require_direct_structural_fragments(function.machine, &result_placement)?;
+    let scalar_parameters = scalar
+        .into_iter()
+        .map(|(parameter, scalar_type, _)| FixedIntegerScalarAbiValue {
+            value: parameter.value,
+            scalar_type,
+            placement: call_plan.parameters[0].clone(),
+        })
+        .collect();
     Ok(Some(TargetFunction {
         machine: function.machine,
         attachment: function.attachment,
@@ -322,11 +342,7 @@ fn lower_claim_free_affine_mixed_return(
         },
         operation: TargetOperation::ReturnStructuralParameter {
             call_plan,
-            scalar_parameters: vec![FixedIntegerScalarAbiValue {
-                value: scalar_parameter.value,
-                scalar_type,
-                placement: scalar_placement,
-            }],
+            scalar_parameters,
             parameters: vec![structural_parameter.clone()],
             source: structural_parameter.clone(),
             result: result.clone(),
