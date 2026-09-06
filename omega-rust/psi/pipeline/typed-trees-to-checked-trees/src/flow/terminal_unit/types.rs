@@ -882,6 +882,82 @@ pub(super) fn attached_data_identity(
     Some(format!("named({})", normalized_atom("name", &path)))
 }
 
+/// Check source access independently of structural shape collection. Generic
+/// arguments and declaration fields are both inspected: substituting an owned
+/// argument cannot turn an authored reference field into owned storage.
+fn partial_affine_source_contents_are_owned(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    visited: &mut Vec<SymbolHandle>,
+) -> bool {
+    if !reference.is_valid() {
+        return false;
+    }
+    // Preserve the existing no-cleanup bounded-byte field carrier, whose
+    // domain spelling is retained by that carrier's own source classifier.
+    if matches!(
+        byte_sequence_carrier(program, reference, &[]),
+        Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
+    ) {
+        return true;
+    }
+    let symbol = match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Named { symbol, .. } => {
+            if program.primitive_type_reference(reference).is_some() {
+                return true;
+            }
+            *symbol
+        }
+        TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } => {
+            if !program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+                .iter()
+                .all(|argument| {
+                    partial_affine_source_contents_are_owned(program, *argument, visited)
+                })
+            {
+                return false;
+            }
+            *base_symbol
+        }
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: typed_trees::types::FixedArrayLength::Literal(1..),
+        } => return partial_affine_source_contents_are_owned(program, *element_type, visited),
+        _ => return false,
+    };
+    let Some(data) = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.symbol == symbol)
+    else {
+        // Concrete arguments were checked at their application; an authored
+        // type binder has no reference or qualification wrapper of its own.
+        return program.data_definitions().iter().any(|data| {
+            program
+                .data_type_parameters(data)
+                .iter()
+                .any(|parameter| parameter.symbol == symbol)
+        });
+    };
+    if visited.contains(&symbol) {
+        return true;
+    }
+    visited.push(symbol);
+    program.data_members(data).iter().all(|member| {
+        let DataMember::Field(field) = member else {
+            return false;
+        };
+        !field.relevance.is_erased()
+            && partial_affine_source_contents_are_owned(program, field.type_reference, visited)
+    })
+}
+
 pub(super) struct ShapeCollector<'program> {
     pub(super) program: &'program TypedTrees,
     pub(super) types: BTreeMap<String, CheckedUnitStructuralTypePlan>,
@@ -1184,12 +1260,19 @@ impl<'program> ShapeCollector<'program> {
         self.add_data_shape(identity, data, binders, local_substitutions)
     }
 
-    pub(super) fn add_partial_affine_array_type(
+    pub(super) fn add_partial_affine_type(
         &mut self,
         type_reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
     ) -> Option<String> {
-        self.add_bounded_affine_array_type(type_reference, binders, false)
+        let identity = self.add_type(type_reference, binders, &[])?;
+        // Shape collection also serves borrowed carriers. Check authored
+        // ownership before a referent-oriented shape can erase that distinction.
+        if !partial_affine_source_contents_are_owned(self.program, type_reference, &mut Vec::new())
+        {
+            return None;
+        }
+        Some(identity)
     }
 
     pub(super) fn add_affine_array_construction_type(
@@ -1197,164 +1280,8 @@ impl<'program> ShapeCollector<'program> {
         type_reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
     ) -> Option<String> {
-        self.add_bounded_affine_array_type(type_reference, binders, true)
-    }
-
-    fn add_bounded_affine_array_type(
-        &mut self,
-        type_reference: TypeReferenceHandle,
-        binders: &[(SymbolHandle, String)],
-        allow_construction_lengths: bool,
-    ) -> Option<String> {
-        let mut resolved = type_reference;
-        while let TypeReferenceNode::Reference { referee, .. }
-        | TypeReferenceNode::Constrained {
-            base_type: referee, ..
-        } = self.program.type_reference_table.type_reference(resolved)
-        {
-            resolved = *referee;
-        }
-        let TypeReferenceNode::FixedArray {
-            element_type,
-            length: typed_trees::types::FixedArrayLength::Literal(length @ (2..=26)),
-        } = self.program.type_reference_table.type_reference(resolved)
-        else {
-            return self.add_type(type_reference, binders, &[]);
-        };
-        if *length >= 5 && !allow_construction_lengths {
-            return None;
-        }
-        let nested_element = match self
-            .program
-            .type_reference_table
-            .type_reference(*element_type)
-        {
-            TypeReferenceNode::FixedArray {
-                element_type: leaf_type,
-                length: typed_trees::types::FixedArrayLength::Literal(inner_length @ (3..=16)),
-            } if *length == 2 => Some((*leaf_type, *inner_length)),
-            _ => None,
-        };
-        if let Some((leaf_type, inner_length)) = nested_element {
-            let inner_length = u64::try_from(inner_length).ok()?;
-            if crate::checks::type_multiplicity(self.program, leaf_type) != Multiplicity::Affine
-                || !matches!(
-                    self.program.type_reference_table.type_reference(leaf_type),
-                    TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
-                )
-            {
-                return None;
-            }
-            let identity = self
-                .program
-                .normalized_type_identity_with_binders(resolved, binders)
-                .into_string();
-            if self.types.contains_key(&identity) {
-                return Some(identity);
-            }
-            if !self.in_progress.insert(identity.clone()) {
-                return None;
-            }
-            let inner_identity = self
-                .program
-                .normalized_type_identity_with_binders(*element_type, binders)
-                .into_string();
-            if !self.types.contains_key(&inner_identity) {
-                if !self.in_progress.insert(inner_identity.clone()) {
-                    self.in_progress.remove(&identity);
-                    return None;
-                }
-                let Some(leaf_identity) = self.add_type(leaf_type, binders, &[]) else {
-                    self.in_progress.remove(&inner_identity);
-                    self.in_progress.remove(&identity);
-                    return None;
-                };
-                if !matches!(
-                    self.types.get(&leaf_identity).map(|plan| &plan.shape),
-                    Some(CheckedUnitStructuralTypeShape::Record { .. })
-                ) {
-                    self.in_progress.remove(&inner_identity);
-                    self.in_progress.remove(&identity);
-                    return None;
-                }
-                self.types.insert(
-                    inner_identity.clone(),
-                    CheckedUnitStructuralTypePlan {
-                        identity: inner_identity.clone(),
-                        shape: CheckedUnitStructuralTypeShape::FixedArray {
-                            element_type_identity: leaf_identity,
-                            length: inner_length,
-                        },
-                    },
-                );
-                self.in_progress.remove(&inner_identity);
-            }
-            if !matches!(
-                self.types.get(&inner_identity).map(|plan| &plan.shape),
-                Some(CheckedUnitStructuralTypeShape::FixedArray { length, .. })
-                    if *length == inner_length
-            ) {
-                self.in_progress.remove(&identity);
-                return None;
-            }
-            self.types.insert(
-                identity.clone(),
-                CheckedUnitStructuralTypePlan {
-                    identity: identity.clone(),
-                    shape: CheckedUnitStructuralTypeShape::FixedArray {
-                        element_type_identity: inner_identity,
-                        length: 2,
-                    },
-                },
-            );
-            self.in_progress.remove(&identity);
-            return Some(identity);
-        }
-        if crate::checks::type_multiplicity(self.program, *element_type) != Multiplicity::Affine
-            || !matches!(
-                self.program
-                    .type_reference_table
-                    .type_reference(*element_type),
-                TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
-            )
-        {
-            return None;
-        }
-        let identity = self
-            .program
-            .normalized_type_identity_with_binders(resolved, binders)
-            .into_string();
-        if self.types.contains_key(&identity) {
-            return Some(identity);
-        }
-        if !self.in_progress.insert(identity.clone()) {
-            return None;
-        }
-        let Some(element_type_identity) = self.add_type(*element_type, binders, &[]) else {
-            self.in_progress.remove(&identity);
-            return None;
-        };
-        if !matches!(
-            self.types
-                .get(&element_type_identity)
-                .map(|plan| &plan.shape),
-            Some(CheckedUnitStructuralTypeShape::Record { .. })
-        ) {
-            self.in_progress.remove(&identity);
-            return None;
-        }
-        self.types.insert(
-            identity.clone(),
-            CheckedUnitStructuralTypePlan {
-                identity: identity.clone(),
-                shape: CheckedUnitStructuralTypeShape::FixedArray {
-                    element_type_identity,
-                    length: u64::try_from(*length).ok()?,
-                },
-            },
-        );
-        self.in_progress.remove(&identity);
-        Some(identity)
+        // Construction-prefix admission remains owned by its separate caller.
+        self.add_type(type_reference, binders, &[])
     }
 
     pub(super) fn add_data_shape(

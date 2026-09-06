@@ -520,6 +520,13 @@ Owners include
   calls, and partial initialization. Cleanup follows reverse establishment and
   exact residual custody; trap/abort edges clean nothing. Acceptance: no affine
   occurrence disappears, duplicates, or is cleaned after transfer.
+  Extend Omega ownership, target/machine, and image/installation replay from
+  bounded array carriers to the type-directed record/array residual complement
+  specified in [Terminal Psi](wiki/architecture/pipeline/terminal_psi.md).
+  Preserve maximal untouched subtrees and empty complements without runtime
+  liveness flags. Generalize cleanup storage to local and result roots before
+  admitting projected helper-result operands; entry-parameter cleanup alone
+  cannot dispose the untransferred parts of a temporary.
 
 - **UNUSED-PROVIDER-FIELDS.** Represent an unused provider-backed attachment
   field without inventing a boundary specialization or changing its relevance.

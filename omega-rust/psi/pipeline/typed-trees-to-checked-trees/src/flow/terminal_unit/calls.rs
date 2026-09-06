@@ -1385,13 +1385,25 @@ pub(super) fn ordinary_projected_call_is_supported(
     {
         return false;
     }
-    let Some(caller_source_parameter) = usize::try_from(caller_parameters[0].position)
+    let Some(_) = usize::try_from(caller_parameters[0].position)
         .ok()
         .and_then(|position| caller_source_parameters.get(position))
     else {
         return false;
     };
 
+    let owned_affine_projection = allow_field_path_projection
+        && caller_parameters[0].access == CheckedStructuralAccess::Owned
+        && caller_parameters[0].multiplicity == Multiplicity::Affine
+        && arguments[0].access == CheckedStructuralAccess::Owned
+        && !arguments[0].path.is_empty()
+        && arguments[0].path.iter().all(|segment| {
+            matches!(
+                segment,
+                CheckedUnitStructuralPathSegment::Field(_)
+                    | CheckedUnitStructuralPathSegment::FixedIndex(_)
+            )
+        });
     let field_path = checked_nonempty_field_path(&arguments[0].path);
     let literal_index_fields = checked_literal_index_path(&arguments[0].path);
     let literal_index_path = literal_index_fields.is_some();
@@ -1415,10 +1427,14 @@ pub(super) fn ordinary_projected_call_is_supported(
     {
         return false;
     }
-    if literal_indexed_field_path && !write_only_subloan_path && !shared_subloan_path {
+    if literal_indexed_field_path
+        && !write_only_subloan_path
+        && !shared_subloan_path
+        && !owned_affine_projection
+    {
         return false;
     }
-    if !field_path && !literal_index_path {
+    if !field_path && !literal_index_path && !owned_affine_projection {
         return false;
     }
 
@@ -1465,50 +1481,6 @@ pub(super) fn ordinary_projected_call_is_supported(
         return false;
     }
 
-    let bounded_affine_array_index_path = if allow_field_path_projection {
-        let mut type_reference = caller_source_parameter.type_reference;
-        while let TypeReferenceNode::Constrained { base_type, .. }
-        | TypeReferenceNode::Reference {
-            referee: base_type, ..
-        } = program.type_reference_table.type_reference(type_reference)
-        {
-            type_reference = *base_type;
-        }
-        match (
-            arguments[0].path.as_slice(),
-            program.type_reference_table.type_reference(type_reference),
-        ) {
-            (
-                [CheckedUnitStructuralPathSegment::FixedIndex(0..=3)],
-                TypeReferenceNode::FixedArray {
-                    length: typed_trees::types::FixedArrayLength::Literal(2..=4),
-                    ..
-                },
-            ) => true,
-            (
-                [
-                    CheckedUnitStructuralPathSegment::FixedIndex(outer @ (0 | 1)),
-                    CheckedUnitStructuralPathSegment::FixedIndex(inner @ (0..=15)),
-                ],
-                TypeReferenceNode::FixedArray {
-                    element_type,
-                    length: typed_trees::types::FixedArrayLength::Literal(2),
-                },
-            ) => {
-                let _ = outer;
-                matches!(
-                    program.type_reference_table.type_reference(*element_type),
-                    TypeReferenceNode::FixedArray {
-                        length: typed_trees::types::FixedArrayLength::Literal(inner_length @ (3..=16)),
-                        ..
-                    } if u64::try_from(*inner_length).is_ok_and(|length| *inner < length)
-                )
-            }
-            _ => false,
-        }
-    } else {
-        false
-    };
     if write_only_subloan_path || shared_subloan_path {
         let [target_parameter] = target_parameters.as_slice() else {
             return false;
@@ -1525,7 +1497,7 @@ pub(super) fn ordinary_projected_call_is_supported(
             && caller_parameters[0].qualifications.is_empty();
     }
 
-    if field_path || bounded_affine_array_index_path {
+    if field_path || owned_affine_projection {
         let [caller_parameter] = caller_parameters else {
             return false;
         };
@@ -2014,6 +1986,31 @@ pub(super) fn structural_call_arguments(
         let source_identity = caller_parameters.get(source_index)?.type_identity.clone();
         let path = match place.segments.as_slice() {
             [] => Vec::new(),
+            segments
+                if allow_field_path_projection
+                    && allow_fixed_index_projection
+                    && target_machine.supply_mode == MachineSupplyMode::CheckedBody
+                    && caller_parameters[source_index].multiplicity == Multiplicity::Affine
+                    && caller_parameters[source_index].access == CheckedStructuralAccess::Owned
+                    && caller_parameters[source_index].qualifications.is_empty()
+                    && structural_access_for_type_reference(program, target.type_reference)?
+                        == CheckedStructuralAccess::Owned
+                    && segments.iter().all(|segment| {
+                        matches!(
+                            segment,
+                            facts::PlaceSegment::Field { .. }
+                                | facts::PlaceSegment::FixedIndex { .. }
+                        )
+                    }) =>
+            {
+                projected_argument_path_with_identity(
+                    program,
+                    caller_state.symbol,
+                    statement_index,
+                    &place,
+                    &target_identity,
+                )?
+            }
             [facts::PlaceSegment::FixedIndex { index }]
                 if allow_fixed_index_projection
                     && caller_parameters
@@ -2527,7 +2524,7 @@ pub(super) fn structural_signature(
     binders: &[(SymbolHandle, String)],
     retain_reference_self: bool,
 ) -> Option<(String, Vec<CheckedUnitStructuralParameterPlan>)> {
-    let (attachment, structural, scalar) = structural_signature_with_affine_pair(
+    let (attachment, structural, scalar) = structural_signature_with_partial_affine(
         program,
         shapes,
         machine,
@@ -2552,7 +2549,7 @@ pub(super) fn fused_service_scalar_signature(
     Vec<CheckedUnitStructuralParameterPlan>,
     Vec<CheckedStructuralScalarParameterPlan>,
 )> {
-    structural_signature_with_affine_pair(
+    structural_signature_with_partial_affine(
         program,
         shapes,
         machine,
@@ -2655,14 +2652,14 @@ pub(super) fn free_fused_service_scalar_signature(
         .then_some((structural_parameters, scalar_parameters))
 }
 
-pub(super) fn partial_affine_pair_structural_signature(
+pub(super) fn partial_affine_structural_signature(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
 ) -> Option<(String, Vec<CheckedUnitStructuralParameterPlan>)> {
-    let (attachment, structural, scalar) = structural_signature_with_affine_pair(
+    let (attachment, structural, scalar) = structural_signature_with_partial_affine(
         program, shapes, machine, state, binders, true, false, false,
     )?;
     scalar.is_empty().then_some((attachment, structural))
@@ -2672,13 +2669,13 @@ pub(super) fn partial_affine_pair_structural_signature(
 /// with the reference's access, so a body can root `self.field` arguments at
 /// it. Without it a borrowed attachment stays ambient and only its
 /// provider-specialized fields have places.
-fn structural_signature_with_affine_pair(
+fn structural_signature_with_partial_affine(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
-    allow_affine_pair: bool,
+    allow_partial_affine: bool,
     allow_scalar_parameters: bool,
     retain_reference_self: bool,
 ) -> Option<(
@@ -2779,7 +2776,7 @@ fn structural_signature_with_affine_pair(
         )
         .is_some()
         {
-            if allow_affine_pair || parameter.is_mutable || !binders.is_empty() {
+            if allow_partial_affine || parameter.is_mutable || !binders.is_empty() {
                 return None;
             }
             fused_service_parameter_count = fused_service_parameter_count.checked_add(1)?;
@@ -2794,9 +2791,9 @@ fn structural_signature_with_affine_pair(
             (identity, Some(receipt))
         } else if allow_scalar_parameters {
             return None;
-        } else if allow_affine_pair {
+        } else if allow_partial_affine {
             (
-                shapes.add_partial_affine_array_type(parameter.type_reference, binders)?,
+                shapes.add_partial_affine_type(parameter.type_reference, binders)?,
                 None,
             )
         } else {

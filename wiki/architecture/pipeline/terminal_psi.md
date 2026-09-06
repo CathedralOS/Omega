@@ -1553,46 +1553,32 @@ preserve fragment order, offsets, sizes, and selected registers. Wider or
 non-integer-class shapes, multiple roots or claims, projections, staging, and
 bodyless calls remain fenced.
 
-The claim-free partial-cleanup slice accepts one affine transparent record. A
-finite nonempty set of pairwise prefix-disjoint, nonempty all-field paths may
-move through source-ordered one-parameter ordinary Unit calls, provided at
-least one residual subtree remains. The Unit return then names every maximal
-live residual subtree by exact root, canonical field path, and subtree type in
-recursive reverse declaration order and never discards a partially moved
-ancestor whole. The verifier independently proves that the moved and residual
-paths are disjoint and exhaust the root. Interpretation
-charges the return edge before disposing the residual paths, so fuel exhaustion cannot
-clean early. Omega carries every path and type through all five target
-pipelines, object/image validation, and canonical installation records while
-emitting no cleanup instruction or runtime bitmap. Claims, content, contracts,
-nominal `drop`, and arrays/cases remain fenced.
+Claim-free partial cleanup in checked production, Terminal verification, and
+interpretation accepts one owned, non-self, unqualified affine parameter whose
+finite structural graph consists of records and nonempty literal fixed arrays.
+Pairwise prefix-disjoint, nonempty paths may mix record fields and literal
+indices through source-ordered one-parameter ordinary Unit calls. Structural
+fields carry cleanup; scalar, floating-point, and bounded-owned-byte record
+fields retain their existing no-cleanup treatment. Claims, content, borrowed
+fields, nominal `drop`, cases, dynamic indices, and projected result storage are
+not admitted by this route. Indexed transfers retain contract-free callers and
+exact ordinary Unit disposers as callees.
 
-A separate exact fixed-array carrier accepts an owned, non-self, unqualified,
-claim-free affine `[T; 2]` with structural record element `T`. One projected
-Unit call may retain the opposite element as a typed no-code residual, or two
-calls may move the exact path set `{[0], [1]}` once each in authored order. The
-two-call form has one block and an ordinary `ReturnUnit` with no affine discard;
-the ownership frontier removes the array root only after the second dense path
-moves. Shape validation independently rejects duplicate or missing paths,
-other lengths and element shapes, claims/content, and cleanup added to the
-ordinary return; checked production separately excludes contracts. Interpreter
-replay charges five closure units: two caller operations, two callee returns,
-and the caller return. The empty
-residual set makes no cleanup-order choice. Target and machine lowering plus
-object/image and installation replay rederive this exact two-call form at
-function scope, retain its canonical stride/offset and empty return cleanup,
-and never exempt a projected call unless the complete pair is present.
+The Unit return names every maximal live residual subtree by exact root,
+canonical path, and subtree type in recursive reverse declaration/index order.
+An untouched array row is one residual, not an expanded list of its leaves.
+No partially moved ancestor is discarded whole. When all structural descendants
+have transferred, the complement is empty and the existing `ReturnUnit` carries
+no cleanup; otherwise the existing `ReturnUnitPartialAffine` carries the exact
+complement. No new representation is needed.
 
-The residual-bearing successor accepts the same exact carrier restrictions for
-`[T; 3]`. It requires exactly two distinct direct literal-index calls in
-authored order and one `ReturnUnitPartialAffine` discard naming the sole
-complement index and exact element type. Shape and frontier validation reject a
-missing, duplicate, third, nested, out-of-bounds, mistyped, qualified,
-claim-bearing, contract-bearing, or cleanup-drifted form. Interpretation still
-charges five closure units. Target and machine lowering plus object/image and
-installation replay independently retain the length-three layout, stride,
-offsets, two-call custody, singleton residual, and operation/edge fuel. Since
-there is only one residual, this carrier makes no cleanup-order choice.
+Lowering and Terminal verification independently reconstruct that complement
+from the types and moves, rejecting overlaps, missing or extra residuals, and
+path/type/order drift. Reconstruction checks output size before enumerating
+array children; a forged huge dimension with a short cleanup list cannot force
+an enormous verification scan. Interpretation charges the return edge before
+disposing any residual, so fuel exhaustion cannot clean early. Calls retain
+authored order regardless of cleanup order.
 
 The governing rule for wider fixed-array carriers is already closed: source
 establishes elements in increasing index order, and every ordinary disposing
@@ -1604,20 +1590,16 @@ loops confer no authority. Authored projected moves retain authored order.
 Partial construction follows the same rule on its established prefix, while
 trap and nuclear-abort terminators carry no cleanup.
 
-The exact nested replay carrier accepts `[[T; N]; 2]` for inner length three,
-four, five, six, seven, eight, nine, ten, eleven, twelve, thirteen, fourteen,
-fifteen, or sixteen, with the same claim-free affine-record leaf restrictions. Two Unit
-calls must move one literal leaf from each distinct outer element in authored
-order. Terminal verification reconstructs the full complement directly from
-the nested type graph and requires decreasing outer-then-inner cleanup order;
-the length-ten form therefore names eighteen no-code residual leaves and the
-length-eleven form names twenty, the length-twelve form names twenty-two, and
-the length-thirteen form names twenty-four, the length-fourteen form names
-twenty-six, the length-fifteen form names twenty-eight, and the length-sixteen
-form names thirty. Codec,
-interpreter, Omega, machine, object/image, and installation replay must retain
-the same paths and layout. All fourteen lengths charge exactly five call/return
-fuel units, and inner length seventeen or runtime liveness state grants no authority.
+Native replay remains narrower than this Psi contract. Its existing carriers
+cover all-field record residuals, `[T; 2]` with one or both elements moved,
+`[T; 3]` with one or two moved, `[T; 4]` with two moved, and
+`[[T; N]; 2]` for `N` from three through sixteen with one leaf moved from each
+outer element. Array leaves are claim-free affine records. Omega, machine,
+object/image, and installation replay retain exact paths, layouts, call order,
+and cleanup order for those carriers, emitting no cleanup instruction or runtime
+bitmap. General mixed paths, wider arrays, and other empty complements still
+need those native readers generalized; Psi acceptance alone does not authorize
+native replay.
 
 The straight-line Unit return slice carries explicit no-code cleanup for owned
 affine structural parameters that have no claim rows. The checked plan derives

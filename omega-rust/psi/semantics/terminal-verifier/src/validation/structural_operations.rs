@@ -355,13 +355,15 @@ pub(super) fn validate_unit_operation_static(
             }
             if structural_arguments
                 .iter()
-                .any(|argument| !is_admitted_unit_call_argument_path(argument))
+                .any(|argument| !is_admitted_unit_call_argument_path(module, machine, argument))
             {
                 return Err(ModuleError::InvalidStructuralArgumentPath {
                     operation: operation.id,
                     argument_index: structural_arguments
                         .iter()
-                        .position(|argument| !is_admitted_unit_call_argument_path(argument))
+                        .position(|argument| {
+                            !is_admitted_unit_call_argument_path(module, machine, argument)
+                        })
                         .unwrap_or_default() as u32,
                 });
             }
@@ -1260,7 +1262,7 @@ pub(super) fn validate_structural_arguments(
         {
             StructuralMultiplicity::Unrestricted
         } else if expected.multiplicity == StructuralMultiplicity::Affine
-            && is_bounded_partial_affine_path(module, root_type, &argument.path)
+            && is_partial_affine_path(module, root_type, &argument.path)
             && actual_multiplicity == StructuralMultiplicity::Affine
         {
             StructuralMultiplicity::Affine
@@ -1392,11 +1394,21 @@ fn is_literal_indexed_field_path(path: &[StructuralPathSegment]) -> bool {
     literal_index_path(path).is_some_and(|fields| !fields.is_empty())
 }
 
-fn is_admitted_unit_call_argument_path(argument: &StructuralArgument) -> bool {
+fn is_admitted_unit_call_argument_path(
+    module: &TerminalModule,
+    caller: &TerminalMachine,
+    argument: &StructuralArgument,
+) -> bool {
     argument.path.is_empty()
         || is_nonempty_field_path(&argument.path)
         || is_literal_indexed_field_path(&argument.path)
         || is_direct_literal_index_path(&argument.path)
+        || (argument.access == StructuralAccess::Owned
+            && caller.structural_parameters.iter().any(|parameter| {
+                parameter.place == argument.place
+                    && parameter.multiplicity == StructuralMultiplicity::Affine
+                    && is_partial_affine_path(module, parameter.structural_type, &argument.path)
+            }))
 }
 
 fn is_literal_indexed_write_only_path(path: &[StructuralPathSegment]) -> bool {
@@ -1540,7 +1552,7 @@ fn validate_unit_call_claim_transfers(
                 .iter()
                 .find(|actual| actual.place == argument.place)
                 .is_some_and(|actual| {
-                    is_bounded_partial_affine_path(module, actual.structural_type, &argument.path)
+                    is_partial_affine_path(module, actual.structural_type, &argument.path)
                 })
                 && parameter.multiplicity == StructuralMultiplicity::Affine
                 && callee_claims.is_empty()
