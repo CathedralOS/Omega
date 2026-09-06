@@ -15,9 +15,11 @@ The Rust toolchain is pinned in `rust-toolchain.toml`; `rustup` selects it.
 
 ### Cargo wrapper
 
-Use `mbx` in place of Cargo when available: `cargo test ...` becomes
-`mbx test ...`, not `mbx cargo test ...`. If `mbx` is unavailable, use Cargo
-without asking for permission.
+Use `mbx` in place of Cargo for compiling commands: `cargo check` becomes
+`mbx check`, not `mbx cargo check`. Run Rust tests with `mbx nextest run`;
+`cargo-nextest` 0.9.140 or newer must be installed. If `mbx` is unavailable,
+use Cargo without asking for permission. Nextest does not run doctests;
+use `mbx test --doc` when doctest coverage is needed.
 
 Keep using `cargo fmt` and `cargo clean` directly; `mbx clean` has different
 semantics. The examples below assume `mbx` is available.
@@ -27,18 +29,25 @@ Baseline gates for a fresh checkout:
 ```bash
 cargo fmt --all -- --check
 mbx clippy --workspace --all-targets -- -D warnings
-mbx test -p omega-architecture-test --all-targets
+mbx nextest run -p omega-architecture-test --all-targets --no-fail-fast
 mbx check --workspace --all-targets
-mbx test --workspace --lib --no-fail-fast
+mbx nextest run --workspace --lib --no-fail-fast
 ```
 
-`mbx test --workspace --lib --no-fail-fast` is the platform-portable subset:
-all library tests, no target-specific executable/runtime legs. `--no-fail-fast`
-is not optional. Without it the run stops at the first failing crate, which on a
-Windows host is `bounded-process` at position 7 of 110 lib targets, so 103
-crates including every Psi one never execute and the gate reports a stop
-rather than a coverage gap. Platform integration tests
+`mbx nextest run --workspace --lib --no-fail-fast` is the platform-portable
+subset: all library tests, no target-specific executable/runtime legs.
+`--no-fail-fast` is mandatory; retries are disabled. Platform integration tests
 are separate and must report an explicit skip when the host cannot run them.
+
+For rechecks against a previously verified commit, run
+`python tools/test_affected.py --base VERIFIED_COMMIT --plan`, inspect the
+selection, then repeat without `--plan` (use `python3` on macOS). This replaces
+the architecture/library test commands only. It selects changed crates and
+reverse dependencies, accounts for known source readers, always runs architecture,
+and falls back to all libraries for shared or unknown inputs. Keep fmt, Clippy,
+workspace check, and relevant integration/bootstrap checks. If the baseline,
+environment, or input dependencies are uncertain, use `--full`. See
+[local testing](wiki/testing.md) for the exact coverage contract and examples.
 
 ### Developer platform support
 
@@ -114,11 +123,11 @@ an alternate toolchain layout.
 ### Running one test
 
 ```bash
-mbx test -p compiler --test canary_suite entry_and_abi::pass_canaries_compile
+mbx nextest run -p compiler --test canary_suite entry_and_abi::pass_canaries_compile
 ```
 
 ```bash
-mbx test -p compiler --test canary_suite proof_and_float_suites::fail_canaries_reject_with_expected_diagnostic_fragment
+mbx nextest run -p compiler --test canary_suite proof_and_float_suites::fail_canaries_reject_with_expected_diagnostic_fragment
 ```
 
 `canary_suite` is the umbrella target driving the `tests/omega/{pass,fail,run}`
@@ -135,7 +144,7 @@ host parallelism capped at 12 and must be a positive integer.
 
 ```bash
 OMEGA_PASS_CANARY_FILTER=nested_parameter_receiver_call \
-  mbx test -p compiler --test canary_suite entry_and_abi::pass_canaries_compile
+  mbx nextest run -p compiler --test canary_suite entry_and_abi::pass_canaries_compile
 ```
 
 `canary_suite` is not in the baseline gates above and a full run is currently
@@ -160,6 +169,11 @@ closed bootstrap floor. There is deliberately no wrapper that pretends to run
 the whole chain.
 
 ### Slow builds
+
+Use [test-cycle measurements](wiki/testing_performance.md) to distinguish
+compilation, test execution, and repeated landing validation. The Windows
+measurements did not establish a stable universal test-thread cap or a full-suite
+speedup from nextest alone; avoid unrelated test execution using the selector above.
 
 If small crates each pause for seconds before parsing, inspect `target/` before
 changing test or compiler architecture: a long-lived `target/debug/deps` with

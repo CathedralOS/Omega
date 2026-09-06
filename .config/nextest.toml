@@ -1,0 +1,19 @@
+nextest-version = "0.9.140"
+
+[profile.default]
+fail-fast = false
+retries = 0
+
+# These tests measure process resource limits. A Rust mutex cannot serialize
+# nextest's separate test processes: reserve the global pool for each case.
+[[profile.default.overrides]]
+filter = 'package(=bounded-process)'
+threads-required = "num-test-threads"
+priority = 100
+
+# Start long Git/filesystem fixtures early to reduce the end-of-run tail.
+# Leave thread counts at the host default: Windows trials did not establish
+# a repeatable advantage from a universal eight-thread cap.
+[[profile.default.overrides]]
+filter = 'package(=package-source) | package(=package-manager)'
+priority = 50

@@ -73,7 +73,7 @@ Orient first, always:
    is expensive. Get the actual distribution:
 
    ```bash
-   mbx test -p compiler --test canary_suite 2>&1 | tee /tmp/canary.txt
+   mbx nextest run -p compiler --test canary_suite 2>&1 | tee /tmp/canary.txt
    grep -oE 'message: "[^"]{0,90}' /tmp/canary.txt | sed 's/^message: "//' \
      | sed -E 's/`[^`]*`/X/g; s/[0-9]+/N/g; s/: .*$//' | sort | uniq -c | sort -rn | head
    ```
@@ -143,7 +143,7 @@ iteration:
   Four pauses cost more wall time than the gates did.
 - **Probes name fixtures, not test functions.** `OMEGA_PASS_CANARY_FILTER`
   matches the `group/name` fixture path (`targets/aarch64_hfa_entry_argument`);
-  a Rust test name (`entry_and_abi::…`) goes to the cargo test filter instead.
+  a Rust test name (`entry_and_abi::…`) goes to the nextest test-name filter instead.
   Two workers received the wrong shape and had to correct it.
 
 The orchestrator also runs no builds of its own while workers gate.
@@ -190,14 +190,16 @@ plus the filtered canary for what you are changing — see the filter variables
 under "Running one test" in `AGENTS.md`. Never run the unfiltered suite to
 attribute one change.
 
-Then the full baseline gate list in `AGENTS.md` — fmt, clippy, the architecture
-test, check, and `mbx test --workspace --lib --no-fail-fast` — **on the tree you
-are about to commit**. In a worktree that tree is exactly your change, which is
-the point. The list is not conditional on which files you touched: fmt and clippy
-read every file, the architecture test reads crate layout, and library tests read
-checked-in fixtures, so a commit with no `.rs` file in it can still move all
-three. The architecture test is the only thing that catches a wrong-direction
-dependency.
+Run the baseline gates in `AGENTS.md` on the tree you are about to commit.
+For a fresh or unverified base, run the full nextest baseline. For a recheck
+against an already verified commit in the same environment, the documented
+`tools/test_affected.py --base VERIFIED_COMMIT` route may replace only the
+architecture/library commands. Inspect and retain its plan; unknown/shared
+inputs automatically select all libraries. Keep fmt, Clippy, workspace check,
+and the relevant integration/bootstrap gates. Never use a newly fetched main
+as a verified baseline without evidence, or omit incoming changes from the delta.
+The architecture test always runs because it reads source and layout outside
+Cargo's dependency graph. See `wiki/testing.md` for source-reader obligations.
 
 Report what is red now, what was already red, and what you did not run. Attribute
 a red gate by re-running it filtered, or with your change reverted in the

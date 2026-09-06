@@ -106,8 +106,8 @@ _prewarm() {
   echo "=== $1 prewarm start $(date) ==="
   mbx clippy --workspace --all-targets 2>&1 | tail -2
   mbx check  --workspace --all-targets 2>&1 | tail -2
-  mbx test   --workspace --lib --no-run 2>&1 | tail -2
-  mbx test -p omega-architecture-test --all-targets --no-run 2>&1 | tail -2
+  mbx nextest run   --workspace --lib --no-run 2>&1 | tail -2
+  mbx nextest run -p omega-architecture-test --all-targets --no-run 2>&1 | tail -2
   echo "=== $1 prewarm done $(date) ==="
 }
 
@@ -115,14 +115,13 @@ _prewarm() {
 
 # Record which gates are red BEFORE any agent runs. Without this you cannot tell
 # an agent's breakage from the host's, and "gate honesty" is ungradeable.
-# Runs alone on purpose: concurrent `mbx test` suites make load-sensitive tests
+# Runs alone on purpose: concurrent `mbx nextest run` suites make load-sensitive tests
 # (CPU/timer limits) fail spuriously.
 cmd_baseline() {
   out="$WORK/baseline"; mkdir -p "$out"
   _regate b "$out"
-  echo "--- enumerating ALL failures (fail-fast otherwise hides later ones) ---"
-  ( cd "$WORK/b" && mbx test --workspace --lib --no-fail-fast 2>&1 ) > "$out/_nofailfast.txt"
-  grep -A20 '^failures:$' "$out/_nofailfast.txt" | grep -E '^ +[a-z_]+::' | sort -u \
+  echo "--- failures from the completed library gate ---"
+  sed -n -E 's/^ *(FAIL|TIMEOUT|ABORT|LEAK) +\[[^]]*\] +(\( *[0-9]+\/[0-9]+\) +)?/\1 /p' "$out/_nofailfast.txt" | sort -u \
     | tee "$out/_known_failures.txt"
   echo "saved to $out/"
 }
@@ -217,11 +216,14 @@ _regate() {
     echo "### regate on $(git rev-parse --short HEAD) at $(date)"
     for g in "cargo fmt --all -- --check" \
              "mbx clippy --workspace --all-targets -- -D warnings" \
-             "mbx test -p omega-architecture-test --all-targets" \
+             "mbx nextest run -p omega-architecture-test --all-targets --no-fail-fast" \
              "mbx check --workspace --all-targets" \
-             "mbx test --workspace --lib --no-fail-fast"; do
+             "mbx nextest run --color never --workspace --lib --no-fail-fast"; do
       echo "--- GATE: $g"
       o=$(eval "$g" 2>&1); echo "EXIT=$?"; echo "$o" | tail -15
+      if [ "$g" = "mbx nextest run --color never --workspace --lib --no-fail-fast" ]; then
+        printf '%s\n' "$o" > "$out/_nofailfast.txt"
+      fi
     done
     echo "REGATE_COMPLETE"     # sentinel: `pgrep` does not exist in git-bash,
   } > "$out/_regate.txt" 2>&1  # so never wait on a process, wait on this line.
