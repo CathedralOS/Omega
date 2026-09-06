@@ -1564,7 +1564,10 @@ finite structural graph consists of records and nonempty literal fixed arrays.
 Pairwise prefix-disjoint, nonempty paths may mix record fields and literal
 indices through source-ordered one-parameter ordinary Unit calls. Structural
 fields carry cleanup; scalar, floating-point, and bounded-owned-byte record
-fields retain their existing no-cleanup treatment. Claims, content, borrowed
+fields retain their existing no-cleanup treatment. Range and arithmetic-policy
+constraints on a primitive field do not change that ownership classification;
+the source classifier must still reject references to those same carriers.
+Claims, content, borrowed
 fields, nominal `drop`, cases, dynamic indices, and projected result storage are
 not admitted by this route. Indexed transfers retain contract-free callers and
 exact ordinary Unit disposers as callees.
