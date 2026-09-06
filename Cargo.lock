@@ -94,7 +94,6 @@ version = "0.1.0"
 dependencies = [
  "calling-conventions",
  "checked-trees",
- "core",
  "diagnostics",
  "effects",
  "executable-installation",
@@ -426,7 +425,6 @@ dependencies = [
  "checked-trees",
  "checked-trees-to-lowered-psi",
  "compilation-report",
- "core",
  "diagnostics",
  "effects",
  "executable-installation",
@@ -538,10 +536,6 @@ dependencies = [
  "terminal-fuel",
  "terminal-psi",
 ]
-
-[[package]]
-name = "core"
-version = "0.1.0"
 
 [[package]]
 name = "cpufeatures"
@@ -1175,7 +1169,6 @@ name = "object-file"
 version = "0.1.0"
 dependencies = [
  "arena",
- "core",
  "function-identity",
  "machine-code",
  "machine-emission",
@@ -1193,11 +1186,11 @@ dependencies = [
 name = "omega"
 version = "0.1.0"
 dependencies = [
+ "artifacts",
  "cap-std",
  "checked-interpreter",
  "checked-trees-to-lowered-psi",
  "compiler",
- "core",
  "diagnostics",
  "lowered-psi",
  "lowered-psi-to-lowered-psi",

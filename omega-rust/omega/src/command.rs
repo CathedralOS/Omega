@@ -9,11 +9,11 @@ mod tests;
 
 use std::path::PathBuf;
 
+use artifacts::allocations::CountingAllocator;
 use compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileRequest, OptimizationRollback,
     RequestedCompileProduct, compile,
 };
-use core::allocations::CountingAllocator;
 
 #[global_allocator]
 static GLOBAL_ALLOCATOR: CountingAllocator = CountingAllocator::system();

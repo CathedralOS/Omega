@@ -42,7 +42,6 @@ members = [
     "omega-rust/psi/semantics/build-time-evaluation",
     "omega-rust/psi/semantics/validation",
     "omega-rust/psi/semantics/proof",
-    "omega-rust/omega/representations/core",
     "omega-rust/omega/representations/optimization-core",
     "omega-rust/omega/tooling/bounded-process",
     "omega-rust/omega/tooling/platform-custody",

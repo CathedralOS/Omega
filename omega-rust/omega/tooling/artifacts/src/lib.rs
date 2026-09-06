@@ -54,7 +54,8 @@
 
 use std::path::{Path, PathBuf};
 
-use core::allocations::AllocationDelta;
+use allocations::AllocationDelta;
+pub mod allocations;
 mod artifact_writer;
 mod calling_plan_json;
 #[cfg(any(test, feature = "external-root-report"))]

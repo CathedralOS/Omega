@@ -2,7 +2,6 @@
 //! names, and the lookups that answer with an invalid handle when two rows match.
 
 use crate::{ObjectPlan, ObjectSymbolHandle, SectionKind, SymbolPlan, SymbolSection};
-use core::runtime_storage::RuntimeStorageRegion;
 use function_identity::MachineFunctionIdentity;
 use target::{NativeTarget, NormalizedForeignLocator, ObjectFormat};
 
@@ -143,24 +142,6 @@ pub fn symbol_section_name(target: NativeTarget, section: SymbolSection) -> Stri
     match section {
         SymbolSection::None => String::new(),
         SymbolSection::Section(kind) => section_name(target, kind),
-    }
-}
-
-pub fn machine_storage_symbol_name(machine_name: &str) -> String {
-    format!("omega_machine_{machine_name}_storage")
-}
-
-pub fn runtime_frame_storage_symbol_name() -> String {
-    "omega_runtime_frame_storage".to_owned()
-}
-
-pub fn storage_region_symbol_name(
-    region: RuntimeStorageRegion,
-    entry_machine_name: &str,
-) -> String {
-    match region {
-        RuntimeStorageRegion::Machine => machine_storage_symbol_name(entry_machine_name),
-        RuntimeStorageRegion::RuntimeFrame => runtime_frame_storage_symbol_name(),
     }
 }
 

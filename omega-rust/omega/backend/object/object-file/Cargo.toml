@@ -13,7 +13,6 @@ machine-emission = { path = "../../machine-emission" }
 terminal-psi-to-abstract-operations = { path = "../../../pipeline/terminal-psi-to-abstract-operations" }
 terminal-codec = { path = "../../../../psi/semantics/terminal-codec" }
 machine-code = { path = "../../../representations/machine-code" }
-core = { path = "../../../representations/core" }
 function-identity = { path = "../../../representations/function-identity" }
 optimization-core = { path = "../../../representations/optimization-core" }
 selected-instructions = { path = "../../../representations/selected-instructions" }

@@ -25,6 +25,9 @@ is retained in [Bootstrap chain alternatives](../design_briefs/bootstrap_chain_a
 - Keep coordinators boring: sequence typed phases and stop. Artifact writing,
   package loading, build evaluation, deployment, and reports belong to their
   named subsystems.
+- Compiler allocation counters and phase-report deltas belong to
+  `omega/tooling/artifacts`, not a program representation or dependency-floor
+  `core` crate. The product installs that owner's allocator wrapper.
 - Do not add a crate until a module boundary has stopped moving.
 
 ## Representation entrances and ownership
@@ -148,7 +151,6 @@ Omega/
 |   |
 |   `-- [CRATE] omega/                                   # Current Rust `omega` product command.
 |       |-- representations/                             # Durable, target-independent carriers and evidence.
-|       |   |-- [CRATE] core/
 |       |   |-- [CRATE] target/
 |       |   |-- [CRATE] calling-conventions/
 |       |   |-- [CRATE] {abstract,target,legalized,assigned-target}-operations/
