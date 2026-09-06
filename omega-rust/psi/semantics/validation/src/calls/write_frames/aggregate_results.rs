@@ -2,9 +2,10 @@
 //! supplies structure, never a caller storage origin or permission to borrow it.
 
 use super::path_instantiation::aggregate_arguments::{
-    AggregateOrigins, ReferenceLeaf, reference_leaves_with_origins,
+    AggregateOrigins, AggregateResolver, ReferenceLeaf, ReferenceResolver,
+    reference_leaves_with_origins,
 };
-use super::stored_origins::{canonical_reference_origins, reference_leaves_before_statement};
+use super::stored_origins::canonical_reference_origins;
 use super::{
     Machine, StatementNode, TableCallExpression, TopLevelSymbols, TypeReferenceHandle, TypedTrees,
     machine_state_by_symbol, walk_state_write_prefix,
@@ -22,11 +23,47 @@ pub(super) fn call_result_origins(
     expected: TypeReferenceHandle,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
+    include_shared: bool,
+    resolve_reference: &ReferenceResolver<'_>,
+    resolve_origins: &AggregateResolver<'_>,
 ) -> Option<AggregateOrigins> {
     // A stale or missing selected target cannot be repaired by its spelling.
     let (machine, state) = machine_state_by_symbol(program, call.target_symbol)?;
     let parameters = program.state_parameters(state);
     let arguments = program.expression_table.expression_handles(call.arguments);
+    if include_shared
+        && arguments
+            .iter()
+            .copied()
+            .chain(call.receiver.is_valid().then_some(call.receiver))
+            .any(|expression| {
+                super::local_aliases::expression_has_exclusive_borrow(
+                    program,
+                    expression,
+                    &|target| {
+                        let Some((state, _, _)) = super::caller_aliases::caller_statement_at_site(
+                            program,
+                            caller_machine,
+                            super::caller_aliases::CallerWriteSite::Expression(target),
+                        ) else {
+                            return true;
+                        };
+                        crate::places::declared_place_type_raw(
+                            program,
+                            caller_machine,
+                            Some(state),
+                            target,
+                        )
+                        .is_none_or(|reference| {
+                            super::type_reference_is_reference(program, reference)
+                        })
+                    },
+                )
+            })
+    {
+        // A proven returned leaf cannot excuse exposure in another operand.
+        return None;
+    }
     if inference.active_states.contains(&state.symbol)
         || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !machine.body_is_present
@@ -38,7 +75,7 @@ pub(super) fn call_result_origins(
                 .iter()
                 .filter(|parameter| !parameter.is_self)
                 .count()
-        || !crate::type_references::type_references_match(program, state.return_type, expected)
+        || !super::isolation::aggregate_storage_types_match(program, state.return_type, expected)
     {
         return None;
     }
@@ -68,7 +105,7 @@ pub(super) fn call_result_origins(
     {
         return None;
     }
-    input_moves::validate_frozen_inputs(program, machine, state)?;
+    input_moves::validate_frozen_inputs(program, machine, state, include_shared)?;
     // The shared transfer freezes local aliases and carrier leaves. Incoming
     // reference bindings also anchor this exported relation and cannot be
     // exposed for replacement anywhere in the helper, including a terminal
@@ -134,7 +171,7 @@ pub(super) fn call_result_origins(
             symbols,
             inference,
             &mut Vec::new(),
-            None,
+            include_shared.then_some(super::StateWriteQuery::ReferenceResult),
         )?;
         for local in &context.stored {
             inference.record_local(local);
@@ -147,14 +184,30 @@ pub(super) fn call_result_origins(
             "",
             symbols,
             inference,
-            false,
-            &|expression, _, inference| {
-                super::reference_origins::exclusive_reference_origin(
-                    program, machine, expression, symbols, inference,
-                )
+            include_shared,
+            &|expression, reference, implicit_borrow, inference| {
+                if include_shared {
+                    super::reference_subjects::value_origin(
+                        program,
+                        machine,
+                        expression,
+                        symbols,
+                        inference,
+                        &context.aliases,
+                        &context.stored,
+                        implicit_borrow,
+                    )
+                    .or_else(|| {
+                        super::reference_subjects::unknown_readonly_origin(program, reference, "")
+                    })
+                } else {
+                    super::reference_origins::exclusive_reference_origin(
+                        program, machine, expression, symbols, inference,
+                    )
+                }
             },
             &|expression, reference, _| {
-                reference_leaves_before_statement(
+                super::stored_origins::reference_leaves_before_statement_for_query(
                     program,
                     state,
                     result_statement,
@@ -162,6 +215,7 @@ pub(super) fn call_result_origins(
                     reference,
                     Some(&context.stored),
                     None,
+                    include_shared,
                 )
             },
         )?;
@@ -199,9 +253,21 @@ pub(super) fn call_result_origins(
         &mut relative,
         symbols,
         inference,
+        include_shared,
+        resolve_reference,
+        resolve_origins,
     )?;
     returned.cases.extend(relative.cases);
     for leaf in relative.references {
+        if include_shared
+            && !leaf.origin.source.root.is_valid()
+            && leaf.origin.precision == super::FramePathPrecision::CollectionCoarse
+        {
+            // A shared unknown is still a leaf, not an empty result footprint.
+            // Mutable unknowns cannot be issued by the reference resolver.
+            returned.references.push(leaf);
+            continue;
+        }
         let parameter = parameters.iter().find(|parameter| {
             leaf.origin.source.root == parameter.symbol
                 || (parameter.is_self && leaf.origin.source.root == machine.symbol)
@@ -224,6 +290,9 @@ pub(super) fn call_result_origins(
             &leaf.origin,
             symbols,
             inference,
+            include_shared,
+            resolve_reference,
+            resolve_origins,
         )? {
             returned.references.push(ReferenceLeaf {
                 local_suffix: leaf.local_suffix.clone(),

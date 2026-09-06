@@ -1,7 +1,9 @@
 //! Instantiate moved result subtrees as values, not independent possible
 //! reference leaves. A missing input case removes its entire payload together.
 
-use super::super::path_instantiation::aggregate_arguments::{AggregateOrigins, reference_leaves};
+use super::super::path_instantiation::aggregate_arguments::{
+    AggregateOrigins, AggregateResolver, ReferenceResolver, reference_leaves_with_origins,
+};
 use super::super::stored_origins::{self, StoredLocalOrigins, StoredWriteOrigin};
 use super::super::{FrameInference, Machine, TableCallExpression, TopLevelSymbols, TypedTrees};
 use facts::PlaceSegment;
@@ -12,6 +14,7 @@ pub(super) fn validate_frozen_inputs(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
+    include_shared: bool,
 ) -> Option<()> {
     let inputs = program
         .state_parameters(state)
@@ -22,13 +25,16 @@ pub(super) fn validate_frozen_inputs(
             {
                 return None;
             }
-            stored_origins::declared_origins(
+            stored_origins::declared_origins_for_query(
                 program,
                 parameter.symbol,
                 parameter.name.as_str(),
                 parameter.type_reference,
+                include_shared,
             )
-            .filter(|origins| !origins.cases.is_empty())
+            .filter(|origins| {
+                !origins.cases.is_empty() || (include_shared && !origins.references.is_empty())
+            })
         })
         .collect::<Vec<_>>();
     if inputs.is_empty() {
@@ -55,6 +61,9 @@ pub(super) fn instantiate_moves(
     relative: &mut AggregateOrigins,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
+    include_shared: bool,
+    resolve_reference: &ReferenceResolver<'_>,
+    resolve_origins: &AggregateResolver<'_>,
 ) -> Option<AggregateOrigins> {
     let parameters = program.state_parameters(state);
     let arguments = program.expression_table.expression_handles(call.arguments);
@@ -66,7 +75,7 @@ pub(super) fn instantiate_moves(
             .enumerate()
             .find(|(_, parameter)| parameter.symbol == moved.source.root)?;
         if super::super::type_reference_is_reference(program, parameter.type_reference)
-            || !crate::type_references::type_references_match(
+            || !super::super::isolation::aggregate_storage_types_match(
                 program,
                 stored_origins::projected_type(
                     program,
@@ -78,7 +87,7 @@ pub(super) fn instantiate_moves(
         {
             return None;
         }
-        let actual = reference_leaves(
+        let actual = reference_leaves_with_origins(
             program,
             caller_machine,
             *arguments.get(index)?,
@@ -86,6 +95,9 @@ pub(super) fn instantiate_moves(
             "",
             symbols,
             inference,
+            include_shared,
+            resolve_reference,
+            resolve_origins,
         )?;
         let actual = StoredLocalOrigins {
             local_symbol: parameter.symbol,

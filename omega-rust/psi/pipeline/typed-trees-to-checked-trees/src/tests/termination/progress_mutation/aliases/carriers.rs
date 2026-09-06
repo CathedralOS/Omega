@@ -3,6 +3,7 @@ use super::*;
 mod adversarial;
 mod effects;
 mod queries;
+mod results;
 
 #[test]
 fn a_reference_loaded_from_a_frozen_local_carrier_keeps_its_subject() {

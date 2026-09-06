@@ -3,7 +3,7 @@ use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 
-fn typed_fixture(body: &str, extra: &str) -> typed_trees::TypedTrees {
+pub(super) fn typed_fixture(body: &str, extra: &str) -> typed_trees::TypedTrees {
     let source = fixture_source(
         &format!("{body} transition {{ _ -> 0 }}"),
         true,
@@ -16,7 +16,7 @@ fn typed_fixture(body: &str, extra: &str) -> typed_trees::TypedTrees {
     lower_symbol_resolved_trees(&resolved).unwrap()
 }
 
-fn assert_origin(program: &typed_trees::TypedTrees, expected: Option<&str>) {
+pub(super) fn assert_origin(program: &typed_trees::TypedTrees, expected: Option<&str>) {
     let machine = program
         .machines()
         .iter()
@@ -89,7 +89,13 @@ fn an_unknown_shared_leaf_does_not_supply_or_obscure_a_known_sibling() {
             ),
             "data Carrier { context: &Context; }
              data Pair { known: &Context; unknown: &Context; }
-             machine wrap(context: &Context) -> Carrier { Carrier { context: context } }",
+             machine choose(context: &Context, selected: bool) -> &Context {
+                 transition selected { true -> context false -> context }
+             }
+             machine wrap(context: &Context) -> Carrier {
+                 let chosen: &Context = choose(context, context.counter == 0);
+                 Carrier { context: chosen }
+             }",
         );
         assert_origin(&program, expected);
     }

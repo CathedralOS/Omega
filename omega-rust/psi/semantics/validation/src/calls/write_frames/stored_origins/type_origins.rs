@@ -15,6 +15,16 @@ pub(in crate::calls::write_frames) fn declared_origins(
     name: &str,
     reference: TypeReferenceHandle,
 ) -> Option<StoredLocalOrigins> {
+    declared_origins_for_query(program, symbol, name, reference, false)
+}
+
+pub(in crate::calls::write_frames) fn declared_origins_for_query(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+    name: &str,
+    reference: TypeReferenceHandle,
+    include_shared: bool,
+) -> Option<StoredLocalOrigins> {
     let mut origins = StoredLocalOrigins {
         local_symbol: symbol,
         references: Vec::new(),
@@ -38,7 +48,7 @@ pub(in crate::calls::write_frames) fn declared_origins(
             TypeReferenceNode::Reference {
                 access, referee, ..
             } => {
-                if !access.is_exclusive() {
+                if !access.is_exclusive() && !include_shared {
                     continue;
                 }
                 if !super::super::reference_origins::referent_has_only_owned_storage(

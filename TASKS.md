@@ -465,9 +465,8 @@ Owners include
   similarly shaped row mints one implicitly.
 
   Complete value origins through incoming, indexed, or replaced reference
-  carriers, shared leaves in aggregate helper results, owned helper results,
-  and reference helper results with unresolved control-flow or binding
-  transfers in
+  carriers, owned helper results, and reference-bearing helper results with
+  unresolved control-flow or binding transfers in
   `checks/termination/progress/{origins.rs,lineage.rs}`. A mutated aggregate
   cannot use root correspondence as evidence for its previous field values;
   a may-write frame cannot identify a replacement value. Extend per-field
