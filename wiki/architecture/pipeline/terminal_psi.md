@@ -3099,6 +3099,19 @@ returned scalar. Source validation rejoins the initializer, its captured call,
 the declared result carrier, and the returned local independently of operand
 graphs. The emitted root and scalar helpers retain their exact source owners.
 
+Ordinary Unit closures also retain these boundary-return bodies as callees when
+their authored entry signature is empty. The body remains a boundary-return
+plan, not a manufactured scalar graph. Its attachment, bodyless boundary,
+service ceiling, nested scalar helpers, result, and crash contract join the same
+module before identities and proofs are finalized. Repeated calls share the
+same callee; identical boundary declarations from distinct checked owners
+coalesce, while conflicting declarations reject. The caller keeps its own root
+service reach. Nested operand calls may select further empty-signature wrappers
+in this shared Unit catalog. Structural parameters and claims cannot enter the
+ordinary scalar-call lane; scalar entry formals and nontrivial scalar contracts
+remain separate source-plan work. Named-root lowering retains its existing
+structural-parameter route.
+
 Composed-control boundary leaves use the same evaluator, including the existing
 three-state, prefixed, nested acyclic, dynamic-result continuation, and closed-sum
 payload routes. The producer partitions exact outer flow calls from nested
