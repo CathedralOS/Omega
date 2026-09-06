@@ -41,6 +41,7 @@ mod foundation;
 mod frontier;
 mod machine;
 mod operations;
+mod partial_affine;
 mod proof_recursion;
 mod propositions;
 mod quotient_correspondence;
@@ -58,15 +59,13 @@ pub use error::{ContractClauseKind, ModuleError, SuspensionCallPlanError};
 use evidence::{validate_evidence_contract_lanes, validate_proposition_vocabulary};
 pub(crate) use foundation::structural_leaf_type;
 pub use foundation::{ServiceCeilingOwner, StructuralSignatureOwner};
-use foundation::{
-    is_bounded_partial_affine_path, is_nonempty_field_path, partial_affine_residuals,
-    resolve_structural_path, validate_structural_foundation,
-};
+use foundation::{is_nonempty_field_path, resolve_structural_path, validate_structural_foundation};
 pub use frontier::{
     VerifiedLiveClaim, VerifiedMachineStructuralFrontiers, VerifiedOwnedStructuralPlace,
     VerifiedPartialStructuralCustody, VerifiedStructuralOwnershipFrontier,
     VerifiedTerminalStructuralFrontiers,
 };
+use partial_affine::{is_partial_affine_path, partial_affine_residuals};
 use proof_recursion::validate_proof_recursive_components;
 pub(crate) use structural_operations::{
     exact_payloadless_case_return_exits, structural_argument_canonical_prefix,

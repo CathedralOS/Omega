@@ -2973,8 +2973,115 @@ fn retains_mixed_prefix_disjoint_field_transfers_with_maximal_residual_cleanup()
     );
 }
 
+fn fixed_cleanup_path(indexes: &[u64]) -> Vec<CheckedUnitStructuralPathSegment> {
+    indexes
+        .iter()
+        .copied()
+        .map(CheckedUnitStructuralPathSegment::FixedIndex)
+        .collect()
+}
+
+fn assert_token_cleanup_partition(
+    checked: &checked_trees::CheckedTrees,
+    machine: &str,
+    moved_paths: &[Vec<CheckedUnitStructuralPathSegment>],
+    residuals: &[(Vec<CheckedUnitStructuralPathSegment>, String)],
+) {
+    let plan = checked
+        .facts
+        .flow
+        .terminal_partial_affine_unit_cleanups
+        .for_machine(machine_named(checked, machine))
+        .unwrap_or_else(|| panic!("missing partial cleanup for {machine}"));
+    assert!(plan.machine.entry_claims.is_empty(), "{machine}");
+    let [parameter] = plan.machine.structural_parameters.as_slice() else {
+        panic!("{machine} requires exactly one structural root")
+    };
+    assert_eq!(
+        parameter.access,
+        checked_trees::CheckedStructuralAccess::Owned,
+        "{machine}"
+    );
+    assert_eq!(parameter.multiplicity, Multiplicity::Affine, "{machine}");
+    assert!(parameter.qualifications.is_empty(), "{machine}");
+    assert_eq!(
+        plan.machine.operations.len(),
+        moved_paths.len() + 1,
+        "{machine}"
+    );
+    for (ordinal, (operation, expected_path)) in
+        plan.machine.operations.iter().zip(moved_paths).enumerate()
+    {
+        let CheckedUnitEffectOperationPlan::CallUnit {
+            coordinate,
+            structural_arguments,
+            scalar_arguments,
+            claim_transfers,
+            ..
+        } = operation
+        else {
+            panic!("{machine} must preserve each authored Unit call")
+        };
+        assert_eq!(
+            usize::try_from(coordinate.statement_index),
+            Ok(ordinal),
+            "{machine}"
+        );
+        assert_eq!(coordinate.call_ordinal, 0, "{machine}");
+        assert!(
+            scalar_arguments.is_empty() && claim_transfers.is_empty(),
+            "{machine}"
+        );
+        let [argument] = structural_arguments.as_slice() else {
+            panic!("{machine} must move one projection per call")
+        };
+        assert_eq!(argument.source_parameter_index(), Some(0), "{machine}");
+        assert_eq!(
+            argument.access,
+            checked_trees::CheckedStructuralAccess::Owned,
+            "{machine}"
+        );
+        assert_eq!(
+            &argument.path, expected_path,
+            "{machine}: authored move order"
+        );
+        assert_eq!(argument.type_identity, "named(name(Token))", "{machine}");
+    }
+    let Some(CheckedUnitEffectOperationPlan::ReturnUnit {
+        statement_index,
+        trivial_affine_local_discard_ordinals,
+        trivial_affine_discards,
+    }) = plan.machine.operations.last()
+    else {
+        panic!("{machine} requires the checked Unit return")
+    };
+    assert_eq!(
+        usize::try_from(*statement_index),
+        Ok(moved_paths.len()),
+        "{machine}"
+    );
+    assert!(
+        trivial_affine_local_discard_ordinals.is_empty() && trivial_affine_discards.is_empty(),
+        "{machine}: no whole-root cleanup after projected moves"
+    );
+    let expected = residuals
+        .iter()
+        .map(
+            |(path, type_identity)| checked_trees::CheckedUnitPartialAffineDiscardPlan {
+                source_parameter_index: 0,
+                path: path.clone(),
+                type_identity: type_identity.clone(),
+            },
+        )
+        .collect::<Vec<_>>();
+    assert_eq!(
+        plan.residual_affine_discards, expected,
+        "{machine}: exact maximal residual paths, types, and cleanup order"
+    );
+}
+
 #[test]
-fn partial_cleanup_fails_closed_outside_finite_structural_record_paths() {
+fn partial_cleanup_accepts_fully_consumed_records() {
     let checked = checked(
         r#"
         data Token { value: u64; }
@@ -2995,17 +3102,9 @@ fn partial_cleanup_fails_closed_outside_finite_structural_record_paths() {
         "#,
     );
 
-    for machine in ["missing", "complete"] {
-        assert!(
-            checked
-                .facts
-                .flow
-                .terminal_partial_affine_unit_cleanups
-                .for_machine(machine_named(&checked, machine))
-                .is_none(),
-            "`{machine}` must remain outside the exact partial-cleanup slice"
-        );
-    }
+    let field = |name: &str| vec![CheckedUnitStructuralPathSegment::Field(name.to_owned())];
+    assert_token_cleanup_partition(&checked, "missing", &[field("right")], &[]);
+    assert_token_cleanup_partition(&checked, "complete", &[field("right"), field("left")], &[]);
 }
 
 #[test]
@@ -3363,22 +3462,20 @@ fn three_element_affine_array_moves_two_indices_and_discards_the_sole_residual()
         vec![2, 1],
         "live array siblings clean in decreasing index order",
     );
-    {
-        let machine = "all";
-        assert!(
-            checked
-                .facts
-                .flow
-                .terminal_partial_affine_unit_cleanups
-                .for_machine(machine_named(&checked, machine))
-                .is_none(),
-            "three moves belong to a separate no-residual rung"
-        );
-    }
+    assert_token_cleanup_partition(
+        &checked,
+        "all",
+        &[
+            fixed_cleanup_path(&[0]),
+            fixed_cleanup_path(&[1]),
+            fixed_cleanup_path(&[2]),
+        ],
+        &[],
+    );
 }
 
 #[test]
-fn affine_array_partial_cleanup_fences_other_lengths() {
+fn affine_array_partial_cleanup_accepts_one_and_five_elements() {
     let checked = checked(
         r#"
         data Token { value: u64; }
@@ -3394,17 +3491,17 @@ fn affine_array_partial_cleanup_fences_other_lengths() {
         }
         "#,
     );
-    for machine in ["one", "five"] {
-        assert!(
-            checked
-                .facts
-                .flow
-                .terminal_partial_affine_unit_cleanups
-                .for_machine(machine_named(&checked, machine))
-                .is_none(),
-            "`{machine}` remains outside the exact bounded array slice"
-        );
-    }
+    assert_token_cleanup_partition(&checked, "one", &[fixed_cleanup_path(&[0])], &[]);
+    assert_token_cleanup_partition(
+        &checked,
+        "five",
+        &[fixed_cleanup_path(&[0]), fixed_cleanup_path(&[1])],
+        &[
+            (fixed_cleanup_path(&[4]), "named(name(Token))".to_owned()),
+            (fixed_cleanup_path(&[3]), "named(name(Token))".to_owned()),
+            (fixed_cleanup_path(&[2]), "named(name(Token))".to_owned()),
+        ],
+    );
 }
 
 #[test]
@@ -3469,17 +3566,26 @@ fn four_element_affine_array_moves_two_indices_and_discards_the_complement_decre
             "the compiler emits the live complement in decreasing index order",
         );
     }
-    for machine in ["one", "three"] {
-        assert!(
-            checked
-                .facts
-                .flow
-                .terminal_partial_affine_unit_cleanups
-                .for_machine(machine_named(&checked, machine))
-                .is_none(),
-            "the quartet rung admits exactly two moves",
-        );
-    }
+    assert_token_cleanup_partition(
+        &checked,
+        "one",
+        &[fixed_cleanup_path(&[0])],
+        &[
+            (fixed_cleanup_path(&[3]), "named(name(Token))".to_owned()),
+            (fixed_cleanup_path(&[2]), "named(name(Token))".to_owned()),
+            (fixed_cleanup_path(&[1]), "named(name(Token))".to_owned()),
+        ],
+    );
+    assert_token_cleanup_partition(
+        &checked,
+        "three",
+        &[
+            fixed_cleanup_path(&[0]),
+            fixed_cleanup_path(&[1]),
+            fixed_cleanup_path(&[2]),
+        ],
+        &[(fixed_cleanup_path(&[3]), "named(name(Token))".to_owned())],
+    );
 }
 
 #[test]
@@ -4295,47 +4401,85 @@ fn nested_affine_arrays_discard_each_live_complement_in_decreasing_index_order()
         ],
         "length-sixteen outer and inner live complements both descend",
     );
-    for machine in [
-        "same_outer",
-        "one",
-        "same_outer_four",
-        "one_four",
-        "same_outer_five",
-        "one_five",
-        "same_outer_six",
-        "one_six",
-        "same_outer_seven",
-        "one_seven",
-        "same_outer_eight",
-        "one_eight",
-        "same_outer_nine",
-        "one_nine",
-        "same_outer_ten",
-        "one_ten",
-        "same_outer_eleven",
-        "one_eleven",
-        "same_outer_twelve",
-        "one_twelve",
-        "same_outer_thirteen",
-        "one_thirteen",
-        "same_outer_fourteen",
-        "one_fourteen",
-        "same_outer_fifteen",
-        "one_fifteen",
-        "same_outer_sixteen",
-        "one_sixteen",
-        "too_wide",
+    for (same_outer, one_move, length, second_move) in [
+        ("same_outer", "one", 3, 1),
+        ("same_outer_four", "one_four", 4, 3),
+        ("same_outer_five", "one_five", 5, 4),
+        ("same_outer_six", "one_six", 6, 5),
+        ("same_outer_seven", "one_seven", 7, 6),
+        ("same_outer_eight", "one_eight", 8, 7),
+        ("same_outer_nine", "one_nine", 9, 8),
+        ("same_outer_ten", "one_ten", 10, 9),
+        ("same_outer_eleven", "one_eleven", 11, 10),
+        ("same_outer_twelve", "one_twelve", 12, 11),
+        ("same_outer_thirteen", "one_thirteen", 13, 12),
+        ("same_outer_fourteen", "one_fourteen", 14, 13),
+        ("same_outer_fifteen", "one_fifteen", 15, 14),
+        ("same_outer_sixteen", "one_sixteen", 16, 15),
     ] {
-        assert!(
-            checked
-                .facts
-                .flow
-                .terminal_partial_affine_unit_cleanups
-                .for_machine(machine_named(&checked, machine))
-                .is_none(),
-            "`{machine}` remains outside the exact nested-array rung",
+        let array_type = format!("array(named(name(Token)),literal({length}))");
+        // Outer element 1 is untouched and remains one maximal array root.
+        let mut residuals = vec![(fixed_cleanup_path(&[1]), array_type.clone())];
+        residuals.extend(
+            (1..length)
+                .rev()
+                .filter(|index| *index != second_move)
+                .map(|index| {
+                    (
+                        fixed_cleanup_path(&[0, index]),
+                        "named(name(Token))".to_owned(),
+                    )
+                }),
+        );
+        assert_token_cleanup_partition(
+            &checked,
+            same_outer,
+            &[
+                fixed_cleanup_path(&[0, 0]),
+                fixed_cleanup_path(&[0, second_move]),
+            ],
+            &residuals,
+        );
+
+        // Outer element 1 cleans first; untouched element 0 stays whole and last.
+        let mut residuals = (0..length - 1)
+            .rev()
+            .map(|index| {
+                (
+                    fixed_cleanup_path(&[1, index]),
+                    "named(name(Token))".to_owned(),
+                )
+            })
+            .collect::<Vec<_>>();
+        residuals.push((fixed_cleanup_path(&[0]), array_type));
+        assert_token_cleanup_partition(
+            &checked,
+            one_move,
+            &[fixed_cleanup_path(&[1, length - 1])],
+            &residuals,
         );
     }
+    let mut residuals = (0..16)
+        .rev()
+        .map(|index| {
+            (
+                fixed_cleanup_path(&[1, index]),
+                "named(name(Token))".to_owned(),
+            )
+        })
+        .collect::<Vec<_>>();
+    residuals.extend((0..17).rev().filter(|index| *index != 1).map(|index| {
+        (
+            fixed_cleanup_path(&[0, index]),
+            "named(name(Token))".to_owned(),
+        )
+    }));
+    assert_token_cleanup_partition(
+        &checked,
+        "too_wide",
+        &[fixed_cleanup_path(&[1, 16]), fixed_cleanup_path(&[0, 1])],
+        &residuals,
+    );
 }
 
 #[test]

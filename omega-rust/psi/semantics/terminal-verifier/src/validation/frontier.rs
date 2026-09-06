@@ -474,12 +474,7 @@ pub(super) fn validate_structural_frontier(
                         place: argument.place,
                     });
                 }
-                if projected_fixed_array_root_is_fully_consumed(
-                    module,
-                    machine,
-                    &frontier,
-                    argument.place,
-                ) {
+                if projected_root_is_fully_consumed(module, machine, &frontier, argument.place) {
                     frontier.owned_places.remove(&argument.place);
                     frontier.partial_custody_paths.remove(&argument.place);
                 }
@@ -660,7 +655,12 @@ pub(super) fn validate_structural_frontier(
                     .iter()
                     .find(|parameter| parameter.place == root_place)
                     .and_then(|parameter| {
-                        partial_affine_residuals(module, parameter.structural_type, &moved)
+                        partial_affine_residuals(
+                            module,
+                            parameter.structural_type,
+                            &moved,
+                            residual_affine_discards.len(),
+                        )
                     });
                 if moved.is_empty()
                     || expected_residuals.as_ref().is_none_or(|expected| {
@@ -953,7 +953,7 @@ fn require_snapshot_match(
     Ok(())
 }
 
-fn projected_fixed_array_root_is_fully_consumed(
+fn projected_root_is_fully_consumed(
     module: &TerminalModule,
     machine: &TerminalMachine,
     frontier: &StructuralOwnershipFrontier,
@@ -973,7 +973,19 @@ fn projected_fixed_array_root_is_fully_consumed(
     {
         return false;
     }
-    let Some(StructuralTypeShape::FixedArray { element, length }) = module
+    if parameter.multiplicity == StructuralMultiplicity::Affine {
+        return !parameter.is_self
+            && parameter.access == StructuralAccess::Owned
+            && parameter.qualifications.is_empty()
+            && frontier
+                .partial_custody_paths
+                .get(&place)
+                .is_some_and(|moved| {
+                    partial_affine_residuals(module, parameter.structural_type, moved, 0)
+                        .is_some_and(|residuals| residuals.is_empty())
+                });
+    }
+    let Some(StructuralTypeShape::FixedArray { length, .. }) = module
         .structural_types
         .iter()
         .find(|declaration| declaration.id == parameter.structural_type)
@@ -984,21 +996,7 @@ fn projected_fixed_array_root_is_fully_consumed(
     let Some(length) = usize::try_from(*length).ok() else {
         return false;
     };
-    if parameter.multiplicity != StructuralMultiplicity::Linear
-        && (parameter.multiplicity != StructuralMultiplicity::Affine
-            || parameter.is_self
-            || parameter.access != StructuralAccess::Owned
-            || !parameter.qualifications.is_empty()
-            || length != 2
-            || !matches!(
-                module
-                    .structural_types
-                    .iter()
-                    .find(|declaration| declaration.id == *element)
-                    .map(|declaration| &declaration.shape),
-                Some(StructuralTypeShape::Record { .. })
-            ))
-    {
+    if parameter.multiplicity != StructuralMultiplicity::Linear {
         return false;
     }
     let Some(moved) = frontier.partial_custody_paths.get(&place) else {
@@ -1025,6 +1023,7 @@ fn validate_scalar_cleanup_actions(
         block,
     };
     let mut frontier = frontier.clone();
+    let max_residuals = actions.len();
     let mut actions = actions.iter();
 
     let mut locals = machine
@@ -1066,7 +1065,7 @@ fn validate_scalar_cleanup_actions(
         }
         if let Some(moved) = frontier.partial_custody_paths.remove(&parameter.place) {
             let Some(residuals) =
-                partial_affine_residuals(module, parameter.structural_type, &moved)
+                partial_affine_residuals(module, parameter.structural_type, &moved, max_residuals)
             else {
                 return Err(mismatch());
             };

@@ -63,7 +63,7 @@ pub(super) fn validate_partial_affine_cleanup_shape(
                                 .find(|parameter| parameter.place == argument.place)
                                 .is_some_and(|parameter| {
                                     parameter.multiplicity == StructuralMultiplicity::Affine
-                                        && is_bounded_partial_affine_path(
+                                        && is_partial_affine_path(
                                             module,
                                             parameter.structural_type,
                                             &argument.path,
@@ -122,12 +122,20 @@ pub(super) fn validate_partial_affine_cleanup_shape(
     let [root] = machine.structural_parameters.as_slice() else {
         unreachable!()
     };
-    let fixed_array_root = module
+    let indexed_projection = module
         .structural_types
         .iter()
         .find(|declaration| declaration.id == root.structural_type)
         .is_some_and(|declaration| {
             matches!(declaration.shape, StructuralTypeShape::FixedArray { .. })
+        })
+        || field_calls.iter().any(|(_, _, _, arguments, _)| {
+            arguments.iter().any(|argument| {
+                argument
+                    .path
+                    .iter()
+                    .any(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)))
+            })
         });
     if root.multiplicity != StructuralMultiplicity::Affine
         || !root.qualifications.is_empty()
@@ -173,28 +181,12 @@ pub(super) fn validate_partial_affine_cleanup_shape(
             || callee_parameter.is_self
             || callee_parameter.access != StructuralAccess::Owned
             || !callee_parameter.qualifications.is_empty()
-            || (fixed_array_root && !exact_fixed_array_element_sink(callee, moved_type))
+            || (indexed_projection && !exact_fixed_array_element_sink(callee, moved_type))
         {
             return Err(invalid(block.id));
         }
     }
     if partial_block.is_none() {
-        let Some(StructuralTypeShape::FixedArray { element, length: 2 }) = module
-            .structural_types
-            .iter()
-            .find(|declaration| declaration.id == root.structural_type)
-            .map(|declaration| &declaration.shape)
-        else {
-            return Err(invalid(block.id));
-        };
-        let element_is_record = module.structural_types.iter().any(|declaration| {
-            declaration.id == *element
-                && matches!(declaration.shape, StructuralTypeShape::Record { .. })
-        });
-        let expected_paths = BTreeSet::from([
-            vec![StructuralPathSegment::FixedIndex(0)],
-            vec![StructuralPathSegment::FixedIndex(1)],
-        ]);
         let Terminator::ReturnUnit {
             trivial_affine_discards,
             ..
@@ -204,12 +196,11 @@ pub(super) fn validate_partial_affine_cleanup_shape(
         };
         if machine.blocks.len() != 1
             || !block.parameters.is_empty()
-            || field_calls.len() != 2
             || root.position != 0
             || root.is_self
             || root.access != StructuralAccess::Owned
-            || !element_is_record
-            || moved_paths != expected_paths
+            || partial_affine_residuals(module, root.structural_type, &moved_paths, 0)
+                .is_none_or(|residuals| !residuals.is_empty())
             || !trivial_affine_discards.is_empty()
             || !machine.published_service_ceiling.is_empty()
             || !machine.contract.requires.is_empty()
@@ -220,9 +211,18 @@ pub(super) fn validate_partial_affine_cleanup_shape(
         }
         return Ok(());
     }
-    let Some(expected_residuals) =
-        partial_affine_residuals(module, root.structural_type, &moved_paths)
-    else {
+    let Some(expected_residuals) = partial_affine_residuals(
+        module,
+        root.structural_type,
+        &moved_paths,
+        match &block.terminator {
+            Terminator::ReturnUnitPartialAffine {
+                residual_affine_discards,
+                ..
+            } => residual_affine_discards.len(),
+            _ => 0,
+        },
+    ) else {
         return Err(invalid(block.id));
     };
     let Terminator::ReturnUnitPartialAffine {
@@ -233,7 +233,7 @@ pub(super) fn validate_partial_affine_cleanup_shape(
     else {
         unreachable!()
     };
-    if (fixed_array_root
+    if (indexed_projection
         && (machine.blocks.len() != 1
             || block.id != machine.entry
             || !block.parameters.is_empty()

@@ -613,7 +613,23 @@ fn affine_triple_residuals_follow_the_exact_decreasing_live_index_order() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
 
-    assert!(checked_trees_to_lowered_psi::lower_machine(&checked, "Root::all").is_err());
+    let all = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::all")
+        .expect("three moves completely consume the triple");
+    let all_entry = all
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == all.semantic_module.entry)
+        .unwrap();
+    assert!(matches!(&all_entry.blocks[0].terminator,
+        Terminator::ReturnUnit { trivial_affine_discards, .. }
+            if trivial_affine_discards.is_empty()));
+    terminal_verifier::verify_module(
+        &all.semantic_module,
+        &all.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("complete triple transfer verifies without cleanup");
 
     let one = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::one")
         .expect("one triple move and two ordered residuals lower");
