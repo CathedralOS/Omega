@@ -91,7 +91,9 @@ pub(super) fn propagate_statement_transfers(
             .filter_map(|reference| {
                 let fact = *semantic.facts.get(reference.fact);
                 match fact.payload {
-                    FactPayload::AssignedValue { .. } | FactPayload::AssignedScalarValue { .. } => {
+                    FactPayload::AssignedValue { .. }
+                    | FactPayload::AssignedScalarValue { .. }
+                    | FactPayload::BytePredicate { .. } => {
                         if !stable_value_target {
                             return None;
                         }
