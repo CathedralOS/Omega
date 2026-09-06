@@ -1101,9 +1101,9 @@ pub(super) enum StructuralArgumentSourcePolicy {
     OnlyParameters,
     ParametersOrByteSequenceLiterals,
     /// Unit and scalar-result calls retain construction locals and whole
-    /// ordinary affine results.
+    /// ordinary and boundary affine results.
     ParametersOrAffineLocalsAndCallResults,
-    /// Whole record establishments and claim-free affine identity call results.
+    /// Whole record establishments and claim-free affine call results.
     /// Frontier validation separately requires their producer to have run.
     ParametersOrAffineOperationResults,
 }
@@ -1198,6 +1198,7 @@ pub(super) fn validate_structural_arguments(
                                         ) || (matches!(
                                                 operation.kind,
                                                 OperationKind::CallStructuralWithScalarArguments { .. }
+                                                    | OperationKind::BoundaryCall { .. }
                                             )
                                             && argument.access == StructuralAccess::Owned
                                             && expected.access == StructuralAccess::Owned

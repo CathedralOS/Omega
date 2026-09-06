@@ -574,6 +574,8 @@ Owners include
   Extend structural actuals of scalar-returning boundary callees to construction
   carriers beyond the existing empty-record prefix and single-i64-field local
   in ordinary Unit call closures.
+  Extend boundary-produced local operands to direct boundary consumers and
+  borrowed/projected routes without losing their exact result owner.
   Rejoin exact source/evaluation custody and remove only the cleanup transferred
   by the call; linear structural-result claims need their owning result plan.
   Complete mixed-signature runtime requirement transport for call-bearing

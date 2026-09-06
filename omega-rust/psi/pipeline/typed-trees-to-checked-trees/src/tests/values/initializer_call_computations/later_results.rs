@@ -484,3 +484,89 @@ fn later_boundary_structural_eligibility_keeps_ownership_and_target_fences() {
         local.initial_value
     ));
 }
+
+#[test]
+fn boundary_structural_results_transfer_once_through_existing_affine_consumers() {
+    for forward in [false, true] {
+        let completion = if forward {
+            "let moved: Packet = forward(result); Root::consume(moved);"
+        } else {
+            "Root::consume(result);"
+        };
+        let source = format!(
+            "{} machine Root::consume(packet: Packet) {{}}
+             machine forward(packet: Packet) -> Packet {{ packet }}",
+            BOUNDARY_STRUCTURAL_SEQUENCE.replace(
+                "Sink::produce(numeric(prior), prior);",
+                &format!("Sink::produce(numeric(prior), prior); {completion}")
+            )
+        );
+        let checked = lower_typed_trees(typed_trees(&source)).expect("affine result moves");
+        let machine = caller(&checked);
+        let plan = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine.symbol)
+            .unwrap();
+        let results = plan
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                    result,
+                    discard_result_on_return,
+                    ..
+                }
+                | CheckedUnitEffectOperationPlan::StructuralCall {
+                    result,
+                    discard_result_on_return,
+                    ..
+                } => Some((result.binding_ordinal, *discard_result_on_return)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            results,
+            if forward {
+                vec![(0, false), (1, false)]
+            } else {
+                vec![(0, false)]
+            }
+        );
+        let sources = plan
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::StructuralCall {
+                    structural_arguments,
+                    ..
+                }
+                | CheckedUnitEffectOperationPlan::CallUnit {
+                    structural_arguments,
+                    ..
+                } => {
+                    let [argument] = structural_arguments.as_slice() else {
+                        return None;
+                    };
+                    argument.source_structural_result_binding_ordinal()
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(sources, if forward { vec![0, 1] } else { vec![0] });
+        let repeated = source
+            .replace(
+                "Root::consume(result);",
+                "Root::consume(result); Root::consume(result);",
+            )
+            .replace(
+                "Root::consume(moved);",
+                "Root::consume(moved); Root::consume(moved);",
+            );
+        assert!(
+            lower_typed_trees(typed_trees(&repeated)).is_err(),
+            "second owned move must reject"
+        );
+    }
+}

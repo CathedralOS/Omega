@@ -1,4 +1,4 @@
-//! Exact source bindings and final custody of ordinary structural call results.
+//! Exact source bindings and final custody of structural call results.
 
 use super::*;
 use checked_trees::CheckedUnitStructuralResultBindingPlan;
@@ -25,6 +25,12 @@ fn producer(
                     result,
                     discard_result_on_return,
                     ..
+                }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                    coordinate,
+                    result,
+                    discard_result_on_return,
+                    ..
                 } if result.binding_ordinal == binding_ordinal => Some(Producer {
                     operation_index,
                     coordinate: *coordinate,
@@ -34,7 +40,7 @@ fn producer(
                 _ => None,
             });
     let result = matches.next().ok_or(LoweringError::Unsupported(
-        "Unit structural result argument has no exact ordinary producer binding",
+        "Unit structural result argument has no exact producer binding",
     ))?;
     if matches.next().is_some() {
         return unsupported("Unit structural result argument has ambiguous producer bindings");
@@ -182,12 +188,18 @@ pub(crate) fn validate_consumer(
         // Check both directions: an authored result cannot be replaced with a
         // same-typed parameter or construction-local plan.
         for candidate in &caller.operations {
-            let CheckedUnitEffectOperationPlan::StructuralCall {
+            let (CheckedUnitEffectOperationPlan::StructuralCall {
                 coordinate: producer_coordinate,
                 source_site,
                 result,
                 ..
-            } = candidate
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                coordinate: producer_coordinate,
+                source_site,
+                result,
+                ..
+            }) = candidate
             else {
                 continue;
             };
@@ -212,7 +224,10 @@ pub(crate) fn validate_consumer(
                 expression.is_some_and(|expression| {
                     matches!(
                         checked.expression_table.expression(expression),
-                        ExpressionNode::Name(name) if name.symbol == local.symbol
+                        ExpressionNode::Name(name)
+                            if name.symbol == local.symbol
+                                && name.head_symbol == local.symbol
+                                && checked.expression_table.name_path_members(name.members).len() == 1
                     )
                 })
             } else {

@@ -402,6 +402,27 @@ fn later_structural_boundary_calls_retain_nominal_requirement_targets() {
 }
 
 #[test]
+fn boundary_result_moves_into_a_later_ordinary_unit_call() {
+    let source = format!(
+        "{}\nmachine Main::consume(token: Token) {{}}",
+        multiple_structural_source().replace(
+            "Host::finish(between);",
+            "Host::finish(between); Main::consume(first);"
+        )
+    );
+    let artifact = encoded_locals(
+        &checked(&source),
+        &["prefix", "chosen", "first", "between", "second"],
+    );
+    let mut observer = ObserveResults::default();
+    assert_eq!(
+        execute(&artifact, &[], &mut observer).unwrap(),
+        TerminalExecutionResult::Unit
+    );
+    assert_eq!(observer.calls.len(), 6);
+}
+
+#[test]
 fn boundary_and_ordinary_results_share_ordinals_without_sharing_forwarding_custody() {
     let source = format!(
         "machine forward(token: Token, count: u16) -> Token {{ token }}\nmachine Main::consume(token: Token) {{}}\n{}",
