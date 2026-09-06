@@ -66,6 +66,26 @@ pub struct CheckedTerminalStateDebugPlan {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedScalarGraphPlans {
     pub machines: Vec<CheckedScalarMachineGraph>,
+    pub parameter_storage: arena::Arena<CheckedScalarParameterStorage>,
+}
+
+/// One owned mutable primitive seeded from the current state's incoming value.
+/// The ordinal retains the authored parameter slot, including immutable peers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedScalarParameterStorage {
+    pub parameter_ordinal: u32,
+    pub symbol: SymbolHandle,
+    pub primitive_type: PrimitiveType,
+}
+
+impl Default for CheckedScalarParameterStorage {
+    fn default() -> Self {
+        Self {
+            parameter_ordinal: 0,
+            symbol: SymbolHandle::invalid(),
+            primitive_type: PrimitiveType::Bool,
+        }
+    }
 }
 
 impl CheckedScalarGraphPlans {
@@ -84,6 +104,7 @@ pub struct CheckedScalarMachineGraph {
 pub struct CheckedScalarStateGraph {
     pub state: SymbolHandle,
     pub parameter_types: Vec<PrimitiveType>,
+    pub parameter_storage: arena::HandleSpan<CheckedScalarParameterStorage>,
     pub bindings: Vec<CheckedScalarBinding>,
     pub result_type: PrimitiveType,
     pub terminator: CheckedScalarStateTerminator,

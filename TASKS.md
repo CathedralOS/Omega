@@ -542,11 +542,21 @@ Owners include
   calls, boundary calls, and aggregate-element destinations, plus the remaining
   numeric operator/policy surface, so proof and execution
   consume the same values without rereading changed operands.
-  Finish executable scalar call-argument plans for mutable owned parameters;
-  their declared initial carrier must not be confused with an immutable formal's
-  value throughout the callee. Acceptance: the delivered value is materialized
+  Extend mutable owned parameter execution to the remaining scalar carriers and
+  service-reaching Unit bodies, with their current storage represented through
+  effects and state transfers. Acceptance: the delivered value is materialized
   once, reassignment changes subsequent reads, and a final guarantee about that
   mutable formal cannot prove equality with its earlier argument value.
+  Use declared entry requirements to establish compatible crash-route coverage.
+  Acceptance: `requires flag` can cover an unconditional site under `crashes Trap
+  flag`, while changing a mutable body binding cannot establish a route that was
+  false at entry.
+  Retain exact entry-value origins for mutable scalar guard operands so unchanged
+  entry values can establish published crash routes; a current storage predicate
+  alone is not entry-snapshot evidence.
+  Lower nonliteral Boolean entry requirements through free scalar graphs rather
+  than requiring closed literal contracts. Acceptance: a checked `requires flag`
+  invocation executes with a true incoming flag and rejects a false incoming flag.
   Complete [exact anonymous division and landing](wiki/language_guide/chapter_5_expressions_evaluation.md#exact-anonymous-division-and-landing)
   for the remaining parameter and aggregate destinations, numeric policies, float
   landing, constant arguments, and their proof consumers. Preserve exact rational

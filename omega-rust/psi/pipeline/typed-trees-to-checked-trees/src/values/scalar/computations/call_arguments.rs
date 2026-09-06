@@ -32,7 +32,12 @@ impl Builder<'_, '_> {
             else {
                 continue;
             };
-            if parameter.is_self || parameter.is_const || parameter.is_mutable {
+            if parameter.is_self
+                || parameter.is_const
+                || (parameter.is_mutable
+                    && crate::values::mutable_scalar_parameter_type(self.program, parameter)
+                        .is_none())
+            {
                 return;
             }
             let role = if boundary {

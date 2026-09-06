@@ -13,6 +13,7 @@ mod contract_entailment_certificates;
 mod fact_call_projections;
 mod indexing;
 mod instantiation;
+mod mutable_parameter_entry_contracts;
 mod nominal_parameter_fields;
 mod proof_obligations;
 mod propositions;

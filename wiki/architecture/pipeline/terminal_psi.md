@@ -3253,6 +3253,23 @@ immutable calls with pure arguments retain their existing flat binding path.
 Exact-cast facts for assignment right-hand sides are collected against the
 pre-write value environment, before invalidating the destination's old facts.
 
+Owned mutable Boolean and fixed-integer parameters in free scalar machines
+use the same current-storage mapping. Checked state graphs retain arena-backed
+entry rows naming the authored parameter ordinal, symbol, and carrier. Lowering
+matches each row to that exact state's mutable declaration before initializing
+storage from the incoming operand. Immutable peers keep their authored ordinal
+slots, but a body read of a mutable formal cannot use an immutable entry alias.
+Each transition initializes its target state's storage from the delivered
+values; no entry-machine or sibling-state binding is recovered by spelling.
+Copies established before reassignment remain separate values. A postcondition
+mentioning a mutable formal still describes its final value, not an implicit
+snapshot of the caller's earlier argument. Declared requirements and published
+crash conditions are separate entry contracts: their checked predicates retain
+incoming parameter values, while executable guards read current storage.
+An incoming edge predicate over mutable owned scalar storage is not evidence
+about an invocation-entry crash route. Direct-site and call-route coverage
+exclude that predicate until its entry-value origin is retained independently.
+
 Resolver operand preprocessing cannot move indexed reads or cast-wrapped calls
 out of guarded transition targets or selective Boolean right operands. These
 operands remain behind their original selection boundary for checked lowering.

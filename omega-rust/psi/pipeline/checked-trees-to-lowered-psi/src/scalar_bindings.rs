@@ -8,23 +8,43 @@ mod tests;
 
 #[derive(Clone)]
 pub(super) struct ScalarBindings {
-    immutable: Vec<usize>,
+    immutable: Vec<Option<usize>>,
     storage: Vec<(symbols::SymbolHandle, ScalarType, usize)>,
 }
 
 impl ScalarBindings {
     pub(super) fn for_computation_operands(offset: usize, count: usize) -> Self {
         Self {
-            immutable: (offset..offset + count).collect(),
+            immutable: (offset..offset + count).map(Some).collect(),
             storage: Vec::new(),
         }
     }
 
     pub(super) fn new(parameters: usize) -> Self {
         Self {
-            immutable: (0..parameters).collect(),
+            immutable: (0..parameters).map(Some).collect(),
             storage: Vec::new(),
         }
+    }
+
+    pub(super) fn initialize_parameter(
+        &mut self,
+        symbol: symbols::SymbolHandle,
+        scalar_type: ScalarType,
+        position: usize,
+    ) -> Result<(), LoweringError> {
+        if self.immutable_position(position)? != position {
+            return unsupported("mutable parameter storage has no exact entry operand");
+        }
+        self.append(
+            checked_trees::CheckedScalarBindingDestination::StorageInitialize { symbol },
+            scalar_type,
+            position,
+        )?;
+        // Keep ordinal slots for subsequent immutable locals, but never let
+        // a mutable formal be read through the immutable entry-value path.
+        self.immutable[position] = None;
+        Ok(())
     }
 
     pub(super) fn append(
@@ -35,7 +55,7 @@ impl ScalarBindings {
     ) -> Result<(), LoweringError> {
         use checked_trees::CheckedScalarBindingDestination;
         match destination {
-            CheckedScalarBindingDestination::Immutable => self.immutable.push(position),
+            CheckedScalarBindingDestination::Immutable => self.immutable.push(Some(position)),
             CheckedScalarBindingDestination::StorageInitialize { symbol } => {
                 if !symbol.is_valid() || self.storage.iter().any(|row| row.0 == symbol) {
                     return unsupported(
@@ -77,6 +97,7 @@ impl ScalarBindings {
         self.immutable
             .get(position)
             .copied()
+            .flatten()
             .ok_or(LoweringError::Unsupported(
                 "scalar immutable operand is outside the established namespace",
             ))

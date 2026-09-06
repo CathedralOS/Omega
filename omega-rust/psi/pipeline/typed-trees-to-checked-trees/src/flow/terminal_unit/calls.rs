@@ -794,12 +794,18 @@ pub(super) fn build_call_operation(
                 // `is_mutable` is set by a `mut` binding and by an exclusive
                 // borrow alike, and the requirement's exclusive borrow is
                 // already carried exactly by the argument's presented access.
-                // Only an owned mutable binding stays outside this call surface.
+                // An owned mutable scalar is an argument destination, not
+                // mutable storage in this Unit caller. Other owned mutable
+                // carriers remain outside this call surface.
                 .any(|parameter| {
                     !parameter.is_self
                         && (parameter.is_const
                             || (parameter.is_mutable
-                                && !is_reference(program, parameter.type_reference)))
+                                && !is_reference(program, parameter.type_reference)
+                                && crate::values::mutable_scalar_parameter_type(
+                                    program, parameter,
+                                )
+                                .is_none()))
                 })
             || arguments.len() != abi_parameters.len()
             || if let Some((_, qualifier)) = selected_realization {
@@ -925,7 +931,11 @@ pub(super) fn build_call_operation(
                 .map(|primitive_type| (position, parameter, primitive_type))
         })
         .map(|(position, parameter, primitive_type)| {
-            if parameter.is_self || parameter.is_const || parameter.is_mutable {
+            if parameter.is_self
+                || parameter.is_const
+                || (parameter.is_mutable
+                    && crate::values::mutable_scalar_parameter_type(program, parameter).is_none())
+            {
                 return None;
             }
             Some(CheckedStructuralScalarParameterPlan {

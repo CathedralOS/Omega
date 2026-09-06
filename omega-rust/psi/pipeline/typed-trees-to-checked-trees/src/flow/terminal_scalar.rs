@@ -1,8 +1,9 @@
 use checked_trees::{
     CheckedScalarBinding, CheckedScalarBindingValue, CheckedScalarBranchDestination,
-    CheckedScalarGraphPlans, CheckedScalarMachineGraph, CheckedScalarStateGraph,
-    CheckedScalarStateTerminator, CheckedScalarSuccessor, CheckedTerminalMachineSelection,
-    CheckedTerminalMachineSelections, CheckedTerminalSignatureEligibility,
+    CheckedScalarGraphPlans, CheckedScalarMachineGraph, CheckedScalarParameterStorage,
+    CheckedScalarStateGraph, CheckedScalarStateTerminator, CheckedScalarSuccessor,
+    CheckedTerminalMachineSelection, CheckedTerminalMachineSelections,
+    CheckedTerminalSignatureEligibility,
 };
 
 pub(crate) fn build_checked_terminal_machine_selections(
@@ -64,12 +65,23 @@ pub(crate) fn build_checked_scalar_graph_plans(
     expressions: &checked_trees::CheckedScalarExpressionPlans,
     computations: &checked_trees::CheckedScalarComputationPlans,
 ) -> CheckedScalarGraphPlans {
+    let mut parameter_storage = arena::Arena::default();
+    let machines = program
+        .machines()
+        .iter()
+        .filter_map(|machine| {
+            build_machine_graph(
+                program,
+                machine,
+                expressions,
+                computations,
+                &mut parameter_storage,
+            )
+        })
+        .collect();
     CheckedScalarGraphPlans {
-        machines: program
-            .machines()
-            .iter()
-            .filter_map(|machine| build_machine_graph(program, machine, expressions, computations))
-            .collect(),
+        machines,
+        parameter_storage,
     }
 }
 
@@ -78,6 +90,7 @@ fn build_machine_graph(
     machine: &typed_trees::machine::Machine,
     expressions: &checked_trees::CheckedScalarExpressionPlans,
     computations: &checked_trees::CheckedScalarComputationPlans,
+    parameter_storage: &mut arena::Arena<CheckedScalarParameterStorage>,
 ) -> Option<CheckedScalarMachineGraph> {
     let source_states = program.machine_states(machine);
     if source_states.is_empty() {
@@ -90,15 +103,32 @@ fn build_machine_graph(
                 return None;
             }
             let parameters = program.state_parameters(state);
-            if parameters
-                .iter()
-                .any(|parameter| parameter.is_self || parameter.is_const || parameter.is_mutable)
-            {
+            if parameters.iter().any(|parameter| {
+                parameter.is_self
+                    || parameter.is_const
+                    || (parameter.is_mutable
+                        && crate::values::mutable_scalar_parameter_type(program, parameter)
+                            .is_none())
+            }) {
                 return None;
             }
             let parameter_types = parameters
                 .iter()
                 .map(|parameter| program.primitive_type_reference(parameter.type_reference))
+                .collect::<Option<Vec<_>>>()?;
+            let storage = parameters
+                .iter()
+                .enumerate()
+                .filter(|(_, parameter)| parameter.is_mutable)
+                .map(|(ordinal, parameter)| {
+                    Some(CheckedScalarParameterStorage {
+                        parameter_ordinal: u32::try_from(ordinal).ok()?,
+                        symbol: parameter.symbol,
+                        primitive_type: crate::values::mutable_scalar_parameter_type(
+                            program, parameter,
+                        )?,
+                    })
+                })
                 .collect::<Option<Vec<_>>>()?;
             let result_type = program.primitive_type_reference(state.return_type)?;
             let statements = program.statement_table.statements(state.statement_nodes);
@@ -168,16 +198,36 @@ fn build_machine_graph(
                             else {
                                 return None;
                             };
-                            let local =
-                                statements[..statement_index].iter().find_map(|statement| {
-                                    match statement {
-                                        StatementNode::LocalData(local)
-                                            if local.symbol == name.symbol && local.is_mutable =>
-                                        {
-                                            Some(local)
-                                        }
-                                        _ => None,
+                            if !name.symbol.is_valid() || name.head_symbol != name.symbol {
+                                return None;
+                            }
+                            let destination = statements[..statement_index]
+                                .iter()
+                                .find_map(|statement| match statement {
+                                    StatementNode::LocalData(local)
+                                        if local.symbol == name.symbol && local.is_mutable =>
+                                    {
+                                        Some((
+                                            local.symbol,
+                                            program
+                                                .primitive_type_reference(local.type_reference)?,
+                                        ))
                                     }
+                                    _ => None,
+                                })
+                                .or_else(|| {
+                                    parameters.iter().find_map(|parameter| {
+                                        (parameter.symbol == name.symbol)
+                                            .then(|| {
+                                                Some((
+                                                    parameter.symbol,
+                                                    crate::values::mutable_scalar_parameter_type(
+                                                        program, parameter,
+                                                    )?,
+                                                ))
+                                            })
+                                            .flatten()
+                                    })
                                 })?;
                             let statement_ordinal = u32::try_from(statement_index).ok()?;
                             let role = checked_trees::CheckedScalarExpressionRole::AssignmentValue;
@@ -192,10 +242,9 @@ fn build_machine_graph(
                             Some(CheckedScalarBinding {
                                 statement_ordinal,
                                 destination: CheckedScalarBindingDestination::StorageAssign {
-                                    symbol: local.symbol,
+                                    symbol: destination.0,
                                 },
-                                primitive_type: program
-                                    .primitive_type_reference(local.type_reference)?,
+                                primitive_type: destination.1,
                                 value,
                             })
                         }
@@ -325,18 +374,29 @@ fn build_machine_graph(
                 }
                 _ => return None,
             };
-            Some(CheckedScalarStateGraph {
-                state: state.symbol,
-                parameter_types,
-                bindings,
-                result_type,
-                terminator,
-            })
+            Some((
+                CheckedScalarStateGraph {
+                    state: state.symbol,
+                    parameter_types,
+                    parameter_storage: arena::HandleSpan::empty(),
+                    bindings,
+                    result_type,
+                    terminator,
+                },
+                storage,
+            ))
         })
         .collect::<Option<Vec<_>>>()?;
     Some(CheckedScalarMachineGraph {
         machine: machine.symbol,
-        states,
+        // Commit storage rows only after the complete machine shape succeeds.
+        states: states
+            .into_iter()
+            .map(|(mut state, storage)| {
+                state.parameter_storage = parameter_storage.insert_many(storage);
+                state
+            })
+            .collect(),
     })
 }
 

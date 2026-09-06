@@ -132,10 +132,11 @@ pub(crate) fn locate_source(
         };
         if parameter.is_self
             || parameter.is_const
-            || parameter.is_mutable
+            || (parameter.is_mutable
+                && !crate::scalar_source_custody::supported_mutable_parameter(primitive))
             || !program.expression_table.expression_is_valid(argument)
         {
-            return unsupported("call source custody has no immutable primitive argument");
+            return unsupported("call source custody has no supported owned primitive argument");
         }
         scalar_arguments.push((argument, primitive));
     }

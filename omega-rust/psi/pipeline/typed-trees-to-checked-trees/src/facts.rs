@@ -1547,7 +1547,7 @@ fn build_structural_runtime_requirements(
             let typed_trees::domain::ProofFact::Expression(expression) = fact else {
                 return None;
             };
-            crate::values::lower_machine_parameter_boolean_expression(
+            crate::values::lower_machine_entry_boolean_expression(
                 program,
                 operators,
                 machine,
@@ -1658,7 +1658,7 @@ fn build_published_crash_buckets(
                         Some(content_conservation),
                     );
                     let scalar = machine.zip(operators).and_then(|(machine, operators)| {
-                        crate::values::lower_machine_parameter_boolean_expression(
+                        crate::values::lower_machine_entry_boolean_expression(
                             program,
                             operators,
                             machine,

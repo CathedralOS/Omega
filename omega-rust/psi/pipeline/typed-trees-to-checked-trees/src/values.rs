@@ -17,11 +17,41 @@ mod scalar;
 mod statement;
 mod transition;
 
+/// Owned mutable parameters use current-state scalar storage, never reference
+/// rebinding or the immutable incoming-parameter expression namespace.
+pub(crate) fn mutable_scalar_parameter_type(
+    program: &TypedTrees,
+    parameter: &typed_trees::signature::StateParameter,
+) -> Option<typed_trees::types::PrimitiveType> {
+    use typed_trees::types::PrimitiveType;
+    if !parameter.is_mutable
+        || parameter.is_self
+        || parameter.is_const
+        || !parameter.symbol.is_valid()
+    {
+        return None;
+    }
+    let primitive = program.primitive_type_reference(parameter.type_reference)?;
+    matches!(
+        primitive,
+        PrimitiveType::Bool
+            | PrimitiveType::I8
+            | PrimitiveType::I16
+            | PrimitiveType::I32
+            | PrimitiveType::I64
+            | PrimitiveType::U8
+            | PrimitiveType::U16
+            | PrimitiveType::U32
+            | PrimitiveType::U64
+    )
+    .then_some(primitive)
+}
+
 pub(crate) use scalar::{
     build_checked_scalar_computation_plans, build_checked_scalar_expression_plans,
     lower_integer_contract_predicate, lower_integer_parameter_range_requirements,
-    lower_machine_parameter_boolean_expression, lower_state_scalar_expression,
-    lower_unit_scalar_argument, scalar_expression_type,
+    lower_machine_entry_boolean_expression, lower_machine_parameter_boolean_expression,
+    lower_state_scalar_expression, lower_unit_scalar_argument, scalar_expression_type,
 };
 
 pub(crate) fn build_value_facts(
