@@ -40,6 +40,33 @@ const NEUTRAL: Analysis = Analysis {
     primitive: None,
 };
 
+fn fixed_array_length(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+) -> Option<i64> {
+    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if member.member.as_str() != "len" || member.case_variant.is_some() {
+        return None;
+    }
+    let mut receiver = declared_place_type_raw(program, machine, state, member.receiver)?;
+    loop {
+        match program.type_reference_table.type_reference(receiver) {
+            TypeReferenceNode::Reference { referee, .. } => receiver = *referee,
+            TypeReferenceNode::FixedArray {
+                length: typed_trees::types::FixedArrayLength::Literal(length),
+                ..
+            } => return i64::try_from(*length).ok(),
+            // A constrained byte carrier can have a live length distinct from
+            // its capacity. Do not strip that shell to invent an exact length.
+            _ => return None,
+        }
+    }
+}
+
 /// A landed literal retains its own width inside a larger expression; the
 /// destination does not widen its arithmetic. A suffix contributes no policy.
 fn integer_literal_primitive(
@@ -160,6 +187,15 @@ pub(super) fn analyze(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Analysis {
+    if let Some(length) = fixed_array_length(program, machine, state, expression) {
+        return Analysis {
+            interval: Interval {
+                low: Some(length),
+                high: Some(length),
+            },
+            ..NEUTRAL
+        };
+    }
     // A complete anonymous subtree chooses its exact value before an integer
     // operand/destination requests a rendering. Never truncate a child quotient
     // before a later multiplication can cancel its denominator.
