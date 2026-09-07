@@ -819,6 +819,13 @@ expression-only suppression restriction.
 > value; lowering checks it against the unchanged constructor expression before
 > publishing the scalar field. Other uses of a shared expression keep their
 > independent width obligations.
+> Fixed integer-array literals, including nested arrays, carry element destinations
+> through explicit locals, whole-array assignment, constructed fields, ordinary
+> arguments, and returns. Validation rejects fractional or carrier-overflowing
+> elements, and destination discovery retains warnings and independent width
+> obligations. Checked interpretation uses the same exact values while preserving
+> element evaluation order and source fuel cost. This does not establish general
+> aggregate Terminal production or proof support.
 > The destination's arithmetic policy cannot truncate an anonymous fraction or
 > wrap an out-of-range initial value. Successful integral
 > landings report the fractional-intermediate warning through the current
@@ -851,8 +858,8 @@ expression-only suppression restriction.
 > Caller result proofs can also
 > transport a callee's builtin `result == immutable_parameter` guarantee from retained closed
 > fixed-integer operands, without replaying their source expressions. General runtime argument
-> snapshots, generic/evidence-adapted and boundary destination custody, array
-> elements, default field values, general aggregate production/proof consumers,
+> snapshots, generic/evidence-adapted and boundary destination custody, projected
+> array windows, default field values, general aggregate production/proof consumers,
 > remaining mutable parameter carriers and Unit-body storage, numeric policies,
 > remaining float destinations,
 > remaining authored-operator/const-proof consumers, and ordinary warning

@@ -1,6 +1,35 @@
 use super::*;
 
 impl Evaluator<'_> {
+    /// Preserve aggregate destinations until each literal element reaches its
+    /// own scalar type. Existing values and references keep ordinary evaluation.
+    pub(super) fn eval_expression_at_type(
+        &mut self,
+        expression: ExpressionHandle,
+        destination: TypeReferenceHandle,
+        frame: &Frame,
+    ) -> EvalResult<Value> {
+        if let ExpressionNode::ArrayLiteral(elements) =
+            self.program.expression_table.expression(expression)
+            && let TypeReferenceNode::FixedArray { element_type, .. } = self
+                .program
+                .type_reference_table
+                .type_reference(destination)
+        {
+            let element_type = *element_type;
+            let elements = *elements;
+            self.tick()?;
+            let mut values = Vec::new();
+            for element in self.program.expression_table.expression_handles(elements) {
+                let value = self.eval_expression_at_type(*element, element_type, frame)?;
+                values.push(self.allocate_cell(value)?);
+            }
+            return Ok(Value::Array(values));
+        }
+        let primitive = self.program.primitive_type_reference(destination);
+        self.eval_expression_with_destination(expression, primitive, frame)
+    }
+
     /// Use the compiler's exact anonymous value at the actual destination.
     /// Typed operands, places, calls, and authored operators keep ordinary
     /// execution; a destination never changes their operation semantics.
@@ -81,16 +110,13 @@ impl Evaluator<'_> {
             .state_parameters(state)
             .iter()
             .filter(|parameter| !parameter.is_self)
-            .map(|parameter| {
-                self.program
-                    .primitive_type_reference(parameter.type_reference)
-            })
+            .map(|parameter| parameter.type_reference)
             .collect();
         let mut evaluated = Vec::with_capacity(arguments.len());
         for (ordinal, argument) in arguments.iter().copied().enumerate() {
             evaluated.push(self.eval_state_argument(
                 argument,
-                destinations.get(ordinal).copied().flatten(),
+                destinations.get(ordinal).copied().unwrap_or_default(),
                 frame,
             )?);
         }

@@ -8,7 +8,7 @@ impl<'program> Evaluator<'program> {
     pub(super) fn eval_state_argument(
         &mut self,
         argument: ExpressionHandle,
-        destination: Option<PrimitiveType>,
+        destination: TypeReferenceHandle,
         frame: &Frame,
     ) -> EvalResult<EvaluatedArgument> {
         let initializer = self.mutable_scalar_recast_initializer(argument, frame)?;
@@ -22,9 +22,16 @@ impl<'program> Evaluator<'program> {
             .mutable_recast_path(argument, frame)?
             .map(|(recast, _)| recast);
         Ok(EvaluatedArgument {
-            cell: if let Some(value) =
-                self.anonymous_integer_landing_value(argument, destination)?
-            {
+            cell: if let Some(value) = self.anonymous_integer_landing_value(
+                argument,
+                self.program.primitive_type_reference(destination),
+            )? {
+                self.allocate_cell(value)?
+            } else if matches!(
+                self.program.expression_table.expression(argument),
+                ExpressionNode::ArrayLiteral(_)
+            ) {
+                let value = self.eval_expression_at_type(argument, destination, frame)?;
                 self.allocate_cell(value)?
             } else {
                 self.eval_argument(argument, frame)?
