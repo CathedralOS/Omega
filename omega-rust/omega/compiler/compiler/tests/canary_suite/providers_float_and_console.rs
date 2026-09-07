@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "providers_float_and_console/console_writer.rs"]
+mod console_writer;
+
 #[path = "../fixture_rosters/providers_float_and_console.rs"]
 pub(super) mod fixture_roster;
 
@@ -1668,10 +1671,10 @@ fn external_leaf_dllimport_canary_selects_exact_free_import_plan() {
 
 #[test]
 fn runtime_adapter_forwarding_exit_canary_runs() {
-    // PRV4 standard self-forwarding adapter: the receiver forwards as argument
-    // 0, and std Console::write reaches the write_byte leaf through that same
-    // capability. Field-backed bounded carriers and literal-backed text both
-    // cross the honest borrowed byte-view path.
+    // The selected concrete provider implements both friendly adapters over
+    // its own byte leaf. Field-backed bounded carriers and literal-backed text
+    // both cross the borrowed byte-view path; no extra service receiver is
+    // injected into the provider implementation.
     let canary = pass_canary(fixture_roster::RUNTIME_ADAPTER_FORWARDING_EXIT);
     let main_path = canary.join("main.omg");
     let checked = compile_to_checked(&main_path, None)
@@ -1746,7 +1749,7 @@ fn runtime_adapter_forwarding_exit_canary_runs() {
     );
     assert_eq!(
         outcome.stdout,
-        b"Field\nLiteral\n".to_vec(),
+        b"Field\nLiteral\n\x80\xff".to_vec(),
         "interpreter stdout must come from the std write adapter"
     );
 
@@ -1768,7 +1771,7 @@ fn runtime_adapter_forwarding_exit_canary_runs() {
     );
     assert_eq!(
         output.stdout,
-        b"Field\nLiteral\n".to_vec(),
+        b"Field\nLiteral\n\x80\xff".to_vec(),
         "native stdout must come from the std write adapter"
     );
     let _ = fs::remove_dir_all(&scratch);

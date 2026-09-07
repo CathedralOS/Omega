@@ -6620,14 +6620,21 @@ remain outside this rung.
 ## Borrowed-byte writer composition
 
 The ordinary std `ConsoleNativeProvider::write_line` adapter and its
-`console_write_bytes` helper exercise a selected provider parameter, an
-immutable byte view, and a slice-ranked loop with ordered effects. Their
-`console: Console` parameters have a plain named boundary-trait type, not the
-core routed `Service<R> in Bound` carrier. Extending
-Fused Service signature admission alone cannot realize this source closure.
+`console_write_bytes` helper exercise an immutable byte view and a slice-ranked
+loop with ordered effects. The friendly adapters accept only the requirement's
+text argument. Their private helper calls `ConsoleNativeProvider::write_byte`
+inside that concrete provider's selected closure; no extra service receiver is
+injected into either adapter or the helper's state edges.
 
-The executable closure must retain exact provider selection and the borrowed
-view alongside scalar parameters through ordinary calls and state edges.
+Concrete implementation calls retain their exact realization identity and
+selected intrinsic settlement. This does not fabricate routed authority or
+permit arbitrary native calls. General clients use `Service<Console> in Bound`;
+bare boundary-trait values are transitional source compatibility, not a carrier
+design to extend. Service forwarding is not a dependency of this private writer.
+
+The executable closure must retain exact provider selection at its byte calls
+and the borrowed view alongside scalar parameters through ordinary calls and
+state edges.
 Length observation, the guarded head read, and the derived tail descriptor
 must use the selected edge's evaluation order. The emitted byte and optional
 newline precede normal return to the caller. Source slice-decrease checking
@@ -6642,7 +6649,7 @@ Do not inject a body SSA value into the parameter-only contract scope or add
 an unrelated length parameter as a replacement for the view's actual extent.
 
 The Unit call closure now includes ordinary bodies and the existing three-state
-composed family. The writer still needs its free provider/view signature and
+composed family. The writer still needs its free view/scalar signature and
 slice-ranked body admitted through that shared catalog. A separate
 multistate plan is insufficient until calls, structural/scalar transfers,
 byte-view operations, effect ordering, and ranking survive Terminal production
