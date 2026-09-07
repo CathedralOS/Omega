@@ -445,7 +445,8 @@ fn assign_contract_call_symbols(
         }
         ExpressionNode::Name(path) => assign_name_symbol(
             symbols,
-            machine.symbol,
+            machine,
+            parameters,
             state_symbol,
             expression_table,
             &path,

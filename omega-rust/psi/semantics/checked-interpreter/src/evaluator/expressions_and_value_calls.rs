@@ -1206,6 +1206,13 @@ impl<'program> Evaluator<'program> {
             && let Ok(cell) = self.resolve_place(call.receiver, frame)
         {
             let cell = self.deref_cell(cell);
+            // The receiver supplies storage, not a new method selection.
+            // Distinct const instances can retain the same authored name.
+            if let Some((machine, state, _)) =
+                self.resolve_entry_state_symbol(call.target_symbol, frame)
+            {
+                return Ok((machine, state, cell));
+            }
             let is_self = Cell::ptr_eq(&cell, &frame.self_cell);
             if !is_self && let Some(machine) = self.machine_for_instance_state(&cell, target) {
                 return Ok((machine, target.to_owned(), cell));
@@ -1229,6 +1236,9 @@ impl<'program> Evaluator<'program> {
                 && members[0].as_str() != "self"
                 && frame.get(members[0].as_str()).is_none()
             {
+                if let Some(resolved) = self.resolve_entry_state_symbol(call.target_symbol, frame) {
+                    return Ok(resolved);
+                }
                 let group = members[0].as_str();
                 if let Some(machine) = self
                     .program

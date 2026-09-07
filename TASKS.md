@@ -473,14 +473,16 @@ Owners include
 
 ## Parallel language and compiler lanes
 
-- **MACHINE-CONST-VALUE-SUBSTITUTION.** Substitute closed machine const binders
-  in executable values and contracts, not only type positions and forwarded
-  static arguments. A machine returning its inferred `N` currently retains an
-  unresolved name after specialization. Owning area: Psi monomorphization;
+- **MACHINE-CONST-ARGUMENT-SELECTION.** Complete explicit machine const
+  argument normalization and tuple selection for the canonical value kinds
+  admitted in generic types. Calls such as `value<true>()` and
+  `value<Values::N>()` still lack a complete tuple even after generic-data
+  normalization; inference from normalized generic witnesses is separate.
+  Owning area: Psi static arguments and monomorphization;
   see [generic const parameters](wiki/language_guide/chapter_13_generics.md#const-and-proof-parameters).
-  Acceptance: original and cloned instances check and execute distinct closed
-  values; lexical names cannot capture another binder's substitution, and
-  independent return-range checks still reject false declarations.
+  Acceptance: explicit and inferred selections of the same closed value share
+  identity; distinct selections retain their own instances, and wrong kinds,
+  inconsistent argument evidence, and incomplete tuples reject.
 
 - **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Finish consumer permission rows and
   exact target-mechanism classification under the settled
@@ -638,6 +640,9 @@ Owners include
   Transport dependent and public-trait call-result bounds into subslice proofs
   through their actual call-entry and public requirement identities, not caller
   fields or private realization types.
+  Substitute generated call-result local types per selected tuple: a tail-call
+  temporary for a return interval containing a const binder can retain another
+  instance's bound, even though both specialized bodies check independently.
   Retire the remaining flat guarded-argument call hoisting once these paths use
   the same evaluation graph. Owning area: argument normalization and checked scalar
   computation lowering. Acceptance: selected arguments

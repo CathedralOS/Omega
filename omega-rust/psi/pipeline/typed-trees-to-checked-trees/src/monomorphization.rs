@@ -21,6 +21,8 @@ use typed_trees::signature::StateSignature;
 use typed_trees::statement::{StatementHandle, StatementNode};
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
+mod const_values;
+
 #[derive(Clone)]
 struct Candidate {
     machine_index: usize,
@@ -1309,6 +1311,35 @@ fn infer_static_bindings(
         program.type_reference_table.type_reference(required),
         program.type_reference_table.type_reference(actual),
     ) {
+        // Data normalization names concrete instances; their retained generic
+        // applications still carry the exact argument evidence.
+        (TypeReferenceNode::Generic { .. }, TypeReferenceNode::Named { symbol, .. })
+            if symbol.is_valid() =>
+        {
+            if let Some(application) = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.symbol == *symbol)
+                .and_then(|definition| definition.generic_instance)
+                .filter(|application| {
+                    matches!(
+                        program.type_reference_table.type_reference(*application),
+                        TypeReferenceNode::Generic { .. }
+                    )
+                })
+            {
+                infer_static_bindings(
+                    program,
+                    required,
+                    application,
+                    type_parameters,
+                    const_parameters,
+                    candidate_index,
+                    type_proposals,
+                    const_proposals,
+                );
+            }
+        }
         (
             TypeReferenceNode::Reference {
                 referee: required, ..
@@ -2443,6 +2474,7 @@ fn clone_specialized_machine(
     }
 
     copy_cloned_expression_type_payloads(source, program, expression_start, &symbol_map);
+    const_values::substitute(program, candidate, Some(expression_start))?;
     substitute_cloned_type_parameters(source, program, candidate, type_start);
     rewrite_cloned_calls(
         source,
@@ -3850,6 +3882,8 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) -> Resu
             report_fingerprint: 0,
             commitment: typed_trees::typed_trees::MachineSpecializationCommitment::default(),
         });
+
+    const_values::substitute(program, candidate, None)?;
 
     for ((parameter_symbol, parameter_name), binding) in candidate
         .type_parameters
