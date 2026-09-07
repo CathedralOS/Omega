@@ -1,45 +1,114 @@
-# CLI MVP Sample
+# CLI MVP: work from a should-be-working example
 
-Smallest console-style Omega sketch: print one line, then exit.
+The customer is this unchanged program: print two lines, read into `Main.pause`,
+then exit 0. Success means a published native executable produces:
 
-This sample intentionally avoids input so the entry and platform boundary are easy to inspect.
+```text
+Hello, Omega.
+[press Enter to close]
+```
 
-## Build Output
+Interactive execution accepts Enter. The existing automated sample test closes
+stdin, so input reaches EOF; it checks exit 0 and the `Hello, Omega.` substring.
+Those are different input cases, and both belong to completion. The current
+first failure and next assignment live in [SAMPLE-CORPUS](../../../../TASKS.md).
 
-The compiler writes phase artifacts and executable output to local `build/`.
-That directory is ignored by this sample on purpose so the project can be copied
-without bringing stale compiler output with it.
+## Use the real command as the outer loop
 
-## Boundary Providers
+Run from the repository root. These commands build the shipped `omega` CLI too;
+compiling or testing the `compiler` library alone does not establish that it builds.
 
-The sample imports the portable Console requirement. Ordinary targets select
-their standard provider defaults, so `build.omg` does not enumerate every host
-leaf. The settled build shape still binds the target's program-entry slot to the
-exact source machine; an application adds provider bindings only when it
-intentionally substitutes a default. This sample's source and transitional
-target-only build file still exercise temporary entry discovery pending the
-corpus migration tracked by `ENTRY-CONTENT-ROOTS`; that discovery is not
-supported language behavior.
+Windows PowerShell:
 
-For cross-platform hello world, the boundary base is tiny:
+```powershell
+mbx run -p omega -- --target windows_x86_64 --build-dir build/cli-mvp-route samples/cli/basics/cli_mvp/main.omg
+if ($LASTEXITCODE -ne 0) { throw 'cli_mvp compilation failed; do not run an old executable' }
+& ./build/cli-mvp-route/omega-program.exe
+if ($LASTEXITCODE -ne 0) { throw 'cli_mvp returned a nonzero exit' }
+```
 
-- `Stdout.write_line`: host claims it can write initialized UTF-8 text to process stdout and report `IOError`.
-- `Process.exit`: host claims it can terminate the process with a target-specific observable exit code.
+macOS ARM64 shell:
 
-Omega proves the literal satisfies the borrowed byte contract. The target's
-selected provider is accepted through the ordinary provider-plan admission
-pipeline and remains visible in the boundary report.
+```sh
+mbx run -p omega -- --target macos_arm64 --build-dir build/cli-mvp-route samples/cli/basics/cli_mvp/main.omg &&
+  ./build/cli-mvp-route/omega-program
+```
 
-## Standard Library vs Host Bindings
+Observe both lines and press Enter. Use a fresh ignored build directory when
+comparing revisions. Failed compilation is not permission to run a stale image.
+Do not remove `read_line`, rewrite the writer as synthetic machines, or substitute
+a special Console intrinsic for its checked source body.
 
-The standard library is ordinary Omega code wherever possible: byte/text
-domains, slices, math, collections, parsing helpers, and portable console
-adapters. Target provider packages under `source/library/std/targets/` adapt
-those requirements to the selected ABI; they are ordinary source inputs to a
-derived, validated, admitted provider plan rather than floating compiler magic.
+The faster Windows compiler-library probe is:
 
-- Windows uses documented Win32 imports like `Kernel32.dll!WriteFile` and `ExitProcess`.
-- Linux can plausibly use raw syscalls for `write` and `exit_group`.
-- Darwin/macOS should usually bind through `libSystem`.
+```powershell
+$env:OMEGA_SAMPLE_RUNTIME_FILTER='cli_mvp'
+mbx nextest run -p compiler --test samples_compile --no-fail-fast -E 'test(=samples_with_documented_exit_run_correctly)'
+Remove-Item Env:OMEGA_SAMPLE_RUNTIME_FILTER
+```
 
-So the goal is not "no DLLs exist" on Windows. The goal is no Omega runtime DLL, no C runtime dependency, and a tiny audited set of OS imports.
+On macOS use the same test command with the inline environment assignment
+`OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp`. This test exercises compilation,
+publication, output, and exit through the compiler library; it bypasses the CLI's
+local-project package review route. Keep its result separate from the outer command.
+
+## Trace the actual route
+
+The outer CLI probe reaches fresh `omega-language-std` package review and reports
+four unproved head/tail bounds in `console_write_bytes` plus one filesystem index
+bound. Std's [review entry](../../../../source/library/std/main.omg) imports a
+broader source set than the sample entry. The inner sample test gets farther and
+stops at the missing Terminal writer body. Neither result establishes native execution.
+
+The next investigation compares the same writer guards under those two roots:
+exact operator selection, the builtin-guard-meaning gate in
+[`guards.rs`](../../../../omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/ranges/guards.rs),
+and the minimum-length fact at the selected state edge. Different source scope
+is established; the cause of the missing facts is not. The existing focused
+review probe is `mbx nextest run -p package-manager --test standard_library_package_resolution --no-fail-fast -E 'test(=real_standard_library_has_a_complete_ordinary_review_entry)'`.
+That test currently selects the Linux x64 source profile even on Windows; it is
+an inner comparison, not Windows acceptance. Review must accept the proved bounds
+without admitting unguarded reads. Then rerun the CLI before advancing to the
+writer's executable plan.
+
+| Step | Owning code and required result |
+| --- | --- |
+| CLI and package closure | [`command.rs`](../../../../omega-rust/omega/src/command.rs) prepares `build.omg` projects through [`prepare_project.rs`](../../../../omega-rust/omega/packages/manager/src/operations/prepare_project.rs). [`compile_project.rs`](../../../../omega-rust/omega/packages/manager/src/operations/compile_project.rs) reviews the dependency closure and retains its checked root before native production. An error here precedes the sample's Terminal failure. |
+| Source and selection | [`main.omg`](main.omg) imports ordinary std Console. [`build.omg`](build.omg) declares the std path dependency and binds each target's `ProgramEntry` to `Main::main`. The checked frontend resolves types, text/borrow/termination facts, and selected provider calls. |
+| Checked writer body | [`std/console.omg`](../../../../source/library/std/console.omg) implements `ConsoleNativeProvider::write_line(text)` by calling `console_write_bytes(text, true)`. That helper is one five-state slice-ranked machine. Its `emit` state writes a byte and transfers the guarded tail; completion optionally emits newline and returns. |
+| Complete callable closure | [`terminal_unit.rs`](../../../../omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/flow/terminal_unit.rs) builds ordinary/composed bodies and prunes callers whose targets are missing. [`call_closure.rs`](../../../../omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/attached_unit/call_closure.rs) requires every reached body before lowering. Preserve exact view/scalar state transfers, effect order, and slice-decrease evidence. |
+| Portable execution | [`terminal-production`](../../../../omega-rust/psi/compiler/terminal-production/src/lib.rs) produces the canonical Terminal artifact with source-entry evidence. Codec replay, independent verification, and interpretation must agree on the writer's bytes and continuation. |
+| Native operations | [`operation/routing.rs`](../../../../omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/lowering/machine/operation/routing.rs) must lower the writer's byte length, indexed read, and subslice. At the traced revision these operations explicitly reject. Descriptor layout alone is not operation support. |
+| Entry storage and providers | [`native_artifact.rs`](../../../../omega-rust/omega/compiler/native-realization/src/realization/native_artifact.rs) rejects an executable entry retaining unprovisioned `self`. `Main` needs real storage, including its 256-byte buffer, and a loan from the entry bridge. [`compiler_intrinsic.rs`](../../../../omega-rust/omega/build/selected-dispatch/src/compiler_intrinsic.rs) must supply closed identities for the selected Windows output, input, and exit leaves; declarations alone are not native implementations. |
+| Native image and publication | [`object.rs`](../../../../omega-rust/omega/compiler/native-realization/src/realization/object.rs) sequences physical lowering and emission. PE image support exists. [`compilation-report`](../../../../omega-rust/omega/compiler/compilation-report/src/lib.rs) validates the retained artifact and requires compiler-text/function evidence before publishing exact bytes. Preserve these gates. |
+
+The observed compiler-library failure names `ConsoleNativeProvider::write_line`,
+but its missing dependency is the five-state `console_write_bytes` body. The
+ordinary planner handles one-state bodies, and the shared composed call catalog
+now traverses acyclic free and attached graphs with unchanged borrowed views.
+The writer still needs state-local scalar construction, computed successor
+operands, derived tail views, and cyclic execution with retained slice ranking.
+Caller pruning exposes that missing transitive body at the adapter.
+
+The next writer acceptance is the actual authored closure through verified
+Terminal execution: empty/nonempty bytes, both newline choices, exact output
+order, and caller continuation. Unguarded head reads and unchanged tails reject.
+The governing contract is [borrowed-byte writer composition](../../../../wiki/architecture/pipeline/terminal_psi.md#borrowed-byte-writer-composition).
+Native byte operations, Windows leaf settlement, receiver provisioning, and
+`read_line` capacity/live-length writeback remain downstream dependencies. These
+are code-inspected gaps, not claims that this sample has reached each failure.
+
+## Read the evidence at the boundary reached
+
+Capture the command's exit and diagnostic first. Package preparation/review can
+fail before checked phase reports are emitted. Once checked observation emission
+runs, inspect `00_timings.html`, `05_machine_contracts.json`,
+`05_capability_manifest.json`, and `05_executable_tcb_manifest.json` in the chosen
+build directory. See [`checked_observations.rs`](../../../../omega-rust/omega/compiler/compiler/src/pipeline/reporting/checked_observations.rs)
+and [`artifacts.rs`](../../../../omega-rust/omega/compiler/compiler/src/pipeline/artifacts.rs)
+for the actual producers. Do not infer a passed stage from an old file or assume
+every numbered report mentioned elsewhere is produced on this route.
+
+After a change, report the old and new first failure under the same outer
+command. An unchanged failure with a passing helper test is dependency progress;
+it is not a working Hello World. No Windows observation establishes a macOS run.
