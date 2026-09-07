@@ -1,16 +1,13 @@
 //! Optimizer module role: executable entrance. Independent selected-plan reconstruction and admission.
 
-mod blocks;
 mod def_use;
 mod functions;
-pub(super) mod integer_sequence;
 mod integrity;
 mod ordinary_roster;
 mod projected_structural_call_return;
 mod roots;
 pub(super) mod scalar_graph;
 mod structural_unit;
-mod virtual_registers;
 
 use super::identity::receipt;
 use super::shared::*;

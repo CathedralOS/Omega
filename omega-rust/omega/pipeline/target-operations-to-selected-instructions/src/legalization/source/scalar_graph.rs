@@ -21,8 +21,7 @@ pub(super) fn derive(
         .map(|(parameter, placement)| {
             Ok(LegalizedScalarParameter {
                 value: parameter.value,
-                scalar_type: scalar_graph_input::integer_type(parameter.scalar_type)
-                    .ok_or(Error::SourceCustodyMismatch)?,
+                scalar_type: parameter.scalar_type,
                 definition_site: parameter.site,
                 placement: placement.clone(),
             })

@@ -26,11 +26,51 @@ fn u64_parameter_not_equal_zero_reaches_linux_object_and_callable_on_both_isas()
         assert_eq!(artifact.source().object().symbols.len(), 1);
         let text = &artifact.source().object().text_section.bytes;
         assert!(!text.is_empty());
+        let emission = artifact.source().source().source();
+        let compare = emission.fragments().functions[0]
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .find(|span| {
+                span.alternative.family
+                    == selected_instructions::MachineAlternativeFamily::CompareI64Zero
+            })
+            .unwrap();
+        let source = emission.source();
+        let operand = &source.program().machine.functions[0]
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .find(|row| row.instruction == compare.instruction)
+            .unwrap()
+            .operands[0];
+        let name = &source
+            .register_environment()
+            .physical()
+            .model()
+            .views
+            .iter()
+            .find(|view| view.id == operand.view)
+            .unwrap()
+            .name;
         match target.architecture {
             target::Architecture::X86_64 => {
+                let bytes = &compare.bytes;
+                assert_eq!(bytes.len(), 3);
+                assert_eq!(bytes[0] & 0xf8, 0x48);
+                assert_eq!(bytes[1], 0x85);
+                assert_eq!(bytes[2] & 0xc0, 0xc0);
+                let left = (bytes[2] & 7) | ((bytes[0] & 1) << 3);
+                let right = ((bytes[2] >> 3) & 7) | ((bytes[0] & 4) << 1);
+                assert_eq!(left, right, "TEST must read the same allocated value twice");
+                let names = [
+                    "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi", "r8", "r9", "r10",
+                    "r11", "r12", "r13", "r14", "r15",
+                ];
+                assert_eq!(names[usize::from(left)], name);
                 assert!(
-                    text.windows(3).any(|bytes| bytes == [0x48, 0x85, 0xff]),
-                    "x86 object must compare the sole parameter with zero using TEST"
+                    text.windows(bytes.len())
+                        .any(|published| published == bytes)
                 );
                 assert!(
                     text.windows(2).any(|bytes| bytes[0] == 0x75),
@@ -41,25 +81,13 @@ fn u64_parameter_not_equal_zero_reaches_linux_object_and_callable_on_both_isas()
                 assert!(
                     text.windows(4).any(|bytes| {
                         let word = u32::from_le_bytes(bytes.try_into().unwrap());
-                        word & 0xff00_001f == 0xb500_0000
+                        word & 0xff00_0000 == 0xb500_0000 && format!("x{}", word & 31) == *name
                     }),
-                    "AArch64 object must contain CBNZ x0"
+                    "AArch64 CBNZ must read the compare's allocated operand"
                 );
-                assert!(
-                    !text.windows(4).any(|bytes| {
-                        u32::from_le_bytes(bytes.try_into().unwrap()) == 0xf100_001f
-                    })
-                );
-                let emission = artifact.source().source().source();
-                let compare = emission.fragments().functions[0]
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.instructions)
-                    .find(|span| {
-                        span.alternative.family
-                            == selected_instructions::MachineAlternativeFamily::CompareI64Zero
-                    })
-                    .unwrap();
+                assert!(!text.windows(4).any(|bytes| {
+                    u32::from_le_bytes(bytes.try_into().unwrap()) & 0xffff_fc1f == 0xf100_001f
+                }));
                 assert!(compare.bytes.is_empty());
                 assert_eq!(compare.provenance.fuel.len(), 2);
             }

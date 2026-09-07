@@ -11,9 +11,6 @@ use super::{
         decode_boundary_result_scalar_type, encode_boundary_result_scalar_type,
     },
     decode_boolean,
-    fixed_integer_scalar_abi_codec::{
-        decode_fixed_integer_scalar_abi, encode_fixed_integer_scalar_abi,
-    },
     function_affine_cleanup_codec::{
         decode_scalar_control_affine_cleanups, decode_unit_affine_cleanup,
         encode_scalar_control_affine_cleanups, encode_unit_affine_cleanup,
@@ -28,6 +25,7 @@ use super::{
         decode_mixed_structural_scalar_abi, encode_mixed_structural_scalar_abi,
     },
     push_u32, push_u64,
+    scalar_abi_codec::{decode_scalar_abi, encode_scalar_abi},
     scalar_structural_scalar_field_store_codec::{
         decode_scalar_structural_scalar_field_stores, encode_scalar_structural_scalar_field_stores,
     },
@@ -85,7 +83,7 @@ pub(super) fn encode_functions(
             }
             None => bytes.extend_from_slice(&[0, 0]),
         }
-        encode_fixed_integer_scalar_abi(bytes, function.fixed_integer_scalar_abi.as_ref())?;
+        encode_scalar_abi(bytes, function.scalar_abi.as_ref())?;
         encode_mixed_structural_scalar_abi(bytes, function.mixed_structural_scalar_abi.as_ref())?;
         encode_unit_scalar_abi(bytes, function.unit_scalar_abi.as_ref())?;
         encode_parameter_records(bytes, &function.unit_parameters)?;
@@ -200,7 +198,7 @@ pub(super) fn decode_functions(
                 })
             }
         };
-        let fixed_integer_scalar_abi = decode_fixed_integer_scalar_abi(reader)?;
+        let scalar_abi = decode_scalar_abi(reader)?;
         let mixed_structural_scalar_abi = decode_mixed_structural_scalar_abi(reader)?;
         let unit_scalar_abi = decode_unit_scalar_abi(reader)?;
         let unit_parameters = decode_unit_parameter_records(reader)?;
@@ -216,7 +214,7 @@ pub(super) fn decode_functions(
         functions.push(InstalledFunction {
             machine,
             attachment,
-            fixed_integer_scalar_abi,
+            scalar_abi,
             mixed_structural_scalar_abi,
             unit_scalar_abi,
             structural_call_scalar_return,

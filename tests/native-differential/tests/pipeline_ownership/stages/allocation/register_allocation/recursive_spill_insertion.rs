@@ -52,8 +52,8 @@ fn epoch_two_extends_one_schedule_and_reuses_the_disjoint_epoch_zero_offset() {
         assert_eq!(function.slots[1].action, id(1, 0));
         assert_eq!(function.slots[1].spill_area_offset, 8);
         assert_eq!(function.slots[2].action, id(2, 0));
-        assert_eq!(function.slots[2].live_from, LiveRangePoint(14));
-        assert_eq!(function.slots[2].live_through, LiveRangePoint(16));
+        assert_eq!(function.slots[2].live_from, LiveRangePoint(16));
+        assert_eq!(function.slots[2].live_through, LiveRangePoint(18));
         assert_eq!(function.slots[2].spill_area_offset, 0);
 
         let epoch_two_store = function
@@ -76,8 +76,8 @@ fn epoch_two_extends_one_schedule_and_reuses_the_disjoint_epoch_zero_offset() {
         else {
             unreachable!()
         };
-        assert_eq!(point, LiveRangePoint(14));
-        assert_eq!(before_instruction.0, 7);
+        assert_eq!(point, LiveRangePoint(16));
+        assert_eq!(before_instruction.0, 8);
         assert_eq!(before_reload, Some(id(1, 0)));
         assert_eq!(
             source,
@@ -88,7 +88,7 @@ fn epoch_two_extends_one_schedule_and_reuses_the_disjoint_epoch_zero_offset() {
                 event,
                 selected_instructions_to_register_homes::RecursiveSpillEvent::Reload { action, .. } if *action == id(2, 0)
             )),
-            Some(selected_instructions_to_register_homes::RecursiveSpillEvent::Reload { point: LiveRangePoint(16), before_instruction, .. }) if before_instruction.0 == 8
+            Some(selected_instructions_to_register_homes::RecursiveSpillEvent::Reload { point: LiveRangePoint(18), before_instruction, .. }) if before_instruction.0 == 9
         ));
     }
 }

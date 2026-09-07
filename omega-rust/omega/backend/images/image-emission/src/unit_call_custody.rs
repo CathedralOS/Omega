@@ -96,7 +96,7 @@ pub(super) fn validate_mixed_structural_scalar_abi(
     let scalar_shapes = abi
         .scalar_parameters
         .iter()
-        .map(|parameter| fixed_integer_shape(parameter.scalar_type).ok_or_else(invalid))
+        .map(|parameter| fixed_integer_abi_shape(parameter.scalar_type).ok_or_else(invalid))
         .collect::<Result<Vec<_>, _>>()?;
     let result_shape = super::unit_scalar_call_custody::scalar_home_shape(abi.result.scalar_type)
         .ok_or_else(invalid)?;
@@ -119,7 +119,7 @@ pub(super) fn validate_mixed_structural_scalar_abi(
     let scalar_count = abi.scalar_parameters.len();
     let structural_count = abi.structural_parameters.len();
     if structural_count == 0
-        || function.fixed_integer_scalar_abi.is_some()
+        || function.scalar_abi.is_some()
         || function.unit_scalar_abi.is_some()
         || function.scalar_stack.is_none()
         || function.unit_stack.is_some()
@@ -195,6 +195,13 @@ fn fixed_integer_shape(integer: semantic_vocabulary::IntegerType) -> Option<Valu
     }
     let bytes = integer.bits() / 8;
     Some(ValueShape::integer(bytes, bytes))
+}
+
+fn fixed_integer_abi_shape(scalar: semantic_vocabulary::ScalarType) -> Option<ValueShape> {
+    let semantic_vocabulary::ScalarType::Integer(integer) = scalar else {
+        return None;
+    };
+    fixed_integer_shape(integer)
 }
 
 pub(super) fn unit_scalar_shape(
@@ -500,7 +507,9 @@ pub(super) fn validate_internal_unit_call_custody(
             } else if let Some(abi) = callee_mixed_abi {
                 abi.scalar_parameters
                     .iter()
-                    .map(|parameter| fixed_integer_shape(parameter.scalar_type).ok_or_else(invalid))
+                    .map(|parameter| {
+                        fixed_integer_abi_shape(parameter.scalar_type).ok_or_else(invalid)
+                    })
                     .chain(
                         abi.structural_parameters
                             .iter()
@@ -511,7 +520,9 @@ pub(super) fn validate_internal_unit_call_custody(
                 returned
                     .scalar_parameters
                     .iter()
-                    .map(|parameter| fixed_integer_shape(parameter.scalar_type).ok_or_else(invalid))
+                    .map(|parameter| {
+                        fixed_integer_abi_shape(parameter.scalar_type).ok_or_else(invalid)
+                    })
                     .chain(
                         returned
                             .parameter_placements
@@ -624,8 +635,7 @@ pub(super) fn validate_internal_unit_call_custody(
                 .any(|(index, (argument, parameter))| {
                     usize::try_from(argument.parameter_index) != Ok(index)
                         || argument.destination != parameter.placement
-                        || argument.source.scalar_type()
-                            != semantic_vocabulary::ScalarType::Integer(parameter.scalar_type)
+                        || argument.source.scalar_type() != parameter.scalar_type
                 })
             || custody
                 .arguments
@@ -674,8 +684,7 @@ pub(super) fn validate_internal_unit_call_custody(
                 .any(|(index, (argument, parameter))| {
                     usize::try_from(argument.parameter_index) != Ok(index)
                         || argument.destination != parameter.placement
-                        || argument.source.scalar_type()
-                            != semantic_vocabulary::ScalarType::Integer(parameter.scalar_type)
+                        || argument.source.scalar_type() != parameter.scalar_type
                 })
             || custody
                 .arguments

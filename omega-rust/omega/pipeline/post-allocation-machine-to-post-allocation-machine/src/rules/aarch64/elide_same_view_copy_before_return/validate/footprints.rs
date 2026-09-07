@@ -43,11 +43,16 @@ pub(super) fn validate_pair(
     let source = qualified(machine_copy, 0, copy.id)?;
     let destination = qualified(machine_copy, 1, copy.id)?;
     let returned_operand = qualified(machine_return, 0, returned.id)?;
-    if !returned_operand.storage_units.iter().all(|unit| {
-        live_copy.unit_live_out.contains(unit)
-            && live_return.unit_live_in.contains(unit)
-            && live_return.unit_uses.contains(unit)
-    }) || !live_block.successors.is_empty()
+    if !live_copy
+        .virtual_live_out
+        .contains(&returned_operand.virtual_register)
+        || !live_return
+            .virtual_live_in
+            .contains(&returned_operand.virtual_register)
+        || !live_return
+            .virtual_uses
+            .contains(&returned_operand.virtual_register)
+        || !live_block.successors.is_empty()
     {
         return Err(Aarch64SameViewCopyElisionError::LivenessRosterMismatch(
             returned.id,
@@ -122,6 +127,11 @@ fn validate_return(
     let x0 = named_view(physical, "x0", selected.id)?;
     let x30 = named_view(physical, "x30", selected.id)?;
     let pc = named_view(physical, "pc", selected.id)?;
+    let sp = named_view(physical, "sp", selected.id)?;
+    let mut semantic_uses = sp.units.clone();
+    semantic_uses.extend(&x30.units);
+    semantic_uses.sort_unstable();
+    semantic_uses.dedup();
     let encoded = &machine.alternative.encoded;
     if machine.instruction != selected.id
         || !matches!(selected.kind, SelectedInstructionKind::ReturnI64)
@@ -138,7 +148,7 @@ fn validate_return(
         || encoded.trap != MachineEncodedTrapBehavior::MayArchitecturalFaultV1
         || encoded.control
             != (MachineEncodedControlEffect::ReturnIndirectRegisterV1 { target: x30.id })
-        || machine.implicit_unit_uses != x30.units
+        || machine.implicit_unit_uses != semantic_uses
         || machine.implicit_unit_defs != pc.units
         || !machine.implicit_unit_clobbers.is_empty()
         || machine.operands.len() != 1

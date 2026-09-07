@@ -1,7 +1,6 @@
 use abstract_operations_to_target_operations::LoweringError;
 
 use machine_emission::{
-    AllocationRecoveryFunctionRelativeRealizationError,
     FunctionRelativeOptimizationRealizationError,
     OptimizedStructuralUnitFunctionRelativeRealizationError,
     OptimizedUnitFunctionRelativeRealizationError,
@@ -35,7 +34,6 @@ pub enum OptimizedVerifiedPhysicalPipelineError {
     FunctionRelativeLayoutRuleCatalog(
         resolved_layout_to_resolved_layout::FunctionRelativeLayoutCatalogError,
     ),
-    AllocationRecoveryFunctionRelative(Box<AllocationRecoveryFunctionRelativeRealizationError>),
     UnitFunctionRelativeRealization(OptimizedUnitFunctionRelativeRealizationError),
     StructuralUnitFunctionRelativeRealization(
         OptimizedStructuralUnitFunctionRelativeRealizationError,

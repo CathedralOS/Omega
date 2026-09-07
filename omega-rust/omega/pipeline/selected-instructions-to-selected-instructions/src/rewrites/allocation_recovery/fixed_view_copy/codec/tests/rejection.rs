@@ -2,10 +2,9 @@ use crate::{FixedViewCopyDecodeError, FixedViewCopyPlan, FixedViewCopyPolicy};
 
 use super::{
     super::{
-        copy::decode_copy, encode_v4, primitives::Cursor, selected::decode_kind,
-        values::decode_fixed_site,
+        copy::decode_copy, primitives::Cursor, selected::decode_kind, values::decode_fixed_site,
     },
-    plan,
+    plan, with_stale_version,
 };
 
 fn transformed_identity_offset(encoded: &[u8]) -> usize {
@@ -43,10 +42,10 @@ fn artifact_rejects_corruption_truncation_trailing_and_closed_tags() {
         Err(FixedViewCopyDecodeError::WrongMagic)
     );
     let mut wrong_version = encoded.clone();
-    wrong_version[8..12].copy_from_slice(&14_u32.to_le_bytes());
+    wrong_version[8..12].copy_from_slice(&15_u32.to_le_bytes());
     assert_eq!(
         FixedViewCopyPlan::decode(&wrong_version),
-        Err(FixedViewCopyDecodeError::UnsupportedVersion(14))
+        Err(FixedViewCopyDecodeError::UnsupportedVersion(15))
     );
     let mut policy_tag = encoded.clone();
     let policy_offset = 8 + 4 + 32 + (5 * 32);
@@ -88,16 +87,17 @@ fn artifact_rejects_corruption_truncation_trailing_and_closed_tags() {
         Err(FixedViewCopyDecodeError::UnknownFixedSite(9))
     );
     assert_eq!(
-        decode_kind(&mut Cursor::new(&[15])),
-        Err(FixedViewCopyDecodeError::UnknownInstructionKind(15))
+        decode_kind(&mut Cursor::new(&[16])),
+        Err(FixedViewCopyDecodeError::UnknownInstructionKind(16))
     );
 }
 
 #[test]
 fn stale_artifact_version_rejects_before_payload_or_authentication() {
-    let encoded = encode_v4(&plan(
-        FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1,
-    ));
+    let encoded = with_stale_version(
+        &plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1),
+        4,
+    );
     let transformed_offset = transformed_identity_offset(&encoded);
 
     let mut trailing_and_transformed = encoded.clone();
@@ -118,7 +118,7 @@ fn stale_artifact_version_rejects_before_payload_or_authentication() {
 }
 
 #[test]
-fn artifact_v13_rejection_precedence_is_trailing_payload_semantic_then_outer() {
+fn artifact_v14_rejection_precedence_is_trailing_payload_semantic_then_outer() {
     let encoded = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1).encode();
     let transformed_offset = transformed_identity_offset(&encoded);
     let payload_digest_offset = selected_payload_offset(&encoded);
@@ -153,7 +153,7 @@ fn artifact_v13_rejection_precedence_is_trailing_payload_semantic_then_outer() {
 #[test]
 fn every_previous_wire_generation_rejects_before_payload_decoding() {
     let encoded = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1).encode();
-    for version in 0..13_u32 {
+    for version in 0..14_u32 {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(

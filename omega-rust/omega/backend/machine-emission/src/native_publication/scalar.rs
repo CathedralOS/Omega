@@ -9,11 +9,11 @@ mod tests;
 use super::{LeafEvidence, leaf_function};
 use abstract_operations::AbstractFunction;
 use machine_code::{FunctionFragment, MachineCodeFunction};
-use target_operations::FixedIntegerScalarFunctionAbi;
+use target_operations::ScalarFunctionAbi;
 
 pub(super) fn project_function(
     fragment: &FunctionFragment,
-    abi: &FixedIntegerScalarFunctionAbi,
+    abi: &ScalarFunctionAbi,
     source: &AbstractFunction,
     architecture: target::Architecture,
 ) -> Result<MachineCodeFunction, &'static str> {

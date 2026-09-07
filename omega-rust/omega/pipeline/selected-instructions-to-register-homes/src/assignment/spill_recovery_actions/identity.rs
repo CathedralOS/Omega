@@ -127,16 +127,6 @@ fn origin(bytes: &mut Vec<u8>, value: VirtualRegisterOrigin) {
             bytes.extend_from_slice(&instruction.0.to_le_bytes());
             bytes.extend_from_slice(&source_value.get().to_le_bytes());
         }
-        VirtualRegisterOrigin::LegalizationTemporary {
-            instruction,
-            temporary,
-            source_value,
-        } => {
-            bytes.push(2);
-            bytes.extend_from_slice(&instruction.0.to_le_bytes());
-            bytes.extend_from_slice(&temporary.0.to_le_bytes());
-            bytes.extend_from_slice(&source_value.get().to_le_bytes());
-        }
     }
 }
 

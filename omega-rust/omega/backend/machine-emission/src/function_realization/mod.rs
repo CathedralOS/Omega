@@ -5,15 +5,17 @@
 //! rule-independent post-allocation machine join.  Carriers, manifests,
 //! assembly, codecs, and route mechanics descend into named leaves below.
 
-mod allocation_recovery;
 mod assembly;
 mod structural_unit;
 mod unit;
-pub use allocation_recovery::*;
 pub use structural_unit::*;
 pub use unit::*;
 mod carriers;
+#[cfg(any(test, feature = "test-support"))]
+mod fixed_frame_test_support;
 mod frame;
+#[cfg(any(test, feature = "test-support"))]
+pub use fixed_frame_test_support::*;
 pub use frame::FunctionRelativeFrame;
 mod codec;
 mod error;

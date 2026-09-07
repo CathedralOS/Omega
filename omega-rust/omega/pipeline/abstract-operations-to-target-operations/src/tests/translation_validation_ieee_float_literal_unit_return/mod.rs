@@ -11,8 +11,8 @@ use semantic_vocabulary::{
 };
 use target::NativeTarget;
 use target_operations::{
-    FixedIntegerScalarAbiValue, FixedIntegerScalarFunctionAbi, TargetOperation,
-    TargetStructuralParameter, TargetUnitOperation, TerminalPsiProvenance,
+    ScalarAbiValue, ScalarFunctionAbi, TargetOperation, TargetStructuralParameter,
+    TargetUnitOperation, TerminalPsiProvenance,
 };
 use terminal_psi::{
     EntryClaim, SemanticFingerprint, StructuralAccess, StructuralMultiplicity,

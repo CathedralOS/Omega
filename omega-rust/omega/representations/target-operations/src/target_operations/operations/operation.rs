@@ -2,11 +2,11 @@
 
 use crate::{
     BoundaryExecutionBinding, BoundaryScalarArgument, DirectPortReadU8Realization,
-    FixedIntegerScalarAbiValue, LinuxExitGroupI32Realization, ScalarParameterLocation,
-    TargetBooleanControl, TargetBooleanExpression, TargetConditionalBooleanArm,
-    TargetConditionalIntegerArm, TargetDynamicDescriptorParameterAbi, TargetIntegerExpression,
-    TargetRankedU32Countdown, TargetScalarStructuralFieldStore, TargetStructuralArgument,
-    TargetStructuralParameter, TargetUnitBody,
+    LinuxExitGroupI32Realization, ScalarAbiValue, ScalarParameterLocation, TargetBooleanControl,
+    TargetBooleanExpression, TargetConditionalBooleanArm, TargetConditionalIntegerArm,
+    TargetDynamicDescriptorParameterAbi, TargetIntegerExpression, TargetRankedU32Countdown,
+    TargetScalarStructuralFieldStore, TargetStructuralArgument, TargetStructuralParameter,
+    TargetUnitBody,
 };
 use abstract_operations::{AbstractDynamicDescriptorArgument, CompletionClaimSource};
 use calling_conventions::{CallPlan, ValuePlacement, ValueShape};
@@ -201,7 +201,7 @@ pub enum TargetOperation {
         call_plan: CallPlan,
         /// Ordered fixed-integer ABI prefix. The established structural-only
         /// return lane retains an empty row.
-        scalar_parameters: Vec<FixedIntegerScalarAbiValue>,
+        scalar_parameters: Vec<ScalarAbiValue>,
         /// Complete ordered structural input signature used to derive the ABI
         /// plan. Cleanup-only parameters remain semantic inputs even though
         /// disposing them emits no instruction.

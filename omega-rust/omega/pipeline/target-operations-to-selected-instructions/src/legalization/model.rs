@@ -162,9 +162,6 @@ pub enum LegalizationError {
     UnsupportedSourceShape {
         function: usize,
     },
-    UnsupportedIntegerShape {
-        function: usize,
-    },
     UnsupportedCondition {
         function: usize,
     },

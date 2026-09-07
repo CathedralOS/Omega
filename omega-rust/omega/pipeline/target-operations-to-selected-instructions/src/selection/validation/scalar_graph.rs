@@ -59,12 +59,21 @@ pub(in crate::selection) fn validate(
             ValueLocation::Register {
                 register,
                 value_byte_offset: 0,
-                byte_size: 8,
+                byte_size,
             },
         ] = parameter.placement.locations.as_slice()
         else {
             return Err(invalid());
         };
+        if *byte_size
+            != match parameter.scalar_type {
+                ScalarType::Boolean => 1,
+                ScalarType::Integer(integer) if integer.bits() == 64 => 8,
+                _ => return Err(invalid()),
+            }
+        {
+            return Err(invalid());
+        }
         let fixed = fixed_input_constraint(
             source.machine,
             parameter.value,
@@ -78,7 +87,7 @@ pub(in crate::selection) fn validate(
         }
         let id = replay.check_register(
             parameter.definition_site,
-            ScalarType::Integer(parameter.scalar_type),
+            parameter.scalar_type,
             VirtualRegisterOrigin::EntryParameter {
                 source_value: parameter.value,
                 parameter_index: index,
@@ -89,12 +98,26 @@ pub(in crate::selection) fn validate(
             parameter.value,
             id,
             parameter.definition_site,
-            ScalarType::Integer(parameter.scalar_type),
+            parameter.scalar_type,
         ));
     }
     for index in 0..replay.definitions.len() {
         let (value, input, site, scalar_type) = replay.definitions[index];
-        let output = replay.check_copy(input, value, site, scalar_type)?;
+        let output = if scalar_type == ScalarType::Boolean {
+            let output = replay.result_register(value, site, scalar_type)?;
+            replay.check_instruction(
+                SelectedInstructionKind::ZeroExtendU8,
+                constraints.keys.copy_i64,
+                &[input, output],
+                &SelectedInstructionProvenance {
+                    values: vec![value],
+                    ..Default::default()
+                },
+            )?;
+            output
+        } else {
+            replay.check_copy(input, value, site, scalar_type)?
+        };
         replay.definitions[index].1 = output;
     }
     // Check the predeclared destination roster before any edge refers to it.
@@ -145,6 +168,9 @@ pub(in crate::selection) fn validate(
                     left,
                     right,
                 } => {
+                    if !branch_suffix(source_block, operation_index) {
+                        return Err(invalid());
+                    }
                     if let Some(zero) =
                         zero_compare::folded_zero(source, source_block, operation_index)
                     {
@@ -199,6 +225,44 @@ pub(in crate::selection) fn validate(
                         },
                     )?;
                     continue;
+                }
+                LegalizedScalarInstructionKind::BooleanNot { .. } => {
+                    if !branch_suffix(source_block, operation_index) {
+                        return Err(invalid());
+                    }
+                    continue;
+                }
+                LegalizedScalarInstructionKind::IntegerWiden {
+                    operand,
+                    source_type,
+                } => {
+                    let (_, input, _, actual_type) =
+                        replay.resolve(*operand).ok_or_else(invalid)?;
+                    if actual_type != ScalarType::Integer(*source_type)
+                        || source_type.sign() != IntegerSign::Unsigned
+                        || source_type.bits() != 8
+                        || !matches!(scalar_type, ScalarType::Integer(integer)
+                            if integer.sign() == IntegerSign::Unsigned && integer.bits() == 64)
+                    {
+                        return Err(invalid());
+                    }
+                    let output = replay.result_register(
+                        operation.result,
+                        operation.definition_site,
+                        scalar_type,
+                    )?;
+                    replay.check_instruction(
+                        SelectedInstructionKind::CopyI64,
+                        constraints.keys.copy_i64,
+                        &[input, output],
+                        &SelectedInstructionProvenance {
+                            operations: vec![operation.operation],
+                            values: vec![*operand, operation.result],
+                            fuel: operation.fuel.clone(),
+                            ..Default::default()
+                        },
+                    )?;
+                    output
                 }
                 LegalizedScalarInstructionKind::Constant(value) => {
                     let register = replay.result_register(
@@ -473,4 +537,18 @@ impl Replay<'_> {
         )?;
         Ok(output)
     }
+}
+
+fn branch_suffix(block: &legalized_operations::LegalizedScalarBlock, index: usize) -> bool {
+    let mut value = block.instructions[index].result;
+    for row in &block.instructions[index + 1..] {
+        if !matches!(row.kind, LegalizedScalarInstructionKind::BooleanNot {operand} if operand == value)
+            || row.scalar_type != ScalarType::Boolean
+        {
+            return false;
+        }
+        value = row.result;
+    }
+    matches!(block.terminator, legalized_operations::LegalizedScalarTerminator::Conditional {condition,..}
+        if condition == value)
 }

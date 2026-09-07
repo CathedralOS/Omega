@@ -111,7 +111,6 @@ fn scalar_cfg_accepts_signed_comparisons_and_more_than_four_blocks() {
                     &target, &plan, &unit
                 ));
                 let legalized = legalize_target_operations(&target, &plan, &unit).unwrap();
-                assert!(legalized.plan().functions.is_empty());
                 let graph = &legalized.plan().scalar_functions[0];
                 assert_eq!(graph.blocks.len(), 5);
                 assert_eq!(graph.blocks[4].instructions[0].operation, operation(91));

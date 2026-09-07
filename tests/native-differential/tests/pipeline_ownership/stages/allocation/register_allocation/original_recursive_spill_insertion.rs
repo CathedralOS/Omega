@@ -69,8 +69,8 @@ fn original_victim_extends_the_recursive_schedule_and_crosses_spill_pseudos() {
         assert_eq!(function.slots[0].spill_area_offset, 0);
         assert_eq!(function.slots[1].spill_area_offset, 8);
         assert_eq!(function.slots[2].action, id(2, 0));
-        assert_eq!(function.slots[2].live_from, LiveRangePoint(14));
-        assert_eq!(function.slots[2].live_through, LiveRangePoint(16));
+        assert_eq!(function.slots[2].live_from, LiveRangePoint(16));
+        assert_eq!(function.slots[2].live_through, LiveRangePoint(18));
         assert_eq!(function.slots[2].spill_area_offset, 0);
         assert_eq!(
             function.slots[2].source,
@@ -81,7 +81,7 @@ fn original_victim_extends_the_recursive_schedule_and_crosses_spill_pseudos() {
                         ordinal: 0,
                     },
                 source_pressure: id(1, 0),
-                victim: VirtualRegisterId(5),
+                victim: VirtualRegisterId(6),
             }
         );
 
@@ -93,20 +93,20 @@ fn original_victim_extends_the_recursive_schedule_and_crosses_spill_pseudos() {
         assert!(matches!(
             store,
             selected_instructions_to_register_homes::RecursiveSpillEvent::Store {
-                point: LiveRangePoint(14),
+                point: LiveRangePoint(16),
                 before_instruction,
                 before_reload: Some(source_pressure),
-                source: selected_instructions_to_register_homes::RecursiveSpillStoredValue::Original(VirtualRegisterId(5)),
+                source: selected_instructions_to_register_homes::RecursiveSpillStoredValue::Original(VirtualRegisterId(6)),
                 ..
-            } if before_instruction.0 == 7 && *source_pressure == id(1, 0)
+            } if before_instruction.0 == 8 && *source_pressure == id(1, 0)
         ));
         assert!(matches!(
             function.schedule.iter().find(|event| matches!(event, selected_instructions_to_register_homes::RecursiveSpillEvent::Reload { action, .. } if *action == id(2, 0))),
             Some(selected_instructions_to_register_homes::RecursiveSpillEvent::Reload {
-                point: LiveRangePoint(16),
+                point: LiveRangePoint(18),
                 before_instruction,
                 ..
-            }) if before_instruction.0 == 8
+            }) if before_instruction.0 == 9
         ));
 
         let pseudos = lower_pseudos(&first);
@@ -116,7 +116,7 @@ fn original_victim_extends_the_recursive_schedule_and_crosses_spill_pseudos() {
             selected_instructions_to_register_homes::SpillPseudoInstruction::Store {
                 action,
                 before_reload: Some(selected_instructions_to_register_homes::SpillPseudoInstructionId { ordinal: 4 }),
-                source: selected_instructions_to_register_homes::SpillPseudoStoredValue::Original(VirtualRegisterId(5)),
+                source: selected_instructions_to_register_homes::SpillPseudoStoredValue::Original(VirtualRegisterId(6)),
                 ..
             } if action == id(2, 0)
         ));
@@ -176,23 +176,21 @@ fn independent_replay_rejects_original_lineage_schedule_policy_and_usage_corrupt
                     function: 0,
                     action: id(2, 0),
                     victim: selected_instructions_to_register_homes::GeneralizedSpillRecoveryVictim::Original(
-                        VirtualRegisterId(5),
+                        VirtualRegisterId(6),
                     ),
                 }
             )
         );
 
         let mut lineage = canonical.clone();
-        lineage.functions[0].slots[2].source =
-            selected_instructions_to_register_homes::RecursiveSpillActionSource::EpochTwoOriginal {
-                work_item:
-                    selected_instructions_to_register_homes::GeneralizedSpillRecoveryWorkItemId {
-                        epoch: 2,
-                        ordinal: 0,
-                    },
-                source_pressure: id(1, 0),
-                victim: VirtualRegisterId(6),
-            };
+        let selected_instructions_to_register_homes::RecursiveSpillActionSource::EpochTwoOriginal {
+            victim,
+            ..
+        } = &mut lineage.functions[0].slots[2].source
+        else {
+            panic!("fixture must retain the selected original victim");
+        };
+        victim.0 += 1;
         assert_eq!(
             sources.validate_recursive_spills(&actions, lineage),
             Err(selected_instructions_to_register_homes::RecursiveSpillInsertionError::NonCanonicalSlots { function: 0 })

@@ -23,25 +23,7 @@ use values::{encode_len, encode_target};
 pub fn pre_allocation_machine_effect_identity(
     plan: &PreAllocationMachineEffectPlan,
 ) -> PreAllocationMachineEffectIdentity {
-    identity_with_domain(plan, b"omega.terminal-preallocation-machine-effects.v8\0")
-}
-
-pub(crate) fn pre_allocation_machine_effect_identity_v7_legacy(
-    plan: &PreAllocationMachineEffectPlan,
-) -> PreAllocationMachineEffectIdentity {
-    identity_with_domain(plan, b"omega.terminal-preallocation-machine-effects.v7\0")
-}
-
-pub(crate) fn pre_allocation_machine_effect_identity_v6_legacy(
-    plan: &PreAllocationMachineEffectPlan,
-) -> PreAllocationMachineEffectIdentity {
-    identity_with_domain(plan, b"omega.terminal-preallocation-machine-effects.v6\0")
-}
-
-pub(crate) fn pre_allocation_machine_effect_identity_v5_legacy(
-    plan: &PreAllocationMachineEffectPlan,
-) -> PreAllocationMachineEffectIdentity {
-    identity_with_domain(plan, b"omega.terminal-preallocation-machine-effects.v5\0")
+    identity_with_domain(plan, b"omega.terminal-preallocation-machine-effects.v9\0")
 }
 
 fn identity_with_domain(

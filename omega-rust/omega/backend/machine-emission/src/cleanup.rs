@@ -62,7 +62,7 @@ pub(super) fn emit_scalar_return_with_cleanup(
         &AssignedFunction {
             machine: function.machine,
             attachment: function.attachment,
-            fixed_integer_scalar_abi: function.fixed_integer_scalar_abi.clone(),
+            scalar_abi: function.scalar_abi.clone(),
             mixed_structural_scalar_abi: function.mixed_structural_scalar_abi.clone(),
             provenance: function.provenance.clone(),
             operation: scalar.clone(),
@@ -514,7 +514,7 @@ pub(super) fn emit_boolean_control_with_cleanup(
     Ok(MachineCodeFunction {
         machine: function.machine,
         attachment: function.attachment,
-        fixed_integer_scalar_abi: function.fixed_integer_scalar_abi.clone(),
+        scalar_abi: function.scalar_abi.clone(),
         mixed_structural_scalar_abi: function.mixed_structural_scalar_abi.clone(),
         structural_call_scalar_return: None,
         unit_scalar_abi: None,

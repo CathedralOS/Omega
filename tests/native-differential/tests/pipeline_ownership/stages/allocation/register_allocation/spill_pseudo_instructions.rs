@@ -88,7 +88,7 @@ fn recursive_schedule_becomes_linked_target_neutral_pseudos_on_both_targets() {
         assert!(function.rewrites.iter().any(|rewrite| {
             rewrite.action == id(2, 0)
                 && rewrite.result == id(2, 0)
-                && rewrite.point == LiveRangePoint(16)
+                && rewrite.point == LiveRangePoint(18)
                 && rewrite.producer.ordinal == 5
         }));
     }

@@ -26,7 +26,7 @@ pub struct StructuralReturnRecord {
     pub psi_edge: EdgeId,
     /// Ordered fixed-integer prefix preceding the structural input roster.
     /// Empty for the established claim-bearing structural-only family.
-    pub scalar_parameters: Vec<target_operations::FixedIntegerScalarAbiValue>,
+    pub scalar_parameters: Vec<target_operations::ScalarAbiValue>,
     /// Complete ordered structural input signature. This binds the returned
     /// place and every zero-code cleanup place to its exact type/multiplicity.
     pub parameters: Vec<StructuralParameterDeclaration>,

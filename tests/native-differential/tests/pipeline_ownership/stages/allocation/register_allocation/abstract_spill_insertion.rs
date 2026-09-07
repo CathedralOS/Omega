@@ -44,11 +44,12 @@ fn exact_schedule_is_deterministic_on_both_architectures() {
         let function = &first.plan().functions[0];
         assert_eq!(function.spill_area_bytes, 8);
         let action = function.action.as_ref().unwrap();
-        assert_eq!(action.pressure_point, LiveRangePoint(9));
-        assert_eq!(action.store.before_instruction, SelectedInstructionId(4));
+        // The ordinary graph snapshots its ABI entry before the exact chain.
+        assert_eq!(action.pressure_point, LiveRangePoint(11));
+        assert_eq!(action.store.before_instruction, SelectedInstructionId(5));
         assert_eq!(action.store.source, action.victim);
         assert_eq!(action.store.source_view, action.victim_view);
-        assert_eq!(action.reload.before_instruction, SelectedInstructionId(6));
+        assert_eq!(action.reload.before_instruction, SelectedInstructionId(7));
         assert_eq!(
             action.reload.before_instruction,
             action.rewrites[0].instruction
@@ -65,8 +66,8 @@ fn exact_schedule_is_deterministic_on_both_architectures() {
                 .map(|rewrite| (rewrite.point, rewrite.instruction, rewrite.operand))
                 .collect::<Vec<_>>(),
             vec![
-                (LiveRangePoint(12), SelectedInstructionId(6), 0),
                 (LiveRangePoint(14), SelectedInstructionId(7), 0),
+                (LiveRangePoint(16), SelectedInstructionId(8), 0),
             ]
         );
         assert!(action.rewrites.windows(2).all(|pair| pair[0] < pair[1]));

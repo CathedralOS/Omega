@@ -118,7 +118,7 @@ fn fixture(
         functions.push(AssignedFunction {
             machine,
             attachment: None,
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: Vec::new(),

@@ -7,9 +7,8 @@ use machine_code::StructuralReturnRecord;
 use semantic_vocabulary::{ClaimId, EdgeId, MachineId, OperationId, PlaceId};
 
 use super::{
-    InstallationError, InstalledStructuralReturn, Reader,
-    fixed_integer_scalar_abi_codec::{decode_abi_value, encode_abi_value},
-    push_u32, push_u64,
+    InstallationError, InstalledStructuralReturn, Reader, push_u32, push_u64,
+    scalar_abi_codec::{decode_abi_value, encode_abi_value},
     structural_signature_codec::{
         decode_structural_parameter, decode_structural_result, encode_structural_parameter,
         encode_structural_result,

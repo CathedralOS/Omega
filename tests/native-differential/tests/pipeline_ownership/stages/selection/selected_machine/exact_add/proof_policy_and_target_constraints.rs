@@ -6,14 +6,20 @@ use crate::tests::*;
 fn exact_add_selection_retains_proof_policy_and_target_constraints() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let staged = staged_exact_add_conditional(target);
-        assert_eq!(
-            staged.legalized().plan().functions[0].conditional().recipe,
-            LegalizationRecipe::ReturnU64ExactAddImmediateConditionalV1
-        );
+
         let plan = staged.selected().plan();
+        let binary_index = plan.functions[0].blocks[1]
+            .instructions
+            .iter()
+            .position(|row| matches!(row.kind, SelectedInstructionKind::ExactAddI64 { .. }))
+            .unwrap();
+        let false_binary_index = plan.functions[0].blocks[2]
+            .instructions
+            .iter()
+            .position(|row| matches!(row.kind, SelectedInstructionKind::ExactAddI64 { .. }))
+            .unwrap();
         let function = &plan.functions[0];
-        assert_eq!(function.virtual_registers.len(), 7);
-        assert_eq!(staged.selected().receipt().instruction_count(), 10);
+
         let accepted = &staged
             .optimized_target()
             .optimized()
@@ -24,8 +30,11 @@ fn exact_add_selection_retains_proof_policy_and_target_constraints() {
             ObligationId::new(5_031).unwrap(),
             ObligationId::new(5_032).unwrap(),
         ]) {
-            assert_eq!(block.instructions.len(), 3);
-            let add = &block.instructions[2];
+            let add = block
+                .instructions
+                .iter()
+                .find(|row| matches!(row.kind, SelectedInstructionKind::ExactAddI64 { .. }))
+                .unwrap();
             let SelectedInstructionKind::ExactAddI64 {
                 obligation,
                 accepted_fact,
@@ -73,7 +82,7 @@ fn exact_add_selection_retains_proof_policy_and_target_constraints() {
         let original_identity = staged.selected().receipt().identity();
         let mut corrupted = plan.clone();
         let SelectedInstructionKind::ExactAddI64 { obligation, .. } =
-            &mut corrupted.functions[0].blocks[1].instructions[2].kind
+            &mut corrupted.functions[0].blocks[1].instructions[binary_index].kind
         else {
             unreachable!()
         };
@@ -84,16 +93,17 @@ fn exact_add_selection_retains_proof_policy_and_target_constraints() {
         );
         assert!(matches!(
             validate_raw_selection(&staged, corrupted),
-            Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+            Err(SelectedInstructionError::FunctionProjectionMismatch { function: 0 })
         ));
 
         let mut corrupted = plan.clone();
-        let false_fact = match corrupted.functions[0].blocks[2].instructions[2].kind {
-            SelectedInstructionKind::ExactAddI64 { accepted_fact, .. } => accepted_fact,
-            _ => unreachable!(),
-        };
+        let false_fact =
+            match corrupted.functions[0].blocks[2].instructions[false_binary_index].kind {
+                SelectedInstructionKind::ExactAddI64 { accepted_fact, .. } => accepted_fact,
+                _ => unreachable!(),
+            };
         let SelectedInstructionKind::ExactAddI64 { accepted_fact, .. } =
-            &mut corrupted.functions[0].blocks[1].instructions[2].kind
+            &mut corrupted.functions[0].blocks[1].instructions[binary_index].kind
         else {
             unreachable!()
         };
@@ -104,53 +114,53 @@ fn exact_add_selection_retains_proof_policy_and_target_constraints() {
         );
         assert!(matches!(
             validate_raw_selection(&staged, corrupted),
-            Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+            Err(SelectedInstructionError::FunctionProjectionMismatch { function: 0 })
         ));
 
         let mut corrupted = plan.clone();
-        corrupted.functions[0].blocks[1].instructions[2]
+        corrupted.functions[0].blocks[1].instructions[binary_index]
             .provenance
             .obligations[0] = ObligationId::new(9_502).unwrap();
         assert!(matches!(
             validate_raw_selection(&staged, corrupted),
-            Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+            Err(SelectedInstructionError::FunctionProjectionMismatch { function: 0 })
         ));
 
         let mut corrupted = plan.clone();
-        corrupted.functions[0].blocks[1].instructions[2]
+        corrupted.functions[0].blocks[1].instructions[binary_index]
             .operands
             .swap(0, 1);
         assert!(matches!(
             validate_raw_selection(&staged, corrupted),
-            Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+            Err(SelectedInstructionError::FunctionProjectionMismatch { function: 0 })
         ));
 
         let mut corrupted = plan.clone();
-        corrupted.functions[0].blocks[1].instructions[2].constraint =
+        corrupted.functions[0].blocks[1].instructions[binary_index].constraint =
             staged.register_environment().selected_keys().copy_i64;
         assert!(matches!(
             validate_raw_selection(&staged, corrupted),
-            Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+            Err(SelectedInstructionError::FunctionProjectionMismatch { function: 0 })
                 | Err(SelectedInstructionError::ConstraintOperandMismatch { .. })
         ));
 
         let mut corrupted = plan.clone();
-        corrupted.functions[0].blocks[1].instructions[2]
+        corrupted.functions[0].blocks[1].instructions[binary_index]
             .provenance
             .operations[0] = OperationId::new(9_503).unwrap();
         assert!(matches!(
             validate_raw_selection(&staged, corrupted),
-            Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+            Err(SelectedInstructionError::FunctionProjectionMismatch { function: 0 })
         ));
 
         let mut corrupted = plan.clone();
-        corrupted.functions[0].blocks[1].instructions[2]
+        corrupted.functions[0].blocks[1].instructions[binary_index]
             .provenance
             .fuel[0]
             .units += 1;
         assert!(matches!(
             validate_raw_selection(&staged, corrupted),
-            Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+            Err(SelectedInstructionError::FunctionProjectionMismatch { function: 0 })
                 | Err(SelectedInstructionError::ProvenancePartitionMismatch { .. })
         ));
     }

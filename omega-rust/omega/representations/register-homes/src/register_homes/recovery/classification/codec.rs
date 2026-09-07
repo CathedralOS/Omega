@@ -300,13 +300,6 @@ impl<'encoded> RecoveryClassificationCursor<'encoded> {
                 instruction: SelectedInstructionId(u32::from_le_bytes(self.array()?)),
                 source_value: self.value_id()?,
             }),
-            2 => Ok(VirtualRegisterOrigin::LegalizationTemporary {
-                instruction: SelectedInstructionId(u32::from_le_bytes(self.array()?)),
-                temporary: legalized_operations::LegalizedTemporaryId(u32::from_le_bytes(
-                    self.array()?,
-                )),
-                source_value: self.value_id()?,
-            }),
             tag => Err(RecoveryClassificationDecodeError::UnknownOrigin(tag)),
         }
     }

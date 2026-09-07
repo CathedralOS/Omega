@@ -23,7 +23,7 @@ pub(super) fn assign_function(
     Ok(AssignedFunction {
         machine: function.machine,
         attachment: function.attachment,
-        fixed_integer_scalar_abi: function.fixed_integer_scalar_abi.clone(),
+        scalar_abi: function.scalar_abi.clone(),
         mixed_structural_scalar_abi: function.mixed_structural_scalar_abi.clone(),
         provenance: function.provenance.clone(),
         operation,

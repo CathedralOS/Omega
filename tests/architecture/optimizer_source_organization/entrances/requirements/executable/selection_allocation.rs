@@ -82,24 +82,12 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(crate) fn derive_source_function_rosters",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/source/conditions/mod.rs",
-        coordination_marker: "pub(super) fn derive",
-    },
-    RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/source/scalar_graph.rs",
         coordination_marker: "pub(super) fn derive",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/replay/conditions/mod.rs",
-        coordination_marker: "pub(super) fn replay",
-    },
-    RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/replay/scalar_graph.rs",
         coordination_marker: "pub(super) fn replay",
-    },
-    RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/source/leaves/mod.rs",
-        coordination_marker: "pub(super) fn derive_leaf",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/source/structural/mod.rs",
@@ -112,10 +100,6 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/replay/structural/mod.rs",
         coordination_marker: "pub(super) fn replay_structural_unit_function",
-    },
-    RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/replay/leaf/mod.rs",
-        coordination_marker: "pub(super) fn replay_leaf",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/projected_structural_call_return/source/mod.rs",
@@ -132,14 +116,6 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection/construction/mod.rs",
         coordination_marker: "pub(super) fn build_plan",
-    },
-    RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection/construction/scalar/mod.rs",
-        coordination_marker: "let body = catalog::build(&context)?",
-    },
-    RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection/construction/scalar/blocks/entry/mod.rs",
-        coordination_marker: "pub(in crate::selection::construction::scalar) fn condition",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection/construction/structural_unit/mod.rs",
@@ -176,14 +152,6 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection/validation/mod.rs",
         coordination_marker: "pub fn validate_selected_instructions",
-    },
-    RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection/validation/blocks/mod.rs",
-        coordination_marker: "pub(super) fn validate_selected_blocks",
-    },
-    RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection/validation/blocks/entry_control/mod.rs",
-        coordination_marker: "pub(super) fn validate",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/spill_choice/mod.rs",

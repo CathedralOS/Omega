@@ -18,6 +18,14 @@ mod round_trip;
 mod structural;
 mod transport;
 
+// Deliberately mutate only the current header; do not manufacture old schemas.
+fn with_stale_version(plan: &FixedViewCopyPlan, version: u32) -> Vec<u8> {
+    assert!(version < 14);
+    let mut encoded = plan.encode();
+    encoded[8..12].copy_from_slice(&version.to_le_bytes());
+    encoded
+}
+
 pub(super) fn plan(policy: FixedViewCopyPolicy) -> FixedViewCopyPlan {
     let (_, _, _, copy, mut function) =
         crate::rewrites::allocation_recovery::fixed_view_copy::compute::tests::computed_shared_fixture(

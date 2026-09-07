@@ -88,8 +88,8 @@ fn reload_pressure_seeds_one_deterministic_epoch_on_both_architectures() {
         assert_eq!(item.synthetic.ordinal, 0);
         assert_eq!(item.source_reload.0, 0);
         assert_eq!(item.block, SelectedBlockId(1));
-        assert_eq!(item.start, LiveRangePoint(12));
-        assert_eq!(item.exclusive_end, LiveRangePoint(17));
+        assert_eq!(item.start, LiveRangePoint(14));
+        assert_eq!(item.exclusive_end, LiveRangePoint(19));
         assert_eq!(item.candidates.len(), 2);
         assert!(item.candidates.windows(2).all(|pair| pair[0] < pair[1]));
         assert_eq!(

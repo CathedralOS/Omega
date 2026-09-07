@@ -36,7 +36,7 @@ fn disconnected_functions_reach_independent_allocator_and_machine_custody() {
                     .iter()
                     .map(|register| register.id.0)
                     .collect::<Vec<_>>(),
-                vec![0, 1, 2]
+                (0..function.virtual_registers.len() as u32).collect::<Vec<_>>()
             );
             assert_eq!(
                 function
@@ -52,8 +52,8 @@ fn disconnected_functions_reach_independent_allocator_and_machine_custody() {
         assert_eq!(liveness.custody().function_count(), 2);
         assert_eq!(liveness.custody().structural_unit_function_count(), 0);
         assert_eq!(liveness.custody().block_count(), 6);
-        assert_eq!(liveness.custody().virtual_register_count(), 6);
-        assert_eq!(liveness.custody().instruction_count(), 12);
+        assert_eq!(liveness.custody().virtual_register_count(), 12);
+        assert_eq!(liveness.custody().instruction_count(), 18);
         assert_eq!(liveness.custody().successor_count(), 4);
         for (function, machine) in liveness
             .liveness()
@@ -70,7 +70,7 @@ fn disconnected_functions_reach_independent_allocator_and_machine_custody() {
                     .flat_map(|block| &block.instructions)
                     .map(|instruction| instruction.position.0)
                     .collect::<Vec<_>>(),
-                (0..6).collect::<Vec<_>>()
+                (0..9).collect::<Vec<_>>()
             );
         }
         let mut corrupted_liveness = liveness.liveness().plan().clone();
@@ -84,7 +84,7 @@ fn disconnected_functions_reach_independent_allocator_and_machine_custody() {
         assert_eq!(ranges.custody().function_count(), 2);
         assert_eq!(ranges.custody().structural_unit_function_count(), 0);
         assert_eq!(ranges.custody().block_count(), 6);
-        assert_eq!(ranges.custody().virtual_register_count(), 6);
+        assert_eq!(ranges.custody().virtual_register_count(), 12);
         assert_eq!(ranges.custody().interference_count(), 0);
         for (function, machine) in ranges
             .ranges()
@@ -100,7 +100,7 @@ fn disconnected_functions_reach_independent_allocator_and_machine_custody() {
                     .iter()
                     .map(|domain| (domain.block.0, domain.start.0, domain.end.0))
                     .collect::<Vec<_>>(),
-                vec![(0, 0, 4), (1, 4, 8), (2, 8, 12)]
+                vec![(0, 0, 6), (1, 6, 12), (2, 12, 18)]
             );
             assert!(function.interference.is_empty());
         }
@@ -118,7 +118,7 @@ fn disconnected_functions_reach_independent_allocator_and_machine_custody() {
         let legality = stage_optimized_allocation_legality(ranges).unwrap();
         assert_eq!(legality.custody().function_count(), 2);
         assert_eq!(legality.custody().structural_unit_function_count(), 0);
-        assert_eq!(legality.custody().virtual_register_count(), 6);
+        assert_eq!(legality.custody().virtual_register_count(), 12);
         let range_stage = legality.live_range_stage();
         let environment = range_stage
             .liveness_stage()
@@ -143,7 +143,7 @@ fn disconnected_functions_reach_independent_allocator_and_machine_custody() {
         let homes = stage_optimized_register_homes(legality).unwrap();
         assert_eq!(homes.custody().function_count(), 2);
         assert_eq!(homes.custody().structural_unit_function_count(), 0);
-        assert_eq!(homes.custody().assignment_count(), 6);
+        assert_eq!(homes.custody().assignment_count(), 12);
         assert_eq!(
             homes
                 .homes()
@@ -181,7 +181,7 @@ fn disconnected_functions_reach_independent_allocator_and_machine_custody() {
         );
 
         let post = stage_optimized_post_allocation_machine_plan(&homes).unwrap();
-        assert_eq!(post.custody().instruction_count(), 12);
+        assert_eq!(post.custody().instruction_count(), 18);
         assert_eq!(post.machine().plan().functions.len(), 2);
         assert_eq!(
             post.machine()

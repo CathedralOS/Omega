@@ -76,9 +76,9 @@ use semantic_vocabulary::{
 use symbols::SymbolHandle;
 use target_operations::{
     BoundaryRealization, BoundaryScalarArgument, ClaimCompletionOnlyRealization,
-    FixedIntegerScalarAbiValue, FixedIntegerScalarFunctionAbi, LinuxExitGroupI32Realization,
-    ProviderExecutionBinding, ProviderPlanReportIdentity, ScalarParameterLocation, TargetFunction,
-    TargetOperation, TargetOperationPlan, TerminalPsiProvenance,
+    LinuxExitGroupI32Realization, ProviderExecutionBinding, ProviderPlanReportIdentity,
+    ScalarAbiValue, ScalarFunctionAbi, ScalarParameterLocation, TargetFunction, TargetOperation,
+    TargetOperationPlan, TerminalPsiProvenance,
 };
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
@@ -329,7 +329,7 @@ fn terminal_image(
         functions: vec![MachineCodeFunction {
             machine,
             attachment: None,
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             structural_call_scalar_return: None,
             unit_scalar_abi: None,
@@ -497,16 +497,16 @@ fn callback_private_operation_plan() -> TargetOperationPlan {
         functions: vec![TargetFunction {
             machine,
             attachment: None,
-            fixed_integer_scalar_abi: Some(FixedIntegerScalarFunctionAbi {
+            scalar_abi: Some(ScalarFunctionAbi {
                 call_plan,
-                parameters: vec![FixedIntegerScalarAbiValue {
+                parameters: vec![ScalarAbiValue {
                     value: parameter,
-                    scalar_type,
+                    scalar_type: semantic_vocabulary::ScalarType::Integer(scalar_type),
                     placement: parameter_placement,
                 }],
-                result: FixedIntegerScalarAbiValue {
+                result: ScalarAbiValue {
                     value: result,
-                    scalar_type,
+                    scalar_type: semantic_vocabulary::ScalarType::Integer(scalar_type),
                     placement: result_placement,
                 },
             }),

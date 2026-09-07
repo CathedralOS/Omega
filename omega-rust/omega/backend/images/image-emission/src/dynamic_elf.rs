@@ -654,7 +654,7 @@ mod tests {
             target: native,
             entry: machine,
             functions: vec![target_operations::TargetFunction {
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 machine,
                 attachment: None,
@@ -734,7 +734,7 @@ mod tests {
             target: native,
             entry: machine,
             functions: vec![target_operations::TargetFunction {
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 machine,
                 attachment: None,

@@ -64,12 +64,12 @@ fn both_spills_receive_closed_slots_and_one_ordered_target_neutral_schedule() {
         assert_eq!(function.spill_area_bytes, 16);
         assert_eq!(function.slots.len(), 2);
         assert_eq!(function.slots[0].action, action(0, 0));
-        assert_eq!(function.slots[0].live_from, LiveRangePoint(9));
-        assert_eq!(function.slots[0].live_through, LiveRangePoint(12));
+        assert_eq!(function.slots[0].live_from, LiveRangePoint(11));
+        assert_eq!(function.slots[0].live_through, LiveRangePoint(14));
         assert_eq!(function.slots[0].spill_area_offset, 0);
         assert_eq!(function.slots[1].action, action(1, 0));
-        assert_eq!(function.slots[1].live_from, LiveRangePoint(12));
-        assert_eq!(function.slots[1].live_through, LiveRangePoint(14));
+        assert_eq!(function.slots[1].live_from, LiveRangePoint(14));
+        assert_eq!(function.slots[1].live_through, LiveRangePoint(16));
         assert_eq!(function.slots[1].spill_area_offset, 8);
 
         assert_eq!(
@@ -79,13 +79,13 @@ fn both_spills_receive_closed_slots_and_one_ordered_target_neutral_schedule() {
                 .map(event_shape)
                 .collect::<Vec<_>>(),
             vec![
-                (9, 0, 0, 0, 4),
-                (12, 0, 1, 0, 6),
-                (12, 1, 0, 0, 6),
-                (12, 2, 0, 0, 6),
-                (14, 1, 1, 0, 7),
-                (14, 2, 1, 0, 7),
-                (16, 2, 0, 0, 8),
+                (11, 0, 0, 0, 5),
+                (14, 0, 1, 0, 7),
+                (14, 1, 0, 0, 7),
+                (14, 2, 0, 0, 7),
+                (16, 1, 1, 0, 8),
+                (16, 2, 1, 0, 8),
+                (18, 2, 0, 0, 9),
             ]
         );
         let selected_instructions_to_register_homes::GeneralizedSpillEvent::Store {
@@ -93,7 +93,7 @@ fn both_spills_receive_closed_slots_and_one_ordered_target_neutral_schedule() {
             ..
         } = function.schedule[1]
         else {
-            panic!("epoch-one store must be the point-12 store event")
+            panic!("epoch-one store must be the point-14 store event")
         };
         assert_eq!(before_reload, Some(action(0, 0)));
     }

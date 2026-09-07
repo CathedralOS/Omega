@@ -1,7 +1,7 @@
 //! Target-legal operations with explicit legality and semantic provenance.
 //!
-//! The program root retains distinct function/result shapes. Control flow,
-//! values, calls and legality recipes own their fields beneath this root.
+//! The program root retains ordinary instruction graphs and explicit structural
+//! call shapes. Control flow, calls and legality own their fields beneath it.
 //! Identity encoding describes this representation; it is not a lowering pass.
 
 use optimization_core::OptimizationUnitIdentity;
@@ -17,7 +17,6 @@ pub struct LegalizedOperationPlan {
     pub fuel_schedule: FuelScheduleIdentity,
     pub target: NativeTarget,
     pub entry: MachineId,
-    pub functions: Vec<LegalizedFunction>,
     /// Ordinary ordered scalar and Unit graphs with explicit ABI transport.
     pub scalar_functions: Vec<LegalizedScalarFunction>,
     /// Exact structural-call Unit functions. This roster is deliberately
@@ -52,8 +51,6 @@ pub mod calls;
 pub use calls::*;
 pub mod control_flow;
 pub use control_flow::*;
-pub mod values;
-pub use values::*;
 
 pub mod identity;
 mod validation;

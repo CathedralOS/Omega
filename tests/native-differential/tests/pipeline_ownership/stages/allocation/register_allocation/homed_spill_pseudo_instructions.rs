@@ -146,7 +146,7 @@ fn both_recursive_paths_gain_exact_destination_views_on_both_targets() {
                         action,
                         before_reload: Some(selected_instructions_to_register_homes::SpillPseudoInstructionId { ordinal: 4 }),
                         source: selected_instructions_to_register_homes::SpillPseudoStoredValue::Original(
-                            selected_instructions::VirtualRegisterId(5)
+                            selected_instructions::VirtualRegisterId(6)
                         ),
                         ..
                     } if original && action == id(2, 0)

@@ -1,6 +1,6 @@
 use crate::tests::*;
 
-use super::fixture::{EXACT_USAGE, assign, generous_budget, source, validate};
+use super::fixture::{assign, exact_usage, generous_budget, source, validate};
 
 #[test]
 fn forwarded_conditional_assigns_exact_segment_domains_without_claiming_movement() {
@@ -15,9 +15,9 @@ fn forwarded_conditional_assigns_exact_segment_domains_without_claiming_movement
         assert_eq!(first.receipt().target(), target);
         assert_eq!(first.receipt().function_count(), 1);
         assert_eq!(first.receipt().structural_unit_function_count(), 0);
-        assert_eq!(first.receipt().domain_count(), 4);
-        assert_eq!(first.receipt().assignment_count(), 4);
-        assert_eq!(first.receipt().usage(), EXACT_USAGE);
+        assert_eq!(first.receipt().domain_count(), 6);
+        assert_eq!(first.receipt().assignment_count(), 8);
+        assert_eq!(first.receipt().usage(), exact_usage(target));
         assert_eq!(
             first.receipt().identity(),
             register_homes::fixed_precolored_segment_home_plan_identity(first.plan())
@@ -31,24 +31,35 @@ fn forwarded_conditional_assigns_exact_segment_domains_without_claiming_movement
             .register_environment();
         let named = |name| environment.physical().model().view_named(name).unwrap().id;
         let assignments = &first.plan().functions[0].assignments;
-        assert_eq!(assignments.len(), 4);
+        assert_eq!(assignments.len(), 8);
         let forwarded = assignments
             .iter()
-            .filter(|assignment| assignment.virtual_register == VirtualRegisterId(1))
+            .filter(|assignment| assignment.virtual_register == VirtualRegisterId(3))
             .collect::<Vec<_>>();
         assert_eq!(forwarded.len(), 3);
-        assert_eq!(forwarded[0].view, named(source_name));
-        assert_eq!(forwarded[1].view, named(destination_name));
-        assert_eq!(forwarded[2].view, named(destination_name));
-        assert_ne!(
+        assert!(
+            assignments
+                .iter()
+                .any(|row| row.virtual_register == VirtualRegisterId(1)
+                    && row.view == named(source_name))
+        );
+        assert!(
+            assignments
+                .iter()
+                .filter(|row| row.virtual_register.0 >= 4)
+                .all(|row| row.view == named(destination_name))
+        );
+        assert_eq!(forwarded[0].view, forwarded[1].view);
+        assert_eq!(forwarded[0].view, forwarded[2].view);
+        assert_eq!(
             forwarded[0].allocation_domain,
             forwarded[1].allocation_domain
         );
-        assert_ne!(
+        assert_eq!(
             forwarded[0].allocation_domain,
             forwarded[2].allocation_domain
         );
-        assert_ne!(
+        assert_eq!(
             forwarded[1].allocation_domain,
             forwarded[2].allocation_domain
         );

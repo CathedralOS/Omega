@@ -1,6 +1,5 @@
 use crate::legalization::catalog::{
-    LEGALIZATION_FORMS, LegalizationFormDescriptor, LegalizationProducerMatcherKind,
-    LegalizationShapeConstraints, StructuralUnitLegalizationMatcherKind,
+    LEGALIZATION_FORMS, LegalizationFormDescriptor, StructuralUnitLegalizationMatcherKind,
 };
 
 use super::super::shared::*;
@@ -35,13 +34,7 @@ pub(crate) fn match_structural_unit_form<'a>(
         return None;
     };
     let mut matches = LEGALIZATION_FORMS.iter().filter_map(|descriptor| {
-        let (
-            LegalizationProducerMatcherKind::StructuralUnit(matcher),
-            LegalizationShapeConstraints::StructuralUnit(constraints),
-        ) = (descriptor.producer_matcher, descriptor.constraints)
-        else {
-            return None;
-        };
+        let (matcher, constraints) = (descriptor.producer_matcher, descriptor.constraints);
         (abstracted.block_entries.len() == constraints.block_count
             && optimized.blocks.len() == constraints.block_count
             && abstracted.parameters.len() == constraints.scalar_parameter_count
@@ -77,7 +70,7 @@ fn match_form<'a>(
         optimized_return,
         settlement_rows,
     ) = match matcher {
-        StructuralUnitLegalizationMatcherKind::ReturnUnit => {
+        StructuralUnitLegalizationMatcherKind::ReturnOnly => {
             match (target, abstracted, optimized) {
                 (
                     [target_return @ TargetUnitOperation::Return { .. }],
@@ -95,7 +88,7 @@ fn match_form<'a>(
                 _ => return None,
             }
         }
-        StructuralUnitLegalizationMatcherKind::AuthoredCallThenReturnUnit => {
+        StructuralUnitLegalizationMatcherKind::AuthoredCall => {
             match (target, abstracted, optimized) {
                 (
                     [
@@ -119,7 +112,7 @@ fn match_form<'a>(
                 _ => return None,
             }
         }
-        StructuralUnitLegalizationMatcherKind::InstalledProviderCallThenReturnUnit => {
+        StructuralUnitLegalizationMatcherKind::InstalledProviderCall => {
             match (target, abstracted, optimized) {
                 (
                     [
@@ -143,7 +136,7 @@ fn match_form<'a>(
                 _ => return None,
             }
         }
-        StructuralUnitLegalizationMatcherKind::ClaimCompletionSettlementsThenReturnUnit => {
+        StructuralUnitLegalizationMatcherKind::ClaimCompletionSettlements => {
             match (target, abstracted, optimized) {
                 (
                     [

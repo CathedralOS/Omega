@@ -79,7 +79,7 @@ fn publication_classification_reuses_the_existing_scalar_input() {
             &unit
         ));
         let mut changed = targeted.clone();
-        changed.functions[0].fixed_integer_scalar_abi = None;
+        changed.functions[0].scalar_abi = None;
         assert!(!crate::legalization::accepts_fragment_publication_input(
             &changed,
             &abstracted,
@@ -197,12 +197,8 @@ fn scalar_leaf_constants_and_parameters_select_without_fabricated_control() {
         for immediate in [Some(0), Some(7), Some(u64::MAX), None] {
             let (abstracted, target, unit) = fixture(immediate, native_target);
             let legalized = legalize_target_operations(&target, &abstracted, &unit).unwrap();
-            assert!(legalized.plan().functions.is_empty());
             let graph = &legalized.plan().scalar_functions[0];
-            let abi = target.functions[0]
-                .fixed_integer_scalar_abi
-                .as_ref()
-                .unwrap();
+            let abi = target.functions[0].scalar_abi.as_ref().unwrap();
             assert_eq!(graph.call_plan, abi.call_plan);
             assert_eq!(graph.parameters.len(), abi.parameters.len());
             for (parameter, expected) in graph.parameters.iter().zip(&abi.parameters) {
@@ -265,10 +261,6 @@ fn scalar_leaf_legalization_rejects_changed_literal_abi_and_return_register() {
         legalized.receipt().validator(),
         crate::legalization_validator_identity_v21_legacy()
     );
-    assert_ne!(
-        original_identity,
-        legalized_operations::legalized_operation_plan_identity_v21_legacy(legalized.plan())
-    );
     for corruption in 0..4 {
         let mut proposed = legalized.plan().clone();
         let graph = &mut proposed.scalar_functions[0];
@@ -318,7 +310,7 @@ fn scalar_leaf_legalization_rejects_changed_literal_abi_and_return_register() {
     assert!(legalize_target_operations(&corrupted_target, &abstracted, &unit).is_err());
     let mut corrupted_target = target.clone();
     corrupted_target.functions[0]
-        .fixed_integer_scalar_abi
+        .scalar_abi
         .as_mut()
         .unwrap()
         .result
@@ -334,10 +326,7 @@ fn scalar_leaf_legalization_rejects_changed_literal_abi_and_return_register() {
         .is_err()
     );
     let mut corrupted_target = target.clone();
-    let abi = corrupted_target.functions[0]
-        .fixed_integer_scalar_abi
-        .as_mut()
-        .unwrap();
+    let abi = corrupted_target.functions[0].scalar_abi.as_mut().unwrap();
     let calling_conventions::ValueLocation::Register { register, .. } =
         &mut abi.result.placement.locations[0]
     else {

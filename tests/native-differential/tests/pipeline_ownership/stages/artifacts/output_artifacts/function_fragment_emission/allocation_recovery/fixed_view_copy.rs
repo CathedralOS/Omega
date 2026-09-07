@@ -25,16 +25,18 @@ fn fixed_view_copy_recovery_reaches_fragments_object_and_callable_on_both_archit
             &[],
         )
         .unwrap();
-        let realization = (physical)
-            .into_allocation_recovery_for_test()
-            .unwrap_or_else(|| {
-                panic!("the fixed-view rule must complete the shared recovery realization")
-            });
+        let realization = (physical).into_fixed_frame_for_test().unwrap_or_else(|| {
+            panic!("the fixed-view rule must complete the shared recovery realization")
+        });
         let current = realization.allocation().current();
         let copies = realization
             .allocation()
             .fixed_view_copy_proof_for_test()
             .unwrap();
+        assert!(
+            copies.plan().copies.is_empty(),
+            "entry snapshots already preserve the value"
+        );
         let AllocationEvidence::FixedViewCopies(_) = current.evidence() else {
             panic!("fixture must retain fixed-view evidence")
         };
@@ -55,12 +57,12 @@ fn fixed_view_copy_recovery_reaches_fragments_object_and_callable_on_both_archit
             selections.identity()
         );
         let fragments = stage_optimized_function_fragment_emission(
-            FunctionFragmentReplayInputs::AllocationRecovery(realization).into(),
+            FunctionFragmentReplayInputs::FixedFrame(Box::new(realization)).into(),
         )
         .unwrap();
         assert_eq!(
             fragments.manifest().record().source_kind,
-            FunctionFragmentEmissionSourceKind::AllocationRecoveryV1
+            FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1
         );
         let copies: Vec<_> = fragments
             .fragments()
@@ -72,9 +74,13 @@ fn fixed_view_copy_recovery_reaches_fragments_object_and_callable_on_both_archit
                 row.alternative.family == selected_instructions::MachineAlternativeFamily::CopyI64
             })
             .collect();
-        assert_eq!(copies.len(), 1);
-        assert!(!copies[0].bytes.is_empty());
-        let text = stage_optimized_relocation_free_text_section(fragments).unwrap();
+        assert!(
+            !copies.is_empty(),
+            "ordinary ABI transport remains explicit"
+        );
+        assert!(copies.iter().all(|copy| !copy.bytes.is_empty()));
+        let applied = stage_function_fragment_frame_application(fragments).unwrap();
+        let text = stage_optimized_fixed_frame_text_section(applied).unwrap();
         let object = stage_optimized_relocation_free_object_container(text).unwrap();
         let artifact = stage_validated_optimized_object_artifact(
             canonical_artifact(&semantic, &proof),

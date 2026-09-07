@@ -97,7 +97,7 @@ fn direct_plan(target: NativeTarget) -> TargetOperationPlan {
             TargetFunction {
                 machine: caller,
                 attachment: Some(root_type),
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance::default(),
                 operation: TargetOperation::UnitBody(TargetUnitBody {
@@ -170,7 +170,7 @@ fn direct_plan(target: NativeTarget) -> TargetOperationPlan {
             TargetFunction {
                 machine: callee,
                 attachment: Some(carrier_type),
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance::default(),
                 operation: TargetOperation::ReturnIntegerExpression {

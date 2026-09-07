@@ -66,7 +66,7 @@ pub(crate) fn validate(
     if !cleanup_actions.is_empty() {
         return Err(StraightLineUnitReturnTranslationError::SourceCleanupActions);
     }
-    if target.fixed_integer_scalar_abi.is_some() {
+    if target.scalar_abi.is_some() {
         return Err(StraightLineUnitReturnTranslationError::TargetFixedIntegerScalarAbi);
     }
     if !target.provenance.operations.is_empty() || target.provenance.edges.as_slice() != [*psi_edge]

@@ -3,13 +3,13 @@ use crate::tests::*;
 pub(super) const EXACT_USAGE: OptimizationWorkUsage = OptimizationWorkUsage {
     rule_evaluations: 1,
     candidates: 4,
-    validation_steps: 6,
+    validation_steps: 10,
     commits: 4,
     iterations: 2,
 };
 
 pub(super) fn exact_budget() -> OptimizationWorkBudget {
-    OptimizationWorkBudget::new(1, 4, 6, 4, 2).unwrap()
+    OptimizationWorkBudget::new(1, 4, 10, 4, 2).unwrap()
 }
 
 pub(super) fn source(target: NativeTarget) -> StagedOptimizedAllocationLegality {

@@ -142,11 +142,8 @@ fn attached_unit_scalar_chain_emits_real_calls_and_durable_homes_on_every_native
         let caller = &emitted.functions[0];
         let callee = &emitted.functions[1];
 
-        assert!(caller.fixed_integer_scalar_abi.is_none());
-        assert_eq!(
-            callee.fixed_integer_scalar_abi,
-            selected.functions[1].fixed_integer_scalar_abi
-        );
+        assert!(caller.scalar_abi.is_none());
+        assert_eq!(callee.scalar_abi, selected.functions[1].scalar_abi);
         assert_eq!(caller.unit_integer_constants.len(), 1);
         assert_eq!(caller.unit_scalar_homes.len(), 2);
         assert_eq!(caller.unit_scalar_homes[0].byte_offset, 0);

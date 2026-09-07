@@ -12,9 +12,6 @@ use super::{
     selected::{decode_selected_plan_v6, encode_selected_plan_v6},
 };
 
-#[cfg(test)]
-use super::selected::encode_selected_plan_v5;
-
 pub(super) struct DecodedContent {
     pub(super) plan: FixedViewCopyPlan,
     pub(super) expected_transformed: SelectedInstructionPlanIdentity,
@@ -44,42 +41,6 @@ fn encode_prefix(
     bytes.extend_from_slice(&transformed.bytes());
 }
 
-#[cfg(test)]
-pub(super) fn encode_v4(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) {
-    encode_prefix(
-        bytes,
-        plan,
-        target_operations_to_selected_instructions::selected_instruction_plan_identity_v11_legacy(
-            &plan.transformed,
-        ),
-    );
-    super::selected::encode_selected_plan_v4(bytes, &plan.transformed);
-}
-
-#[cfg(test)]
-pub(super) fn encode_v5(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) {
-    encode_prefix(
-        bytes,
-        plan,
-        target_operations_to_selected_instructions::selected_instruction_plan_identity_v11_legacy(
-            &plan.transformed,
-        ),
-    );
-    encode_selected_plan_v5(bytes, &plan.transformed);
-}
-
-#[cfg(test)]
-pub(super) fn encode_v6(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) {
-    encode_prefix(
-        bytes,
-        plan,
-        target_operations_to_selected_instructions::selected_instruction_plan_identity(
-            &plan.transformed,
-        ),
-    );
-    encode_selected_plan_v6(bytes, &plan.transformed);
-}
-
 pub(super) fn encode_v7(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) {
     encode_prefix(
         bytes,
@@ -89,54 +50,6 @@ pub(super) fn encode_v7(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) {
         ),
     );
     super::evidence::encode(bytes, plan.source_evidence);
-    encode_selected_plan_v6(bytes, &plan.transformed);
-}
-
-#[cfg(test)]
-pub(super) fn encode_legacy_v9(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) {
-    encode_prefix(
-        bytes,
-        plan,
-        target_operations_to_selected_instructions::selected_instruction_plan_identity_v16_legacy(
-            &plan.transformed,
-        ),
-    );
-    encode_selected_plan_v6(bytes, &plan.transformed);
-}
-
-#[cfg(test)]
-pub(super) fn encode_legacy_v8(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) {
-    encode_prefix(
-        bytes,
-        plan,
-        target_operations_to_selected_instructions::selected_instruction_plan_identity_v15_legacy(
-            &plan.transformed,
-        ),
-    );
-    encode_selected_plan_v6(bytes, &plan.transformed);
-}
-
-#[cfg(test)]
-pub(super) fn encode_legacy_v7(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) {
-    encode_prefix(
-        bytes,
-        plan,
-        target_operations_to_selected_instructions::selected_instruction_plan_identity_v14_legacy(
-            &plan.transformed,
-        ),
-    );
-    encode_selected_plan_v6(bytes, &plan.transformed);
-}
-
-#[cfg(test)]
-pub(super) fn encode_legacy_v6(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) {
-    encode_prefix(
-        bytes,
-        plan,
-        target_operations_to_selected_instructions::selected_instruction_plan_identity_v13_legacy(
-            &plan.transformed,
-        ),
-    );
     encode_selected_plan_v6(bytes, &plan.transformed);
 }
 

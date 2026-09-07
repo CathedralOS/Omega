@@ -42,7 +42,7 @@ fn exact_selection_is_deterministic_and_retains_distinct_policy_custody() {
 #[test]
 fn hosted_aarch64_targets_reach_object_and_callable_publication() {
     for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
-        super::publication::assert_no_candidate_reaches_object_and_callable(RULE, target);
+        super::publication::assert_reaches_object_and_callable(RULE, target, 0);
     }
 }
 

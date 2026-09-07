@@ -17,7 +17,7 @@ pub(super) fn validate_initial_roots(
     {
         return Err(SelectedInstructionError::TargetRegisterArchitectureMismatch);
     }
-    if target.functions.len() + target.scalar_functions.len() != plan.functions.len()
+    if target.scalar_functions.len() != plan.functions.len()
         || target.structural_unit_functions.len() != plan.structural_unit_functions.len()
         || target.projected_structural_call_returns.len()
             != plan.projected_structural_call_returns.len()
@@ -25,15 +25,9 @@ pub(super) fn validate_initial_roots(
         return Err(SelectedInstructionError::SourceCustodyMismatch);
     }
     let mut expected_machines = target
-        .functions
+        .scalar_functions
         .iter()
-        .map(|function| function.machine())
-        .chain(
-            target
-                .scalar_functions
-                .iter()
-                .map(|function| function.machine),
-        )
+        .map(|function| function.machine)
         .collect::<Vec<_>>();
     expected_machines.sort_unstable();
     if plan
@@ -45,51 +39,16 @@ pub(super) fn validate_initial_roots(
         return Err(SelectedInstructionError::SourceCustodyMismatch);
     }
     let expected_fixed_inputs = target
-        .functions
+        .scalar_functions
         .iter()
         .map(|source| {
-            let legalized_operations::LegalizedFunction::Conditional(source) = source;
-            let condition_inputs = match &source.condition {
-                LegalizedCondition::DirectParameter { .. } => 1,
-                LegalizedCondition::U64EqualZeroParameterV1 { .. }
-                | LegalizedCondition::U64NotEqualZeroParameterV1 { .. } => 1,
-                LegalizedCondition::IntegerEqualParametersV1 { left, right, .. }
-                | LegalizedCondition::IntegerLessThanParametersV1 { left, right, .. }
-                | LegalizedCondition::IntegerLessOrEqualParametersV1 { left, right, .. }
-                | LegalizedCondition::IntegerNotEqualParametersV1 { left, right, .. } => {
-                    1 + usize::from(
-                        left.source_value != right.source_value
-                            || left.parameter_index != right.parameter_index
-                            || left.register != right.register,
-                    )
-                }
-                LegalizedCondition::I64LessThanParametersV1 { left, right, .. }
-                | LegalizedCondition::I64LessOrEqualParametersV1 { left, right, .. } => {
-                    1 + usize::from(
-                        left.source_value != right.source_value
-                            || left.parameter_index != right.parameter_index
-                            || left.register != right.register,
-                    )
-                }
-            };
-            condition_inputs
-                + usize::from(matches!(
-                    source.when_true.value,
-                    SourceLeafValue::EntryParameter { .. }
-                ))
+            source
+                .parameters
+                .iter()
+                .filter(|parameter| source.references_value(parameter.value))
+                .count()
         })
-        .sum::<usize>()
-        + target
-            .scalar_functions
-            .iter()
-            .map(|source| {
-                source
-                    .parameters
-                    .iter()
-                    .filter(|parameter| source.references_value(parameter.value))
-                    .count()
-            })
-            .sum::<usize>();
+        .sum::<usize>();
     if constraints.fixed_inputs.len() != expected_fixed_inputs {
         return Err(SelectedInstructionError::SourceCustodyMismatch);
     }

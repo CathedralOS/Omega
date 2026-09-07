@@ -16,7 +16,7 @@ fn transition_free_register_homes_are_deterministic_and_cfg_exact() {
         )
         .unwrap();
         let function = &staged.homes().plan().functions[0];
-        assert_eq!(function.assignments.len(), 3);
+        assert_eq!(function.assignments.len(), 6);
         let environment = staged
             .legality_stage()
             .live_range_stage()
@@ -51,7 +51,7 @@ fn transition_free_register_homes_are_deterministic_and_cfg_exact() {
         assert!(manifest.selected_transformations.is_empty());
         assert_eq!(manifest.homes, staged.homes().receipt().identity());
         assert_eq!(manifest.statistics.functions, 1);
-        assert_eq!(manifest.statistics.assignments, 3);
+        assert_eq!(manifest.statistics.assignments, 6);
         assert_eq!(manifest.statistics.fixed_view_transitions, 0);
         assert_eq!(
             staged.custody().post_allocation_manifest(),
@@ -110,10 +110,10 @@ fn transition_free_register_homes_are_deterministic_and_cfg_exact() {
             model.view_named(condition_view).unwrap().id
         );
         assert_eq!(
-            function.assignments[1].view,
+            function.assignments[3].view,
             model.view_named(result_view).unwrap().id
         );
-        assert_eq!(function.assignments[1].view, function.assignments[2].view);
+        assert_eq!(function.assignments[3].view, function.assignments[5].view);
         assert!(
             staged
                 .legality_stage()
@@ -135,7 +135,7 @@ fn transition_free_register_homes_are_deterministic_and_cfg_exact() {
                     .is_err()
             }));
         }
-        assert_eq!(staged.custody().assignment_count(), 3);
+        assert_eq!(staged.custody().assignment_count(), 6);
         assert_eq!(
             staged.custody().homes(),
             staged.homes().receipt().identity()
@@ -203,10 +203,6 @@ fn transition_free_register_homes_are_deterministic_and_cfg_exact() {
         .unwrap(),
     )
     .unwrap();
-    assert!(matches!(
-        stage_optimized_register_homes(forwarded),
-        Err(OptimizedRegisterHomeCustodyError::Assignment(
-            RegisterHomeError::UnresolvedEntryTransitions { count: 2, .. }
-        ))
-    ));
+    let forwarded = stage_optimized_register_homes(forwarded).unwrap();
+    assert_eq!(forwarded.custody().assignment_count(), 6);
 }

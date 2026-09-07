@@ -49,42 +49,42 @@ fn both_recursive_paths_gain_exact_block_local_dependencies_on_both_targets() {
                     (
                         0,
                         0,
-                        9,
+                        11,
                         selected_instructions_to_register_homes::AbstractSpillAccessKind::Write,
                         0
                     ),
                     (
                         1,
                         1,
-                        12,
+                        14,
                         selected_instructions_to_register_homes::AbstractSpillAccessKind::Write,
                         8
                     ),
                     (
                         2,
                         2,
-                        12,
+                        14,
                         selected_instructions_to_register_homes::AbstractSpillAccessKind::Read,
                         0
                     ),
                     (
                         3,
                         3,
-                        14,
-                        selected_instructions_to_register_homes::AbstractSpillAccessKind::Write,
-                        0
-                    ),
-                    (
-                        4,
-                        4,
-                        14,
-                        selected_instructions_to_register_homes::AbstractSpillAccessKind::Read,
-                        8
-                    ),
-                    (
-                        5,
-                        5,
                         16,
+                        selected_instructions_to_register_homes::AbstractSpillAccessKind::Write,
+                        0
+                    ),
+                    (
+                        4,
+                        4,
+                        16,
+                        selected_instructions_to_register_homes::AbstractSpillAccessKind::Read,
+                        8
+                    ),
+                    (
+                        5,
+                        5,
+                        18,
                         selected_instructions_to_register_homes::AbstractSpillAccessKind::Read,
                         0
                     ),

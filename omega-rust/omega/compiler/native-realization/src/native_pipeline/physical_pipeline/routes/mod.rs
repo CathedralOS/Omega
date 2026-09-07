@@ -1,11 +1,9 @@
 //! Optimizer module role: stage group. Named physical routes selected by the exact build manifest.
 
-mod allocation_recovery;
 mod composition;
 mod identity;
 mod selected_phases;
 
-pub(in crate::native_pipeline::physical_pipeline) use allocation_recovery::realize_recovered_allocation;
 pub(crate) use composition::{
     ResolvedPhysicalPhaseComposition, ResolvedRealizationPlan, resolve_physical_phase_composition,
 };

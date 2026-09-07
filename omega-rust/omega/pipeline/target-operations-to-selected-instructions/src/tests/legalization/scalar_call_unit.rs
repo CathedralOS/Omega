@@ -140,13 +140,7 @@ fn substituted_register_call_plan_and_memory_effectful_callee_reject() {
 }
 
 #[test]
-fn ordered_call_custody_has_a_new_identity_and_validator() {
-    let (abstract_plan, target, unit) = scalar_call_unit_fixture();
-    let legalized = legalize_target_operations(&target, &abstract_plan, &unit).unwrap();
-    assert_ne!(
-        legalized_operations::legalized_operation_plan_identity(legalized.plan()),
-        legalized_operations::legalized_operation_plan_identity_v22_legacy(legalized.plan())
-    );
+fn ordered_call_custody_has_a_current_validator() {
     assert_ne!(
         crate::legalization_validator_identity(),
         crate::legalization_validator_identity_v22_legacy()
@@ -159,7 +153,6 @@ fn exact_u64_equality_three_call_chain_is_produced_and_replayed() {
     let legalized = legalize_target_operations(&target, &abstract_plan, &unit)
         .expect("exact attached-Unit scalar call chain legalizes");
     assert_eq!(legalized.plan().scalar_functions.len(), 2);
-    assert!(legalized.plan().functions.is_empty());
     assert_eq!(legalized.receipt().function_count(), 2);
     let callee = &legalized.plan().scalar_functions[1];
     assert_eq!(callee.machine, abstract_plan.functions[1].machine);

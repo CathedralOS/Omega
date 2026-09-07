@@ -9,112 +9,14 @@ use crate::{
 };
 
 pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdentity {
-    fixed_view_copy_identity_with_schema(
-        plan,
-        b"omega.terminal-fixed-view-copies.v7\0",
-        selected_instruction_plan_identity(&plan.transformed),
-        true,
-    )
-}
-
-#[cfg(test)]
-pub(crate) fn fixed_view_copy_identity_v6_legacy(
-    plan: &FixedViewCopyPlan,
-) -> FixedViewCopyIdentity {
-    fixed_view_copy_identity_with_schema(
-        plan,
-        b"omega.terminal-fixed-view-copies.v6\0",
-        selected_instruction_plan_identity(&plan.transformed),
-        false,
-    )
-}
-
-#[cfg(test)]
-pub(crate) fn fixed_view_copy_identity_v5_selected_v16_legacy(
-    plan: &FixedViewCopyPlan,
-) -> FixedViewCopyIdentity {
-    fixed_view_copy_identity_with_schema(
-        plan,
-        b"omega.terminal-fixed-view-copies.v5\0",
-        target_operations_to_selected_instructions::selected_instruction_plan_identity_v16_legacy(
-            &plan.transformed,
-        ),
-        false,
-    )
-}
-
-#[cfg(test)]
-pub(crate) fn fixed_view_copy_identity_v3_legacy(
-    plan: &FixedViewCopyPlan,
-) -> FixedViewCopyIdentity {
-    fixed_view_copy_identity_with_schema(
-        plan,
-        b"omega.terminal-fixed-view-copies.v3\0",
-        target_operations_to_selected_instructions::selected_instruction_plan_identity_v11_legacy(
-            &plan.transformed,
-        ),
-        false,
-    )
-}
-
-#[cfg(test)]
-pub(crate) fn fixed_view_copy_identity_v4_legacy(
-    plan: &FixedViewCopyPlan,
-) -> FixedViewCopyIdentity {
-    fixed_view_copy_identity_with_schema(
-        plan,
-        b"omega.terminal-fixed-view-copies.v4\0",
-        target_operations_to_selected_instructions::selected_instruction_plan_identity_v13_legacy(
-            &plan.transformed,
-        ),
-        false,
-    )
-}
-
-#[cfg(test)]
-pub(crate) fn fixed_view_copy_identity_v4_selected_v14_legacy(
-    plan: &FixedViewCopyPlan,
-) -> FixedViewCopyIdentity {
-    fixed_view_copy_identity_with_schema(
-        plan,
-        b"omega.terminal-fixed-view-copies.v4\0",
-        target_operations_to_selected_instructions::selected_instruction_plan_identity_v14_legacy(
-            &plan.transformed,
-        ),
-        false,
-    )
-}
-
-#[cfg(test)]
-pub(crate) fn fixed_view_copy_identity_v5_selected_v15_legacy(
-    plan: &FixedViewCopyPlan,
-) -> FixedViewCopyIdentity {
-    fixed_view_copy_identity_with_schema(
-        plan,
-        b"omega.terminal-fixed-view-copies.v5\0",
-        target_operations_to_selected_instructions::selected_instruction_plan_identity_v15_legacy(
-            &plan.transformed,
-        ),
-        false,
-    )
-}
-
-fn fixed_view_copy_identity_with_schema(
-    plan: &FixedViewCopyPlan,
-    domain: &[u8],
-    transformed: selected_instructions::SelectedInstructionPlanIdentity,
-    include_source_evidence: bool,
-) -> FixedViewCopyIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(domain);
+    bytes.extend_from_slice(b"omega.terminal-fixed-view-copies.v7\0");
     bytes.extend_from_slice(&plan.source_selected.bytes());
     bytes.extend_from_slice(&plan.source_ranges.bytes());
     bytes.extend_from_slice(&plan.source_legality.bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
-    if include_source_evidence {
-        encode_source_evidence(&mut bytes, plan.source_evidence);
-    }
+    encode_source_evidence(&mut bytes, plan.source_evidence);
     bytes.push(match plan.policy {
         FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1 => 0,
         FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1 => 1,
@@ -143,7 +45,7 @@ fn fixed_view_copy_identity_with_schema(
         bytes.push(constraint_family(copy.copy_constraint.family));
         bytes.extend_from_slice(&copy.copy_constraint.variant.to_le_bytes());
     }
-    bytes.extend_from_slice(&transformed.bytes());
+    bytes.extend_from_slice(&selected_instruction_plan_identity(&plan.transformed).bytes());
     FixedViewCopyIdentity(Sha256::digest(bytes).into())
 }
 

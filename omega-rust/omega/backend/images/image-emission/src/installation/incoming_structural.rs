@@ -34,7 +34,7 @@ pub(super) fn function_is_exact(record: &InstallationRecord, function: &Installe
         || function.scalar_affine_cleanup.is_some()
         || !function.scalar_control_affine_cleanups.is_empty()
         || function.ranked_u32_countdown
-        || function.fixed_integer_scalar_abi.is_some()
+        || function.scalar_abi.is_some()
         || function.mixed_structural_scalar_abi.is_some()
         || function.unit_scalar_abi.is_some()
         || function.structural_call_scalar_return.is_some()

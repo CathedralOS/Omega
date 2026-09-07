@@ -3,23 +3,6 @@
 
 use super::shared::*;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) enum OrdinaryInputKind {
-    Unit,
-    Conditional,
-}
-
-pub(super) fn kind(
-    target: &target_operations::TargetFunction,
-    _abstracted: &abstract_operations::AbstractFunction,
-) -> OrdinaryInputKind {
-    if matches!(target.operation, TargetOperation::UnitBody(_)) {
-        OrdinaryInputKind::Unit
-    } else {
-        OrdinaryInputKind::Conditional
-    }
-}
-
 pub(crate) fn is_fragment_publication_program(
     target: &abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
 ) -> bool {
@@ -42,31 +25,26 @@ pub(crate) fn accepts(
     if super::structural::accepts_publication_input(native, plan, unit) {
         return true;
     }
-    native
-        .functions
-        .iter()
-        .enumerate()
-        .all(|(index, function)| {
-            let abstracts = plan
-                .functions
-                .iter()
-                .filter(|value| value.machine == function.machine)
-                .collect::<Vec<_>>();
-            let optimized = unit
-                .functions
-                .iter()
-                .filter(|value| value.machine == function.machine)
-                .collect::<Vec<_>>();
-            let ([abstracted], [optimized]) = (abstracts.as_slice(), optimized.as_slice()) else {
-                return false;
-            };
-            eligible_function(index, native, function, abstracted, optimized, plan, unit)
-        })
+    native.functions.iter().all(|function| {
+        let abstracts = plan
+            .functions
+            .iter()
+            .filter(|value| value.machine == function.machine)
+            .collect::<Vec<_>>();
+        let optimized = unit
+            .functions
+            .iter()
+            .filter(|value| value.machine == function.machine)
+            .collect::<Vec<_>>();
+        let ([abstracted], [optimized]) = (abstracts.as_slice(), optimized.as_slice()) else {
+            return false;
+        };
+        eligible_function(native, function, abstracted, optimized, plan, unit)
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
 fn eligible_function(
-    index: usize,
     native: &TargetOperationPlan,
     function: &target_operations::TargetFunction,
     abstracted: &abstract_operations::AbstractFunction,
@@ -86,25 +64,8 @@ fn eligible_function(
     {
         return false;
     }
-    if crate::legalization::scalar_graph_input::match_input(
+    crate::legalization::scalar_graph_input::match_input(
         function, abstracted, optimized, native, plan, unit,
     )
     .is_ok()
-    {
-        return true;
-    }
-    if kind(function, abstracted) == OrdinaryInputKind::Unit {
-        return false;
-    }
-    // Boolean-parameter catalog forms remain ineligible until the ordinary
-    // scalar ABI representation retains Boolean without laundering it as U8.
-    if function.attachment.is_some() || function.fixed_integer_scalar_abi.is_none() {
-        return false;
-    }
-    match kind(function, abstracted) {
-        OrdinaryInputKind::Conditional => {
-            super::conditional_input::match_input(index, function, abstracted, optimized).is_ok()
-        }
-        OrdinaryInputKind::Unit => unreachable!("handled Unit input"),
-    }
 }

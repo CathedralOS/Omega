@@ -6,7 +6,6 @@ use super::structural_types::*;
 pub(super) fn encode_structural_unit_function(
     bytes: &mut Vec<u8>,
     function: &LegalizedStructuralUnitFunction,
-    retain_call_contract: bool,
 ) {
     bytes.extend_from_slice(&function.machine.get().to_le_bytes());
     encode_option_id(
@@ -77,7 +76,7 @@ pub(super) fn encode_structural_unit_function(
                 bytes.extend_from_slice(&transfer.claim.get().to_le_bytes());
                 bytes.extend_from_slice(&transfer.argument_index.to_le_bytes());
             }
-            if retain_call_contract {
+            {
                 encode_ids(
                     bytes,
                     call.requirement_obligations.iter().map(|value| value.get()),

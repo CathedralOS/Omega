@@ -33,11 +33,6 @@ pub(super) fn decode_selected_plan_v4(
     scalar::decode(cursor)
 }
 
-#[cfg(test)]
-pub(super) fn encode_selected_plan_v5(bytes: &mut Vec<u8>, plan: &SelectedInstructionPlan) {
-    payload::encode(bytes, plan, false);
-}
-
 pub(super) fn encode_selected_plan_v6(bytes: &mut Vec<u8>, plan: &SelectedInstructionPlan) {
     payload::encode(bytes, plan, true);
 }

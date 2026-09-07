@@ -14,7 +14,7 @@ use semantic_vocabulary::{
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 use target_operations::{
-    AbstractResult, FixedIntegerScalarAbiValue, TargetStructuralParameter, TerminalPsiProvenance,
+    AbstractResult, ScalarAbiValue, TargetStructuralParameter, TerminalPsiProvenance,
 };
 use terminal_psi::{
     BindingRelevance, SemanticFingerprint, StructuralAccess, StructuralFieldDeclaration,
@@ -73,7 +73,7 @@ fn assigned_direct_plan(target: NativeTarget) -> AssignedOperationPlan {
             AssignedFunction {
                 machine: caller,
                 attachment: Some(root_type),
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance::default(),
                 operation: AssignedOperation::UnitBody(AssignedUnitBody {
@@ -189,7 +189,7 @@ fn assigned_direct_plan(target: NativeTarget) -> AssignedOperationPlan {
             AssignedFunction {
                 machine: callee,
                 attachment: Some(carrier_type),
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance::default(),
                 operation: AssignedOperation::ReturnIntegerExpression {
@@ -443,9 +443,9 @@ fn mixed_callee_abi(
         scalar_parameters: scalar_arguments
             .iter()
             .enumerate()
-            .map(|(index, _)| FixedIntegerScalarAbiValue {
+            .map(|(index, _)| ScalarAbiValue {
                 value: ValueId::new(990 + u64::try_from(index).unwrap()).unwrap(),
-                scalar_type: integer_type,
+                scalar_type: semantic_vocabulary::ScalarType::Integer(integer_type),
                 placement: call_plan.parameters[index].clone(),
             })
             .collect(),
@@ -458,7 +458,7 @@ fn mixed_callee_abi(
             shape: copy.shape,
             placement: copy.destination.clone(),
         }],
-        result: target_operations::MixedStructuralScalarAbiResult {
+        result: target_operations::ScalarAbiValue {
             value: ValueId::new(981).unwrap(),
             scalar_type: ScalarType::Integer(integer_type),
             placement: call_plan.result.clone().expect("scalar result placement"),
@@ -723,7 +723,9 @@ fn mixed_call_rejects_source_partition_plan_and_callee_drift() {
             .as_mut()
             .unwrap()
             .scalar_parameters[0]
-            .scalar_type = IntegerType::new(IntegerSign::Signed, 64).unwrap();
+            .scalar_type = semantic_vocabulary::ScalarType::Integer(
+            IntegerType::new(IntegerSign::Signed, 64).unwrap(),
+        );
         rejects(&scalar_type_abi);
 
         let mut structural_type_abi = assigned_mixed_call_plan(target);

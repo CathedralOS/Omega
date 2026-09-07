@@ -1,5 +1,24 @@
 use super::*;
 
+#[test]
+fn retired_recovery_role_and_prior_wire_versions_reject() {
+    let encoded = record(FunctionFragmentEmissionSourceKind::UnitBaselineV1).encode();
+    for version in 0..12_u32 {
+        let mut stale = encoded.clone();
+        stale[8..12].copy_from_slice(&version.to_le_bytes());
+        assert_eq!(
+            FunctionFragmentTextSectionManifest::decode(&stale),
+            Err(FunctionFragmentTextSectionManifestDecodeError::UnsupportedVersion(version))
+        );
+    }
+    let mut retired = encoded;
+    retired[46] = 3;
+    assert_eq!(
+        FunctionFragmentTextSectionManifest::decode(&retired),
+        Err(FunctionFragmentTextSectionManifestDecodeError::UnknownSourceKind(3))
+    );
+}
+
 fn record(source_kind: FunctionFragmentEmissionSourceKind) -> FunctionFragmentTextSectionManifest {
     let unavailable = FunctionFragmentTextSectionUnavailableData::Unavailable;
     let mut value = FunctionFragmentTextSectionManifest {
@@ -57,7 +76,6 @@ fn text_publication_roundtrips_without_a_compiler_or_admission_capsule() {
     for kind in [
         FunctionFragmentEmissionSourceKind::X86Rel8V1,
         FunctionFragmentEmissionSourceKind::SelectedLoweringV1,
-        FunctionFragmentEmissionSourceKind::AllocationRecoveryV1,
         FunctionFragmentEmissionSourceKind::UnitBaselineV1,
         FunctionFragmentEmissionSourceKind::StructuralUnitV1,
         FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1,
@@ -68,7 +86,7 @@ fn text_publication_roundtrips_without_a_compiler_or_admission_capsule() {
         let record = record(kind);
         let bytes = record.encode();
         assert_eq!(&bytes[..8], b"OMGTSP\0\0");
-        assert_eq!(&bytes[8..12], &11_u32.to_le_bytes());
+        assert_eq!(&bytes[8..12], &12_u32.to_le_bytes());
         let extension = match kind {
             FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1 => 32,
             FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 { .. } => 1,

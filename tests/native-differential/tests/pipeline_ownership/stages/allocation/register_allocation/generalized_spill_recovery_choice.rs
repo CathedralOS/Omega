@@ -49,7 +49,7 @@ fn exact_epoch_two_choice_retains_complete_blockers_and_selects_farthest_end() {
         assert_eq!(choice.work_item.ordinal, 0);
         assert_eq!(choice.function, 0);
         assert_eq!(choice.block, selected_instructions::SelectedBlockId(1));
-        assert_eq!(choice.point, LiveRangePoint(14));
+        assert_eq!(choice.point, LiveRangePoint(16));
         assert_eq!(choice.source_pressure, action(1, 0));
         assert_eq!(choice.reload_candidates.len(), 2);
         assert_eq!(choice.blocking_residents.len(), 2);
@@ -65,13 +65,13 @@ fn exact_epoch_two_choice_retains_complete_blockers_and_selects_farthest_end() {
             .iter()
             .find(|resident| resident.value == choice.selected_victim)
             .unwrap();
-        assert_eq!(selected.start, LiveRangePoint(12));
-        assert_eq!(selected.exclusive_end, LiveRangePoint(17));
+        assert_eq!(selected.start, LiveRangePoint(14));
+        assert_eq!(selected.exclusive_end, LiveRangePoint(19));
         assert_eq!(choice.selected_victim_view, selected.view);
         assert!(choice.reload_candidates.contains(&choice.reclaimed_view));
         assert!(choice.blocking_residents.iter().any(|resident| {
             resident.value
-                == selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(5))
+                == selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(6))
         }));
     }
 }
@@ -97,7 +97,7 @@ fn original_first_policy_rejects_the_current_use_original_before_ranking() {
         let choice = &guarded.plan().choices[0];
         assert!(choice.contenders.iter().any(|contender| {
             contender.value
-                == selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(5))
+                == selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(6))
         }));
         assert_eq!(
             choice.selected_victim,
@@ -113,7 +113,7 @@ fn original_first_policy_rejects_the_current_use_original_before_ranking() {
             .find(|contender| {
                 contender.value
                     == selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Original(
-                        VirtualRegisterId(5),
+                        VirtualRegisterId(6),
                     )
             })
             .unwrap();
@@ -130,11 +130,11 @@ fn original_first_policy_rejects_the_current_use_original_before_ranking() {
 
 #[test]
 fn original_eligibility_policy_has_exact_budget_and_cross_target_custody() {
-    let exact = OptimizationWorkBudget::new(4, 2, 43, 1, 1).unwrap();
+    let exact = OptimizationWorkBudget::new(4, 2, 50, 1, 1).unwrap();
     let insufficient = [
-        OptimizationWorkBudget::new(3, 2, 43, 1, 1).unwrap(),
-        OptimizationWorkBudget::new(4, 1, 43, 1, 1).unwrap(),
-        OptimizationWorkBudget::new(4, 2, 42, 1, 1).unwrap(),
+        OptimizationWorkBudget::new(3, 2, 50, 1, 1).unwrap(),
+        OptimizationWorkBudget::new(4, 1, 50, 1, 1).unwrap(),
+        OptimizationWorkBudget::new(4, 2, 49, 1, 1).unwrap(),
     ];
     let policy = selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoicePolicy::EpochTwoEligibleOriginalBeforeReloadThenFarthestEndThenHighestValueV1;
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
@@ -270,7 +270,7 @@ fn independent_replay_rejects_every_choice_surface_and_source_root_corruption() 
             |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoicePlan| {
                 plan.choices[0].selected_victim =
                     selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(
-                        5,
+                        6,
                     ));
             },
             |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoicePlan| {
@@ -360,7 +360,7 @@ const fn guarded_exact_usage() -> OptimizationWorkUsage {
     OptimizationWorkUsage {
         rule_evaluations: 4,
         candidates: 2,
-        validation_steps: 43,
+        validation_steps: 50,
         commits: 1,
         iterations: 1,
     }

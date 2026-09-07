@@ -154,7 +154,7 @@ fn selected_payload_offset(encoded: &[u8]) -> usize {
 }
 
 #[test]
-fn artifact_v13_round_trips_structural_functions_call_plans_and_semantic_call_rows() {
+fn artifact_v14_round_trips_structural_functions_call_plans_and_semantic_call_rows() {
     let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     std::sync::Arc::make_mut(&mut plan.transformed)
         .structural_unit_functions
@@ -163,13 +163,13 @@ fn artifact_v13_round_trips_structural_functions_call_plans_and_semantic_call_ro
 }
 
 #[test]
-fn artifact_v5_rejects_without_erasing_semantic_call_rows() {
+fn stale_header_rejects_current_structural_payload() {
     let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     std::sync::Arc::make_mut(&mut plan.transformed)
         .structural_unit_functions
         .push(structural_function());
 
-    let encoded = super::super::encode_v5(&plan);
+    let encoded = super::with_stale_version(&plan, 5);
     assert_eq!(
         FixedViewCopyPlan::decode(&encoded),
         Err(FixedViewCopyDecodeError::UnsupportedVersion(5))
@@ -177,7 +177,7 @@ fn artifact_v5_rejects_without_erasing_semantic_call_rows() {
 }
 
 #[test]
-fn artifact_v13_payload_digest_and_outer_envelope_close_call_plan_blind_spots() {
+fn artifact_v14_payload_digest_and_outer_envelope_close_call_plan_blind_spots() {
     let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     std::sync::Arc::make_mut(&mut plan.transformed)
         .structural_unit_functions

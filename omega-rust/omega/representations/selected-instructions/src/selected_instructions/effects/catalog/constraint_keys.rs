@@ -32,7 +32,7 @@ impl SelectedConstraintKeys {
         Some(match semantic {
             MachineSemanticKind::CompareI64Zero => self.compare_i64_zero,
             MachineSemanticKind::MaterializeI64 => self.materialize_i64,
-            MachineSemanticKind::CopyI64 => self.copy_i64,
+            MachineSemanticKind::CopyI64 | MachineSemanticKind::ZeroExtendU8 => self.copy_i64,
             MachineSemanticKind::ExactAddI64 => self.add_i64,
             MachineSemanticKind::ExactAddI64Immediate => self.add_i64_immediate,
             MachineSemanticKind::ExactSubtractI64 => self.subtract_i64,

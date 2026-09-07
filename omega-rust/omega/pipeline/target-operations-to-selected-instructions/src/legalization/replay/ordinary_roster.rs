@@ -55,13 +55,9 @@ pub(super) fn replay_remaining(
         }
         let count = if let [graph] = graphs.as_slice() {
             if proposed
-                .functions
+                .structural_unit_functions
                 .iter()
-                .any(|candidate| candidate.machine() == target_function.machine)
-                || proposed
-                    .structural_unit_functions
-                    .iter()
-                    .any(|candidate| candidate.machine == target_function.machine)
+                .any(|candidate| candidate.machine == target_function.machine)
             {
                 return Err(Error::NonCanonicalLegalizedPlan);
             }
@@ -98,25 +94,7 @@ pub(super) fn replay_remaining(
                 unit,
             )?
         } else {
-            let mut matches = proposed
-                .functions
-                .iter()
-                .filter(|candidate| candidate.machine() == target_function.machine);
-            let legalized = matches.next().ok_or(Error::NonCanonicalLegalizedPlan)?;
-            if matches.next().is_some() {
-                return Err(Error::NonCanonicalLegalizedPlan);
-            }
-            match legalized {
-                legalized_operations::LegalizedFunction::Conditional(legalized) => replay_function(
-                    index,
-                    target.target.architecture,
-                    target_function,
-                    abstracted,
-                    optimized,
-                    &unit.accepted_obligation_facts,
-                    legalized,
-                )?,
-            }
+            return Err(Error::NonCanonicalLegalizedPlan);
         };
         decomposition_count = decomposition_count
             .checked_add(count)

@@ -170,14 +170,6 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn stage_optimized_structural_unit_function_relative_realization",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/backend/machine-emission/src/function_realization/allocation_recovery/mod.rs",
-        coordination_marker: "pub fn stage_allocation_recovery_function_relative_realization",
-    },
-    RequiredCoordinationEntrance {
-        path: "omega-rust/omega/compiler/native-realization/src/native_pipeline/physical_pipeline/routes/allocation_recovery/mod.rs",
-        coordination_marker: "fn realize_recovered_allocation",
-    },
-    RequiredCoordinationEntrance {
         path: "omega-rust/omega/compiler/native-realization/src/native_pipeline/physical_pipeline/routes/composition/mod.rs",
         coordination_marker: "fn resolve_physical_phase_composition",
     },

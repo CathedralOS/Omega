@@ -74,9 +74,9 @@ fn epoch_one_choice_is_deterministic_and_exact_on_both_architectures() {
         assert_eq!(
             first.plan().usage,
             OptimizationWorkUsage {
-                rule_evaluations: 5,
+                rule_evaluations: 6,
                 candidates: 2,
-                validation_steps: 10,
+                validation_steps: 11,
                 commits: 1,
                 iterations: 1,
             }
@@ -86,8 +86,8 @@ fn epoch_one_choice_is_deterministic_and_exact_on_both_architectures() {
         assert_eq!(choice.work_item.epoch, 1);
         assert_eq!(choice.work_item.ordinal, 0);
         assert_eq!(choice.function, 0);
-        assert_eq!(choice.point, LiveRangePoint(12));
-        assert_eq!(choice.selected_victim, VirtualRegisterId(3));
+        assert_eq!(choice.point, LiveRangePoint(14));
+        assert_eq!(choice.selected_victim, VirtualRegisterId(4));
         assert_eq!(choice.selected_victim_view, choice.reclaimed_view);
         assert_eq!(
             choice
@@ -100,8 +100,8 @@ fn epoch_one_choice_is_deterministic_and_exact_on_both_architectures() {
                 ))
                 .collect::<Vec<_>>(),
             vec![
-                (VirtualRegisterId(3), LiveRangePoint(9), LiveRangePoint(15),),
-                (VirtualRegisterId(4), LiveRangePoint(11), LiveRangePoint(13),),
+                (VirtualRegisterId(4), LiveRangePoint(11), LiveRangePoint(17),),
+                (VirtualRegisterId(5), LiveRangePoint(13), LiveRangePoint(15),),
             ]
         );
         assert_eq!(choice.contenders.len(), 2);
@@ -140,7 +140,7 @@ fn independent_replay_rejects_root_resident_contender_selection_and_usage_corrup
                 plan.choices[0].contenders.pop();
             },
             |plan: &mut selected_instructions_to_register_homes::SpillRecoveryChoicePlan| {
-                plan.choices[0].selected_victim = VirtualRegisterId(4);
+                plan.choices[0].selected_victim.0 += 1;
             },
             |plan: &mut selected_instructions_to_register_homes::SpillRecoveryChoicePlan| {
                 plan.choices[0].reclaimed_view.0 += 1;
@@ -165,11 +165,11 @@ fn independent_replay_rejects_root_resident_contender_selection_and_usage_corrup
 
 #[test]
 fn exact_budget_and_every_representable_first_over_axis_are_typed_on_both_architectures() {
-    let exact = OptimizationWorkBudget::new(5, 2, 10, 1, 1).unwrap();
+    let exact = OptimizationWorkBudget::new(6, 2, 11, 1, 1).unwrap();
     let insufficient = [
-        OptimizationWorkBudget::new(4, 2, 10, 1, 1).unwrap(),
-        OptimizationWorkBudget::new(5, 1, 10, 1, 1).unwrap(),
-        OptimizationWorkBudget::new(5, 2, 9, 1, 1).unwrap(),
+        OptimizationWorkBudget::new(5, 2, 11, 1, 1).unwrap(),
+        OptimizationWorkBudget::new(6, 1, 11, 1, 1).unwrap(),
+        OptimizationWorkBudget::new(6, 2, 10, 1, 1).unwrap(),
     ];
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let sources = pressure_sources(target);
@@ -179,9 +179,9 @@ fn exact_budget_and_every_representable_first_over_axis_are_typed_on_both_archit
                 choose(&sources, budget),
                 Err(selected_instructions_to_register_homes::SpillRecoveryChoiceError::BudgetExceeded {
                     required: OptimizationWorkUsage {
-                        rule_evaluations: 5,
+                        rule_evaluations: 6,
                         candidates: 2,
-                        validation_steps: 10,
+                        validation_steps: 11,
                         commits: 1,
                         iterations: 1,
                     },

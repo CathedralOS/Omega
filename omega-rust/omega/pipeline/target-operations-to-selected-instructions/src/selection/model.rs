@@ -100,9 +100,6 @@ pub enum SelectedInstructionError {
         first: &'static str,
         second: &'static str,
     },
-    UnsupportedIntegerShape {
-        function: usize,
-    },
     UnsupportedCondition {
         function: usize,
     },

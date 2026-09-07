@@ -2,7 +2,6 @@
 
 use crate::tests::{
     AdmissionProfile, ExplicitOptimizationRequest, Optimization, OptimizationSelections,
-    OptimizedRegisterHomeCustodyError, OptimizedVerifiedPhysicalPipelineError, RegisterHomeError,
     conditional_forwarded_parameter_artifact, optimize_artifact_sections, selected_lowering_budget,
     stage_optimized_verified_physical_pipeline_with_provider_executions,
 };
@@ -10,7 +9,7 @@ use crate::tests::{
 use super::fixture::targets;
 
 #[test]
-fn shared_entry_fixed_view_copy_is_disabled_without_its_exact_selection() {
+fn ordinary_abi_transfers_publish_without_enabling_optional_fixed_view_copy() {
     for target in targets() {
         let (semantic, proof) = conditional_forwarded_parameter_artifact();
         let selections = OptimizationSelections::new([Optimization::CopyPropagation]).unwrap();
@@ -22,29 +21,28 @@ fn shared_entry_fixed_view_copy_is_disabled_without_its_exact_selection() {
                 .unwrap(),
         )
         .unwrap();
-        let error = stage_optimized_verified_physical_pipeline_with_provider_executions(
+        let pipeline = stage_optimized_verified_physical_pipeline_with_provider_executions(
             optimized,
             target,
             &[],
         )
-        .unwrap_err();
-
-        // The forwarded parameter deliberately requires this exact recovery.
-        // Selecting an unrelated Psi rule must not silently enable the copy or
-        // fall back to an unrequested physical transformation.
-        assert!(matches!(
-            error,
-            OptimizedVerifiedPhysicalPipelineError::RegisterAllocation(
-                selected_instructions_to_register_homes::RegisterAllocationError::Homes(
-                    OptimizedRegisterHomeCustodyError::Assignment(
-                        RegisterHomeError::UnresolvedEntryTransitions {
-                            function: 0,
-                            register: 1,
-                            count: 2,
-                        },
-                    ),
-                ),
-            )
-        ));
+        .unwrap();
+        // Entry/return transfers are ordinary selected instructions, so this
+        // program needs no optional fixed-view-copy recovery.
+        assert!(
+            pipeline
+                .post_allocation_manifest()
+                .record()
+                .selected_transformations
+                .is_empty()
+        );
+        assert_eq!(
+            pipeline
+                .post_allocation_manifest()
+                .record()
+                .statistics
+                .fixed_view_transitions,
+            0
+        );
     }
 }

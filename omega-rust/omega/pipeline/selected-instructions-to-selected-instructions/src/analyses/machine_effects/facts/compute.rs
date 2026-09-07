@@ -253,6 +253,7 @@ fn semantic(kind: SelectedInstructionKind) -> MachineSemanticKind {
         SelectedInstructionKind::CompareI64 => MachineSemanticKind::CompareI64,
         SelectedInstructionKind::MaterializeI64 { .. } => MachineSemanticKind::MaterializeI64,
         SelectedInstructionKind::CopyI64 => MachineSemanticKind::CopyI64,
+        SelectedInstructionKind::ZeroExtendU8 => MachineSemanticKind::ZeroExtendU8,
         SelectedInstructionKind::ExactAddI64 { .. } => MachineSemanticKind::ExactAddI64,
         SelectedInstructionKind::ExactAddI64Immediate { .. } => {
             MachineSemanticKind::ExactAddI64Immediate

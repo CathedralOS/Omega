@@ -241,7 +241,7 @@ pub(crate) fn computed_shared_fixture() -> (
     (function, legality, row, copy, transformed)
 }
 
-fn boundaries(
+pub(crate) fn boundaries(
     legality: &FunctionAllocationLegality,
 ) -> Vec<super::super::evidence::AuthenticatedFixedViewBoundary> {
     legality.virtual_registers[1]

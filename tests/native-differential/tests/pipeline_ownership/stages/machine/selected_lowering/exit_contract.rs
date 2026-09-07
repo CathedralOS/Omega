@@ -36,6 +36,23 @@ fn frameless_exit_contract_rejects_unpreserved_x86_callee_saved_write() {
         .unwrap()
         .units
         .clone();
+    let expected_write = homes
+        .selected_lowering_run()
+        .attempt()
+        .fold()
+        .transformed()
+        .functions[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .find(|instruction| {
+            instruction.kind
+                == SelectedInstructionKind::MaterializeI64 {
+                    value: IntegerValue::Unsigned(8),
+                }
+        })
+        .unwrap()
+        .id;
     let error = crate::tests::with_allocated_machine(
         homes.try_into().unwrap(),
         stage_selected_lowering_function_relative_realization,
@@ -47,6 +64,6 @@ fn frameless_exit_contract_rejects_unpreserved_x86_callee_saved_write() {
     else {
         panic!("unpreserved RBX write must fail at the whole-function exit contract")
     };
-    assert_eq!(instruction, selected_instructions::SelectedInstructionId(3));
+    assert_eq!(instruction, expected_write);
     assert!(rbx_units.contains(&unit));
 }

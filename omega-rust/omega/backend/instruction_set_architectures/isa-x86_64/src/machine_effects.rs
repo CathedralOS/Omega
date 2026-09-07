@@ -269,7 +269,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         MachineSemanticKind::CompareI64Zero => (vec![0], vec![]),
         MachineSemanticKind::CompareI64 => (vec![0, 1], vec![]),
         MachineSemanticKind::MaterializeI64 => (vec![], vec![0]),
-        MachineSemanticKind::CopyI64 => (vec![0], vec![1]),
+        MachineSemanticKind::CopyI64 | MachineSemanticKind::ZeroExtendU8 => (vec![0], vec![1]),
         MachineSemanticKind::ExactAddI64 => (vec![0, 1], vec![2]),
         MachineSemanticKind::ExactAddI64Immediate
         | MachineSemanticKind::ExactSubtractI64Immediate => (vec![0], vec![1]),
@@ -382,6 +382,7 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         MachineSemanticKind::CompareI64Zero
         | MachineSemanticKind::CompareI64
         | MachineSemanticKind::CopyI64 => MachineSizeKnowledge::ExactBytes(3),
+        MachineSemanticKind::ZeroExtendU8 => MachineSizeKnowledge::ExactBytes(4),
         MachineSemanticKind::MaterializeI64 => MachineSizeKnowledge::ExactBytes(10),
         MachineSemanticKind::ExactAddI64 => MachineSizeKnowledge::EncoderResolved {
             minimum_bytes: 4,

@@ -3171,11 +3171,13 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", selected_manifest.display()));
     assert!(
         selected_manifest_source.contains("legalized-operations"),
-        "selected virtual-register origins must consume canonical legalization-temporary identities"
+        "selected structural calls must retain canonical legalization contracts"
     );
     assert!(
-        selected_representation_source.contains("LegalizationTemporary"),
-        "selected virtual registers must distinguish legalized temporaries from Psi value identities"
+        !selected_representation_source.contains("LegalizationTemporary")
+            && selected_representation_source.contains("InstructionResult")
+            && selected_representation_source.contains("BlockParameter"),
+        "selected values must name ordinary instruction or edge definitions, not recipe temporaries"
     );
 
     let graph = load_graph();
@@ -4695,14 +4697,14 @@ fn projected_structural_selection_replay_is_independent_and_downstream_is_fenced
 }
 
 #[test]
-fn selected_construction_has_one_visible_scalar_family_catalog() {
+fn selected_construction_uses_one_ordinary_instruction_graph() {
     let root = workspace_root();
     let construction = root.join(
         "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection/construction",
     );
     let entrance = std::fs::read_to_string(construction.join("mod.rs"))
         .expect("read selected construction entrance");
-    for required in ["scalar::build", "unit::build", "structural_unit::build"] {
+    for required in ["scalar_graph::build", "structural_unit::build"] {
         assert!(
             entrance.contains(required),
             "selected construction entrance must visibly coordinate {required}",
@@ -4713,50 +4715,49 @@ fn selected_construction_has_one_visible_scalar_family_catalog() {
         "the complete-plan entrance must not classify scalar leaf mechanics",
     );
 
-    let scalar = construction.join("scalar");
-    let scalar_entrance =
-        std::fs::read_to_string(scalar.join("mod.rs")).expect("read scalar construction entrance");
-    assert!(scalar_entrance.contains("let body = catalog::build(&context)?"));
-    let catalog = std::fs::read_to_string(scalar.join("catalog.rs"))
-        .expect("read scalar construction catalog");
-    for family in [
-        "immediate-pair",
-        "entry-parameter-pair",
-        "exact-add-pair",
-        "exact-subtract-pair",
-        "widened-exact-add-pair",
-        "widened-exact-subtract-pair",
-        "exact-integer-sequence",
+    assert!(
+        !construction.join("scalar/mod.rs").exists(),
+        "the conditional-only recipe implementation must not return",
+    );
+    let stage =
+        root.join("omega-rust/omega/pipeline/target-operations-to-selected-instructions/src");
+    for retired in [
+        "legalization/source/conditional_input.rs",
+        "legalization/source/leaves/mod.rs",
+        "legalization/replay/leaf/mod.rs",
+        "selection/validation/blocks/mod.rs",
     ] {
         assert!(
-            catalog.contains(family),
-            "scalar construction catalog must visibly name {family}",
+            !stage.join(retired).exists(),
+            "retired scalar owner: {retired}"
         );
     }
-    assert!(
-        catalog.contains("AmbiguousSourceShape"),
-        "overlapping scalar construction rows must fail closed",
+    let representation = recursive_rust_source(
+        &root.join("omega-rust/omega/representations/legalized-operations/src"),
     );
-    assert!(
-        !construction.join("plan.rs").exists() && !construction.join("scalar.rs").exists(),
-        "the former flat plan/scalar coordinators must not return",
-    );
-
-    for leaf in [
-        "integer_sequence.rs",
-        "exact_binary_pair.rs",
-        "immediate_pair.rs",
-        "parameter_pair.rs",
+    for retired in [
+        "LegalizedConditionalFunction",
+        "LegalizedLeaf",
+        "LegalizedScalarRecipe",
     ] {
-        let source = std::fs::read_to_string(scalar.join(leaf))
-            .unwrap_or_else(|error| panic!("read scalar construction family {leaf}: {error}"));
         assert!(
-            source.contains("ConstructedScalarBody"),
-            "scalar family {leaf} must return registers and blocks together",
+            !representation.contains(retired),
+            "ordinary instructions must not retain the retired carrier {retired}",
         );
+    }
+    let scalar = std::fs::read_to_string(construction.join("scalar_graph.rs"))
+        .expect("read ordinary scalar construction");
+    for operation in [
+        "Constant",
+        "ExactBinary",
+        "Call",
+        "Compare",
+        "BooleanNot",
+        "IntegerWiden",
+    ] {
         assert!(
-            !source.contains("SelectedInstructionPlan"),
-            "scalar family {leaf} must not assemble the complete plan",
+            scalar.contains(operation),
+            "the ordinary graph must select {operation} without a function recipe",
         );
     }
 }
@@ -5236,10 +5237,10 @@ fn selected_lowering_fragment_admission_is_rule_independent() {
         );
     }
     for (manifest, version) in [
-        (publication.with_extension("").join("codec.rs"), 10),
+        (publication.with_extension("").join("codec.rs"), 11),
         (
             root.join("omega-rust/omega/representations/machine-code/src/machine_code/layout/text_section/publication/codec.rs"),
-            11,
+            12,
         ),
     ] {
         let encoded = std::fs::read_to_string(&manifest)
@@ -5625,44 +5626,51 @@ fn build_evaluation_physical_package_source_uses_strong_commitment() {
 }
 
 #[test]
-fn allocation_recovery_has_one_route_and_one_realization_carrier() {
+fn allocation_history_does_not_choose_a_separate_frame_or_publication_owner() {
     let root = workspace_root();
     let pipeline = root.join("omega-rust/omega/compiler/native-realization/src");
     let route = std::fs::read_to_string(
-        pipeline.join("native_pipeline/physical_pipeline/routes/allocation_recovery/mod.rs"),
+        pipeline.join("native_pipeline/physical_pipeline/routes/identity.rs"),
     )
-    .expect("read allocation-recovery route entrance");
+    .expect("read common function-relative route entrance");
     for required in [
-        "fn realize_recovered_allocation",
         "allocation: RetainedAllocation",
-        "machine: StagedOptimizedPostAllocationMachinePlan",
-        "stage_allocation_recovery_function_relative_realization(allocation, machine)",
+        "stage_fixed_frame_function_relative_realization(allocation, machine, budget)",
     ] {
         assert!(
             route.contains(required),
-            "allocation-recovery route must expose `{required}`"
+            "common function-relative route must expose `{required}`"
         );
     }
     assert!(!route.contains("stage_register_allocation("));
     let model =
         std::fs::read_to_string(pipeline.join("native_pipeline/physical_pipeline/model.rs"))
             .expect("read physical carrier model");
-    assert!(
-        model.contains("pub struct StagedOptimizedVerifiedPhysicalPipeline")
-            && model.contains("StagedAllocationRecoveryFunctionRelativeRealization")
-    );
+    assert!(model.contains("pub struct StagedOptimizedVerifiedPhysicalPipeline"));
+    assert!(!model.contains("StagedAllocationRecoveryFunctionRelativeRealization"));
     assert!(!model.contains("ActiveResidentRematerialization {"));
 
     let fragment_source = std::fs::read_to_string(
         root.join("omega-rust/omega/backend/machine-emission/src/fragment_emission/replay.rs"),
     )
     .expect("read fragment source taxonomy");
-    assert!(
-        fragment_source.contains(
-            "AllocationRecovery(Box<StagedAllocationRecoveryFunctionRelativeRealization>)"
-        )
-    );
+    assert!(!fragment_source.contains("StagedAllocationRecoveryFunctionRelativeRealization"));
     assert!(!fragment_source.contains("ActiveResidentRematerialization("));
+    let frame = std::fs::read_to_string(root.join(
+        "omega-rust/omega/backend/machine-emission/src/function_realization/routes/fixed_frame.rs",
+    ))
+    .expect("read common fixed-frame realization");
+    assert!(frame.contains("replay_allocation()"));
+    assert!(!frame.contains("baseline_allocation_source"));
+    for retired in [
+        "omega-rust/omega/backend/machine-emission/src/function_realization/allocation_recovery/mod.rs",
+        "omega-rust/omega/compiler/native-realization/src/native_pipeline/physical_pipeline/routes/allocation_recovery/mod.rs",
+    ] {
+        assert!(
+            !root.join(retired).exists(),
+            "retired realization owner: {retired}"
+        );
+    }
 }
 
 #[test]

@@ -60,8 +60,4 @@ use values::{decode_constraint_key, decode_ids, decode_machine, decode_obligatio
 pub use values::{decode_target, decode_units};
 
 const MAGIC: &[u8; 8] = b"OMGMFX\0\0";
-const LEGACY_V6_VERSION: u32 = 6;
-const LEGACY_V7_VERSION: u32 = 7;
-const LEGACY_V8_VERSION: u32 = 8;
-const LEGACY_V9_VERSION: u32 = 9;
-const VERSION: u32 = 10;
+const VERSION: u32 = 11;

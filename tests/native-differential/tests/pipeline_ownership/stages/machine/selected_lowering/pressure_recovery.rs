@@ -166,7 +166,8 @@ fn explicit_one_view_availability_reaches_real_pressure_and_recovery_on_both_arc
         )
         .unwrap();
         let choice = choices.plan().functions[0].choice.as_ref().unwrap();
-        assert_eq!(choice.incoming, VirtualRegisterId(2));
+        let incoming = materialized_register(selected.selected().plan(), 8);
+        assert_eq!(choice.incoming, incoming);
         assert_eq!(choice.selected_victim, choice.incoming);
         assert_eq!(choice.incoming_common_candidates, vec![sole_view]);
 
@@ -222,7 +223,7 @@ fn explicit_one_view_availability_reaches_real_pressure_and_recovery_on_both_arc
             .classification
             .as_ref()
             .unwrap();
-        assert_eq!(row.victim, VirtualRegisterId(2));
+        assert_eq!(row.victim, incoming);
         assert_eq!(row.role, RecoveryVictimRole::Incoming);
         assert!(matches!(
             row.classification,
@@ -431,7 +432,7 @@ fn two_explicit_u12_exact_add_folds_close_one_view_pressure_on_both_architecture
                 .as_ref()
                 .unwrap()
                 .incoming,
-            VirtualRegisterId(4)
+            materialized_register(fold_one.transformed(), 13)
         );
         let recovery_one = classify_pressure_recovery(
             &fold_one,
@@ -660,4 +661,22 @@ fn two_explicit_u12_exact_add_folds_close_one_view_pressure_on_both_architecture
             post
         );
     }
+}
+
+fn materialized_register(
+    plan: &selected_instructions::SelectedInstructionPlan,
+    value: u128,
+) -> VirtualRegisterId {
+    let instruction = plan.functions[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .find(|instruction| {
+            instruction.kind
+                == SelectedInstructionKind::MaterializeI64 {
+                    value: IntegerValue::Unsigned(value),
+                }
+        })
+        .unwrap();
+    instruction.operands[0].virtual_register
 }

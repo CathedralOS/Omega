@@ -56,7 +56,12 @@ fn post_allocation_disabled_baseline_retains_compare_zero_and_nonzero_branch_on_
         );
         let entry = &allocation.selected_plan().functions[0].blocks[0];
         assert_eq!(
-            entry.instructions[0].kind,
+            entry
+                .instructions
+                .iter()
+                .find(|instruction| instruction.kind == SelectedInstructionKind::CompareI64Zero)
+                .expect("retained compare-zero")
+                .kind,
             SelectedInstructionKind::CompareI64Zero
         );
         assert!(matches!(
@@ -86,13 +91,17 @@ fn post_allocation_disabled_baseline_retains_compare_zero_and_nonzero_branch_on_
             .unwrap();
         match target.architecture {
             target::Architecture::X86_64 => {
-                assert_eq!(compare.bytes, [0x48, 0x85, 0xff]);
+                assert_eq!(compare.bytes.len(), 3);
+                assert_eq!(compare.bytes[0] & 0xf8, 0x48);
+                assert_eq!(compare.bytes[1], 0x85);
+                assert_eq!(compare.bytes[2] & 0xc0, 0xc0);
+                assert_eq!((compare.bytes[2] >> 3) & 7, compare.bytes[2] & 7);
                 assert_eq!(branch.bytes[0], 0x0f);
                 assert_eq!(branch.bytes[1], 0x85);
             }
             target::Architecture::Aarch64 => {
                 assert_eq!(
-                    u32::from_le_bytes(compare.bytes.as_slice().try_into().unwrap()),
+                    u32::from_le_bytes(compare.bytes.as_slice().try_into().unwrap()) & !0x3e0,
                     0xf100_001f
                 );
                 assert_eq!(

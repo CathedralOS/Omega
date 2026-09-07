@@ -84,9 +84,9 @@ pub(super) fn installed_function_scalar_transport_is_canonical(
     target: NativeTarget,
 ) -> bool {
     let abi_is_canonical = function
-        .fixed_integer_scalar_abi
+        .scalar_abi
         .as_ref()
-        .is_none_or(|abi| installed_fixed_integer_scalar_abi_is_canonical(abi, target));
+        .is_none_or(|abi| installed_scalar_abi_is_canonical(abi, target));
     let mixed_abi_is_canonical = function
         .mixed_structural_scalar_abi
         .as_ref()
@@ -138,7 +138,10 @@ pub(super) fn installed_mixed_structural_scalar_abi_is_canonical(
     let Some(scalar_shapes) = abi
         .scalar_parameters
         .iter()
-        .map(|parameter| fixed_integer_shape(parameter.scalar_type))
+        .map(|parameter| match parameter.scalar_type {
+            semantic_vocabulary::ScalarType::Integer(integer) => fixed_integer_shape(integer),
+            _ => None,
+        })
         .collect::<Option<Vec<_>>>()
     else {
         return false;
@@ -166,7 +169,7 @@ pub(super) fn installed_mixed_structural_scalar_abi_is_canonical(
     let scalar_count = abi.scalar_parameters.len();
     let structural_count = abi.structural_parameters.len();
     structural_count != 0
-        && function.fixed_integer_scalar_abi.is_none()
+        && function.scalar_abi.is_none()
         && function.scalar_stack.is_some()
         && function.unit_stack.is_none()
         && expected == abi.call_plan
@@ -205,19 +208,22 @@ pub(super) fn installed_mixed_structural_scalar_abi_is_canonical(
             == structural_count
 }
 
-pub(super) fn installed_fixed_integer_scalar_abi_is_canonical(
-    abi: &target_operations::FixedIntegerScalarFunctionAbi,
+pub(super) fn installed_scalar_abi_is_canonical(
+    abi: &target_operations::ScalarFunctionAbi,
     target: NativeTarget,
 ) -> bool {
     let Some(parameter_shapes) = abi
         .parameters
         .iter()
-        .map(|parameter| fixed_integer_shape(parameter.scalar_type))
+        .map(|parameter| scalar_home_shape(parameter.scalar_type))
         .collect::<Option<Vec<_>>>()
     else {
         return false;
     };
-    let Some(result_shape) = fixed_integer_shape(abi.result.scalar_type) else {
+    let semantic_vocabulary::ScalarType::Integer(result_integer) = abi.result.scalar_type else {
+        return false;
+    };
+    let Some(result_shape) = fixed_integer_shape(result_integer) else {
         return false;
     };
     let Ok(expected_plan) = evaluate_call_plan(
@@ -263,7 +269,7 @@ pub(super) fn validate_installed_unit_scalar_calls(
         let custody = &installed.custody;
         let target_abi = functions
             .get(&custody.target)
-            .and_then(|target| target.fixed_integer_scalar_abi.as_ref())
+            .and_then(|target| target.scalar_abi.as_ref())
             .ok_or(InstallationError::InvalidInternalUnitScalarCall(
                 installed.machine,
             ))?;
@@ -334,7 +340,7 @@ pub(super) fn validate_installed_unit_scalar_calls(
                     u32::try_from(index) == Ok(argument.parameter_index)
                         && argument.destination == parameter.placement
                         && argument.source.scalar_type()
-                            == semantic_vocabulary::ScalarType::Integer(parameter.scalar_type)
+                            == parameter.scalar_type
                         && source_is_exact
                         && argument.byte_count != 0
                         && argument.code_offset >= custody.code_offset
@@ -349,8 +355,7 @@ pub(super) fn validate_installed_unit_scalar_calls(
             || custody.result.code_offset < custody.code_offset
             || result_end > call_end
             || custody.result.home.defining_operation != owner
-            || custody.result.home.scalar_type
-                != semantic_vocabulary::ScalarType::Integer(target_abi.result.scalar_type)
+            || custody.result.home.scalar_type != target_abi.result.scalar_type
             || custody.result.source != target_abi.result.placement
             || !result_home_is_exact
             || !arguments_are_exact
@@ -1170,7 +1175,7 @@ mod tests {
         let function = InstalledFunction {
             machine: call.machine,
             attachment: None,
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             unit_scalar_abi: None,
             structural_call_scalar_return: None,

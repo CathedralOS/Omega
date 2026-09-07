@@ -10,9 +10,9 @@ use semantic_vocabulary::{
 };
 use target::NativeTarget;
 use target_operations::{
-    TargetFunction, TargetOperation, TargetOperationPlan, TargetUnitBody, TargetUnitOperation,
-    TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TerminalPsiProvenance,
-    UnitScalarAbiValue,
+    ScalarAbiValue, TargetFunction, TargetOperation, TargetOperationPlan, TargetUnitBody,
+    TargetUnitOperation, TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument,
+    TerminalPsiProvenance,
 };
 use terminal_psi::{
     ProviderCandidateConformance, ProviderRefinement, ProviderSignature, SemanticFingerprint,
@@ -40,7 +40,7 @@ fn fixture(target: NativeTarget) -> TargetOperationPlan {
         TargetOperation::UnitBody(TargetUnitBody {
             structural_types: Vec::new(),
             call_plan: call_plan.clone(),
-            scalar_parameters: vec![UnitScalarAbiValue {
+            scalar_parameters: vec![ScalarAbiValue {
                 value,
                 scalar_type: ScalarType::Integer(scalar_type),
                 placement: call_plan.parameters[0].clone(),
@@ -75,7 +75,7 @@ fn fixture(target: NativeTarget) -> TargetOperationPlan {
             TargetFunction {
                 machine: caller,
                 attachment: None,
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance::default(),
                 operation: body(
@@ -111,7 +111,7 @@ fn fixture(target: NativeTarget) -> TargetOperationPlan {
             TargetFunction {
                 machine: candidate,
                 attachment: None,
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance::default(),
                 operation: body(

@@ -54,87 +54,7 @@ pub(super) fn receipt(
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v18\0".as_slice();
-    selected_instruction_plan_identity_with_schema(
-        plan,
-        domain,
-        StructuralLegalizedIdentitySchema::V14,
-    )
-}
-
-#[doc(hidden)]
-pub fn selected_instruction_plan_identity_v16_legacy(
-    plan: &SelectedInstructionPlan,
-) -> SelectedInstructionPlanIdentity {
-    selected_instruction_plan_identity_with_schema(
-        plan,
-        b"omega.terminal-selected-instructions.v16\0",
-        StructuralLegalizedIdentitySchema::V14,
-    )
-}
-
-#[doc(hidden)]
-pub fn selected_instruction_plan_identity_v15_legacy(
-    plan: &SelectedInstructionPlan,
-) -> SelectedInstructionPlanIdentity {
-    selected_instruction_plan_identity_with_schema(
-        plan,
-        b"omega.terminal-selected-instructions.v15\0",
-        StructuralLegalizedIdentitySchema::V14,
-    )
-}
-
-#[doc(hidden)]
-pub fn selected_instruction_plan_identity_v11_legacy(
-    plan: &SelectedInstructionPlan,
-) -> SelectedInstructionPlanIdentity {
-    selected_instruction_plan_identity_with_schema(
-        plan,
-        b"omega.terminal-selected-instructions.v11\0",
-        StructuralLegalizedIdentitySchema::V9,
-    )
-}
-
-#[doc(hidden)]
-pub fn selected_instruction_plan_identity_v13_legacy(
-    plan: &SelectedInstructionPlan,
-) -> SelectedInstructionPlanIdentity {
-    let domain = if plan.projected_structural_call_returns.is_empty() {
-        b"omega.terminal-selected-instructions.v12\0".as_slice()
-    } else {
-        b"omega.terminal-selected-instructions.v13\0".as_slice()
-    };
-    selected_instruction_plan_identity_with_schema(
-        plan,
-        domain,
-        StructuralLegalizedIdentitySchema::V12,
-    )
-}
-
-#[doc(hidden)]
-pub fn selected_instruction_plan_identity_v14_legacy(
-    plan: &SelectedInstructionPlan,
-) -> SelectedInstructionPlanIdentity {
-    selected_instruction_plan_identity_with_schema(
-        plan,
-        b"omega.terminal-selected-instructions.v14\0",
-        StructuralLegalizedIdentitySchema::V13,
-    )
-}
-
-#[derive(Clone, Copy)]
-enum StructuralLegalizedIdentitySchema {
-    V9,
-    V12,
-    V13,
-    V14,
-}
-
-fn selected_instruction_plan_identity_with_schema(
-    plan: &SelectedInstructionPlan,
-    domain: &[u8],
-    structural_legalized_identity_schema: StructuralLegalizedIdentitySchema,
-) -> SelectedInstructionPlanIdentity {
+    let domain = b"omega.terminal-selected-instructions.v19\0".as_slice();
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
@@ -194,16 +114,6 @@ fn selected_instruction_plan_identity_with_schema(
                     bytes.extend_from_slice(&instruction.0.to_le_bytes());
                     bytes.extend_from_slice(&source_value.get().to_le_bytes());
                 }
-                VirtualRegisterOrigin::LegalizationTemporary {
-                    instruction,
-                    temporary,
-                    source_value,
-                } => {
-                    bytes.push(2);
-                    bytes.extend_from_slice(&instruction.0.to_le_bytes());
-                    bytes.extend_from_slice(&temporary.0.to_le_bytes());
-                    bytes.extend_from_slice(&source_value.get().to_le_bytes());
-                }
             }
             encode_definition_site(&mut bytes, register.definition_site);
             encode_option_u16(&mut bytes, register.entry_fixed_view.map(|view| view.0));
@@ -219,9 +129,7 @@ fn selected_instruction_plan_identity_with_schema(
             ordinary::encode_terminator(&mut bytes, &block.terminator);
         }
     }
-    bytes.extend_from_slice(
-        &structural_legalized::identity(plan, structural_legalized_identity_schema).bytes(),
-    );
+    bytes.extend_from_slice(&structural_legalized::identity(plan).bytes());
     encode_len(&mut bytes, plan.structural_unit_functions.len());
     for function in &plan.structural_unit_functions {
         encode_selected_structural_unit_function(&mut bytes, function);
@@ -321,6 +229,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::ConditionalBranchNonZero => 2,
         SelectedInstructionKind::ReturnI64 => 3,
         SelectedInstructionKind::CopyI64 => 4,
+        SelectedInstructionKind::ZeroExtendU8 => 15,
         SelectedInstructionKind::ExactAddI64 { .. } => 5,
         SelectedInstructionKind::ExactAddI64Immediate { .. } => 6,
         SelectedInstructionKind::ExactSubtractI64 { .. } => 7,
@@ -382,6 +291,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::CompareI64Zero
         | SelectedInstructionKind::CompareI64
         | SelectedInstructionKind::CopyI64
+        | SelectedInstructionKind::ZeroExtendU8
         | SelectedInstructionKind::ConditionalBranchNonZero
         | SelectedInstructionKind::ConditionalBranchU64LessThan
         | SelectedInstructionKind::ConditionalBranchI64LessThan

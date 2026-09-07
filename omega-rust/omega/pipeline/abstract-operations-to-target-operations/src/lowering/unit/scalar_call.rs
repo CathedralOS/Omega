@@ -72,7 +72,7 @@ pub(super) fn lower_scalar_call(
     function: &AbstractFunction,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
-    fixed_integer_scalar_abis: &BTreeMap<MachineId, FixedIntegerScalarFunctionAbi>,
+    scalar_abis: &BTreeMap<MachineId, ScalarFunctionAbi>,
     values: &mut BTreeMap<ValueId, KnownUnitInteger>,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
@@ -175,7 +175,7 @@ pub(super) fn lower_scalar_call(
             result: *result,
         });
     }
-    let expected_target_abi = FixedIntegerScalarFunctionAbi {
+    let expected_target_abi = ScalarFunctionAbi {
         call_plan: call_plan.clone(),
         parameters: callee_function
             .parameters
@@ -185,24 +185,20 @@ pub(super) fn lower_scalar_call(
                 let ScalarType::Integer(scalar_type) = parameter.scalar_type else {
                     unreachable!("fixed scalar call parameters were checked above")
                 };
-                FixedIntegerScalarAbiValue {
+                ScalarAbiValue {
                     value: parameter.value,
-                    scalar_type,
+                    scalar_type: ScalarType::Integer(scalar_type),
                     placement: placement.clone(),
                 }
             })
             .collect(),
-        result: FixedIntegerScalarAbiValue {
+        result: ScalarAbiValue {
             value: callee_result.value,
-            scalar_type: callee_result_type,
+            scalar_type: ScalarType::Integer(callee_result_type),
             placement: result_placement,
         },
     };
-    require_exact_target_abi(
-        *callee,
-        fixed_integer_scalar_abis.get(callee),
-        &expected_target_abi,
-    )?;
+    require_exact_target_abi(*callee, scalar_abis.get(callee), &expected_target_abi)?;
 
     let target_arguments = arguments
         .iter()
@@ -257,8 +253,8 @@ pub(super) fn lower_scalar_call(
 
 fn require_exact_target_abi(
     callee: MachineId,
-    actual: Option<&FixedIntegerScalarFunctionAbi>,
-    expected: &FixedIntegerScalarFunctionAbi,
+    actual: Option<&ScalarFunctionAbi>,
+    expected: &ScalarFunctionAbi,
 ) -> Result<(), LoweringError> {
     if actual != Some(expected) {
         return Err(LoweringError::UnitScalarCallTargetAbiMismatch(callee));
@@ -270,7 +266,7 @@ fn require_exact_target_abi(
 mod tests {
     use super::*;
 
-    fn abi() -> FixedIntegerScalarFunctionAbi {
+    fn abi() -> ScalarFunctionAbi {
         let scalar_type = IntegerType::new(IntegerSign::Signed, 32).unwrap();
         let shape = ValueShape::integer(4, 4);
         let call_plan = evaluate_call_plan(
@@ -281,15 +277,15 @@ mod tests {
             },
         )
         .unwrap();
-        FixedIntegerScalarFunctionAbi {
-            parameters: vec![FixedIntegerScalarAbiValue {
+        ScalarFunctionAbi {
+            parameters: vec![ScalarAbiValue {
                 value: ValueId::new(1).unwrap(),
-                scalar_type,
+                scalar_type: ScalarType::Integer(scalar_type),
                 placement: call_plan.parameters[0].clone(),
             }],
-            result: FixedIntegerScalarAbiValue {
+            result: ScalarAbiValue {
                 value: ValueId::new(2).unwrap(),
-                scalar_type,
+                scalar_type: ScalarType::Integer(scalar_type),
                 placement: call_plan.result.clone().unwrap(),
             },
             call_plan,

@@ -93,6 +93,7 @@ pub(crate) struct InstructionPattern {
     pub external_reads: &'static [u16],
     pub external_writes: &'static [u16],
     pub implicit_uses: UnitSetPattern,
+    pub machine_implicit_uses: UnitSetPattern,
     pub implicit_defs: UnitSetPattern,
     pub implicit_clobbers: UnitSetPattern,
     pub memory: MachineEncodedMemoryEffect,

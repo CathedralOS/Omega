@@ -112,7 +112,7 @@ fn attached_unit_calls_retain_immediates_and_prior_results_with_durable_homes() 
         let TargetOperation::UnitBody(body) = &lowered.functions[0].operation else {
             panic!("attached machine must remain a Unit body")
         };
-        assert_eq!(lowered.functions[0].fixed_integer_scalar_abi, None);
+        assert_eq!(lowered.functions[0].scalar_abi, None);
         let [
             TargetUnitOperation::IntegerConstant { .. },
             TargetUnitOperation::ScalarCall {
@@ -179,16 +179,22 @@ fn attached_unit_calls_retain_immediates_and_prior_results_with_durable_homes() 
             2
         );
         let callee_abi = lowered.functions[1]
-            .fixed_integer_scalar_abi
+            .scalar_abi
             .as_ref()
             .expect("service-free fixed-integer callee ABI");
         assert_eq!(callee_abi.call_plan, *first_plan);
         assert_eq!(callee_abi.parameters.len(), 1);
         assert_eq!(callee_abi.parameters[0].value, ValueId::new(20).unwrap());
-        assert_eq!(callee_abi.parameters[0].scalar_type, fixed_integer(32));
+        assert_eq!(
+            callee_abi.parameters[0].scalar_type,
+            ScalarType::Integer(fixed_integer(32))
+        );
         assert_eq!(callee_abi.parameters[0].placement, first_plan.parameters[0]);
         assert_eq!(callee_abi.result.value, ValueId::new(21).unwrap());
-        assert_eq!(callee_abi.result.scalar_type, fixed_integer(32));
+        assert_eq!(
+            callee_abi.result.scalar_type,
+            ScalarType::Integer(fixed_integer(32))
+        );
         assert_eq!(
             callee_abi.result.placement,
             first_plan.result.clone().unwrap()

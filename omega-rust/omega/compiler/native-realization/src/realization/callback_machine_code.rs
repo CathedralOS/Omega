@@ -63,7 +63,7 @@ pub(super) fn emit_callback_thunks(
                 "bounded callback thunk must emit exactly one native function",
             ));
         };
-        let Some(abi) = function.fixed_integer_scalar_abi.as_ref() else {
+        let Some(abi) = function.scalar_abi.as_ref() else {
             return Err(realization_error(
                 "native callback thunk emission",
                 "bounded callback thunk did not retain its fixed-integer scalar ABI",

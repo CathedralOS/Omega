@@ -180,7 +180,7 @@ pub(crate) fn validate(
     {
         return Err(Error::SettlementPlanRow);
     }
-    if target.fixed_integer_scalar_abi.is_some() {
+    if target.scalar_abi.is_some() {
         return Err(Error::TargetFixedIntegerScalarAbi);
     }
     let expected_operations = [literals[0].0, literals[1].0, literals[2].0, *fma_operation];

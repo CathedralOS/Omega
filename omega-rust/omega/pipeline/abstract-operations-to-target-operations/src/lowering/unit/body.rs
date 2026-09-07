@@ -37,10 +37,10 @@ pub(super) fn lower_unit_body(
         (MachineId, OperationId, BoundaryMachineId),
         InstalledProviderCallEvidence,
     >,
-    fixed_integer_scalar_abis: &BTreeMap<MachineId, FixedIntegerScalarFunctionAbi>,
+    scalar_abis: &BTreeMap<MachineId, ScalarFunctionAbi>,
     ieee_float_fma: &BTreeMap<OperationId, TargetX86ScalarFmaSettlement>,
     native_callbacks: &BTreeMap<OperationId, target_operations::TargetNativeCallbackArgument>,
-    scalar_parameters: &[UnitScalarAbiValue],
+    scalar_parameters: &[ScalarAbiValue],
     parameters: &[TargetStructuralParameter],
 ) -> Result<LoweredUnitBody, LoweringError> {
     let parameters_by_place = parameters
@@ -305,7 +305,7 @@ pub(super) fn lower_unit_body(
                     function,
                     target,
                     functions,
-                    fixed_integer_scalar_abis,
+                    scalar_abis,
                     &mut scalar_values,
                     &mut operations,
                     &mut provenance,

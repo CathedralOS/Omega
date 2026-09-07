@@ -418,7 +418,7 @@ fn lower_only_suite_reaches_prephysical_custody_without_claiming_psi_work() {
 }
 
 #[test]
-fn non_u64_expression_fails_at_named_integer_legalization_boundary() {
+fn non_u64_expression_fails_at_ordinary_graph_legalization_boundary() {
     let (semantic, proof) = artifact();
     let optimized = optimize_artifact_sections(
         &semantic,
@@ -432,13 +432,13 @@ fn non_u64_expression_fails_at_named_integer_legalization_boundary() {
     assert!(matches!(
         stage_optimized_instruction_selection(target),
         Err(OptimizedSelectionPipelineError::Legalization(
-            LegalizationError::UnsupportedIntegerShape { function: 0 }
+            LegalizationError::UnsupportedSourceShape { function: 0 }
         ))
     ));
 }
 
 #[test]
-fn non_u64_conditional_fails_at_named_integer_legalization_boundary() {
+fn non_u64_conditional_fails_at_ordinary_graph_legalization_boundary() {
     let (semantic, proof) = conditional_immediate_artifact_with_type(
         IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
     );
@@ -454,7 +454,7 @@ fn non_u64_conditional_fails_at_named_integer_legalization_boundary() {
     assert!(matches!(
         stage_optimized_instruction_selection(target),
         Err(OptimizedSelectionPipelineError::Legalization(
-            LegalizationError::UnsupportedIntegerShape { function: 0 }
+            LegalizationError::UnsupportedSourceShape { function: 0 }
         ))
     ));
 }

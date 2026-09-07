@@ -81,7 +81,7 @@ pub(crate) fn validate(
     if !cleanup_actions.is_empty() {
         return Err(Error::SourceCleanupActions);
     }
-    if target.fixed_integer_scalar_abi.is_some() {
+    if target.scalar_abi.is_some() {
         return Err(Error::TargetFixedIntegerScalarAbi);
     }
     if target.provenance.operations.as_slice() != [*psi_operation]

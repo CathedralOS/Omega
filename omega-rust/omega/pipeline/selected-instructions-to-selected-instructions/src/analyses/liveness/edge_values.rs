@@ -185,8 +185,7 @@ pub(crate) fn incoming_argument(
     let value = match source.origin {
         VirtualRegisterOrigin::EntryParameter { source_value, .. }
         | VirtualRegisterOrigin::BlockParameter { source_value, .. }
-        | VirtualRegisterOrigin::InstructionResult { source_value, .. }
-        | VirtualRegisterOrigin::LegalizationTemporary { source_value, .. } => source_value,
+        | VirtualRegisterOrigin::InstructionResult { source_value, .. } => source_value,
     };
     if value != binding.semantic.argument
         || source.scalar_type != binding.semantic.scalar_type

@@ -247,11 +247,6 @@ fn replay_classification(
         VirtualRegisterOrigin::InstructionResult {
             instruction,
             source_value,
-        }
-        | VirtualRegisterOrigin::LegalizationTemporary {
-            instruction,
-            source_value,
-            ..
         } => (instruction, source_value),
     };
     if crate::analyses::liveness::edge_values::has_edge_use(selected, victim.id)

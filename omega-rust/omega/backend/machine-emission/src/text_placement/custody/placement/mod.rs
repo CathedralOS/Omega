@@ -38,7 +38,6 @@ pub(super) fn input(
             FunctionFragmentEmissionSourceKind::X86Rel8V1
             | FunctionFragmentEmissionSourceKind::SelectedLoweringV1
             | FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 { .. }
-            | FunctionFragmentEmissionSourceKind::AllocationRecoveryV1
             | FunctionFragmentEmissionSourceKind::UnitBaselineV1,
         ) => Ok(TextPlacementInput::RelocationFree(fragments)),
         (

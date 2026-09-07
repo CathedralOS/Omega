@@ -15,7 +15,7 @@ fn selected_fixed_constraints_become_exact_precolored_point_intervals() {
         assert_eq!(first.receipt().usage(), EXACT_USAGE);
         assert_eq!(first.receipt().function_count(), 1);
         assert_eq!(first.receipt().structural_unit_function_count(), 0);
-        assert_eq!(first.receipt().inspected_register_count(), 2);
+        assert_eq!(first.receipt().inspected_register_count(), 6);
         assert_eq!(first.receipt().interval_count(), 4);
         assert_eq!(first.receipt().entry_interval_count(), 2);
         assert_eq!(first.receipt().operand_interval_count(), 2);
@@ -52,8 +52,8 @@ fn selected_fixed_constraints_become_exact_precolored_point_intervals() {
             vec![
                 (0, 0, 0, 1, named(boolean_entry)),
                 (1, 0, 0, 1, named(integer_entry)),
-                (1, 1, 4, 5, named(integer_result)),
-                (1, 2, 6, 7, named(integer_result)),
+                (4, 1, 10, 11, named(integer_result)),
+                (5, 2, 14, 15, named(integer_result)),
             ],
         );
         assert!(rows[..2].iter().all(|row| matches!(

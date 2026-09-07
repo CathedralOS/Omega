@@ -11,9 +11,9 @@ use semantic_vocabulary::{
 };
 use target::{Architecture, NativeTarget};
 use target_operations::{
-    CallSiteOwner, MachineRegister, TargetFunction, TargetOperation, TargetOperationPlan,
-    TargetUnitBody, TargetUnitOperation, TargetUnitScalarArgumentSource,
-    TargetUnitScalarCallArgument, TerminalPsiProvenance, UnitScalarAbiValue,
+    CallSiteOwner, MachineRegister, ScalarAbiValue, TargetFunction, TargetOperation,
+    TargetOperationPlan, TargetUnitBody, TargetUnitOperation, TargetUnitScalarArgumentSource,
+    TargetUnitScalarCallArgument, TerminalPsiProvenance,
 };
 use target_operations_to_assigned_target_operations::assign_registers;
 use terminal_psi::{
@@ -42,7 +42,7 @@ fn fixture(target: NativeTarget) -> TargetOperationPlan {
         TargetOperation::UnitBody(TargetUnitBody {
             structural_types: Vec::new(),
             call_plan: call_plan.clone(),
-            scalar_parameters: vec![UnitScalarAbiValue {
+            scalar_parameters: vec![ScalarAbiValue {
                 value,
                 scalar_type: ScalarType::Integer(scalar_type),
                 placement: call_plan.parameters[0].clone(),
@@ -77,7 +77,7 @@ fn fixture(target: NativeTarget) -> TargetOperationPlan {
             TargetFunction {
                 machine: caller,
                 attachment: None,
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance::default(),
                 operation: body(
@@ -113,7 +113,7 @@ fn fixture(target: NativeTarget) -> TargetOperationPlan {
             TargetFunction {
                 machine: candidate,
                 attachment: None,
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance::default(),
                 operation: body(

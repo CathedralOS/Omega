@@ -149,7 +149,7 @@ fn project_leaf_fragments(projected: &ProjectedFragments) -> Result<MachineCodeP
             {
                 return Err("native fragment is detached from its target function");
             }
-            if let Some(abi) = &target_function.fixed_integer_scalar_abi {
+            if let Some(abi) = &target_function.scalar_abi {
                 let abstract_function = staged
                     .source()
                     .optimized_target()
@@ -258,7 +258,7 @@ enum LeafEvidence {
         psi_return_edge: semantic_vocabulary::EdgeId,
     },
     Scalar {
-        abi: target_operations::FixedIntegerScalarFunctionAbi,
+        abi: target_operations::ScalarFunctionAbi,
         stack: machine_code::ScalarStackEvidence,
         attribution: Vec<SemanticCodeAttribution>,
     },
@@ -271,45 +271,40 @@ fn leaf_function(
     fragment: &machine_code::FunctionFragment,
     evidence: LeafEvidence,
 ) -> MachineCodeFunction {
-    let (
-        fixed_integer_scalar_abi,
-        unit_stack,
-        scalar_stack,
-        unit_affine_cleanup,
-        semantic_code_attribution,
-    ) = match evidence {
-        LeafEvidence::Unit {
-            stack,
-            psi_return_edge,
-        } => (
-            None,
-            Some(stack),
-            None,
-            Some(machine_code::UnitAffineCleanupRecord {
-                psi_edge: psi_return_edge,
-                structural_types: Vec::new(),
-                locals: Vec::new(),
-                actions: Vec::new(),
-                code_offset: 0,
-                byte_count: fragment.bytes.len(),
-            }),
-            vec![SemanticCodeAttribution {
-                site: SemanticCodeSite::Edge(psi_return_edge),
-                operation_ordinal: 0,
-                code_offset: 0,
-                byte_count: fragment.bytes.len(),
-            }],
-        ),
-        LeafEvidence::Scalar {
-            abi,
-            stack,
-            attribution,
-        } => (Some(abi), None, Some(stack), None, attribution),
-    };
+    let (scalar_abi, unit_stack, scalar_stack, unit_affine_cleanup, semantic_code_attribution) =
+        match evidence {
+            LeafEvidence::Unit {
+                stack,
+                psi_return_edge,
+            } => (
+                None,
+                Some(stack),
+                None,
+                Some(machine_code::UnitAffineCleanupRecord {
+                    psi_edge: psi_return_edge,
+                    structural_types: Vec::new(),
+                    locals: Vec::new(),
+                    actions: Vec::new(),
+                    code_offset: 0,
+                    byte_count: fragment.bytes.len(),
+                }),
+                vec![SemanticCodeAttribution {
+                    site: SemanticCodeSite::Edge(psi_return_edge),
+                    operation_ordinal: 0,
+                    code_offset: 0,
+                    byte_count: fragment.bytes.len(),
+                }],
+            ),
+            LeafEvidence::Scalar {
+                abi,
+                stack,
+                attribution,
+            } => (Some(abi), None, Some(stack), None, attribution),
+        };
     MachineCodeFunction {
         machine: fragment.machine,
         attachment: fragment.attachment,
-        fixed_integer_scalar_abi,
+        scalar_abi,
         mixed_structural_scalar_abi: None,
         structural_call_scalar_return: None,
         unit_scalar_abi: None,

@@ -2,7 +2,7 @@
 use super::*;
 pub(super) fn validate(
     node: &OptimizationNode,
-    body: &[OptimizationNode],
+    _body: &[OptimizationNode],
     function: &PsiOptimizationFunction,
 ) -> Result<(), LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
@@ -56,11 +56,7 @@ pub(super) fn validate(
             },
             _,
         ) => {
-            let Some(comparison) = body.last() else {
-                return Err(invalid);
-            };
-            if !matches!(comparison.operation,AbstractOperation::IntegerEqual {result,..} | AbstractOperation::IntegerLessThan {result,..} | AbstractOperation::IntegerLessOrEqual {result,..} if result == *condition)
-            {
+            if value_type(function, *condition) != Some(ScalarType::Boolean) {
                 return Err(invalid);
             }
             if node.successors.len() != 2 {

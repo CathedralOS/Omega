@@ -2,12 +2,12 @@
 use crate::*;
 pub(super) use abstract_operations::CompletionClaimSource;
 pub(super) use calling_conventions::{
-    CallSignature, CallingPolicy, MachineRegister, ValueShape, evaluate_call_plan,
+    CallSignature, CallingPolicy, ValueShape, evaluate_call_plan,
 };
 pub(super) use optimization_core::OptimizationUnitIdentity;
 pub(super) use optimization_unit::{EffectLink, FuelSettlement, OwnershipEvent, PsiProvenance};
 pub(super) use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
+    BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
     IntegerValue, OperationId, ScalarType, StructuralDomainId, StructuralFieldId,
     StructuralPlaceKind, StructuralTypeId, ValueId,
 };
@@ -23,7 +23,6 @@ pub(super) use terminal_psi::{
 
 mod fixtures;
 mod identity;
-mod integer_sequences;
 mod scalar_calls;
 mod validation;
 

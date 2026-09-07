@@ -29,7 +29,7 @@ pub(super) fn function_abi(
             .zip(&optimized.parameters)
             .enumerate()
             .any(|(index, (declared, actual))| {
-                integer_type(declared.scalar_type).is_none()
+                scalar_shape(declared.scalar_type).is_none()
                     || actual.value != declared.value
                     || actual.scalar_type != declared.scalar_type
                     || actual.site != ValueDefinitionSite::FunctionParameter(index as u32)
@@ -49,7 +49,11 @@ pub(super) fn function_abi(
     let expected = evaluate_call_plan(
         CallingPolicy::native_for_target(native),
         &CallSignature {
-            parameters: vec![ValueShape::integer(8, 8); abstracted.parameters.len()],
+            parameters: abstracted
+                .parameters
+                .iter()
+                .map(|parameter| scalar_shape(parameter.scalar_type).ok_or(invalid.clone()))
+                .collect::<Result<Vec<_>, _>>()?,
             result,
         },
     )
@@ -63,13 +67,10 @@ pub(super) fn function_abi(
     }
     match &abstracted.result {
         AbstractFunctionResult::Scalar(result) => {
-            let abi = target
-                .fixed_integer_scalar_abi
-                .as_ref()
-                .ok_or(invalid.clone())?;
+            let abi = target.scalar_abi.as_ref().ok_or(invalid.clone())?;
             if abi.call_plan != expected
                 || abi.result.value != result.value
-                || ScalarType::Integer(abi.result.scalar_type) != result.scalar_type
+                || abi.result.scalar_type != result.scalar_type
                 || Some(&abi.result.placement) != expected.result.as_ref()
                 || abi.parameters.len() != abstracted.parameters.len()
                 || abi
@@ -79,7 +80,7 @@ pub(super) fn function_abi(
                     .zip(&expected.parameters)
                     .any(|((actual, declared), placement)| {
                         actual.value != declared.value
-                            || ScalarType::Integer(actual.scalar_type) != declared.scalar_type
+                            || actual.scalar_type != declared.scalar_type
                             || actual.placement != *placement
                     })
             {
@@ -90,7 +91,7 @@ pub(super) fn function_abi(
             let TargetOperation::UnitBody(body) = &target.operation else {
                 return Err(invalid);
             };
-            if target.fixed_integer_scalar_abi.is_some()
+            if target.scalar_abi.is_some()
                 || !body.parameters.is_empty()
                 || body.call_plan != expected
                 || body.scalar_parameters.len() != abstracted.parameters.len()

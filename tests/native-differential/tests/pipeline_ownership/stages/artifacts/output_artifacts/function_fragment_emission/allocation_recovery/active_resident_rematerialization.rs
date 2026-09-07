@@ -28,7 +28,7 @@ fn active_resident_rematerialization_emits_relocation_free_fragments_on_both_arc
         let verified_input = optimized_source.verified_input().clone();
         let source_manifest = realization.manifest().record().clone();
         let mut emitted = stage_optimized_function_fragment_emission(
-            FunctionFragmentReplayInputs::AllocationRecovery(Box::new(realization)).into(),
+            FunctionFragmentReplayInputs::FixedFrame(Box::new(realization)).into(),
         )
         .unwrap();
 
@@ -65,7 +65,7 @@ fn active_resident_rematerialization_emits_relocation_free_fragments_on_both_arc
         );
         assert_eq!(
             emitted.manifest().record().source_kind,
-            FunctionFragmentEmissionSourceKind::AllocationRecoveryV1
+            FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1
         );
 
         let fresh_span = emitted.fragments().functions[0]
@@ -100,8 +100,8 @@ fn active_resident_rematerialization_emits_relocation_free_fragments_on_both_arc
 
         let record = emitted.manifest().record();
         let encoded = record.encode();
-        assert_eq!(&encoded[8..12], &10_u32.to_le_bytes());
-        assert_eq!(encoded[45], 3);
+        assert_eq!(&encoded[8..12], &11_u32.to_le_bytes());
+        assert_eq!(encoded[45], 7);
         assert_eq!(
             FunctionFragmentEmissionManifest::decode(&encoded),
             Ok(record.clone())
@@ -145,9 +145,10 @@ fn active_resident_rematerialization_emits_relocation_free_fragments_on_both_arc
             emitted.custody()
         );
 
-        let placed = stage_optimized_relocation_free_text_section(emitted).unwrap();
+        let applied = stage_function_fragment_frame_application(emitted).unwrap();
+        let placed = stage_optimized_fixed_frame_text_section(applied).unwrap();
         assert_eq!(
-            validate_optimized_relocation_free_text_section(&placed).unwrap(),
+            validate_optimized_fixed_frame_text_section(&placed).unwrap(),
             placed.custody()
         );
         assert_eq!(
@@ -164,15 +165,22 @@ fn active_resident_rematerialization_emits_relocation_free_fragments_on_both_arc
         );
         assert_eq!(
             placed.manifest().record().source_kind,
-            FunctionFragmentEmissionSourceKind::AllocationRecoveryV1
+            FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1
         );
         let text_encoded = placed.manifest().record().encode();
-        assert_eq!(&text_encoded[8..12], &11_u32.to_le_bytes());
-        assert_eq!(text_encoded[45], 1);
-        assert_eq!(text_encoded[46], 3);
+        assert_eq!(&text_encoded[8..12], &12_u32.to_le_bytes());
+        assert_eq!(text_encoded[44], 2);
+        assert_eq!(text_encoded[45], 2);
+        assert_eq!(text_encoded[78], 7);
         assert_eq!(
             FunctionFragmentTextSectionManifest::decode(&text_encoded),
             Ok(placed.manifest().record().clone())
+        );
+        let mut unknown_text_source = text_encoded;
+        unknown_text_source[78] = 8;
+        assert_eq!(
+            FunctionFragmentTextSectionManifest::decode(&unknown_text_source),
+            Err(FunctionFragmentTextSectionManifestDecodeError::UnknownSourceKind(8))
         );
     }
 }

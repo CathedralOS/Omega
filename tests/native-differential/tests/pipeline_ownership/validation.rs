@@ -45,12 +45,17 @@ fn selected_cfg_validator_rejects_target_state_path_and_value_corruption() {
         let staged = staged_conditional(target);
 
         let mut corrupted = staged.selected().plan().clone();
-        corrupted.functions[0].blocks[0].instructions[0]
+        corrupted.functions[0].blocks[0]
+            .instructions
+            .iter_mut()
+            .find(|instruction| !instruction.implicit_defs.is_empty())
+            .expect("branch comparison sets flags")
             .implicit_defs
             .clear();
         assert!(matches!(
             validate_raw_selection(&staged, corrupted),
             Err(SelectedInstructionError::ConstraintEffectMismatch { .. })
+                | Err(SelectedInstructionError::FunctionProjectionMismatch { .. })
         ));
 
         let mut corrupted = staged.selected().plan().clone();
@@ -63,16 +68,17 @@ fn selected_cfg_validator_rejects_target_state_path_and_value_corruption() {
             unreachable!()
         };
         std::mem::swap(when_nonzero, when_zero);
-        assert!(matches!(
+        assert_eq!(
             validate_raw_selection(&staged, corrupted),
-            Err(SelectedInstructionError::SuccessorProjectionMismatch { .. })
-        ));
+            Err(SelectedInstructionError::SourceCustodyMismatch)
+        );
 
         let mut corrupted = staged.selected().plan().clone();
         corrupted.functions[0].virtual_registers[0].entry_fixed_view = None;
         assert!(matches!(
             validate_raw_selection(&staged, corrupted),
             Err(SelectedInstructionError::VirtualRegisterProjectionMismatch { .. })
+                | Err(SelectedInstructionError::FunctionProjectionMismatch { .. })
         ));
 
         let mut corrupted = staged.selected().plan().clone();
@@ -86,6 +92,7 @@ fn selected_cfg_validator_rejects_target_state_path_and_value_corruption() {
             validate_raw_selection(&staged, corrupted),
             Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
                 | Err(SelectedInstructionError::ConstraintOperandMismatch { .. })
+                | Err(SelectedInstructionError::FunctionProjectionMismatch { .. })
         ));
 
         let mut corrupted = staged.selected().plan().clone();
@@ -94,6 +101,7 @@ fn selected_cfg_validator_rejects_target_state_path_and_value_corruption() {
             validate_raw_selection(&staged, corrupted),
             Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
                 | Err(SelectedInstructionError::ConstraintOperandMismatch { .. })
+                | Err(SelectedInstructionError::FunctionProjectionMismatch { .. })
         ));
 
         let mut corrupted = staged.selected().plan().clone();
@@ -102,6 +110,7 @@ fn selected_cfg_validator_rejects_target_state_path_and_value_corruption() {
             validate_raw_selection(&staged, corrupted),
             Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
                 | Err(SelectedInstructionError::ConstraintOperandMismatch { .. })
+                | Err(SelectedInstructionError::FunctionProjectionMismatch { .. })
         ));
 
         let mut corrupted = staged.selected().plan().clone();
@@ -115,6 +124,7 @@ fn selected_cfg_validator_rejects_target_state_path_and_value_corruption() {
             validate_raw_selection(&staged, corrupted),
             Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
                 | Err(SelectedInstructionError::UseBeforeDefinition { .. })
+                | Err(SelectedInstructionError::FunctionProjectionMismatch { .. })
         ));
 
         let mut corrupted = staged.selected().plan().clone();
@@ -125,6 +135,7 @@ fn selected_cfg_validator_rejects_target_state_path_and_value_corruption() {
         assert!(matches!(
             validate_raw_selection(&staged, corrupted),
             Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+                | Err(SelectedInstructionError::FunctionProjectionMismatch { .. })
         ));
 
         let mut corrupted = staged.selected().plan().clone();
@@ -134,6 +145,7 @@ fn selected_cfg_validator_rejects_target_state_path_and_value_corruption() {
         assert!(matches!(
             validate_raw_selection(&staged, corrupted),
             Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+                | Err(SelectedInstructionError::FunctionProjectionMismatch { .. })
         ));
 
         let mut corrupted = staged.selected().plan().clone();
@@ -143,10 +155,10 @@ fn selected_cfg_validator_rejects_target_state_path_and_value_corruption() {
             unreachable!()
         };
         when_nonzero.psi_edge = EdgeId::new(8_002).unwrap();
-        assert!(matches!(
+        assert_eq!(
             validate_raw_selection(&staged, corrupted),
-            Err(SelectedInstructionError::SuccessorProjectionMismatch { .. })
-        ));
+            Err(SelectedInstructionError::SourceCustodyMismatch)
+        );
 
         let mut corrupted = staged.selected().plan().clone();
         let SelectedTerminator::ConditionalBranch { when_zero, .. } =
@@ -157,7 +169,7 @@ fn selected_cfg_validator_rejects_target_state_path_and_value_corruption() {
         when_zero.fuel[0].units += 1;
         assert!(matches!(
             validate_raw_selection(&staged, corrupted),
-            Err(SelectedInstructionError::SuccessorProjectionMismatch { .. })
+            Err(SelectedInstructionError::SourceCustodyMismatch)
                 | Err(SelectedInstructionError::ProvenancePartitionMismatch { .. })
         ));
     }
@@ -199,7 +211,8 @@ fn selected_content_identity_binds_every_retained_field_class() {
     changed.functions[0].entry_block.0 += 1;
     mutations.push(changed);
     let mut changed = original.clone();
-    changed.functions[0].virtual_registers[1].scalar_type = ScalarType::Boolean;
+    changed.functions[0].virtual_registers[1].scalar_type =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
     mutations.push(changed);
     let mut changed = original.clone();
     changed.functions[0].virtual_registers[1].id.0 += 1;
@@ -260,7 +273,11 @@ fn selected_content_identity_binds_every_retained_field_class() {
         .push(RegisterUnitId(999));
     mutations.push(changed);
     let mut changed = original.clone();
-    changed.functions[0].blocks[0].instructions[0]
+    changed.functions[0].blocks[0]
+        .instructions
+        .iter_mut()
+        .find(|instruction| !instruction.implicit_defs.is_empty())
+        .expect("branch comparison sets flags")
         .implicit_defs
         .clear();
     mutations.push(changed);
@@ -342,8 +359,16 @@ fn selected_content_identity_binds_every_retained_field_class() {
     *psi_return_edge = EdgeId::new(8_017).unwrap();
     mutations.push(changed);
 
-    for mutation in mutations {
-        assert_ne!(selected_instruction_plan_identity(&mutation), identity);
+    for (position, mutation) in mutations.into_iter().enumerate() {
+        assert_ne!(
+            &mutation, original,
+            "mutation {position} must change a retained field"
+        );
+        assert_ne!(
+            selected_instruction_plan_identity(&mutation),
+            identity,
+            "mutation {position}"
+        );
     }
 }
 

@@ -3,7 +3,7 @@ use crate::tests::*;
 use super::fixture::{ARM64_EXACT_USAGE, X64_EXACT_USAGE, analyze, exact_budget, source};
 
 #[test]
-fn forwarded_conditional_exposes_two_factual_fixed_use_domain_boundaries() {
+fn forwarded_conditional_keeps_abi_transfers_outside_semantic_value_domains() {
     for (target, entry_name, result_name) in [
         (NativeTarget::linux_x64(), "rsi", "rax"),
         (NativeTarget::linux_arm64(), "x1", "x0"),
@@ -15,10 +15,10 @@ fn forwarded_conditional_exposes_two_factual_fixed_use_domain_boundaries() {
         assert_eq!(first.receipt().target(), target);
         assert_eq!(first.receipt().function_count(), 1);
         assert_eq!(first.receipt().structural_unit_function_count(), 0);
-        assert_eq!(first.receipt().register_count(), 2);
-        assert_eq!(first.receipt().fragment_count(), 4);
-        assert_eq!(first.receipt().segment_count(), 4);
-        assert_eq!(first.receipt().incompatible_fixed_use_boundary_count(), 2);
+        assert_eq!(first.receipt().register_count(), 6);
+        assert_eq!(first.receipt().fragment_count(), 8);
+        assert_eq!(first.receipt().segment_count(), 8);
+        assert_eq!(first.receipt().incompatible_fixed_use_boundary_count(), 0);
         assert_eq!(
             first.receipt().usage(),
             if target == NativeTarget::linux_x64() {
@@ -39,28 +39,27 @@ fn forwarded_conditional_exposes_two_factual_fixed_use_domain_boundaries() {
             .register_environment();
         let named = |name| environment.physical().model().view_named(name).unwrap().id;
         let registers = &first.plan().functions[0].registers;
-        assert_eq!(registers[0].fragments.len(), 1);
-        assert!(matches!(
-            registers[0].fragments[0].segments[0].opening,
-            register_homes::FixedPrecoloredSourceSegmentOpening::SourceRangeStartV1
-        ));
-        let forwarded = &registers[1];
-        assert_eq!(forwarded.fragments.len(), 3);
         assert_eq!(
-            forwarded.fragments[0].segments[0].candidates,
+            registers[1].fragments[0].segments[0].candidates,
             [named(entry_name)]
         );
-        for fragment in &forwarded.fragments[1..] {
+        let forwarded = &registers[3];
+        assert_eq!(forwarded.fragments.len(), 3);
+        for fragment in &forwarded.fragments {
             assert_eq!(fragment.segments.len(), 1);
-            assert_eq!(fragment.segments[0].candidates, [named(result_name)]);
+            assert!(fragment.segments[0].candidates.len() > 1);
+        }
+        for fragment in &forwarded.fragments[1..] {
             assert!(matches!(
                 fragment.segments[0].opening,
-                register_homes::FixedPrecoloredSourceSegmentOpening::IncompatibleFixedUseDomainBoundaryV1 {
-                    incoming: Some(_),
-                    destination_view,
-                    ..
-                } if destination_view == named(result_name)
+                register_homes::FixedPrecoloredSourceSegmentOpening::IncomingSourceEdgeV1 { .. }
             ));
+        }
+        for returned in &registers[4..] {
+            assert_eq!(
+                returned.fragments[0].segments[0].candidates,
+                [named(result_name)]
+            );
         }
 
         let replayed =

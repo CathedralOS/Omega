@@ -57,11 +57,7 @@ fn active_resident_rematerialization_composes_with_mov_r32_through_publication()
     let mov_plan = materialization.materialization().plan();
     assert_eq!(staged.selections(), selections.identity());
     assert_eq!(staged.selected_lowering_completion(), None);
-    assert!(
-        staged
-            .allocation_recovery_function_relative_realization()
-            .is_none()
-    );
+    assert!(staged.fixed_frame_for_test().is_none());
     assert_eq!(manifest.selections, selections.identity());
     assert_eq!(
         manifest.allocation_recovery_selections,

@@ -9,6 +9,17 @@ pub(super) fn project(
     let (operation, result) =
         scalar_graph_input::instruction(node).ok_or(Error::SourceCustodyMismatch)?;
     let kind = match &node.operation {
+        AbstractOperation::BooleanNot { operand, .. } => {
+            LegalizedScalarInstructionKind::BooleanNot { operand: *operand }
+        }
+        AbstractOperation::IntegerWiden {
+            operand,
+            source_type,
+            ..
+        } => LegalizedScalarInstructionKind::IntegerWiden {
+            operand: *operand,
+            source_type: *source_type,
+        },
         AbstractOperation::IntegerConstant { value, .. } => {
             LegalizedScalarInstructionKind::Constant(*value)
         }

@@ -3,7 +3,6 @@ use super::*;
 
 mod dynamic_descriptor_join;
 mod dynamic_dispatch;
-mod fixed_integer_scalar_abi;
 mod native_boundaries;
 mod native_callback_arguments;
 mod parameter_translation_fixture;
@@ -11,6 +10,7 @@ mod prelude;
 mod projected_result_qualifications;
 mod ranked_countdown;
 mod scalar;
+mod scalar_abi;
 mod structural_and_cleanup;
 mod support;
 mod translation_validation;

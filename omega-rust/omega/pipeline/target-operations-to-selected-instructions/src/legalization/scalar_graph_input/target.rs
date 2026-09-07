@@ -98,6 +98,23 @@ pub(super) fn validate_target(
                 expression: expression.clone(),
             },
         ),
+        TargetOperation::ReturnIntegerConditionalControl {
+            condition_source,
+            condition_parameter_index,
+            condition_location,
+            scalar_type,
+            when_true,
+            when_false,
+        } => (
+            *scalar_type,
+            Control::Conditional {
+                condition_source: *condition_source,
+                condition_parameter_index: *condition_parameter_index,
+                condition_location: *condition_location,
+                when_true: when_true.clone(),
+                when_false: when_false.clone(),
+            },
+        ),
         TargetOperation::ReturnIntegerExpressionConditionalControl {
             condition_source,
             condition,
@@ -148,6 +165,76 @@ impl Checker<'_> {
     ) -> bool {
         if path.contains(&block) {
             return false;
+        }
+        if let Control::Conditional {
+            condition_source,
+            condition_parameter_index,
+            condition_location,
+            when_true,
+            when_false,
+        } = control
+        {
+            let Some(parameter) = self
+                .function
+                .scalar_abi
+                .as_ref()
+                .and_then(|abi| abi.parameters.get(*condition_parameter_index))
+            else {
+                return false;
+            };
+            if parameter.scalar_type != ScalarType::Boolean
+                || !location_matches(*condition_location, &parameter.placement)
+            {
+                return false;
+            }
+            let parameter_expression = Boolean::Parameter {
+                source_value: parameter.value,
+                parameter_index: *condition_parameter_index,
+                location: *condition_location,
+            };
+            // The target's direct-parameter form encodes Not(Parameter) by
+            // swapping its arms, while retaining the authored Not result ID.
+            let (expression, true_arm, false_arm) = if *condition_source == parameter.value {
+                (parameter_expression, when_true, when_false)
+            } else {
+                let Some(operation) = self
+                    .optimized
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.nodes)
+                    .find_map(|node| match node.operation {
+                        AbstractOperation::BooleanNot {
+                            psi_operation,
+                            result,
+                            operand,
+                        } if result == *condition_source && operand == parameter.value => {
+                            Some(psi_operation)
+                        }
+                        _ => None,
+                    })
+                else {
+                    return false;
+                };
+                (
+                    Boolean::Not {
+                        psi_operation: operation,
+                        operand: Box::new(parameter_expression),
+                    },
+                    when_false,
+                    when_true,
+                )
+            };
+            return self.control(
+                block,
+                &Control::ConditionalExpression {
+                    condition_source: *condition_source,
+                    condition: expression,
+                    when_true: true_arm.clone(),
+                    when_false: false_arm.clone(),
+                },
+                aliases,
+                path,
+            );
         }
         let Some(source) = self
             .optimized
@@ -240,5 +327,5 @@ fn bind(
     result
 }
 fn location_matches(location: ScalarParameterLocation, placement: &ValuePlacement) -> bool {
-    matches!(placement.locations.as_slice(),[ValueLocation::Register {register,value_byte_offset:0,byte_size:8}] if location == ScalarParameterLocation::Register(*register))
+    matches!(placement.locations.as_slice(),[ValueLocation::Register {register,value_byte_offset:0,byte_size}] if *byte_size == placement.shape.byte_size && location == ScalarParameterLocation::Register(*register))
 }

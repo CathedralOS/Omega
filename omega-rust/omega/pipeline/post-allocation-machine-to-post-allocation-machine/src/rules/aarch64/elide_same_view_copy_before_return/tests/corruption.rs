@@ -5,6 +5,28 @@ use crate::{
 };
 
 #[test]
+fn explicit_return_value_liveness_is_required_separately_from_abi_units() {
+    for field in 0..3 {
+        let mut fixture = fixture::fixture();
+        let valid = super::super::compute::compute_from_inputs(fixture.inputs(), fixture::budget())
+            .unwrap();
+        let live = &mut fixture.liveness.functions[0].blocks[0].instructions;
+        match field {
+            0 => live[0].virtual_live_out.clear(),
+            1 => live[1].virtual_live_in.clear(),
+            _ => live[1].virtual_uses.clear(),
+        }
+        assert_eq!(
+            super::super::compute::compute_from_inputs(fixture.inputs(), fixture::budget()),
+            Err(Aarch64SameViewCopyElisionError::LivenessRosterMismatch(
+                selected_instructions::SelectedInstructionId(2)
+            ))
+        );
+        assert!(super::super::validate::validate_from_inputs(fixture.inputs(), valid).is_err());
+    }
+}
+
+#[test]
 fn independent_replay_rejects_reauthenticated_action_corruption() {
     let fixture = fixture::fixture();
     let plan =

@@ -1,10 +1,6 @@
-//! Optimizer module role: executable entrance. Canonical source-to-legal construction over the sole ordered form catalog.
+//! Optimizer module role: executable entrance. Canonical source-to-legal construction.
 
-mod conditional_input;
-pub(in crate::legalization) mod conditions;
 mod custody;
-mod functions;
-mod leaves;
 mod matchers;
 mod ordinary_roster;
 mod publication_input;
@@ -13,7 +9,6 @@ mod shared;
 mod structural;
 
 use crate::legalization::projected_structural_call_return;
-use functions::derive_source_function;
 use matchers::match_structural_unit_form;
 #[cfg(test)]
 pub(crate) use publication_input::accepts as accepts_fragment_publication_input;
@@ -21,26 +16,15 @@ pub(crate) use publication_input::is_fragment_publication_program;
 use shared::*;
 use structural::derive_source_structural_unit_function;
 
-#[cfg(test)]
-pub(in crate::legalization) fn derive_condition_for_test<'a>(
-    function: usize,
-    target: &'a target_operations::TargetFunction,
-    abstracted: &abstract_operations::AbstractFunction,
-    optimized: &optimization_unit::PsiOptimizationFunction,
-) -> Result<conditions::DerivedCondition<'a>, LegalizationError> {
-    conditions::derive(function, target, abstracted, optimized)
-}
-
 pub(crate) struct SourceFunctionRosters {
-    pub functions: Vec<legalized_operations::LegalizedFunction>,
     pub scalar_functions: Vec<legalized_operations::LegalizedScalarFunction>,
     pub structural_unit_functions: Vec<SourceStructuralUnitFunction>,
     pub projected_structural_call_returns:
         Vec<legalized_operations::LegalizedProjectedStructuralCallReturn>,
 }
 
-/// Validate common custody once, then classify every target function through
-/// the adjacent ordered catalog into exactly one output roster.
+/// Validate common custody once, then place every target function in exactly
+/// one ordinary-graph or structural-call roster.
 pub(crate) fn derive_source_function_rosters(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
@@ -50,7 +34,6 @@ pub(crate) fn derive_source_function_rosters(
     let projected = projected_structural_call_return::derive(target, abstract_plan, unit)?;
 
     let mut rosters = SourceFunctionRosters {
-        functions: Vec::new(),
         scalar_functions: Vec::new(),
         structural_unit_functions: Vec::new(),
         projected_structural_call_returns: projected.iter().cloned().collect(),
@@ -63,7 +46,6 @@ pub(crate) fn derive_source_function_rosters(
         unit,
     )?;
 
-    validate_source_register_architecture(&rosters.functions, target.target.architecture)?;
     Ok(rosters)
 }
-use custody::{validate_source_custody, validate_source_register_architecture};
+use custody::validate_source_custody;

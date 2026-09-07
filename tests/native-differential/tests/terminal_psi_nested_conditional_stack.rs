@@ -750,7 +750,7 @@ fn nested_conditional_plan(target: NativeTarget, nested_false_arm: bool) -> Targ
         functions: vec![TargetFunction {
             machine: machine_id(1),
             attachment: None,
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: Vec::new(),

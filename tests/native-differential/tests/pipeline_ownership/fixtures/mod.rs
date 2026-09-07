@@ -2,8 +2,8 @@
 
 mod allocated_machine;
 mod common;
-mod conditional_access;
 mod control_flow;
+mod ordinary_graph_controls;
 mod projected_structural_call_return;
 mod scalar_call_unit;
 mod selected_lowering;
@@ -13,8 +13,8 @@ mod validation;
 
 pub(crate) use allocated_machine::*;
 pub(crate) use common::*;
-pub(crate) use conditional_access::*;
 pub(crate) use control_flow::*;
+pub(crate) use ordinary_graph_controls::*;
 pub(crate) use projected_structural_call_return::*;
 pub(crate) use scalar_call_unit::*;
 pub(crate) use selected_lowering::*;

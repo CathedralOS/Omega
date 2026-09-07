@@ -83,18 +83,9 @@ pub(super) fn replay_apply(
         id: copy.result_virtual_register,
         scalar_type: source.scalar_type,
         class: source.class,
-        origin: match source.origin {
-            VirtualRegisterOrigin::LegalizationTemporary { temporary, .. } => {
-                VirtualRegisterOrigin::LegalizationTemporary {
-                    instruction: copy.copy_instruction,
-                    temporary,
-                    source_value: copy.source_value,
-                }
-            }
-            _ => VirtualRegisterOrigin::InstructionResult {
-                instruction: copy.copy_instruction,
-                source_value: copy.source_value,
-            },
+        origin: VirtualRegisterOrigin::InstructionResult {
+            instruction: copy.copy_instruction,
+            source_value: copy.source_value,
         },
         definition_site: copy.source_definition_site,
         entry_fixed_view: None,

@@ -242,7 +242,7 @@ fn scalar_returns_and_entry_parameters_keep_short_abi_transport() {
             };
             source.parameters.push(LegalizedScalarParameter {
                 value: parameter,
-                scalar_type: integer,
+                scalar_type: ScalarType::Integer(integer),
                 definition_site: ValueDefinitionSite::FunctionParameter(0),
                 placement,
             });
@@ -497,4 +497,92 @@ fn returned(block: &mut LegalizedScalarBlock) -> &mut LegalizedScalarReturn {
         panic!("return fixture");
     };
     returned
+}
+
+#[test]
+fn widening_copy_keeps_distinct_typed_value_and_conversion_custody() {
+    for target in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::windows_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let environment =
+            register_environment::baseline_target_register_environment(target).unwrap();
+        let constraints = SelectedSelectionConstraints {
+            keys: environment.selected_keys(),
+            projected_structural_call: None,
+            fixed_inputs: Vec::new(),
+        };
+        let mut source = fixture(target, 0);
+        source.call_plan = evaluate_call_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: Vec::new(),
+                result: Some(ValueShape::integer(8, 8)),
+            },
+        )
+        .unwrap();
+        source.blocks[0].instructions.truncate(1);
+        let narrow = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        source.blocks[0].instructions[0].scalar_type = ScalarType::Integer(narrow);
+        let input = source.blocks[0].instructions[0].result;
+        let mut widen = source.blocks[0].instructions[0].clone();
+        widen.operation = OperationId::new(20).unwrap();
+        widen.result = ValueId::new(20).unwrap();
+        widen.scalar_type =
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+        widen.definition_site = ValueDefinitionSite::Node {
+            block: source.entry_block,
+            node: 1,
+        };
+        widen.kind = LegalizedScalarInstructionKind::IntegerWiden {
+            operand: input,
+            source_type: narrow,
+        };
+        widen.fuel = vec![FuelSettlement {
+            site: PsiProvenance::Operation(widen.operation),
+            units: 1,
+        }];
+        returned(&mut source.blocks[0]).value = LegalizedScalarReturnValue::Value {
+            value: widen.result,
+            scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+        };
+        source.blocks[0].instructions.push(widen);
+        let selected = build(
+            0,
+            &source,
+            target,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        let validate = |candidate: &SelectedFunction| {
+            crate::selection::validation::scalar_graph::validate(
+                0,
+                &source,
+                candidate,
+                target,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+        };
+        validate(&selected).unwrap();
+        for corruption in 0..4 {
+            let mut changed = selected.clone();
+            let copy = &mut changed.blocks[0].instructions[1];
+            match corruption {
+                0 => copy.provenance.operations.clear(),
+                1 => copy.provenance.fuel[0].units += 1,
+                2 => copy.provenance.values.swap(0, 1),
+                _ => {
+                    changed.virtual_registers[copy.operands[1].virtual_register.0 as usize]
+                        .scalar_type = ScalarType::Integer(narrow)
+                }
+            }
+            assert!(validate(&changed).is_err());
+        }
+    }
 }

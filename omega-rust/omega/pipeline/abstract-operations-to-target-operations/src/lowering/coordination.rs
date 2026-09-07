@@ -45,10 +45,10 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
         .iter()
         .map(|function| (function.machine, function))
         .collect::<BTreeMap<_, _>>();
-    let mut fixed_integer_scalar_abis = BTreeMap::new();
+    let mut scalar_abis = BTreeMap::new();
     for function in &plan.functions {
         if let Some(abi) = derive_fixed_integer_scalar_function_abi(function, target)? {
-            fixed_integer_scalar_abis.insert(function.machine, abi);
+            scalar_abis.insert(function.machine, abi);
         }
     }
     let structural_types = plan
@@ -287,7 +287,7 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
                     function,
                     target,
                     &functions_by_machine,
-                    &fixed_integer_scalar_abis,
+                    &scalar_abis,
                     &structural_types,
                     &boundary_machines,
                     &settlements_by_boundary,
@@ -295,8 +295,7 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
                     &ieee_float_fma_by_operation,
                     &native_callbacks_by_operation,
                 )?;
-                lowered.fixed_integer_scalar_abi =
-                    fixed_integer_scalar_abis.get(&function.machine).cloned();
+                lowered.scalar_abi = scalar_abis.get(&function.machine).cloned();
                 lowered.mixed_structural_scalar_abi =
                     mixed_structural_scalar_abis.get(&function.machine).cloned();
                 Ok::<TargetFunction, LoweringError>(lowered)

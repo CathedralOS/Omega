@@ -2,9 +2,10 @@ use super::super::{
     FunctionRelativeOptimizationRealizationScope, FunctionRelativeOptimizationRealizationStage,
     FunctionRelativeOptimizationUnavailableData, carriers::*, error::*, model::*, prelude::*,
 };
-use super::allocation::baseline_allocation_source;
 use super::statistics::function_relative_statistics;
-use selected_instructions_to_register_homes::AllocationOutput;
+use selected_instructions_to_register_homes::{
+    AllocationEvidence, AllocationOutput, PostAllocationSelectedTransformation,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::function_realization) fn expected_fixed_frame_manifest(
@@ -25,13 +26,34 @@ pub(in crate::function_realization) fn expected_fixed_frame_manifest(
     let post_allocation = selections.for_phase(OptimizationExecutionPhase::PostAllocationMachine);
     let function_relative =
         selections.for_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
-    let source = baseline_allocation_source(allocation)?;
+
     let post = allocation.post_allocation_manifest().record();
     let selected = allocation.selected().selected_identity();
+    let expected_transformations = match allocation.evidence() {
+        AllocationEvidence::RegisterHomes(_) => Vec::new(),
+        AllocationEvidence::FixedViewCopies(receipt) => {
+            vec![PostAllocationSelectedTransformation::FixedViewCopy(
+                receipt.source().source().transformation(),
+            )]
+        }
+        AllocationEvidence::ActiveResidentRematerialization(receipt) => vec![
+            PostAllocationSelectedTransformation::PressureRematerialization(
+                receipt.rematerialization(),
+            ),
+        ],
+        _ => return Err(FunctionRelativeOptimizationRealizationError::RootMismatch),
+    };
+    let pre_physical = allocation
+        .target_input()
+        .optimized()
+        .pre_physical_manifest()
+        .record()
+        .identity;
     if !selected_lowering.is_empty()
-        || !allocation_recovery.is_empty()
         || !post_allocation.is_empty()
         || !function_relative.is_empty()
+        || post.pre_physical != pre_physical
+        || post.selected_transformations != expected_transformations
         || post.selected_lowering_completion.is_some()
         || post.selected != selected
         || machine.machine().receipt().post_allocation_manifest() != post.identity
@@ -70,7 +92,7 @@ pub(in crate::function_realization) fn expected_fixed_frame_manifest(
         allocation_recovery_selections: allocation_recovery.identity(),
         post_allocation_machine_selections: post_allocation.identity(),
         function_relative_layout_selections: function_relative.identity(),
-        pre_physical_manifest: source.manifest(),
+        pre_physical_manifest: pre_physical,
         post_allocation_manifest: post.identity,
         selected,
         pre_allocation_machine_effects: machine.effects().receipt().identity(),
@@ -104,7 +126,7 @@ pub(in crate::function_realization) fn expected_fixed_frame_manifest(
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::function_realization) fn fixed_frame_custody(
-    source: StagedOptimizedRegisterHomeCustodyReceipt,
+    source: AllocationEvidence,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     requirements: &ValidatedAllocatedCalleeSavedRequirements,
     storage: &ValidatedNonAuthoritativeCalleeSaveStorage,

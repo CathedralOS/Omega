@@ -11,9 +11,7 @@ pub(in crate::legalization) fn instruction(
             result,
             scalar_type,
             value,
-        } if integer_type(*scalar_type).is_some() && valid_literal(*scalar_type, *value) => {
-            Some((*psi_operation, *result))
-        }
+        } if valid_literal(*scalar_type, *value) => Some((*psi_operation, *result)),
         AbstractOperation::Call {
             psi_operation,
             result,
@@ -38,7 +36,9 @@ pub(in crate::legalization) fn instruction(
             result,
             scalar_type,
             ..
-        } if *scalar_type == u64_type() => Some((*psi_operation, *result)),
+        } if *scalar_type == u64_type() || *scalar_type == u8_type() => {
+            Some((*psi_operation, *result))
+        }
         AbstractOperation::IntegerEqual {
             psi_operation,
             result,
@@ -54,13 +54,23 @@ pub(in crate::legalization) fn instruction(
             result,
             ..
         } => Some((*psi_operation, *result)),
+        AbstractOperation::BooleanNot {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::IntegerWiden {
+            psi_operation,
+            result,
+            ..
+        } => Some((*psi_operation, *result)),
         _ => None,
     }
 }
 fn valid_literal(scalar: ScalarType, value: semantic_vocabulary::IntegerValue) -> bool {
     matches!((scalar,value),
         (ScalarType::Integer(integer),semantic_vocabulary::IntegerValue::Unsigned(value))
-            if integer == u64_type() && value <= u128::from(u64::MAX))
+            if (integer == u64_type() && value <= u128::from(u64::MAX)) || (integer == u8_type() && value <= u128::from(u8::MAX)))
         || matches!((scalar,value),
             (ScalarType::Integer(integer),semantic_vocabulary::IntegerValue::Signed(value))
                 if integer == i64_type() && i64::try_from(value).is_ok())
@@ -70,6 +80,7 @@ pub(super) fn validate(
     optimized: &PsiOptimizationFunction,
 ) -> Result<(), LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
+    super::boolean::validate(block, optimized)?;
     let (terminator, body) = block.nodes.split_last().ok_or(invalid.clone())?;
     for (position, parameter) in block.parameters.iter().enumerate() {
         if integer_type(parameter.scalar_type).is_none()
@@ -113,23 +124,34 @@ pub(super) fn validate(
             AbstractOperation::IntegerEqual { left, right, .. }
             | AbstractOperation::IntegerLessThan { left, right, .. }
             | AbstractOperation::IntegerLessOrEqual { left, right, .. } => {
-                if position + 1 != body.len()
-                    || !matches!(terminator.operation,AbstractOperation::Conditional {condition,..} if condition == result)
-                    || value_type(optimized, *left)
-                        .and_then(integer_type)
-                        .is_none()
+                if value_type(optimized, *left)
+                    .and_then(integer_type)
+                    .is_none()
                     || value_type(optimized, *left) != value_type(optimized, *right)
-                    || optimized
-                        .blocks
-                        .iter()
-                        .flat_map(|block| &block.nodes)
-                        .filter(|candidate| candidate.uses.iter().any(|used| used.value == result))
-                        .count()
-                        != 1
                 {
                     return Err(invalid);
                 }
                 ScalarType::Boolean
+            }
+            AbstractOperation::BooleanNot { operand, .. } => {
+                if value_type(optimized, *operand) != Some(ScalarType::Boolean) {
+                    return Err(invalid);
+                }
+                ScalarType::Boolean
+            }
+            AbstractOperation::IntegerWiden {
+                operand,
+                source_type,
+                target_type,
+                ..
+            } => {
+                if *source_type != u8_type()
+                    || *target_type != u64_type()
+                    || value_type(optimized, *operand) != Some(ScalarType::Integer(*source_type))
+                {
+                    return Err(invalid);
+                }
+                ScalarType::Integer(*target_type)
             }
             _ => return Err(invalid),
         };

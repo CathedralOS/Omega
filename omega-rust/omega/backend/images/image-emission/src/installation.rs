@@ -29,7 +29,6 @@ mod call_site_owner_codec;
 mod completion_custody_codec;
 mod dynamic_conformance_codec;
 mod fingerprint_codec;
-mod fixed_integer_scalar_abi_codec;
 mod function_affine_cleanup_codec;
 mod function_codec;
 mod function_parameter_codec;
@@ -45,6 +44,7 @@ mod port_effect_codec;
 mod private_function_codec;
 mod provider_execution_codec;
 mod provider_plan_codec;
+mod scalar_abi_codec;
 mod scalar_call_plan_codec;
 mod scalar_structural_scalar_field_store_codec;
 mod semantic_code_attribution_codec;
@@ -100,7 +100,7 @@ use structural_scalar_codec::{
 use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joins;
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 80;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 81;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -508,7 +508,7 @@ pub struct InstalledForwardedDynamicParameterCall {
 pub struct InstalledFunction {
     pub machine: MachineId,
     pub attachment: Option<StructuralTypeId>,
-    pub fixed_integer_scalar_abi: Option<target_operations::FixedIntegerScalarFunctionAbi>,
+    pub scalar_abi: Option<target_operations::ScalarFunctionAbi>,
     pub mixed_structural_scalar_abi: Option<target_operations::MixedStructuralScalarFunctionAbi>,
     pub unit_scalar_abi: Option<machine_code::UnitScalarFunctionAbiRecord>,
     pub structural_call_scalar_return: Option<machine_code::StructuralCallScalarReturnEvidence>,
@@ -562,7 +562,7 @@ pub struct InstalledCompilerPrivateFunction {
     pub identity: function_identity::MachineFunctionIdentity,
     pub source_psi: TerminalPsiIdentity,
     pub machine: MachineId,
-    pub fixed_integer_scalar_abi: target_operations::FixedIntegerScalarFunctionAbi,
+    pub scalar_abi: target_operations::ScalarFunctionAbi,
     pub text_offset: usize,
     pub byte_count: usize,
 }
@@ -761,7 +761,7 @@ where
             .iter()
             .map(|function| InstalledFunction {
                 machine: function.machine,
-                fixed_integer_scalar_abi: function.fixed_integer_scalar_abi.clone(),
+                scalar_abi: function.scalar_abi.clone(),
                 mixed_structural_scalar_abi: function.mixed_structural_scalar_abi.clone(),
                 unit_scalar_abi: function.unit_scalar_abi.clone(),
                 structural_call_scalar_return: function.structural_call_scalar_return,
@@ -1257,7 +1257,7 @@ pub fn validate_installation_record(
             .any(|(installed, emitted)| {
                 installed.machine != emitted.machine
                     || installed.attachment != emitted.attachment
-                    || installed.fixed_integer_scalar_abi != emitted.fixed_integer_scalar_abi
+                    || installed.scalar_abi != emitted.scalar_abi
                     || installed.mixed_structural_scalar_abi != emitted.mixed_structural_scalar_abi
                     || installed.unit_scalar_abi != emitted.unit_scalar_abi
                     || installed.structural_call_scalar_return
@@ -1622,9 +1622,9 @@ fn installed_compiler_private_function(
         identity: emitted.identity,
         source_psi: emitted.source_psi,
         machine: emitted.function.machine,
-        fixed_integer_scalar_abi: emitted
+        scalar_abi: emitted
             .function
-            .fixed_integer_scalar_abi
+            .scalar_abi
             .clone()
             .ok_or(InstallationError::MissingCompilerPrivateFunctionAbi)?,
         text_offset: emitted.function.text_offset,
@@ -1961,7 +1961,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 && function.scalar_control_affine_cleanups.is_empty()
                 && function.scalar_structural_parameters.is_empty()
                 && function.scalar_structural_parameter_homes.is_empty()
-                && function.fixed_integer_scalar_abi.is_none()
+                && function.scalar_abi.is_none()
                 && function.unit_scalar_homes.is_empty()
                 && function.unit_integer_constants.is_empty()
                 && function.unit_structural_scalar_field_stores.is_empty()
@@ -2559,8 +2559,8 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             || !private.identity.is_valid()
             || private.byte_count == 0
             || private.text_offset != expected_text_offset
-            || !installed_unit_scalar_transport::installed_fixed_integer_scalar_abi_is_canonical(
-                &private.fixed_integer_scalar_abi,
+            || !installed_unit_scalar_transport::installed_scalar_abi_is_canonical(
+                &private.scalar_abi,
                 record.target,
             )
         {
@@ -2591,12 +2591,14 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             .scalar_parameters
             .iter()
             .map(|parameter| {
-                if parameter.scalar_type.is_address()
-                    || !matches!(parameter.scalar_type.bits(), 8 | 16 | 32 | 64)
-                {
+                let semantic_vocabulary::ScalarType::Integer(integer) = parameter.scalar_type
+                else {
+                    return None;
+                };
+                if integer.is_address() || !matches!(integer.bits(), 8 | 16 | 32 | 64) {
                     return None;
                 }
-                let bytes = parameter.scalar_type.bits() / 8;
+                let bytes = integer.bits() / 8;
                 Some(ValueShape::integer(bytes, bytes))
             })
             .collect::<Option<Vec<_>>>()
@@ -2839,7 +2841,13 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     abi.scalar_parameters
                         .iter()
                         .map(|parameter| {
-                            let integer = parameter.scalar_type;
+                            let semantic_vocabulary::ScalarType::Integer(integer) =
+                                parameter.scalar_type
+                            else {
+                                return Err(InstallationError::InvalidInternalUnitCall(
+                                    installed.machine,
+                                ));
+                            };
                             if integer.is_address() || !matches!(integer.bits(), 8 | 16 | 32 | 64) {
                                 return Err(InstallationError::InvalidInternalUnitCall(
                                     installed.machine,
@@ -2859,7 +2867,13 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                         .scalar_parameters
                         .iter()
                         .map(|parameter| {
-                            let integer = parameter.scalar_type;
+                            let semantic_vocabulary::ScalarType::Integer(integer) =
+                                parameter.scalar_type
+                            else {
+                                return Err(InstallationError::InvalidInternalUnitCall(
+                                    installed.machine,
+                                ));
+                            };
                             if integer.is_address() || !matches!(integer.bits(), 8 | 16 | 32 | 64) {
                                 return Err(InstallationError::InvalidInternalUnitCall(
                                     installed.machine,
@@ -3191,10 +3205,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                     });
                                 usize::try_from(argument.parameter_index) == Ok(index)
                                     && argument.destination == parameter.placement
-                                    && argument.source.scalar_type()
-                                        == semantic_vocabulary::ScalarType::Integer(
-                                            parameter.scalar_type,
-                                        )
+                                    && argument.source.scalar_type() == parameter.scalar_type
                                     && installed_scalar_source_is_exact(
                                         record,
                                         function,
@@ -3281,10 +3292,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                     });
                                 usize::try_from(argument.parameter_index) == Ok(index)
                                     && argument.destination == parameter.placement
-                                    && argument.source.scalar_type()
-                                        == semantic_vocabulary::ScalarType::Integer(
-                                            parameter.scalar_type,
-                                        )
+                                    && argument.source.scalar_type() == parameter.scalar_type
                                     && installed_scalar_source_is_exact(
                                         record,
                                         function,
@@ -4934,7 +4942,7 @@ mod resource_tests {
         InstalledFunction {
             machine: MachineId::new(1).expect("function"),
             attachment: None,
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             unit_scalar_abi: None,
             structural_call_scalar_return: None,

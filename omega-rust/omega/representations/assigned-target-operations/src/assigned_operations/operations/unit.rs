@@ -33,8 +33,8 @@ use target_operations::CompletionClaimSource;
 use target_operations::MachineRegister;
 use target_operations::ProviderExecutionBinding;
 use target_operations::RankedU32CountdownCustody;
+use target_operations::ScalarAbiValue;
 use target_operations::TargetStructuralParameter;
-use target_operations::UnitScalarAbiValue;
 use terminal_psi::ClaimTransfer;
 use terminal_psi::CompletionReceipt;
 use terminal_psi::CrashRouteBucket;
@@ -65,7 +65,7 @@ pub struct AssignedRankedU32Countdown {
 pub struct AssignedUnitBody {
     pub structural_types: Vec<StructuralTypeDeclaration>,
     pub call_plan: CallPlan,
-    pub scalar_parameters: Vec<UnitScalarAbiValue>,
+    pub scalar_parameters: Vec<ScalarAbiValue>,
     pub parameters: Vec<TargetStructuralParameter>,
     pub operations: Vec<AssignedUnitOperation>,
 }
@@ -470,7 +470,7 @@ pub enum AssignedUnitOperation {
     /// been reduced to the physical register or incoming-stack coordinate
     /// consumed by the branch encoder.
     ConditionalBooleanParameter {
-        condition: UnitScalarAbiValue,
+        condition: ScalarAbiValue,
         location: crate::AssignedScalarLocation,
         when_true: target_operations::TargetUnitConditionalSuccessor,
         when_false: target_operations::TargetUnitConditionalSuccessor,

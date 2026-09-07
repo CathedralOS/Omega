@@ -176,7 +176,7 @@ pub(in crate::lowering) fn lower_structural_return_function(
     Ok(TargetFunction {
         machine: function.machine,
         attachment: function.attachment,
-        fixed_integer_scalar_abi: None,
+        scalar_abi: None,
         mixed_structural_scalar_abi: None,
         provenance: TerminalPsiProvenance {
             operations: trivial_affine_locals
@@ -325,16 +325,16 @@ fn lower_claim_free_affine_return(
     require_direct_structural_fragments(function.machine, &result_placement)?;
     let scalar_parameters = scalar
         .into_iter()
-        .map(|(parameter, scalar_type, _)| FixedIntegerScalarAbiValue {
+        .map(|(parameter, scalar_type, _)| ScalarAbiValue {
             value: parameter.value,
-            scalar_type,
+            scalar_type: ScalarType::Integer(scalar_type),
             placement: call_plan.parameters[0].clone(),
         })
         .collect();
     Ok(Some(TargetFunction {
         machine: function.machine,
         attachment: function.attachment,
-        fixed_integer_scalar_abi: None,
+        scalar_abi: None,
         mixed_structural_scalar_abi: None,
         provenance: TerminalPsiProvenance {
             operations: Vec::new(),

@@ -9,9 +9,9 @@ use semantic_vocabulary::{
 };
 use target::{Architecture, NativeTarget};
 use target_operations::{
-    MachineRegister, TargetFunction, TargetOperation, TargetOperationPlan, TargetUnitBody,
-    TargetUnitOperation, TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument,
-    TerminalPsiProvenance, UnitScalarAbiValue,
+    MachineRegister, ScalarAbiValue, TargetFunction, TargetOperation, TargetOperationPlan,
+    TargetUnitBody, TargetUnitOperation, TargetUnitScalarArgumentSource,
+    TargetUnitScalarCallArgument, TerminalPsiProvenance,
 };
 use terminal_psi::{
     ProviderCandidateConformance, ProviderRefinement, ProviderSignature, SemanticFingerprint,
@@ -43,7 +43,7 @@ fn emitted_plan(target: NativeTarget) -> machine_code::MachineCodePlan {
         TargetOperation::UnitBody(TargetUnitBody {
             structural_types: Vec::new(),
             call_plan: call_plan.clone(),
-            scalar_parameters: vec![UnitScalarAbiValue {
+            scalar_parameters: vec![ScalarAbiValue {
                 value,
                 scalar_type: ScalarType::Integer(scalar_type),
                 placement: call_plan.parameters[0].clone(),
@@ -78,7 +78,7 @@ fn emitted_plan(target: NativeTarget) -> machine_code::MachineCodePlan {
             TargetFunction {
                 machine: caller,
                 attachment: None,
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance {
                     operations: vec![operation],
@@ -117,7 +117,7 @@ fn emitted_plan(target: NativeTarget) -> machine_code::MachineCodePlan {
             TargetFunction {
                 machine: candidate,
                 attachment: None,
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance {
                     operations: Vec::new(),

@@ -12,11 +12,11 @@ fn exact_budget_and_every_single_axis_first_under_fail_closed() {
     assert_eq!(
         usage,
         OptimizationWorkUsage {
-            rule_evaluations: 15,
-            candidates: 18,
-            validation_steps: 60,
-            commits: 30,
-            iterations: 57,
+            rule_evaluations: 19,
+            candidates: 22,
+            validation_steps: 69,
+            commits: 39,
+            iterations: 65,
         }
     );
     assert_eq!(

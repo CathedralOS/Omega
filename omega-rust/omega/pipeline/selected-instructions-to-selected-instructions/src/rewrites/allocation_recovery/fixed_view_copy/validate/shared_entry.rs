@@ -11,6 +11,9 @@ use crate::{
     FixedViewCopy, FixedViewCopyDestination, FixedViewCopyError, VirtualFixedConstraintSite,
 };
 
+#[cfg(test)]
+mod tests;
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn replay_shared_entry_copy(
     function_index: usize,

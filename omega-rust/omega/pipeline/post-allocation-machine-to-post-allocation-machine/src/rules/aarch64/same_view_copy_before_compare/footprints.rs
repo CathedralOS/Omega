@@ -46,11 +46,16 @@ pub(super) fn validate_pair(
     let source = qualified(machine_copy, 0, copy.id)?;
     let destination = qualified(machine_copy, 1, copy.id)?;
     let consumed = qualified(machine_compare, contract.consumed_operand, compare.id)?;
-    if !consumed.storage_units.iter().all(|unit| {
-        live_copy.unit_live_out.contains(unit)
-            && live_compare.unit_live_in.contains(unit)
-            && live_compare.unit_uses.contains(unit)
-    }) {
+    if !live_copy
+        .virtual_live_out
+        .contains(&consumed.virtual_register)
+        || !live_compare
+            .virtual_live_in
+            .contains(&consumed.virtual_register)
+        || !live_compare
+            .virtual_uses
+            .contains(&consumed.virtual_register)
+    {
         return Err(Aarch64SameViewCopyElisionError::LivenessRosterMismatch(
             compare.id,
         ));

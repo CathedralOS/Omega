@@ -1,4 +1,4 @@
-//! Existing per-function catalog routing outside an atomic plan family.
+//! Ordinary graphs and exact structural calls outside an atomic plan family.
 
 use super::*;
 
@@ -31,7 +31,6 @@ pub(super) fn derive_remaining(
         else {
             return Err(Error::SourceCustodyMismatch);
         };
-        let kind = super::publication_input::kind(target_function, abstracted);
         if crate::legalization::scalar_graph_input::match_input(
             target_function,
             abstracted,
@@ -50,7 +49,7 @@ pub(super) fn derive_remaining(
                 abstract_plan,
                 unit,
             )?);
-        } else if kind == super::publication_input::OrdinaryInputKind::Unit {
+        } else if matches!(target_function.operation, TargetOperation::UnitBody(_)) {
             let matched = match_structural_unit_form(target_function, abstracted, optimized)
                 .ok_or(Error::UnsupportedSourceShape { function: index })?;
             rosters
@@ -66,17 +65,7 @@ pub(super) fn derive_remaining(
                     matched,
                 )?);
         } else {
-            rosters
-                .functions
-                .push(legalized_operations::LegalizedFunction::Conditional(
-                    derive_source_function(
-                        index,
-                        target_function,
-                        abstracted,
-                        optimized,
-                        &unit.accepted_obligation_facts,
-                    )?,
-                ));
+            return Err(Error::UnsupportedSourceShape { function: index });
         }
     }
     Ok(())

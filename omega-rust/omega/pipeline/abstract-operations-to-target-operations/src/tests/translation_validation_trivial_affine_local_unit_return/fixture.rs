@@ -113,7 +113,7 @@ pub(super) fn candidate_error(
     error
 }
 
-pub(super) fn fixed_integer_scalar_abi(target: NativeTarget) -> FixedIntegerScalarFunctionAbi {
+pub(super) fn scalar_abi(target: NativeTarget) -> ScalarFunctionAbi {
     let scalar_type = IntegerType::new(IntegerSign::Signed, 32).unwrap();
     let call_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
@@ -123,10 +123,10 @@ pub(super) fn fixed_integer_scalar_abi(target: NativeTarget) -> FixedIntegerScal
         },
     )
     .unwrap();
-    FixedIntegerScalarFunctionAbi {
-        result: FixedIntegerScalarAbiValue {
+    ScalarFunctionAbi {
+        result: ScalarAbiValue {
             value: ValueId::new(56_050).unwrap(),
-            scalar_type,
+            scalar_type: semantic_vocabulary::ScalarType::Integer(scalar_type),
             placement: call_plan.result.clone().unwrap(),
         },
         parameters: Vec::new(),

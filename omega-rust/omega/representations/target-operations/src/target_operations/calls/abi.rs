@@ -3,36 +3,14 @@
 use crate::TargetStructuralParameter;
 use abstract_operations::AbstractDynamicDescriptorArgument;
 use calling_conventions::{CallPlan, ValuePlacement, ValueShape};
-use semantic_vocabulary::{IntegerType, PlaceId, ScalarType, StructuralTypeId, ValueId};
+use semantic_vocabulary::{PlaceId, ScalarType, StructuralTypeId, ValueId};
 use terminal_psi::{StructuralPathSegment, TerminalDynamicDescriptorParameter};
 
 /// One semantic scalar value joined to its canonical target call placement.
 /// Parameter rows retain declaration order in the surrounding function ABI;
 /// the result uses the same record without inventing a positional index.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FixedIntegerScalarAbiValue {
-    pub value: ValueId,
-    pub scalar_type: IntegerType,
-    pub placement: ValuePlacement,
-}
-
-/// One target-native scalar parameter of an attached Unit function.
-///
-/// Unlike the fixed-integer scalar-function ABI, Unit control may consume a
-/// canonical Boolean directly. Keeping the semantic scalar type here avoids
-/// laundering that Boolean through an integer-only carrier.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UnitScalarAbiValue {
-    pub value: ValueId,
-    pub scalar_type: ScalarType,
-    pub placement: ValuePlacement,
-}
-
-/// One semantic scalar result joined to its canonical target call placement.
-/// Mixed structural/scalar functions currently admit fixed integers and
-/// Boolean results; the exact scalar family remains explicit in this row.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MixedStructuralScalarAbiResult {
+pub struct ScalarAbiValue {
     pub value: ValueId,
     pub scalar_type: ScalarType,
     pub placement: ValuePlacement,
@@ -40,16 +18,16 @@ pub struct MixedStructuralScalarAbiResult {
 
 /// Exact canonical target ABI for one service-free scalar function whose
 /// complete parameter and result roster consists of fixed 8/16/32/64-bit
-/// integers.
+/// integers and canonical Boolean values.
 ///
 /// `call_plan` retains policy, clobbers, stack alignment, and entry control;
 /// the ordered semantic rows bind its otherwise anonymous placements back to
 /// terminal value identities and integer types.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FixedIntegerScalarFunctionAbi {
+pub struct ScalarFunctionAbi {
     pub call_plan: CallPlan,
-    pub parameters: Vec<FixedIntegerScalarAbiValue>,
-    pub result: FixedIntegerScalarAbiValue,
+    pub parameters: Vec<ScalarAbiValue>,
+    pub result: ScalarAbiValue,
 }
 
 /// Function-owned mixed ABI derived while Abstract scalar and structural
@@ -59,9 +37,9 @@ pub struct FixedIntegerScalarFunctionAbi {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MixedStructuralScalarFunctionAbi {
     pub call_plan: CallPlan,
-    pub scalar_parameters: Vec<FixedIntegerScalarAbiValue>,
+    pub scalar_parameters: Vec<ScalarAbiValue>,
     pub structural_parameters: Vec<TargetStructuralParameter>,
-    pub result: MixedStructuralScalarAbiResult,
+    pub result: ScalarAbiValue,
 }
 
 /// Target-owned physical ABI for one portable existential parameter.

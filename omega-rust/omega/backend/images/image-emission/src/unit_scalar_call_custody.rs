@@ -17,7 +17,7 @@ use semantic_vocabulary::{
     IntegerCarrier, IntegerSign, IntegerType, IntegerValue, MachineId, ScalarType,
 };
 use target::{Architecture, NativeTarget};
-use target_operations::{CallSiteOwner, FixedIntegerScalarFunctionAbi};
+use target_operations::{CallSiteOwner, ScalarFunctionAbi};
 
 use super::instruction_loads::{
     aarch64_terminal_register, expected_aarch64_stack_load, expected_x86_stack_load,
@@ -52,7 +52,7 @@ pub(super) fn validate_internal_unit_scalar_calls(
         return Ok(());
     }
     if function.attachment.is_none()
-        || function.fixed_integer_scalar_abi.is_some()
+        || function.scalar_abi.is_some()
         || function.unit_stack.is_none()
         || function.scalar_stack.is_some()
         || function.internal_unit_scalar_calls.windows(2).any(|pair| {
@@ -67,11 +67,8 @@ pub(super) fn validate_internal_unit_scalar_calls(
 
     for call in &function.internal_unit_scalar_calls {
         let callee = functions.get(&call.target).copied().ok_or_else(invalid)?;
-        let abi = callee
-            .fixed_integer_scalar_abi
-            .as_ref()
-            .ok_or_else(invalid)?;
-        validate_fixed_integer_scalar_abi(target, abi).map_err(|_| invalid())?;
+        let abi = callee.scalar_abi.as_ref().ok_or_else(invalid)?;
+        validate_scalar_abi(target, abi).map_err(|_| invalid())?;
         let call_stack = validated_call_stacks
             .iter()
             .find(|stack| stack.owner == call.owner && stack.target == call.target)
@@ -302,16 +299,16 @@ fn validate_home_roster(
     Ok(())
 }
 
-fn validate_fixed_integer_scalar_abi(
-    target: NativeTarget,
-    abi: &FixedIntegerScalarFunctionAbi,
-) -> Result<(), ()> {
+fn validate_scalar_abi(target: NativeTarget, abi: &ScalarFunctionAbi) -> Result<(), ()> {
     let parameter_shapes = abi
         .parameters
         .iter()
-        .map(|value| integer_shape(value.scalar_type).ok_or(()))
+        .map(|value| scalar_home_shape(value.scalar_type).ok_or(()))
         .collect::<Result<Vec<_>, _>>()?;
-    let result_shape = integer_shape(abi.result.scalar_type).ok_or(())?;
+    let ScalarType::Integer(result_integer) = abi.result.scalar_type else {
+        return Err(());
+    };
+    let result_shape = integer_shape(result_integer).ok_or(())?;
     let expected = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
@@ -337,7 +334,7 @@ fn validate_fixed_integer_scalar_abi(
 fn validate_call(
     target: NativeTarget,
     function: &MachineCodeFunction,
-    abi: &FixedIntegerScalarFunctionAbi,
+    abi: &ScalarFunctionAbi,
     function_stack: &ObjectUnitStack,
     call_stack: &ObjectUnitCallStack,
     call: &InternalUnitScalarCallRecord,
@@ -354,7 +351,7 @@ fn validate_call(
     if call.call_plan != abi.call_plan
         || call.arguments.len() != abi.parameters.len()
         || call.result.source != abi.result.placement
-        || call.result.home.scalar_type != ScalarType::Integer(abi.result.scalar_type)
+        || call.result.home.scalar_type != abi.result.scalar_type
         || !function.provenance.operations.contains(&operation)
         || exact_attribution_count(
             &function.semantic_code_attribution,
@@ -389,7 +386,7 @@ fn validate_call(
     for (index, (argument, parameter)) in call.arguments.iter().zip(&abi.parameters).enumerate() {
         if argument.parameter_index != index as u32
             || argument.destination != parameter.placement
-            || argument.source.scalar_type() != ScalarType::Integer(parameter.scalar_type)
+            || argument.source.scalar_type() != parameter.scalar_type
             || argument.code_offset != cursor
         {
             return Err(invalid());

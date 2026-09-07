@@ -144,12 +144,10 @@ fn object_rejects_scalar_argument_result_home_constant_and_abi_tampering() {
     assert_eq!(build_object_artifact(&constant), expected);
 
     let mut abi = emitted_scalar_chain(NativeTarget::linux_x64());
-    abi.functions[1]
-        .fixed_integer_scalar_abi
-        .as_mut()
-        .unwrap()
-        .parameters[0]
-        .scalar_type = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+    abi.functions[1].scalar_abi.as_mut().unwrap().parameters[0].scalar_type =
+        semantic_vocabulary::ScalarType::Integer(
+            IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+        );
     assert_eq!(build_object_artifact(&abi), expected);
 
     let mut use_before_definition = emitted_scalar_chain(NativeTarget::linux_x64());

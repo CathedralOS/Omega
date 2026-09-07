@@ -97,7 +97,7 @@ fn assigned_x86_fma_emits_raw_bits_exact_plan_custody_and_canonical_mxcsr() {
             functions: vec![TargetFunction {
                 machine,
                 attachment: None,
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance {
                     operations: operations.to_vec(),
@@ -261,7 +261,7 @@ fn normalized_foreign_unit_leaf_emits_placeholder_and_stack_custody_on_both_linu
             target,
             entry: machine,
             functions: vec![TargetFunction {
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 machine,
                 attachment: None,
@@ -449,7 +449,7 @@ fn normalized_foreign_integer_literal_uses_only_the_evaluated_register_before_th
             target,
             entry: machine,
             functions: vec![TargetFunction {
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 machine,
                 attachment: None,
@@ -744,7 +744,7 @@ fn linux_exit_group_consumes_i32_and_traps_on_both_linux_architectures() {
         target,
         entry: machine,
         functions: vec![TargetFunction {
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             machine,
             attachment: None,
@@ -867,7 +867,7 @@ fn linux_write_line_then_exit_owns_exact_code_data_and_argument_custody() {
         target,
         entry: machine,
         functions: vec![TargetFunction {
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             machine,
             attachment: None,
@@ -1333,7 +1333,7 @@ fn executable_nominal_cleanup_plan(
             entry: root,
             functions: vec![
                 TargetFunction {
-                    fixed_integer_scalar_abi: None,
+                    scalar_abi: None,
                     mixed_structural_scalar_abi: None,
                     machine: root,
                     attachment: None,
@@ -1355,7 +1355,7 @@ fn executable_nominal_cleanup_plan(
                     }),
                 },
                 TargetFunction {
-                    fixed_integer_scalar_abi: None,
+                    scalar_abi: None,
                     mixed_structural_scalar_abi: None,
                     machine: cleanup_machine,
                     attachment: Some(receiver_type),
@@ -1387,7 +1387,7 @@ fn executable_nominal_cleanup_plan(
                     }),
                 },
                 TargetFunction {
-                    fixed_integer_scalar_abi: None,
+                    scalar_abi: None,
                     mixed_structural_scalar_abi: None,
                     machine: helper,
                     attachment: Some(helper_type),
@@ -2367,7 +2367,7 @@ fn x86_unit_call_port_write_and_settlement_keep_exact_order() {
         entry: MachineId::new(1).expect("root"),
         functions: vec![
             TargetFunction {
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 machine: MachineId::new(1).expect("root"),
                 attachment: None,
@@ -2399,7 +2399,7 @@ fn x86_unit_call_port_write_and_settlement_keep_exact_order() {
                 }),
             },
             TargetFunction {
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 machine: MachineId::new(2).expect("leaf"),
                 attachment: None,
@@ -2524,7 +2524,7 @@ fn aarch64_rejects_port_write_before_emitting_a_partial_body() {
         target,
         entry: MachineId::new(1).unwrap(),
         functions: vec![TargetFunction {
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             machine: MachineId::new(1).unwrap(),
             attachment: None,
@@ -2603,7 +2603,7 @@ fn forty_byte_unit_argument_is_copied_for_sysv_and_forwarded_indirectly_elsewher
             entry: MachineId::new(1).unwrap(),
             functions: vec![
                 TargetFunction {
-                    fixed_integer_scalar_abi: None,
+                    scalar_abi: None,
                     mixed_structural_scalar_abi: None,
                     machine: MachineId::new(1).unwrap(),
                     attachment: None,
@@ -2632,7 +2632,7 @@ fn forty_byte_unit_argument_is_copied_for_sysv_and_forwarded_indirectly_elsewher
                     }),
                 },
                 TargetFunction {
-                    fixed_integer_scalar_abi: None,
+                    scalar_abi: None,
                     mixed_structural_scalar_abi: None,
                     machine: MachineId::new(2).unwrap(),
                     attachment: None,
@@ -2702,7 +2702,7 @@ fn x86_unit_parameter_homes_survive_effects_and_parallel_reordering() {
         entry: MachineId::new(1).unwrap(),
         functions: vec![
             TargetFunction {
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 machine: MachineId::new(1).unwrap(),
                 attachment: None,
@@ -2737,7 +2737,7 @@ fn x86_unit_parameter_homes_survive_effects_and_parallel_reordering() {
                 }),
             },
             TargetFunction {
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 machine: MachineId::new(2).unwrap(),
                 attachment: None,
@@ -2813,7 +2813,7 @@ fn aarch64_unit_parameter_homes_survive_parallel_reordering_and_restore_lr() {
         entry: MachineId::new(1).unwrap(),
         functions: vec![
             TargetFunction {
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 machine: MachineId::new(1).unwrap(),
                 attachment: None,
@@ -2842,7 +2842,7 @@ fn aarch64_unit_parameter_homes_survive_parallel_reordering_and_restore_lr() {
                 }),
             },
             TargetFunction {
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 machine: MachineId::new(2).unwrap(),
                 attachment: None,
@@ -2957,7 +2957,7 @@ fn aarch64_unit_calls_cover_stack_fragments_and_stack_indirect_copies() {
             entry: MachineId::new(1).unwrap(),
             functions: vec![
                 TargetFunction {
-                    fixed_integer_scalar_abi: None,
+                    scalar_abi: None,
                     mixed_structural_scalar_abi: None,
                     machine: MachineId::new(1).unwrap(),
                     attachment: None,
@@ -2986,7 +2986,7 @@ fn aarch64_unit_calls_cover_stack_fragments_and_stack_indirect_copies() {
                     }),
                 },
                 TargetFunction {
-                    fixed_integer_scalar_abi: None,
+                    scalar_abi: None,
                     mixed_structural_scalar_abi: None,
                     machine: MachineId::new(2).unwrap(),
                     attachment: None,
@@ -3069,7 +3069,7 @@ fn unit_argument_fragments_cover_native_scalar_widths() {
                 entry: MachineId::new(1).unwrap(),
                 functions: vec![
                     TargetFunction {
-                        fixed_integer_scalar_abi: None,
+                        scalar_abi: None,
                         mixed_structural_scalar_abi: None,
                         machine: MachineId::new(1).unwrap(),
                         attachment: None,
@@ -3098,7 +3098,7 @@ fn unit_argument_fragments_cover_native_scalar_widths() {
                         }),
                     },
                     TargetFunction {
-                        fixed_integer_scalar_abi: None,
+                        scalar_abi: None,
                         mixed_structural_scalar_abi: None,
                         machine: MachineId::new(2).unwrap(),
                         attachment: None,
@@ -3130,7 +3130,7 @@ fn plan(target: NativeTarget) -> TargetOperationPlan {
         target,
         entry: MachineId::new(1).expect("machine"),
         functions: vec![TargetFunction {
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             machine: MachineId::new(1).expect("machine"),
             attachment: None,
@@ -3176,7 +3176,7 @@ fn conditional_plan(target: NativeTarget) -> TargetOperationPlan {
         target,
         entry: MachineId::new(1).expect("machine"),
         functions: vec![TargetFunction {
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             machine: MachineId::new(1).expect("machine"),
             attachment: None,
@@ -3222,7 +3222,7 @@ fn integer_structural_field_plan(
         target,
         entry: MachineId::new(1).expect("machine"),
         functions: vec![TargetFunction {
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             machine: MachineId::new(1).expect("machine"),
             attachment: None,
@@ -3364,7 +3364,7 @@ fn mutable_scalar_store_return_plan(
         target,
         entry: machine,
         functions: vec![TargetFunction {
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             machine,
             attachment: Some(structural_type),
@@ -3792,7 +3792,7 @@ fn emits_canonical_boolean_returns_for_both_architectures() {
         target,
         entry: MachineId::new(1).expect("machine"),
         functions: vec![TargetFunction {
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             machine: MachineId::new(1).expect("machine"),
             attachment: None,
@@ -6056,7 +6056,7 @@ fn emits_typed_direct_call_relocations_for_native_targets() {
             entry: caller,
             functions: vec![
                 TargetFunction {
-                    fixed_integer_scalar_abi: None,
+                    scalar_abi: None,
                     mixed_structural_scalar_abi: None,
                     machine: caller,
                     attachment: None,
@@ -6115,7 +6115,7 @@ fn emits_typed_direct_call_relocations_for_native_targets() {
                     },
                 },
                 TargetFunction {
-                    fixed_integer_scalar_abi: None,
+                    scalar_abi: None,
                     mixed_structural_scalar_abi: None,
                     machine: callee,
                     attachment: None,
@@ -6368,7 +6368,7 @@ fn parameter_plan(
         target,
         entry: MachineId::new(1).expect("machine"),
         functions: vec![TargetFunction {
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             machine: MachineId::new(1).expect("machine"),
             attachment: None,
@@ -6394,7 +6394,7 @@ fn expression_plan(
         target,
         entry: MachineId::new(1).expect("machine"),
         functions: vec![TargetFunction {
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             machine: MachineId::new(1).expect("machine"),
             attachment: None,
@@ -6419,7 +6419,7 @@ fn boolean_equality_plan(
         target,
         entry: MachineId::new(1).expect("machine"),
         functions: vec![TargetFunction {
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             machine: MachineId::new(1).expect("machine"),
             attachment: None,
@@ -6456,7 +6456,7 @@ fn integer_equality_plan(
         target,
         entry: MachineId::new(1).expect("machine"),
         functions: vec![TargetFunction {
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             machine: MachineId::new(1).expect("machine"),
             attachment: None,
@@ -6520,7 +6520,7 @@ fn integer_ordering_plan(
         target,
         entry: MachineId::new(1).expect("machine"),
         functions: vec![TargetFunction {
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             machine: MachineId::new(1).expect("machine"),
             attachment: None,
@@ -6552,7 +6552,7 @@ fn boolean_expression_conditional_plan(
         target,
         entry: MachineId::new(1).expect("machine"),
         functions: vec![TargetFunction {
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             machine: MachineId::new(1).expect("machine"),
             attachment: None,
@@ -6616,7 +6616,7 @@ fn calling_conditional_plan(
         entry: caller,
         functions: vec![
             TargetFunction {
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 machine: caller,
                 attachment: None,
@@ -6629,7 +6629,7 @@ fn calling_conditional_plan(
                 },
             },
             TargetFunction {
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 machine: callee,
                 attachment: None,
@@ -6670,7 +6670,7 @@ fn calling_expression_condition_plan(
         entry: caller,
         functions: vec![
             TargetFunction {
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 machine: caller,
                 attachment: None,
@@ -6701,7 +6701,7 @@ fn calling_expression_condition_plan(
                 },
             },
             TargetFunction {
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 machine: callee,
                 attachment: None,
@@ -6775,7 +6775,7 @@ fn calling_arm_conditional_plan(
         entry: caller,
         functions: vec![
             TargetFunction {
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 machine: caller,
                 attachment: None,
@@ -6790,7 +6790,7 @@ fn calling_arm_conditional_plan(
                 },
             },
             TargetFunction {
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 machine: callee,
                 attachment: None,

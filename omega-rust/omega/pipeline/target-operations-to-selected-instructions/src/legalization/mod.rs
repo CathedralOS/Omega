@@ -1,15 +1,12 @@
 //! Optimizer module role: executable entrance. Mandatory target legalization: construct the canonical plan, then replay it independently.
 //!
-//! Start with `catalog` for every admitted form, descend into `source` for
-//! producer projection, and into `replay` for independent acceptance.
+//! `source` projects ordinary instruction graphs; `replay` independently checks
+//! them. `catalog` enumerates the remaining exact structural-call forms.
 
 mod admission;
 mod catalog;
 #[cfg(test)]
 mod catalog_tests;
-#[cfg(test)]
-mod condition_tests;
-mod integer_sequence_input;
 mod model;
 mod projected_structural_call_return;
 mod replay;
@@ -49,7 +46,6 @@ pub fn legalize_target_operations(
         fuel_schedule: unit.fuel_schedule,
         target: target.target,
         entry: target.entry,
-        functions: rosters.functions,
         scalar_functions: rosters.scalar_functions,
         structural_unit_functions: rosters.structural_unit_functions,
         projected_structural_call_returns: rosters.projected_structural_call_returns,
@@ -57,7 +53,7 @@ pub fn legalize_target_operations(
     validate_legalized_operations(target, abstract_plan, unit, plan)
 }
 
-/// Independently replay the exact admitted V9 projection from the raw target,
+/// Independently replay the admitted projection from the raw target,
 /// abstract, and verified optimization-unit custody against every proposed
 /// field.
 pub fn validate_legalized_operations(
@@ -76,8 +72,7 @@ pub fn validate_legalized_operations(
         optimization_unit: unit.identity,
         fuel_schedule: unit.fuel_schedule,
         target: target.target,
-        function_count: plan.functions.len()
-            + plan.scalar_functions.len()
+        function_count: plan.scalar_functions.len()
             + plan.structural_unit_functions.len()
             + plan.projected_structural_call_returns.len() * 2,
         decomposition_count,

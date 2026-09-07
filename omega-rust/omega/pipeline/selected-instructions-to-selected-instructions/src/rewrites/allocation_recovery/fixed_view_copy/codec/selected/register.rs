@@ -42,16 +42,6 @@ pub(super) fn encode_register(bytes: &mut Vec<u8>, register: &VirtualRegister) {
             bytes.extend_from_slice(&instruction.0.to_le_bytes());
             bytes.extend_from_slice(&source_value.get().to_le_bytes());
         }
-        VirtualRegisterOrigin::LegalizationTemporary {
-            instruction,
-            temporary,
-            source_value,
-        } => {
-            bytes.push(2);
-            bytes.extend_from_slice(&instruction.0.to_le_bytes());
-            bytes.extend_from_slice(&temporary.0.to_le_bytes());
-            bytes.extend_from_slice(&source_value.get().to_le_bytes());
-        }
     }
     encode_definition_site(bytes, register.definition_site);
     encode_option_u16(bytes, register.entry_fixed_view.map(|view| view.0));
@@ -75,11 +65,6 @@ pub(super) fn decode_register(
         },
         1 => VirtualRegisterOrigin::InstructionResult {
             instruction: SelectedInstructionId(cursor.u32()?),
-            source_value: decode_id(cursor, ValueId::new)?,
-        },
-        2 => VirtualRegisterOrigin::LegalizationTemporary {
-            instruction: SelectedInstructionId(cursor.u32()?),
-            temporary: legalized_operations::LegalizedTemporaryId(cursor.u32()?),
             source_value: decode_id(cursor, ValueId::new)?,
         },
         tag => return Err(FixedViewCopyDecodeError::UnknownRegisterOrigin(tag)),

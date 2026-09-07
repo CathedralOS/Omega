@@ -29,6 +29,10 @@ impl LegalizedScalarFunction {
                 .iter()
                 .any(|instruction| match &instruction.kind {
                     LegalizedScalarInstructionKind::Constant(_) => false,
+                    LegalizedScalarInstructionKind::BooleanNot { operand }
+                    | LegalizedScalarInstructionKind::IntegerWiden { operand, .. } => {
+                        *operand == value
+                    }
                     LegalizedScalarInstructionKind::Call(call) => call
                         .arguments
                         .iter()
@@ -46,7 +50,7 @@ impl LegalizedScalarFunction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedScalarParameter {
     pub value: ValueId,
-    pub scalar_type: IntegerType,
+    pub scalar_type: ScalarType,
     pub definition_site: ValueDefinitionSite,
     pub placement: ValuePlacement,
 }
@@ -74,6 +78,13 @@ pub struct LegalizedScalarInstruction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarInstructionKind {
     Constant(IntegerValue),
+    BooleanNot {
+        operand: ValueId,
+    },
+    IntegerWiden {
+        operand: ValueId,
+        source_type: IntegerType,
+    },
     Call(LegalizedScalarCall),
     ExactBinary {
         operator: super::super::LegalizedExactIntegerOperator,

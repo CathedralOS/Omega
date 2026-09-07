@@ -5,10 +5,6 @@ use std::collections::BTreeSet;
 use abstract_operations::{AbstractOperation, ValueBinding};
 use abstract_operations_to_abstract_operations::OptimizationRunError;
 use calling_conventions::{IndirectPointerLocation, MachineRegister, ValueLocation};
-use legalized_operations::{
-    LegalizationRecipe, LegalizationTheorem, LegalizedLeafValue, LegalizedTemporaryId,
-    legalized_operation_plan_identity,
-};
 use optimization_core::{
     Optimization, OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
 };
@@ -39,11 +35,10 @@ use selected_instructions_to_register_homes::{
     PostAllocationSelectedTransformation, PressureRematerializationError,
     PressureRematerializationPolicy, RegisterHomeError, RegisterHomePlan,
     analyze_allocation_legality, analyze_live_ranges, analyze_liveness, choose_spill_victims,
-    classify_pressure_recovery, fixed_view_copy_identity, fold_selected_incoming_literal,
-    materialize_allocator_availability, register_home_identity, validate_allocation_legality,
-    validate_allocator_availability, validate_fixed_view_copies, validate_literal_fold,
-    validate_live_ranges, validate_liveness, validate_post_allocation_optimization_manifest,
-    validate_register_homes,
+    classify_pressure_recovery, fold_selected_incoming_literal, materialize_allocator_availability,
+    register_home_identity, validate_allocation_legality, validate_allocator_availability,
+    validate_fixed_view_copies, validate_literal_fold, validate_live_ranges, validate_liveness,
+    validate_post_allocation_optimization_manifest, validate_register_homes,
 };
 use semantic_vocabulary::{
     BlockId, ContractId, DomainSemanticId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType,
@@ -56,8 +51,8 @@ use target_operations::{
     TargetUnitScalarArgumentSource,
 };
 use target_operations_to_selected_instructions::{
-    LegalizationError, SelectedInstructionError, legalization_validator_identity,
-    legalize_target_operations, selected_instruction_plan_identity, validate_legalized_operations,
+    LegalizationError, SelectedInstructionError, legalize_target_operations,
+    selected_instruction_plan_identity, validate_legalized_operations,
     validate_selected_instructions,
 };
 use terminal_psi::{

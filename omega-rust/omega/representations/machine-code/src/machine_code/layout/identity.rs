@@ -258,6 +258,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         Family::CompareI64Zero => 0,
         Family::MaterializeI64 => 1,
         Family::CopyI64 => 2,
+        Family::ZeroExtendU8 => 15,
         Family::ExactAddI64 => 3,
         Family::ExactAddI64Immediate => 4,
         Family::ExactSubtractI64 => 5,

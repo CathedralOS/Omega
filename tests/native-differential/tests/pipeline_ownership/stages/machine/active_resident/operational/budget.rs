@@ -83,9 +83,16 @@ fn active_resident_rule_pins_exact_work_and_every_representable_first_over_bound
             usages,
             [
                 OptimizationWorkUsage {
-                    rule_evaluations: 4,
+                    rule_evaluations: 5,
                     candidates: 3,
-                    validation_steps: 9,
+                    validation_steps: 10,
+                    commits: 1,
+                    iterations: 1,
+                },
+                OptimizationWorkUsage {
+                    rule_evaluations: 1,
+                    candidates: 1,
+                    validation_steps: 36,
                     commits: 1,
                     iterations: 1,
                 },
@@ -93,13 +100,6 @@ fn active_resident_rule_pins_exact_work_and_every_representable_first_over_bound
                     rule_evaluations: 1,
                     candidates: 1,
                     validation_steps: 27,
-                    commits: 1,
-                    iterations: 1,
-                },
-                OptimizationWorkUsage {
-                    rule_evaluations: 1,
-                    candidates: 1,
-                    validation_steps: 21,
                     commits: 1,
                     iterations: 1,
                 },

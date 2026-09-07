@@ -12,7 +12,7 @@ pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v11\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v12\0");
     encode_target(&mut bytes, catalog.target);
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     // Preserve role boundaries before the ordered keys: a structural call
@@ -294,6 +294,7 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
         MachineSemanticKind::CompareI64Zero => 0,
         MachineSemanticKind::MaterializeI64 => 1,
         MachineSemanticKind::CopyI64 => 2,
+        MachineSemanticKind::ZeroExtendU8 => 15,
         MachineSemanticKind::ExactAddI64 => 3,
         MachineSemanticKind::ExactAddI64Immediate => 4,
         MachineSemanticKind::ExactSubtractI64 => 5,
@@ -314,6 +315,7 @@ pub(crate) const fn alternative_family_tag(family: MachineAlternativeFamily) -> 
         MachineAlternativeFamily::CompareI64Zero => 0,
         MachineAlternativeFamily::MaterializeI64 => 1,
         MachineAlternativeFamily::CopyI64 => 2,
+        MachineAlternativeFamily::ZeroExtendU8 => 15,
         MachineAlternativeFamily::ExactAddI64 => 3,
         MachineAlternativeFamily::ExactAddI64Immediate => 4,
         MachineAlternativeFamily::ExactSubtractI64 => 5,

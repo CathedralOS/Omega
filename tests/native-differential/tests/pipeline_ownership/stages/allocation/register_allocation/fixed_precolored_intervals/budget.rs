@@ -6,10 +6,10 @@ use super::fixture::{EXACT_USAGE, analyze, source};
 fn every_representable_first_under_budget_fails_before_publication() {
     let source = source(NativeTarget::linux_x64());
     for budget in [
-        OptimizationWorkBudget::new(1, 3, 6, 4, 2).unwrap(),
-        OptimizationWorkBudget::new(1, 4, 5, 4, 2).unwrap(),
-        OptimizationWorkBudget::new(1, 4, 6, 3, 2).unwrap(),
-        OptimizationWorkBudget::new(1, 4, 6, 4, 1).unwrap(),
+        OptimizationWorkBudget::new(1, 3, 10, 4, 2).unwrap(),
+        OptimizationWorkBudget::new(1, 4, 9, 4, 2).unwrap(),
+        OptimizationWorkBudget::new(1, 4, 10, 3, 2).unwrap(),
+        OptimizationWorkBudget::new(1, 4, 10, 4, 1).unwrap(),
     ] {
         assert!(matches!(
             analyze(&source, budget),
@@ -22,7 +22,7 @@ fn every_representable_first_under_budget_fails_before_publication() {
 #[test]
 fn exact_budget_is_accepted() {
     let source = source(NativeTarget::linux_x64());
-    let budget = OptimizationWorkBudget::new(1, 4, 6, 4, 2).unwrap();
+    let budget = OptimizationWorkBudget::new(1, 4, 10, 4, 2).unwrap();
     assert_eq!(
         analyze(&source, budget).unwrap().receipt().usage(),
         EXACT_USAGE

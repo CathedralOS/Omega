@@ -38,7 +38,7 @@ pub(super) fn lower_unit_function(
         (MachineId, OperationId, BoundaryMachineId),
         InstalledProviderCallEvidence,
     >,
-    fixed_integer_scalar_abis: &BTreeMap<MachineId, FixedIntegerScalarFunctionAbi>,
+    scalar_abis: &BTreeMap<MachineId, ScalarFunctionAbi>,
     ieee_float_fma: &BTreeMap<OperationId, TargetX86ScalarFmaSettlement>,
     native_callbacks: &BTreeMap<OperationId, target_operations::TargetNativeCallbackArgument>,
 ) -> Result<TargetFunction, LoweringError> {
@@ -101,7 +101,7 @@ pub(super) fn lower_unit_function(
             boundary_machines,
             settlements,
             installed_calls,
-            fixed_integer_scalar_abis,
+            scalar_abis,
             ieee_float_fma,
             native_callbacks,
             &prepared.scalar_parameters,
@@ -113,7 +113,7 @@ pub(super) fn lower_unit_function(
     Ok(TargetFunction {
         machine: function.machine,
         attachment: function.attachment,
-        fixed_integer_scalar_abi: None,
+        scalar_abi: None,
         mixed_structural_scalar_abi: None,
         provenance: lowered.provenance,
         operation: TargetOperation::UnitBody(TargetUnitBody {
