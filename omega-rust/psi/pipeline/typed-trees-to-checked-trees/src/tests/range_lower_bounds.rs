@@ -150,3 +150,87 @@ fn declared_start_lower_bound_proves_an_ordered_signed_end() {
         );
     }
 }
+
+#[test]
+fn current_extent_minus_a_valid_offset_proves_both_bounds() {
+    for access in ["0..items.len - offset", "..items.len - offset"] {
+        check(
+            &format!(
+                "machine window(items: &[u8], offset: u64)
+            requires offset <= items.len;
+            {{ let view: &[u8] = items[{access}]; }}"
+            ),
+            true,
+            "",
+        );
+    }
+    check(
+        "machine window(items: &[u8]) requires items.len > 0;
+        { let view: &[u8] = items[0..items.len - 1]; }",
+        true,
+        "",
+    );
+}
+
+#[test]
+fn length_subtraction_never_borrows_another_extent_or_an_invalid_offset() {
+    for (parameters, requirement, endpoint) in [
+        ("offset: u64", "", "items.len - offset"),
+        (
+            "offset: i64",
+            "requires offset <= items.len;",
+            "items.len - offset",
+        ),
+        ("other: &[u8]", "requires other.len > 0;", "other.len - 1"),
+        (
+            "offset: u64",
+            "requires offset <= items.len;",
+            "items.len + offset",
+        ),
+    ] {
+        check(
+            &format!(
+                "machine window(items: &[u8], {parameters}) {requirement}
+            {{ let view: &[u8] = items[0..{endpoint}]; }}"
+            ),
+            false,
+            "cannot prove",
+        );
+    }
+}
+
+#[test]
+fn overwritten_offset_cannot_reuse_its_old_extent_bound() {
+    check(
+        "machine window(items: &[u8], mut offset: u64)
+        requires offset <= items.len;
+        { offset = 100; let view: &[u8] = items[0..items.len - offset]; }",
+        false,
+        "cannot prove",
+    );
+}
+
+#[test]
+fn authored_subtraction_does_not_inherit_length_geometry() {
+    check(
+        "operator - u64::subtract(left: u64, right: u64) -> u64;
+        machine window(items: &[u8]) requires items.len > 0;
+        { let view: &[u8] = items[0..items.len - 1]; }",
+        false,
+        "cannot prove",
+    );
+}
+
+#[test]
+fn zero_offset_does_not_make_the_extent_an_inclusive_endpoint() {
+    for (separator, accepted) in [("..", true), ("..=", false)] {
+        check(
+            &format!(
+                "machine window(items: &[u8]) requires items.len > 0;
+            {{ let view: &[u8] = items[0{separator}items.len - 0]; }}"
+            ),
+            accepted,
+            "cannot prove",
+        );
+    }
+}

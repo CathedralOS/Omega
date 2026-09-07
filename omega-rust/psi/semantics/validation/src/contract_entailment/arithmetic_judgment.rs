@@ -287,6 +287,9 @@ pub(super) struct Engine<'program> {
     /// back to its display spelling.
     strict_symbol_bindings: Option<Vec<(SymbolHandle, Polynomial)>>,
     strict_symbol_bindings_valid: bool,
+    /// Exact numeric projections installed by the owning strict query after
+    /// checking their builtin meaning and source custody.
+    strict_projections: Vec<(ExpressionHandle, Polynomial)>,
     /// A formation query has exact symbol bindings and admits only total
     /// mathematical arithmetic. It must not inherit the legacy proof
     /// machine adapter's interpretation of arbitrary executable operators.
@@ -345,6 +348,7 @@ impl<'program> Engine<'program> {
             parameter_atoms,
             strict_symbol_bindings: None,
             strict_symbol_bindings_valid: true,
+            strict_projections: Vec::new(),
             proof_integer_formation: false,
             integer_embedding_policy: crate::proof_embeddings::machine_contains_integer_embedding(
                 program, machine,
@@ -400,6 +404,31 @@ impl<'program> Engine<'program> {
 
     pub(super) fn strict_symbol_bindings_are_valid(&self) -> bool {
         self.strict_symbol_bindings_valid
+    }
+
+    pub(super) fn bind_strict_projection(
+        &mut self,
+        expression: ExpressionHandle,
+        value: Polynomial,
+    ) -> bool {
+        if self.strict_symbol_bindings.is_none()
+            || !self.strict_symbol_bindings_valid
+            || !matches!(
+                self.program.expression_table.expression(expression),
+                ExpressionNode::Member(_)
+            )
+        {
+            return false;
+        }
+        if let Some((_, existing)) = self
+            .strict_projections
+            .iter()
+            .find(|(candidate, _)| *candidate == expression)
+        {
+            return *existing == value;
+        }
+        self.strict_projections.push((expression, value));
+        true
     }
 
     pub(super) fn bind_strict_arguments(
@@ -460,6 +489,7 @@ impl<'program> Engine<'program> {
             parameter_atoms: Vec::new(),
             strict_symbol_bindings: Some(bindings),
             strict_symbol_bindings_valid: true,
+            strict_projections: Vec::new(),
             proof_integer_formation: true,
             integer_embedding_policy: true,
             unsigned_atoms: Vec::new(),
@@ -1025,6 +1055,10 @@ impl<'program> Engine<'program> {
         }
         let node = self.program.expression_table.expression(expression).clone();
         match node {
+            ExpressionNode::Member(_) => self
+                .strict_projections
+                .iter()
+                .find_map(|(candidate, value)| (*candidate == expression).then(|| value.clone())),
             ExpressionNode::Integer(value) => Some(Polynomial::constant(value.value_bignum()?)),
             ExpressionNode::Borrow(inner) => self.normalize(inner.target),
             ExpressionNode::Name(path) => {

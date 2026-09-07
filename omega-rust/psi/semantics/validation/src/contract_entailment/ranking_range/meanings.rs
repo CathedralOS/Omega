@@ -26,6 +26,41 @@ pub(super) fn builtin(
                 .then_some(Some(parameter.type_reference))
         }
         ExpressionNode::Atomic(atomic) => builtin(program, machine, state, atomic.value, depth + 1),
+        ExpressionNode::Member(_) => {
+            let receiver = crate::places::collection_length_receiver(
+                program,
+                machine,
+                Some(state),
+                expression,
+            )?;
+            lengths::parameter(program, state, receiver)?;
+            // Builtin collection metadata is a natural numeric coordinate;
+            // it has no authored nominal operator implementation.
+            Some(None)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            lengths::parameter(program, state, indexed.collection)?;
+            if !crate::places::has_builtin_subslice_meaning(
+                program,
+                machine,
+                Some(state),
+                expression,
+            ) {
+                return None;
+            }
+            let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index)
+            else {
+                return None;
+            };
+            for endpoint in [range.start, range.end] {
+                if endpoint.is_valid() {
+                    builtin(program, machine, state, endpoint, depth + 1)?;
+                }
+            }
+            Some(Some(
+                lengths::parameter(program, state, indexed.collection)?.type_reference,
+            ))
+        }
         ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
             builtin(program, machine, state, unary.operand, depth + 1)?;
             Some(None)

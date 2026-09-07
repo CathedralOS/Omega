@@ -19,7 +19,10 @@ pub(super) fn prove(
     };
     if !matches!(
         order,
-        RankingOrder::NatDescending | RankingOrder::BoundedDistance | RankingOrder::IncreasingTo(_)
+        RankingOrder::NatDescending
+            | RankingOrder::BoundedDistance
+            | RankingOrder::IncreasingTo(_)
+            | RankingOrder::SliceLength
     ) {
         // Custom scalar projections and lexicographic carrier ranges need their
         // exact produced-value projection, not an assumed operand polynomial.
@@ -36,6 +39,9 @@ pub(super) fn prove(
         }
         (RankingOrder::NatDescending, DecreaseMeasure::Single(subject)) => {
             validation::RankingRangeMeasure::Single(subject)
+        }
+        (RankingOrder::SliceLength, DecreaseMeasure::Single(subject)) => {
+            validation::RankingRangeMeasure::SliceLength(subject)
         }
         (RankingOrder::BoundedDistance, DecreaseMeasure::Distance { lower, upper }) => {
             validation::RankingRangeMeasure::Distance { lower, upper }
@@ -131,7 +137,7 @@ fn preserved_entry_prefix<'program>(
             // disjoint store preserves them, but its alias-closed frame and
             // operand evaluation must both be known before reusing them.
             let preserved = inert_store_target(program, assignment.target, 0)
-                && pure_guard(program, assignment.value, 0)
+                && pure_guard(program, machine, state, assignment.value, 0)
                 && frames.is_some_and(|frames| {
                     frames
                         .assignment_write_frame(machine, statement)
@@ -169,7 +175,7 @@ fn preserved_entry_prefix<'program>(
                     .state_parameters(state)
                     .iter()
                     .any(|parameter| parameter.symbol == local.symbol)
-                && pure_guard(program, local.initial_value, 0)
+                && pure_guard(program, machine, state, local.initial_value, 0)
                 && frames.is_some_and(|frames| {
                     frames
                         .expression_write_frame(machine, local.initial_value)
@@ -188,7 +194,7 @@ fn preserved_entry_prefix<'program>(
         match transition.guard {
             TransitionGuardNode::Always => {}
             TransitionGuardNode::When(guard) => {
-                if !pure_guard(program, guard, 0) {
+                if !pure_guard(program, machine, state, guard, 0) {
                     return None;
                 }
                 evaluated.push(guard);
@@ -215,6 +221,8 @@ fn inert_store_target(
 
 fn pure_guard(
     program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     expression: ExpressionHandle,
     depth: usize,
 ) -> bool {
@@ -223,11 +231,19 @@ fn pure_guard(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(_) | ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => true,
-        ExpressionNode::Atomic(atomic) => pure_guard(program, atomic.value, depth + 1),
-        ExpressionNode::Unary(unary) => pure_guard(program, unary.operand, depth + 1),
+        ExpressionNode::Atomic(atomic) => {
+            pure_guard(program, machine, state, atomic.value, depth + 1)
+        }
+        ExpressionNode::Unary(unary) => {
+            pure_guard(program, machine, state, unary.operand, depth + 1)
+        }
+        ExpressionNode::Member(_) => {
+            validation::collection_length_receiver(program, machine, Some(state), expression)
+                .is_some_and(|receiver| pure_guard(program, machine, state, receiver, depth + 1))
+        }
         ExpressionNode::Binary(binary) => {
-            pure_guard(program, binary.left, depth + 1)
-                && pure_guard(program, binary.right, depth + 1)
+            pure_guard(program, machine, state, binary.left, depth + 1)
+                && pure_guard(program, machine, state, binary.right, depth + 1)
         }
         _ => false,
     }

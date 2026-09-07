@@ -5,6 +5,7 @@ use super::*;
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeConstraintNode, TypeReferenceNode};
 
+mod lengths;
 mod meanings;
 
 #[cfg(test)]
@@ -14,6 +15,7 @@ mod tests;
 #[derive(Clone, Copy)]
 pub enum RankingRangeMeasure {
     Single(ExpressionHandle),
+    SliceLength(ExpressionHandle),
     Distance {
         lower: ExpressionHandle,
         upper: ExpressionHandle,
@@ -197,7 +199,7 @@ fn prove_edge(
     admit_template(range.start)?;
     admit_template(range.end)?;
     match measure {
-        RankingRangeMeasure::Single(subject) => {
+        RankingRangeMeasure::Single(subject) | RankingRangeMeasure::SliceLength(subject) => {
             admit_template(subject)?;
         }
         RankingRangeMeasure::Distance { lower, upper }
@@ -293,6 +295,67 @@ fn prove_edge(
     if !engine.strict_symbol_bindings_are_valid() {
         return None;
     }
+    let length_bindings = lengths::bindings(program, state, entry_parameters);
+    if !length_bindings.is_empty() {
+        let mut expressions = vec![range.start, range.end];
+        match measure {
+            RankingRangeMeasure::Single(subject) | RankingRangeMeasure::SliceLength(subject) => {
+                expressions.push(subject)
+            }
+            RankingRangeMeasure::Distance { lower, upper }
+            | RankingRangeMeasure::IncreasingTo {
+                subject: lower,
+                limit: upper,
+            } => expressions.extend([lower, upper]),
+        }
+        expressions.extend(arguments.unwrap_or_default());
+        expressions.extend(guards.iter().map(|(expression, _)| *expression));
+        expressions.extend(evaluated_prefix);
+        if arguments.is_none() || !matches!(premises, RankingRangePremises::RankInvariant) {
+            for contract in program
+                .machine_contracts(machine)
+                .iter()
+                .filter(|contract| contract.kind == SignatureContractKind::Requires)
+            {
+                for fact in program.proof_facts.span_or_empty(contract.facts) {
+                    if let ProofFact::Expression(expression) = fact {
+                        expressions.push(*expression);
+                    }
+                }
+            }
+            for parameter in program
+                .state_parameters(root)
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+            {
+                if exact_integer_parameter(program, parameter.type_reference).is_none() {
+                    continue;
+                }
+                let mut reference = parameter.type_reference;
+                while let TypeReferenceNode::Constrained {
+                    base_type,
+                    constraints,
+                } = program.type_reference_table.type_reference(reference)
+                {
+                    for constraint in program.type_reference_table.constraints(*constraints) {
+                        if let TypeConstraintNode::Range { minimum, maximum } = constraint {
+                            expressions.extend([*minimum, *maximum]);
+                        }
+                    }
+                    reference = *base_type;
+                }
+            }
+        }
+        lengths::install(
+            program,
+            machine,
+            state,
+            root,
+            &length_bindings,
+            &mut engine,
+            &expressions,
+        )?;
+    }
     let auxiliary =
         if arguments.is_none() || !matches!(premises, RankingRangePremises::RankInvariant) {
             entry_comparisons(program, machine, root, &mut engine, &bindings)?
@@ -300,6 +363,13 @@ fn prove_edge(
             Vec::new()
         };
     let mut comparisons = auxiliary.clone();
+    comparisons.extend(length_bindings.iter().map(|(_, identity)| {
+        (
+            BinaryOperator::GreaterOrEqual,
+            Polynomial::atom(identity.clone()),
+            Polynomial::default(),
+        )
+    }));
     for &(guard, holds) in guards {
         collect_guard(&mut engine, guard, holds, &mut comparisons, 0)?;
     }
@@ -308,6 +378,13 @@ fn prove_edge(
     let ceiling = engine.normalize(range.end)?;
     let rank = match measure {
         RankingRangeMeasure::Single(subject) => engine.normalize(subject)?,
+        RankingRangeMeasure::SliceLength(subject) => {
+            let parameter = lengths::parameter(program, root, subject)?;
+            let (_, identity) = length_bindings
+                .iter()
+                .find(|(symbol, _)| *symbol == parameter.symbol)?;
+            Polynomial::atom(identity.clone())
+        }
         RankingRangeMeasure::Distance { lower, upper }
         | RankingRangeMeasure::IncreasingTo {
             subject: lower,
@@ -382,6 +459,26 @@ fn prove_edge(
             // apply_argument_map rejects an omitted atom if the proof uses it.
             continue;
         }
+        if let Some((_, identity)) = length_bindings
+            .iter()
+            .find(|(symbol, _)| *symbol == source_symbol)
+        {
+            if !lengths::is_slice(program, parameter.type_reference) {
+                return None;
+            }
+            substitutions.insert(
+                identity.clone(),
+                lengths::actual(
+                    program,
+                    machine,
+                    state,
+                    *argument,
+                    &length_bindings,
+                    &mut engine,
+                )?,
+            );
+            continue;
+        }
         let Some(binding) = bindings
             .iter()
             .find(|binding| binding.symbol == source_symbol)
@@ -402,7 +499,9 @@ fn prove_edge(
             let next = inductive_judgment::apply_argument_map(&bound, &substitutions)?;
             Some((bound, next))
         }
-        RankingRangeMeasure::Single(_) | RankingRangeMeasure::Distance { .. } => None,
+        RankingRangeMeasure::Single(_)
+        | RankingRangeMeasure::SliceLength(_)
+        | RankingRangeMeasure::Distance { .. } => None,
     };
     for (operator, left, right) in auxiliary
         .iter()

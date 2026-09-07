@@ -1,4 +1,6 @@
-use typed_trees::expression::{ExpressionHandle, TableRangeExpression};
+use typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableRangeExpression,
+};
 
 use super::expressions::expression_integer_value;
 use super::facts::RangeFacts;
@@ -60,6 +62,10 @@ pub(super) fn unknown_length_range_is_proven(
     range: &TableRangeExpression,
 ) -> bool {
     let collection_label = program.expression_table.display_name(collection);
+    let bounded_difference = !range.end_inclusive
+        && length_difference_is_within_collection(
+            program, machine, state, facts, collection, range.end,
+        );
     if !range.end_inclusive {
         let start_is_length =
             is_exact_collection_length(program, machine, state, collection, range.start);
@@ -79,13 +85,16 @@ pub(super) fn unknown_length_range_is_proven(
     }
     match (range.start.is_valid(), range.end.is_valid()) {
         (true, false) => range_bound_is_proven(program, facts, &collection_label, range.start),
-        (false, true) => range_end_within_unknown_length_is_proven(
-            program,
-            facts,
-            &collection_label,
-            range.end,
-            range.end_inclusive,
-        ),
+        (false, true) => {
+            bounded_difference
+                || range_end_within_unknown_length_is_proven(
+                    program,
+                    facts,
+                    &collection_label,
+                    range.end,
+                    range.end_inclusive,
+                )
+        }
         (true, true) => {
             let start_label = program.expression_table.display_name(range.start);
             let end_label = program.expression_table.display_name(range.end);
@@ -101,16 +110,66 @@ pub(super) fn unknown_length_range_is_proven(
                 || facts.at_most_is_proven(&start_label, &end_label);
 
             start_is_at_most_end
-                && range_end_within_unknown_length_is_proven(
-                    program,
-                    facts,
-                    &collection_label,
-                    range.end,
-                    range.end_inclusive,
-                )
+                && (bounded_difference
+                    || range_end_within_unknown_length_is_proven(
+                        program,
+                        facts,
+                        &collection_label,
+                        range.end,
+                        range.end_inclusive,
+                    ))
         }
         (false, false) => true,
     }
+}
+
+/// Subtracting a live, nonnegative offset no larger than this exact current
+/// extent produces a value in 0..=extent. Prove the offset's bounds first so
+/// wrapping subtraction cannot manufacture a false upper-bound fact.
+pub(in crate::checks::ranges) fn length_difference_is_within_collection(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    facts: &RangeFacts<'_>,
+    collection: ExpressionHandle,
+    expression: ExpressionHandle,
+) -> bool {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    if binary.operator != BinaryOperator::Subtract
+        || !validation::has_builtin_bound_expression_meaning(
+            program,
+            machine,
+            Some(state),
+            expression,
+        )
+        || !is_exact_collection_length(program, machine, state, collection, binary.left)
+    {
+        return false;
+    }
+    let offset_label = program.expression_table.display_name(binary.right);
+    let nonnegative = if let Some(value) = expression_integer_value(program, facts, binary.right) {
+        value >= 0
+    } else {
+        super::types::expression_is_unsigned_integer(program, machine, state, binary.right)
+            || super::types::expression_enforced_declared_range(
+                program,
+                machine,
+                state,
+                binary.right,
+            )
+            .is_some_and(|(minimum, _)| minimum >= 0)
+            || facts.non_negative_is_proven(&offset_label)
+            || facts.non_negative_is_proven_via_ordering(&offset_label)
+    };
+    nonnegative
+        && range_bound_is_proven(
+            program,
+            facts,
+            &program.expression_table.display_name(collection),
+            binary.right,
+        )
 }
 
 /// The current builtin extent of the exact place, never a same-spelled field,
