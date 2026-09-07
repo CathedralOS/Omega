@@ -287,7 +287,7 @@ impl CompilerEntryFootprintBindingEvidence {
     }
 }
 
-/// Reporting summary for the compiler function/instruction partition after
+/// Reporting summary for current compiler functions and their selected spans after
 /// exact final-byte validation. The counters and compact coordinates describe
 /// the completed validation but do not recreate it. Exact final text, placed
 /// regions, entry-region custody, and state footprints remain in their own
@@ -295,22 +295,27 @@ impl CompilerEntryFootprintBindingEvidence {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CompilerFunctionValidationEvidence {
     pub function_count: usize,
+    /// Number of selected instruction spans, not individual ISA instructions.
+    /// Inserted frame protocol bytes are accounted separately below.
     pub instruction_count: usize,
+    /// Selected instruction spans whose emitted byte sequence is empty.
     pub zero_width_instruction_count: usize,
-    pub checked_assembly_instruction_count: usize,
-    pub fixed_mechanics_instruction_count: usize,
-    pub fixed_mechanics_validation_report_fingerprint: u64,
-    pub fixed_mechanics_boundary_contract_report_fingerprint: u64,
-    pub fixed_mechanics_footprint_report_fingerprint: u64,
-    pub body_specification_instruction_count: usize,
-    pub body_specification_validation_report_fingerprint: u64,
-    pub body_specification_boundary_contract_report_fingerprint: u64,
-    pub body_specification_footprint_report_fingerprint: u64,
-    pub composed_footprint_report_fingerprint: u64,
-    /// Compact report coordinate for the exact join retained separately by
-    /// `CompilerEntryRegionBindingEvidence` and the placed-region inventory.
+    pub frame_prologue_byte_count: usize,
+    /// Total inserted epilogue bytes across all retained return sites.
+    pub frame_epilogue_byte_count: usize,
+    /// First eight bytes of the retained strong manifest identity, little-endian.
+    pub fragment_manifest_report_fingerprint: u64,
+    /// First eight bytes of the retained strong frame-application identity, little-endian.
+    pub frame_application_report_fingerprint: u64,
+    /// Present only when exact boundary/entry footprint evidence exists.
+    /// Common direct physical replay alone does not establish this coordinate.
+    pub boundary_contract_report_fingerprint: Option<u64>,
+    /// Compact report coordinate for validated final-region binding. The direct
+    /// common path uses the executable inventory's compact fingerprint; an
+    /// entry-footprint binding retains its exact join separately.
     pub final_region_binding_report_fingerprint: u64,
-    pub validation_report_fingerprint: u64,
+    /// Independently derived compiler-text validation's derivation report coordinate.
+    pub final_text_validation_report_fingerprint: u64,
 }
 
 impl CompilerFunctionValidationEvidence {
@@ -321,65 +326,38 @@ impl CompilerFunctionValidationEvidence {
     /// commitments described above.
     pub fn evidence_digest(self) -> CompilerFunctionValidationDigest {
         let mut digest = Sha256::new();
-        digest.update(b"omega.compiler-function-validation.sha256.v1\0");
+        digest.update(b"omega.compiler-function-validation.sha256.v2\0");
         for value in [
             self.function_count,
             self.instruction_count,
             self.zero_width_instruction_count,
-            self.checked_assembly_instruction_count,
-            self.fixed_mechanics_instruction_count,
-            self.body_specification_instruction_count,
+            self.frame_prologue_byte_count,
+            self.frame_epilogue_byte_count,
         ] {
             digest.update((value as u64).to_le_bytes());
         }
         for value in [
-            self.fixed_mechanics_validation_report_fingerprint,
-            self.fixed_mechanics_boundary_contract_report_fingerprint,
-            self.fixed_mechanics_footprint_report_fingerprint,
-            self.body_specification_validation_report_fingerprint,
-            self.body_specification_boundary_contract_report_fingerprint,
-            self.body_specification_footprint_report_fingerprint,
-            self.composed_footprint_report_fingerprint,
+            self.fragment_manifest_report_fingerprint,
+            self.frame_application_report_fingerprint,
             self.final_region_binding_report_fingerprint,
-            self.validation_report_fingerprint,
+            self.final_text_validation_report_fingerprint,
         ] {
             digest.update(value.to_le_bytes());
+        }
+        digest.update([u8::from(
+            self.boundary_contract_report_fingerprint.is_some(),
+        )]);
+        if let Some(boundary) = self.boundary_contract_report_fingerprint {
+            digest.update(boundary.to_le_bytes());
         }
         CompilerFunctionValidationDigest::from_digest(digest.finalize().into())
     }
 
-    /// Compact report compatibility only. This is not evidence, admission,
+    /// Compact reporting coordinate only. This is not evidence, admission,
     /// publication, or replay authority; use [`Self::evidence_digest`].
     pub fn evidence_report_fingerprint(self) -> u64 {
         let mut hash = 0xcbf2_9ce4_8422_2325u64;
-        for bytes in [
-            self.validation_report_fingerprint.to_le_bytes(),
-            (self.function_count as u64).to_le_bytes(),
-            (self.instruction_count as u64).to_le_bytes(),
-            (self.zero_width_instruction_count as u64).to_le_bytes(),
-            (self.checked_assembly_instruction_count as u64).to_le_bytes(),
-            (self.fixed_mechanics_instruction_count as u64).to_le_bytes(),
-            self.fixed_mechanics_validation_report_fingerprint
-                .to_le_bytes(),
-            self.fixed_mechanics_boundary_contract_report_fingerprint
-                .to_le_bytes(),
-            self.fixed_mechanics_footprint_report_fingerprint
-                .to_le_bytes(),
-            (self.body_specification_instruction_count as u64).to_le_bytes(),
-            self.body_specification_validation_report_fingerprint
-                .to_le_bytes(),
-            self.body_specification_boundary_contract_report_fingerprint
-                .to_le_bytes(),
-            self.body_specification_footprint_report_fingerprint
-                .to_le_bytes(),
-            self.composed_footprint_report_fingerprint.to_le_bytes(),
-            self.final_region_binding_report_fingerprint.to_le_bytes(),
-        ] {
-            for byte in bytes {
-                hash ^= u64::from(byte);
-                hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-            }
-        }
+        fingerprint_bytes(&mut hash, self.evidence_digest().as_bytes());
         hash
     }
 }
@@ -533,20 +511,15 @@ mod tests {
     fn function_evidence() -> CompilerFunctionValidationEvidence {
         CompilerFunctionValidationEvidence {
             function_count: 1,
-            instruction_count: 2,
+            instruction_count: 5,
             zero_width_instruction_count: 3,
-            checked_assembly_instruction_count: 4,
-            fixed_mechanics_instruction_count: 5,
-            fixed_mechanics_validation_report_fingerprint: 6,
-            fixed_mechanics_boundary_contract_report_fingerprint: 7,
-            fixed_mechanics_footprint_report_fingerprint: 8,
-            body_specification_instruction_count: 9,
-            body_specification_validation_report_fingerprint: 10,
-            body_specification_boundary_contract_report_fingerprint: 11,
-            body_specification_footprint_report_fingerprint: 12,
-            composed_footprint_report_fingerprint: 13,
+            frame_prologue_byte_count: 4,
+            frame_epilogue_byte_count: 8,
+            fragment_manifest_report_fingerprint: 6,
+            frame_application_report_fingerprint: 7,
+            boundary_contract_report_fingerprint: Some(11),
             final_region_binding_report_fingerprint: 14,
-            validation_report_fingerprint: 15,
+            final_text_validation_report_fingerprint: 15,
         }
     }
 
@@ -589,12 +562,42 @@ mod tests {
             },
             {
                 let mut drifted = evidence;
-                drifted.fixed_mechanics_validation_report_fingerprint ^= 1;
+                drifted.instruction_count += 1;
                 drifted
             },
             {
                 let mut drifted = evidence;
-                drifted.body_specification_footprint_report_fingerprint ^= 1;
+                drifted.zero_width_instruction_count += 1;
+                drifted
+            },
+            {
+                let mut drifted = evidence;
+                drifted.frame_prologue_byte_count += 1;
+                drifted
+            },
+            {
+                let mut drifted = evidence;
+                drifted.frame_epilogue_byte_count += 1;
+                drifted
+            },
+            {
+                let mut drifted = evidence;
+                drifted.fragment_manifest_report_fingerprint ^= 1;
+                drifted
+            },
+            {
+                let mut drifted = evidence;
+                drifted.frame_application_report_fingerprint ^= 1;
+                drifted
+            },
+            {
+                let mut drifted = evidence;
+                drifted.boundary_contract_report_fingerprint = None;
+                drifted
+            },
+            {
+                let mut drifted = evidence;
+                drifted.boundary_contract_report_fingerprint = Some(12);
                 drifted
             },
             {
@@ -604,11 +607,20 @@ mod tests {
             },
             {
                 let mut drifted = evidence;
-                drifted.validation_report_fingerprint ^= 1;
+                drifted.final_text_validation_report_fingerprint ^= 1;
                 drifted
             },
         ] {
             assert_ne!(drifted.evidence_digest(), expected);
         }
+    }
+
+    #[test]
+    fn function_validation_digest_distinguishes_absent_and_zero_boundary() {
+        let mut absent = function_evidence();
+        absent.boundary_contract_report_fingerprint = None;
+        let mut present = absent;
+        present.boundary_contract_report_fingerprint = Some(0);
+        assert_ne!(absent.evidence_digest(), present.evidence_digest());
     }
 }

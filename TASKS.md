@@ -153,12 +153,6 @@ the [Rust Compiler Completion Contract](wiki/pre_migration/releases/rust_compile
   sample harness bypasses this policy route; independent writer work remains
   actionable.
 
-  Native publication additionally depends on `TARGET-MATRICES` in
-  [TASKS_OPTIMIZER.md](TASKS_OPTIMIZER.md#verification-and-rollout): even the
-  accepted empty-entry package reaches publication without compiler-function
-  validation evidence. Keep this independent gate intact; package acceptance
-  does not provide that evidence.
-
   The macOS ARM64 outer CLI remains prohibitively slow in preliminary package
   validation. With production changes in `dcb670edfd`, the already-built binary
   command above (`--build-dir build/cli-mvp-shared-arrivals`) was interrupted at

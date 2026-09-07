@@ -3186,12 +3186,12 @@ fn compiler_function_validation_authority_does_not_collapse_to_fnv() {
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", image_path.display()));
     assert!(
         image.contains("image_evidence_digest!(CompilerFunctionValidationDigest);")
-            && image.contains("omega.compiler-function-validation.sha256.v1\\0")
+            && image.contains("omega.compiler-function-validation.sha256.v2\\0")
             && image.contains("pub fn evidence_digest(self) -> CompilerFunctionValidationDigest"),
         "compiler-function validation must expose a domain-separated strong commitment",
     );
     assert!(
-        image.contains("Compact report compatibility only. This is not evidence, admission,")
+        image.contains("Compact reporting coordinate only. This is not evidence, admission,")
             && image.contains("use [`Self::evidence_digest`]"),
         "the residual function-validation FNV value must remain explicitly report-only",
     );

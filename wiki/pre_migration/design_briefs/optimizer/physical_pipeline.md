@@ -1458,14 +1458,12 @@ container. UEFI and unwind are not implied by this matrix. The former lacks
 publication authority, while physical frames and unwind carriers remain P5
 prerequisites.
 
-Compiler native-artifact production now consumes the selected-lowering route
-for the exact x86-64 return-only Unit cohort. The bridge replays optimizer fragment
-custody and projects its machine, attachment, Terminal return edge, bytes, and
-explicitly empty frame into the ordinary object/image path. It admits no
-providers, callbacks, FMA, structural fragments, calls, frames, or spills.
-Because the current source canary contains no executable D29/D41 occurrence,
-its physical evidence is exact and empty; this does not yet claim native D32
-publication for the applied incoming-u12 rows above.
+Compiler native-artifact production consumes the same chain through
+`image-emission/src/function_fragments`. Projection independently rejoins source
+functions, target ABI, placed bytes, calls, frames, and semantic attribution.
+Its admission predicates reject unsupported source shapes. D32 coverage is
+derived separately from exact retained boundary occurrences; function-report
+counts do not grant that coverage.
 
 Post-allocation publication coverage crosses all nine exact machine rules
 with both applicable hosted operating systems: three x86-64 rules on Linux and
@@ -1482,10 +1480,29 @@ Ranked countdown coverage proves ordinary executable-image and installation
 custody on Linux x64 and Linux Arm64, including exact final bytes and semantic-
 code attribution.
 
-The ordinary empty-selection compiler route is deliberately outside this
-optimizer custody chain. Its four-target byte and artifact-metadata baseline is
-locked by the no-selection golden compiler test; only an explicit nonempty
-selection constructs the optimizer-side prephysical carrier.
+Empty and nonempty selections use the same current physical pipeline and
+independent replay. An empty selection is its identity transformation, not a
+separate publication route.
+
+Direct native publication derives its function report from the replayed
+fragment manifest, applied frame protocol, and validated final-image inventory.
+Instruction counts mean selected spans, including zero-byte spans, not ISA
+instructions: one materialization can encode several instructions. Inserted
+prologues and per-return epilogues are counted separately in bytes. The selected
+return instruction is not part of the inserted epilogue count. Semantic
+fallthrough attribution is not an additional selected instruction.
+
+`image-emission/src/function_fragments/reporting.rs` owns this projection.
+Image replay rederives the complete report after source and final-byte
+validation and rejects missing or altered reports. Mechanical image APIs
+without retained compiler source acquire no compiler-function report and
+cannot satisfy the native publisher's requirement. Reports do not assert a
+boundary entry-footprint mutation when none was performed, and cannot replace
+provider, boundary, entry, or physical validation.
+
+The internal function-summary digest uses v2 for these current fields; it no
+longer describes the removed body-specification/fixed-mechanics partition.
+The enclosing flat publication and installation v1 digest framing is unchanged.
 
 Allocation recovery has one final function-relative carrier. Its closed source
 taxonomy has `FixedViewCopies` and `ActiveResidentRematerialization` leaves;

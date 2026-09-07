@@ -209,12 +209,5 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   post-allocation matrices do not claim physical spill insertion, final frame
   layout, or unwind completion.
 
-  `omega --target <name>` publishes no retained native artifact on any target:
-  `image/src/output.rs` leaves `compiler_function_validation` `None` and
-  the workspace has no producer for it, so `publish_retained_native_artifact`
-  stops at `native publication requires compiler-function validation evidence`.
-  Acceptance: an empty-entry sample publishes an executable on each supported
-  target with that evidence derived, not omitted.
-
 - **BENCHMARKS.** Publish versioned compile-time, peak-memory, code-size, and
   runtime benchmarks keyed by exact rule selection and target.
