@@ -42,6 +42,83 @@ fn anonymous_remainder_const_facts_reject_before_discharge() {
 }
 
 #[test]
+fn anonymous_remainder_const_domain_facts_reject_before_discharge() {
+    for expression in [
+        "8 % 2 == 0",
+        "7 % 2 == 1",
+        "-3 % 2 == -1",
+        "(7 + 1) % 2 == 0",
+        "(7 / 2) % 2 == 1",
+        "self > 0 && 8 % 2 == 0",
+    ] {
+        for membership in ["Checked", "Transitive"] {
+            let source = format!(
+                "domain u64::Checked requires {expression};
+                domain u64::Transitive requires self in Checked;
+                data Buffer<const N: u64> where N in {membership}, {{ values: [u8; N]; }}
+                data Main {{ value: Buffer<2>; }}"
+            );
+            let errors = match normalize(&source) {
+                Err(errors) => errors,
+                Ok(_) => panic!("anonymous remainder became a discharged domain fact: {source}"),
+            };
+            assert!(
+                errors
+                    .iter()
+                    .any(|error| error.message.contains("integer-typed operand")),
+                "{source}: {errors:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn typed_const_domain_remainders_preserve_truth_and_divisor_checks() {
+    for (expression, expected_error) in [
+        ("8u64 % 2 == 0", None),
+        ("7 % 2u64 == 1", None),
+        ("-3i32 % 2 == -1", None),
+        ("self % 2 == 0", None),
+        ("Sizes::COUNT % 2 == 1", None),
+        ("8 / 2 == 4", None),
+        ("8u64 % 2 == 1", Some("is false")),
+        ("-3i32 % 2 == 1", Some("is false")),
+        ("8u64 % 0 == 0", Some("remainder by zero")),
+        ("self % 0 == 0", Some("remainder by zero")),
+    ] {
+        let source = format!(
+            "const Sizes::COUNT: u64 = 7;
+            domain u64::Checked requires {expression};
+            domain u64::Transitive requires self in Checked;
+            data Buffer<const N: u64> where N in Transitive, {{ values: [u8; N]; }}
+            data Main {{ value: Buffer<2>; }}"
+        );
+        match (normalize(&source), expected_error) {
+            (Ok(syntax), None) => {
+                let instance = syntax
+                    .root_items()
+                    .find_map(|item| match item {
+                        Item::Data(definition) if definition.name.as_str() == "Buffer<2>" => {
+                            Some(definition)
+                        }
+                        _ => None,
+                    })
+                    .expect("closed generic instance");
+                assert!(
+                    instance.where_facts.is_empty(),
+                    "true domain fact was not discharged"
+                );
+            }
+            (Err(errors), Some(expected)) => assert!(
+                errors.iter().any(|error| error.message.contains(expected)),
+                "{source}: {errors:?}"
+            ),
+            (result, expected) => panic!("{source}: expected {expected:?}, got {result:?}"),
+        }
+    }
+}
+
+#[test]
 fn typed_and_named_remainder_operands_and_exact_quotients_still_normalize() {
     for value in ["7u64 % 2", "7 % 2u64", "Sizes::COUNT % 2", "8 / 2"] {
         let source = format!(
