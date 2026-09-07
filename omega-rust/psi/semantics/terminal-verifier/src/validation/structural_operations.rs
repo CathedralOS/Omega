@@ -1332,19 +1332,28 @@ pub(super) fn validate_structural_arguments(
             });
         }
         let root_type = actual_type;
-        let Some(actual_type) = resolve_structural_path(module, actual_type, &argument.path) else {
-            return Err(ModuleError::InvalidStructuralArgumentPath {
-                operation,
-                argument_index: index as u32,
-            });
-        };
-        if actual_type != expected.structural_type {
-            return Err(ModuleError::StructuralArgumentTypeMismatch {
-                operation,
-                argument_index: index as u32,
-                expected: expected.structural_type,
-                actual: actual_type,
-            });
+        // Boundary buffer presentation retains the inline owner and its capacity;
+        // it does not resolve that owner to the borrowed-view parameter's type.
+        let buffer_presentation = source_policy
+            == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
+            && terminal_semantics::boundary_buffer_capacity(module, root_type, argument, expected)
+                .is_some();
+        if !buffer_presentation {
+            let Some(actual_type) = resolve_structural_path(module, root_type, &argument.path)
+            else {
+                return Err(ModuleError::InvalidStructuralArgumentPath {
+                    operation,
+                    argument_index: index as u32,
+                });
+            };
+            if actual_type != expected.structural_type {
+                return Err(ModuleError::StructuralArgumentTypeMismatch {
+                    operation,
+                    argument_index: index as u32,
+                    expected: expected.structural_type,
+                    actual: actual_type,
+                });
+            }
         }
         if argument.access != expected.access {
             return Err(ModuleError::StructuralArgumentAccessMismatch {
@@ -1387,6 +1396,9 @@ pub(super) fn validate_structural_arguments(
         } else if unrestricted_write_only_field_subloan
             || unrestricted_shared_field_subloan
             || unrestricted_mutable_field_subloan
+            || (buffer_presentation
+                && actual_access == StructuralAccess::MutableBorrow
+                && actual_multiplicity == StructuralMultiplicity::Unrestricted)
         {
             StructuralMultiplicity::Unrestricted
         } else if expected.multiplicity == StructuralMultiplicity::Affine

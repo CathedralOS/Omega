@@ -1240,6 +1240,7 @@ fn validate_operation_foundation(
                 machine,
                 structural_arguments,
                 &callee.structural_parameters,
+                false,
             )?;
             validate_claim_indices(
                 machine,
@@ -1278,6 +1279,7 @@ fn validate_operation_foundation(
                 machine,
                 structural_arguments,
                 &callee.structural_parameters,
+                false,
             )?;
             validate_claim_indices(
                 machine,
@@ -1351,6 +1353,7 @@ fn validate_operation_foundation(
                 machine,
                 structural_arguments,
                 &callee.structural_parameters,
+                false,
             )?;
         }
         OperationKind::CallStructural {
@@ -1529,6 +1532,7 @@ fn validate_operation_foundation(
                 machine,
                 structural_arguments,
                 &callee.structural_parameters,
+                false,
             )?;
             validate_claim_indices(
                 machine,
@@ -1584,6 +1588,7 @@ fn validate_operation_foundation(
                 machine,
                 structural_arguments,
                 &boundary.structural_parameters,
+                true,
             )?;
             validate_claim_indices(
                 machine,
@@ -1794,11 +1799,18 @@ fn validate_structural_arguments(
     machine: &TerminalMachine,
     arguments: &[StructuralArgument],
     expected: &[StructuralParameterDeclaration],
+    boundary_presentation: bool,
 ) -> Result<(), CodecError> {
     for (argument, expected) in arguments.iter().zip(expected) {
         let Some(actual_type) = structural_place_type(machine, argument.place) else {
             return malformed("structural argument references an unknown structural place");
         };
+        if boundary_presentation
+            && terminal_semantics::boundary_buffer_capacity(module, actual_type, argument, expected)
+                .is_some()
+        {
+            continue;
+        }
         let actual_type = validate_structural_path(module, actual_type, &argument.path)?;
         if actual_type != expected.structural_type {
             return malformed("structural argument has the wrong concrete type");
