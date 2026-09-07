@@ -10,6 +10,8 @@ name = "omega_native_differential_test"
 path = "src/lib.rs"
 
 [dependencies]
+selected-instructions-to-selected-instructions = { path = "../../omega-rust/omega/pipeline/selected-instructions-to-selected-instructions" }
+register-homes = { path = "../../omega-rust/omega/representations/register-homes" }
 lowered-psi = { path = "../../omega-rust/psi/representations/lowered-psi" }
 terminal-production = { path = "../../omega-rust/psi/compiler/terminal-production" }
 checked-interpreter = { path = "../../omega-rust/psi/semantics/checked-interpreter" }

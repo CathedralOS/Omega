@@ -3,6 +3,7 @@ use optimization_core::{
     OptimizationUnitIdentity, OptimizationWorkBudget, PostAllocationOptimizationManifestIdentity,
 };
 use optimization_unit::ValueDefinitionSite;
+use register_homes::AllocationLegalityIdentity;
 use register_model::{
     RegisterConstraintCatalogIdentity, RegisterOperandAccess, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, validate_physical_register_model,
@@ -21,7 +22,7 @@ use selected_instructions::{
     SelectedInstructionProvenance, SelectedOperand, SelectedTerminator, VirtualRegister,
     VirtualRegisterId, VirtualRegisterOrigin,
 };
-use selected_instructions_to_register_homes::{AllocationLegalityIdentity, RegisterHomeIdentity};
+use selected_instructions_to_register_homes::RegisterHomeIdentity;
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, ScalarType, ValueId,
 };

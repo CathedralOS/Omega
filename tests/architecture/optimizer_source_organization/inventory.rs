@@ -33,6 +33,9 @@ const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/representations/optimization-core",
     "omega-rust/omega/representations/optimization-unit",
     "omega-rust/omega/representations/selected-instructions",
+    // Allocation analysis schemas and codecs moved out of the selected stage.
+    // Keep their concept-owned leaves governed alongside the algorithms.
+    "omega-rust/omega/representations/register-homes/src/register_homes",
     "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations",
     "omega-rust/omega/pipeline/abstract-operations-to-target-operations",
     "omega-rust/omega/pipeline/selected-instructions-to-register-homes",

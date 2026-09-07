@@ -42,6 +42,15 @@ canonical identities describe selected instructions, not physical homes or
 validation authority. Effect catalogs describe target mechanisms; effect program rows
 describe a particular selected program and own their canonical encoding.
 
+`register-homes/src/register_homes.rs` leads to the current allocated program,
+allocation constraints, storage assignments, and recovery facts. `constraints/`
+owns allocator availability, allocation legality, fixed-precolored intervals,
+and split requirements; `storage/` owns segment homes; `recovery/` owns spill
+choices and recovery classifications. These owners define the raw plans,
+policies, identities, and codecs. Computation, independent replay, and sealed
+validation receipts stay in the transforms. Decoding or hashing a plan does not
+grant allocation authority.
+
 The corresponding entrances are `abstract_operations.rs` for
 `AbstractOperationPlan`, `target_operations.rs` for `TargetOperationPlan`,
 `legalized_operations.rs` for `LegalizedOperationPlan`, and

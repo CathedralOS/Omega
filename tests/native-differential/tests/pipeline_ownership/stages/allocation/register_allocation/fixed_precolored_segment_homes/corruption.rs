@@ -9,7 +9,7 @@ fn independent_replay_rejects_assignment_and_root_corruption() {
 
     let mut root = canonical.plan().clone();
     root.split_requirements =
-        selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementPlanIdentity::from_bytes([9; 32]);
+        register_homes::FixedPrecoloredSplitRequirementPlanIdentity::from_bytes([9; 32]);
     assert_eq!(
         validate(&fixture, root),
         Err(selected_instructions_to_register_homes::FixedPrecoloredSegmentHomeError::RootMismatch)
@@ -27,11 +27,11 @@ fn independent_replay_rejects_assignment_and_root_corruption() {
     corruptions.push(plan);
     let mut plan = canonical.plan().clone();
     plan.functions[0].assignments[0].source_segment =
-        selected_instructions_to_register_homes::FixedPrecoloredSourceSegmentId(99);
+        register_homes::FixedPrecoloredSourceSegmentId(99);
     corruptions.push(plan);
     let mut plan = canonical.plan().clone();
     plan.functions[0].assignments[0].allocation_domain =
-        selected_instructions_to_register_homes::FixedPrecoloredHomeDomainId(99);
+        register_homes::FixedPrecoloredHomeDomainId(99);
     corruptions.push(plan);
     let mut plan = canonical.plan().clone();
     plan.functions[0].assignments[0].view = register_model::RegisterViewId(99);

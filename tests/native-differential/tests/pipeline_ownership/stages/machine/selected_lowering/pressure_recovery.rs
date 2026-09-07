@@ -1,5 +1,8 @@
 use crate::tests::*;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
+use selected_instructions_to_selected_instructions::{
+    validate_recovery_classifications, validate_spill_choices,
+};
 
 #[test]
 fn explicit_one_view_availability_reaches_real_pressure_and_recovery_on_both_architectures() {
@@ -111,11 +114,23 @@ fn explicit_one_view_availability_reaches_real_pressure_and_recovery_on_both_arc
             Err(AllocatorAvailabilityError::NonCanonicalPlan)
         );
         let encoded = availability.plan().encode();
+        let availability_identity = availability.receipt().identity();
         assert_eq!(
-            selected_instructions_to_register_homes::AllocatorAvailabilityPlan::decode(&encoded)
-                .unwrap(),
+            register_homes::AllocatorAvailabilityPlan::decode(&encoded).unwrap(),
             *availability.plan()
         );
+        drop(availability);
+        let availability = validate_allocator_availability(
+            environment.identity(),
+            environment.target(),
+            environment.physical(),
+            environment.constraints(),
+            environment.reservations(),
+            &environment.allocation_constraint_keys(),
+            register_homes::AllocatorAvailabilityPlan::decode(&encoded).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(availability.receipt().identity(), availability_identity);
         let legality =
             stage_optimized_allocation_legality_with_availability(ranges, availability).unwrap();
         if let Some(fixed_return) = fixed_return {
@@ -155,6 +170,45 @@ fn explicit_one_view_availability_reaches_real_pressure_and_recovery_on_both_arc
         assert_eq!(choice.selected_victim, choice.incoming);
         assert_eq!(choice.incoming_common_candidates, vec![sole_view]);
 
+        let encoded_choices = choices.plan().encode();
+        let choices_identity = choices.receipt().identity();
+        drop(choices);
+        let raw_choices = register_homes::SpillChoicePlan::decode(&encoded_choices).unwrap();
+        assert_eq!(
+            register_homes::spill_choice_identity(&raw_choices),
+            choices_identity
+        );
+        let mut changed_choices = raw_choices.clone();
+        changed_choices.functions[0].choice = None;
+        // Re-encoding gives the altered raw data a consistent hash, not admission.
+        let changed_choices =
+            register_homes::SpillChoicePlan::decode(&changed_choices.encode()).unwrap();
+        assert!(
+            validate_spill_choices(
+                legality.legality(),
+                ranges.ranges(),
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                &environment.allocation_constraint_keys(),
+                changed_choices,
+            )
+            .is_err()
+        );
+        let choices = validate_spill_choices(
+            legality.legality(),
+            ranges.ranges(),
+            environment.identity(),
+            environment.physical(),
+            environment.constraints(),
+            environment.reservations(),
+            &environment.allocation_constraint_keys(),
+            raw_choices,
+        )
+        .unwrap();
+        assert_eq!(choices.receipt().identity(), choices_identity);
+
         let recovery = classify_pressure_recovery(
             selected.selected(),
             ranges.ranges(),
@@ -177,6 +231,38 @@ fn explicit_one_view_availability_reaches_real_pressure_and_recovery_on_both_arc
                 ..
             }
         ));
+        let encoded_recovery = recovery.plan().encode();
+        let recovery_identity = recovery.receipt().identity();
+        drop(recovery);
+        let raw_recovery =
+            register_homes::RecoveryClassificationPlan::decode(&encoded_recovery).unwrap();
+        assert_eq!(
+            register_homes::recovery_classification_identity(&raw_recovery),
+            recovery_identity,
+        );
+        let mut changed_recovery = raw_recovery.clone();
+        changed_recovery.functions[0].classification = None;
+        let changed_recovery =
+            register_homes::RecoveryClassificationPlan::decode(&changed_recovery.encode()).unwrap();
+        assert!(
+            validate_recovery_classifications(
+                selected.selected(),
+                ranges.ranges(),
+                legality.legality(),
+                &choices,
+                changed_recovery,
+            )
+            .is_err()
+        );
+        let recovery = validate_recovery_classifications(
+            selected.selected(),
+            ranges.ranges(),
+            legality.legality(),
+            &choices,
+            raw_recovery,
+        )
+        .unwrap();
+        assert_eq!(recovery.receipt().identity(), recovery_identity);
     }
 }
 

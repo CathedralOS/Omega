@@ -245,6 +245,7 @@ mod tests {
     };
     use optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};
     use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
+    use selected_instructions::{LiveRangeIdentity, LiveRangePoint};
     use selected_instructions::{
         SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity,
         SelectedInstructionProvenance, VirtualRegisterId, VirtualRegisterOrigin,
@@ -256,9 +257,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        AllocationLegalityIdentity, FunctionRecoveryClassification, LiveRangeIdentity,
-        LiveRangePoint, PressureRecoveryClassification, RecoveryClassificationDecodeError,
-        RecoveryFutureUse, SpillChoiceIdentity,
+        AllocationLegalityIdentity, FunctionRecoveryClassification, PressureRecoveryClassification,
+        RecoveryClassificationDecodeError, RecoveryFutureUse, SpillChoiceIdentity,
     };
 
     fn plan() -> RecoveryClassificationPlan {

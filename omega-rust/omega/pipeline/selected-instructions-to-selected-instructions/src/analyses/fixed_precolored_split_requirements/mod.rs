@@ -6,14 +6,15 @@
 
 mod compute;
 mod error;
-mod identity;
 mod model;
 mod replay;
 mod validation;
 
 pub use error::FixedPrecoloredSplitRequirementError;
-pub use identity::fixed_precolored_split_requirement_plan_identity;
-pub use model::*;
+pub use model::{
+    FixedPrecoloredSplitRequirementValidationReceipt, ValidatedFixedPrecoloredSplitRequirements,
+};
+use register_homes::FixedPrecoloredSplitRequirementPolicy;
 pub use validation::validate_fixed_precolored_split_requirements;
 
 pub fn analyze_fixed_precolored_split_requirements(

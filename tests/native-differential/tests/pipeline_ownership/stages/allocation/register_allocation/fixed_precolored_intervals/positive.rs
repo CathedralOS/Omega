@@ -29,9 +29,7 @@ fn selected_fixed_constraints_become_exact_precolored_point_intervals() {
         );
         assert_eq!(
             first.receipt().identity(),
-            selected_instructions_to_register_homes::fixed_precolored_interval_plan_identity(
-                first.plan()
-            ),
+            register_homes::fixed_precolored_interval_plan_identity(first.plan()),
         );
 
         let environment = source

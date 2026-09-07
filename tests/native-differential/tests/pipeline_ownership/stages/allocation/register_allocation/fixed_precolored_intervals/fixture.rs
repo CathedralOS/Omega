@@ -32,14 +32,14 @@ pub(super) fn analyze(
     selected_instructions_to_register_homes::analyze_fixed_precolored_intervals(
         source.live_range_stage().ranges(),
         source.legality(),
-        selected_instructions_to_register_homes::FixedPrecoloredIntervalPolicy::FixedConstraintPointIntervalsV1,
+        register_homes::FixedPrecoloredIntervalPolicy::FixedConstraintPointIntervalsV1,
         budget,
     )
 }
 
 pub(super) fn validate(
     source: &StagedOptimizedAllocationLegality,
-    plan: selected_instructions_to_register_homes::FixedPrecoloredIntervalPlan,
+    plan: register_homes::FixedPrecoloredIntervalPlan,
 ) -> Result<
     selected_instructions_to_register_homes::ValidatedFixedPrecoloredIntervals,
     selected_instructions_to_register_homes::FixedPrecoloredIntervalError,

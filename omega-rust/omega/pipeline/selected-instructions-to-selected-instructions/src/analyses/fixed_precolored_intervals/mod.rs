@@ -4,13 +4,15 @@
 //! intervals. It does not choose a home, insert a copy, or split a live range.
 
 mod compute;
-mod identity;
 mod model;
 mod replay;
 mod validate;
 
-pub use identity::fixed_precolored_interval_plan_identity;
-pub use model::*;
+pub use model::{
+    FixedPrecoloredIntervalError, FixedPrecoloredIntervalValidationReceipt,
+    ValidatedFixedPrecoloredIntervals,
+};
+use register_homes::FixedPrecoloredIntervalPolicy;
 pub use validate::validate_fixed_precolored_intervals;
 
 pub fn analyze_fixed_precolored_intervals(

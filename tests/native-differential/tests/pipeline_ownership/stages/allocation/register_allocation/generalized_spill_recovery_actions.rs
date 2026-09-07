@@ -148,7 +148,7 @@ fn replay_rejects_every_root_and_logical_action_surface_corruption() {
             },
             |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
                 plan.allocator_availability =
-                    selected_instructions_to_register_homes::AllocatorAvailabilityIdentity::from_bytes([0xd5; 32]);
+                    register_homes::AllocatorAvailabilityIdentity::from_bytes([0xd5; 32]);
             },
             |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
                 plan.optimization_unit =

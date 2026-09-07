@@ -223,12 +223,10 @@ fn logical_spill_validation_rejects_root_decision_and_namespace_corruption() {
     changed.ranges = selected_instructions::LiveRangeIdentity::from_bytes([92; 32]);
     root_variants.push(changed);
     let mut changed = baseline.clone();
-    changed.legality =
-        selected_instructions_to_register_homes::AllocationLegalityIdentity::from_bytes([93; 32]);
+    changed.legality = register_homes::AllocationLegalityIdentity::from_bytes([93; 32]);
     root_variants.push(changed);
     let mut changed = baseline.clone();
-    changed.spill_choices =
-        selected_instructions_to_register_homes::SpillChoiceIdentity::from_bytes([94; 32]);
+    changed.spill_choices = register_homes::SpillChoiceIdentity::from_bytes([94; 32]);
     root_variants.push(changed);
     let mut changed = baseline.clone();
     changed.register_environment =
@@ -236,9 +234,7 @@ fn logical_spill_validation_rejects_root_decision_and_namespace_corruption() {
     root_variants.push(changed);
     let mut changed = baseline.clone();
     changed.allocator_availability =
-        selected_instructions_to_register_homes::AllocatorAvailabilityIdentity::from_bytes(
-            [96; 32],
-        );
+        register_homes::AllocatorAvailabilityIdentity::from_bytes([96; 32]);
     root_variants.push(changed);
     let mut changed = baseline.clone();
     changed.optimization_unit = optimization_core::OptimizationUnitIdentity::from_bytes([97; 32]);

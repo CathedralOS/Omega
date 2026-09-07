@@ -4,9 +4,9 @@ use register_model::RegisterOperandAccess;
 use sha2::{Digest, Sha256};
 
 use crate::{
-    FixedPrecoloredIntervalPlan, FixedPrecoloredIntervalPlanIdentity,
-    FixedPrecoloredIntervalPolicy, VirtualFixedConstraintSite,
+    FixedPrecoloredIntervalPlan, FixedPrecoloredIntervalPlanIdentity, FixedPrecoloredIntervalPolicy,
 };
+use selected_instructions::VirtualFixedConstraintSite;
 
 pub fn fixed_precolored_interval_plan_identity(
     plan: &FixedPrecoloredIntervalPlan,

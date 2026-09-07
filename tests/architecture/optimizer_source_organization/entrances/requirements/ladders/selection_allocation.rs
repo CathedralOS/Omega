@@ -337,7 +337,8 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         paths: &[
             "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/fixed_precolored_intervals/mod.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/fixed_precolored_intervals/model.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/fixed_precolored_intervals/identity.rs",
+            "omega-rust/omega/representations/register-homes/src/register_homes/constraints/fixed_precolored_intervals.rs",
+            "omega-rust/omega/representations/register-homes/src/register_homes/constraints/fixed_precolored_intervals/identity.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/fixed_precolored_intervals/compute.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/fixed_precolored_intervals/replay.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/fixed_precolored_intervals/validate.rs",

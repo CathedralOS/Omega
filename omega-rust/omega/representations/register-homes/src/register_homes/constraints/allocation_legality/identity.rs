@@ -1,6 +1,7 @@
 use sha2::{Digest, Sha256};
 
-use crate::{AllocationLegalityIdentity, AllocationLegalityPlan, VirtualFixedConstraintSite};
+use crate::{AllocationLegalityIdentity, AllocationLegalityPlan};
+use selected_instructions::VirtualFixedConstraintSite;
 
 pub fn allocation_legality_identity(plan: &AllocationLegalityPlan) -> AllocationLegalityIdentity {
     let mut bytes = Vec::new();
@@ -92,9 +93,11 @@ mod tests {
     use super::*;
     use crate::{
         AllocationLegalityPlan, AllocatorAvailabilityIdentity, EntryFixedViewTransition,
-        FunctionAllocationLegality, LiveRangeIdentity, LiveRangePoint, LivenessPosition,
-        VirtualEarlyClobberPointLegality, VirtualFixedConstraintSite, VirtualPointLegality,
+        FunctionAllocationLegality, VirtualEarlyClobberPointLegality, VirtualPointLegality,
         VirtualRegisterAllocationLegality,
+    };
+    use selected_instructions::{
+        LiveRangeIdentity, LiveRangePoint, LivenessPosition, VirtualFixedConstraintSite,
     };
 
     type Mutation = fn(&mut AllocationLegalityPlan);

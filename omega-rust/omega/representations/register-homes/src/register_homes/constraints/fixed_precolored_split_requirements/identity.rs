@@ -5,8 +5,8 @@ use target::{Architecture, ObjectFormat};
 use crate::{
     FixedPrecoloredSourceSegmentOpening, FixedPrecoloredSplitRequirementPlan,
     FixedPrecoloredSplitRequirementPlanIdentity, FixedPrecoloredSplitRequirementPolicy,
-    VirtualFixedConstraintSite,
 };
+use selected_instructions::VirtualFixedConstraintSite;
 
 pub fn fixed_precolored_split_requirement_plan_identity(
     plan: &FixedPrecoloredSplitRequirementPlan,
@@ -94,7 +94,7 @@ fn encode_family(
     }
 }
 
-fn encode_connector(bytes: &mut Vec<u8>, connector: crate::LiveRangeEdgeConnector) {
+fn encode_connector(bytes: &mut Vec<u8>, connector: selected_instructions::LiveRangeEdgeConnector) {
     bytes.extend_from_slice(&connector.source.0.to_le_bytes());
     bytes.extend_from_slice(&connector.terminator.0.to_le_bytes());
     bytes.push(connector.polarity_ordinal);

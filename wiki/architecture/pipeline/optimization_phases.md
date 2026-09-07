@@ -290,9 +290,14 @@ emission retains the same immutable encoding program beside its other current
 inputs. Only replay retains the producing stage's admission token; sharing or
 rehashing the raw program grants no encoding or publication authority.
 
-Selected-lowering rewrites and selected-program analyses belong to
+Selected-lowering rewrites and selected-program analysis algorithms belong to
 `selected-instructions-to-selected-instructions`; they do not assign register
-homes. The result retains one current selected program and separate replay
+homes. Raw allocation facts belong to `register-homes`, under its constraints,
+storage, and recovery owners: allocator availability, legality, fixed-precolored
+intervals, split requirements, segment homes, spill choices, and recovery
+classifications. Their canonical identities and raw codecs live beside those
+records; compute/replay code and sealed validation receipts stay in the stage.
+The result retains one current selected program and separate replay
 inputs. The successor `selected-instructions-to-register-homes` consumes it
 without re-executing the selected-lowering suite. Its sealed
 allocation boundary independently reconstructs retained evidence and exposes

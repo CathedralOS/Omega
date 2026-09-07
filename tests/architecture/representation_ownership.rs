@@ -5,6 +5,8 @@
 
 use std::path::{Path, PathBuf};
 
+#[path = "representation_ownership/allocation_analysis.rs"]
+mod allocation_analysis;
 #[path = "representation_ownership/selected_analysis.rs"]
 mod selected_analysis;
 
@@ -559,7 +561,7 @@ fn program_representations_have_named_roots_and_concept_owners() {
             "register-homes",
             "register_homes",
             "AllocatedProgram",
-            &["storage", "evidence", "identity", "codec"][..],
+            &["storage", "constraints", "recovery", "identity", "codec"][..],
         ),
         (
             "omega",

@@ -10,6 +10,30 @@ mod execution;
 mod output;
 mod rewrites;
 
+use register_homes::{
+    AllocationLegalityIdentity, AllocationLegalityPlan, AllocatorAvailabilityIdentity,
+    AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy, EntryFixedViewTransition,
+    FixedPrecoloredHomeDomainId, FixedPrecoloredInterval, FixedPrecoloredIntervalPlan,
+    FixedPrecoloredIntervalPlanIdentity, FixedPrecoloredIntervalPolicy,
+    FixedPrecoloredRegisterSplitRequirements, FixedPrecoloredSegmentHomePlan,
+    FixedPrecoloredSegmentHomePlanIdentity, FixedPrecoloredSegmentHomePolicy,
+    FixedPrecoloredSourceFragmentRequirements, FixedPrecoloredSourceSegment,
+    FixedPrecoloredSourceSegmentHome, FixedPrecoloredSourceSegmentId,
+    FixedPrecoloredSourceSegmentOpening, FixedPrecoloredSplitRequirementPlan,
+    FixedPrecoloredSplitRequirementPlanIdentity, FixedPrecoloredSplitRequirementPolicy,
+    FunctionAllocationLegality, FunctionFixedPrecoloredIntervals,
+    FunctionFixedPrecoloredSegmentHomes, FunctionFixedPrecoloredSplitRequirements,
+    FunctionRecoveryClassification, FunctionSpillChoices, NoAdmittedRecoveryReason,
+    PressureContender, PressureRecoveryClassification, PressureResident, RecoveryClassification,
+    RecoveryClassificationIdentity, RecoveryClassificationPlan, RecoveryClassificationPolicy,
+    RecoveryFutureUse, RecoveryVictimRole, RegisterClassAvailability, SpillChoice,
+    SpillChoiceIdentity, SpillChoicePlan, SpillChoicePolicy, VirtualEarlyClobberPointLegality,
+    VirtualPointLegality, VirtualRegisterAllocationLegality, allocation_legality_identity,
+    allocator_availability_identity, fixed_precolored_interval_plan_identity,
+    fixed_precolored_segment_home_plan_identity, fixed_precolored_split_requirement_plan_identity,
+    recovery_classification_identity, spill_choice_identity,
+};
+
 pub use analyses::*;
 pub use execution::{optimize_analyzed_selected_instructions, optimize_selected_instructions};
 pub use output::{

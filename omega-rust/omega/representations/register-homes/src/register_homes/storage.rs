@@ -1,5 +1,8 @@
 //! Function-local physical views assigned to virtual registers.
 
+pub mod fixed_precolored_segment_homes;
+pub use fixed_precolored_segment_homes::*;
+
 use register_model::{RegisterClassId, RegisterViewId};
 use selected_instructions::VirtualRegisterId;
 use semantic_vocabulary::MachineId;

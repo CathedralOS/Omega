@@ -204,7 +204,7 @@ fn independent_replay_rejects_every_choice_surface_and_source_root_corruption() 
                 plan.ranges = selected_instructions::LiveRangeIdentity::from_bytes([0xc8; 32]);
             },
             |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoicePlan| {
-                plan.legality = selected_instructions_to_register_homes::AllocationLegalityIdentity::from_bytes([0xc3; 32]);
+                plan.legality = register_homes::AllocationLegalityIdentity::from_bytes([0xc3; 32]);
             },
             |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoicePlan| {
                 plan.register_environment =
@@ -212,7 +212,7 @@ fn independent_replay_rejects_every_choice_surface_and_source_root_corruption() 
             },
             |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoicePlan| {
                 plan.allocator_availability =
-                    selected_instructions_to_register_homes::AllocatorAvailabilityIdentity::from_bytes([0xc5; 32]);
+                    register_homes::AllocatorAvailabilityIdentity::from_bytes([0xc5; 32]);
             },
             |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoicePlan| {
                 plan.optimization_unit =

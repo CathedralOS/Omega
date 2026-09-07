@@ -16,6 +16,10 @@ use optimization_unit::{FuelSettlement, OwnershipEvent, PsiProvenance, ValueDefi
 use proof_admission::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
 };
+use register_homes::{
+    AllocatorAvailabilityPolicy, RecoveryClassification, RecoveryClassificationPolicy,
+    RecoveryVictimRole, SpillChoicePolicy, allocation_legality_identity,
+};
 use register_model::{
     RegisterOperandAccess, RegisterReservationProfile, RegisterUnitId, RegisterViewId,
     target_register_environment_identity, validate_register_reservation_profile,
@@ -29,18 +33,17 @@ use selected_instructions::{
     VirtualRegisterId, VirtualRegisterOrigin,
 };
 use selected_instructions_to_register_homes::{
-    AllocationLegalityError, AllocatorAvailabilityError, AllocatorAvailabilityPolicy,
-    FixedViewCopyError, FixedViewCopyPolicy, LiteralFoldPlan, LiteralFoldPolicy, LiveRangeError,
-    LivenessError, PostAllocationOptimizationManifest, PostAllocationOptimizationManifestError,
+    AllocationLegalityError, AllocatorAvailabilityError, FixedViewCopyError, FixedViewCopyPolicy,
+    LiteralFoldPlan, LiteralFoldPolicy, LiveRangeError, LivenessError,
+    PostAllocationOptimizationManifest, PostAllocationOptimizationManifestError,
     PostAllocationSelectedTransformation, PressureRematerializationError,
-    PressureRematerializationPolicy, RecoveryClassification, RecoveryClassificationPolicy,
-    RecoveryVictimRole, RegisterHomeError, RegisterHomePlan, SpillChoicePolicy,
-    allocation_legality_identity, analyze_allocation_legality, analyze_live_ranges,
-    analyze_liveness, choose_spill_victims, classify_pressure_recovery, fixed_view_copy_identity,
-    fold_selected_incoming_literal, materialize_allocator_availability, register_home_identity,
-    validate_allocation_legality, validate_allocator_availability, validate_fixed_view_copies,
-    validate_literal_fold, validate_live_ranges, validate_liveness,
-    validate_post_allocation_optimization_manifest, validate_register_homes,
+    PressureRematerializationPolicy, RegisterHomeError, RegisterHomePlan,
+    analyze_allocation_legality, analyze_live_ranges, analyze_liveness, choose_spill_victims,
+    classify_pressure_recovery, fixed_view_copy_identity, fold_selected_incoming_literal,
+    materialize_allocator_availability, register_home_identity, validate_allocation_legality,
+    validate_allocator_availability, validate_fixed_view_copies, validate_literal_fold,
+    validate_live_ranges, validate_liveness, validate_post_allocation_optimization_manifest,
+    validate_register_homes,
 };
 use semantic_vocabulary::{
     BlockId, ContractId, DomainSemanticId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType,

@@ -19,6 +19,16 @@ pub use output::{
     RetainedAllocation,
 };
 pub use preservation::*;
+use register_homes::{
+    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FunctionAllocationLegality,
+    FunctionSpillChoices, RecoveryClassificationIdentity, RecoveryClassificationPolicy,
+    SpillChoiceIdentity, SpillChoicePolicy, VirtualRegisterAllocationLegality,
+};
+#[cfg(test)]
+use register_homes::{
+    PressureContender, PressureResident, SpillChoice, VirtualEarlyClobberPointLegality,
+    VirtualPointLegality,
+};
 pub use register_model::*;
 pub use rewrites::*;
 #[cfg(test)]
