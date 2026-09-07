@@ -245,6 +245,7 @@ pub(in crate::generic_data) fn evaluate_const_domain_expression(
             .map(|result| result.map(ConstFactValue::Boolean))
         }
         ExpressionNode::Binary(binary) => {
+            validate_anonymous_remainder(syntax, binary)?;
             let Some(left) = evaluate_const_domain_expression(
                 syntax,
                 binary.left,
