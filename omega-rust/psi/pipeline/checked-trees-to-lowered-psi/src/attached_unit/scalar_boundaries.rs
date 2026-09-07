@@ -304,9 +304,26 @@ fn validate_constructed_local(
             let [actual] = fields else {
                 return unsupported("scalar wrapper local constructor field count drifted");
             };
-            let ExpressionNode::Integer(value) = checked.expression_table.expression(actual.value)
-            else {
-                return unsupported("scalar wrapper local lost its literal field value");
+            let anonymous = validation::land_anonymous_integer_expression(
+                checked,
+                actual.value,
+                PrimitiveType::I64,
+                |expression| match checked.facts.operators.expression_use(expression) {
+                    Some(operator) => {
+                        operator.status
+                            == checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+                    }
+                    None => validation::has_anonymous_operator_meaning(checked, expression),
+                },
+            );
+            let value = if let Some(value) = anonymous.as_ref() {
+                value
+            } else if let ExpressionNode::Integer(value) =
+                checked.expression_table.expression(actual.value)
+            {
+                value
+            } else {
+                return unsupported("scalar wrapper local lost its exact integer field value");
             };
             let field_identity = field
                 .identity

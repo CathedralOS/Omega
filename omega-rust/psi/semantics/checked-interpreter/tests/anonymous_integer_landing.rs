@@ -42,6 +42,60 @@ fn integer_execution_consumes_exact_decimal_landings() {
 }
 
 #[test]
+fn record_construction_lands_anonymous_integer_fields_exactly() {
+    for expression in [
+        "7 / 2 * 2",
+        "7 / 2.0 * 2",
+        "0.1 * 70",
+        "18446744073709551616 / 3 * 3 - 18446744073709551609",
+    ] {
+        let source = format!(
+            "data Number {{ value: i32; }}
+             machine main() -> i32 {{ let number: Number = Number {{ value: {expression} }}; number.value }}"
+        );
+        let outcome = execute(&source);
+        assert_eq!(outcome.error, None, "{source}");
+        assert_eq!(outcome.exit_code, 7, "{source}");
+    }
+}
+
+#[test]
+fn nested_record_construction_keeps_each_field_destination() {
+    let source = "data Number { value: i32; }
+        data Pair { exact: Number; typed: Number; }
+        machine main() -> i32 {
+            let pair: Pair = Pair {
+                exact: Number { value: 7 / 2.0 * 2 },
+                typed: Number { value: 7i32 / 2 * 2 }
+            };
+            transition pair.exact.value == 7 && pair.typed.value == 6 { true -> 7 false -> 0 }
+        }";
+    let outcome = execute(source);
+    assert_eq!(outcome.error, None);
+    assert_eq!(outcome.exit_code, 7);
+}
+
+#[test]
+fn selected_case_uses_its_own_integer_field_destination() {
+    for expression in ["7 / 2 * 2", "7 / 2.0 * 2", "0.1 * 70"] {
+        let source = format!(
+            "data Number {{ case Floating(value: f64); case Integral(value: i32); }}
+             machine main() -> i32 {{
+                 let number: Number = Number::Integral {{ value: {expression} }};
+                 transition number {{
+                     Number::Floating {{ value }} -> 0
+                     Number::Integral {{ value }} -> finish(value)
+                 }}
+                 state finish(value: i32) -> i32 {{ value }}
+             }}"
+        );
+        let outcome = execute(&source);
+        assert_eq!(outcome.error, None, "{source}");
+        assert_eq!(outcome.exit_code, 7, "{source}");
+    }
+}
+
+#[test]
 fn integer_peers_and_state_edges_share_exact_decimal_values() {
     for expression in [
         "input * (9007199254740993.0 - 9007199254740992)",

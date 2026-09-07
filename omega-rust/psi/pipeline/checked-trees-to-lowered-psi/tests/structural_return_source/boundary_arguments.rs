@@ -4,6 +4,9 @@ use checked_trees::{
 };
 use typed_trees::{expression::ExpressionNode, statement::StatementNode};
 
+#[path = "boundary_arguments/anonymous_fields.rs"]
+mod anonymous_fields;
+
 fn checked(source: &str) -> checked_trees::CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).unwrap_or_else(|error| panic!("{source}: {error:?}"));

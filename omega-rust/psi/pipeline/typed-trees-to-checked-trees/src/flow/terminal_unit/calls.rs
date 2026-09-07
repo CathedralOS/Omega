@@ -201,19 +201,35 @@ pub(super) fn build_unit_affine_scalar_record_local(
     {
         return None;
     }
-    let ExpressionNode::Integer(value) = program.expression_table.expression(literal_field.value)
-    else {
-        return None;
-    };
-    let value = match value.landing() {
-        Some(landing) if landing.landed_type == numerics::literals::LandedIntegerType::I64 => {
-            value.clone()
+    let anonymous = validation::land_anonymous_integer_expression(
+        program,
+        literal_field.value,
+        PrimitiveType::I64,
+        |expression| match facts.operators.expression_use(expression) {
+            Some(operator) => {
+                operator.status == checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+            }
+            None => validation::has_anonymous_operator_meaning(program, expression),
+        },
+    );
+    let value = if let Some(value) = anonymous {
+        value
+    } else {
+        let ExpressionNode::Integer(value) =
+            program.expression_table.expression(literal_field.value)
+        else {
+            return None;
+        };
+        match value.landing() {
+            Some(landing) if landing.landed_type == numerics::literals::LandedIntegerType::I64 => {
+                value.clone()
+            }
+            None => value.with_landing(numerics::literals::IntegerLanding {
+                landed_type: numerics::literals::LandedIntegerType::I64,
+                domain: numerics::arithmetic::ArithmeticDomain::Exact,
+            }),
+            Some(_) => return None,
         }
-        None => value.with_landing(numerics::literals::IntegerLanding {
-            landed_type: numerics::literals::LandedIntegerType::I64,
-            domain: numerics::arithmetic::ArithmeticDomain::Exact,
-        }),
-        Some(_) => return None,
     };
     value.value_i64()?;
     let type_identity = shapes.add_type(local.type_reference, binders, &[])?;

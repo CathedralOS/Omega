@@ -141,6 +141,26 @@ pub(super) fn enforce_construction_field_obligations(
                 "construction of `{type_name}` field `{}`",
                 field.name.as_str()
             );
+            // The ordinary narrowing helper discards arithmetic diagnostics
+            // already emitted by statement validation. Constructor children
+            // need their own integer destination for fractional landing errors.
+            if crate::literals::anonymous_numeric_value(program, field.value, &mut |expression| {
+                crate::literals::has_anonymous_operator_meaning(program, expression)
+            })
+            .is_some()
+            {
+                validate_arithmetic_domains(
+                    program,
+                    machine,
+                    Some(state),
+                    field.value,
+                    &ValueEnv::new(),
+                    Some(field_primitive),
+                    numerics::arithmetic::ArithmeticDomain::Exact,
+                    &owner,
+                    diagnostics,
+                );
+            }
             check_value_narrowing(
                 program,
                 machine,
@@ -192,7 +212,7 @@ pub(super) fn enforce_construction_field_obligations(
                     Some(state),
                     field.value,
                     &ValueEnv::new(),
-                    None,
+                    program.primitive_type_reference(field_type),
                     numerics::arithmetic::ArithmeticDomain::Exact,
                     &owner,
                     &mut throwaway,

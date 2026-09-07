@@ -625,7 +625,7 @@ Owners include
   calls serialize, independently verify, and execute with their exact guards.
   Extend guarded scalar control to longer dispatches. Complete
   anonymous integer landing, width custody, and warnings for generic/evidence-adapted
-  calls, boundary calls, and aggregate-element destinations, plus the remaining
+  calls, boundary calls, array-element and default-field destinations, plus the remaining
   numeric operator/policy surface, so proof and execution
   consume the same values without rereading changed operands.
   Extend mutable owned parameter execution to the remaining scalar carriers and
@@ -651,7 +651,8 @@ Owners include
   beyond entry requirements using independently checked all-path invariants;
   ignored-backedge first-pass facts must never authorize a loop crash guard.
   Complete [exact anonymous division and landing](wiki/language_guide/chapter_5_expressions_evaluation.md#exact-anonymous-division-and-landing)
-  for the remaining parameter and aggregate destinations, numeric policies,
+  for the remaining parameter, array-element and default-field destinations,
+  general aggregate production and proof consumers, numeric policies,
   remaining float destinations,
   remaining constant-argument destinations and policies, and their proof
   consumers. Preserve exact rational intermediates until an actual landing
