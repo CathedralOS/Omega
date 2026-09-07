@@ -431,6 +431,7 @@ fn validate_program_internal(
 ) -> Result<ProgramValidationFacts, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     literals::validate_anonymous_remainders(program, &mut diagnostics);
+    literals::validate_anonymous_divisions(program, &mut diagnostics);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }

@@ -31,7 +31,7 @@ machine Main::main(&mut self) {
     self.sqrt32 = F32::square_root(9.0f32);
 
     let one64: f64 = 1.0;
-    let nan64: f64 = 0.0 / 0.0;
+    let nan64: f64 = 0.0f64 / 0.0;
     let negative_zero64: f64 = 0.0 / (0.0 - 1.0);
     self.min_nan_first64 = F64::minimum(nan64, one64);
     self.min_nan_second64 = F64::minimum(one64, nan64);

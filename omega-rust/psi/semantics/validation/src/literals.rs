@@ -72,6 +72,7 @@ pub(crate) fn validate_suffix_magnitudes(program: &TypedTrees, diagnostics: &mut
 
 mod float_landing;
 pub use float_landing::land_float_literal_destinations;
+pub(crate) use float_landing::validate_anonymous_divisions;
 mod integer_landing;
 mod integer_remainder;
 pub(crate) use integer_landing::anonymous_integer_landing_warnings;
@@ -154,7 +155,7 @@ pub(crate) fn validate_suffix_landing(
     let Some(primitive) = program.primitive_type_reference(unwrapped) else {
         return;
     };
-    float_landing::validate_integer_tree_destination(program, value, primitive, diagnostics);
+    float_landing::validate_numeric_tree_destination(program, value, primitive, diagnostics);
     if let Some((literal_handle, suffix_type)) = literal_landing(value) {
         let Some(declared_type) = landed_of_primitive(primitive) else {
             return;

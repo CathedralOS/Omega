@@ -4,7 +4,7 @@ use omega::language::core::float_operations;
 use omega_language_std::console;
 data Main { console: Console; value: f64; out: i32; }
 machine Main::main(&mut self) {
-    self.value = 0.0 / 0.0;
+    self.value = 0.0f64 / 0.0;
     self.out = (self.value as i32 in Trapping) as i32;
     self.console.exit_process(70);
 }

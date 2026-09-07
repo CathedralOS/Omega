@@ -13,7 +13,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    self.quiet = 0.0 / 0.0;
+    self.quiet = 0.0f64 / 0.0;
     self.trapped = self.quiet;
     self.trapped = self.trapped + 1.0;
     self.console.exit_process(70);

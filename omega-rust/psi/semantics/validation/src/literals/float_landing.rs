@@ -6,8 +6,9 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 type FloatLandingPair = (ExpressionHandle, TypeReferenceHandle);
 
 mod call_destinations;
-mod integer_operands;
-pub(super) use integer_operands::validate_integer_tree_destination;
+mod numeric_operands;
+pub(crate) use numeric_operands::validate_anonymous_divisions;
+pub(super) use numeric_operands::validate_numeric_tree_destination;
 
 /// F2b -- float DESTINATION stamping (ch5 two-phase constants, the float
 /// half): an UNSUFFIXED float literal initializing a declared `f32`/`f64`
@@ -15,8 +16,8 @@ pub(super) use integer_operands::validate_integer_tree_destination;
 /// tree is first evaluated as an exact rational and then replaced by one
 /// landed literal, so every downstream reader -- native store, guard compare,
 /// argument materialization, AND the interpreter -- consumes the same single
-/// rounding. A nonconstant tree instead stamps its anonymous literal leaves;
-/// its runtime operations then execute at the destination format.
+/// rounding. A nonconstant tree lands each complete anonymous operand subtree
+/// once; its typed operations retain their own format semantics.
 /// Authored operators retain their nodes and choose operand formats from their
 /// signatures; the result destination is not authority to fold or stamp them.
 /// Without this landing pass an anonymous literal at an f32 place takes the
@@ -486,7 +487,7 @@ fn land_float_tree(
         *program.expression_table.expression_mut(expression) = ExpressionNode::Float(
             numerics::literals::FloatLiteral::from_f64(value).with_landing(format),
         );
-    } else {
+    } else if numeric_operands::numeric_literal_tree(program, expression).is_none() {
         stamp_float_tree(program, expression, format);
     }
 }
@@ -498,6 +499,11 @@ fn anonymous_exact_float_tree(
     use typed_trees::expression::BinaryOperator;
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(literal) if literal.landing().is_none() => {
+            Some(numerics::bignum::ExactFloat::Finite(
+                numerics::bignum::BigRational::from_integer(literal.value_bignum()?),
+            ))
+        }
         ExpressionNode::Float(literal) if literal.landing().is_none() => {
             numerics::bignum::ExactFloat::from_decimal_str(literal.text())
         }
@@ -511,7 +517,13 @@ fn anonymous_exact_float_tree(
                 BinaryOperator::Add => left.add(&right),
                 BinaryOperator::Subtract => left.sub(&right),
                 BinaryOperator::Multiply => left.mul(&right),
-                BinaryOperator::Divide => left.div(&right),
+                BinaryOperator::Divide => {
+                    if matches!(&right, numerics::bignum::ExactFloat::Finite(value) if value.is_zero())
+                    {
+                        return None;
+                    }
+                    left.div(&right)
+                }
                 _ => return None,
             })
         }
@@ -622,6 +634,13 @@ fn stamp_float_tree(
     expression: ExpressionHandle,
     format: numerics::literals::FloatFormat,
 ) {
+    // A typed peer requests a landing of the complete anonymous operand,
+    // not separate rounding of its leaves. Failed anonymous evaluation must
+    // remain unlanded so the formation check can still reject it.
+    if numeric_operands::numeric_literal_tree(program, expression).is_some() {
+        land_float_tree(program, expression, format);
+        return;
+    }
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(inner) => {
             let inner = *inner;

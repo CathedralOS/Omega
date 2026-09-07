@@ -103,7 +103,7 @@ machine float_semantics_twin_code() -> u64 {
     let maximum64: f64 = 1.7976931348623157e308;
     let negative_zero64: f64 = F64::negate(0.0);
     let infinity64: f64 = maximum64 + maximum64;
-    let nan64: f64 = 0.0 / 0.0;
+    let nan64: f64 = 0.0f64 / 0.0;
     let nearest_add64: f64 = one64 + half_ulp64;
     let upward_add64: f64 = F64::add_toward_positive(one64, half_ulp64);
     let downward_subtract64: f64 = F64::subtract_toward_negative(one64, quarter_ulp64);

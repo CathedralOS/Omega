@@ -37,9 +37,12 @@ fn returned_float(program: &TypedTrees) -> Option<&FloatLiteral> {
 }
 
 #[test]
-fn anonymous_integer_quotients_round_once_at_a_float_return() {
+fn anonymous_numeric_quotients_round_once_at_a_float_return() {
     for (format, destination) in [(FloatFormat::F32, "f32"), (FloatFormat::F64, "f64")] {
         for (expression, expected) in [
+            ("7 / 2.0 / 2", 1.75),
+            ("7.0 / 2 / 2.0", 1.75),
+            ("7 / 2 + 0.5", 4.0),
             ("7 / 2 / 2", 1.75),
             ("7 / 2 * 2", 7.0),
             ("7 / -2", -3.5),
@@ -68,7 +71,10 @@ fn exact_integer_arithmetic_avoids_intermediate_float_rounding() {
             8388609.0,
         ),
         ("f32", "16777217 - 16777216", 1.0),
+        ("f32", "16777217.0 - 16777216", 1.0),
+        ("f32", "16777217 / 2.0 + 1 / 18014398509481984", 8388609.0),
         ("f64", "9007199254740993 - 9007199254740992", 1.0),
+        ("f64", "9007199254740993.0 - 9007199254740992", 1.0),
         (
             "f64",
             "(9007199254740993 * 10 + 1) / 10",
@@ -90,8 +96,16 @@ fn exact_integer_arithmetic_avoids_intermediate_float_rounding() {
 }
 
 #[test]
-fn float_destinations_do_not_make_integer_zero_division_finite_or_infinite() {
-    for expression in ["7 / 0", "0 / 0", "7 / (2 - 2)"] {
+fn float_destinations_do_not_make_anonymous_zero_division_finite_or_infinite() {
+    for expression in [
+        "7 / 0",
+        "0 / 0",
+        "7 / (2 - 2)",
+        "7 / 0.0",
+        "0.0 / 0",
+        "7.0 / (2 - 2.0)",
+        "1.0 / -0.0",
+    ] {
         let source = format!("machine value() -> f64 {{ {expression} }}");
         let program = typed(&source);
         assert!(
@@ -99,6 +113,21 @@ fn float_destinations_do_not_make_integer_zero_division_finite_or_infinite() {
             "invalid anonymous arithmetic cannot become a float: {source}"
         );
         assert!(validation::validate_program(&program).is_err(), "{source}");
+    }
+}
+
+#[test]
+fn boolean_destinations_cannot_hide_anonymous_zero_division() {
+    for expression in ["1 / 0.0 > 0", "0.0 / 0 == 0", "7.0 / (2 - 2.0) != 1"] {
+        let source = format!("machine value() -> bool {{ {expression} }}");
+        let program = typed(&source);
+        let errors = validation::validate_program(&program).expect_err("invalid anonymous value");
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message.contains("anonymous division by zero")),
+            "{source}: {errors:?}"
+        );
     }
 }
 

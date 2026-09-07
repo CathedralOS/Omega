@@ -12,7 +12,7 @@ data Main {
     f: f64;
 }
 machine Main::main(&mut self) {
-    self.f = 0.0 / 0.0;
+    self.f = 0.0f64 / 0.0;
     transition self.f != self.f {
         true -> check_eq()
         false -> bad()

@@ -1,11 +1,11 @@
-//! Integer spelling does not authorize a typed integer-to-float conversion.
+//! Anonymous numeric formation and typed integer-to-float boundaries.
 
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::PrimitiveType;
 
-pub(in crate::literals) fn validate_integer_tree_destination(
+pub(in crate::literals) fn validate_numeric_tree_destination(
     program: &TypedTrees,
     expression: ExpressionHandle,
     destination: PrimitiveType,
@@ -14,7 +14,7 @@ pub(in crate::literals) fn validate_integer_tree_destination(
     if !matches!(destination, PrimitiveType::F32 | PrimitiveType::F64) {
         return;
     }
-    let Some(has_typed_operand) = integer_literal_tree(program, expression) else {
+    let Some(has_typed_operand) = numeric_literal_tree(program, expression) else {
         // Calls, places, casts and authored operators retain their ordinary
         // type/selection checks. This check evaluates no user-defined meaning.
         return;
@@ -25,13 +25,11 @@ pub(in crate::literals) fn validate_integer_tree_destination(
             destination.name()
         )
     } else {
-        let mut builtin =
-            |expression| crate::literals::has_anonymous_operator_meaning(program, expression);
-        if crate::literals::anonymous_numeric_value(program, expression, &mut builtin).is_some() {
+        if super::anonymous_exact_float_tree(program, expression).is_some() {
             return;
         }
         format!(
-            "anonymous integer arithmetic has no exact value for `{}` landing (division by zero is invalid)",
+            "anonymous numeric arithmetic has no exact value for `{}` landing (division by zero is invalid)",
             destination.name()
         )
     };
@@ -41,7 +39,12 @@ pub(in crate::literals) fn validate_integer_tree_destination(
     );
 }
 
-fn integer_literal_tree(program: &TypedTrees, expression: ExpressionHandle) -> Option<bool> {
+/// Classify a closed builtin numeric tree. `Some(true)` contains an already
+/// landed integer; typed floats and nonliteral operands decline this check.
+pub(super) fn numeric_literal_tree(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<bool> {
     let mut pending = vec![expression];
     let mut visited = Vec::new();
     let mut has_typed_operand = false;
@@ -55,6 +58,7 @@ fn integer_literal_tree(program: &TypedTrees, expression: ExpressionHandle) -> O
         visited.push(expression);
         match program.expression_table.expression(expression) {
             ExpressionNode::Integer(literal) => has_typed_operand |= literal.landing().is_some(),
+            ExpressionNode::Float(literal) if literal.landing().is_none() => {}
             ExpressionNode::Binary(binary)
                 if crate::literals::has_anonymous_operator_meaning(program, expression) =>
             {
@@ -65,4 +69,30 @@ fn integer_literal_tree(program: &TypedTrees, expression: ExpressionHandle) -> O
         }
     }
     Some(has_typed_operand)
+}
+
+pub(crate) fn validate_anonymous_divisions(
+    program: &TypedTrees,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    // Formation applies to retained source expressions, even when their value
+    // is used only in a comparison or a proof and has no numeric destination.
+    for (expression, node) in program.expression_table.expression_entries() {
+        let ExpressionNode::Binary(binary) = node else {
+            continue;
+        };
+        if binary.operator != typed_trees::expression::BinaryOperator::Divide
+            || numeric_literal_tree(program, expression) != Some(false)
+        {
+            continue;
+        }
+        if matches!(super::anonymous_exact_float_tree(program, binary.right),
+            Some(numerics::bignum::ExactFloat::Finite(value)) if value.is_zero())
+        {
+            diagnostics.push(
+                Diagnostic::error("anonymous division by zero has no exact numeric value")
+                    .with_source_span(program.expression_table.source_span(expression)),
+            );
+        }
+    }
 }
