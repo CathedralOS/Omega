@@ -29,15 +29,9 @@ pub(super) fn preserves_rank(
     let Some(entry) = program.machine_states(machine).first() else {
         return false;
     };
-    // The rank was resolved by exact parameter symbol. Translate that owned
-    // declaration to the existing caller-relative frame vocabulary only here.
-    let Some(parameter) = program
-        .state_parameters(entry)
-        .iter()
-        .find(|parameter| parameter.symbol == rank.parameter)
-    else {
-        return false;
-    };
+    // A ranged call consumes entry hypotheses and endpoints as well as its
+    // rank. Protect every nonself input in that mode; translate exact owned
+    // declarations to the caller-relative frame vocabulary only here.
     frames
         .and_then(|frames| {
             frames
@@ -45,8 +39,17 @@ pub(super) fn preserves_rank(
                 .into_complete_paths()
         })
         .is_some_and(|paths| {
-            paths
+            program
+                .state_parameters(entry)
                 .iter()
-                .all(|path| !frame_paths_overlap(path, parameter.name.as_str()))
+                .filter(|parameter| {
+                    !parameter.is_self
+                        && (rank.range.is_valid() || parameter.symbol == rank.parameter)
+                })
+                .all(|parameter| {
+                    paths
+                        .iter()
+                        .all(|path| !frame_paths_overlap(path, parameter.name.as_str()))
+                })
         })
 }

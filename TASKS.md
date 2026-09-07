@@ -236,12 +236,14 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
 
 - **TERMINATION-RANKING-CHECKS.** Complete the documented flow-dependent
   rank-range checks in
-  `typed-trees-to-checked-trees/src/checks/termination/ranking/`.
+  `typed-trees-to-checked-trees/src/checks/termination/ranking/` and
+  `validation/src/call_cycles/runtime_ranking/`.
   Computed-only paths lacking a unique current-parameter origin,
-  non-bijective transfers involving rank inputs, and
-  machine-call-component ranges need exact arrival mappings and preserved
-  premises for ranked subjects and pinned endpoints. Mutable premises need live
-  write-frame evidence.
+  non-bijective transfers involving rank inputs, and call components with
+  internal state arrivals, mixed ranged/unranged members, or views beyond scalar
+  `Nat::Descending` need exact arrival mappings and preserved premises for
+  ranked subjects and pinned endpoints. Mutable premises need live write-frame
+  evidence.
   Custom scalar views and slice-length ranges over projected storage need their
   produced-rank facts.
   These are implementation gaps, not grounds to weaken the range obligation.

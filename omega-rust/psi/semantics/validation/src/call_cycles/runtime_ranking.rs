@@ -1,4 +1,4 @@
-//! Runtime call components share an authored ranking. Equality edges may
+//! Runtime call components share an authored ranking. Nonincreasing edges may
 //! forward that rank, but must form a DAG: every complete cycle then contains
 //! a strict decrease. No source subject or public termination claim is added.
 
@@ -16,6 +16,9 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::proof_only::ProofOnlyClassification;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
+use crate::contract_entailment::{
+    RankingRangeCallMember, RankingRangeCallProgress, prove_ranking_range_call,
+};
 use comparison::Comparison;
 use projection::RankProjection;
 
@@ -80,8 +83,29 @@ pub(super) fn check_component(
     if !ranks.iter().all(|rank| rank.same_order(&ranks[0])) {
         return Err("members do not share the same ranking order");
     }
+    let ranged = ranks[0].range.is_valid();
+    if ranks.iter().any(|rank| rank.range.is_valid() != ranged) {
+        return Err("mixed ranged and unranged call members need shared range evidence");
+    }
+    for (rank, index) in ranks.iter().zip(component) {
+        if rank.range.is_valid() {
+            let machine = &program.machines()[*index];
+            let Some(entry) = program.machine_states(machine).first() else {
+                return Err("a ranged member has no entry");
+            };
+            if !crate::prove_ranking_range_entry(
+                program,
+                machine,
+                entry,
+                rank.range,
+                crate::RankingRangeMeasure::Single(rank.subject),
+            ) {
+                return Err("a member's initial rank range is unproven");
+            }
+        }
+    }
     let frames = crate::calls::CallFrameResolver::new(program);
-    let mut equal_edges = vec![Vec::new(); component.len()];
+    let mut weak_edges = vec![Vec::new(); component.len()];
     for (position, index) in component.iter().copied().enumerate() {
         let machine = &program.machines()[index];
         // This slice transports the entry's exact ranked parameter. A state
@@ -185,18 +209,46 @@ pub(super) fn check_component(
                     else {
                         return Err("the ranked parameter has no corresponding actual argument");
                     };
-                    match comparison::argument_comparison(
-                        program,
-                        &ranks[position],
-                        *argument,
-                        &site_guards,
-                    ) {
-                        Some(Comparison::Strict) => {}
-                        Some(Comparison::Equal) => equal_edges[position].push(callee_position),
-                        None => {
-                            return Err(
-                                "ranking preservation or strict DECREASE is unproven at a call site",
-                            );
+                    if ranged {
+                        match prove_ranking_range_call(
+                            program,
+                            RankingRangeCallMember {
+                                machine,
+                                subject: ranks[position].subject,
+                                range: ranks[position].range,
+                            },
+                            RankingRangeCallMember {
+                                machine: callee_machine,
+                                subject: ranks[callee_position].subject,
+                                range: ranks[callee_position].range,
+                            },
+                            &site_guards,
+                            arguments,
+                        ) {
+                            Some(RankingRangeCallProgress::Strict) => {}
+                            Some(RankingRangeCallProgress::NonIncreasing) => {
+                                weak_edges[position].push(callee_position)
+                            }
+                            None => {
+                                return Err(
+                                    "rank range membership, pinned endpoints, or nonincrease is unproven at a call site",
+                                );
+                            }
+                        }
+                    } else {
+                        match comparison::argument_comparison(
+                            program,
+                            &ranks[position],
+                            *argument,
+                            &site_guards,
+                        ) {
+                            Some(Comparison::Strict) => {}
+                            Some(Comparison::Equal) => weak_edges[position].push(callee_position),
+                            None => {
+                                return Err(
+                                    "ranking preservation or strict DECREASE is unproven at a call site",
+                                );
+                            }
                         }
                     }
                 }
@@ -216,14 +268,14 @@ pub(super) fn check_component(
             return Err("an internal call occurrence lacks a classified tail edge");
         }
     }
-    if equality_edges_are_acyclic(&equal_edges) {
+    if weak_edges_are_acyclic(&weak_edges) {
         Ok(())
     } else {
         Err("a preserving cycle has no strict measure DECREASE")
     }
 }
 
-fn equality_edges_are_acyclic(adjacency: &[Vec<usize>]) -> bool {
+fn weak_edges_are_acyclic(adjacency: &[Vec<usize>]) -> bool {
     super::strongly_connected_components(adjacency)
         .iter()
         .all(|component| component.len() == 1 && !adjacency[component[0]].contains(&component[0]))
