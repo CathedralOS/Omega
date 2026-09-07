@@ -2,7 +2,8 @@
 use super::{
     BYTE_BLOCK_BINDINGS_SOURCE, BYTE_EXTENT_RECONSTRUCTION_SOURCE, BYTE_SUBSLICE_VALIDATION_SOURCE,
     BYTE_VIEW_ARGUMENTS_SOURCE, BYTE_VIEW_DOMINANCE_SOURCE, BYTE_VIEW_FRONTIER_SOURCE,
-    PROOF_ADMISSION_SUBTRACT_ORDER_SOURCE, TERMINAL_BYTE_EXTENT_SOURCE,
+    BYTE_VIEW_FRONTIER_TRAVERSAL_SOURCE, PROOF_ADMISSION_SUBTRACT_ORDER_SOURCE,
+    TERMINAL_BYTE_EXTENT_SOURCE,
 };
 
 use super::{
@@ -458,6 +459,7 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                     ("terminal-verifier/validation/control_flow.rs", BYTE_VIEW_DOMINANCE_SOURCE),
                     ("terminal-verifier/validation/block_views.rs", BYTE_BLOCK_BINDINGS_SOURCE),
                     ("terminal-verifier/validation/frontier.rs", BYTE_VIEW_FRONTIER_SOURCE),
+                    ("terminal-verifier/validation/frontier/traversal.rs", BYTE_VIEW_FRONTIER_TRAVERSAL_SOURCE),
                     ("terminal-verifier/validation/structural_operations.rs", BYTE_VIEW_ARGUMENTS_SOURCE),
                     ("terminal-verifier/validation/byte_sequence_read.rs", BYTE_READ_VALIDATION_SOURCE),
                     ("terminal-verifier/validation/byte_sequence_length.rs", BYTE_VIEW_VALIDATION_SOURCE),

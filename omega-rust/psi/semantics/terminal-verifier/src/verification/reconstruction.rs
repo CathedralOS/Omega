@@ -1,6 +1,6 @@
 //! Exact executable-site obligations and all-path fact reconstruction.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use proof_admission::Obligation;
 use semantic_vocabulary::{BlockId, ContractId, EdgeId, MachineId, OperationId, Proposition};
@@ -297,12 +297,36 @@ fn reconstruct_machine_semantics_with_crash_facts(
         .iter()
         .flat_map(|component| component.covered_cyclic_edges.iter().map(|row| row.edge))
         .collect();
-    for current in machine_flow::deterministic_block_order(machine, &ranked_backedges) {
+    let mut block_order = machine_flow::deterministic_block_order(machine, &ranked_backedges);
+    let topological_count = block_order.len();
+    if topological_count != context.blocks.len() {
+        // Kahn's remainder includes both cyclic blocks and their downstream
+        // sites. Every normal return must participate in the exit intersection.
+        let scheduled_blocks = block_order.iter().copied().collect::<BTreeSet<_>>();
+        block_order.extend(
+            context
+                .blocks
+                .keys()
+                .copied()
+                .filter(|block| !scheduled_blocks.contains(block)),
+        );
+    }
+    for (position, current) in block_order.into_iter().enumerate() {
         let block = context
             .blocks
             .get(&current)
             .expect("validated module contains every reached block");
-        let mut axioms = machine_flow::take_guaranteed_incoming(&mut incoming, current);
+        let mut axioms = if position < topological_count {
+            machine_flow::take_guaranteed_incoming(&mut incoming, current)
+        } else {
+            // The admitted unranked slice has only machine-parameter scalar
+            // operands and no structural custody. Replay each residual block
+            // from no local assumptions: partial incoming facts, including
+            // facts from another residual block, are not cyclic invariants.
+            // Its own operations and return still establish their local facts.
+            incoming.remove(&current);
+            Vec::new()
+        };
         if crash_facts {
             axioms.retain(|proposition| {
                 crash_field_origins::retains_entry_meaning(proposition, machine)

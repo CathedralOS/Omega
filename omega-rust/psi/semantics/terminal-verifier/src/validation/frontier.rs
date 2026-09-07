@@ -3,6 +3,8 @@ use super::affine_cleanup::{
 };
 use super::*;
 
+mod traversal;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedLiveClaim {
     pub claim: ClaimId,
@@ -222,63 +224,7 @@ pub(super) fn validate_structural_frontier(
         partial_custody_paths: BTreeMap::new(),
     };
 
-    let mut successors = BTreeMap::<BlockId, Vec<BlockId>>::new();
-    let mut predecessors = blocks
-        .keys()
-        .map(|block| (*block, 0_usize))
-        .collect::<BTreeMap<_, _>>();
-    for block in blocks.values() {
-        let targets = match &block.terminator {
-            Terminator::Jump { edge, target, .. } => vec![(*edge, *target)],
-            Terminator::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => vec![
-                (when_true.edge, when_true.target),
-                (when_false.edge, when_false.target),
-            ],
-            Terminator::StructuralCase { cases, .. } => {
-                cases.iter().map(|case| (case.edge, case.target)).collect()
-            }
-            Terminator::Return { .. }
-            | Terminator::ReturnUnit { .. }
-            | Terminator::ReturnUnitPartialAffine { .. }
-            | Terminator::ReturnUnitNominalAffine { .. }
-            | Terminator::ReturnStructural { .. }
-            | Terminator::Crash { .. } => Vec::new(),
-        };
-        let targets = targets
-            .into_iter()
-            .filter_map(|(edge, target)| {
-                (!representation_backedges.contains(&edge)).then_some(target)
-            })
-            .collect::<Vec<_>>();
-        for target in &targets {
-            *predecessors
-                .get_mut(target)
-                .expect("control validation established every target") += 1;
-        }
-        successors.insert(block.id, targets);
-    }
-    let mut ready = predecessors
-        .iter()
-        .filter_map(|(block, count)| (*count == 0).then_some(*block))
-        .collect::<BTreeSet<_>>();
-    let mut order = Vec::with_capacity(blocks.len());
-    while let Some(block) = ready.pop_first() {
-        order.push(block);
-        for target in &successors[&block] {
-            let count = predecessors
-                .get_mut(target)
-                .expect("control validation established every target");
-            *count -= 1;
-            if *count == 0 {
-                ready.insert(*target);
-            }
-        }
-    }
-
+    let order = traversal::block_order(machine.entry, blocks, representation_backedges);
     let mut incoming = BTreeMap::<BlockId, Vec<StructuralOwnershipFrontier>>::new();
     incoming.insert(machine.entry, vec![entry]);
     for block_id in order {
@@ -306,7 +252,7 @@ pub(super) fn validate_structural_frontier(
         }
         let block = blocks
             .get(&block_id)
-            .expect("topological order contains known blocks");
+            .expect("frontier traversal contains known blocks");
         let mut frontier = frontier;
         snapshots
             .block_entries
@@ -928,6 +874,20 @@ pub(super) fn validate_structural_frontier(
                     return Err(ModuleError::CrashFrontierMismatch { block: block.id });
                 }
             }
+        }
+    }
+    // Each block's transfer is deterministic for its incoming frontier. A
+    // first arrival seeds that frontier; every later arrival must match it
+    // exactly, including edges to blocks already visited. Equality establishes
+    // the fixed point without repeatedly executing transfers or inventing a
+    // merged ownership state. No authority escapes before all arrivals agree.
+    for (block, frontiers) in incoming {
+        let established = snapshots
+            .block_entries
+            .get(&block)
+            .expect("frontier traversal visits every reachable block");
+        for frontier in frontiers {
+            require_snapshot_match(block, established, &frontier.snapshot())?;
         }
     }
     if let Some(component) = &machine.ranked_scc {

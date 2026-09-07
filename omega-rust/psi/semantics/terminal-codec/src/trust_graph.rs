@@ -104,6 +104,8 @@ const BYTE_BLOCK_BINDINGS_SOURCE: &[u8] =
     include_bytes!("../../terminal-verifier/src/validation/block_views.rs");
 const BYTE_VIEW_FRONTIER_SOURCE: &[u8] =
     include_bytes!("../../terminal-verifier/src/validation/frontier.rs");
+const BYTE_VIEW_FRONTIER_TRAVERSAL_SOURCE: &[u8] =
+    include_bytes!("../../terminal-verifier/src/validation/frontier/traversal.rs");
 const BYTE_VIEW_ARGUMENTS_SOURCE: &[u8] =
     include_bytes!("../../terminal-verifier/src/validation/structural_operations.rs");
 const BYTE_READ_VALIDATION_SOURCE: &[u8] =

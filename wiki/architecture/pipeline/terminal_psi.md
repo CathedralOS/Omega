@@ -2332,8 +2332,27 @@ entrance only coordinates named `admission`, `catalogs`, and `emission`
 submodules; its typed producer is likewise a small coordinator over named
 `topology`, `guards`, `leaves`, and `assembly` submodules.
 
-General cycles also reject; the exact ranked unsigned-countdown representation is the sole
-exception. Its acyclic skeleton establishes the header frontier, one complete
+General cycles still reject. Unranked cycles currently admit only machine-parameter
+scalar values, no block parameters or structural custody, and the supported
+Unit-effect operations. Ownership replay visits every reachable block and edge,
+including exits downstream of a cycle. A first incoming frontier seeds each
+block; deterministic transfer and exact comparison of every later arrival
+establish the ownership fixed point. No cleanup, return, or crash-frontier check
+may disappear because an acyclic ordering has a cyclic remainder. This does not
+admit wider operations, loop-carried values, or a termination guarantee.
+
+Proof reconstruction likewise retains every normal return, including returns
+downstream of a cycle. Until cyclic proposition invariants are reconstructed,
+each block in the cyclic remainder starts with no incoming semantic axioms;
+its own operation and return facts still participate in the all-return
+intersection. A fact from the acyclic prefix or one loop iteration is not an
+invariant. An infinite component contributes no normal return and does not
+itself require a termination proof. Wider cyclic guard/ranking proofs remain
+unfinished; omitting an exit from a published `ensures` check is never a
+substitute for that work.
+
+The exact ranked unsigned-countdown representation remains the ranked execution
+slice. Its acyclic skeleton establishes the header frontier, one complete
 covered cycle computes the preservation candidate, and all live claims, owned
 places, and partial-custody paths must match exactly before representation
 admission. The reference interpreter has a distinct validation and verification
@@ -2397,7 +2416,7 @@ model rather than a second loop language. `Jump` and `Conditional` form the
 graph; block parameters and exact successor arguments carry SSA values around a
 cycle. No `Loop` terminator, implicit induction variable, or optimizer-owned
 progress rule is introduced. The unsigned `n > 0` / `n - 1` countdown above
-remains the only executable implementation slice until the general verifier and
+remains the only ranked executable implementation slice until the general verifier and
 execution authorities land; `NonExecutableRankedScc` is therefore an
 implementation fence, not the final language invariant.
 

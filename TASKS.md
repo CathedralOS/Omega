@@ -364,14 +364,16 @@ Owners include
   and ordinary operations. No new loop opcode, fabricated per-state machine,
   private countdown, or second interpreter is needed.
 
-  `terminal-verifier/src/validation/control_flow.rs` and `frontier.rs` still
-  require a topological order after removing only the exact countdown's
-  backedge; the bounded no-custody Unit-effect route is the only unranked
-  exception, and general cycles with definitions, parameters, or structural
+  `terminal-verifier/src/validation/control_flow.rs` still requires a
+  topological order after removing only the exact countdown's backedge;
+  the bounded no-custody Unit-effect route is the only unranked exception,
+  and general cycles with definitions, parameters, or structural
   custody still fail. Derive SCCs and scalar dominance from the full graph,
-  reconstruct the exact ownership fixed point, and validate every incoming
-  scalar/structural transfer. Keep cycle safety independent from optional
-  termination certificates and finite fuel. Existing bounded admission cannot
+  extend exact ownership-frontier replay to those admitted forms, and validate
+  every incoming scalar/structural transfer. Reconstruct cyclic proposition
+  invariants for guards and ranking instead of relying on block-local facts.
+  Keep cycle safety independent from optional termination certificates and
+  finite fuel. Existing bounded admission cannot
   authorize general effectful cyclic callers or callees by relaxing its shape
   guard alone.
 
