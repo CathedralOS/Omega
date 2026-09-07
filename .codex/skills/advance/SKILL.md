@@ -11,6 +11,12 @@ improvement: choose it, reproduce it, implement it, validate its affected
 behavior, and land it. Repository-wide health is a separate job. Follow
 `AGENTS.md` for ownership, commands, validation scope, board hygiene, and publication.
 
+Reconfirming a known failure or refreshing its board revision is verification-only
+work, not a compiler improvement. Count it as an incomplete advance in the run
+report. Publish a board-only checkpoint only when it changes the next action or
+corrects materially stale evidence; a newer revision with the same diagnosis
+usually belongs in the conversation.
+
 ## Choose a useful slice
 
 Record the start time, starting checkout path, and branch. Fetch main and inspect
@@ -79,6 +85,13 @@ Apply [AGENTS.md](../../../AGENTS.md#agent-delegation) for model routing and
 ownership. Refine the existing board item only where its scope, design rationale,
 dependencies, or acceptance are insufficient for assignment. Keep transient
 worker IDs and progress in the conversation, not on the execution boards.
+
+Slice selection, cross-stage diagnosis, and deciding whether implementation can
+proceed require Astra judgment. Luna may execute settled edits or specified
+checks; an unexpected dependency returns to Astra with the failing command,
+revision, owning code, and unanswered implementation question. If that routing
+is unavailable, report the limitation and incomplete outcome; do not turn it
+into an owner decision or claim that no safe implementation exists.
 
 Give each worker a self-contained assignment with the context required by
 AGENTS.md, its worktree/revision, and whether it owns implementation, read-only
@@ -214,7 +227,18 @@ pauses; scheduling alone does not authorize a new lane or override a pause.
 ## When the slice cannot close
 
 Engineering difficulty is not an owner decision. Design questions belong in
-`OWNER_QUESTIONS.md` under its existing criteria. When the selected slice exposes
-a larger dependency, preserve useful work and name the next acceptance condition.
-Choose a smaller demonstrable milestone or report the blocker; do not turn one
-invocation into an open-ended sequence of new implementations and gate repairs.
+`OWNER_QUESTIONS.md` under its existing criteria. A dependency spanning several
+stages is work to decompose, not by itself a reason to stop. When the design
+already answers the question and no scope checkpoint requires a pause,
+identify and implement the smallest dependency
+slice with observable behavior or a named proof obligation as acceptance.
+Keep it tied to the same customer; scaffolding and relaxed admission guards
+alone do not qualify.
+
+Before reporting that no bounded slice can close, name the concrete slice
+considered, the missing contract or unavailable dependency preventing it, and
+why existing mechanisms cannot deliver its acceptance. Distinguish a diagnosed
+blocker from a scope pause: the latter cites the applicable AGENTS.md checkpoint,
+explains why the plan no longer earns its cost, and asks for prioritization
+direction. Preserve useful work and the next acceptance condition. Do not turn
+one invocation into an open-ended sequence of new implementations and gate repairs.
