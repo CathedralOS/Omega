@@ -1,6 +1,7 @@
 # Bootstrap cost review
 
-Measured against `59e73ffef81b550c0eac4946b0e40970dc90942b` on macOS arm64.
+Initial measurements use `59e73ffef81b550c0eac4946b0e40970dc90942b` on macOS arm64;
+follow-through revisions are identified below.
 This is engineering evidence, not an owner ruling or admitted proof artifact.
 The objective remains the [smallest human-auditable chain](bootstrap_minimization.md).
 
@@ -10,7 +11,7 @@ The objective remains the [smallest human-auditable chain](bootstrap_minimizatio
 | --- | --- | --- |
 | Delta height normalization | Current Epsilon customer lowers to height 69; normalization adds no helpers. | Freeze expansion. Do not raise Gamma depth for this customer. Resolve deep-source conformance before deleting the transform. |
 | Delta name construction | Shared-prefix cursors save 275,352 pairs/11,014,080 bytes over root-rebuilding seeks on the current Epsilon subject; both produce the same complete receipt. | Retain the existing implementation without expansion. Customer capacity alone does not require it; preserve separate conformance obligations before considering removal. |
-| Generic Gamma checker | Shared trees reduce whole-source/tape comparison to 61,529 work units; the source-shape fold checks at 534,538 under a coherently raised 655,360-unit provision. | Cost source-bound capacity accounting and the encoder before further helper families; neither probe proves encoding. |
+| Generic Gamma checker | Full-source byte-capacity evidence checks at 547,817 work through shared shapes; direct counting offers a simpler definition path at greater proof cost. | Compare complete envelope/scanner composition before selecting a representation; capacity alone is not encoding or ASCII validity. |
 | Partial Beta theory | Lexical and word helpers exist; full encoder, independent owner root, and source-owned certificate producer do not. | Do not treat helper completion as full-proof feasibility or trust reduction. |
 | Retained concatenative route | Eleven bootstrap files, 236,347 bytes; eight remaining test entrypoints after experiment retirement below. | Candidate for further retirement, not dead code. Map unique coverage and preserve useful findings before coordinated removal. |
 
@@ -138,6 +139,8 @@ as permanent tooling; selected source, artifacts, and test expectations stay unc
 ## Checker: full-size representation is only a prerequisite
 
 Run `sh tests/gamma/beta-encoding-theory/run.sh --subject-shape`.
+The following observations used the original 262,144-unit work provision;
+the later capacity follow-through below uses the larger current profile.
 It uses the unchanged 63,504-byte checker diagnostic and 93,140-byte source-emitted
 partial theory. The subject is the entire 46,484-byte evaluator Beta source and
 8,355-byte Alpha tape, with their existing profile identities printed by the gate.
@@ -164,7 +167,7 @@ not a fresh whole-checker conformance run.
 This does **not** prove Beta encoding, authenticate the owner, or prove evaluator
 correctness. It shows that the current representation fits this preliminary
 whole-subject check and that duplicate endpoint traversal is expensive.
-No runtime allocation peak was instrumented. The published ledger gives the
+No runtime allocation peak was instrumented. The then-published ledger gives the
 conservative bound `2*23284 + 3*109935 + 32*8 + 26 + 96*219369 + 128`
 = 21,436,207 cumulative pairs for this request, not measured allocation or RSS.
 
@@ -285,9 +288,9 @@ an implemented or fully costed theory. Output ordering and resource/error
 precedence must be audited against Beta before promoting particular equations.
 
 **Disposition:** do not extend the encoder around per-byte Word counter proofs.
-The next proof-feasibility decision is cheaper capacity accounting and its
-composition with this complete scanner route, followed by a costed contiguous
-example. An 8 MiB limit increase alone cannot fit the measured recipe; Gamma
+The source-capacity follow-through below costs cheaper alternatives; their
+composition with this complete scanner route still needs a costed contiguous
+example. An 8 MiB limit increase alone cannot fit the per-byte recipe; Gamma
 framing and the cumulative-allocation argument also need consideration. No new
 trusted arithmetic, assembler primitive, unchecked length, chunk-level budget
 reset, or narrowed root follows from this engineering result. The complete
@@ -372,9 +375,84 @@ controlled timing comparison or measured allocation peak. No Windows run is clai
 still needs a full encoder cost case before adoption. A balanced tree's depth
 alone is not a source-length proof: capacity
 requires a checked relation to its full shape and the owner's exact bytes.
-An ordered tree scanner and numeric bound remain uncosted. No checker rule,
+The numeric bound is costed below; the ordered tree scanner remains open. No checker rule,
 production representation, or trusted boundary changed; the
 temporary emitters and fixed proof recipes are not retained as a new framework.
+
+### Exact source capacity: compare the simpler alternative too
+
+At `12090b9803e8c91732f94f18f8582874068cd2ca`, a scratch ordinary-Gamma emitter
+extends the preceding vocabulary with binary naturals, Boolean/order constructors,
+and transparent arithmetic. `Zero`, `Bit0(n)`, and `Bit1(n)` denote zero, twice
+`n`, and twice `n` plus one. Addition and comparison recurse on the selected first
+operand's immediate child; the second operand may become its half. Comparison
+treats redundant zero forms numerically, not as identical constructor trees.
+No arithmetic operation or new rule is added to the checker.
+
+The first route defines `size(EmptyShape)=0`, `size(Unit)=1`, and
+`size(ShapeJoin(a,b))=add(size(a),size(b))`. It explicitly lifts the checked
+`shape(S)` equation through size, numeric comparison, and a Boolean result:
+
+```text
+leq(compare(size(shape(S)), binary(0x4000000))) = True
+```
+
+This counts every raw byte occurrence, including trivia and repeated references
+to a shared subtree. It is valid for arbitrary finite trees, not just balanced
+ones. There is no unchecked length or height premise. Arithmetic facts share
+across the current source's 23 erased shapes.
+
+The simpler alternative directly defines source byte count: Empty is zero,
+Leaf is one, and Join adds its child counts. It shares the same closed arithmetic
+facts without an intermediate Shape sort. Its raw joins need four linking rows
+instead of three: 53 work units including indexing versus 45. Leaf constants
+cost 11 versus eight. Counting 11,865 distinct joins and 76 byte leaves therefore
+adds 95,148 raw-fold units, offset partly by removing the separate shape-size
+derivation. Simpler definitions do not imply a smaller certificate.
+
+| Complete 46,484-byte source-capacity request | Via shapes: checked | Direct: checked |
+| --- | ---: | ---: |
+| Request bytes | 1,718,316 | 1,999,560 |
+| Ground terms | 36,635 | 36,566 |
+| Proof rows | 36,887 | 48,661 |
+| Cumulative work | 547,817 | 641,773 |
+| Work left under 655,360 | 107,543 | 13,587 |
+
+Both complete requests check at exactly their predicted counts: 205.491 seconds
+via shapes and 246.402 seconds directly. The shape route's
+5,620-byte emitted theory has SHA-256
+`11b8a4704e37a8163ebdf3f52f95bb477711b97c63d87df641fb454abecb1884`.
+The direct comparison vocabulary is 5,836 bytes, SHA-256
+`c60a231d46c3e0370b8460ba51d1f9baba128fed049d04ee505b99bdf03a7e27`;
+it deliberately retains the unused shape definitions for this comparison, so
+these bytes are not a minimized direct-only theory. Both use the unchanged
+checker identity from the preceding subsection and one cumulative request budget.
+Changing only the shape route's owner root to a 46,483-byte bound, without
+regenerating proof rows, rejects with code 12 at coordinate 1,718,404 in
+216.053 seconds (1,718,420 request bytes). The old certificate cannot establish
+the changed proposition.
+
+Controls checked exact raw-source bounds for lengths zero, one, two, four, and
+256; 64 arithmetic pairs included redundant zeros, carries, and unequal widths.
+A height-100 unbalanced shape counts exactly 101 leaves. A 27-node shared shape
+representing `2^26` occurrences fits the exact Beta source bound; appending one
+leaf proves False, and changing that proof to claim True rejects with code 12
+at coordinate 43,060. Two raw bytes against a one-byte bound also prove False
+through both routes; changing the direct proof to claim True rejects at 7,928.
+Storage-node counts cannot substitute for represented byte occurrences.
+
+**Disposition:** numeric capacity has a feasible checked route. The direct route
+removes a representation relationship; the shape route saves 93,956 work units
+and 281,244 request bytes in these unminimized diagnostics. Select neither from
+file count or limit fit alone. Cost textual-ASCII validation and the contiguous
+scanner/operand/assertion example together before retaining a production route.
+The existing erasure loses byte values and cannot prove ASCII validity; any
+validity-preserving erasure needs new checked equations that retain invalid-byte
+positions and the envelope-before-tokenization behavior. Complete Beta encoding,
+independent production root reconstruction, and the source-owned certificate
+producer remain missing. These scratch recipes are not production authority or
+a new retained framework. Measurements are macOS arm64 with overlapping checks,
+not controlled timing comparisons or allocation peaks; Windows was not run.
 
 ## Legacy route: retirement must follow its consumers
 

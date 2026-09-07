@@ -74,9 +74,11 @@ prerequisite to every lower-rung milestone.
   execution routes and their adapters together.
   For P1, resolve capacity-accounting cost within the reviewed encoder/scanner
   outline: global sharing still leaves the existing per-byte Word-counter recipe
-  outside current input/work provisions before encoding. Cost source-bound
-  capacity accounting and a contiguous sequence covering operands,
-  trivia, assertions, and exact endpoints before another helper family.
+  outside current input/work provisions before encoding. Cost a contiguous
+  sequence covering operands, trivia, assertions, and exact endpoints, composed
+  with textual-ASCII validation and the costed source-capacity route under one
+  budget, before another helper family. Compare direct counting with the shape
+  intermediary on total proof and definition cost before choosing a representation.
   The existing representation and fold probes are prerequisite measurements, not
   full-certificate feasibility; do not promote unchecked source lengths or
   independent chunk budgets into proof premises.
