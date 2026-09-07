@@ -889,6 +889,9 @@ pub(super) fn lower_checked_scalar_expression(
             scalar_type: terminal_scalar_type(*primitive_type)?,
             operand: Box::new(lower_checked_scalar_expression(operand)?),
         }),
+        CheckedScalarExpression::StructuralParameterIndexedRead { .. } => {
+            unsupported("indexed structural scalar reads require runtime realization")
+        }
         CheckedScalarExpression::IntegerTrappingCast { .. } => {
             unsupported("checked trapping conversion requires runtime policy realization")
         }

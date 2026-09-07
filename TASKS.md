@@ -101,9 +101,6 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   through collections also need `NOMINAL-FIELD-FLOW` below; their default-domain field
   obligations must be proved, not bypassed to restore sample acceptance.
 
-  `caesar_cipher`'s replacement-byte class and loop transport remain part of
-  `NOMINAL-FIELD-FLOW` below.
-
   `samples_with_documented_exit_run_correctly` is separately red for all 136
   documented-exit samples; before the borrowed-self retry below, 86 failed
   native Terminal production in `checked-trees-to-lowered-psi` and the rest
@@ -551,15 +548,6 @@ Owners include
   `typed-trees-to-checked-trees/src/flow/transfers/byte_sequences.rs`.
   `print_squares`'s `narrow_u32_to_u8_wrapping` result publishes no result range
   and its remaining conversion policy supplies no selected byte-class fact.
-  `caesar_cipher` needs selected indexed field reads for `self.text[self.i]`
-  and byte-range evidence through its wrapping addition and policy-erasing cast.
-  The scalar producer in `values/scalar.rs` has no indexed-read form; unchanged
-  literal contents must bound every possible selected byte, not one guessed
-  loop index. Preserve exact source storage and invalidate those bounds after
-  overlapping writes. An ASCII byte can corrupt an arbitrary Utf8 buffer, so Utf8
-  membership alone can never justify the preservation rule. Acceptance:
-  `text_samples_compile_from_authored_program_entry_bindings` is green for
-  `caesar_cipher`.
 
 - **CML4.** Complete `EdgeCleanupPlan` after outgoing materialization and
   transfer commitment, including structural sums, nested projections, cycles,

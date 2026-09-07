@@ -104,7 +104,8 @@ fn project_scalar_expression(
     use checked_trees::CheckedScalarExpression;
 
     Some(match expression {
-        CheckedScalarExpression::IntegerTrappingCast { .. } => return None,
+        CheckedScalarExpression::IntegerTrappingCast { .. }
+        | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => return None,
         CheckedScalarExpression::StorageRead { .. } => {
             unreachable!("checked structural crash requirements cannot read local storage")
         }

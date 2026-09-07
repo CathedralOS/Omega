@@ -105,6 +105,11 @@ impl ScalarBindings {
 
     fn scalar(&self, expression: &mut CheckedScalarExpression) -> Result<(), LoweringError> {
         match expression {
+            CheckedScalarExpression::StructuralParameterIndexedRead { .. } => {
+                return Err(LoweringError::Unsupported(
+                    "indexed structural scalar reads require runtime realization",
+                ));
+            }
             CheckedScalarExpression::Parameter { position, .. }
             | CheckedScalarExpression::Local { position, .. } => {
                 *position = self.immutable_position(*position)?

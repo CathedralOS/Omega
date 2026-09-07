@@ -300,6 +300,19 @@ pub(super) fn propagate_statement_transfers(
         statement,
         assignment_source_contexts,
     );
+    let integer_bounds = if scalar_value.is_none() {
+        scalar_values::capture_bounds(
+            program,
+            semantic,
+            ctx,
+            state_symbol,
+            statement_index,
+            statement,
+            assignment_source_contexts,
+        )
+    } else {
+        None
+    };
     if let StatementNode::Assignment(assignment) = statement {
         byte_sequences::append_element_replacement_predicates(
             program,
@@ -312,6 +325,7 @@ pub(super) fn propagate_statement_transfers(
             assignment.target,
             source_expression,
             scalar_value.as_ref(),
+            integer_bounds.as_ref(),
             ProgramPoint::Statement {
                 machine_symbol,
                 state_symbol,
@@ -346,6 +360,22 @@ pub(super) fn propagate_statement_transfers(
             payload: FactPayload::AssignedValue {
                 value: source_expression,
             },
+        });
+        semantic.append_ref(&mut refs, fact);
+    }
+
+    if stable_value_target && let Some(bounds) = integer_bounds {
+        let bounds = semantic.integer_ranges.append(bounds);
+        let fact = semantic.append_fact(Fact {
+            place: FactPlace::Place(target_place),
+            point: ProgramPoint::Statement {
+                machine_symbol,
+                state_symbol,
+                statement_index,
+            },
+            origin: FactOrigin::StatementTransfer,
+            evidence: QualificationEvidence::default(),
+            payload: FactPayload::AssignedIntegerBounds { bounds },
         });
         semantic.append_ref(&mut refs, fact);
     }

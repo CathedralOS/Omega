@@ -525,6 +525,7 @@ fn shared_integer_runtime_inputs_with_shells(
         | CheckedScalarExpression::IntegerWiden { .. }
         | CheckedScalarExpression::IntegerExactCast { .. }
         | CheckedScalarExpression::IntegerTrappingCast { .. }
+        | CheckedScalarExpression::StructuralParameterIndexedRead { .. }
         | CheckedScalarExpression::StructuralParameterField { .. }
         | CheckedScalarExpression::Boolean(_) => None,
     }

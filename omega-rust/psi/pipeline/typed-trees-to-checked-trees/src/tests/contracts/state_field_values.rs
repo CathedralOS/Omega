@@ -1,5 +1,89 @@
 use super::*;
 
+#[test]
+fn indexed_byte_arithmetic_captures_materialized_bounds() {
+    let source = r#"
+        data Buffer { text: [u8; 5]; position: i32 [0..=4]; byte: u8 in Wrapping; }
+        machine Buffer::shift(&mut self) {
+            self.text = "HELLO";
+            self.byte = self.text[self.position] as u8 in Wrapping + 3;
+        }
+    "#;
+    let checked = lower_typed_trees(parse_typed_trees(source)).expect("indexed byte read checks");
+    let ranges = &checked.facts.semantic.integer_ranges;
+    assert!(
+        ranges
+            .iter()
+            .any(|(_, range)| range.minimum.to_i64() == Some(72)
+                && range.maximum.to_i64() == Some(82)),
+        "bounds={ranges:#?}; selected={:#?}",
+        checked.facts.values.scalar_expressions
+    );
+    let (operator_handle, _) = checked
+        .facts
+        .operators
+        .uses
+        .iter()
+        .find(|(_, operator)| operator.spelling == language_core::OperatorSpelling::Index)
+        .expect("indexed source occurrence");
+    for selected_symbol in [false, true] {
+        let mut operators = checked.facts.operators.clone();
+        let selected = operators.uses.get_mut(operator_handle);
+        if selected_symbol {
+            selected.selected_operator_symbol = symbols::SymbolHandle::from_arena_index(1);
+        } else {
+            selected.candidate_count = 1;
+        }
+        let plans =
+            crate::values::build_checked_scalar_expression_plans(&checked.typed, &operators, &[]);
+        assert!(
+            !plans.expressions.iter().any(|expression| matches!(
+                expression.expression,
+                checked_trees::CheckedScalarExpression::StructuralParameterIndexedRead { .. }
+            )),
+            "selected or competing Index providers cannot borrow builtin byte meaning"
+        );
+    }
+}
+
+#[test]
+fn indexed_byte_ranges_preserve_only_live_ascii_replacements() {
+    for (text, before_read, after_read, output, accepted) in [
+        ("HELLO", "", "", ".....", true),
+        ("HELLO", "", "self.text = \"world\";", ".....", true),
+        ("HELLO", "self.text[0] = 255;", "", ".....", false),
+        ("HELLO", "", "self.byte = 255;", ".....", false),
+        (
+            "HELLO",
+            "",
+            "let alias: &mut u8 in Wrapping = &mut self.byte; alias = 255;",
+            ".....",
+            false,
+        ),
+        ("HELLO", "", "", "é...", false),
+        ("~~~~~", "", "", ".....", false),
+        (r"\xFD\xFE\xFF\xFD\xFE", "", "", ".....", false),
+    ] {
+        let source = format!(
+            r#"
+            domain [u8; 5]::Utf8 requires valid_utf8(self);
+            data Buffer {{ text: [u8; 5]; output: [u8; 5] in Utf8; position: i32 [0..=4]; byte: u8 in Wrapping; }}
+            machine Buffer::shift(&mut self) {{
+                self.text = "{text}";
+                self.output = "{output}";
+                {before_read}
+                self.byte = self.text[self.position] as u8 in Wrapping + 3;
+                {after_read}
+                self.output[self.position] = self.byte as u8;
+                transition {{ _ -> done() }}
+                state done(&mut self) {{}}
+            }}
+        "#
+        );
+        check(&source, accepted);
+    }
+}
+
 fn loop_source(initialization: &str, replacement: &str) -> String {
     format!(
         r#"

@@ -53,6 +53,7 @@ fn integer(
     resolve_binding: &mut impl ScalarValueSource,
 ) -> Option<(IntegerType, IntegerValue)> {
     match expression {
+        CheckedScalarExpression::StructuralParameterIndexedRead { .. } => None,
         CheckedScalarExpression::StructuralParameterField {
             parameter_position,
             path,
