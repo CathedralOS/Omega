@@ -1,6 +1,19 @@
 use super::expressions::project_boolean_expression;
 
 #[test]
+fn byte_length_observation_is_not_projected_as_scalar_parameter_evidence() {
+    let operand = checked_trees::CheckedScalarExpression::StructuralParameterByteLength {
+        parameter_position: 0,
+    };
+    let expression = checked_trees::CheckedBooleanExpression::IntegerComparison {
+        kind: checked_trees::CheckedIntegerComparisonKind::Equal,
+        left: Box::new(operand.clone()),
+        right: Box::new(operand),
+    };
+    assert!(project_boolean_expression(&expression).is_none());
+}
+
+#[test]
 fn trapping_conversion_is_not_projected_as_total_crash_arithmetic() {
     let operand = checked_trees::CheckedScalarExpression::IntegerTrappingCast {
         primitive_type: typed_trees::types::PrimitiveType::U8,

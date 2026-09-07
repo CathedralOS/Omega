@@ -112,9 +112,7 @@ pub(crate) fn crash(
                     .map(crate::capture::behavior::crash::project_boolean_expression)
                     .collect::<Option<Vec<_>>>()
                     .ok_or_else(|| {
-                        rejected(
-                            "crash requirements contain an unsupported trapping scalar conversion",
-                        )
+                        rejected("crash requirements contain an unsupported scalar expression")
                     })
             })
             .transpose()?,
