@@ -376,6 +376,12 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 self.lower_membership_expression(membership)
             }
             resolved::expression::ExpressionNode::Member(member) => {
+                if member.member.as_str() == "len" && member.case_variant.is_none() {
+                    // Structural length has a builtin count carrier even when
+                    // no declaration spells u64. Receiver checking still decides
+                    // whether this member is collection metadata or a data field.
+                    self.retain_builtin_type_reference(symbols::BuiltinTypeAtom::U64)?;
+                }
                 let member_symbol = self.indexed_member_symbol(member);
                 let receiver = self.lower(member.receiver)?;
                 Ok(self
