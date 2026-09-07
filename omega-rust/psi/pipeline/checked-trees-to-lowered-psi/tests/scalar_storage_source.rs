@@ -81,6 +81,35 @@ fn local_storage_call_snapshot_agrees_with_canonical_execution() {
             byte
         }
     "#;
+    assert_call_snapshot_and_execution(source, 0);
+}
+
+#[test]
+fn owned_mutable_parameter_snapshot_agrees_with_canonical_execution() {
+    let source = r#"
+        machine halve(mut current: u8) -> u8
+        requires 65u8 == 65u8
+        ensures 65u8 == 65u8
+        {
+            current = current / 2;
+            let saved: u8 = current;
+            current = 200;
+            saved
+        }
+        machine value() -> u8
+        requires 65u8 == 65u8
+        ensures 65u8 == 65u8
+        {
+            let mut input: u8 = 130;
+            let byte: u8 = halve(input);
+            input = 200;
+            byte
+        }
+    "#;
+    assert_call_snapshot_and_execution(source, 1);
+}
+
+fn assert_call_snapshot_and_execution(source: &str, statement_index: usize) {
     let checked = checked(source);
     let caller = checked
         .machines()
@@ -91,7 +120,7 @@ fn local_storage_call_snapshot_agrees_with_canonical_execution() {
     let point = facts::ProgramPoint::Statement {
         machine_symbol: caller.symbol,
         state_symbol: state.symbol,
-        statement_index: 0,
+        statement_index,
     };
     let snapshots = checked
         .facts

@@ -292,6 +292,8 @@ fn state_receiver_summary_place(
         .or_else(|| canonical_place_from_symbol(machine_symbol_for_state(program, state)))
 }
 
+// Owned primitive formals contain no references: writes change callee storage,
+// not the caller's delivered argument. Keep reference-bearing roots visible.
 fn state_summary_exposes_place(
     program: &typed_trees::TypedTrees,
     state: &typed_trees::state::State,
@@ -301,10 +303,13 @@ fn state_summary_exposes_place(
         return false;
     };
     root == machine_symbol_for_state(program, state)
-        || program
-            .state_parameters(state)
-            .iter()
-            .any(|parameter| parameter.symbol == root)
+        || program.state_parameters(state).iter().any(|parameter| {
+            parameter.symbol == root
+                && (parameter.is_self
+                    || program
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_none())
+        })
 }
 
 fn collect_state_mutation_summary_places(
@@ -322,11 +327,6 @@ fn collect_state_mutation_summary_places(
                 .then_some(machine.symbol)
         })
         .unwrap_or_else(SymbolHandle::invalid);
-    let parameter_symbols: Vec<_> = program
-        .state_parameters(state)
-        .iter()
-        .map(|parameter| parameter.symbol)
-        .collect();
     let mut writes = Vec::new();
 
     for (statement_index, statement) in program
@@ -346,12 +346,7 @@ fn collect_state_mutation_summary_places(
             statement,
         )?;
         for place in places {
-            let facts::PlaceRoot::Symbol(root_symbol) = place.root else {
-                continue;
-            };
-            if (parameter_symbols.contains(&root_symbol) || root_symbol == machine_symbol)
-                && !writes.contains(&place)
-            {
+            if state_summary_exposes_place(program, state, &place) && !writes.contains(&place) {
                 writes.push(place);
             }
         }

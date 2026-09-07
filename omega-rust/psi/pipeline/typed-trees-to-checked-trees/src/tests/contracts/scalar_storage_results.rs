@@ -105,6 +105,34 @@ fn boolean_storage_results_materialize_caller_guarantees() {
 }
 
 #[test]
+fn mutable_owned_formal_results_use_current_storage_and_saved_values() {
+    for (body, accepted) in [
+        ("value = 65; value", true),
+        ("let saved: u8 = value; value = 200; saved", true),
+        ("value = 200; value", false),
+        (
+            "value = 200; let saved: u8 = value; value = 65; saved",
+            false,
+        ),
+    ] {
+        let source = format!(
+            r#"
+            domain [u8; 2]::Ascii requires ascii_only(self);
+            machine rewrite(mut value: u8) -> u8 {{ {body} }}
+            machine establish(line: &mut [u8; 2]) ensures line in Ascii {{
+                let mut input: u8 = 65;
+                let byte: u8 = rewrite(input);
+                input = 200;
+                line = "AB";
+                line[0] = byte;
+            }}
+            "#,
+        );
+        check(&source, accepted);
+    }
+}
+
+#[test]
 fn final_non_ascii_storage_cannot_preserve_ascii() {
     check(
         &byte_store_source(

@@ -89,12 +89,20 @@ Chapter 11 owns those rules.
 Scalar result facts describe the value returned at the call, not a deferred
 read of the caller's arguments or the callee's locals. The current checker can
 capture selected fixed-integer and Boolean computations through single-state
-helpers with local mutable storage: each assignment reads the previous value
-before updating it, and immutable copies retain their earlier value. Unsupported
+helpers with local mutable storage and owned mutable scalar parameters. Each
+assignment reads the previous value before updating it, and immutable copies
+retain their earlier value. Unsupported
 calls or nonlocal writes do not produce such a snapshot. Byte-store proofs may
 consume a captured byte only while the destination carrier's required per-byte
 class remains proved; an ASCII replacement alone cannot preserve an arbitrary
 UTF-8 sequence.
+
+An owned scalar argument initializes separate callee storage. Reassigning that
+parameter, including through a local borrow, does not invalidate facts about the
+caller's original scalar. Real borrowed arguments still expose their caller
+storage to mutation. Mutable formal slots cannot be read as immutable incoming
+aliases while evaluating a body result; entry contracts retain their separate
+invocation-entry meaning.
 
 ## Generic Contracts
 

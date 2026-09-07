@@ -136,7 +136,8 @@ fn capture_call(
         || parameters.iter().any(|parameter| {
             parameter.is_self
                 || parameter.is_const
-                || parameter.is_mutable
+                || (parameter.is_mutable
+                    && crate::values::mutable_scalar_parameter_type(program, parameter).is_none())
                 || program
                     .primitive_type_reference(parameter.type_reference)
                     .is_none()
@@ -144,7 +145,7 @@ fn capture_call(
     {
         return None;
     }
-    let values = arguments
+    let argument_values = arguments
         .iter()
         .map(|argument| {
             match program.expression_table.expression(*argument) {
@@ -189,9 +190,28 @@ fn capture_call(
         .map(|parameter| parameter.symbol)
         .collect();
     let mut values = CallValues {
-        bindings: values,
+        bindings: Vec::with_capacity(parameters.len()),
         storage: Vec::new(),
     };
+    for (parameter, value) in parameters.iter().zip(argument_values) {
+        if !parameter.symbol.is_valid()
+            || parameters
+                .iter()
+                .filter(|candidate| candidate.symbol == parameter.symbol)
+                .count()
+                != 1
+        {
+            return None;
+        }
+        if parameter.is_mutable {
+            // Preserve authored scalar positions without exposing the old
+            // incoming value as a body binding after storage changes.
+            values.bindings.push(None);
+            values.storage.push((parameter.symbol, value));
+        } else {
+            values.bindings.push(Some(value));
+        }
+    }
     let mut immutable_local_count = 0_u32;
     for (statement_index, statement) in statements.iter().enumerate() {
         let statement_ordinal = u32::try_from(statement_index).ok()?;
@@ -276,7 +296,7 @@ fn capture_call(
             CheckedScalarExpressionRole::Return => return Some(value),
             CheckedScalarExpressionRole::LocalInitializer { .. } => {
                 symbols.push(destination);
-                values.bindings.push(value);
+                values.bindings.push(Some(value));
                 immutable_local_count = immutable_local_count.checked_add(1)?;
             }
             CheckedScalarExpressionRole::StorageInitializer => {
@@ -296,15 +316,16 @@ fn capture_call(
 }
 
 /// Call-local scratch: immutable bindings use their selected ordinal namespace;
-/// mutable locals use exact storage symbols and cannot alias caller storage.
+/// mutable locals and owned formals use exact storage symbols and cannot alias
+/// caller storage. Mutable formals leave holes in the immutable namespace.
 struct CallValues {
-    bindings: Vec<ScalarValue>,
+    bindings: Vec<Option<ScalarValue>>,
     storage: Vec<(SymbolHandle, ScalarValue)>,
 }
 
 impl crate::values::ScalarValueSource for CallValues {
     fn binding(&mut self, position: usize) -> Option<ScalarValue> {
-        self.bindings.get(position).cloned()
+        self.bindings.get(position)?.clone()
     }
 
     fn storage(&mut self, symbol: SymbolHandle) -> Option<ScalarValue> {
@@ -312,5 +333,30 @@ impl crate::values::ScalarValueSource for CallValues {
             .iter()
             .find(|(candidate, _)| *candidate == symbol)
             .map(|(_, value)| value.clone())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::values::ScalarValueSource;
+
+    #[test]
+    fn mutable_parameter_slots_have_no_immutable_entry_alias() {
+        let symbol = SymbolHandle::from_parts(1, 1);
+        let mut values = CallValues {
+            bindings: vec![
+                Some(ScalarValue::Boolean(false)),
+                None,
+                Some(ScalarValue::Boolean(true)),
+            ],
+            storage: vec![(symbol, ScalarValue::Boolean(false))],
+        };
+        values.storage[0].1 = ScalarValue::Boolean(true);
+        assert_eq!(values.binding(0), Some(ScalarValue::Boolean(false)));
+        assert_eq!(values.binding(1), None);
+        assert_eq!(values.binding(2), Some(ScalarValue::Boolean(true)));
+        assert_eq!(values.storage(symbol), Some(ScalarValue::Boolean(true)));
+        assert_eq!(values.storage(SymbolHandle::from_parts(1, 2)), None);
     }
 }
