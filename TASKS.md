@@ -103,9 +103,8 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
 
   Resume native `print_squares` with `OMEGA_SAMPLE_RUNTIME_FILTER=print_squares`
   and `mbx nextest run -p compiler --test samples_compile --no-fail-fast -E 'test(=samples_with_documented_exit_run_correctly)'`.
-  On macOS ARM64 with code checkpoint `473cbe1844`, using `cargo` because `mbx` is unavailable,
-  this exits 100 before execution: `InvalidUnitMachinePlan` names `Main::main`
-  with `attached Unit closure is missing a checked transitive machine plan`.
+  At code checkpoint `a98a7f52e2` on Windows x64, this exits 100 before execution:
+  `InvalidUnitMachinePlan` names `Main::main` with `attached Unit closure is missing a checked transitive machine plan`.
   The ordinary Unit planner in
   `typed-trees-to-checked-trees/src/flow/terminal_unit/control.rs` requires one
   authored state, and the composed-control routes admit specific acyclic
