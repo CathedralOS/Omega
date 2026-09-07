@@ -238,9 +238,10 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   rank-range checks in
   `typed-trees-to-checked-trees/src/checks/termination/ranking/`.
   Computed-only paths without an independently established state mapping,
-  non-bijective transfers, entry-state reentry, and machine-call-component
-  ranges need exact arrival mappings and preserved premises for ranked subjects
-  and pinned endpoints. Mutable premises need live write-frame evidence.
+  non-bijective transfers involving rank inputs, entry-state reentry, and
+  machine-call-component ranges need exact arrival mappings and preserved
+  premises for ranked subjects and pinned endpoints. Mutable premises need live
+  write-frame evidence.
   Custom scalar views and slice-length ranges need their produced-rank facts.
   These are implementation gaps, not grounds to weaken the range obligation.
 
