@@ -2,6 +2,9 @@
 
 use super::*;
 
+#[cfg(test)]
+mod tests;
+
 pub(super) fn build_structural_scalar_field_store(
     program: &TypedTrees,
     facts: &CheckFacts,

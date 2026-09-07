@@ -3,6 +3,7 @@
 use super::*;
 
 pub(super) mod byte_subslice;
+mod reference_forwarding;
 mod result_arguments;
 mod service_forward;
 
@@ -2506,6 +2507,20 @@ fn exact_structural_argument_access(
     let first = kinds.first()?;
     if kinds.iter().any(|candidate| *candidate != *first) {
         return None;
+    }
+    if target_access == CheckedStructuralAccess::MutableBorrow
+        && **first == checked_trees::BorrowAccessKind::Read
+        && segments.is_empty()
+        && reference_forwarding::preserves_mutable_referent(
+            program,
+            facts,
+            borrow_state,
+            borrow_call,
+            call,
+            root_symbol,
+        )
+    {
+        return Some(CheckedStructuralAccess::MutableBorrow);
     }
     Some(match first {
         checked_trees::BorrowAccessKind::Read => CheckedStructuralAccess::SharedBorrow,

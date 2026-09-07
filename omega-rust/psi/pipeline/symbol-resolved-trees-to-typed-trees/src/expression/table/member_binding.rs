@@ -1,4 +1,4 @@
-//! Bind missing indexed members through the receiver's declared element type.
+//! Bind missing members through the receiver's exact declared type.
 
 use super::lowerer::ExpressionTableLowerer;
 use crate::call_results::peel;
@@ -11,14 +11,14 @@ use resolved::expression::{ExpressionHandle, ExpressionNode, TableMemberExpressi
 use resolved::types::TypeReference;
 
 impl ExpressionTableLowerer<'_, '_, '_> {
-    pub(super) fn indexed_member_symbol(&self, member: &TableMemberExpression) -> SymbolHandle {
+    pub(super) fn declared_member_symbol(&self, member: &TableMemberExpression) -> SymbolHandle {
         // A nonzero selection already has an owner. Preserve it, including a
         // conflicting/stale selection, for the existing validation contract.
         if member.member_symbol.is_valid()
             || member.case_variant.is_some()
             || !matches!(
                 self.source.expression(member.receiver),
-                ExpressionNode::Indexed(_)
+                ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
             )
         {
             return member.member_symbol;

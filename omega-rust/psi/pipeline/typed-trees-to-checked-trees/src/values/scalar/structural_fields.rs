@@ -2,6 +2,9 @@
 
 use super::*;
 
+#[cfg(test)]
+mod tests;
+
 pub(super) fn whole_byte_view_length(
     program: &TypedTrees,
     parameters: &[StateParameter],
@@ -114,6 +117,13 @@ pub(super) fn structural_parameter_field_path(
 ) -> Option<u32> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(name) => {
+            if program.symbols.get(name.symbol).kind == symbols::SymbolKind::Machine
+                || matches!(program.expression_table.name_path_members(name.members),
+                    [spelling] if spelling.as_str() == "self")
+            {
+                let (position, _) = exact_self_parameter(program, parameters, expression)?;
+                return u32::try_from(position).ok();
+            }
             let name_symbol = name.symbol.is_valid().then_some(name.symbol).or_else(|| {
                 program
                     .expression_table
@@ -146,6 +156,29 @@ pub(super) fn structural_parameter_field_path(
                     .map(|identity| format!("#{identity}"))
                     .unwrap_or_else(|| field.name.as_str().to_owned())
             };
+            if parameters.get(usize::try_from(parameter).ok()?)?.is_self
+                && matches!(
+                    program.expression_table.expression(member.receiver),
+                    ExpressionNode::Name(_)
+                )
+            {
+                // A rejected self alias cannot fall through to a global field
+                // search: only the attached declaration owns this projection.
+                if !member.member_symbol.is_valid()
+                    || program.symbols.get(member.member_symbol).kind != symbols::SymbolKind::Field
+                {
+                    return None;
+                }
+                let (_, machine) = exact_self_parameter(program, parameters, member.receiver)?;
+                let field = validation::exact_self_field(program, machine, expression)?;
+                if field.relevance.is_erased() {
+                    return None;
+                }
+                fields.push(CheckedStructuralPredicatePathSegment::Field(
+                    field_identity(field),
+                ));
+                return Some(parameter);
+            }
             if let Some(case_name) = &member.case_variant {
                 let (case, field) = program.data_definitions().iter().find_map(|data| {
                     program.data_members(data).iter().find_map(|candidate| {
@@ -196,6 +229,98 @@ pub(super) fn structural_parameter_field_path(
         }
         _ => None,
     }
+}
+
+fn exact_self_parameter<'program>(
+    program: &'program TypedTrees,
+    parameters: &[StateParameter],
+    expression: ExpressionHandle,
+) -> Option<(usize, &'program typed_trees::machine::Machine)> {
+    use symbols::SymbolKind;
+
+    if !program.expression_table.expression_is_valid(expression) {
+        return None;
+    }
+    let ExpressionNode::Name(name) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if !name.symbol.is_valid()
+        || name.head_symbol != name.symbol
+        || program.symbols.get(name.symbol).kind != SymbolKind::Machine
+        || !matches!(program.expression_table.name_path_members(name.members),
+            [spelling] if spelling.as_str() == "self")
+    {
+        return None;
+    }
+    let mut machines = program
+        .machines()
+        .iter()
+        .filter(|machine| machine.symbol == name.symbol);
+    let machine = machines.next()?;
+    if machines.next().is_some() {
+        return None;
+    }
+    let entry = program.machine_states(machine).first()?;
+    let state_symbol = program.symbols.get(entry.symbol);
+    if state_symbol.kind != SymbolKind::State
+        || state_symbol.parent != machine.symbol
+        || program.state_parameters(entry) != parameters
+    {
+        return None;
+    }
+    let mut receivers = parameters
+        .iter()
+        .enumerate()
+        .filter(|(_, parameter)| parameter.is_self);
+    let (position, parameter) = receivers.next()?;
+    let parameter_symbol = program.symbols.get(parameter.symbol);
+    if receivers.next().is_some()
+        || parameter.is_const
+        || parameter.name.as_str() != "self"
+        || parameter_symbol.kind != SymbolKind::Parameter
+        || parameter_symbol.parent != entry.symbol
+        || program.symbols.name(parameter.symbol) != parameter.name.as_str()
+        || parameters
+            .iter()
+            .filter(|candidate| candidate.symbol == parameter.symbol)
+            .count()
+            != 1
+    {
+        return None;
+    }
+    let mut owners = program
+        .data_definitions()
+        .iter()
+        .filter(|owner| owner.symbol == machine.attached_data_symbol);
+    let owner = owners.next()?;
+    if owners.next().is_some()
+        || program.symbols.get(owner.symbol).kind != SymbolKind::Data
+        || program.symbols.name(owner.symbol) != owner.name.as_str()
+        || machine.attached_data.as_ref() != Some(&owner.name)
+    {
+        return None;
+    }
+    let mut reference = parameter.type_reference;
+    for _ in 0..64 {
+        if !program
+            .type_reference_table
+            .contains_type_reference(reference)
+        {
+            return None;
+        }
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Reference { referee, .. } => reference = *referee,
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::Named { symbol, name }
+                if (*symbol == machine.symbol && name.as_str() == "Self")
+                    || (*symbol == owner.symbol && *name == owner.name) =>
+            {
+                return Some((position, machine));
+            }
+            _ => return None,
+        }
+    }
+    None
 }
 
 pub(crate) fn resolve_structural_parameter_path(
@@ -278,7 +403,7 @@ pub(crate) fn resolve_structural_parameter_path(
         .then_some((parameter.symbol, segments, receiver))
 }
 
-fn structural_data(
+pub(super) fn structural_data(
     program: &TypedTrees,
     mut type_reference: TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {

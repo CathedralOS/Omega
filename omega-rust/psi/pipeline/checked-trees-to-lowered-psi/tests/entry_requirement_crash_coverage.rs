@@ -193,6 +193,321 @@ fn assert_unconditional_call_trap_with_structural_arguments(
 }
 
 #[test]
+fn shared_record_entry_requirement_covers_unconditional_scalar_call() {
+    let source = r#"
+        data Flag { enabled: bool; }
+        data Helper {}
+        data Main {}
+        boundary trait Sink { machine record(value: bool); }
+        machine trigger() -> bool
+        crashes Trap
+        { crash Trap; }
+        machine Helper::forward(record: &Flag)
+        requires record.enabled
+        crashes Trap record.enabled
+        { Sink::record(trigger()); }
+        machine Main::value(record: &Flag)
+        requires record.enabled
+        crashes Trap record.enabled
+        { Helper::forward(record); }
+    "#;
+    assert_structural_entry_requirement_artifact(source);
+}
+
+fn assert_structural_entry_requirement_artifact(source: &str) {
+    let checked = lower_typed_trees(typed(source))
+        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+    for contract in &checked.facts.contract_plans.machines {
+        for bucket in contract.crash.published() {
+            for guard in bucket.alternative_guards() {
+                if let checked_trees::CrashRouteGuard::Predicate(predicate) = guard {
+                    assert!(
+                        predicate.scalar_expression().is_some(),
+                        "{source}: missing retained runtime predicate for {}",
+                        checked.typed.symbols.name(contract.machine)
+                    );
+                }
+            }
+        }
+    }
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::value")
+        .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
+    let semantics = encode_module(&lowered.semantic_module).expect("encode shared entry module");
+    let evidence = encode_proof_bundle(&lowered.proof_bundle).expect("encode shared entry proof");
+    let module = decode_module(&semantics).expect("decode shared entry module");
+    let proof = decode_proof_bundle(&evidence).expect("decode shared entry proof");
+    assert_eq!(module, lowered.semantic_module);
+    assert_eq!(proof, lowered.proof_bundle);
+    terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default())
+        .expect("shared entry hypotheses independently cover the unchanged call routes");
+    let mut unconditional_calls = 0;
+    for operation in module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+    {
+        let terminal_psi::OperationKind::Call {
+            callee,
+            crash_continuations,
+            ..
+        } = &operation.kind
+        else {
+            continue;
+        };
+        let target = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == *callee)
+            .expect("retained call target");
+        if target.parameters.is_empty() && target.structural_parameters.is_empty() {
+            assert_eq!(crash_continuations, &target.contract.crash_routes);
+            assert_eq!(
+                crash_continuations,
+                &[terminal_psi::CrashRouteBucket {
+                    cause: terminal_psi::CrashCause::Trap,
+                    alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+                }]
+            );
+            unconditional_calls += 1;
+        }
+    }
+    assert!(
+        unconditional_calls > 0,
+        "the unconditional callee is retained"
+    );
+    // This artifact still declares an entry requirement. Verification checks
+    // call proof transport; no arbitrary host record is executed as its witness.
+}
+
+#[test]
+fn shared_self_entry_requirement_covers_unconditional_scalar_call() {
+    assert_structural_entry_requirement_artifact(
+        r#"
+        data Helper { enabled: bool; }
+        data Main {}
+        boundary trait Sink { machine record(value: bool); }
+        machine trigger() -> bool
+        crashes Trap
+        { crash Trap; }
+        machine Helper::forward(&self)
+        requires self.enabled
+        crashes Trap self.enabled
+        { Sink::record(trigger()); }
+        machine Main::value(record: &Helper)
+        requires record.enabled
+        crashes Trap record.enabled
+        { record.forward(); }
+        "#,
+    );
+}
+
+#[test]
+fn explicit_field_identities_preserve_structural_entry_hypotheses() {
+    for identity in [0, 7] {
+        let source = format!(
+            "data Flag {{ #{identity} enabled: bool; #11 other: bool; }}\n\
+             data Helper {{}}\ndata Main {{}}\n\
+             boundary trait Sink {{ machine record(value: bool); }}\n\
+             machine trigger() -> bool\ncrashes Trap\n{{ crash Trap; }}\n\
+             machine Helper::forward(record: &Flag)\nrequires record.enabled\ncrashes Trap record.enabled\n\
+             {{ Sink::record(trigger()); }}\n\
+             machine Main::value(record: &Flag)\nrequires record.enabled\ncrashes Trap record.enabled\n\
+             {{ Helper::forward(record); }}",
+        );
+        assert_structural_entry_requirement_artifact(&source);
+    }
+}
+
+#[test]
+fn declared_structural_entry_requirement_survives_a_body_field_write() {
+    assert_structural_entry_requirement_artifact(
+        r#"
+        data Flag { enabled: bool; }
+        data Helper {}
+        data Main {}
+        boundary trait Sink { machine record(value: bool); }
+        machine trigger() -> bool
+        crashes Trap
+        { crash Trap; }
+        machine Helper::forward(record: &mut Flag)
+        requires record.enabled
+        crashes Trap record.enabled
+        { record.enabled = false; Sink::record(trigger()); }
+        machine Main::value(record: &mut Flag)
+        requires record.enabled
+        crashes Trap record.enabled
+        { Helper::forward(record); }
+        "#,
+    );
+}
+
+#[test]
+fn structural_requires_cannot_recover_corrupted_field_identity_from_spelling() {
+    let source = r#"
+        data Flag { enabled: bool; other: bool; }
+        data Shadow { enabled: bool; }
+        data Helper {}
+        data Main {}
+        boundary trait Sink { machine record(value: bool); }
+        machine trigger() -> bool
+        crashes Trap
+        { crash Trap; }
+        machine Helper::forward(record: &Flag)
+        requires record.enabled
+        crashes Trap record.enabled
+        { Sink::record(trigger()); }
+        machine Main::value(record: &Flag)
+        requires record.enabled
+        crashes Trap record.enabled
+        { Helper::forward(record); }
+    "#;
+    for corruption in ["foreign symbol", "missing symbol", "wrong spelling"] {
+        let mut program = typed(source);
+        let owner = program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == "Shadow")
+            .unwrap();
+        let foreign = program
+            .data_members(owner)
+            .iter()
+            .find_map(|member| match member {
+                typed_trees::data::DataMember::Field(field) if field.name.as_str() == "enabled" => {
+                    Some(field.symbol)
+                }
+                _ => None,
+            })
+            .unwrap();
+        let owner = program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == "Flag")
+            .unwrap();
+        let wrong_name = program
+            .data_members(owner)
+            .iter()
+            .find_map(|member| match member {
+                typed_trees::data::DataMember::Field(field) if field.name.as_str() == "other" => {
+                    Some(field.name.clone())
+                }
+                _ => None,
+            })
+            .unwrap();
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Helper::forward")
+            .unwrap();
+        let requirement = program
+            .machine_contracts(machine)
+            .iter()
+            .find(|contract| {
+                contract.kind == typed_trees::signature::SignatureContractKind::Requires
+            })
+            .unwrap();
+        let expression = program
+            .proof_facts
+            .span_or_empty(requirement.facts)
+            .iter()
+            .find_map(|fact| match fact {
+                typed_trees::domain::ProofFact::Expression(expression) => Some(*expression),
+                _ => None,
+            })
+            .unwrap();
+        let mut pending = vec![expression];
+        let mut selected = None;
+        while let Some(expression) = pending.pop() {
+            match program.expression_table.expression(expression) {
+                typed_trees::expression::ExpressionNode::Member(_) => {
+                    selected = Some(expression);
+                    break;
+                }
+                typed_trees::expression::ExpressionNode::Binary(binary) => {
+                    pending.extend([binary.right, binary.left])
+                }
+                typed_trees::expression::ExpressionNode::Unary(unary) => {
+                    pending.push(unary.operand)
+                }
+                _ => {}
+            }
+        }
+        let typed_trees::expression::ExpressionNode::Member(member) = program
+            .expression_table
+            .expression_mut(selected.expect("retained Requires member"))
+        else {
+            unreachable!();
+        };
+        assert!(member.member_symbol.is_valid());
+        assert!(foreign.is_valid());
+        assert_ne!(member.member_symbol, foreign);
+        match corruption {
+            "foreign symbol" => member.member_symbol = foreign,
+            "missing symbol" => member.member_symbol = Default::default(),
+            "wrong spelling" => member.member = wrong_name,
+            _ => unreachable!(),
+        }
+        let diagnostics = match lower_typed_trees(program) {
+            Err(diagnostics) => diagnostics,
+            Ok(_) => panic!("corrupted Requires identity was accepted: {corruption}"),
+        };
+        assert!(!diagnostics.is_empty(), "{corruption}");
+    }
+}
+
+#[test]
+fn structural_entry_formulas_preserve_owned_shared_and_mutable_borrow_snapshots() {
+    for ownership in ["", "&", "&mut "] {
+        for (record_type, predicate) in [
+            ("Flag", "record.enabled"),
+            ("Flag", "!record.enabled"),
+            ("Flag", "record.enabled && record.other"),
+            ("Flag", "record.enabled == record.other"),
+            ("Envelope", "record.inner.enabled"),
+            ("Envelope", "record.inner.enabled == record.inner.other"),
+        ] {
+            let source = format!(
+                "data Flag {{ enabled: bool; other: bool; }}\n\
+                 data Envelope {{ inner: Flag; }}\ndata Helper {{}}\ndata Main {{}}\n\
+                 boundary trait Sink {{ machine record(value: bool); }}\n\
+                 machine trigger() -> bool\ncrashes Trap\n{{ crash Trap; }}\n\
+                 machine Helper::forward(record: {ownership}{record_type})\n\
+                 requires {predicate}\ncrashes Trap {predicate}\n{{ Sink::record(trigger()); }}\n\
+                 machine Main::value(record: {ownership}{record_type})\n\
+                 requires {predicate}\ncrashes Trap {predicate}\n{{ Helper::forward(record); }}",
+            );
+            assert_structural_entry_requirement_artifact(&source);
+        }
+    }
+}
+
+#[test]
+fn structural_entry_requirement_does_not_authorize_a_different_field_or_root() {
+    for route in ["record.other", "other.enabled", "other.other"] {
+        let source = format!(
+            "data Flag {{ enabled: bool; other: bool; }}\ndata Helper {{}}\ndata Main {{}}\n\
+             boundary trait Sink {{ machine record(value: bool); }}\n\
+             machine trigger() -> bool\ncrashes Trap\n{{ crash Trap; }}\n\
+             machine Helper::forward(record: &Flag, other: &Flag)\n\
+             requires record.enabled\ncrashes Trap {route}\n{{ Sink::record(trigger()); }}\n\
+             machine Main::value(record: &Flag, other: &Flag)\n\
+             requires record.enabled\ncrashes Trap\n{{ Helper::forward(record, other); }}",
+        );
+        let diagnostics = match lower_typed_trees(typed(&source)) {
+            Err(diagnostics) => diagnostics,
+            Ok(_) => panic!("a different structural entry identity must reject: {source}"),
+        };
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.message.contains("Helper::forward")
+                    && diagnostic.message.contains("uncovered Trap crash route")
+            }),
+            "the exact field/root crash coverage check must reject: {source}: {diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
 fn attached_boolean_entry_requirement_covers_unconditional_scalar_call() {
     assert_unconditional_call_trap_at_entry(
         r#"

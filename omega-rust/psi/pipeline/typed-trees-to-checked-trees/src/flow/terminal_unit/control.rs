@@ -1069,6 +1069,21 @@ pub(super) fn build_checked_machine_with(
     let [state] = program.machine_states(machine) else {
         return None;
     };
+    // A body-only plan may use an ambient attachment, but published crash
+    // predicates need the invocation's actual receiver operand. Contextual
+    // cleanup requirements retain their separate receipt-bound environment.
+    let retain_reference_self = retain_reference_self
+        || facts
+            .contract_plans
+            .for_machine(machine.symbol)
+            .is_some_and(|contract| {
+                contract.crash.published().iter().any(|bucket| {
+                    bucket
+                        .alternative_guards()
+                        .iter()
+                        .any(|guard| matches!(guard, checked_trees::CrashRouteGuard::Predicate(_)))
+                })
+            });
     if !is_unit(program, state.return_type) {
         return None;
     }
