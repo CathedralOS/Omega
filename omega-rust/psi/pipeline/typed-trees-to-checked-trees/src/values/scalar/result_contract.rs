@@ -141,6 +141,7 @@ pub(crate) fn lower_integer_contract_predicate(
             &[],
             &[],
             &[],
+            &[],
             contextual_primitive,
             &[],
         )
@@ -218,6 +219,7 @@ pub(crate) fn lower_integer_parameter_range_requirements(
                                 &[],
                                 &[],
                                 &[],
+                                &[],
                                 primitive_type,
                                 &[],
                             )?;
@@ -225,6 +227,7 @@ pub(crate) fn lower_integer_parameter_range_requirements(
                                 program,
                                 operators,
                                 *maximum,
+                                &[],
                                 &[],
                                 &[],
                                 &[],

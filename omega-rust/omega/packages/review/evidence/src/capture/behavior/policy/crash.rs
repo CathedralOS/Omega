@@ -103,14 +103,21 @@ pub(crate) fn crash(
             }
         },
         published,
-        structural_runtime_requirements: plan.crash.structural_runtime_requirements().map(
-            |requirements| {
+        structural_runtime_requirements: plan
+            .crash
+            .structural_runtime_requirements()
+            .map(|requirements| {
                 requirements
                     .iter()
                     .map(crate::capture::behavior::crash::project_boolean_expression)
-                    .collect()
-            },
-        ),
+                    .collect::<Option<Vec<_>>>()
+                    .ok_or_else(|| {
+                        rejected(
+                            "crash requirements contain an unsupported trapping scalar conversion",
+                        )
+                    })
+            })
+            .transpose()?,
         inferred: inferred.map_or(PackagePolicyInferredCrash::Unknown, |(_, causes)| {
             PackagePolicyInferredCrash::Complete {
                 causes: causes

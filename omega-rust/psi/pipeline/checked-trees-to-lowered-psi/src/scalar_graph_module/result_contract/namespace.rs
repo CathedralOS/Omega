@@ -38,6 +38,9 @@ pub(super) fn validate(predicate: &CheckedBooleanExpression) -> Result<(), Lower
 
 fn scalar(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
     match expression {
+        CheckedScalarExpression::IntegerTrappingCast { .. } => Err(LoweringError::Unsupported(
+            "trapping conversion is not total scalar contract arithmetic",
+        )),
         CheckedScalarExpression::Local { .. } | CheckedScalarExpression::StorageRead { .. } => {
             Err(LoweringError::Unsupported(
                 "scalar contract operand contains body-local or mutable storage",

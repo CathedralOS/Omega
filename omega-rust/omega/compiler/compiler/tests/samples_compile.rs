@@ -687,6 +687,11 @@ fn text_samples_compile_from_authored_program_entry_bindings() {
 }
 
 #[test]
+fn format_number_preserves_its_declared_text_carrier() {
+    assert_authored_entry_cohort("text", &["format_number"]);
+}
+
+#[test]
 fn rendering_samples_compile_from_authored_program_entry_bindings() {
     assert_authored_entry_cohort("rendering", EXPLICIT_ENTRY_RENDERING_SAMPLES);
 }

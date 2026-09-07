@@ -2,13 +2,54 @@
 //! lifetime; neither a local initializer nor a nonliteral expression is replayed.
 
 use crate::flow::{
-    CanonicalPlace, canonical_place_from_semantic_place, normalized_event_place_root,
+    CanonicalPlace, canonical_place_from_semantic_place, canonical_place_from_symbol,
+    normalized_event_place_root,
 };
 use facts::{FactContext, FactPayload, FactPlace, FactPlan, PlaceRoot, ScalarValue};
 use typed_trees::{
     TypedTrees,
     expression::{ExpressionHandle, ExpressionNode},
 };
+
+/// Read scalar bindings and structural fields from the same live storage facts.
+/// Bindings use dense scalar positions; structural paths use authored parameters.
+pub(crate) struct PlaceScalarValues<'a, Resolve> {
+    pub program: &'a TypedTrees,
+    pub parameters: &'a [typed_trees::signature::StateParameter],
+    pub symbols: &'a [symbols::SymbolHandle],
+    pub value_at_place: Resolve,
+}
+
+impl<Resolve: FnMut(&CanonicalPlace) -> Option<ScalarValue>> super::ScalarValueSource
+    for PlaceScalarValues<'_, Resolve>
+{
+    fn binding(&mut self, position: usize) -> Option<ScalarValue> {
+        self.storage(*self.symbols.get(position)?)
+    }
+
+    fn storage(&mut self, symbol: symbols::SymbolHandle) -> Option<ScalarValue> {
+        (self.value_at_place)(&canonical_place_from_symbol(symbol)?)
+    }
+
+    fn structural_field(
+        &mut self,
+        parameter_position: u32,
+        path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    ) -> Option<ScalarValue> {
+        if path.is_empty() {
+            return None;
+        }
+        let (symbol, segments, _) = super::resolve_structural_parameter_path(
+            self.program,
+            self.parameters,
+            parameter_position,
+            path,
+        )?;
+        let mut place = canonical_place_from_symbol(symbol)?;
+        place.segments = segments;
+        (self.value_at_place)(&place)
+    }
+}
 
 pub(crate) fn scalar_value_at_place<'a>(
     program: &TypedTrees,

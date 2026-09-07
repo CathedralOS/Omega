@@ -252,6 +252,7 @@ pub(super) fn append_state_statement_flow_facts(
 
         propagate_statement_transfers(
             program,
+            borrow,
             semantic,
             ctx,
             machine.symbol,

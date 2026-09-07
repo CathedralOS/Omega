@@ -4,10 +4,14 @@ use super::*;
 use checked_trees::CheckedScalarExpressionRole;
 use facts::ScalarValue;
 
+#[cfg(test)]
+mod call_tests;
+
 pub(super) fn capture_statement(
     program: &typed_trees::TypedTrees,
+    borrow: &BorrowFacts,
     semantic: &FactPlan,
-    context: &FlowBuildContext,
+    context: &mut FlowBuildContext,
     state: SymbolHandle,
     statement_index: usize,
     statement: &StatementNode,
@@ -30,6 +34,7 @@ pub(super) fn capture_statement(
     if let ExpressionNode::Call(call) = program.expression_table.expression(source) {
         return capture_call(
             program,
+            borrow,
             semantic,
             context,
             state,
@@ -75,10 +80,11 @@ pub(super) fn capture_statement(
     let symbols = plans.binding_symbols.span_or_empty(binding.symbols);
     crate::values::evaluate_checked_scalar(
         expression,
-        &mut crate::values::BoundScalarValues {
+        &mut crate::values::PlaceScalarValues {
+            program,
+            parameters: program.state_parameters(crate::find_state(program, state)?),
             symbols,
-            value_at_symbol: |symbol| {
-                let place = canonical_place_from_symbol(symbol)?;
+            value_at_place: |place: &CanonicalPlace| {
                 crate::values::scalar_value_at_place(
                     program,
                     semantic,
@@ -88,7 +94,7 @@ pub(super) fn capture_statement(
                         .span_or_empty(active)
                         .iter()
                         .map(|reference| semantic.contexts.get(reference.context)),
-                    &place,
+                    place,
                 )
             },
         },
@@ -96,11 +102,13 @@ pub(super) fn capture_statement(
 }
 
 // Evaluate selected scalar locals and local stores followed by one return.
-// Calls, nonlocal writes and boundary implementations need their own evidence.
+// Intervening Unit calls preserve these normal-return facts only when their
+// complete storage footprint is empty. This never proves that a call returns.
 fn capture_call(
     program: &typed_trees::TypedTrees,
+    borrow: &BorrowFacts,
     semantic: &FactPlan,
-    context: &FlowBuildContext,
+    context: &mut FlowBuildContext,
     caller_state: SymbolHandle,
     statement_index: usize,
     call: &typed_trees::expression::TableCallExpression,
@@ -179,10 +187,12 @@ fn capture_call(
                 // A missing value must not fall back to replaying its source.
                 return crate::values::evaluate_checked_scalar(
                     expression,
-                    &mut crate::values::BoundScalarValues {
+                    &mut crate::values::PlaceScalarValues {
+                        program,
+                        parameters: program
+                            .state_parameters(crate::find_state(program, caller_state)?),
                         symbols: plans.binding_symbols.span_or_empty(binding.symbols),
-                        value_at_symbol: |symbol| {
-                            let place = canonical_place_from_symbol(symbol)?;
+                        value_at_place: |place: &CanonicalPlace| {
                             crate::values::scalar_value_at_place(
                                 program,
                                 semantic,
@@ -192,7 +202,7 @@ fn capture_call(
                                     .span_or_empty(active)
                                     .iter()
                                     .map(|reference| semantic.contexts.get(reference.context)),
-                                &place,
+                                place,
                             )
                         },
                     },
@@ -264,6 +274,20 @@ fn capture_call(
     }
     let mut immutable_local_count = 0_u32;
     for (statement_index, statement) in statements.iter().enumerate() {
+        if let StatementNode::Call(call) = statement {
+            retains_values_across_unit_call(
+                program,
+                borrow,
+                context,
+                machine,
+                state,
+                statement_index,
+                call,
+                &symbols,
+                &values,
+            )?;
+            continue;
+        }
         let statement_ordinal = u32::try_from(statement_index).ok()?;
         let (source, destination, role) = match statement {
             StatementNode::LocalData(local) => {
@@ -363,6 +387,107 @@ fn capture_call(
         }
     }
     None
+}
+
+#[allow(clippy::too_many_arguments)]
+fn retains_values_across_unit_call(
+    program: &typed_trees::TypedTrees,
+    borrow: &BorrowFacts,
+    context: &mut FlowBuildContext,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    call: &typed_trees::statement::TableCall,
+    symbols: &[SymbolHandle],
+    values: &CallValues,
+) -> Option<()> {
+    if call.receiver_symbol.is_valid()
+        || call.receiver_root_symbol.is_valid()
+        || !call.receiver.is_empty()
+        || !call.machine_arguments.is_empty()
+        || call.static_requirement_dispatch.is_some()
+        || call.discards_result
+    {
+        return None;
+    }
+    let callee = program.machines().iter().find(|candidate| {
+        program
+            .machine_states(candidate)
+            .first()
+            .is_some_and(|entry| entry.symbol == call.target_symbol)
+    })?;
+    let entry = program.machine_states(callee).first()?;
+    if !callee.body_is_present
+        || callee.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+        || !callee.owned_data.is_empty()
+        || !matches!(
+            program
+                .type_reference_table
+                .type_reference(entry.return_type),
+            typed_trees::types::TypeReferenceNode::Unit
+        )
+    {
+        return None;
+    }
+    let arguments = program.statement_table.expression_handles(call.arguments);
+    let parameters = program.state_parameters(entry);
+    if arguments.len() != parameters.len()
+        || parameters.iter().any(|parameter| {
+            parameter.is_self
+                || parameter.is_const
+                || program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
+        })
+        || arguments.iter().any(
+            |argument| match program.expression_table.expression(*argument) {
+                ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => false,
+                ExpressionNode::Name(path) => {
+                    !symbols.contains(&path.symbol)
+                        && !values
+                            .storage
+                            .iter()
+                            .any(|(symbol, _)| *symbol == path.symbol)
+                }
+                _ => true,
+            },
+        )
+    {
+        // No nested invocation or borrowed/nonlocal argument can hide a write
+        // outside the exact call footprint checked below.
+        return None;
+    }
+    let mut states = borrow.states.iter().filter(|(_, candidate)| {
+        candidate.machine_symbol == machine.symbol && candidate.state_symbol == state.symbol
+    });
+    let (_, borrowed_state) = states.next()?;
+    if states.next().is_some() {
+        return None;
+    }
+    let mut calls = borrow
+        .calls
+        .span_or_empty(borrowed_state.calls)
+        .iter()
+        .filter(|candidate| candidate.statement_index == statement_index);
+    let borrowed_call = calls.next()?;
+    if calls.next().is_some()
+        || borrowed_call.call_ordinal != 0
+        || borrowed_call.target_symbol != call.target_symbol
+        || borrowed_call.has_receiver
+        || borrowed_call.receiver_symbol.is_valid()
+    {
+        return None;
+    }
+    super::super::call_phases::call_storage_writes(
+        program,
+        borrow,
+        context,
+        machine,
+        state,
+        borrowed_call,
+    )?
+    .is_empty()
+    .then_some(())
 }
 
 /// Call-local scratch: immutable bindings use their selected ordinal namespace;

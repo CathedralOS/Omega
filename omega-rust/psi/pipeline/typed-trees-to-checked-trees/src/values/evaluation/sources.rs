@@ -7,6 +7,15 @@ pub(crate) trait ScalarValueSource {
     fn storage(&mut self, _symbol: SymbolHandle) -> Option<ScalarValue> {
         None
     }
+
+    /// Current storage below an authored parameter, not a dense scalar binding.
+    fn structural_field(
+        &mut self,
+        _parameter_position: u32,
+        _path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    ) -> Option<ScalarValue> {
+        None
+    }
 }
 
 impl<Resolve: FnMut(usize) -> Option<ScalarValue>> ScalarValueSource for Resolve {

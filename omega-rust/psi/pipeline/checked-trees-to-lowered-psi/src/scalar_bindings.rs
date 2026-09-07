@@ -126,6 +126,11 @@ impl ScalarBindings {
             CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
             | CheckedScalarExpression::IntegerWiden { operand, .. }
             | CheckedScalarExpression::IntegerExactCast { operand, .. } => self.scalar(operand)?,
+            CheckedScalarExpression::IntegerTrappingCast { .. } => {
+                return Err(LoweringError::Unsupported(
+                    "checked trapping conversion requires runtime policy realization",
+                ));
+            }
             CheckedScalarExpression::Boolean(expression) => self.boolean(expression)?,
             CheckedScalarExpression::IntegerLiteral { .. }
             | CheckedScalarExpression::IeeeFloatLiteral { .. }

@@ -19,6 +19,13 @@ pub(crate) fn evaluate(
     resolve_binding: &mut impl ScalarValueSource,
 ) -> Option<ScalarValue> {
     match expression {
+        CheckedScalarExpression::StructuralParameterField {
+            parameter_position,
+            path,
+            primitive_type: PrimitiveType::Bool,
+        } => resolve_binding
+            .structural_field(*parameter_position, path)
+            .filter(|value| matches!(value, ScalarValue::Boolean(_))),
         CheckedScalarExpression::StorageRead {
             symbol,
             primitive_type: PrimitiveType::Bool,
@@ -46,6 +53,19 @@ fn integer(
     resolve_binding: &mut impl ScalarValueSource,
 ) -> Option<(IntegerType, IntegerValue)> {
     match expression {
+        CheckedScalarExpression::StructuralParameterField {
+            parameter_position,
+            path,
+            primitive_type,
+        } => {
+            let scalar_type = integer_type(*primitive_type)?;
+            let ScalarValue::Integer(value) =
+                resolve_binding.structural_field(*parameter_position, path)?
+            else {
+                return None;
+            };
+            Some((scalar_type, admitted_integer(scalar_type, &value)?))
+        }
         CheckedScalarExpression::StorageRead {
             symbol,
             primitive_type,
@@ -137,6 +157,17 @@ fn integer(
             let (source, value) = integer(operand, resolve_binding)?;
             Some((target, source.widen_value_to(target, value)?))
         }
+        CheckedScalarExpression::IntegerTrappingCast {
+            primitive_type,
+            operand,
+        } => {
+            // Only the known representable normal-return payload is retained.
+            // Failure to represent yields no fact, never wrapping or a proof
+            // that the surrounding machine returns normally.
+            let target = integer_type(*primitive_type)?;
+            let (source, value) = integer(operand, resolve_binding)?;
+            Some((target, source.exact_cast_value_to(target, value)?))
+        }
         CheckedScalarExpression::IntegerExactCast {
             primitive_type,
             operand,
@@ -150,9 +181,9 @@ fn integer(
             }
             Some((target, source.exact_cast_value_to(target, value)?))
         }
-        CheckedScalarExpression::IeeeFloatLiteral { .. }
-        | CheckedScalarExpression::StructuralParameterField { .. }
-        | CheckedScalarExpression::Boolean(_) => None,
+        CheckedScalarExpression::IeeeFloatLiteral { .. } | CheckedScalarExpression::Boolean(_) => {
+            None
+        }
     }
 }
 
@@ -202,6 +233,13 @@ fn boolean(
     resolve_binding: &mut impl ScalarValueSource,
 ) -> Option<bool> {
     match expression {
+        CheckedBooleanExpression::StructuralParameterField {
+            parameter_position,
+            path,
+        } => match resolve_binding.structural_field(*parameter_position, path)? {
+            ScalarValue::Boolean(value) => Some(value),
+            _ => None,
+        },
         CheckedBooleanExpression::StorageRead { symbol } => {
             match resolve_binding.storage(*symbol)? {
                 ScalarValue::Boolean(value) => Some(value),
@@ -244,8 +282,7 @@ fn boolean(
                 CheckedIntegerComparisonKind::LessOrEqual => !ordering.is_gt(),
             })
         }
-        CheckedBooleanExpression::StructuralParameterField { .. }
-        | CheckedBooleanExpression::IeeeFloatComparison { .. }
+        CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
         | CheckedBooleanExpression::PayloadlessSumEqual { .. }
         | CheckedBooleanExpression::StructuralCaseMembership { .. } => None,
