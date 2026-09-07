@@ -433,8 +433,9 @@ specification-only occurrence.
 Construction normally supplies an erased term even though it produces no
 runtime code. Omission is derived only for a structurally visible and
 accessible nullary constructor; the compiler does not invoke a general
-inhabitance judgment or synthesize a zero/default value. Ordinary authored
-field defaults remain ordinary defaults.
+inhabitance judgment or synthesize a zero/default value. Ordinary runtime fields
+retain their [construction and zero-establishment rules](chapter_1_data_values_literals.md);
+data declarations do not permit field default initializers.
 
 For currently resolved and nameable checked-shape holders and non-generic
 evidence types, the executable slice elaborates an omitted erased initializer
