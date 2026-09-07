@@ -624,11 +624,8 @@ table, not an identical table across recipes or isolated tokenizer inputs:
 
 These check in 9.602 and 10.519 seconds. Earlier unchanged ASCII/capacity
 prefixes cost 2,609/5,137 work; original tokenization adds 9,247 in that ordered
-recipe. Scaling the original complete small
-request by `46484/24` gives about 47.43 million work, **only a sample-mix scenario,
-neither measured demand nor a bound**. Fixed formation/root costs, repeated-token
-and arithmetic facts, actual token lengths, and omitted encoder obligations
-prevent this extrapolation from selecting a provision.
+recipe. Linear scaling of this literal is not a full-subject estimate: actual
+reuse, token lengths, fixed root costs, and missing encoder work differ.
 
 The alternative reuses the original total byte transition with empty history,
 then prepends its token delta to the actual history. Collection is total for
@@ -642,22 +639,79 @@ The 24 local uses share 21 distinct proofs. In particular, zero-based source
 positions 4 and 20 both consume `r` from empty pending bytes, using the same
 checked row 516 under one-token and four-token histories. Reusing local rows
 saves 687 work versus the uncached factored recipe. Without that reuse, the
-factored recipe costs 3,871 more than the original: a net **3,184-work (13.0%) regression**. Request
-size also grows 7,956 bytes under the same theory. Do not adopt this interface
+factored recipe costs 3,871 more than the original: a net **3,184-work (13.0%)
+regression**. Request size also grows 7,956 bytes under the same theory. Do not adopt this interface
 merely because local sharing is possible.
 
-Next use a source-owned census of the complete subject to measure local,
-history-bearing, and collection keys before expanding the proof producer.
-Both recipes can reuse repeated bytes while a comment's history is unchanged;
-give both those opportunities. Count collection, fold, ASCII/count, root, and
-missing encoder costs alongside local reuse. Neither this factoring nor fusion
-has established a feasible full certificate or justified a larger provision.
+At base `1b493b1b9dca8ba395b6168271caeb97a309b3f3`, a 128-line/5,932-byte
+ordinary-Gamma diagnostic scans the exact 46,484-byte evaluator source from
+the [selected profile](../../bootstrap/2_gamma/EVALUATOR_PROFILE.md). Gamma emits
+each raw byte, route, before/after lexical state, token delta, and EOF. Host
+code checks framing/byte identity and counts opaque emitted-state keys; it does
+not tokenize, select transitions, or manufacture a certificate.
+
+| Full-subject observation | Count |
+| --- | ---: |
+| Source byte transitions | 46,484 |
+| Local `(byte, comment, pending)` keys | 1,685 |
+| History-bearing transition keys | 29,780 |
+| Normalized collection keys | 18,528 |
+| Token-delta append keys | 7,373 |
+| Emitted tokens / distinct token values | 3,686 / 582 |
+| Maximum pending token bytes | 18 |
+
+History identity here is token count **within one append-only scan**, not across
+subjects: unchanged count means no append; an append increases list length.
+Collection keys include local output state, emitted token delta, and incoming
+history. The routes contain 12,666 normal bytes, 14,217 separators, 777 comment
+starts, 18,047 comment-body bytes, and 777 comment ends. Repetition benefits
+the original recipe too; its 29,780 keys are not 46,484 independent steps.
+
+The trace is 1,426,235 bytes and takes 13.027 seconds on macOS arm64, process
+zero and empty stderr. Producer SHA-256:
+`612201ccb7b770da5a061f708625a34ab9ccf7509c6fe1e9cf7c9b9bfb91ae32`;
+trace SHA-256:
+`691e83ecca45d570d31bd517ac7359ffe62866918b5e546293b02fe1543470be`.
+Six exact positive controls include every state/route of the checked literal,
+all separators, comment EOF, pending-token EOF, and mixed comment endings.
+Four late invalid-byte controls discard all buffered output with status 9.
+These are source-owned observations, **not checked full-source propositions**.
+
+An independent record audit also rules out the current normalized linked-list
+scan recipe at the existing 8-MiB request extent, irrespective of local reuse:
+
+| Required records per source byte in this recipe | Bytes |
+| --- | ---: |
+| Source Cons, normalized scan call, unreduced scan call | 3 × 24 = 72 |
+| Suffix Ref, binary Cong, two Trans, one Unfold | 16 + 28 + 48 + 20 = 112 |
+
+Suffix lengths distinguish records within each term family. Constructor versus
+function tags, and explicit State versus byte-step application arguments,
+distinguish the families. A suffix Ref reused from another component still
+exists once in the request. Thus `184*46484 = 8,553,056` bytes is a floor for
+this exact recipe, already 164,448 over 8 MiB before theory, states, local
+proofs, and other obligations. The audited 24-byte request contains exactly the
+corresponding 1,728 term bytes and 2,688 proof bytes as a subset. Mandatory
+proof-index, row, and congruence-premise reservations alone cost at least
+`12*46484 = 557,808` work; this omits all comparisons and substitutions.
+Neither figure is a lower bound for other certificates or an executed full
+certificate refusal. Input and work provisions remain engineering choices.
+
+**Disposition:** do not build this full linked-list certificate expecting
+memoization to make it fit, or adopt factoring from key counts alone. Compare
+the existing balanced-Source route, including state-dependent fold reuse and
+collection, against a coherently larger request/work/allocation provision.
+Include ASCII/count, root, operand/dispatch, and error-finalization costs.
+Do not repeat a no-op fold or add another helper family in place of that
+whole-route decision. A feasible complete route is still unestablished.
 
 Local continuation material remains outside the repository:
 `/tmp/omega-lexical-factoring.RD0U2V/compare.py` takes `prepare`, `positive`, or
 `mutations`; `controls.py` takes `uncached` or `history` (all with `python3 -B`).
 It reads the previous `/tmp/omega-components-probe.zy22J8` experiment, which
 imports literal recipes from `/private/tmp/omega-beta-hexword.qiJde0`.
+The census is `/tmp/omega-lexical-census.fRokwx/census.py`, with `controls` and
+`subject` modes under `python3 -B`; its Gamma producer and trace are beside it.
 These local paths are continuation material, not portable repository commands
 or accepted artifacts; preserve them until the bounded comparison resolves
 retention. No permanent helper or runtime provision changed at this checkpoint.
