@@ -52,6 +52,11 @@ prefixes; arbitrary name order retains the same semantics without promising
 the same allocation savings. It does not raise a Gamma bound or convert a raw
 evaluator resource failure into a compiler-owned outcome.
 
+The [customer cost review](../../../../../../wiki/design_briefs/bootstrap_cost_review.md#delta-names-customer-allocation-versus-boundary-necessity)
+compares prefix reuse with rebuilding from the root on the exact Epsilon source.
+It supports retaining the current implementation without expansion, not claiming
+that the customer requires it to fit or that boundary conformance is complete.
+
 Fresh suffix construction also reuses one known-empty carrier for absent
 terminals and empty child lists throughout the path. An absent focus or child
 already supplies that carrier; an internal prefix's absent terminal can supply

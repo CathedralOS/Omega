@@ -9,6 +9,7 @@ The objective remains the [smallest human-auditable chain](bootstrap_minimizatio
 | Area | Evidence | Recommendation |
 | --- | --- | --- |
 | Delta height normalization | Current Epsilon customer lowers to height 69; normalization adds no helpers. | Freeze expansion. Do not raise Gamma depth for this customer. Resolve deep-source conformance before deleting the transform. |
+| Delta name construction | Shared-prefix cursors save 275,352 pairs/11,014,080 bytes over root-rebuilding seeks on the current Epsilon subject; both produce the same complete receipt. | Retain the existing implementation without expansion. Customer capacity alone does not require it; preserve separate conformance obligations before considering removal. |
 | Generic Gamma checker | Entire raw source/tape lists can be checked, but separately represented copies cost 229 seconds before any encoding derivation. | Keep the narrow checker; require a costed, shared certificate strategy before further encoder helper families. |
 | Partial Beta theory | Lexical and word helpers exist; full encoder, independent owner root, and source-owned certificate producer do not. | Do not treat helper completion as full-proof feasibility or trust reduction. |
 | Retained concatenative route | Eleven bootstrap files, 236,347 bytes; eight remaining test entrypoints after experiment retirement below. | Candidate for further retirement, not dead code. Map unique coverage and preserve useful findings before coordinated removal. |
@@ -75,6 +76,64 @@ Next useful simplification evidence: compare complete canonical emission with a
 scratch source-owned path serializing the original plan for this exact customer.
 Do not remove shared height/extent metadata: emission also consumes it. Any
 contract narrowing remains an owner decision, not a local optimization.
+
+## Delta names: customer allocation versus boundary necessity
+
+At `fe0b48924aebc7bd4818f1a75d870f98ba17e8b4`, the complete canonical Delta
+compiler compiled the same 612,994-byte Epsilon-plus-entry subject used above.
+That subject includes one separating LF; it is not the unseparated byte sequence
+in the ordinary Epsilon gate. The untouched selected evaluator returned status
+0, empty stderr, and a 711,597-byte Gamma receipt in 103.129 seconds, SHA-256
+`f28040ac9c4bee83e6487fe604c0e93a84265db0e92e430d9f2677c759784e5a`.
+
+A scratch comparison changed only `identity_cursor_seek` to finish its previous
+root before descending from depth zero:
+
+```text
+(def identity_cursor_seek ((cursor Int) (start Int) (end Int)) Int
+  (identity_cursor_descend (identity_cursor_finish cursor) 0 0 start end))
+```
+
+The sparse trie, insertion/replacement, admission order, caller state, and other
+definitions stayed unchanged. This disables shared-prefix reuse; it is not a
+complete cursor-free compiler. The composed variant was 155,284 bytes, SHA-256
+`ade7b4124f8057110e195dc1111234554e3f054cb1698ad31a5a9a1d80b02e70`.
+
+| Whole-compilation observation | Current prefix reuse | Root-rebuilding seek |
+| --- | ---: | ---: |
+| Cumulative allocated pairs | 2,242,373 | 2,517,725 |
+| Allocated pair storage, 40 bytes/node | 89,694,920 bytes | 100,709,000 bytes |
+| Instrumented wall time, one run | 105.654 s | 108.347 s |
+
+Both instrumented receipts matched the untouched evaluator's bytes exactly.
+Telemetry came from a scratch Beta evaluator: the two publication calls invoke
+an appended routine at `0x20a3`, which calls the original `flush_output`, then
+writes `(ra0 - 0x10000000) / 40` as eight little-endian bytes, preserving status
+register `r4`. The existing monotonic pair cursor and allocation checks are
+unchanged. Its 8,441-byte tape has SHA-256
+`af2790b6aec4d5e062dd38a05bc3da8f9b41691d2712b72fba81ffb33251183d`.
+Five controls checked zero/one/three allocations and scalar/application
+publication, including nonzero status. Counts measure allocated pair storage,
+not live reachable values or host RSS; the instrumented evaluator is not admitted.
+
+**Disposition:** the existing three cursor files (123 lines/5,879 bytes) avoid
+10.9% of the alternative's allocations on this actual customer. Both remain far
+below Gamma's 40,265,318-pair provision. These single-run times do not establish
+a reliable throughput improvement. Retain the current implementation, freeze
+expansion, and do not describe it as necessary merely to fit this customer.
+Full constructor/parameter/match limits remain separate requirements, including
+the [65,536-arm controls](../../tests/delta/resource-boundary/README.md#match-coverage-fixture-inventory).
+The historical `36bdfe173c` capacity repair changed several mechanisms together;
+it is not an isolated measurement of cursor necessity. No new name index,
+representation, language, or private-capacity change follows from this review.
+
+On macOS arm64, both compiler variants also passed the existing cursor,
+parameter, and catalog-replacement controls: 14 exact diagnostic rejections and
+seven identical positive receipts that preserved binary input when executed by
+selected Gamma. Full resource-boundary suites and Windows were not run. This
+establishes the measured compilation and focused controls, not complete Epsilon
+execution or proof-chain closure. Scratch variants and telemetry are not retained
+as permanent tooling; selected source, artifacts, and test expectations stay unchanged.
 
 ## Checker: full-size representation is only a prerequisite
 

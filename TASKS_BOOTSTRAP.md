@@ -66,13 +66,12 @@ prerequisite to every lower-rung milestone.
 
 - **BOOTSTRAP-COMPLEXITY-REVIEW.** Finish the decisions identified by the
   [measured cost review](wiki/design_briefs/bootstrap_cost_review.md) before
-  expanding infrastructure. Owners remain Delta normalization/name checking,
+  expanding infrastructure. Owners remain Delta normalization,
   Gamma evaluator/checker/Beta definitions, and the retained comparison routes.
   Current Epsilon demand does not justify more depth machinery; retain deep-source
   conformance until a simpler implementation or owner-approved scope replaces it.
-  Compare name-checking storage costs against actual customer pressure, separately
-  from maximum-boundary controls. Map unique legacy assertions to selected gates
-  before removing the old execution routes and their adapters together.
+  Map unique legacy assertions to selected gates before removing the old
+  execution routes and their adapters together.
   For P1, resolve capacity-accounting cost within the reviewed encoder/scanner
   outline: global sharing still leaves the existing per-byte Word-counter recipe
   outside current input/work provisions before encoding. Cost grouped/binary
