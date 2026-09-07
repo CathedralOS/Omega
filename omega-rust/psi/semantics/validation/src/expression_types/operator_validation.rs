@@ -43,7 +43,7 @@ pub(crate) fn validate_binary_operand_types(
     );
 }
 
-/// Whether `operand`'s type is a float (`f32`/`f64`): a float literal, or a place
+/// Whether `operand`'s type is a float (`f32`/`f64`): a landed float literal, or a place
 /// whose declared type resolves to a float primitive. Looks through `Mutable`.
 pub(super) fn expression_is_float_typed(
     program: &TypedTrees,
@@ -52,7 +52,7 @@ pub(super) fn expression_is_float_typed(
     operand: ExpressionHandle,
 ) -> bool {
     match program.expression_table.expression(operand) {
-        ExpressionNode::Float(_) => true,
+        ExpressionNode::Float(literal) => literal.landing().is_some(),
         ExpressionNode::Borrow(inner) => {
             expression_is_float_typed(program, machine, state, inner.target)
         }

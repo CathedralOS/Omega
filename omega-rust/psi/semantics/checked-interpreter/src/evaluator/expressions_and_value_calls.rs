@@ -82,7 +82,12 @@ impl<'program> Evaluator<'program> {
                 if let Some(value) = self.eval_selected_trait_operator(handle, &binary, frame)? {
                     return Ok(value);
                 }
-                let left = self.eval_expression(binary.left, frame)?;
+                let destination = self
+                    .expression_scalar_type(binary.left, frame)
+                    .or_else(|| self.expression_scalar_type(binary.right, frame))
+                    .map(|(primitive, _)| primitive);
+                let left =
+                    self.eval_expression_with_destination(binary.left, destination, frame)?;
                 // `&&`/`||` SHORT-CIRCUIT: synthesized structural equality
                 // (Equatable) guards each sum arm's payload reads behind tag
                 // compares, so the right operand must not evaluate when the
@@ -103,7 +108,8 @@ impl<'program> Evaluator<'program> {
                         .map(Value::Bool)
                         .ok_or_else(|| Halt::Trap("logical operand not boolean".to_owned()));
                 }
-                let right = self.eval_expression(binary.right, frame)?;
+                let right =
+                    self.eval_expression_with_destination(binary.right, destination, frame)?;
                 let unsigned_operands = matches!(
                     binary.operator,
                     BinaryOperator::Less
@@ -158,7 +164,11 @@ impl<'program> Evaluator<'program> {
                 {
                     return Ok(assembled);
                 }
-                let value = self.eval_expression(cast.value, frame)?;
+                let value = if cast.form.is_recast() {
+                    self.eval_expression(cast.value, frame)?
+                } else {
+                    self.eval_expression_with_destination(cast.value, target, frame)?
+                };
                 if cast.form.is_recast() {
                     if target.is_none()
                         && let Some(source_type) = self.expression_type_reference(cast.value, frame)
@@ -287,10 +297,12 @@ impl<'program> Evaluator<'program> {
         } else {
             frame.self_cell.clone()
         };
-        let mut arguments = Vec::with_capacity(operands.len() - usize::from(has_self));
-        for operand in operands.into_iter().skip(usize::from(has_self)) {
-            arguments.push(self.eval_state_argument(operand, frame)?);
-        }
+        let arguments = self.eval_state_arguments(
+            &machine,
+            state.name.as_str(),
+            &operands[usize::from(has_self)..],
+            frame,
+        )?;
 
         let entered_guard_depth = self.guard_depth;
         self.guard_depth = 0;
@@ -841,14 +853,14 @@ impl<'program> Evaluator<'program> {
                 return Err(halt);
             }
         };
-        let mut args = Vec::new();
-        for argument in self
-            .program
-            .expression_table
-            .expression_handles(call.arguments)
-        {
-            args.push(self.eval_state_argument(*argument, frame)?);
-        }
+        let args = self.eval_state_arguments(
+            &machine,
+            &entry_state,
+            self.program
+                .expression_table
+                .expression_handles(call.arguments),
+            frame,
+        )?;
         // Suspend the guard flag while the callee RUNS: distinct same-shaped calls
         // inside its body are genuine repeat calls, not copies of one source
         // expression, and must not memoize against each other.

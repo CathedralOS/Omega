@@ -17,9 +17,6 @@ pub(super) fn report_mismatch(
     slot_noun: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
-    if !matches!(target, PrimitiveType::F32 | PrimitiveType::F64) {
-        return false;
-    }
     // Direct literals retain the existing directed suffix diagnostic. This
     // guard extends that rule to values whose format comes from a declaration,
     // conversion, or call result.
@@ -27,14 +24,39 @@ pub(super) fn report_mismatch(
     while let ExpressionNode::Borrow(borrow) = program.expression_table.expression(direct) {
         direct = borrow.target;
     }
-    if matches!(
-        program.expression_table.expression(direct),
-        ExpressionNode::Float(_)
-    ) {
+    if matches!(target, PrimitiveType::F32 | PrimitiveType::F64)
+        && matches!(
+            program.expression_table.expression(direct),
+            ExpressionNode::Float(_)
+        )
+    {
         return false;
     }
 
-    let source = match program.expression_table.expression(direct) {
+    let source = source_primitive(program, machine, state, direct);
+    if let Some(source @ (PrimitiveType::F32 | PrimitiveType::F64)) = source
+        && source != target
+    {
+        diagnostics.push(Diagnostic::error(format!(
+                "{slot_context} delivers a `{}` value to a `{}` {slot_noun}; a landed float retains its format, so changing format requires an explicit conversion",
+                source.name(), target.name(),
+            )));
+        return true;
+    }
+    false
+}
+
+fn source_primitive(
+    program: &TypedTrees,
+    machine: Option<&Machine>,
+    state: Option<&State>,
+    value: ExpressionHandle,
+) -> Option<PrimitiveType> {
+    match program.expression_table.expression(value) {
+        ExpressionNode::Float(literal) => literal.landing().map(|format| match format {
+            numerics::literals::FloatFormat::F32 => PrimitiveType::F32,
+            numerics::literals::FloatFormat::F64 => PrimitiveType::F64,
+        }),
         // A cast's output format, not its input, reaches this destination.
         ExpressionNode::Cast(cast) => primitive(program, cast.target_type),
         ExpressionNode::Call(call) => crate::calls::resolved_call_result_type(program, call)
@@ -46,28 +68,25 @@ pub(super) fn report_mismatch(
         ExpressionNode::Name(path) => super::named_value_type_reference(program, path)
             .or_else(|| {
                 machine.and_then(|machine| {
-                    crate::places::declared_place_type(program, machine, state, direct)
+                    crate::places::declared_place_type(program, machine, state, value)
                 })
             })
             .and_then(|reference| primitive(program, reference)),
         ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => machine
-            .and_then(|machine| crate::places::declared_place_type(program, machine, state, direct))
+            .and_then(|machine| crate::places::declared_place_type(program, machine, state, value))
             .and_then(|reference| primitive(program, reference)),
-        // A Binary's operands do not establish its result type: authored
-        // heterogeneous operators can return a different format. Checked
-        // operator selection owns that result; do not guess it here.
+        // Only builtin arithmetic propagates a landed operand's format.
+        // Authored heterogeneous operators retain checked result selection.
+        ExpressionNode::Binary(binary)
+            if crate::literals::has_anonymous_operator_meaning(program, value) =>
+        {
+            [binary.left, binary.right]
+                .into_iter()
+                .filter_map(|operand| source_primitive(program, machine, state, operand))
+                .find(|primitive| matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64))
+        }
         _ => None,
-    };
-    if let Some(source @ (PrimitiveType::F32 | PrimitiveType::F64)) = source
-        && source != target
-    {
-        diagnostics.push(Diagnostic::error(format!(
-                "{slot_context} delivers a `{}` value to a `{}` {slot_noun}; a landed float retains its format, so changing format requires an explicit conversion",
-                source.name(), target.name(),
-            )));
-        return true;
     }
-    false
 }
 
 fn primitive(program: &TypedTrees, reference: TypeReferenceHandle) -> Option<PrimitiveType> {

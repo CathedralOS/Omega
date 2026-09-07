@@ -217,6 +217,18 @@ pub fn argument_matches_type_reference_handle(
             name: type_name,
         } => {
             if let Some(primitive_type) = PrimitiveType::from_name(type_name) {
+                if crate::literals::land_anonymous_integer_expression(
+                    program,
+                    argument,
+                    primitive_type,
+                    |expression| {
+                        crate::literals::has_anonymous_operator_meaning(program, expression)
+                    },
+                )
+                .is_some()
+                {
+                    return true;
+                }
                 return matches!(argument_node, ExpressionNode::Boolean(_))
                     && primitive_type == PrimitiveType::Bool
                     || matches!(argument_node, ExpressionNode::Float(_))

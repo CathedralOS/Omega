@@ -18,6 +18,7 @@ source = { path = "../../foundation/source" }
 layout-plans = { path = "../../foundation/layout-plans" }
 typed-trees = { path = "../../representations/typed-trees" }
 checked-trees = { path = "../../representations/checked-trees" }
+validation = { path = "../validation" }
 
 [dev-dependencies]
 source-files-to-tokens = { path = "../../pipeline/source-files-to-tokens" }

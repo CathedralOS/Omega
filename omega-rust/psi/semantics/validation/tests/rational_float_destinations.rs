@@ -149,6 +149,28 @@ fn typed_integer_operands_are_not_reclassified_as_anonymous_floats() {
 }
 
 #[test]
+fn decimal_float_landing_preserves_signed_zero_arithmetic() {
+    for destination in ["f32", "f64"] {
+        for (expression, expected) in [
+            ("-0.0 + -0.0", -0.0_f64),
+            ("-0.0 - 0.0", -0.0_f64),
+            ("-0.0 + 0.0", 0.0_f64),
+        ] {
+            let source = format!("machine value() -> {destination} {{ {expression} }}");
+            let program = typed(&source);
+            assert_eq!(
+                returned_float(&program)
+                    .expect("float zero")
+                    .landed_f64()
+                    .to_bits(),
+                expected.to_bits(),
+                "{source}"
+            );
+        }
+    }
+}
+
+#[test]
 fn a_shared_large_operand_keeps_its_other_runtime_width_obligation() {
     let mut program = unlanded(
         "machine value() -> f64 { 1000000000000000000000 / 1000000000000000000000 }

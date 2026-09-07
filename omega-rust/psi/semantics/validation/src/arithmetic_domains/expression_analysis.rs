@@ -168,7 +168,6 @@ pub(super) fn analyze(
             crate::literals::anonymous_numeric_value(program, expression, &mut |expression| {
                 crate::literals::has_anonymous_operator_meaning(program, expression)
             })
-        && evaluated.fractional_origin.is_valid()
     {
         let Some(value) = evaluated.value.to_integer_exact() else {
             diagnostics.push(
@@ -243,9 +242,6 @@ pub(super) fn analyze(
                     ) else {
                         continue;
                     };
-                    if !evaluated.fractional_origin.is_valid() {
-                        continue;
-                    }
                     if let Some(literal) = evaluated
                         .value
                         .to_integer_exact()
@@ -805,8 +801,7 @@ pub(super) fn analyze(
             let anonymous =
                 crate::literals::anonymous_numeric_value(program, cast.value, &mut |expression| {
                     crate::literals::has_anonymous_operator_meaning(program, expression)
-                })
-                .filter(|value| value.fractional_origin.is_valid());
+                });
             let source = if let Some(evaluated) = anonymous
                 && let Some(primitive) =
                     primitive.filter(|primitive| integer_bit_width(*primitive).is_some())

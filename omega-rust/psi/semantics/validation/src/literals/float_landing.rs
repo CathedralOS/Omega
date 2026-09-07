@@ -470,9 +470,13 @@ fn land_float_tree(
     // integer operands are deliberately declined by the shared evaluator.
     let mut builtin =
         |expression| super::integer_landing::has_anonymous_operator_meaning(program, expression);
-    let exact = super::integer_landing::anonymous_numeric_value(program, expression, &mut builtin)
-        .map(|evaluated| numerics::bignum::ExactFloat::Finite(evaluated.value))
-        .or_else(|| anonymous_exact_float_tree(program, expression));
+    let exact = super::integer_landing::anonymous_integer_literal_tree_value(
+        program,
+        expression,
+        &mut builtin,
+    )
+    .map(|evaluated| numerics::bignum::ExactFloat::Finite(evaluated.value))
+    .or_else(|| anonymous_exact_float_tree(program, expression));
     if let Some(exact) = exact {
         let semantic_format = match format {
             numerics::literals::FloatFormat::F32 => {

@@ -100,7 +100,7 @@ fn append_landing_warning(
         return;
     };
     warnings.push(Diagnostic::warning(format!(
-        "anonymous division preserves the exact fractional intermediate `{}` before landing as integer `{integer}`; type an operand if typed integer division was intended",
+        "anonymous arithmetic preserves the exact fractional intermediate `{}` before landing as integer `{integer}`; type an operand if typed integer division was intended",
         fractional.value,
     )).with_source_span(program.expression_table.source_span(evaluated.fractional_origin)));
     warned.push(expression);
@@ -488,6 +488,27 @@ mod tests {
         let origin = program.expression_table.iter_expressions().find_map(|(handle, node)| {
             matches!(node, ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Divide).then_some(handle)
         }).unwrap();
+        assert_eq!(
+            warnings[0].source_span,
+            Some(program.expression_table.source_span(origin))
+        );
+    }
+
+    #[test]
+    fn decimal_fraction_warning_retains_the_first_exact_source_value() {
+        let program = typed("machine value() -> i32 { 0.1 + 0.9 }");
+        let warnings = anonymous_integer_landing_warnings(&program);
+        assert_eq!(warnings.len(), 1, "{warnings:?}");
+        assert!(warnings[0].message.contains("1/10"));
+        assert!(warnings[0].message.contains("integer `1`"));
+        let origin = program
+            .expression_table
+            .expression_entries()
+            .find_map(|(handle, node)| {
+                matches!(node, ExpressionNode::Float(literal) if literal.text() == "0.1")
+                    .then_some(handle)
+            })
+            .expect("first decimal leaf");
         assert_eq!(
             warnings[0].source_span,
             Some(program.expression_table.source_span(origin))
