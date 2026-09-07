@@ -124,16 +124,17 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   unchanged checked text facts; the console dependencies below are also required.
 
   Work from the actual `cli_mvp` [command and route](samples/cli/basics/cli_mvp/README.md).
-  At code checkpoint `9f93744f34` on macOS ARM64, `CARGO_INCREMENTAL=0 cargo run
-  -p omega -- --target macos_arm64 --build-dir build/cli-mvp-route
-  samples/cli/basics/cli_mvp/main.omg` builds the CLI, then exits 1 during fresh
-  `omega-language-std` review: four writer entry/emit head and tail bounds fail,
-  plus two filesystem `self.rda_depth - 1` bounds against length 16
-  (`rds_read_go` and `rds_parent_go`). Review compiles `std/main.omg` before
-  the application. Compare its exact guard/operator and state-edge range facts
-  with application-root checking in `typed-trees-to-checked-trees/src/checks/ranges/`;
-  preserve bound checking. Acceptance: whole-std review succeeds, then the same
-  CLI command reaches its next boundary. The sample harness bypasses this review.
+  At code checkpoint `f1628ba90b` on Windows x64, `mbx run -p omega -- --target windows_x86_64 --build-dir build/cli-mvp-bounds samples/cli/basics/cli_mvp/main.omg`
+  exits 1 after fresh checked package review: `fresh package review has blocking
+  rows but no explicit --package-root-policy`. Next inspect the exact blocking
+  rows from `compare_review_only_initial_capabilities` in
+  `packages/manager/src/operations/compile_project.rs` and the existing audit
+  route. Follow the [root-policy contract](wiki/design_briefs/build_and_package_model.md):
+  establish which decisions the caller must supply, without granting std implicit
+  authority or fabricating acceptance. Acceptance: the same CLI route recovers
+  explicit policy against its current conflicts and reaches native production.
+  The inner sample harness bypasses this review/policy route. Recheck the
+  corresponding macOS ARM64 command on that host; only Windows was verified.
 
   The downstream native `cli_mvp` probe at code checkpoint `9f93744f34` remains red.
   On macOS ARM64, `CARGO_INCREMENTAL=0 OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
