@@ -388,6 +388,15 @@ fn authored_unit_annotation_is_not_an_inferred_temporary() {
     assert_annotation(&typed);
     crate::specialize_static_machine_calls(&mut typed).expect("select the explicit scalar callee");
     assert_annotation(&typed);
+    let Err(diagnostics) = lower_typed_trees(typed) else {
+        panic!("an explicit Unit local cannot admit a scalar call result");
+    };
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("local `result`") && diagnostic.message.contains("Unit")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
 }
 
 #[test]

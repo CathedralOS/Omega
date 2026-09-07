@@ -1503,6 +1503,23 @@ fn validate_state_statement_node(
                 machine.name,
                 local_data.name.as_str()
             );
+            // Unit is not storage for an initializer's value. Generated
+            // bindings can retain an inference sentinel, but an authored
+            // annotation must never silently discard a produced value.
+            if local_data.initial_value.is_valid()
+                && local_data.type_reference.is_valid()
+                && !local_data.type_is_inferred
+                && matches!(
+                    program
+                        .type_reference_table
+                        .type_reference(local_data.type_reference),
+                    typed_trees::types::TypeReferenceNode::Unit
+                )
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{owner} has an explicit Unit type and cannot bind an initializer value; use the value's type or explicitly discard the result"
+                )));
+            }
             // Cross-class guard: `let x: i32 = true` stores a bool into a numeric
             // local -- a silent miscompile, same as the assignment / arg / field
             // positions. Only an INITIALIZED `let` has a value to class-check (a

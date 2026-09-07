@@ -563,7 +563,8 @@ pub struct TableLocalData {
     pub initial_value: crate::expression::ExpressionHandle,
     /// `let mut` -- see the syntax-tree twin.
     pub is_mutable: bool,
-    /// The compiler inferred this temporary's type from its initializer.
+    /// This binding has no authored annotation; its type is compiler-derived.
+    /// Retained even while an untyped generated binding awaits inference.
     /// Specialization may refresh it; an authored annotation remains fixed.
     pub type_is_inferred: bool,
 }

@@ -79,7 +79,6 @@ pub(crate) fn lower_statement_node(
             } else {
                 None
             };
-            let type_is_inferred = type_reference.is_some();
             let type_reference = match type_reference {
                 Some(type_reference) => type_reference,
                 None => lower_type_reference_handle_from_table(lowerer, local_data.type_reference)?,
@@ -96,7 +95,7 @@ pub(crate) fn lower_statement_node(
                         .transpose()?
                         .unwrap_or_else(typed::expression::ExpressionHandle::invalid),
                     is_mutable: local_data.is_mutable,
-                    type_is_inferred,
+                    type_is_inferred: local_data.type_is_inferred,
                 },
             ))
         }
