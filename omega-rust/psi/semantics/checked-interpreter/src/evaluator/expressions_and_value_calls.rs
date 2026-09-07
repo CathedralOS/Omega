@@ -1299,12 +1299,15 @@ impl<'program> Evaluator<'program> {
             (SymbolHandle::invalid(), BTreeMap::new())
         };
         for field in self.program.expression_table.struct_fields(literal.fields) {
-            let value = self.eval_expression(field.value, frame)?;
+            let field_type = self.field_type_reference(type_symbol, field.name.as_str());
+            let destination =
+                field_type.and_then(|reference| self.program.primitive_type_reference(reference));
+            let value = self.eval_expression_with_destination(field.value, destination, frame)?;
             // Coerce the field value to the field's declared width/domain, matching
             // the native store into the field slot (`Point { x: a+b }` with `a+b`
             // = 300 into a u8 field reads 44). The field type carries its own
             // domain, so resolve it directly.
-            let value = match self.field_type_reference(type_symbol, field.name.as_str()) {
+            let value = match field_type {
                 Some(type_reference) => self.coerce_scalar_value(value, type_reference)?,
                 None => value,
             };
@@ -1364,7 +1367,18 @@ impl<'program> Evaluator<'program> {
             payload.push((name, self.allocate_cell(value)?));
         }
         for field in self.program.expression_table.struct_fields(literal.fields) {
-            let value = self.eval_expression(field.value, frame)?;
+            // Use this case's payload declaration, not a same-named field of
+            // another variant. Common fields keep their enclosing record type.
+            let field_type = self
+                .program
+                .data_payload_fields(variant)
+                .iter()
+                .find(|declared| declared.name == field.name)
+                .map(|declared| declared.type_reference)
+                .or_else(|| self.field_type_reference(data.symbol, field.name.as_str()));
+            let destination =
+                field_type.and_then(|reference| self.program.primitive_type_reference(reference));
+            let value = self.eval_expression_with_destination(field.value, destination, frame)?;
             let Some(slot) = payload
                 .iter_mut()
                 .find(|(name, _)| name == field.name.as_str())

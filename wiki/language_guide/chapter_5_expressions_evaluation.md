@@ -813,6 +813,12 @@ expression-only suppression restriction.
 > The checked interpreter shares this landing query at scalar returns, local
 > and assignment storage, casts, and call/state arguments; runtime integer
 > peers request the same exact operand values before their typed operation.
+> Explicit record and selected-case scalar field initializers use their declared
+> destinations for integrality, range checks, warnings, and checked interpretation.
+> The existing single-i64-field owned-record call plan also retains the exact
+> value; lowering checks it against the unchanged constructor expression before
+> publishing the scalar field. Other uses of a shared expression keep their
+> independent width obligations.
 > The destination's arithmetic policy cannot truncate an anonymous fraction or
 > wrap an out-of-range initial value. Successful integral
 > landings report the fractional-intermediate warning through the current
@@ -845,8 +851,9 @@ expression-only suppression restriction.
 > Caller result proofs can also
 > transport a callee's builtin `result == immutable_parameter` guarantee from retained closed
 > fixed-integer operands, without replaying their source expressions. General runtime argument
-> snapshots, generic/evidence-adapted and boundary destination custody, aggregate
-> elements, remaining mutable parameter carriers and Unit-body storage, numeric policies,
+> snapshots, generic/evidence-adapted and boundary destination custody, array
+> elements, default field values, general aggregate production/proof consumers,
+> remaining mutable parameter carriers and Unit-body storage, numeric policies,
 > remaining float destinations,
 > remaining authored-operator/const-proof consumers, and ordinary warning
 > suppression/report transport remain on [the execution board](../../TASKS.md).

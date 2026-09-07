@@ -128,6 +128,7 @@ pub(in crate::literals) fn append_destination_literals(
         owned,
         other_roots,
         call_arguments,
+        construction_fields,
     } = collect_destination_trees(program, admitted);
     if owned.is_empty() {
         return;
@@ -164,6 +165,17 @@ pub(in crate::literals) fn append_destination_literals(
                     exclude(*argument);
                 }
             }
+        } else if let ExpressionNode::StructLiteral(literal) = node {
+            for (ordinal, field) in program
+                .expression_table
+                .struct_fields(literal.fields)
+                .iter()
+                .enumerate()
+            {
+                if !construction_fields.contains(&(parent, ordinal)) {
+                    exclude(field.value);
+                }
+            }
         } else {
             children(program, node, exclude);
         }
@@ -183,6 +195,8 @@ struct DestinationTrees {
     other_roots: Vec<ExpressionHandle>,
     /// Exact admitted parent edges, not permission for the whole call tree.
     call_arguments: Vec<(ExpressionHandle, usize)>,
+    /// Exact constructed-field edges whose declarations request scalar landing.
+    construction_fields: Vec<(ExpressionHandle, usize)>,
 }
 
 fn collect_destination_trees(
@@ -194,6 +208,7 @@ fn collect_destination_trees(
         owned,
         other_roots,
         call_arguments,
+        construction_fields,
     } = &mut trees;
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -330,6 +345,35 @@ fn collect_destination_trees(
                 }
                 visited.push(expression);
                 let node = program.expression_table.expression(expression);
+                if let ExpressionNode::StructLiteral(literal) = node {
+                    let definition = program.data_definitions().iter().find(|definition| {
+                        literal.type_symbol.is_valid()
+                            && definition.symbol == literal.type_symbol
+                            && definition.type_parameters.is_empty()
+                    });
+                    for (ordinal, field) in program
+                        .expression_table
+                        .struct_fields(literal.fields)
+                        .iter()
+                        .enumerate()
+                    {
+                        let destination = definition.and_then(|definition| {
+                            crate::struct_literals::construction_field_type(
+                                program,
+                                definition,
+                                literal.case_name.as_ref().map(|name| name.as_str()),
+                                field.name.as_str(),
+                            )
+                        });
+                        if destination.is_some_and(|destination| admitted(destination, field.value))
+                        {
+                            append_tree(program, field.value, owned);
+                            construction_fields.push((expression, ordinal));
+                        } else {
+                            other_roots.push(field.value);
+                        }
+                    }
+                }
                 if let ExpressionNode::Call(call) = node {
                     let arguments = program.expression_table.expression_handles(call.arguments);
                     let destinations = (call.static_requirement_dispatch.is_none()
@@ -495,6 +539,30 @@ mod tests {
     }
 
     #[test]
+    fn constructed_scalar_fields_report_their_fractional_origins() {
+        for (definition, constructor) in [
+            ("data Number { value: i32; }", "Number"),
+            ("data Number { case Value(value: i32); }", "Number::Value"),
+        ] {
+            let source = format!(
+                "{definition} machine value() {{ let number: Number = {constructor} {{ value: 0.1 * 70 }}; }}"
+            );
+            let program = typed(&source);
+            let warnings = anonymous_integer_landing_warnings(&program);
+            let [warning] = warnings.as_slice() else {
+                panic!("one constructed field warning: {warnings:?}");
+            };
+            assert!(warning.message.contains("fractional intermediate `1/10`"));
+            assert!(warning.message.contains("integer `7`"));
+            let offset = source.find("0.1").expect("fractional field source");
+            assert_eq!(
+                warning.source_span.expect("authored origin").span,
+                source::Span::new(offset, offset + 3)
+            );
+        }
+    }
+
+    #[test]
     fn decimal_fraction_warning_retains_the_first_exact_source_value() {
         let program = typed("machine value() -> i32 { 0.1 + 0.9 }");
         let warnings = anonymous_integer_landing_warnings(&program);
@@ -609,6 +677,35 @@ mod tests {
         let mut granted = Vec::new();
         append_destination_literals(program, &mut granted);
         granted
+    }
+
+    #[test]
+    fn constructed_field_width_grants_do_not_escape_to_other_fields() {
+        let mut program = typed(&format!(
+            "data Pair {{ integer: i32; floating: f64; }}
+             machine construct() {{ let pair: Pair = Pair {{ integer: {LARGE_ARGUMENT}, floating: 0.0 }}; }}"
+        ));
+        assert_eq!(width_grants(&program).len(), 2);
+        let (expression, mut literal) = program
+            .expression_table
+            .expression_entries()
+            .find_map(|(handle, node)| match node {
+                ExpressionNode::StructLiteral(literal) => Some((handle, literal.clone())),
+                _ => None,
+            })
+            .expect("record constructor");
+        let mut fields = program
+            .expression_table
+            .struct_fields(literal.fields)
+            .to_vec();
+        fields[1].value = fields[0].value;
+        literal.fields = program.expression_table.insert_struct_fields(fields);
+        *program.expression_table.expression_mut(expression) =
+            ExpressionNode::StructLiteral(literal);
+        assert!(
+            width_grants(&program).is_empty(),
+            "a floating-field edge retains its own width obligation"
+        );
     }
 
     fn first_expression_call(program: &TypedTrees) -> ExpressionHandle {

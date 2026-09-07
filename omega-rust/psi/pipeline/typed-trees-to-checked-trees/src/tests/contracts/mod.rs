@@ -4,6 +4,7 @@ mod anonymous_integer_exits;
 mod anonymous_rational_arguments;
 mod anonymous_rational_exits;
 mod anonymous_rational_floats;
+mod anonymous_record_landing;
 mod assembly;
 mod assigned_values;
 mod bounded_arguments;
