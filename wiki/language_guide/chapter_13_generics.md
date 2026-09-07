@@ -136,8 +136,11 @@ Integer values retain their declared width and arithmetic policy. Original
 and cloned instances use their own bindings; local shadowing does not rewrite
 a different declaration. Return-range and contract checks remain independent.
 Inference also follows a concrete data instance's retained generic application.
-Explicit boolean and named-const machine arguments remain incomplete; they do
-not yet select the same tuples available through normalized generic witnesses.
+Explicit integer and Boolean literals and named canonical constants select the
+same tuples as equivalent inferred values. Named values and forwarded binders
+must match the parameter's declared carrier before their identities are erased.
+Every closed tuple validates const kinds and ranges, even when its body does
+not use the binder. Conflicting, excess, or incomplete const selections reject.
 
 This does not introduce a target-native count or index type. Length APIs retain
 their explicit target-independent count carrier, while indexing accepts any

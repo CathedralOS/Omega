@@ -267,7 +267,7 @@ fn selected_const_value_keeps_its_declared_integer_width() {
     rejects(
         "machine value<const N: u8>() -> u64 { N }
          machine main() -> u64 { value<256>() }",
-        "does not fit its `u8` suffix",
+        "does not fit `u8`",
     );
 }
 

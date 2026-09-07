@@ -141,6 +141,55 @@ pub(super) fn validate_symbolic_array_length(
     }
 }
 
+/// Validate one normalized, closed const argument against its declared carrier.
+///
+/// Callers must check named declarations and forwarded binders against this
+/// carrier before erasing their identities into value leaves. This judgment
+/// admits neither unresolved binders nor unevaluated expressions and applies
+/// even when the selected binder has no body occurrences.
+pub fn validate_closed_const_argument(
+    program: &TypedTrees,
+    owner: &str,
+    parameter: &TypeParameter,
+    argument: TypeReferenceHandle,
+) -> Result<(), Vec<Diagnostic>> {
+    let TypeParameterKind::Const { type_reference } = parameter.kind else {
+        return Err(vec![Diagnostic::error(format!(
+            "parameter `{}` of `{owner}` is not a const parameter",
+            parameter.name,
+        ))]);
+    };
+    if !argument.is_valid()
+        || !matches!(
+            program.type_reference_table.type_reference(argument),
+            TypeReferenceNode::Named { symbol, .. } if !symbol.is_valid()
+        )
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "const parameter `{}` of `{owner}` requires a normalized closed value",
+            parameter.name,
+        ))]);
+    }
+    let mut diagnostics = Vec::new();
+    validate_const_data_argument(
+        program,
+        owner,
+        parameter,
+        type_reference,
+        argument,
+        TypeParameterScope {
+            type_parameters: &[],
+            lifetime_parameters: &[],
+        },
+        &mut diagnostics,
+    );
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
 pub(super) fn validate_const_data_argument(
     program: &TypedTrees,
     base_name: &str,
@@ -170,9 +219,9 @@ pub(super) fn validate_const_data_argument(
     };
 
     if let Some(value) = CanonicalConstValue::from_atom(name.as_str()) {
-        if exact_structured_const_data_carrier_is_eligible(program, parameter_type) {
+        if exact_structured_const_carrier_is_eligible(program, parameter_type, &mut Vec::new()) {
             if let Err(reason) =
-                validate_exact_typed_structured_const_argument(program, parameter_type, &value)
+                validate_exact_const_identity(program, parameter_type, &value.identity())
             {
                 diagnostics.push(Diagnostic::error(format!(
                     "const parameter `{}` of `{base_name}` has an invalid canonical value: {reason}",
@@ -299,30 +348,35 @@ pub(crate) fn validate_exact_const_identity(
     expected_type: TypeReferenceHandle,
     identity: &CanonicalConstIdentity,
 ) -> Result<(), String> {
-    if let Some(primitive) = exact_const_primitive(program, expected_type) {
-        if identity.type_name != primitive.name() {
-            return Err(format!(
-                "expected carrier `{}`, but the canonical value names `{}`",
-                primitive.name(),
-                identity.type_name
-            ));
-        }
-        let decoded = identity
-            .decode_encoding()
-            .ok_or_else(|| "the canonical const encoding is malformed".to_owned())?;
-        return validate_decoded_structured_const(
-            program,
-            expected_type,
-            &decoded,
-            &mut Vec::new(),
+    let expected_name = if let Some(primitive) = exact_const_primitive(program, expected_type) {
+        primitive.name().to_owned()
+    } else if matches!(
+        program.type_reference_table.type_reference(expected_type),
+        TypeReferenceNode::FixedArray { .. }
+    ) && exact_structured_const_carrier_is_eligible(
+        program,
+        expected_type,
+        &mut Vec::new(),
+    ) {
+        type_reference_label(program, expected_type)
+    } else {
+        let value = CanonicalConstValue::new(
+            identity.type_name.clone(),
+            identity.encoding.clone(),
+            String::new(),
         );
+        return validate_exact_typed_structured_const_argument(program, expected_type, &value);
+    };
+    if identity.type_name != expected_name {
+        return Err(format!(
+            "expected carrier `{expected_name}`, but the canonical value names `{}`",
+            identity.type_name
+        ));
     }
-    let value = CanonicalConstValue::new(
-        identity.type_name.clone(),
-        identity.encoding.clone(),
-        String::new(),
-    );
-    validate_exact_typed_structured_const_argument(program, expected_type, &value)
+    let decoded = identity
+        .decode_encoding()
+        .ok_or_else(|| "the canonical const encoding is malformed".to_owned())?;
+    validate_decoded_structured_const(program, expected_type, &decoded, &mut Vec::new())
 }
 
 /// Replay a retained canonical const encoding against one exact resolved

@@ -468,17 +468,6 @@ Owners include
 
 ## Parallel language and compiler lanes
 
-- **MACHINE-CONST-ARGUMENT-SELECTION.** Complete explicit machine const
-  argument normalization and tuple selection for the canonical value kinds
-  admitted in generic types. Calls such as `value<true>()` and
-  `value<Values::N>()` still lack a complete tuple even after generic-data
-  normalization; inference from normalized generic witnesses is separate.
-  Owning area: Psi static arguments and monomorphization;
-  see [generic const parameters](wiki/language_guide/chapter_13_generics.md#const-and-proof-parameters).
-  Acceptance: explicit and inferred selections of the same closed value share
-  identity; distinct selections retain their own instances, and wrong kinds,
-  inconsistent argument evidence, and incomplete tuples reject.
-
 - **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Finish consumer permission rows and
   exact target-mechanism classification under the settled
   [filesystem control/lifecycle policy](wiki/design_briefs/effects_authority_and_observation.md#portable-filesystem-control-and-lifecycle-authority).

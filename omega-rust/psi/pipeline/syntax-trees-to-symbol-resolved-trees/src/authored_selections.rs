@@ -726,10 +726,7 @@ fn collect_bound_static_argument_candidates(
     candidates: &mut Vec<UnattachedCandidate>,
 ) {
     for argument in arguments {
-        if argument.path.iter().any(|member| member.is_source_backed())
-            && (!argument.symbol.is_valid()
-                || is_selectable_declaration_symbol(program, argument.symbol))
-        {
+        if has_authored_static_declaration(program, argument) {
             candidates.push(UnattachedCandidate {
                 source_span: path_span(&argument.path, fallback_span),
                 exposure,
@@ -784,10 +781,7 @@ fn collect_statement_static_argument_candidates(
     candidates: &mut Vec<UnattachedCandidate>,
 ) {
     for argument in arguments {
-        if argument.path.iter().any(|member| member.is_source_backed())
-            && (!argument.symbol.is_valid()
-                || is_selectable_declaration_symbol(program, argument.symbol))
-        {
+        if has_authored_static_declaration(program, argument) {
             candidates.push(UnattachedCandidate {
                 source_span: path_span(&argument.path, fallback_span),
                 exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
@@ -987,10 +981,7 @@ fn collect_static_argument_candidates(
     candidates: &mut Vec<Candidate>,
 ) {
     for argument in arguments {
-        if argument.path.iter().any(|member| member.is_source_backed())
-            && (!argument.symbol.is_valid()
-                || is_selectable_declaration_symbol(program, argument.symbol))
-        {
+        if has_authored_static_declaration(program, argument) {
             candidates.push(Candidate {
                 expression,
                 source_span: path_span(
@@ -1010,6 +1001,25 @@ fn collect_static_argument_candidates(
             );
         }
     }
+}
+
+fn has_authored_static_declaration(
+    program: &SymbolResolvedTrees,
+    argument: &symbol_resolved_trees::expression::StaticMachineArgument,
+) -> bool {
+    // Boolean literals share the historical path-shaped static argument
+    // storage, but select a value, not a declaration needing a symbol.
+    if !argument.symbol.is_valid()
+        && argument.application.is_none()
+        && argument.evidence_projection.is_none()
+        && let [name] = argument.path.as_ref()
+        && matches!(name.as_str(), "true" | "false")
+    {
+        return false;
+    }
+    argument.path.iter().any(|member| member.is_source_backed())
+        && (!argument.symbol.is_valid()
+            || is_selectable_declaration_symbol(program, argument.symbol))
 }
 
 fn static_argument_kind(program: &SymbolResolvedTrees, symbol: SymbolHandle) -> Kind {
