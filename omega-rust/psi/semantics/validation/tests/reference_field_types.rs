@@ -146,6 +146,100 @@ fn implicit_shared_borrow_of_an_owned_field_keeps_its_exact_referee() {
 }
 
 #[test]
+fn array_fields_project_to_shared_slices_with_the_same_element_identity() {
+    for projection in ["carrier.context", "outer.inner.context"] {
+        for (actual, required, accepted) in [
+            ("[u8; 4]", "&[u8]", true),
+            ("[u8; 0]", "&[u8]", true),
+            ("[Context; 4]", "&[Context]", true),
+            ("[u8; 4]", "&[u16]", false),
+            ("[Context; 4]", "&[Other]", false),
+            ("[u8 [0..=127]; 4]", "&[u8]", false),
+            ("[u8 [0..=127]; 4]", "&[u8 [0..=127]]", true),
+            ("[u8; 4]", "&mut [u8]", false),
+            ("[u8; 4]", "&write [u8]", false),
+            ("&write [u8; 4]", "&[u8]", false),
+            ("&mut [u8; 4]", "&mut [u8]", false),
+            ("[u8; 4]", "&[u8; 3]", false),
+            ("[u8; 4]", "&u8", false),
+            ("u8", "&[u8]", false),
+            ("[[u8; 4]; 2]", "&[[u8; 4]]", true),
+            ("[[u8; 4]; 2]", "&[[u8; 3]]", false),
+        ] {
+            let program = fixture(actual, required, projection);
+            assert_eq!(
+                matches(&program, projection),
+                accepted,
+                "{projection}: {actual} -> {required}"
+            );
+        }
+    }
+}
+
+#[test]
+fn bounded_text_field_projection_does_not_forge_view_qualifications() {
+    for (required, accepted) in [
+        ("&[u8]", true),
+        ("&[u16]", false),
+        ("&[u8] in Restricted", false),
+    ] {
+        let program = typed_source(&format!(
+            "domain [u8; 4]::Utf8 requires valid_utf8(self);
+             domain [u8]::Restricted requires self.len == 0;
+             data Carrier {{ text: [u8; 4] in Utf8; }}
+             machine Carrier::inspect(&mut self) {{ let selected: [u8; 4] in Utf8 = self.text; }}
+             machine require(value: {required}) {{}}"
+        ));
+        assert_eq!(matches(&program, "self.text"), accepted, "{required}");
+    }
+}
+
+#[test]
+fn array_view_correspondence_requires_live_element_type_handles() {
+    for stale in [false, true] {
+        let mut program = fixture("[u8; 4]", "&[u8]", "carrier.context");
+        assert!(matches(&program, "carrier.context"));
+        let array = field(&program, "Carrier", "context").1;
+        let TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } = program.type_reference_table.type_reference(array).clone()
+        else {
+            unreachable!()
+        };
+        let invalid = if stale {
+            TypeReferenceHandle::from_parts(
+                element_type.arena_index(),
+                element_type.generation() + 1,
+            )
+        } else {
+            TypeReferenceHandle::invalid()
+        };
+        let TypeReferenceNode::Reference { referee, .. } = program
+            .type_reference_table
+            .type_reference(required_type(&program))
+            .clone()
+        else {
+            unreachable!()
+        };
+        program.type_reference_table.substitute_node(
+            array,
+            TypeReferenceNode::FixedArray {
+                element_type: invalid,
+                length,
+            },
+        );
+        program.type_reference_table.substitute_node(
+            referee,
+            TypeReferenceNode::Slice {
+                element_type: invalid,
+            },
+        );
+        assert!(!matches(&program, "carrier.context"), "stale={stale}");
+    }
+}
+
+#[test]
 fn missing_ordinary_member_symbols_still_resolve_within_the_nominal_declaration() {
     let mut program = fixture("&mut Context", "&mut Context", "outer.inner.context");
     for spelling in ["outer.inner", "outer.inner.context"] {
