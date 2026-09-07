@@ -27,6 +27,19 @@ For concrete examples, read [Squalr source patterns](references/squalr-patterns.
 
 Choose data structures by how work is partitioned, written, and consumed. Allocation behavior, memory traffic, and serial work are architectural concerns, not cleanup after the algorithm is finished. Preserve layouts that let independent workers produce useful final storage directly.
 
+### Start with Squalr's coupled decisions
+
+For performance architecture work, read [the scan pipeline's deep patterns](references/squalr-scan-pipeline.md). Trace how one representation eliminates work in the next stage, then transfer the applicable relationship:
+
+- Preserve worker-produced spans through filtering and querying; compressing output is more useful when consumers never expand it wholesale.
+- Distinguish candidate stride from payload width. Overlapping values need trailing bytes without advancing the candidate cursor by that padding.
+- Let selective constraints shrink the next stage's input, and re-evaluate kernel eligibility on the surviving spans. Fragmentation changes both SIMD usefulness and task size.
+- Put parallelism around independently owned stateful encoders. Splitting inside a run introduces boundary ownership and stitching work; it needs an explicit benefit.
+- Serve ordered pages by merging cursors over existing streams. Advance whole runs when ordering permits, while preserving ties, deletion positions, and global identity.
+- Reuse temporal buffers and try the common bulk-I/O path first; retain page-level failure metadata for the fallback. Reduced vector length alone does not prove released RAM.
+
+These are connected design choices, not six mandatory optimizations. For a proposed transfer, identify the producer, consumer, preserved invariant, avoided work, and workload that could make it lose. Do not prescribe SIMD, nested vectors, or more threads from appearance alone.
+
 ### Preserve the shape produced by parallel work
 
 A `Vec<Vec<ResultSpan>>` can be the right final representation: each independently processed region or partition owns its result spans. Workers build separate inner vectors without a shared append lock. Collecting those vectors preserves their allocations; flattening into a newly allocated vector moves every span and adds a consolidation phase to the critical path.
