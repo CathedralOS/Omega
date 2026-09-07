@@ -99,4 +99,15 @@ def fixtures():
               + b"value" + b" (bytes_empty))" * 600 + b") value))\n")
     cases.append(("same spelling inside extracted initializer", source,
                   0, PAYLOAD, True, 1, None, None, 1))
+    source = (b"(def select ((value Bytes)) Bytes " + b"(if 1 " * 1023
+              + b"value" + b" value)" * 1023 + b")\n"
+              b"(def main ((source Bytes)) Bytes (select source))\n")
+    cases.append(("profile depth captures remain singular", source,
+                  0, PAYLOAD, True, 2, None, None, 1))
+    source = (b"(def score ((value Int)) Int " + b"(+ 1 " * 1023
+              + b"value" + b")" * 1023 + b")\n"
+              b"(def main ((source Bytes)) Bytes "
+              b"(if (eq (score 1) 1024) source (bytes_empty)))\n")
+    cases.append(("profile depth preserves checked arithmetic", source,
+                  0, PAYLOAD, True, 2, None, None, None))
     return cases

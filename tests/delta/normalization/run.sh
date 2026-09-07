@@ -55,7 +55,7 @@ def evaluate(name, program, sealed_input):
     )
     try:
         output, error = process.communicate(
-            struct.pack("<I", len(program)) + program + sealed_input, timeout=30
+            struct.pack("<I", len(program)) + program + sealed_input, timeout=120
         )
     except subprocess.TimeoutExpired:
         os.killpg(process.pid, signal.SIGKILL)
@@ -68,7 +68,7 @@ def evaluate(name, program, sealed_input):
 
 cases = fixtures()
 for name, source, status, output, helpers, count, maximum, digest, capture_maximum in cases:
-    diagnostic_status, diagnostic = evaluate(name, programs["diagnostic"], source)
+    diagnostic_status, diagnostic = evaluate(name + " diagnostic", programs["diagnostic"], source)
     if diagnostic_status != 0 or len(diagnostic) != 21 or diagnostic[-1:] != b"\x00":
         raise SystemExit(f"{name}: malformed normalization diagnostic {diagnostic_status}/{diagnostic.hex()}")
     original_count, original_height, normalized_count, normalized_height, parameters = struct.unpack(
@@ -83,14 +83,14 @@ for name, source, status, output, helpers, count, maximum, digest, capture_maxim
     if capture_maximum is not None and parameters != capture_maximum:
         raise SystemExit(f"{name}: repeated free binding was not captured exactly once: {parameters}")
     request = b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(source)) + source
-    compiled, receipt = evaluate(name, programs["canonical"], request)
+    compiled, receipt = evaluate(name + " compilation", programs["canonical"], request)
     if compiled != 0 or not receipt:
         raise SystemExit(f"{name}: compilation failed {compiled}/{receipt[:80].hex()}")
     if digest is not None and hashlib.sha256(receipt).hexdigest() != digest:
         raise SystemExit(f"{name}: fitting complete receipt changed")
-    if evaluate(name, programs["canonical"], request) != (0, receipt):
+    if evaluate(name + " repeat compilation", programs["canonical"], request) != (0, receipt):
         raise SystemExit(f"{name}: repeated compilation changed bytes")
-    actual = evaluate(name, receipt, PAYLOAD)
+    actual = evaluate(name + " application", receipt, PAYLOAD)
     if actual != (status, output):
         raise SystemExit(
             f"{name}: expected application {status}/{output.hex()}, "

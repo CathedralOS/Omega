@@ -355,10 +355,13 @@ realization belongs below Delta. For the same reason, internal code 3's
 label/fixup contradiction has no producer here. This is nonreachability for this
 representation, not retirement of a ratified resource or diagnostic identity.
 
-Static admission of the emitted Gamma remains partly unfinished. The evaluator
-profile's request-byte argument bounds every function row, including fixed
-runtime, adapters and extracted helpers. Establish each body's 255-list bound
-and validation environment fit.
+The evaluator profile's request-byte argument bounds every function row,
+including fixed runtime, adapters and extracted helpers. The
+[normalization audit](../normalization/README.md#height-and-completion-argument)
+establishes the 255-list bound for transformed bodies and a conservative
+68,608-binding static environment bound, below Gamma's 131,072-row provision.
+Fixed runtime and adapter bodies fit independently; these source-level arguments
+are not a checked Delta refinement certificate or a compiler-completion bound.
 Do not reuse the authored-function resource or physical-slot resource to name
 those different counts. Dynamic non-tail contexts, temporary values, immutable
 pairs, and application input/output are selected evaluator/runtime resources.
@@ -408,9 +411,10 @@ Gamma plan before publication, and records the height of every generated
 expression. A separate normalizer extracts over-height fragments under the
 selected evaluator's 255-list body budget before serialization. It introduces
 no new refusal code or profile limit. Generated function storage fits by the
-request bound; non-tail calls and immutable allocation retain their
-separate context and storage bounds. Successful full generated-profile
-admission throughout Delta's 1,024-level profile remains open. Those empty-output evaluator
+request bound, and transformed bodies fit the height and static-environment
+bounds; non-tail calls and immutable allocation retain their separate context
+and storage bounds. Complete compiler execution/refusal conformance throughout
+Delta's admitted profile remains open. Those empty-output evaluator
 statuses must not be decoded as DCOUT or synthesized into frames by a runner.
 The generated ConformanceBytesV1 program's statuses are separately owned by
 its adapter. Successful compiler output remains the exact unwrapped Gamma

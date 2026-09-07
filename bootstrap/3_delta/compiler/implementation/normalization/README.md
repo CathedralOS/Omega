@@ -44,6 +44,40 @@ and authored computations and traps remain inside the fragment. A call that
 replaces a tail-position fragment remains in tail position; the fragment's
 original result becomes the helper's result.
 
+### Height and completion argument
+
+The [representation constructors](../representation/gamma/expressions.gamma)
+assign atoms height zero and calls/lets `1 + max(child heights)`.
+The [expression serializer](../emission/expressions.gamma) emits precisely that
+expression-list nesting; declaration and parameter-list wrappers are outside
+the body. Immutable reuse preserves the summary, and capture changes atom
+identities without changing call/let shape.
+
+These height additions cannot overflow for admitted source. Let `N` be source
+bytes, at most 4,194,304. There are at most `N` authored expression starts on
+any path. Lowering adds at most one level for an ordinary call/let, at most
+`N` for a constructor product, seven for arithmetic, and `4 + 3*N` for a
+match: three wrapper lets, at most `N` arm selectors plus their comparison
+level, and at most `2*N` pattern lets and field projections. Each is bounded
+by `16*N` for nonempty source, giving the deliberately loose bound
+`16*N*N <= 2^48`, below signed
+64-bit overflow. Shared projection prefixes do not increase path height.
+
+For each visit, order `(height, 255 - budget)` lexicographically. Descending
+to an expression child decreases height. Extraction at budget one preserves
+height through capture but restarts at budget 255, decreasing the second
+component. Finite argument lists and pending frames account for the remaining
+visits. Thus the traversal terminates in an unbounded-resource model. By the
+same induction, each returned body fits its requested budget: a reused node
+already fits, rebuilt children fit budget minus one, and an extracted call has
+height one. A helper body is normalized before its definition is appended,
+so the bound covers all generated helpers, not only authored functions.
+
+This is a source-level audit argument, not a machine-checked certificate or
+a guarantee that the selected evaluator has enough allocation/work resources
+to finish every admitted compilation. Byte-extent arithmetic is a separate
+summary and is not bounded by this height argument.
+
 ## Captured bindings
 
 A helper receives only the fragment's free, already-bound local atoms.
@@ -73,6 +107,36 @@ from one program-wide counter. Helper names are allocated in extraction order,
 while completed helper definitions follow the authored definitions in
 deterministic completion order. A helper extracted inside another helper can
 therefore precede it in the definition list without changing either identity.
+
+### Static validation-environment bound
+
+The selected Delta frontend permits at most 65,536 simultaneously active
+parameters, let bindings, and pattern bindings. Lowering preserves their scopes.
+Only [checked arithmetic](../lowering/arithmetic.gamma) and
+[matches](../lowering/matches.gamma) add local binders: three per arithmetic
+expression, three per payload match, or one per nullary match. Products, calls,
+and field projections introduce no binders; pattern lets correspond to authored
+bindings. Each active generated wrapper belongs to an expression on one source
+nesting path, whose admitted depth is at most 1,024. Thus an unnormalized body's
+active environment is conservatively bounded by
+`65,536 + 3 * 1,024 = 68,608` bindings.
+
+Extraction preserves that bound. Its distinct parameters replace a subset of
+the bindings already active outside the fragment; they do not accompany a
+second copy of that environment. Bindings introduced inside the fragment retain
+their scopes and are not parameters. This mapping is injective and composes
+through repeated extraction, including captures of earlier helper parameters.
+An earlier helper's global call head is not captured again; its local arguments
+are handled by the same rule. Sibling scopes and let initializers do not retain
+bindings introduced only in another child.
+
+Gamma validates each function independently, restoring the environment after
+each let and resetting it between functions. Every authored or extracted body
+therefore fits its 131,072-row validation environment. This is a conservative
+source-level audit argument, not a claim that 68,608 is attainable or a checked
+edge certificate. It does not bound aggregate bindings during non-tail runtime
+calls. Fixed runtime and adapter definitions are separate from the transform
+and must fit independently.
 
 ## Phase and receipt boundaries
 
