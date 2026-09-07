@@ -347,8 +347,12 @@ Negative retained emission counts propagate to completed preflight and report
 `InternalFailure` code 2 (`emission_metadata_contradiction`) before publication,
 at internal row 0 with zero limit/requested. This row identifies the singleton
 complete-program emission record, not the corrupt child or an authored source
-location. Positive signed count overflow and late replay disagreement remain
-raw evaluator failures; they are not yet canonical DCOUT outcomes.
+location. Positive signed count overflow in private metadata and late replay
+disagreement remain raw evaluator failures, not canonical DCOUT outcomes. The
+[selected producer's occurrence bound](compiler/implementation/emission/README.md#reachable-byte-count-bound)
+keeps admitted-source intermediate and complete emission counts below `2^62`;
+the private overflow case is not reachable through that producer. This is a
+source-level implementation argument, not a checked Delta refinement proof.
 Grammar implements D30's 1,024-level expression `parse_depth` profile: bodies
 start at level 1, expression children including atoms advance by one, and match
 arm bodies are at their enclosing match's level plus one. Declaration, parameter,
@@ -374,6 +378,6 @@ remain separately bounded. Full generated-profile admission and other
 compiler-owned resource/internal DCOUT outcomes remain open; underlying
 evaluator failures do not substitute for those
 outcomes. These frontend judgments do not close the Delta edge or establish
-full resource conformance. The complete compiler artifact remains
-absent. The former concatenative-Gamma implementation is retired; its selected
+full compiler resource conformance. The former concatenative-Gamma
+implementation is retired; its selected
 conformance replacements do not by themselves close this edge.

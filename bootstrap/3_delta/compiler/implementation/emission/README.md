@@ -68,16 +68,93 @@ limit/requested. Row 0 identifies the singleton complete-program emission
 record; it does not claim to locate the first corrupt child or a source byte.
 This is a retained-metadata invariant, not a source-admission refusal.
 
-Positive signed overflow still fails before any wrapped count can be admitted
-or published. It does not invent a resource-12 requested witness or classify an
-unrepresentable complete demand as corrupt metadata. Canonical handling of that
-case, malformed structural projections, and late replay disagreement remain
-unfinished. In particular, the latter cannot append a failure frame after
-already written receipt bytes; its existing raw evaluator failure discards
-publication.
+Positive signed overflow in private metadata still fails before any wrapped
+count can be admitted or published. The source argument below shows why admitted
+Delta cannot construct that demand; no additional refusal code is needed for it.
+Malformed private projections and late replay disagreement retain raw evaluator
+failures. The latter cannot append a failure frame after already written receipt
+bytes; its existing raw evaluator failure discards publication.
 Serialization summaries cost two additional immutable pairs per Gamma node:
 one for the extent and one for the optional unary-word prefix described below.
 Full Epsilon recompilation remains a storage regression check.
+
+## Reachable byte-count bound
+
+This is a source-level audit of the selected producer, not a checked refinement
+certificate or a promise of sufficient compiler memory/time. Let `N` be admitted
+source bytes (`3 <= N <= 4,194,304`); any well-formed complete Delta program is
+longer than three bytes. Counts below refer to expanded expression occurrences,
+not unique immutable pairs. Thus sharing cannot conceal a larger printed tree.
+
+The [lowering templates](../lowering/README.md) place each authored expression
+child once. Checked arithmetic binds operands instead of copying their trees;
+match selectors retain each arm body once. The only superlinear expansion is
+the [pattern projection spine](../lowering/matches/bindings.gamma): a pattern
+with `k` binders prints at most a quadratic number of `first`/`second` calls.
+All pattern binders together consume distinct source tokens, so
+`sum(k) <= N` and `sum(k*k) <= N*N`. A conservative inventory allows 128
+node/atom occurrences per remaining source token/expression and `4*k*k` per
+pattern for expanded projections. Therefore the original program has at most
+`M = 128*N + 4*N*N <= 64*N*N` occurrences, including call heads and binders.
+
+Two smaller counts matter for capture. Local-reference occurrences are bounded
+by `R = 32*N`: an arithmetic template uses at most eleven generated references,
+match wrappers at most two per match, selectors one per arm, and each pattern
+initializer one payload reference regardless of projection-chain length.
+Authored references add at most `N`. A path has height at most `L = 16*N`:
+charge the constant expression wrappers, constructor fields, arm selectors,
+pattern lets and projection steps to their distinct source occurrences along
+that path. With `E` expression nodes, `F` constructor fields, `A` match arms,
+and `B` pattern binders on those constructs, `7*E + F + A + 2*B` covers the
+path: seven covers each expression's constant wrappers/comparisons, while the
+other terms cover the variable-length spines. Each count is at most `N`,
+so this fits the deliberately loose `16*N` allowance.
+This strengthens the separate height audit's looser overflow bound.
+
+Normalization moves original subtrees into helpers; it never copies their
+composite structure into both caller and callee. Each extraction starts at a
+different original call/let occurrence, so helper count `J <= M`. Charge each
+distinct captured parameter to one free local-reference occurrence below its
+extraction point. A reference crosses at most `L` ancestor cuts, hence total
+capture incidence `C <= R*L <= 512*N*N`. Extraction captures its fragment before
+normalizing descendants: newly inserted helper-call arguments cannot start a
+second recursive expansion in the same pass. Renaming through outer helper
+parameters preserves each reference's origin. Deduplication only reduces this
+bound. These counts also bound the program-wide fresh-identity counter:
+`J + C <= 576*N*N < 2^54`; generated names consequently fit within 21 bytes,
+without assuming that counter arithmetic was already safe.
+
+Long source names need a weighted bound, not `N` bytes for every generated
+atom. Original source-span spellings total at most `N`: a local reference reuses
+its declaration's spelling, but its equal-length use also occupies source bytes.
+Across extraction cuts, added long-name argument copies total at most `N*L`.
+Other generated atoms are short; replaced reference spellings are included in
+the original-occurrence allowance below. Counting fixed syntax generously gives
+the following complete-payload envelope:
+
+```text
+64*M + 128*J + 128*C + N*L + N + 4,096 < 2^18 * N^2 <= 2^62
+```
+
+The 64-byte allowance covers each original occurrence's short atom spelling,
+punctuation, annotation, and spacing. Each 128-byte helper allowance covers its
+definition and replacement-call framing and names; each capture allowance covers
+its parameter declaration and argument. Authored declarations and parameters
+are included in the original inventory. Fixed marker, byte runtime, adapter,
+and final LF total less than 4,096 bytes. This is deliberately not a tight size
+estimate or a proposed payload provision.
+
+Lowered and capture-rebuilt bodies have the same original occurrences with
+renamed atoms; partially normalized programs add subsets of the helper/capture
+incidences above. The envelope therefore covers intermediate cached extents as
+well as final payloads, not the cumulative sizes of all discarded immutable
+copies. Counts are nonnegative sums of those extents and syntax
+bytes, so partial sums also fit signed 64-bit arithmetic. The actual publication
+path runs only after exact preflight admits at most 16,777,212 bytes; its byte
+increments and pending closes follow the same immutable formatting structure.
+No saturation, fabricated requested count, or new source refusal is necessary.
+This does not bound cumulative pair allocation or establish canonical outcomes
+for underlying evaluator exhaustion.
 
 ### Unary fixed-word prefixes
 
