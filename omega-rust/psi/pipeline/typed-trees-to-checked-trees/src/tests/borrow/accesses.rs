@@ -520,6 +520,7 @@ fn collects_unresolved_local_argument_access_roots() {
             type_reference: typed_trees::types::TypeReferenceHandle::invalid(),
             initial_value: typed_trees::expression::ExpressionHandle::invalid(),
             is_mutable: false,
+            type_is_inferred: false,
         }),
     );
     program.statement_table.push_statement(

@@ -206,6 +206,7 @@ impl StatementTable {
                         initial_value: initial_value
                             .unwrap_or_else(crate::expression::ExpressionHandle::invalid),
                         is_mutable: local.is_mutable,
+                        type_is_inferred: local.type_is_inferred,
                     })
                 }
                 StatementNode::Transition(transition) => {
@@ -562,6 +563,9 @@ pub struct TableLocalData {
     pub initial_value: crate::expression::ExpressionHandle,
     /// `let mut` -- see the syntax-tree twin.
     pub is_mutable: bool,
+    /// The compiler inferred this temporary's type from its initializer.
+    /// Specialization may refresh it; an authored annotation remains fixed.
+    pub type_is_inferred: bool,
 }
 
 impl Default for TableLocalData {
@@ -572,6 +576,7 @@ impl Default for TableLocalData {
             type_reference: crate::types::TypeReferenceHandle::invalid(),
             initial_value: crate::expression::ExpressionHandle::invalid(),
             is_mutable: false,
+            type_is_inferred: false,
         }
     }
 }
@@ -736,6 +741,7 @@ mod tests {
                 type_reference: local_type,
                 initial_value: initial,
                 is_mutable: true,
+                type_is_inferred: true,
             }),
         );
 
@@ -828,6 +834,7 @@ mod tests {
         };
         assert_eq!(local.symbol, remapped_local);
         assert_eq!(copied_types.display_name(local.type_reference), "i32");
+        assert!(local.type_is_inferred);
         assert_eq!(
             copied_expressions.expression(local.initial_value),
             &ExpressionNode::Integer(numerics::literals::IntegerLiteral::from_value(7))

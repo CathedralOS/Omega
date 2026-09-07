@@ -870,6 +870,7 @@ pub enum StatementSnapshot {
         name: String,
         type_reference: TypeReferenceSnapshot,
         initial_value: Option<ExpressionSnapshot>,
+        type_is_inferred: bool,
     },
     Transition {
         target: TransitionTargetSnapshot,
@@ -1799,6 +1800,7 @@ fn statement_snapshot(program: &TypedTrees, statement: &StatementNode) -> Statem
             name: local.name.to_string(),
             type_reference: type_reference_snapshot(program, local.type_reference),
             initial_value: expression_snapshot_option(program, local.initial_value),
+            type_is_inferred: local.type_is_inferred,
         },
         StatementNode::Transition(transition) => StatementSnapshot::Transition {
             target: transition_target_snapshot(program, transition.target),

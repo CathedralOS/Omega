@@ -206,6 +206,7 @@ fn lower_statement_node(
                         type_reference: TypeReference::Unit,
                         initial_value: call,
                         is_mutable: false,
+                        type_is_inferred: true,
                     },
                 }));
             }
@@ -297,6 +298,7 @@ fn lower_statement_node(
                     type_reference,
                     initial_value,
                     is_mutable: local_data.is_mutable,
+                    type_is_inferred: !local_data.type_reference.is_valid(),
                 },
             }));
             if let Some(local) = capturable_local {
@@ -1078,6 +1080,7 @@ fn hoist_scalar_value_call_comparison(
                     type_reference: TypeReference::Unit,
                     initial_value: call_side,
                     is_mutable: false,
+                    type_is_inferred: true,
                 },
             }));
             name
@@ -1175,6 +1178,7 @@ fn hoist_terminal_value_machine_call(
             type_reference: TypeReference::Unit,
             initial_value: expression,
             is_mutable: false,
+            type_is_inferred: true,
         },
     }));
     let expressions = &mut lowerer.symbol_resolved_trees.tables.bodies.expressions;
@@ -1734,6 +1738,7 @@ fn hoist_into_temp(
             type_reference: TypeReference::Unit,
             initial_value: indexed_value,
             is_mutable: false,
+            type_is_inferred: true,
         },
     }));
 
@@ -1902,6 +1907,7 @@ fn hoist_membership_match_subject(
                     type_reference: TypeReference::Unit,
                     initial_value: membership.value,
                     is_mutable: false,
+                    type_is_inferred: true,
                 },
             }));
             name
@@ -2056,6 +2062,7 @@ fn hoist_comparison_match_subject(
                     },
                     initial_value: outer.left,
                     is_mutable: false,
+                    type_is_inferred: false,
                 },
             }));
             name

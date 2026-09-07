@@ -615,12 +615,20 @@ Owners include
   caller-specific snapshots beyond immutable scalar formal comparisons, including
   a callee's borrowed collection length in caller-side requirement proofs; carry
   those facts into nested exact-cast obligations without rereading arguments.
+  Reject non-Unit initializers for explicitly Unit-typed locals: typing retains
+  `let result: () = scalar_call();` as authored, but initializer compatibility
+  checking still admits the scalar result. Keep inferred temporaries distinct.
+  Reconcile saved provider calls after the provider has already specialized
+  through an ordinary call. Witness: a generic provider returns `endpoint<2>()`,
+  whose declared result is `u64[0..=N]`; calling the provider directly with an
+  `i32` parameter and selecting it for a `bool` requirement restores stale
+  endpoint static arguments and fails range checking. Reuse ordinary call
+  selection on the saved body and match its exact tuple to the live instance;
+  never copy an already-instantiated provider's potentially binding-dependent
+  calls into another tuple. Acceptance: both provider uses check independently.
   Transport dependent and public-trait call-result bounds into subslice proofs
   through their actual call-entry and public requirement identities, not caller
   fields or private realization types.
-  Substitute generated call-result local types per selected tuple: a tail-call
-  temporary for a return interval containing a const binder can retain another
-  instance's bound, even though both specialized bodies check independently.
   Retire the remaining flat guarded-argument call hoisting once these paths use
   the same evaluation graph. Owning area: argument normalization and checked scalar
   computation lowering. Acceptance: selected arguments

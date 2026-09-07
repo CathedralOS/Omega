@@ -958,6 +958,7 @@ mod tests {
                     type_reference: pair_type,
                     initial_value: ExpressionHandle::invalid(),
                     is_mutable: true,
+                    type_is_inferred: false,
                 },
             ),
         );

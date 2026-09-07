@@ -286,6 +286,111 @@ fn const_values_close_literal_return_range_endpoints() {
 }
 
 #[test]
+fn generated_tail_result_locals_keep_the_selected_const_return_bound() {
+    for (first, last) in [("pair", "triple"), ("triple", "pair")] {
+        let checked = accepts(&format!(
+            "machine value<const N: u64>(witness: &[u8; N]) -> u64[0..=N] {{ N }}
+        machine main() -> u64 {{
+            let pair: [u8; 2] = [0, 0];
+            let triple: [u8; 3] = [0, 0, 0];
+            let first: u64 = value(&{first});
+            value(&{last})
+        }}"
+        ));
+        let mut inferred = 0;
+        for machine in checked.machines() {
+            for state in checked.machine_states(machine) {
+                for statement in checked.statement_table.statements(state.statement_nodes) {
+                    let StatementNode::LocalData(local) = statement else {
+                        continue;
+                    };
+                    if !local.type_is_inferred {
+                        continue;
+                    }
+                    let ExpressionNode::Call(call) =
+                        checked.expression_table.expression(local.initial_value)
+                    else {
+                        continue;
+                    };
+                    let selected = checked
+                        .machines()
+                        .iter()
+                        .flat_map(|machine| checked.machine_states(machine))
+                        .find(|state| state.symbol == call.target_symbol)
+                        .expect("selected return state");
+                    assert_eq!(local.type_reference, selected.return_type);
+                    inferred += 1;
+                }
+            }
+        }
+        assert_eq!(inferred, 1);
+    }
+}
+
+#[test]
+fn cloned_callers_keep_inferred_result_types_and_authored_annotations_distinct() {
+    accepts(
+        "machine value<const N: u64>(witness: &[u8; N]) -> u64[0..=N] { N }
+        machine forward<const N: u64>(witness: &[u8; N]) -> u64 { value(witness) }
+        machine main() -> u64 {
+            let pair: [u8; 2] = [0, 0];
+            let triple: [u8; 3] = [0, 0, 0];
+            let first: u64 = forward(&pair);
+            forward(&triple)
+        }",
+    );
+    rejects(
+        "machine value<const N: u64>(witness: &[u8; N]) -> u64[0..=N] { N }
+        machine forward<const N: u64>(witness: &[u8; N]) -> u64 {
+            let __hoist_9000: u64[0..=2] = value(witness);
+            __hoist_9000
+        }
+        machine main() -> u64 {
+            let pair: [u8; 2] = [0, 0];
+            let triple: [u8; 3] = [0, 0, 0];
+            let first: u64 = forward(&pair);
+            forward(&triple)
+        }",
+        "not provably within its declared range",
+    );
+}
+
+#[test]
+fn authored_unit_annotation_is_not_an_inferred_temporary() {
+    let mut typed = typed_source(
+        "machine value<const N: u64>(witness: &[u8; N]) -> u64 { N }
+        machine main() -> u64 {
+            let pair: [u8; 2] = [0, 0];
+            let result: () = value(&pair);
+            7
+        }",
+    )
+    .expect("authored Unit destination types before validation");
+    let assert_annotation = |program: &TypedTrees| {
+        let local = program
+            .machines()
+            .iter()
+            .flat_map(|machine| program.machine_states(machine))
+            .flat_map(|state| program.statement_table.statements(state.statement_nodes))
+            .find_map(|statement| match statement {
+                StatementNode::LocalData(local) if local.name.as_str() == "result" => Some(local),
+                _ => None,
+            })
+            .expect("authored Unit local");
+        assert!(!local.type_is_inferred, "authored Unit is not inferred");
+        assert!(matches!(
+            program
+                .type_reference_table
+                .type_reference(local.type_reference),
+            typed_trees::types::TypeReferenceNode::Unit
+        ));
+    };
+    assert_annotation(&typed);
+    crate::specialize_static_machine_calls(&mut typed).expect("select the explicit scalar callee");
+    assert_annotation(&typed);
+}
+
+#[test]
 fn array_and_case_const_values_retain_their_declared_shape() {
     accepts(
         "data Choice { case Empty; case Item(value: u8); }

@@ -85,3 +85,21 @@ fn explicit_const_arguments_execute_scalars_arrays_records_and_cases() {
             }
         }");
 }
+
+#[test]
+fn specialized_result_temporaries_execute_each_initializer_once() {
+    assert_seven(
+        "machine value<const N: u64>(calls: &mut i32 in Wrapping) -> u64[0..=N] {
+            calls = calls + 1; N
+        }
+        machine forward(calls: &mut i32 in Wrapping) -> u64 {
+            let first: u64 = value<2>(calls);
+            value<3>(calls)
+        }
+        machine main() -> i32 {
+            let mut calls: i32 in Wrapping = 0;
+            let selected: u64 = forward(&mut calls);
+            transition calls == 2 && selected == 3 { true -> 7 false -> 0 }
+        }",
+    );
+}

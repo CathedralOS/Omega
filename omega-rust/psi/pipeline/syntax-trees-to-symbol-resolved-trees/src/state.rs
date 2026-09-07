@@ -714,6 +714,7 @@ pub(crate) fn build_synthesized_arm_state(
             type_reference: TypeReference::Unit,
             initial_value: arm.call,
             is_mutable: false,
+            type_is_inferred: true,
         },
     });
     let expressions = &mut lowerer.symbol_resolved_trees.tables.bodies.expressions;
@@ -824,6 +825,7 @@ pub(crate) fn build_synthesized_transition_argument_state(
                         type_reference: TypeReference::Unit,
                         initial_value: call_initializer,
                         is_mutable: false,
+                        type_is_inferred: true,
                     },
                 }),
             );

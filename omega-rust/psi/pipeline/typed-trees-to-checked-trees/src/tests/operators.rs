@@ -1878,6 +1878,7 @@ fn narrows_index_operator_candidates_by_complete_operand_tuple() {
             type_reference: reference_to_slice_of_i32,
             initial_value: typed_trees::expression::ExpressionHandle::invalid(),
             is_mutable: false,
+            type_is_inferred: false,
         }),
     );
     program.statement_table.push_statement(
@@ -1888,6 +1889,7 @@ fn narrows_index_operator_candidates_by_complete_operand_tuple() {
             type_reference: usize_type,
             initial_value: typed_trees::expression::ExpressionHandle::invalid(),
             is_mutable: false,
+            type_is_inferred: false,
         }),
     );
     program.statement_table.push_statement(

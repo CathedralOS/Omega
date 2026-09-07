@@ -349,6 +349,7 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
                 type_reference,
                 initial_value: expression,
                 is_mutable: false,
+                type_is_inferred: true,
             });
     }
     Ok(())
@@ -1055,6 +1056,7 @@ mod tests {
                 type_reference: saturating_type,
                 initial_value: qualified_call,
                 is_mutable: false,
+                type_is_inferred: false,
             }),
         );
         program.statement_table.push_statement(
@@ -1128,6 +1130,7 @@ mod tests {
                 type_reference: wrapping_type,
                 initial_value: call,
                 is_mutable: false,
+                type_is_inferred: false,
             }),
         );
         let mut caller = Machine {

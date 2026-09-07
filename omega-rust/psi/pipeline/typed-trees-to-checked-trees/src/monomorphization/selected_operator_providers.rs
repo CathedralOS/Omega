@@ -30,6 +30,7 @@ pub(crate) fn specialize_selected_generic_operator_providers(
             continue;
         };
         let template_machine = source.machines()[machine_index].clone();
+        retain_selected_ordinary_calls(&mut source, program, &template_machine);
         let Some(operator) =
             typed_trees::operator::declaration_by_symbol(&source, request.requirement_operator)
                 .cloned()
@@ -375,6 +376,85 @@ fn selected_operator_candidate_for_application(
         }
     }
     Ok(candidate)
+}
+
+/// The saved provider graph predates ordinary specialization. Its original
+/// call occurrences still exist in the live graph, where selection has already
+/// chosen an exact state and erased the static arguments. Preserve that result
+/// before copying the body; a concrete target alone does not close an old call.
+fn retain_selected_ordinary_calls(
+    source: &mut TypedTrees,
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+) {
+    // Once the provider itself is instantiated, its live calls can depend on
+    // that instance's bindings rather than the still-universal saved body.
+    let Some(current) = program
+        .machines()
+        .iter()
+        .find(|current| current.symbol == machine.symbol)
+    else {
+        return;
+    };
+    if program.machine_type_parameters(current).is_empty() {
+        return;
+    }
+    let selected_states = program
+        .machine_specializations
+        .iter()
+        .filter_map(|specialization| {
+            let template = source
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == specialization.template)?;
+            let instance = program
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == specialization.instance)?;
+            Some(
+                source
+                    .machine_states(template)
+                    .iter()
+                    .zip(program.machine_states(instance))
+                    .map(|(template, instance)| (template.symbol, instance.symbol)),
+            )
+        })
+        .flatten()
+        .collect::<Vec<_>>();
+    let mut expressions = Vec::new();
+    let statements = source
+        .machine_states(machine)
+        .iter()
+        .flat_map(|state| statement_span_handles(state.statement_nodes))
+        .collect::<Vec<_>>();
+    for handle in statements {
+        let statement = source.statement_table.statement(handle);
+        for root in executable_statement_expression_roots(source, statement) {
+            collect_expression_tree(source, root, &mut expressions);
+        }
+        if let StatementNode::Call(original) = source.statement_table.statement_mut(handle)
+            && let StatementNode::Call(selected) = program.statement_table.statement(handle)
+            && selected.machine_arguments.is_empty()
+            && selected.static_requirement_dispatch.is_none()
+            && selected_states.contains(&(original.target_symbol, selected.target_symbol))
+        {
+            original.target_symbol = selected.target_symbol;
+            original.target = selected.target.clone();
+            original.machine_arguments = Box::default();
+        }
+    }
+    for handle in expressions {
+        if let ExpressionNode::Call(original) = source.expression_table.expression_mut(handle)
+            && let ExpressionNode::Call(selected) = program.expression_table.expression(handle)
+            && selected.machine_arguments.is_empty()
+            && selected.static_requirement_dispatch.is_none()
+            && selected_states.contains(&(original.target_symbol, selected.target_symbol))
+        {
+            original.target_symbol = selected.target_symbol;
+            original.target = selected.target.clone();
+            original.machine_arguments = Box::default();
+        }
+    }
 }
 
 fn const_identity_type_reference(

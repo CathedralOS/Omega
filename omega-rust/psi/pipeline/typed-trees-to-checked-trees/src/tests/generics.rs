@@ -5,6 +5,7 @@ use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 mod const_arguments;
 mod const_values;
 mod nested_calls;
+mod result_local_providers;
 
 fn typed_source(source: &str) -> Result<typed_trees::TypedTrees, Vec<diagnostics::Diagnostic>> {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");

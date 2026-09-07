@@ -674,6 +674,7 @@ pub enum StatementSnapshot {
         name: String,
         type_reference: TypeReferenceSnapshot,
         initial_value: Option<ExpressionSnapshot>,
+        type_is_inferred: bool,
     },
     Transition {
         target: TransitionTargetSnapshot,
@@ -1579,6 +1580,7 @@ fn statement_snapshot(program: &SymbolResolvedTrees, statement: &Statement) -> S
         Statement::LocalData(local_data) => StatementSnapshot::LocalData {
             name: local_data.name.to_string(),
             type_reference: type_reference_snapshot(program, &local_data.type_reference),
+            type_is_inferred: local_data.type_is_inferred,
             initial_value: local_data
                 .initial_value
                 .is_valid()
