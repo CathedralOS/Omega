@@ -11,24 +11,40 @@ another broad alias. Every rule must name the exact semantic, proof, ownership,
 effect, target, and provenance facts it consumes, and retain the identities
 needed for independent replay through publication.
 
-## Immediate gate
+## Pipeline cleanup follow-ups
 
-- **PIPELINE-PHASE-INTEGRATION.** Execute the four
-  [replacement-first cleanup outcomes](wiki/architecture/pipeline/ownership_cleanup.md):
-  (1) delete umbrella/catch-all owners and consolidate pipeline crates;
-  (2) finish all Omega/Psi representation roots and current-data ownership;
-  (3) keep native publication on its single physical route; (4) execute selected Psi optimization
-  before Terminal. Build on the common physical route, replacing
-  obstructive representations and owners alongside it. Preserve behavior and
-  validation, not existing implementations; neither backend is the required
-  template. Do not delay convergence for serial helper/file migrations or keep
-  obsolete designs alive through compatibility adapters. Whole-owner removal
-  and real behavior are milestones. Keep discoveries inside these outcomes and
-  delete completed work.
-  Acceptance: all four finish conditions hold, including explicit unsupported
-  behavior rather than fallback, empty/nonempty selection on one graph, standalone
-  Psi and separately authorized resumed lowering, and independent replay.
-  Folder renames, common wrappers and identity-only passes do not close this item.
+These are separately schedulable follow-ups, not an ongoing cleanup run.
+The [ownership contract](wiki/architecture/pipeline/ownership_cleanup.md)
+governs all three: replace obstructive implementations, preserve semantics and
+independent validation, and keep empty/nonempty optimization selections on one
+physical route. Unsupported cases reject rather than restoring a fallback.
+
+- **PIPELINE-OWNER-CONSOLIDATION.** Finish ownership in
+  `omega-rust/{omega,psi}/pipeline/` and their compiler/backend coordinators.
+  Merge or delete umbrella/helper owners; put transformations in literal
+  `X-to-Y` stages and optimizations in `X-to-X` stages.
+  Acceptance: folders expose the connected program sequence, no competing
+  entrances or orphan outputs remain, and coordinators only sequence typed
+  stages. Renaming a helper or adding a wrapper is not completion.
+
+- **REPRESENTATION-OWNERSHIP.** Finish
+  `omega-rust/{omega,psi}/representations/`: one named program-root file beside
+  `lib.rs`, with concept-owned subdirectories and current data independent of
+  producer history. Move durable schemas out of transforms/backends where
+  necessary, alongside their consuming stage changes.
+  Acceptance: current programs outlive their producers; ordinary consumers
+  read current data directly; historical inputs remain separate replay evidence.
+
+- **PSI-PRE-TERMINAL-OPTIMIZATION.** Complete selected rewrites and independent
+  checks in `lowered-psi-to-lowered-psi` before `lowered-psi-to-terminal-psi`:
+  control-flow cleanup, SCCP, copy propagation, GVN, dead pure scalar elimination
+  and proof-check elision. Proof-bearing closures need proof-context transport.
+  Acceptance: exact `build.omg` opt-ins execute before immutable Terminal
+  publication, preserving proof, ownership, effects, qualifications and execution
+  evidence. Standalone Psi and separately authorized resumed lowering need no
+  original frontend state or hidden consumer-side Psi optimization.
+
+## Product pruning and rollout
 
 - **CHECKED-TREE-PRODUCT-PRUNING.** After all authored code has been checked,
   add an exact opt-in checked-tree phase for whole-product/root selection and
