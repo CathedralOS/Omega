@@ -97,6 +97,53 @@ pub(super) fn replay(
                     return Err(invalid);
                 }
             }
+            (
+                LegalizedScalarInstructionKind::ExactBinary {
+                    operator,
+                    left,
+                    right,
+                    obligation,
+                    accepted_fact,
+                },
+                AbstractOperation::ExactIntegerAdd {
+                    psi_operation,
+                    obligation: source_obligation,
+                    left: source_left,
+                    right: source_right,
+                    ..
+                }
+                | AbstractOperation::ExactIntegerSubtract {
+                    psi_operation,
+                    obligation: source_obligation,
+                    left: source_left,
+                    right: source_right,
+                    ..
+                },
+            ) => {
+                let expected_operator = match node.operation {
+                    AbstractOperation::ExactIntegerAdd { .. } => LegalizedExactIntegerOperator::Add,
+                    AbstractOperation::ExactIntegerSubtract { .. } => {
+                        LegalizedExactIntegerOperator::Subtract
+                    }
+                    _ => return Err(invalid),
+                };
+                let fact = unit
+                    .accepted_obligation_facts
+                    .iter()
+                    .find(|fact| {
+                        fact.machine == optimized.machine
+                            && fact.operation == *psi_operation
+                            && fact.obligation == *source_obligation
+                    })
+                    .ok_or(Error::SourceCustodyMismatch)?;
+                if *operator != expected_operator || left != source_left || right != source_right
+                    || obligation != source_obligation || *accepted_fact != fact.identity
+                    || !optimized.facts.iter().any(|fact| matches!(fact,
+                        optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
+                        if referenced == source_obligation && support == psi_operation)) {
+                    return Err(invalid);
+                }
+            }
             _ => return Err(invalid),
         }
     }

@@ -54,6 +54,9 @@ pub(in crate::selection) fn validate(
         constraints,
     };
     for (index, parameter) in source.parameters.iter().enumerate() {
+        if !source.references_value(parameter.value) {
+            continue;
+        }
         let [
             ValueLocation::Register {
                 register,
@@ -91,7 +94,7 @@ pub(in crate::selection) fn validate(
             ScalarType::Integer(parameter.scalar_type),
         ));
     }
-    for index in 0..source.parameters.len() {
+    for index in 0..replay.definitions.len() {
         let (value, input, site, scalar_type) = replay.definitions[index];
         let output = replay.check_copy(input, value, site, scalar_type)?;
         replay.definitions[index].1 = output;
@@ -117,6 +120,54 @@ pub(in crate::selection) fn validate(
                     },
                 )?;
                 register
+            }
+            LegalizedScalarInstructionKind::ExactBinary {
+                operator,
+                left,
+                right,
+                obligation,
+                accepted_fact,
+            } => {
+                let (_, left_register, _, left_type) = replay.resolve(*left).ok_or_else(invalid)?;
+                let (_, right_register, _, right_type) =
+                    replay.resolve(*right).ok_or_else(invalid)?;
+                if left_type != scalar_type || right_type != scalar_type {
+                    return Err(invalid());
+                }
+                let (kind, key) = match operator {
+                    legalized_operations::LegalizedExactIntegerOperator::Add => (
+                        SelectedInstructionKind::ExactAddI64 {
+                            obligation: *obligation,
+                            accepted_fact: *accepted_fact,
+                        },
+                        constraints.keys.add_i64,
+                    ),
+                    legalized_operations::LegalizedExactIntegerOperator::Subtract => (
+                        SelectedInstructionKind::ExactSubtractI64 {
+                            obligation: *obligation,
+                            accepted_fact: *accepted_fact,
+                        },
+                        constraints.keys.subtract_i64,
+                    ),
+                };
+                let output = replay.result_register(
+                    operation.result,
+                    operation.definition_site,
+                    scalar_type,
+                )?;
+                replay.check_instruction(
+                    kind,
+                    key,
+                    &[left_register, right_register, output],
+                    &SelectedInstructionProvenance {
+                        operations: vec![operation.operation],
+                        values: vec![*left, *right, operation.result],
+                        obligations: vec![*obligation],
+                        fuel: operation.fuel.clone(),
+                        ..Default::default()
+                    },
+                )?;
+                output
             }
             LegalizedScalarInstructionKind::Call(call) => {
                 let key = constraints

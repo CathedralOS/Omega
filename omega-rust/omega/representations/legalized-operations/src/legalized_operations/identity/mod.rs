@@ -8,7 +8,6 @@ mod plan;
 mod projected_structural_call_return;
 mod scalar;
 mod scalar_graph;
-mod scalar_leaf;
 mod schema;
 mod shared;
 mod structural;
@@ -23,5 +22,5 @@ pub use legacy::*;
 pub fn legalized_operation_plan_identity(
     plan: &LegalizedOperationPlan,
 ) -> LegalizedOperationPlanIdentity {
-    identity(plan, IdentitySchema::V26)
+    identity(plan, IdentitySchema::V27)
 }

@@ -7,7 +7,6 @@ mod integer_sequence;
 mod projected_structural_call_return;
 mod scalar;
 mod scalar_graph;
-mod scalar_leaf;
 mod shared_return;
 mod structural_unit;
 
@@ -32,9 +31,6 @@ pub(super) fn build_plan(
             }
             legalized_operations::LegalizedFunction::Conditional(source) => {
                 scalar::build(index, source, constraints, physical, catalog)
-            }
-            legalized_operations::LegalizedFunction::Leaf(source) => {
-                scalar_leaf::build(index, source, target.target, constraints, physical, catalog)
             }
         })
         .collect::<Result<Vec<_>, _>>()?;

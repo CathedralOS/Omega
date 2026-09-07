@@ -14,7 +14,6 @@ mod model;
 mod projected_structural_call_return;
 mod replay;
 mod scalar_graph_input;
-mod scalar_leaf;
 mod source;
 
 pub use model::{

@@ -1,7 +1,7 @@
 //! Uncanned exact scalar DAGs use the ordinary shared physical pipeline.
 
 use crate::tests::*;
-use legalized_operations::{LegalizedFunction, LegalizedIntegerStep};
+use legalized_operations::LegalizedScalarInstructionKind;
 
 #[test]
 fn scalar_sequence_replay_rejects_substituted_order_operands_proofs_and_fuel() {
@@ -33,31 +33,37 @@ fn scalar_sequence_replay_rejects_substituted_order_operands_proofs_and_fuel() {
         validate(original.clone()).unwrap();
         for mutation in 0..6 {
             let mut corrupted = original.clone();
-            let LegalizedFunction::Leaf(function) = &mut corrupted.functions[0] else {
-                panic!("fixture is a free scalar leaf")
-            };
-            let LegalizedLeafValue::ExactIntegerSequence(sequence) = &mut function.leaf.value
+            assert!(corrupted.functions.is_empty());
+            let instructions = &mut corrupted.scalar_functions[0].blocks[0].instructions;
+            let LegalizedScalarInstructionKind::ExactBinary {
+                left: first_left,
+                accepted_fact: first_fact,
+                ..
+            } = instructions[3].kind
             else {
-                panic!("uncanned source must retain its ordered sequence")
-            };
-            let LegalizedIntegerStep::ExactBinary(first) = sequence.steps[3].clone() else {
                 panic!("the first binary follows three constants")
             };
             match mutation {
                 0 => {
-                    sequence.steps.remove(3);
+                    instructions.remove(3);
                 }
-                1 => sequence.steps.swap(3, 4),
-                2..=5 => {
-                    let LegalizedIntegerStep::ExactBinary(second) = &mut sequence.steps[4] else {
+                1 => instructions.swap(3, 4),
+                4 => instructions[4].fuel[0].units += 1,
+                2 | 3 | 5 => {
+                    let LegalizedScalarInstructionKind::ExactBinary {
+                        left,
+                        accepted_fact,
+                        operator,
+                        ..
+                    } = &mut instructions[4].kind
+                    else {
                         unreachable!()
                     };
                     match mutation {
-                        2 => second.left = first.left,
-                        3 => second.accepted_fact = first.accepted_fact,
-                        4 => second.fuel[0].units += 1,
+                        2 => *left = first_left,
+                        3 => *accepted_fact = first_fact,
                         5 => {
-                            second.operator =
+                            *operator =
                                 legalized_operations::LegalizedExactIntegerOperator::Subtract
                         }
                         _ => unreachable!(),
@@ -75,9 +81,10 @@ fn scalar_sequence_replay_rejects_substituted_order_operands_proofs_and_fuel() {
 
 #[test]
 fn exact_scalar_sequences_reach_shared_native_publication() {
-    for (extra_operations, parameter) in [(1, false), (2, false), (7, false), (2, true)] {
+    for (extra_operations, parameter) in [(1, false), (2, false), (7, false), (2, true), (9, true)]
+    {
         let (semantic, proof) = if parameter {
-            parameter_sequence_artifact()
+            parameter_sequence_artifact(extra_operations)
         } else {
             sequence_artifact(extra_operations)
         };
@@ -141,7 +148,7 @@ fn exact_scalar_sequences_reach_shared_native_publication() {
     }
 }
 
-fn parameter_sequence_artifact() -> (Vec<u8>, Vec<u8>) {
+fn parameter_sequence_artifact(parameter_count: usize) -> (Vec<u8>, Vec<u8>) {
     let (semantic, _) = sequence_artifact(2);
     let mut module = terminal_codec::decode_module(&semantic).unwrap();
     let machine = &mut module.machines[0];
@@ -157,6 +164,13 @@ fn parameter_sequence_artifact() -> (Vec<u8>, Vec<u8>) {
         id: parameter,
         scalar_type,
     });
+    // The full ABI remains declared even when its stack parameters are unused.
+    for parameter_index in 2..parameter_count {
+        machine.parameters.push(ValueDeclaration {
+            id: ValueId::new(9_500 + parameter_index as u64).unwrap(),
+            scalar_type,
+        });
+    }
     let body = &mut machine.blocks[0];
     body.operations = vec![Operation {
         id: OperationId::new(9_410).unwrap(),

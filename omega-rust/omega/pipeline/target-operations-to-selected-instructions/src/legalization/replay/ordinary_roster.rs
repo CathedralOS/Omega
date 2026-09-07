@@ -118,63 +118,6 @@ pub(super) fn replay_remaining(
                     )?;
                     0
                 }
-                legalized_operations::LegalizedFunction::Leaf(leaf) => {
-                    let abi = crate::legalization::scalar_leaf::validate_input(
-                        index,
-                        target.target,
-                        target_function,
-                        abstracted,
-                        optimized,
-                    )?;
-                    let (_, control) = crate::legalization::scalar_leaf::control(target_function)
-                        .ok_or(Error::NonCanonicalLegalizedPlan)?;
-                    if leaf.machine != target_function.machine
-                        || leaf.attachment != target_function.attachment
-                        || leaf.provenance != target_function.provenance
-                        || leaf.entry_block != optimized.entry
-                        || &leaf.abi != abi
-                    {
-                        return Err(Error::NonCanonicalLegalizedPlan);
-                    }
-                    let expects_sequence = matches!(
-                        target_function.operation,
-                        TargetOperation::ReturnIntegerExpression { .. }
-                    );
-                    if expects_sequence
-                        != matches!(
-                            leaf.leaf.value,
-                            legalized_operations::LegalizedLeafValue::ExactIntegerSequence(_)
-                        )
-                    {
-                        return Err(Error::NonCanonicalLegalizedPlan);
-                    }
-                    let recipe = match leaf.leaf.value {
-                        legalized_operations::LegalizedLeafValue::Immediate { .. } => legalized_operations::LegalizationRecipe::ReturnU64ImmediateConditionalV1,
-                        legalized_operations::LegalizedLeafValue::EntryParameter { .. } => legalized_operations::LegalizationRecipe::ReturnU64EntryParameterConditionalV1,
-                        legalized_operations::LegalizedLeafValue::ExactIntegerSequence(_) => legalized_operations::LegalizationRecipe::ReturnU64ExactIntegerSequenceConditionalV1,
-                        _ => return Err(Error::NonCanonicalLegalizedPlan),
-                    };
-                    let operations = super::leaf::replay_leaf(
-                        index,
-                        recipe,
-                        leaf.leaf.return_edge,
-                        &control,
-                        &abstracted.operations,
-                        &optimized.blocks[0].nodes,
-                        abstracted,
-                        optimized,
-                        &unit.accepted_obligation_facts,
-                        &leaf.leaf,
-                        target.target.architecture,
-                        0,
-                    )?;
-                    if leaf.provenance.operations != operations
-                        || leaf.provenance.edges != [leaf.leaf.return_edge]
-                    {
-                        return Err(Error::NonCanonicalLegalizedPlan);
-                    }
-                    0
-                }
                 legalized_operations::LegalizedFunction::Conditional(legalized) => replay_function(
                     index,
                     target.target.architecture,

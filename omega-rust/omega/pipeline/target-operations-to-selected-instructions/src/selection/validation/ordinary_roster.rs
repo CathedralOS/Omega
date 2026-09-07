@@ -1,7 +1,7 @@
 //! Exact machine join between legal and selected functions.
 
 use super::functions::validate_function;
-use super::{scalar_graph, scalar_leaf};
+use super::scalar_graph;
 use crate::selection::shared::*;
 
 pub(super) fn validate(
@@ -43,15 +43,6 @@ pub(super) fn validate(
                     catalog,
                 )?
             }
-            ([legalized_operations::LegalizedFunction::Leaf(source)], []) => scalar_leaf::validate(
-                function_index,
-                source,
-                selected,
-                target.target,
-                constraints,
-                physical,
-                catalog,
-            )?,
             ([], [source]) => scalar_graph::validate(
                 function_index,
                 source,

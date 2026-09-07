@@ -1,4 +1,4 @@
-//! Scalar leaf production and independent corruption controls.
+//! Straight-line scalar graph production and independent corruption controls.
 
 use crate::{
     legalize_target_operations, select_instructions, selection_constraints,
@@ -91,6 +91,99 @@ fn publication_classification_reuses_the_existing_scalar_input() {
         assert!(!crate::legalization::accepts_fragment_publication_input(
             &targeted, &changed, &unit
         ));
+    }
+}
+
+#[test]
+fn scalar_graph_preserves_unused_stack_parameters_without_loading_them() {
+    for native_target in [
+        target::NativeTarget::windows_x64(),
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        for returned_parameter in [None, Some(0), Some(8)] {
+            let (mut abstracted, _, previous_unit) = fixture(Some(7), native_target);
+            let function = &mut abstracted.functions[0];
+            let scalar_type = function
+                .operations
+                .iter()
+                .find_map(|operation| match operation {
+                    AbstractOperation::IntegerConstant { scalar_type, .. } => Some(*scalar_type),
+                    _ => None,
+                })
+                .unwrap();
+            function.parameters = (0..9)
+                .map(|index| AbstractParameter {
+                    value: ValueId::new(10 + index).unwrap(),
+                    scalar_type,
+                })
+                .collect();
+            if let Some(index) = returned_parameter {
+                let source = function.parameters[index].value;
+                let AbstractOperation::Return { value, .. } =
+                    function.operations.last_mut().unwrap()
+                else {
+                    panic!("return fixture");
+                };
+                *value = source;
+            }
+            let targeted = abstract_operations_to_target_operations::lower_to_target_operations(
+                &abstracted,
+                native_target,
+            )
+            .unwrap();
+            let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+                &abstracted,
+                previous_unit.fuel_schedule,
+            )
+            .unwrap();
+            let eligible = crate::legalization::accepts_fragment_publication_input(
+                &targeted,
+                &abstracted,
+                &unit,
+            );
+            if returned_parameter == Some(8) {
+                assert!(!eligible, "used stack parameter must remain unsupported");
+                assert!(legalize_target_operations(&targeted, &abstracted, &unit).is_err());
+                continue;
+            }
+            assert!(eligible);
+            let legalized = legalize_target_operations(&targeted, &abstracted, &unit).unwrap();
+            let graph = &legalized.plan().scalar_functions[0];
+            assert_eq!(graph.parameters.len(), 9);
+            assert!(!graph.references_value(graph.parameters[8].value));
+            assert_eq!(
+                graph.references_value(graph.parameters[0].value),
+                returned_parameter.is_some()
+            );
+            let environment =
+                register_environment::baseline_target_register_environment(native_target).unwrap();
+            let constraints = selection_constraints(&legalized, &environment);
+            let selected = select_instructions(
+                &legalized,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .unwrap();
+            assert_eq!(
+                selected.plan().functions[0]
+                    .virtual_registers
+                    .iter()
+                    .filter(|register| register.entry_fixed_view.is_some())
+                    .count(),
+                usize::from(returned_parameter.is_some())
+            );
+            validate_selected_instructions(
+                &legalized,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+                selected.plan().clone(),
+            )
+            .unwrap();
+        }
     }
 }
 

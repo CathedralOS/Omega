@@ -60,6 +60,23 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     encode_len(bytes, crash.len());
                     bytes.extend_from_slice(&crash);
                 }
+                LegalizedScalarInstructionKind::ExactBinary {
+                    operator,
+                    left,
+                    right,
+                    obligation,
+                    accepted_fact,
+                } => {
+                    bytes.push(2);
+                    bytes.push(match operator {
+                        LegalizedExactIntegerOperator::Add => 0,
+                        LegalizedExactIntegerOperator::Subtract => 1,
+                    });
+                    bytes.extend_from_slice(&left.get().to_le_bytes());
+                    bytes.extend_from_slice(&right.get().to_le_bytes());
+                    bytes.extend_from_slice(&obligation.get().to_le_bytes());
+                    bytes.extend_from_slice(&accepted_fact.bytes());
+                }
             }
             encode_fuel(bytes, &instruction.fuel);
             encode_effect(bytes, instruction.effect);

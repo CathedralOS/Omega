@@ -65,59 +65,6 @@ pub(super) fn derive_remaining(
                     unit,
                     matched,
                 )?);
-        } else if kind == super::publication_input::OrdinaryInputKind::Leaf {
-            let (_, control) = crate::legalization::scalar_leaf::control(target_function)
-                .expect("classified leaf input");
-            let abi = crate::legalization::scalar_leaf::validate_input(
-                index,
-                target.target,
-                target_function,
-                abstracted,
-                optimized,
-            )?;
-            let target_operations::TargetIntegerControl::Return {
-                psi_return_edge, ..
-            } = &control
-            else {
-                unreachable!("leaf input");
-            };
-            let leaf = super::leaves::derive_leaf(
-                index,
-                *psi_return_edge,
-                &control,
-                &abstracted.operations,
-                &optimized.blocks[0].nodes,
-                abstracted,
-                optimized,
-                &unit.accepted_obligation_facts,
-                [
-                    legalized_operations::LegalizedTemporaryId(0),
-                    legalized_operations::LegalizedTemporaryId(1),
-                ],
-                matches!(
-                    target_function.operation,
-                    TargetOperation::ReturnIntegerExpression { .. }
-                ),
-            )?;
-            let provenance = target_operations::TerminalPsiProvenance {
-                operations: super::leaves::source_operations(&leaf.value),
-                edges: vec![leaf.return_edge],
-            };
-            if provenance != target_function.provenance {
-                return Err(Error::SourceCustodyMismatch);
-            }
-            rosters
-                .functions
-                .push(legalized_operations::LegalizedFunction::Leaf(
-                    legalized_operations::LegalizedScalarLeafFunction {
-                        machine: target_function.machine,
-                        attachment: target_function.attachment,
-                        provenance,
-                        entry_block: optimized.entry,
-                        abi: abi.clone(),
-                        leaf,
-                    },
-                ));
         } else if kind == super::publication_input::OrdinaryInputKind::SharedReturn {
             rosters.functions.push(
                 legalized_operations::LegalizedFunction::SharedReturnConditional(

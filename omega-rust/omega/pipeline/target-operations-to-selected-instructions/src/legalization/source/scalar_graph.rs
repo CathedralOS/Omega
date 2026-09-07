@@ -36,7 +36,7 @@ fn project(
         .iter()
         .map(|node| {
             let (operation, result) =
-                scalar_graph_input::instruction(node).expect("matched scalar instruction");
+                scalar_graph_input::instruction(node).ok_or(Error::SourceCustodyMismatch)?;
             let kind = match &node.operation {
                 AbstractOperation::IntegerConstant { value, .. } => {
                     LegalizedScalarInstructionKind::Constant(*value)
@@ -65,7 +65,26 @@ fn project(
                         crash_continuations: crash_continuations.clone(),
                     })
                 }
-                _ => unreachable!("matched scalar instruction"),
+                AbstractOperation::ExactIntegerAdd { psi_operation, obligation, left, right, .. }
+                | AbstractOperation::ExactIntegerSubtract { psi_operation, obligation, left, right, .. } => {
+                    let fact = unit.accepted_obligation_facts.iter().find(|fact|
+                        fact.machine == input.optimized.machine && fact.operation == *psi_operation && fact.obligation == *obligation)
+                        .ok_or(Error::SourceCustodyMismatch)?;
+                    if !input.optimized.facts.iter().any(|fact| matches!(fact,
+                        optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
+                        if referenced == obligation && support == psi_operation)) {
+                        return Err(Error::SourceCustodyMismatch);
+                    }
+                    LegalizedScalarInstructionKind::ExactBinary {
+                        operator: if matches!(node.operation, AbstractOperation::ExactIntegerAdd { .. }) {
+                            LegalizedExactIntegerOperator::Add
+                        } else {
+                            LegalizedExactIntegerOperator::Subtract
+                        },
+                        left: *left, right: *right, obligation: *obligation, accepted_fact: fact.identity,
+                    }
+                }
+                _ => return Err(Error::SourceCustodyMismatch),
             };
             Ok(LegalizedScalarInstruction {
                 operation,

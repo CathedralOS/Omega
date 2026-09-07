@@ -77,9 +77,41 @@ pub(super) fn match_input<'a>(
         return Err(invalid);
     }
     nodes::validate(block, body, returned, abstracted, optimized)?;
+    if optimized
+        .parameters
+        .iter()
+        .zip(&call_plan.parameters)
+        .any(|(parameter, placement)| {
+            block
+                .nodes
+                .iter()
+                .any(|node| node.uses.iter().any(|used| used.value == parameter.value))
+                && !register(placement)
+        })
+    {
+        return Err(invalid);
+    }
     // Ordered source calls execute even when their result is not returned.
     // Target expression trees witness referenced values, not execution order.
     for node in body {
+        if let AbstractOperation::ExactIntegerAdd {
+            psi_operation,
+            obligation,
+            ..
+        }
+        | AbstractOperation::ExactIntegerSubtract {
+            psi_operation,
+            obligation,
+            ..
+        } = &node.operation
+            && (!unit.accepted_obligation_facts.iter().any(|fact|
+                fact.machine == optimized.machine && fact.operation == *psi_operation && fact.obligation == *obligation)
+                || !optimized.facts.iter().any(|fact| matches!(fact,
+                    optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
+                    if referenced == obligation && support == psi_operation)))
+        {
+            return Err(invalid);
+        }
         if let AbstractOperation::Call {
             callee, arguments, ..
         } = &node.operation
@@ -133,5 +165,9 @@ pub(super) fn callee_plan(
     {
         return Err(LegalizationError::SourceCustodyMismatch);
     }
-    function_abi(native.target, target, abstracted, optimized)
+    let call_plan = function_abi(native.target, target, abstracted, optimized)?;
+    if !call_plan.parameters.iter().all(register) {
+        return Err(LegalizationError::SourceCustodyMismatch);
+    }
+    Ok(call_plan)
 }
