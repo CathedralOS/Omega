@@ -1,15 +1,18 @@
 # Delta resource-boundary gate
 
 Run `sh tests/delta/resource-boundary/run.sh` from the repository root. The gate
-materializes and pins the complete canonical compiler, then compiles 39 full
+materializes and pins the complete canonical compiler, then compiles 40 full
 authored Delta sources through `DCREQ` profile 1 and the selected Gamma evaluator.
 The host neither parses declarations nor injects counters or compiler rows.
-Thirty-eight observations are exact DCOUT frames; the remaining source must
-publish an exact-limit receipt which is then executed.
+Thirty-eight observations are exact DCOUT frames; the remaining two sources
+must publish exact receipts which are then executed.
 
 `sh tests/delta/resource-boundary/run.sh --payload` selects only the two payload
 controls for focused iteration. It uses the same full sources, compiler pins,
 evaluator, expected observations, and 300-second allowance as the full gate.
+
+`sh tests/delta/resource-boundary/run.sh --generated-environment` selects the
+single source-to-receipt validation-environment control described below.
 
 [`function_rows.py`](function_rows.py) retains the three function-row controls
 at D30's selected limit of 32,768:
@@ -221,9 +224,28 @@ raw evaluator failure or timeout without relabeling it as compiler
 `Incomplete`. A selected evaluator heap or stack failure does not pass, and the
 boundary is not reduced to accommodate it.
 
+## Generated validation environments
+
+`environment_rows.py` also authors a function with 65,534 distinct `Int`
+parameters and body `(+ 1 2)`, followed by a `Bytes` identity main. Delta admits
+the authored environment, then checked-arithmetic lowering introduces three
+simultaneous bindings. Gamma validates this unreachable function as well as
+`main`; the former 65,536-row evaluator therefore refused the successful
+compiler receipt with status 3 and empty stdout before application execution.
+
+The 852,006-byte source must publish the same 853,595-byte Gamma receipt,
+SHA256 `7301f66783438206beb55294779a1a891113923b6db9a8a6a9073a1ad9466f4f`,
+then that actual receipt must return sealed input `00 41 80 ff` unchanged with
+status zero. The selected evaluator provisions 131,072 environment rows in
+already allocated Alpha memory. Neither Delta source semantics nor emission
+changes; the host constructs source and compares the actual receipt and
+execution. The separate [Gamma environment controls](../../gamma/evaluator-development/README.md)
+exercise the exact new physical limit and adjacent quiet refusal.
+
 These controls test the type-, function-, constructor-, and
 active-environment-row boundaries, cumulative syntax storage, full per-match
-coverage behavior, and exact/adjacent payload publication.
+coverage behavior, exact/adjacent payload publication, and this generated
+validation-environment gap.
 They do not establish all D30 capacities, acceptance or emission of every
 in-bound program, or closure of the Delta edge. Other frontend and request
 behavior remains in the

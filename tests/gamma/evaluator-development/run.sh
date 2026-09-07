@@ -38,10 +38,11 @@ from function_lookup import (
     fixtures as function_lookup_fixtures,
     upper_capacity_fixtures,
 )
+from environment_rows import fixtures as environment_fixtures
 
 artifacts = (
-    ("BETA", 46484, "29d0a5e7d8960d456bf6905b776a984d0e371d1e4cd260a6b6a81b7e086fc1de"),
-    ("TAPE", 8355, "90cb720c980e859588179cdef59ed615ecd1bb053b09601b01964dc0a05571fc"),
+    ("BETA", 46484, "16388aafda52c1db3d8a416e97d885341ac7000d2e8d92b62953daf7937f36ef"),
+    ("TAPE", 8355, "e157391249afa316d8bc9daece8d9934c365d0980ff9181781dcd366bd76d91b"),
 )
 for name, size, digest in artifacts:
     data = Path(os.environ[name]).read_bytes()
@@ -273,6 +274,11 @@ print(
 
 def nested_add(depth):
     return b"(def main () Int " + b"(+ 0 " * depth + b"0" + b")" * depth + b")\n"
+
+for name, source, expected in environment_fixtures():
+    if run(source, timeout=30) != expected:
+        raise SystemExit(f"{name} changed environment provision or publication")
+print("Direct Beta Gamma evaluator: 6 physical environment controls passed")
 
 if run(nested_add(255)) != (0, b"\x00"):
     raise SystemExit("exact expression-nesting capacity did not complete")

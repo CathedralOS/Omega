@@ -5,8 +5,10 @@ RESOURCE_BOUNDARY_GROUP=all
 if [ "$#" -ne 0 ]; then
     if [ "$#" -eq 1 ] && [ "$1" = --payload ]; then
         RESOURCE_BOUNDARY_GROUP=payload
+    elif [ "$#" -eq 1 ] && [ "$1" = --generated-environment ]; then
+        RESOURCE_BOUNDARY_GROUP=generated-environment
     else
-        echo "usage: $0 [--payload]" >&2
+        echo "usage: $0 [--payload|--generated-environment]" >&2
         exit 2
     fi
 fi
@@ -44,6 +46,7 @@ from constructor_rows import fixtures as constructor_rows
 from function_rows import fixtures as function_rows
 from type_rows import fixtures as type_rows
 from environment_rows import fixtures as environment_rows
+from environment_rows import accepted_fixtures as accepted_environment_rows
 from match_coverage import fixtures as match_coverage
 from syntax_storage import fixtures as syntax_storage
 from payload_bytes import fixtures as payload_bytes
@@ -60,14 +63,14 @@ expected_identity = (int(rows[0]["lines"]), int(rows[0]["bytes"]), rows[0]["sha2
 if identity != expected_identity:
     raise SystemExit(f"Delta resource boundary compiler identity changed: {identity}")
 
-payload_only = os.environ["RESOURCE_BOUNDARY_GROUP"] == "payload"
-function_cases = () if payload_only else function_rows()
-constructor_cases = () if payload_only else constructor_rows()
-type_cases = () if payload_only else type_rows()
-environment_cases = () if payload_only else environment_rows()
-coverage_cases = () if payload_only else match_coverage()
-syntax_cases = () if payload_only else syntax_storage()
-payload_cases = payload_bytes()
+group = os.environ["RESOURCE_BOUNDARY_GROUP"]
+function_cases = function_rows() if group == "all" else ()
+constructor_cases = constructor_rows() if group == "all" else ()
+type_cases = type_rows() if group == "all" else ()
+environment_cases = environment_rows() if group == "all" else ()
+coverage_cases = match_coverage() if group == "all" else ()
+syntax_cases = syntax_storage() if group == "all" else ()
+payload_cases = payload_bytes() if group in ("all", "payload") else ()
 cases = (
     function_cases + constructor_cases + type_cases + environment_cases
     + coverage_cases + syntax_cases + payload_cases
@@ -112,8 +115,11 @@ for name, source, size, digest, expected in cases:
         )
     print(f"Delta resource boundary: {name}: exact DCOUT in {elapsed:.3f}s", flush=True)
 
-accepted_cases = accepted_payload_bytes()
-for name, source, size, digest, receipt_size, receipt_digest in accepted_cases:
+accepted_cases = (
+    (accepted_payload_bytes() if group in ("all", "payload") else ())
+    + (accepted_environment_rows() if group in ("all", "generated-environment") else ())
+)
+for name, source, size, digest, receipt_size, receipt_digest, sealed_input, expected_output in accepted_cases:
     status, receipt, error, elapsed = compile_source(name, source, size, digest)
     actual_digest = hashlib.sha256(receipt).hexdigest()
     if (status != 0 or error
@@ -128,10 +134,10 @@ for name, source, size, digest, receipt_size, receipt_digest in accepted_cases:
         f"SHA256 {actual_digest} in {elapsed:.3f}s",
         flush=True,
     )
-    # The receipt plus its four-byte frame fills Gamma's complete request.
-    # Its identity main must execute with empty sealed input.
-    status, output, error, elapsed = evaluate(name, receipt, b"")
-    if (status, output, error) != (0, b"", b""):
+    # Each fixture owns its input; the exact-size payload receipt needs empty
+    # input because its source plus framing fills Gamma's complete request.
+    status, output, error, elapsed = evaluate(name, receipt, sealed_input)
+    if (status, output, error) != (0, expected_output, b""):
         raise SystemExit(
             f"Delta resource boundary {name}: generated execution got "
             f"{status}/{output[:80].hex()}, stderr={error!r}"
@@ -143,6 +149,6 @@ print(
     f"{len(type_cases)} type-row, {len(environment_cases)} active-environment, "
     f"{len(coverage_cases)} match-coverage, {len(syntax_cases)} syntax-storage, "
     f"{len(payload_cases)} payload-byte refusals); "
-    f"{len(accepted_cases)} exact-limit receipts compiled and executed"
+    f"{len(accepted_cases)} exact receipts compiled and executed"
 )
 PY

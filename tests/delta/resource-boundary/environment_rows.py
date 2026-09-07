@@ -3,6 +3,23 @@
 import struct
 
 
+def accepted_fixtures():
+    # The three generated arithmetic bindings follow 65,534 authored parameters.
+    # Even an unreachable function must pass generated Gamma validation.
+    parameters = b" ".join(
+        f"(p{index:05d} Int)".encode("ascii") for index in range(65534)
+    )
+    source = (b"(def wide (" + parameters + b") Int (+ 1 2))\n"
+              b"(def main ((input Bytes)) Bytes input)\n")
+    payload = b"\x00A\x80\xff"
+    return (
+        ("generated bindings beyond authored parameters", source,
+         852006, "cce2cd1298c4e932fb547128ed5211d4e555c101c2fbeffb21c43b7bd3dadb06",
+         853595, "7301f66783438206beb55294779a1a891113923b6db9a8a6a9073a1ad9466f4f",
+         payload, payload),
+    )
+
+
 def outcome(tag, code, coordinate, limit=0, requested=0):
     return tag, struct.pack(
         "<8sBBHIQQQ", b"\xffDCOUT\x01\x00", tag, 1, 0, code,
