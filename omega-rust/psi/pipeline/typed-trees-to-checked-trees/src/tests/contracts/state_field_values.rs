@@ -1,6 +1,29 @@
 use super::*;
 
 #[test]
+fn decimal_remainder_preserves_ascii_output_field() {
+    for (modulus, accepted) in [(10, true), (200, false)] {
+        check(
+            &format!(
+                r#"
+                domain [u8; 2]::Utf8 requires valid_utf8(self);
+                data Buffer {{ input: [u8; 2]; output: [u8; 2] in Utf8; position: i32 [0..=1]; byte: u8 in Wrapping; }}
+                machine Buffer::digit(&mut self) {{
+                    self.input = "ö";
+                    self.output = "AB";
+                    self.byte = self.input[self.position] as u8 in Wrapping % {modulus} + 48;
+                    self.output[self.position] = self.byte as u8;
+                    transition {{ _ -> done() }}
+                    state done(&mut self) {{}}
+                }}
+                "#
+            ),
+            accepted,
+        );
+    }
+}
+
+#[test]
 fn indexed_byte_arithmetic_captures_materialized_bounds() {
     let source = r#"
         data Buffer { text: [u8; 5]; position: i32 [0..=4]; byte: u8 in Wrapping; }

@@ -158,6 +158,20 @@ fn binary(
     right: IntegerRange,
 ) -> Option<IntegerRange> {
     use CheckedIntegerBinaryKind as Kind;
+    if matches!(
+        kind,
+        Kind::ExactRemainder | Kind::WrappingRemainder | Kind::SaturatingRemainder
+    ) {
+        // For nonnegative dividends and positive divisors, the remainder is
+        // below the divisor and no greater than the dividend for every policy.
+        if left.minimum < BigInt::zero() || right.minimum <= BigInt::zero() {
+            return None;
+        }
+        return Some(IntegerRange {
+            minimum: BigInt::zero(),
+            maximum: left.maximum.min(right.maximum.sub(&BigInt::from_u64(1))),
+        });
+    }
     let mut bounds = match kind {
         Kind::ExactAdd | Kind::WrappingAdd | Kind::SaturatingAdd => IntegerRange {
             minimum: left.minimum.add(&right.minimum),
