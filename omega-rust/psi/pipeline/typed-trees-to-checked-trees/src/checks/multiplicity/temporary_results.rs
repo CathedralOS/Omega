@@ -6,14 +6,29 @@
 
 use super::*;
 
+mod projected;
+
 pub(super) fn append_whole_affine_transfer(
     program: &typed_trees::TypedTrees,
+    facts: &mut CheckFacts,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     calls: &[checked_trees::FlowCallFact],
     event: &crate::flow::DiscoveredMoveEvent,
     permission_events: &mut Vec<FlowPermissionEventFact>,
 ) {
+    if !event.segments.is_empty() {
+        projected::append(
+            program,
+            facts,
+            machine_symbol,
+            state_symbol,
+            calls,
+            event,
+            permission_events,
+        );
+        return;
+    }
     let facts::PlaceRoot::Expression(expression) = event.root else {
         return;
     };

@@ -3,6 +3,7 @@
 use super::*;
 use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan};
 
+mod anonymous;
 mod residuals;
 
 pub(super) fn lower_partial_affine_unit_cleanup_machine(
@@ -34,7 +35,7 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
     if call_operations.is_empty() {
         return unsupported("partial affine Unit cleanup requires projected calls");
     }
-    let (root_source, root_type, producer_count) = match &call_operations[0] {
+    let (root_source, root_type, producer_count, anonymous) = match &call_operations[0] {
         CheckedUnitEffectOperationPlan::StructuralCall {
             coordinate,
             result,
@@ -48,7 +49,8 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
             ..
         } => {
             if coordinate.statement_index != 0
-                || coordinate.call_ordinal != 0
+                || coordinate.call_ordinal > 1
+                || (coordinate.call_ordinal == 1 && call_operations.len() != 2)
                 || result.binding_ordinal != 0
                 || result.statement_index != 0
                 || result.multiplicity != Multiplicity::Affine
@@ -63,6 +65,7 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
                 },
                 result.type_identity.as_str(),
                 1,
+                coordinate.call_ordinal == 1,
             )
         }
         _ => {
@@ -75,6 +78,7 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
                 CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 },
                 parameter.type_identity.as_str(),
                 0,
+                false,
             )
         }
     };
@@ -105,7 +109,7 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
             return unsupported("partial affine Unit transfer is not an exact field path");
         }
         if coordinate.statement_index
-            != u32::try_from(operation_ordinal + producer_count)
+            != u32::try_from(operation_ordinal + producer_count - usize::from(anonymous))
                 .map_err(|_| LoweringError::Unsupported("partial affine call count exceeds u32"))?
             || coordinate.call_ordinal != 0
             || !claim_transfers.is_empty()
@@ -140,7 +144,8 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
         || !plan.trivial_affine_locals.is_empty()
         || !plan.entry_claims.is_empty()
         || !plan.body_qualifications.is_empty()
-        || usize::try_from(*statement_index).ok() != Some(call_operations.len())
+        || usize::try_from(*statement_index).ok()
+            != Some(call_operations.len() - usize::from(anonymous))
         || partial
             .residual_affine_discards
             .iter()
@@ -149,6 +154,22 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
         || !trivial_affine_discards.is_empty()
     {
         return unsupported("partial affine Unit cleanup signature or coordinates drifted");
+    }
+    if anonymous {
+        anonymous::validate(checked, partial)?;
+        let (source_machine, source_state) =
+            crate::scalar_source_custody::authored_state(checked, plan.state)?;
+        if source_machine.symbol != plan.machine
+            || checked
+                .statement_table
+                .statements(source_state.statement_nodes)
+                .len()
+                != 1
+        {
+            return unsupported(
+                "anonymous projected result must die at its enclosing call continuation",
+            );
+        }
     }
 
     let partial_plans = &checked

@@ -1667,8 +1667,7 @@ type, path, result metadata, and current live custody rejoin independently.
 Reordered production, overlapping moves, whole-root cleanup after a partial move,
 and residual type/order drift reject. A crash retains the abandoned residual
 frontier and carries no cleanup successor. This does not admit construction-local
-partial moves, mixed-root cleanup ordering, scalar-return residuals, or authored
-anonymous projected helper-result expressions.
+partial moves, mixed-root cleanup ordering, or scalar-return residuals.
 
 Checked-source production carries this result-root schedule for one leading
 immutable local initialized by a whole-value ordinary call or structural boundary
@@ -1680,6 +1679,18 @@ the structural argument's parameter/result source identity instead of treating a
 result ordinal as a parameter index. The ordinary root-only sequencer does not
 accept these partial moves. Boundary production retains its declared service
 reach; it does not make the subsequent disposers effectful.
+
+An anonymous projected operand such as `Sink::take(Root::forward(value).right)`
+uses the same result-root schedule when it is the caller's sole statement.
+The producer may be an ordinary whole-value call or a structural boundary call.
+The checker establishes the temporary at its exact producer expression,
+transfers the selected field/literal-index path, and records the maximal residual
+paths with that establishment provenance at the enclosing call continuation.
+No named local is synthesized. Captured call ordinals remain preorder while
+execution runs the producer before its consumer. The existing return edge owns
+cleanup because this continuation ends the caller; later statements, multiple
+anonymous producers, and other argument effects require their own continuation
+support. The ordinary root-only sequencer still rejects projected moves.
 
 Lowering and Terminal verification independently reconstruct that complement
 from the types and moves, rejecting overlaps, missing or extra residuals, and
@@ -1736,8 +1747,9 @@ stores each fragment at its actual width into a distinct result home before
 later projected copies; the result is not relabeled as an input parameter or a
 tagged sum. Assignment, object validation, and installation replay retain the real producer/result,
 independently reconstruct the store bytes and intervals, reject overlapping
-homes, and reconstruct the residual or empty complement. Boundary-result native
-projection, anonymous projected helper-result operands, claims, nominal
+homes, and reconstruct the residual or empty complement. The single-final-call
+anonymous source form uses these same result homes and projected copies.
+Boundary-result native projection, claims, nominal
 destruction, and partial construction remain outside
 this native slice.
 
@@ -4145,9 +4157,12 @@ local names. Captured call ordinals identify authored
 preorder occurrences; the operation sequence evaluates children before their
 parent and siblings in argument order. Lowering independently rejoins that
 syntax order, every result producer, and the enclosing consuming expression.
-An anonymous result must transfer exactly once to its enclosing call, with no
-caller-return disposal. Source permission events retain both the producer's
-input transfer and the temporary expression's transfer into its consumer.
+In this whole-result operand schedule, an anonymous result must transfer exactly
+once to its enclosing call, with no caller-return disposal. The bounded partial
+cleanup schedule above instead transfers a selected subtree and disposes its
+remainder at the dying call continuation. Source permission events retain both
+the producer's input transfer and the temporary expression's transfer into its
+consumer.
 The source eligibility gate and structural producer use the same stored-owned
 type classifier, so reference-bearing or qualified fields cannot acquire this
 route through referent normalization.

@@ -36,6 +36,18 @@ fn authored_result_projection_retains_its_untransferred_remainder() {
         .expect("projected call result and its residual cleanup publish");
 }
 
+#[test]
+fn anonymous_result_projection_retains_its_untransferred_remainder() {
+    for boundary in [false, true] {
+        assert_source(
+            &anonymous_source(boundary, false, "Sink::take(result.right);"),
+            boundary,
+            &[path(&["right"])],
+            &[path(&["left"])],
+        );
+    }
+}
+
 fn typed(source: &str) -> typed_trees::TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
@@ -85,6 +97,17 @@ fn path(parts: &[&str]) -> Vec<StructuralPathSegment> {
             Err(_) => StructuralPathSegment::Field((*part).into()),
         })
         .collect()
+}
+
+fn anonymous_source(boundary: bool, nested: bool, body: &str) -> String {
+    let producer = if boundary {
+        "Factory::create()"
+    } else {
+        "Root::forward(value)"
+    };
+    source(boundary, nested, body)
+        .replace(&format!("let result: Pair = {producer};"), "")
+        .replace("result.", &format!("{producer}."))
 }
 
 #[derive(Default)]
@@ -143,9 +166,16 @@ fn assert_source(
             _ => None,
         })
         .collect::<Vec<_>>();
-    assert_eq!(locals.len(), 1);
-    assert_eq!(locals[0].name.as_str(), "result");
-    assert!(!locals[0].is_mutable);
+    if source.contains("let result:") {
+        assert_eq!(locals.len(), 1);
+        assert_eq!(locals[0].name.as_str(), "result");
+        assert!(!locals[0].is_mutable);
+    } else {
+        assert!(
+            locals.is_empty(),
+            "anonymous results never synthesize a source local"
+        );
+    }
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("source result residuals lower");
     let module = &lowered.semantic_module;
@@ -412,8 +442,40 @@ fn projected_result_rows_and_leaves_keep_maximal_reverse_residuals() {
 }
 
 #[test]
-fn checked_result_root_paths_and_complement_rejoin_authored_custody() {
+fn anonymous_projected_rows_and_leaves_keep_maximal_reverse_residuals() {
     for boundary in [false, true] {
+        assert_source(
+            &anonymous_source(boundary, true, "Sink::take(result.grid[1][1]);"),
+            boundary,
+            &[path(&["grid", "1", "1"])],
+            &[
+                path(&["tail"]),
+                path(&["grid", "1", "2"]),
+                path(&["grid", "1", "0"]),
+                path(&["grid", "0"]),
+                path(&["left"]),
+            ],
+        );
+        assert_source(
+            &anonymous_source(boundary, true, "Sink::take_row(result.grid[1]);"),
+            boundary,
+            &[path(&["grid", "1"])],
+            &[path(&["tail"]), path(&["grid", "0"]), path(&["left"])],
+        );
+        assert_source(
+            &anonymous_source(boundary, false, "Sink::take(result.right);")
+                .replace("left: Token; right: Token;", "left: u64; right: Token;"),
+            boundary,
+            &[path(&["right"])],
+            &[],
+        );
+    }
+}
+
+#[test]
+fn checked_result_root_paths_and_complement_rejoin_authored_custody() {
+    for (boundary, anonymous) in [(false, false), (true, false), (false, true), (true, true)] {
+        let source = if anonymous { anonymous_source } else { source };
         let original = checked(&source(boundary, false, "Sink::take(result.right);"));
         checked_trees_to_lowered_psi::lower_machine(&original, "Root::enter")
             .expect("valid control before mutations");
@@ -423,7 +485,7 @@ fn checked_result_root_paths_and_complement_rejoin_authored_custody() {
             .find(|machine| machine.name.as_str() == "Root::enter")
             .unwrap()
             .symbol;
-        for mutation in 0..6 {
+        for mutation in 0..8 {
             let mut changed = original.clone();
             let plan = changed
                 .facts
@@ -490,11 +552,30 @@ fn checked_result_root_paths_and_complement_rejoin_authored_custody() {
                     structural_arguments[0].source =
                         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 };
                 }
+                6 => {
+                    let (CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. }
+                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                        coordinate, ..
+                    }) = &mut plan.machine.operations[0]
+                    else {
+                        unreachable!()
+                    };
+                    coordinate.call_ordinal += 1;
+                }
+                7 => {
+                    let (CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
+                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }) =
+                        &mut plan.machine.operations[0]
+                    else {
+                        unreachable!()
+                    };
+                    result.binding_ordinal += 1;
+                }
                 _ => unreachable!(),
             }
             assert!(
                 checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter").is_err(),
-                "boundary={boundary} mutation={mutation}"
+                "boundary={boundary} anonymous={anonymous} mutation={mutation}"
             );
         }
         let mut changed = checked(&source(boundary, true, "Sink::take(result.grid[1][1]);"));
@@ -531,4 +612,98 @@ fn source_result_paths_cannot_be_used_after_their_owned_move() {
             }
         }
     }
+}
+
+#[test]
+fn anonymous_result_permissions_rejoin_before_publication() {
+    for boundary in [false, true] {
+        let original = checked(&anonymous_source(
+            boundary,
+            true,
+            "Sink::take(result.grid[1][1]);",
+        ));
+        let _artifact = terminal_production::produce_terminal_artifact(&original, "Root::enter")
+            .expect("valid ownership evidence before mutations");
+        let events = original
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .filter(|(_, event)| matches!(event.root, facts::PlaceRoot::Expression(_)))
+            .map(|(handle, event)| (handle, event.clone()))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            events.len(),
+            7,
+            "establishment, selected transfer, five residuals"
+        );
+        for (handle, event) in &events {
+            for mutation in 0..5 {
+                let mut changed = original.clone();
+                let mut altered = event.clone();
+                match mutation {
+                    0 => altered.root = facts::PlaceRoot::Unknown,
+                    1 => altered.provenance = language_semantics::PermissionProvenance::Unknown,
+                    2 => altered.obligation_live = true,
+                    3 => altered.source = language_semantics::PermissionEventSource::StateExit,
+                    4 => {
+                        changed
+                            .facts
+                            .flow
+                            .ownership
+                            .permissions
+                            .insert(altered.clone());
+                    }
+                    _ => unreachable!(),
+                }
+                *changed.facts.flow.ownership.permissions.get_mut(*handle) = altered;
+                assert!(
+                    terminal_production::produce_terminal_artifact(&changed, "Root::enter")
+                        .is_err(),
+                    "boundary={boundary}, kind={:?}, mutation={mutation}",
+                    event.kind
+                );
+            }
+        }
+        let mut changed = original.clone();
+        let first = events[2].1.clone();
+        let second = events[3].1.clone();
+        *changed
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .get_mut(events[2].0) = second;
+        *changed
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .get_mut(events[3].0) = first;
+        assert!(terminal_production::produce_terminal_artifact(&changed, "Root::enter").is_err());
+    }
+}
+
+#[test]
+fn anonymous_partial_results_do_not_bypass_continuation_or_live_root_limits() {
+    for boundary in [false, true] {
+        let source = anonymous_source(boundary, false, "Sink::take(result.right);");
+        let extra_statement = source
+            .replace("data Sink {}", "data Sink {} machine Sink::done() {}")
+            .replace(".right);", ".right); Sink::done();");
+        assert!(
+            terminal_production::produce_terminal_artifact(
+                &checked(&extra_statement),
+                "Root::enter"
+            )
+            .is_err()
+        );
+    }
+    let live_input = anonymous_source(true, false, "Sink::take(result.right);")
+        .replace("machine Root::enter()", "machine Root::enter(value: Pair)");
+    assert!(
+        terminal_production::produce_terminal_artifact(&checked(&live_input), "Root::enter")
+            .is_err()
+    );
 }

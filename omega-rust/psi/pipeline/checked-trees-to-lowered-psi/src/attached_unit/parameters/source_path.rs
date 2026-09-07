@@ -9,14 +9,63 @@ enum SourceProjection {
     Index(u64),
 }
 
+/// Identify a potential producer; `source_place_path` validates its typed path.
+pub(crate) fn expression_producer(
+    checked: &CheckedTrees,
+    mut expression: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let mut visited = Vec::new();
+    loop {
+        if !checked.expression_table.expression_is_valid(expression)
+            || visited.contains(&expression)
+        {
+            return None;
+        }
+        visited.push(expression);
+        expression = match checked.expression_table.expression(expression) {
+            ExpressionNode::Call(_) => return Some(expression),
+            ExpressionNode::Member(member) if member.case_variant.is_none() => member.receiver,
+            ExpressionNode::Indexed(indexed)
+                if matches!(
+                    checked.expression_table.expression(indexed.index),
+                    ExpressionNode::Integer(_)
+                ) =>
+            {
+                indexed.collection
+            }
+            _ => return None,
+        };
+    }
+}
+
 pub(crate) fn source_path(
+    checked: &CheckedTrees,
+    machine: &checked_trees::machine::Machine,
+    source_type: TypeReferenceHandle,
+    expression: ExpressionHandle,
+) -> Result<
+    (
+        symbols::SymbolHandle,
+        Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+        Option<checked_trees::CheckedStructuralAccess>,
+    ),
+    LoweringError,
+> {
+    let (root, path, access) = source_place_path(checked, machine, source_type, expression)?;
+    let facts::PlaceRoot::Symbol(symbol) = root else {
+        return unsupported("structural argument is not a named source place");
+    };
+    Ok((symbol, path, access))
+}
+
+pub(crate) fn source_place_path(
     checked: &CheckedTrees,
     machine: &checked_trees::machine::Machine,
     source_type: TypeReferenceHandle,
     mut expression: ExpressionHandle,
 ) -> Result<
     (
-        symbols::SymbolHandle,
+        facts::PlaceRoot,
         Vec<checked_trees::CheckedUnitStructuralPathSegment>,
         Option<checked_trees::CheckedStructuralAccess>,
     ),
@@ -77,8 +126,9 @@ pub(crate) fn source_path(
                         .len()
                         == 1 =>
             {
-                break name.symbol;
+                break facts::PlaceRoot::Symbol(name.symbol);
             }
+            ExpressionNode::Call(_) => break facts::PlaceRoot::Expression(expression),
             _ => return unsupported("scalar wrapper structural argument is not a parameter place"),
         }
     };

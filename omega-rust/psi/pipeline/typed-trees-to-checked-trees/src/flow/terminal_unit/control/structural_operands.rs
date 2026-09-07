@@ -3,7 +3,7 @@
 
 use super::*;
 
-pub(super) fn for_call<'a>(
+pub(in crate::flow::terminal_unit) fn for_call<'a>(
     program: &TypedTrees,
     facts: &'a CheckFacts,
     machine: &typed_trees::machine::Machine,
@@ -78,20 +78,42 @@ fn collect<'a>(
         {
             continue;
         }
-        let ExpressionNode::Call(authored) = program.expression_table.expression(*argument) else {
+        let place = crate::flow::canonical_place_from_expression_in_state(
+            program,
+            state.symbol,
+            call.statement_index,
+            *argument,
+        );
+        let expression = match place {
+            Some(place)
+                if place.segments.iter().all(|segment| {
+                    matches!(
+                        segment,
+                        facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
+                    )
+                }) =>
+            {
+                match place.root {
+                    facts::PlaceRoot::Expression(expression) => expression,
+                    _ => *argument,
+                }
+            }
+            _ => *argument,
+        };
+        let ExpressionNode::Call(authored) = program.expression_table.expression(expression) else {
             continue;
         };
         result(
             program,
             facts,
             machine.symbol,
-            *argument,
+            expression,
             &mut ShapeCollector::new(program),
         )?;
-        if active.contains(argument)
+        if active.contains(&expression)
             || output
                 .iter()
-                .any(|prior| prior.authored_expression == *argument)
+                .any(|prior| prior.authored_expression == expression)
             || !authored.machine_arguments.is_empty()
             || !authored.evidence_arguments.is_empty()
             || authored.static_requirement_dispatch.is_some()
@@ -103,14 +125,14 @@ fn collect<'a>(
         let mut matching = calls.iter().filter(|nested| {
             nested.statement_index == call.statement_index
                 && nested.call_ordinal > call.call_ordinal
-                && nested.authored_expression == *argument
+                && nested.authored_expression == expression
                 && nested.target_symbol == authored.target_symbol
         });
         let nested = matching.next()?;
         if matching.next().is_some() {
             return None;
         }
-        active.push(*argument);
+        active.push(expression);
         collect(
             program, facts, machine, state, calls, nested, active, output,
         )?;

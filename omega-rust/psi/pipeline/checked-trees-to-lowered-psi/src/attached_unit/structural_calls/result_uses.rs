@@ -1,5 +1,6 @@
 //! Exact source bindings and final custody of structural call results.
 
+use super::super::parameters::expression_producer;
 use super::*;
 use checked_trees::CheckedUnitStructuralResultBindingPlan;
 
@@ -110,7 +111,6 @@ pub(crate) fn validate_usage(
             if !argument.path.is_empty() {
                 if !matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. })
                     || argument.access != checked_trees::CheckedStructuralAccess::Owned
-                    || producer.coordinate.call_ordinal != 0
                     || result.multiplicity != Multiplicity::Affine
                     || projected_paths.iter().any(|earlier| {
                         earlier.starts_with(&argument.path) || argument.path.starts_with(earlier)
@@ -143,7 +143,7 @@ pub(crate) fn validate_usage(
     }
     if (projected_paths.is_empty() && producer.discard == consumed)
         || (!projected_paths.is_empty() && producer.discard)
-        || (producer.coordinate.call_ordinal != 0 && !consumed)
+        || (producer.coordinate.call_ordinal != 0 && !consumed && projected_paths.is_empty())
     {
         return unsupported(
             "Unit structural result cleanup disagrees with its final consuming use",
@@ -215,12 +215,10 @@ pub(crate) fn validate_consumer(
         ))?;
     let authored =
         crate::call_source_custody::authored::locate_source(checked, caller.state, *coordinate)?;
-    let authored_nested = authored.structural_arguments.iter().any(|(_, expression)| {
-        matches!(
-            checked.expression_table.expression(*expression),
-            ExpressionNode::Call(_)
-        )
-    });
+    let authored_nested = authored
+        .structural_arguments
+        .iter()
+        .any(|(_, expression)| expression_producer(checked, *expression).is_some());
     validate_nested_execution_order(checked, caller, coordinate.statement_index, authored_nested)?;
     let (source_machine, state) =
         crate::scalar_source_custody::authored_state(checked, caller.state)?;
@@ -238,12 +236,8 @@ pub(crate) fn validate_consumer(
             });
         let binding_ordinal = argument.source_structural_result_binding_ordinal();
         if binding_ordinal.is_none()
-            && expression.is_some_and(|expression| {
-                matches!(
-                    checked.expression_table.expression(expression),
-                    ExpressionNode::Call(_)
-                )
-            })
+            && expression
+                .is_some_and(|expression| expression_producer(checked, expression).is_some())
         {
             return unsupported(
                 "nested structural argument has no expression-owned producer binding",
@@ -317,11 +311,37 @@ pub(crate) fn validate_consumer(
                         "nested structural producer has a different authored source",
                     );
                 }
-                producer_coordinate.statement_index == coordinate.statement_index
-                    && expression.is_some_and(|expression| {
-                        source.source_site
-                            == Some(checked_trees::NominalMachineUseSite::Expression(expression))
-                    })
+                let Some(checked_trees::NominalMachineUseSite::Expression(source_expression)) =
+                    source.source_site
+                else {
+                    return unsupported("anonymous producer has no expression-owned source");
+                };
+                let matches = producer_coordinate.statement_index == coordinate.statement_index
+                    && expression.and_then(|expression| expression_producer(checked, expression))
+                        == Some(source_expression);
+                if matches {
+                    let signature = crate::call_source_custody::authored::target_signature(
+                        checked,
+                        source_machine.symbol,
+                        source.source_target,
+                    )?;
+                    let (root, path, access) = super::super::parameters::source_place_path(
+                        checked,
+                        source_machine,
+                        signature.return_type,
+                        expression.unwrap(),
+                    )?;
+                    if root != facts::PlaceRoot::Expression(source_expression)
+                        || path != argument.path
+                        || access.is_some()
+                        || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                    {
+                        return unsupported(
+                            "anonymous result projection disagrees with its authored source",
+                        );
+                    }
+                }
+                matches
             };
             if names_result != (binding_ordinal == Some(result.binding_ordinal)) {
                 return unsupported(if producer_coordinate.call_ordinal == 0 {
@@ -363,8 +383,7 @@ pub(crate) fn validate_consumer(
             || parameter.type_identity != argument.type_identity
             || (!argument.path.is_empty()
                 && (!matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. })
-                    || argument.access != checked_trees::CheckedStructuralAccess::Owned
-                    || producer.coordinate.call_ordinal != 0))
+                    || argument.access != checked_trees::CheckedStructuralAccess::Owned))
             || !matches!(
                 argument.access,
                 checked_trees::CheckedStructuralAccess::Owned

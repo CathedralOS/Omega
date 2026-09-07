@@ -5,7 +5,7 @@ use super::*;
 
 mod service_forward;
 mod source_path;
-pub(crate) use source_path::source_path;
+pub(crate) use source_path::{expression_producer, source_path, source_place_path};
 
 /// Rejoin direct Unit scalar parameters and routed-Service receipts to the
 /// exact typed state signature before raw checked-to-Terminal lowering erases

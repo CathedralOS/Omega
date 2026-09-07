@@ -16,25 +16,34 @@ use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
 fn authored_call_result_cleanup_reaches_current_omega_ownership() {
-    check_authored_call_result_cleanup(false, true);
+    check_authored_call_result_cleanup(false, true, false);
 }
 
 #[test]
 fn authored_boundary_result_cleanup_reaches_current_omega_ownership() {
-    check_authored_call_result_cleanup(true, true);
+    check_authored_call_result_cleanup(true, true, false);
 }
 
 #[test]
 fn free_call_result_cleanup_reaches_current_omega_ownership() {
-    check_authored_call_result_cleanup(false, false);
+    check_authored_call_result_cleanup(false, false, false);
 }
 
 #[test]
 fn free_boundary_result_cleanup_retains_service_reach_and_ownership() {
-    check_authored_call_result_cleanup(true, false);
+    check_authored_call_result_cleanup(true, false, false);
 }
 
-fn check_authored_call_result_cleanup(boundary: bool, attached: bool) {
+#[test]
+fn anonymous_call_result_cleanup_retains_expression_owned_residuals() {
+    for boundary in [false, true] {
+        for attached in [false, true] {
+            check_authored_call_result_cleanup(boundary, attached, true);
+        }
+    }
+}
+
+fn check_authored_call_result_cleanup(boundary: bool, attached: bool, anonymous: bool) {
     for (fields, calls, expected) in [
         (
             "left: Token; right: Token;",
@@ -62,6 +71,9 @@ fn check_authored_call_result_cleanup(boundary: bool, attached: bool) {
             ],
         ),
     ] {
+        if anonymous && calls.matches(';').count() != 1 {
+            continue;
+        }
         let mut source = format!(
             "data Token {{ value: u64; }}
              data Pair {{ {fields} }}
@@ -84,6 +96,16 @@ fn check_authored_call_result_cleanup(boundary: bool, attached: bool) {
                 )
                 .replace("Root::forward(value);", "Factory::create();");
             source.push_str("boundary trait Factory { machine create() -> Pair reaches Factory; }");
+        }
+        if anonymous {
+            let producer = if boundary {
+                "Factory::create()"
+            } else {
+                "Root::forward(value)"
+            };
+            source = source
+                .replace(&format!("let result: Pair = {producer};"), "")
+                .replace("result.", &format!("{producer}."));
         }
         if !attached {
             source = source.replace("Root::", "").replace("Sink::", "");

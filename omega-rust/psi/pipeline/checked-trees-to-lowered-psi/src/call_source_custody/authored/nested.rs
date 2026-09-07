@@ -3,7 +3,8 @@
 use super::*;
 
 /// The scalar computation walker checks membership, not preorder identity.
-/// Structural calls must be direct argument roots. Scalar computations retain
+/// Structural calls may be argument roots or the roots of exact projections.
+/// Scalar computations retain
 /// their own selective evaluator; this walk numbers their authored occurrences
 /// without imposing an unconditional execution schedule on their branches.
 pub(crate) fn authored_postorder(
@@ -170,6 +171,17 @@ pub(crate) fn authored_postorder(
             }
             ExpressionNode::Cast(cast) => {
                 children.push((cast.value, false, None));
+                None
+            }
+            ExpressionNode::Member(member) if member.case_variant.is_none() => {
+                children.push((member.receiver, direct_argument, None));
+                None
+            }
+            ExpressionNode::Indexed(indexed)
+                if matches!(table.expression(indexed.index), ExpressionNode::Integer(_)) =>
+            {
+                children.push((indexed.collection, direct_argument, None));
+                children.push((indexed.index, false, None));
                 None
             }
             ExpressionNode::Name(_)
