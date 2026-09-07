@@ -95,11 +95,11 @@ native production, and execution.
 | Checked writer body | [`std/console.omg`](../../../../source/library/std/console.omg) implements `ConsoleNativeProvider::write_line(text)` by calling `console_write_bytes(text, true)`. That helper is one five-state slice-ranked machine. Its `emit` state writes a byte and transfers the guarded tail; completion optionally emits newline and returns. |
 | Complete callable closure | [`terminal_unit.rs`](../../../../omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/flow/terminal_unit.rs) builds ordinary/composed bodies and prunes callers whose targets are missing. [`call_closure.rs`](../../../../omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/attached_unit/call_closure.rs) requires every reached body before lowering. Preserve exact view/scalar state transfers, effect order, and slice-decrease evidence. |
 | Portable execution | [`terminal-production`](../../../../omega-rust/psi/compiler/terminal-production/src/lib.rs) produces the canonical Terminal artifact with source-entry evidence. Codec replay, independent verification, and interpretation must agree on the writer's bytes and continuation. |
-| Native operations | [`operation/routing.rs`](../../../../omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/lowering/machine/operation/routing.rs) retains byte length; indexed reads and subslices still explicitly reject. A scalar function can measure one shared descriptor parameter through the native pipeline. Writer block transfers and descriptor creation remain missing; layout alone is not operation support. |
+| Native operations | [`operation/routing.rs`](../../../../omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/lowering/machine/operation/routing.rs) retains byte length and proof-bearing indexed reads; subslices still explicitly reject. A scalar function can measure and conditionally read one shared descriptor parameter through the native pipeline. Writer block transfers and descriptor creation remain missing; layout alone is not operation support. |
 | Entry storage and providers | [`native_artifact.rs`](../../../../omega-rust/omega/compiler/native-realization/src/realization/native_artifact.rs) rejects an executable entry retaining unprovisioned `self`. `Main` needs real storage, including its 256-byte buffer, and a loan from the entry bridge. [`compiler_intrinsic.rs`](../../../../omega-rust/omega/build/selected-dispatch/src/compiler_intrinsic.rs) must supply closed identities for the selected Windows output, input, and exit leaves; declarations alone are not native implementations. |
 | Native image and publication | [`object.rs`](../../../../omega-rust/omega/compiler/native-realization/src/realization/object.rs) sequences physical lowering and emission. PE image support exists. [`compilation-report`](../../../../omega-rust/omega/compiler/compilation-report/src/lib.rs) validates the retained artifact and requires compiler-text/function evidence before publishing exact bytes. Preserve these gates. |
 
-The observed compiler-library failure with production checkpoint `dcb4aafd58`
+The observed compiler-library failure with production checkpoint `cbad71e423`
 on macOS ARM64 is `Verification(Module(NonExecutableRankedScc(MachineId(3))))`.
 Terminal transport retains the exact `pause` field and inline capacity when
 presented to the boundary's mutable byte parameter. Native admission currently
@@ -138,11 +138,14 @@ Native byte operations, Windows leaf settlement, receiver provisioning, and
 `read_line` capacity/live-length writeback remain downstream dependencies. These
 are code-inspected gaps, not claims that this sample has reached each failure.
 
-The [native byte-length regression](../../../../tests/native-differential/tests/terminal_byte_views.rs)
-executes an encoded, verified Terminal scalar function against empty, nonempty,
-non-UTF-8, and rebound-length caller descriptors on macOS ARM64, and cross-lowers
-Linux x64/ARM64 and Windows x64. Source helper lowering, internal descriptor
-transport, reads, subslices, and the ranked writer are not covered by that leaf.
+The [native byte-observation regressions](../../../../tests/native-differential/tests/terminal_byte_views.rs)
+execute encoded, verified Terminal scalar functions against empty, nonempty,
+non-UTF-8, and rebound caller descriptors on macOS ARM64, and cross-lower
+Linux x64/ARM64 and Windows x64. Runtime `u64` indices guarded by the exact
+view's measured length read and widen the selected `u8`; empty and out-of-range
+inputs take the non-reading branch. Missing, changed, or wrong-view bounds
+evidence rejects. Source helper lowering, internal descriptor transport,
+subslices, and the ranked writer are not covered by these leaves.
 
 ## Read the evidence at the boundary reached
 
