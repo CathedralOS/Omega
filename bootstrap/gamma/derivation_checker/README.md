@@ -15,8 +15,12 @@ implementation bytes.
 After ground validation, [comparison.gamma](implementation/comparison.gamma)
 exposes a session API for structural term comparisons. Its helpers own explicit
 pending frames, completed-pair memoization, and cumulative work accounting.
-Structural difference is not a rejection of a derivable equality; function
-unfolding and other proof rules remain separate work.
+Structural difference is not a rejection of a derivable equality.
+[substitution.gamma](implementation/substitution.gamma) checks a stated function
+clause using syntax-derived bindings, an explicit pending stack, and a separate
+invocation-local template memo. It shares cumulative work with ground comparison
+without inserting theory equalities into the structural memo. Proof-row
+coordination and the other rules remain separate work.
 
 Outer admission returns `Framed`, `Rejected`, or `Incomplete`. Inner traversal
 returns `Layout` only after checking all physical fields; neither success grants
@@ -29,8 +33,9 @@ deliberately no proof-accepting production `main`. The
 [outer](../../../tests/gamma/derivation-admission/README.md),
 [layout](../../../tests/gamma/derivation-layout/README.md),
 [formation](../../../tests/gamma/derivation-formation/README.md),
-[ground](../../../tests/gamma/derivation-ground/README.md), and
-[comparison](../../../tests/gamma/derivation-comparison/README.md) gates supply
+[ground](../../../tests/gamma/derivation-ground/README.md),
+[comparison](../../../tests/gamma/derivation-comparison/README.md), and
+[substitution](../../../tests/gamma/derivation-substitution/README.md) gates supply
 separate diagnostic entries and exercise the actual ordinary-Gamma source.
 
 The [inner format](FORMAT.md) specifies the theory, clause-local templates,
@@ -40,9 +45,10 @@ the [formation contract](FORMATION.md) defines theory checks, indexed storage,
 failure order, and the component's work/allocation bounds. The
 [ground contract](GROUND.md) specifies term validation and cumulative allocation
 through that stage. The [comparison contract](COMPARISON.md) specifies syntax
-comparison and source-owned session threading. Checked template substitution,
-derivation checking, final root enforcement, and the complete resource profile
-remain unfinished.
+comparison and source-owned session threading. The
+[substitution contract](SUBSTITUTION.md) specifies clause matching, binding custody,
+and charged template traversal. Derivation coordination, final root enforcement,
+and the complete resource profile remain unfinished.
 The [implementation design](../../../wiki/architecture/bootstrap_chain/derivation_calculus.md)
 owns conservative definition formation, explicit derivation checks, exact-root
 comparison, and a complete certificate for the selected Gamma evaluator's

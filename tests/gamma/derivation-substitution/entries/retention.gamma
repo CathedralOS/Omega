@@ -1,0 +1,13 @@
+; A false substituted parent retains completed structural comparison work.
+(def substitution_test_execute ((grounded Int)) Int
+  (let result Int (substitution_test_unfold (comparison_start grounded) 6 7 1)
+    (let observed Int (substitution_test_observe result)
+      (if (eq (first result) 6)
+        (substitution_test_completed_child (comparison_session (second result))) 0))))
+
+(def substitution_test_completed_child ((session Int)) Int
+  (let result Int (compare_ground_terms session 3 4 921 922)
+    (let observed Int (substitution_test_observe result)
+      (if (eq (first result) 6)
+        (substitution_test_observe (substitution_test_unfold
+          (comparison_session (second result)) 6 7 1)) 0))))

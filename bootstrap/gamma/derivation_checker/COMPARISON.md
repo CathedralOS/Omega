@@ -71,7 +71,7 @@ completion of a pending parent is a charged resume, not an unchecked insertion.
 
 The initial private limit is 262,144 cumulative transitions per session.
 Attempting another transition when that count is exhausted selects tag 2,
-resource 4 `comparison_steps`, the current call's original left coordinate,
+resource 4 `checking_work`, the current call's original left coordinate,
 limit 262,144, and requested 262,145. No Boolean result or session escapes on
 exhaustion, including exhaustion between a successful visit and terminal resume.
 This is an adjustable implementation provision, not a calculus restriction.
@@ -99,7 +99,11 @@ Live pending depth and completed memo entries are each bounded by consumed
 steps; a comparison pair has at most the admitted ground depth. There is no
 additional logical-depth cutoff or unbounded lookup in a linked memo list.
 Host watchdogs and outer evaluator failures are not owned comparison outcomes.
-Template substitution and proof processing need additional cumulative accounting.
+[Checked substitution](SUBSTITUTION.md) shares this counter and adds positive
+bulk reservations for clause scans and template indexes; a bulk refusal reports
+the exact `used+amount`, which may exceed the limit by more than one.
+Its local memo is separate from the ground memo. Proof processing still needs
+to join this cumulative accounting.
 
 ## Private results and diagnostics
 

@@ -1,0 +1,17 @@
+(def substitution_heads ((context Int) (left Int) (right Int) (key Int)
+  (depth Int) (frames Int) (memo Int) (session Int) (coordinate Int)) Int
+  (if (eq (layout_word (+ left 4)) (layout_word (+ right 4)))
+    (if (eq (layout_word (+ left 8)) (layout_word (+ right 8)))
+      (substitution_arguments context key (+ left 16) (+ right 16)
+        (layout_word (+ left 12)) depth frames memo session coordinate)
+      (substitution_finish 0 session))
+    (substitution_finish 0 session)))
+
+(def substitution_arguments ((context Int) (key Int) (left Int) (right Int)
+  (remaining Int) (depth Int) (frames Int) (memo Int) (session Int) (coordinate Int)) Int
+  (if (eq remaining 0)
+    (substitution_resume context depth frames
+      (substitution_memo_insert context memo key) session coordinate)
+    (substitution_visit context (layout_word left) (layout_word right) (+ depth 1)
+      (comparison_pending key (+ left 4) (+ right 4) (- remaining 1) frames)
+      memo session coordinate)))

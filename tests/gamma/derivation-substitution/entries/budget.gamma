@@ -1,0 +1,15 @@
+; Checked right roots choose explicit work interruptions in identity unfolding.
+(def substitution_test_execute ((grounded Int)) Int
+  (let selector Int (substitution_test_right grounded)
+    (let amount Int
+      (if (eq selector 1) 262137
+        (if (eq selector 2) 262138 (if (eq selector 3) 262143 262144)))
+      (let prior Int (comparison_reserve (comparison_start grounded) amount 905)
+        (if (eq (first prior) 6)
+          (let result Int (substitution_test_unfold (comparison_session (second prior))
+            (if (eq selector 5) 0 2) (if (eq selector 6) 0 1) 1)
+            (let observed Int (substitution_test_observe result)
+              (if (eq (first result) 6)
+                (substitution_test_observe (comparison_reserve
+                  (comparison_session (second result)) 1 907)) 0)))
+          (substitution_test_observe prior))))))

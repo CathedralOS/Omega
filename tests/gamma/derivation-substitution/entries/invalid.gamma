@@ -1,0 +1,10 @@
+; Checked root selectors1/2/3 map to invalid0/invalidN+1/valid1.
+(def substitution_test_execute ((grounded Int)) Int
+  (let count Int (+ (formation_index_count (grounded_owner_terms grounded))
+    (formation_index_count (grounded_witness_terms grounded)))
+    (substitution_test_observe (substitution_test_unfold (comparison_start grounded)
+      (substitution_test_operand (substitution_test_left grounded) count)
+      (substitution_test_operand (substitution_test_right grounded) count) 1))))
+
+(def substitution_test_operand ((selector Int) (count Int)) Int
+  (if (eq selector 1) 0 (if (eq selector 2) (+ count 1) 1)))

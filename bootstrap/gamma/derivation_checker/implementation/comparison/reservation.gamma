@@ -1,0 +1,9 @@
+; Positive source-owned reservations charge result carriers and bulk operations.
+(def comparison_reserve ((session Int) (amount Int) (coordinate Int)) Int
+  (if (if (lt amount 1) 1 (lt 2147483647 amount))
+    (admission_rejected 11 coordinate)
+    (let used Int (comparison_steps session)
+      (if (lt (- (comparison_limit) used) amount)
+        (admission_incomplete 4 coordinate (comparison_limit) (+ used amount))
+        (comparison_finish 1 (comparison_context session)
+          (comparison_memo session) (+ used amount))))))
