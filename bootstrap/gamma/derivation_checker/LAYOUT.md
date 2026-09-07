@@ -95,7 +95,8 @@ state; this physical traversal does not establish that full profile.
 Zero sort or reference values, empty proof/template tables, incorrect clause
 cardinality, unbound slots, cyclic or forward references, wrong argument sorts,
 and false rule conclusions can have a physical layout. They must fail the
-later formation or derivation stage, and are not accepted proofs here.
+later formation, [ground checking](GROUND.md), or derivation stage, and are not
+accepted proofs here.
 Unknown tags, illegal variable tags in ground records, wrong physical field
 counts, and record escapes are already physical errors.
 

@@ -1,0 +1,32 @@
+(def ground_check ((context Int)) Int
+  (let frame Int (formed_frame (ground_theory context))
+    (let owners Int
+      (ground_rows (+ (admission_theory_end frame) 8)
+        (formation_index_count (ground_owners context)) 1 context)
+      (if (lt owners 0) (ground_rejection owners)
+        (let roots Int (ground_roots (- (admission_proposition_end frame) 8) context)
+          (if (lt roots 0) (ground_rejection roots)
+            (let witnesses Int
+              (ground_rows (+ (admission_proposition_end frame) 8)
+                (formation_index_count (ground_witnesses context))
+                (+ (formation_index_count (ground_owners context)) 1) context)
+              (if (lt witnesses 0) (ground_rejection witnesses)
+                (ground_complete context witnesses)))))))))
+
+; A successful scan returns the next physical field, including the proof count.
+(def ground_rows ((cursor Int) (remaining Int) (identity Int) (context Int)) Int
+  (if (eq remaining 0) cursor
+    (let checked Int (ground_application cursor identity context)
+      (if (lt checked 0) checked
+        (ground_rows (formation_record_next cursor) (- remaining 1)
+          (+ identity 1) context)))))
+
+(def ground_roots ((cursor Int) (context Int)) Int
+  (let left Int
+    (formation_index_lookup (ground_owners context) (layout_word cursor))
+    (if (eq left 0) (layout_failure cursor)
+      (let right Int
+        (formation_index_lookup (ground_owners context) (layout_word (+ cursor 4)))
+        (if (eq right 0) (layout_failure (+ cursor 4))
+          (if (eq (ground_sort left context) (ground_sort right context))
+            0 (layout_failure (+ cursor 4))))))))

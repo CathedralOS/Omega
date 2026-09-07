@@ -1,0 +1,11 @@
+(def check_derivation_ground () Int
+  (let formed Int (form_derivation_theory)
+    (if (eq (first formed) 4)
+      (let theory Int (second formed)
+        (let frame Int (formed_frame theory)
+          (let owners Int
+            (formation_index (+ (admission_theory_end frame) 4))
+            (let witnesses Int
+              (formation_index (+ (admission_proposition_end frame) 4))
+              (ground_check (pair theory (pair owners witnesses)))))))
+      formed)))
