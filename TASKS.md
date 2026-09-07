@@ -169,14 +169,17 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   without changing the independent native-lowering requirements. The inner sample
   harness bypasses this policy route; independent writer work remains actionable.
 
-  A fresh macOS CLI recheck at `25dba13583`, using the command above with
-  `--build-dir build/cli-mvp-call-owner`, was interrupted after 90.29 seconds
-  (11.99 seconds building Rust), before review/native diagnostics. A one-second
-  host stack sample places active work in preliminary package validation's
-  `arithmetic_domains/guard_narrowing/arrivals.rs` incoming environments and
-  requirement-owner checks. Profile and eliminate redundant guard replay there;
-  preserve identical checks and rejection behavior. Acceptance: the unchanged
-  CLI reaches its next real diagnostic promptly, with before/after timings.
+  The macOS ARM64 outer CLI remains prohibitively slow in preliminary package
+  validation. With the production changes in `0c0e044772`, the already-built
+  binary command above (`--build-dir build/cli-mvp-shared-guards`) was interrupted
+  at 315.28 seconds without a diagnostic. A one-second host profile around one
+  minute now reaches `flow/terminal_unit/control.rs::build_static_boundary_requirements`:
+  each boundary signature scans calls, repeatedly resolving intrinsic targets
+  across program machines. Guard call-shape screening and range-state write-summary
+  reuse are in place; this is not an end-to-end speedup claim. Eliminate the
+  repeated boundary lookup using the same exact identity and reach-consistency
+  checks. Acceptance: the unchanged CLI reaches its next real diagnostic promptly,
+  with comparable before/after timings; do not weaken package or proof checks.
   Windows x64 at `a78040898d`: `mbx run -p omega -- --target windows_x86_64
   --build-dir build/cli-mvp-route samples/cli/basics/cli_mvp/main.omg` took
   718 seconds wall time (23.45 seconds reported Rust build) and exited 1 at
