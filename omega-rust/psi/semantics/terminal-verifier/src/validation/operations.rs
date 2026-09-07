@@ -11,6 +11,25 @@ pub(super) fn validate_operation_operands(
     value_types: &BTreeMap<ValueId, ScalarType>,
     defined: &BTreeSet<ValueId>,
 ) -> Result<(), ModuleError> {
+    if let OperationKind::ByteSequenceSubslice {
+        start, end, length, ..
+    } = operation.kind
+    {
+        let expected =
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"));
+        for operand in [start, end, length] {
+            require_defined(operand, value_types, defined)?;
+            let actual = value_types[&operand];
+            if actual != expected {
+                return Err(ModuleError::ByteSequenceSubsliceOperandTypeMismatch {
+                    operation: operation.id,
+                    operand,
+                    actual,
+                });
+            }
+        }
+        return Ok(());
+    }
     if let OperationKind::ByteSequenceRead { index, length, .. } = operation.kind {
         let expected =
             ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"));
@@ -588,6 +607,7 @@ pub(super) fn validate_operation_operands(
         | OperationKind::IntegerStructuralField { .. }
         | OperationKind::ByteSequenceLength { .. }
         | OperationKind::ByteSequenceRead { .. }
+        | OperationKind::ByteSequenceSubslice { .. }
         | OperationKind::BooleanNot { .. }
         | OperationKind::BooleanEqual { .. }
         | OperationKind::IntegerEqual { .. }

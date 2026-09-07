@@ -173,6 +173,7 @@ pub(super) fn append_operation(
         | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::ByteSequenceLength { .. }
         | OperationKind::ByteSequenceRead { .. }
+        | OperationKind::ByteSequenceSubslice { .. }
         | OperationKind::EstablishPayloadlessCase { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
         | OperationKind::EstablishAffineScalarRecord { .. }

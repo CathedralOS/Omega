@@ -1,17 +1,17 @@
 use super::*;
 
-fn unsigned_type(bits: u16) -> ScalarType {
+pub(super) fn unsigned_type(bits: u16) -> ScalarType {
     ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, bits).unwrap())
 }
 
-fn scalar(ordinal: u64, bits: u16) -> ValueDeclaration {
+pub(super) fn scalar(ordinal: u64, bits: u16) -> ValueDeclaration {
     ValueDeclaration {
         id: value_id(ordinal),
         scalar_type: unsigned_type(bits),
     }
 }
 
-fn integer(ordinal: u64, bits: u16, value: u128) -> Operation {
+pub(super) fn integer(ordinal: u64, bits: u16, value: u128) -> Operation {
     Operation {
         id: operation_id(ordinal),
         result: OperationResult::Scalar(scalar(ordinal, bits)),
@@ -21,7 +21,7 @@ fn integer(ordinal: u64, bits: u16, value: u128) -> Operation {
     }
 }
 
-fn emit_byte(ordinal: u64, value: u64) -> Operation {
+pub(super) fn emit_byte(ordinal: u64, value: u64) -> Operation {
     Operation {
         id: operation_id(ordinal),
         result: OperationResult::Unit,
@@ -34,14 +34,14 @@ fn emit_byte(ordinal: u64, value: u64) -> Operation {
     }
 }
 
-fn finish(edge: u64) -> Terminator {
+pub(super) fn finish(edge: u64) -> Terminator {
     Terminator::ReturnUnit {
         edge: edge_id(edge),
         trivial_affine_discards: Vec::new(),
     }
 }
 
-fn successor(edge: u64, block: u64) -> SuccessorEdge {
+pub(super) fn successor(edge: u64, block: u64) -> SuccessorEdge {
     SuccessorEdge {
         edge: edge_id(edge),
         target: block_id(block),
@@ -53,7 +53,7 @@ fn successor(edge: u64, block: u64) -> SuccessorEdge {
 /// Literal establishment stays in the caller; the helper owns its invocation's
 /// immutable view and a genuine conditional read. The final byte is emitted
 /// only after normal caller continuation.
-fn guarded_module(bytes: Vec<u8>, byte_index: u64) -> TerminalModule {
+pub(super) fn guarded_module(bytes: Vec<u8>, byte_index: u64) -> TerminalModule {
     let mut module = byte_sequence_literal_module(bytes);
     module.boundary_machines[0].structural_parameters.clear();
     module.boundary_machines[0].scalar_parameters = vec![unsigned_type(8)];
@@ -532,9 +532,9 @@ fn byte_read_requires_exact_selected_guard_and_certificate() {
 fn byte_read_wire_rejects_tampered_operands_and_stale_vocabulary() {
     let module = guarded_module(vec![0xff], 0);
     let semantic = encode_module(&module).unwrap();
-    assert_eq!(&semantic[10..12], &82_u16.to_le_bytes());
+    assert_eq!(&semantic[10..12], &83_u16.to_le_bytes());
     let mut stale = semantic.clone();
-    stale[10..12].copy_from_slice(&81_u16.to_le_bytes());
+    stale[10..12].copy_from_slice(&82_u16.to_le_bytes());
     assert!(decode_module(&stale).is_err());
     let mut marker = vec![56];
     for identity in [3_u64, 20, 10, 1] {

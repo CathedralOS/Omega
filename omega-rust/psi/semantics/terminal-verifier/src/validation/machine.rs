@@ -276,6 +276,23 @@ pub(super) fn validate_machine(
                 validate_unit_operation_static(module, machine, machines, operation)?;
                 continue;
             }
+            if let OperationKind::ByteSequenceSubslice {
+                source,
+                length,
+                obligation,
+                ..
+            } = operation.kind
+            {
+                super::byte_sequence_subslice::validate(
+                    module, machine, operation, source, length,
+                )?;
+                insert_unique(
+                    &mut registry.obligations,
+                    obligation,
+                    ModuleError::DuplicateObligation,
+                )?;
+                continue;
+            }
             let Some(result) = operation.result.scalar() else {
                 return Err(ModuleError::ScalarOperationHasUnitResult(operation.id));
             };
@@ -315,6 +332,7 @@ pub(super) fn validate_machine(
                 | OperationKind::CallStructural { .. }
                 | OperationKind::CallStructuralWithScalarArguments { .. }
                 | OperationKind::EstablishPayloadlessCase { .. }
+                | OperationKind::ByteSequenceSubslice { .. }
                 | OperationKind::EstablishAffineScalarRecord { .. }
                 | OperationKind::StoreDynamicDescriptor { .. }
                 | OperationKind::PortWrite { .. }

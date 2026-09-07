@@ -60,6 +60,23 @@ pub(super) fn encode_block_for_result_paths(
             }
         }
         match operation.kind.clone() {
+            OperationKind::ByteSequenceSubslice {
+                source,
+                start,
+                end,
+                length,
+                obligation,
+            } => {
+                if result_path_format != ResultPathWireFormat::Current {
+                    return Err(CodecError::InvalidTag("OperationKind", 57));
+                }
+                writer.u8(57);
+                writer.id(source);
+                writer.id(start);
+                writer.id(end);
+                writer.id(length);
+                writer.id(obligation);
+            }
             OperationKind::ByteSequenceRead {
                 source,
                 index,
@@ -817,6 +834,15 @@ pub(super) fn decode_block_for_result_paths(
             tag => return Err(CodecError::InvalidTag("OperationResult", tag)),
         };
         let kind = match reader.u8()? {
+            57 if result_path_format == ResultPathWireFormat::Current => {
+                OperationKind::ByteSequenceSubslice {
+                    source: reader.id("PlaceId")?,
+                    start: reader.id("ValueId")?,
+                    end: reader.id("ValueId")?,
+                    length: reader.id("ValueId")?,
+                    obligation: reader.id("ObligationId")?,
+                }
+            }
             56 if result_path_format == ResultPathWireFormat::Current => {
                 OperationKind::ByteSequenceRead {
                     source: reader.id("PlaceId")?,
@@ -1646,6 +1672,77 @@ mod tests {
             Err(CodecError::InvalidTag("OperationKind", 255))
         );
         assert!(decode_block(&mut Reader::new(&bytes[..position + 8])).is_err());
+    }
+
+    #[test]
+    fn byte_sequence_subslice_wire_binds_each_operand_and_structural_result() {
+        let block = Block {
+            id: id::<BlockId>(1),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                id: id::<OperationId>(2),
+                result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                    place: id::<PlaceId>(9),
+                    structural_type: id::<StructuralTypeId>(10),
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    claims: Vec::new(),
+                }),
+                kind: OperationKind::ByteSequenceSubslice {
+                    source: id::<PlaceId>(3),
+                    start: id::<ValueId>(4),
+                    end: id::<ValueId>(5),
+                    length: id::<ValueId>(6),
+                    obligation: id::<ObligationId>(7),
+                },
+            }],
+            terminator: Terminator::ReturnUnit {
+                edge: id::<EdgeId>(8),
+                trivial_affine_discards: Vec::new(),
+            },
+        };
+        let mut writer = Writer::default();
+        encode_block(&mut writer, &block).unwrap();
+        let bytes = writer.finish();
+        let position = bytes.iter().position(|byte| *byte == 57).unwrap();
+        for (operand, expected) in [3_u64, 4, 5, 6, 7].into_iter().enumerate() {
+            let start = position + 1 + operand * 8;
+            assert_eq!(&bytes[start..start + 8], &expected.to_le_bytes());
+            let mut zero = bytes.clone();
+            zero[start..start + 8].fill(0);
+            assert!(decode_block(&mut Reader::new(&zero)).is_err());
+            let mut changed = bytes.clone();
+            changed[start..start + 8].copy_from_slice(&99_u64.to_le_bytes());
+            let decoded = decode_block(&mut Reader::new(&changed)).unwrap();
+            assert_ne!(decoded.operations[0].kind, block.operations[0].kind);
+            assert_eq!(decoded.operations[0].result, block.operations[0].result);
+        }
+        assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(block.clone()));
+        assert!(
+            encode_block_for_result_paths(
+                &mut Writer::default(),
+                &block,
+                ResultPathWireFormat::LegacyWithoutResultPaths
+            )
+            .is_err()
+        );
+        assert!(
+            decode_block_for_result_paths(
+                &mut Reader::new(&bytes),
+                ResultPathWireFormat::LegacyWithoutResultPaths
+            )
+            .is_err()
+        );
+        let mut unknown = bytes.clone();
+        unknown[position] = 58;
+        assert_eq!(
+            decode_block(&mut Reader::new(&unknown)),
+            Err(CodecError::InvalidTag("OperationKind", 58))
+        );
+        for length in 0..bytes.len() {
+            assert!(decode_block(&mut Reader::new(&bytes[..length])).is_err());
+        }
     }
 
     #[test]

@@ -89,6 +89,9 @@ pub(super) fn eliminate(
 fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
     match operation {
         O::ByteSequenceRead { index, length, .. } => values.extend([*index, *length]),
+        O::ByteSequenceSubslice {
+            start, end, length, ..
+        } => values.extend([*start, *end, *length]),
         O::IntegerConstant { .. }
         | O::BooleanConstant { .. }
         | O::IeeeFloatConstant { .. }

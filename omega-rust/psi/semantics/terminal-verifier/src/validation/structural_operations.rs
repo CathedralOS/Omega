@@ -1204,6 +1204,18 @@ pub(super) fn validate_structural_arguments(
                         return None;
                     }
                     match place.kind {
+                        StructuralPlaceKind::OperationResult { .. }
+                            if argument.path.is_empty()
+                                && argument.access == StructuralAccess::SharedBorrow
+                                && (source_policy == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
+                                    || (unit_call && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults))
+                                && super::byte_sequence_subslice::borrowed_result(caller, argument.place).is_some() =>
+                        {
+                            let result = super::byte_sequence_subslice::borrowed_result(caller, argument.place)
+                                .expect("exact borrowed result checked above");
+                            Some((result.structural_type, StructuralMultiplicity::Unrestricted,
+                                StructuralAccess::SharedBorrow, &[][..], &[][..]))
+                        }
                         StructuralPlaceKind::ByteSequenceLiteral {
                             structural_type, ..
                         } if argument.path.is_empty()

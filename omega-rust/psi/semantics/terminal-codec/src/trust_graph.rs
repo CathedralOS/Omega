@@ -89,6 +89,14 @@ const TERMINAL_CALL_COMPOSITION_SOURCE: &[u8] =
     include_bytes!("../../terminal-semantics/src/call_composition.rs");
 const TERMINAL_STRUCTURAL_EFFECT_SOURCE: &[u8] =
     include_bytes!("../../terminal-semantics/src/structural_effect.rs");
+const BYTE_SUBSLICE_VALIDATION_SOURCE: &[u8] =
+    include_bytes!("../../terminal-verifier/src/validation/byte_sequence_subslice.rs");
+const BYTE_VIEW_DOMINANCE_SOURCE: &[u8] =
+    include_bytes!("../../terminal-verifier/src/validation/control_flow.rs");
+const BYTE_VIEW_FRONTIER_SOURCE: &[u8] =
+    include_bytes!("../../terminal-verifier/src/validation/frontier.rs");
+const BYTE_VIEW_ARGUMENTS_SOURCE: &[u8] =
+    include_bytes!("../../terminal-verifier/src/validation/structural_operations.rs");
 const BYTE_READ_VALIDATION_SOURCE: &[u8] =
     include_bytes!("../../terminal-verifier/src/validation/byte_sequence_read.rs");
 const BYTE_VIEW_VALIDATION_SOURCE: &[u8] =
@@ -534,7 +542,7 @@ mod tests {
                 .iter()
                 .filter(|node| node.kind() == TrustDependencyKind::StructuralEffectSchema)
                 .count(),
-            11
+            12
         );
         assert_eq!(
             graph
@@ -544,7 +552,7 @@ mod tests {
                 .count(),
             10
         );
-        assert_eq!(OperationSemanticRow::ALL.len(), 56);
+        assert_eq!(OperationSemanticRow::ALL.len(), 57);
         let descriptor_store = OperationSemanticRow::ALL
             .iter()
             .find(|row| row.tag() == OperationSemanticTag::StoreDynamicDescriptor)
@@ -574,7 +582,7 @@ mod tests {
                 .iter()
                 .filter(|row| row.custody() == OperationSemanticCustody::LeafDenotation)
                 .count(),
-            46
+            47
         );
         assert_eq!(
             OperationSemanticRow::ALL

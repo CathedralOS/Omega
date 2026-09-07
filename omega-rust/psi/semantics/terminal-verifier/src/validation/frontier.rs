@@ -481,7 +481,9 @@ pub(super) fn validate_structural_frontier(
                     frontier.partial_custody_paths.remove(&argument.place);
                 }
             }
-            if let OperationResult::Structural(result) = &operation.result {
+            if let OperationResult::Structural(result) = &operation.result
+                && super::byte_sequence_subslice::borrowed_result(machine, result.place).is_none()
+            {
                 if frontier
                     .owned_places
                     .insert(result.place, result.multiplicity)
@@ -978,6 +980,7 @@ fn validate_shared_owned_reads(
     };
     for argument in arguments.iter().filter(|argument| {
         argument.access == StructuralAccess::SharedBorrow
+            && super::byte_sequence_subslice::borrowed_result(machine, argument.place).is_none()
             && (machine.structural_places.iter().any(|place| {
                 place.id == argument.place
                     && matches!(place.kind, StructuralPlaceKind::OperationResult { .. })

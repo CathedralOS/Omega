@@ -18,11 +18,17 @@ pub(super) fn validate_control_flow(
         .map(|parameter| parameter.id)
         .collect::<BTreeSet<_>>();
     let mut definition_blocks = BTreeMap::new();
+    let mut borrowed_view_definitions = BTreeMap::new();
     for block in blocks.values() {
         for parameter in &block.parameters {
             definition_blocks.insert(parameter.id, block.id);
         }
         for operation in &block.operations {
+            if let Some(result) = operation.result.structural()
+                && super::byte_sequence_subslice::borrowed_result(machine, result.place).is_some()
+            {
+                borrowed_view_definitions.insert(result.place, block.id);
+            }
             if let Some(result) = operation.result.scalar() {
                 definition_blocks.insert(result.id, block.id);
             }
@@ -179,7 +185,14 @@ pub(super) fn validate_control_flow(
         defined.extend(definition_blocks.iter().filter_map(|(value, definition)| {
             (*definition != block_id && block_dominators.contains(definition)).then_some(*value)
         }));
+        let mut available_views = borrowed_view_definitions
+            .iter()
+            .filter_map(|(place, definition)| {
+                (*definition != block_id && block_dominators.contains(definition)).then_some(*place)
+            })
+            .collect::<BTreeSet<_>>();
         for operation in &block.operations {
+            super::byte_sequence_subslice::validate_uses(machine, operation, &available_views)?;
             validate_operation_operands(
                 module,
                 machine,
@@ -191,6 +204,11 @@ pub(super) fn validate_control_flow(
             )?;
             if let Some(result) = operation.result.scalar() {
                 defined.insert(result.id);
+            }
+            if let Some(result) = operation.result.structural()
+                && borrowed_view_definitions.contains_key(&result.place)
+            {
+                available_views.insert(result.place);
             }
         }
         match &block.terminator {
@@ -303,6 +321,12 @@ pub(super) fn validate_control_flow(
                 }
             }
             Terminator::ReturnStructural { source, .. } => {
+                if super::byte_sequence_subslice::borrowed_result(machine, *source).is_some() {
+                    return Err(ModuleError::ByteSequenceSubsliceReturnUnsupported {
+                        machine: machine.id,
+                        place: *source,
+                    });
+                }
                 if machine.result.structural().is_none() {
                     return Err(ModuleError::StructuralReturnFromNonStructuralMachine {
                         machine: machine.id,

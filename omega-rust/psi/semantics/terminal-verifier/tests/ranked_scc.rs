@@ -350,6 +350,88 @@ fn add_loop_preserved_affine_parameter(module: &mut TerminalModule) -> PlaceId {
 }
 
 #[test]
+fn ranked_countdown_with_borrowed_subslice_is_representation_only() {
+    let mut module = ranked_countdown_with_width(64);
+    validate_module_for_interpretation(&module).expect("unchanged countdown is executable");
+    let structural_type = id(1, StructuralTypeId::new);
+    let source = id(1, PlaceId::new);
+    let destination = id(2, PlaceId::new);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type,
+        identity: "test::BorrowedBytes".into(),
+        shape: StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView),
+    });
+    let machine = &mut module.machines[0];
+    machine
+        .structural_parameters
+        .push(StructuralParameterDeclaration {
+            place: source,
+            position: 0,
+            is_self: false,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::SharedBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        });
+    machine.structural_places.extend([
+        StructuralPlaceDeclaration {
+            id: source,
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        },
+        StructuralPlaceDeclaration {
+            id: destination,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: id(6, OperationId::new),
+                structural_type,
+            },
+        },
+    ]);
+    // An initial countdown of two would revisit this same producer twice.
+    // The retained graph is valid, but the current interpreter whitelist
+    // allows only the exact zero/guard and one/decrement operation pairs.
+    machine.blocks[2].operations.extend([
+        Operation {
+            id: id(5, OperationId::new),
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: id(7, ValueId::new),
+                scalar_type: machine.parameters[0].scalar_type,
+            }),
+            kind: OperationKind::ByteSequenceLength { source },
+        },
+        Operation {
+            id: id(6, OperationId::new),
+            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                place: destination,
+                structural_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            }),
+            kind: OperationKind::ByteSequenceSubslice {
+                source,
+                start: id(3, ValueId::new),
+                end: id(7, ValueId::new),
+                length: id(7, ValueId::new),
+                obligation: id(2, ObligationId::new),
+            },
+        },
+    ]);
+    validate_module_representation(&module)
+        .expect("valid source, result, dominance and unchanged owned frontier");
+    assert!(matches!(validate_module_for_interpretation(&module),
+        Err(ModuleError::NonExecutableRankedScc(machine)) if machine == module.entry));
+    assert!(
+        matches!(verify_module_for_interpretation(&module, &ProofBundle::default(), &AdmissionProfile::default()),
+        Err(VerificationError::Module(ModuleError::NonExecutableRankedScc(machine))) if machine == module.entry)
+    );
+}
+
+#[test]
 fn ranked_countdown_has_distinct_interpreter_only_authority() {
     let module = ranked_countdown();
     assert_eq!(validate_module_representation(&module), Ok(()));

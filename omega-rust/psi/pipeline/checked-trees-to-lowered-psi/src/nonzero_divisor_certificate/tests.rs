@@ -8,6 +8,7 @@ use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType, ValueId,
 };
 
+mod byte_subslice;
 mod case_analysis;
 
 fn value(id: u64, integer_type: IntegerType) -> ScalarTerm {

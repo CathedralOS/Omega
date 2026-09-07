@@ -57,6 +57,8 @@ mod byte_sequence_length;
 
 #[path = "unit/byte_sequence_read.rs"]
 mod byte_sequence_read;
+#[path = "unit/byte_sequence_subslice.rs"]
+mod byte_sequence_subslice;
 
 #[path = "unit/result_residuals.rs"]
 mod result_residuals;

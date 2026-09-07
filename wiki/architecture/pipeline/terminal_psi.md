@@ -167,15 +167,16 @@ Interpretation binds exact bytes to each invocation's parameter places and
 restores the caller's byte storage on return. Nested and repeated calls retain
 their own payloads, including empty sequences, independently of opaque host
 identities. An opaque incoming value without byte contents cannot execute a
-byte-consuming call. Projected views, owned byte storage,
-subslicing operations, and native whole-byte-view argument layout remain
-outside this executable forwarding path.
+byte-consuming call. Source-produced views still exclude nominal projections,
+owned byte storage, and subslicing. Native whole-byte-view argument layout also
+remains unimplemented; Terminal subslice execution is described below.
 
 Vocabulary 81 adds `ByteSequenceLength { source }`: a total observation of one
 whole immutable byte view, producing its exact `u64` byte count. The source is
-an exact structural parameter or an earlier established literal, not a nominal
-field, opaque identity, or text-character count. Verification checks the view
-carrier, shared access, and result type; interpretation reads the invocation's
+an exact immutable structural parameter, an earlier established literal, or a
+dominating subslice result, not a nominal field, opaque identity, or
+text-character count. Verification checks the view carrier, shared access, and
+result type; interpretation reads the invocation's
 actual bytes and charges one operation unit. This supplies no indexing proof.
 Source `.len` operands retain authored parameter positions until their explicit
 mapping to Terminal places, including inside arithmetic and nested scalar calls.
@@ -201,6 +202,36 @@ is not implemented by reinterpreting them as unsigned. Boolean emission carries
 available length observations down the selected path and restores the incoming
 set before emitting a sibling. A newly emitted length is only an observation,
 not evidence that a read is in bounds.
+
+Vocabulary 83 adds `ByteSequenceSubslice { source, start, end, length,
+obligation }`. The result uses an existing structural operation-result place
+with the same borrowed-byte type, unrestricted multiplicity, and no claims or
+qualifications. Its exact `u64` endpoints describe `[start, end)`, and `length`
+must directly observe the identical source view at a dominating point. The
+canonical certificate has two ordered legs: `start <= end` and `end <= length`.
+Neither leg is replaced with a producer assertion, an admission, or a guessed
+output-length equation. Equal endpoints, including an empty suffix at the end,
+retain both proof legs.
+
+The derived borrowed view becomes available after its exact producer and may
+be passed whole to an ordinary Unit helper or byte boundary, measured, read,
+or subsliced again. It is not an owned place added to every later join's
+ownership frontier. Sibling or later producers do not justify a use. The view
+cannot yet be returned as a structural machine result; that route rejects
+until its byte descriptor can be retained across the return.
+
+The interpreter retains shared immutable byte backing and checked view bounds;
+deriving a tail does not copy its bytes. Invocation binding and caller-frame
+restoration preserve those descriptors. One executed subslice costs one
+operation unit; an unselected branch costs none for that operation.
+
+This closes an acyclic Terminal tail-to-helper execution path, not source
+state-edge lowering or slice-ranked loops. Those still need to retain and emit
+the source view operands and ranking evidence. Ranked-body execution must also
+support rebinding borrowed descriptors when a producer executes again; the
+current executable countdown shape excludes subslice operations.
+Native lowering rejects the
+subslice explicitly until borrowed-view descriptor realization is available.
 
 Vocabulary 27 also closes the O0 provider-backed attachment specialization. The
 machine retains `attachment: Some(Main)`, its relevant `console` field retains
@@ -1093,7 +1124,7 @@ Validation rejoins the complete application, Unit callable interface, selected
 row or parameter slot, operation, access, and source. Fixed fuel and reference
 execution resolve the same rows without allocating a value ID or result home.
 Format 71/vocabulary 74 added a distinct owner-local selection argument source,
-retained by current format 77/vocabulary 82 alongside rebound descriptors and
+retained by current format 77/vocabulary 83 alongside rebound descriptors and
 inbound parameters. Direct-selection
 Unit and scalar forwarding therefore cross the helper without relabeling their
 custody. The scalar form retains its exact result through the ordinary caller,
@@ -5205,7 +5236,7 @@ and mutable-borrowed roots remain observable. It walks the complete relevant
 record/mixed-field, fixed-array-index, or sum-case payload path, and requires the selected leaf to
 declare the same IEEE format. Owner, root, path, relevance, leaf kind, and
 format substitution fail closed. Introduced in Terminal format 70 / vocabulary
-73 and retained by current format 77 / vocabulary 82, source tag 9 rejects
+73 and retained by current format 77 / vocabulary 83, source tag 9 rejects
 under legacy formats. Checked/source production now
 covers one nonempty field/case path below a direct structural parameter in the
 owning top-level machine contract. Checked custody retains exact owner symbol,

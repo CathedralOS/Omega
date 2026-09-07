@@ -340,6 +340,7 @@ operation_semantic_rows! {
     EstablishByteSequenceLiteral => ("schema:operation:establish-byte-sequence-literal", LeafDenotation, None),
     ByteSequenceLength => ("schema:operation:byte-sequence-length", LeafDenotation, None),
     ByteSequenceRead => ("schema:operation:byte-sequence-read", LeafDenotation, None),
+    ByteSequenceSubslice => ("schema:operation:byte-sequence-subslice", LeafDenotation, None),
     EstablishTrivialAffineLocal => ("schema:operation:establish-trivial-affine-local", LeafDenotation, None),
     EstablishAffineScalarRecord => ("schema:operation:establish-affine-scalar-record", LeafDenotation, None),
     StoreDynamicDescriptor => ("schema:operation:store-dynamic-descriptor", LeafDenotation, None),
@@ -761,14 +762,14 @@ mod tests {
 
     #[test]
     fn operation_inventory_is_exact_unique_and_closed() {
-        assert_eq!(OperationSemanticTag::ALL.len(), 56);
-        assert_eq!(OperationSemanticRow::ALL.len(), 56);
+        assert_eq!(OperationSemanticTag::ALL.len(), 57);
+        assert_eq!(OperationSemanticRow::ALL.len(), 57);
         assert_eq!(
             OperationSemanticRow::ALL
                 .iter()
                 .filter(|row| row.custody == OperationSemanticCustody::LeafDenotation)
                 .count(),
-            46,
+            47,
         );
         assert_eq!(
             OperationSemanticRow::ALL
@@ -790,7 +791,7 @@ mod tests {
                 .map(|row| row.tag)
                 .collect::<BTreeSet<_>>()
                 .len(),
-            56,
+            57,
         );
         assert_eq!(
             OperationSemanticRow::ALL
@@ -798,7 +799,7 @@ mod tests {
                 .map(|row| row.identity)
                 .collect::<BTreeSet<_>>()
                 .len(),
-            56,
+            57,
         );
         assert!(
             OperationSemanticRow::ALL
