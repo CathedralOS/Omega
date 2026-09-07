@@ -7,7 +7,7 @@ custody, individual rules, and final-root checking. One comparison session carri
 all post-admission work through the request. `Checked` establishes only that
 supplied ground equality under the supplied theory, not artifact authority.
 The full Beta definition package and encoding certificate remain unfinished;
-the separate [lexical theory](../beta_encoding/README.md) supplies the initial
+the separate [Beta theory](../beta_encoding/README.md) supplies the initial
 artifact-specific definitions without extending the generic checker.
 
 [ground.gamma](implementation/ground.gamma) is the ground-term entrance:

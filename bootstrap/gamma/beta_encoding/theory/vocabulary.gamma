@@ -1,0 +1,32 @@
+; Sorts: Byte=1, Bool=2, Nibble=3, HexResult=4, Word=5, ByteList=6.
+; Byte constructors 1..256 denote values 0..255; their IDs are not arithmetic.
+; False=257, True=258, nibble values 0..15=259..274, NoHex=275, Hex=276.
+; Word=277 has eight Byte fields, least significant first; Nil=278, Cons=279.
+(def beta_encoding_vocabulary () Int
+  (let count Int (beta_theory_word 279)
+    (let lexical Int (beta_lexical_vocabulary)
+      (beta_word_vocabulary))))
+
+(def beta_lexical_vocabulary () Int
+  (let bytes Int (beta_scalar_constructors 1 256)
+    (let booleans Int (beta_scalar_constructors 2 2)
+      (let nibbles Int (beta_scalar_constructors 3 16)
+        (let no_hex Int (beta_scalar_constructors 4 1)
+          (let hex_header Int (beta_theory_fields3 3 4 1)
+            (beta_theory_word 3)))))))
+
+(def beta_word_vocabulary () Int
+  (let word Int (beta_theory_fields3 10 5 8)
+    (let low_fields Int (beta_theory_fields3 1 1 1)
+      (let middle_fields Int (beta_theory_fields3 1 1 1)
+        (let high_field Int (beta_theory_word 1)
+          (let highest_field Int (beta_theory_word 1)
+            (let empty_list Int (beta_scalar_constructors 6 1)
+              (let cons Int (beta_theory_fields3 4 6 2)
+                (let head_sort Int (beta_theory_word 1)
+                  (beta_theory_word 6))))))))))
+
+(def beta_scalar_constructors ((sort Int) (remaining Int)) Int
+  (if (eq remaining 0) 0
+    (let declaration Int (beta_theory_fields3 2 sort 0)
+      (beta_scalar_constructors sort (- remaining 1)))))

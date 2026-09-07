@@ -1,0 +1,9 @@
+; Wire order fixes function identities, including dependencies on earlier helpers.
+(def beta_encoding_definitions () Int
+  (let count Int (beta_theory_word 24)
+    (let lexical Int (beta_lexical_definitions 1)
+      (let fixed_high_nibbles Int (beta_nibble_helpers 0)
+        (let join Int (beta_join_nibbles_definition)
+          (let high Int (beta_split_nibble_definition 1)
+            (let low Int (beta_split_nibble_definition 0)
+              (beta_word_bytes_definition))))))))
