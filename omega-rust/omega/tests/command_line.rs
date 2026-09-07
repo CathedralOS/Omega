@@ -215,6 +215,13 @@ machine Main::main(&mut self) { }
         "stderr was: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+    let diagnostic = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        diagnostic.contains("package_name cli-policy-probe"),
+        "{diagnostic}"
+    );
+    assert!(diagnostic.contains("conflict_begin"), "{diagnostic}");
+    assert!(diagnostic.contains("candidate_closure"), "{diagnostic}");
     let _ = std::fs::remove_dir_all(project);
     let _ = std::fs::remove_dir_all(build_dir);
 }
