@@ -109,12 +109,21 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   Next acceptance: produce the exact transitive call plans and run the authored
   sample with its documented exit and output; preserve its checked text facts.
 
-  `samples_with_documented_exit_run_correctly` is separately red for all 136
-  documented-exit samples; before the borrowed-self retry below, 86 failed
-  native Terminal production in `checked-trees-to-lowered-psi` and the rest
-  earlier under `NOMINAL-FIELD-FLOW`, a split not yet re-measured. 119 of the
-  136 call `Console::read_line(&mut self.pause)` from an attached
-  `Main::main(&mut self)`. That argument now has a root: when the
+  Resume the native `cli_mvp` customer at code checkpoint `018f2cff2b`.
+  On macOS ARM64, `CARGO_INCREMENTAL=0 OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
+  cargo nextest run -p compiler --test samples_compile
+  samples_with_documented_exit_run_correctly --no-fail-fast` exits 100 before
+  execution: `InvalidUnitMachinePlan` names
+  `ConsoleNativeProvider::write_line`. Implement the
+  [borrowed-byte writer closure](wiki/architecture/pipeline/terminal_psi.md#borrowed-byte-writer-composition)
+  in `typed-trees-to-checked-trees/src/flow/terminal_unit/` and
+  `checked-trees-to-lowered-psi/src/attached_unit/`, then its Terminal consumers.
+  Acceptance: empty/nonempty bytes and both newline settings preserve exact
+  output order and caller continuation; unguarded head reads and unchanged
+  tails reject. Re-run the same sample before choosing its next dependency.
+
+  `cli_mvp` also calls `Console::read_line(&mut self.pause)` from an attached
+  `Main::main(&mut self)`. When the
   ambient attachment cannot plan the body, `build_checked_machine`
   (`typed-trees-to-checked-trees/src/flow/terminal_unit/control.rs`)
   retries with the borrowed `self` retained as structural parameter 0 carrying
@@ -122,19 +131,10 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   transitional; retain a borrowed `self` unconditionally once the entry bridge
   passes the `ProgramEntry` loan as structural parameter 0, under
   `ENTRY-CONTENT-ROOTS` and
-  `INSTALLED-PROGRAM-LOCAL-ROOT-INTRODUCTION` in P1. `cli_mvp` now stops at
-  `checked Unit provider candidate has no complete terminal body plan`: the
-  std adapter `ConsoleNativeProvider::write_line(console: Console, text: &[u8])`
-  has no checked Unit plan because the fused-service signature in
-  `structural_signature_with_affine_pair` admits only the service and scalar
-  parameters, and its body `console_write_bytes` is a multi-state loop
-  `terminates by bytes -> Slice::Length`. That adapter closure is the next
-  slice, and it is independent of `read_line`: the sample without that call
-  stops at the same candidate. Behind it, the projected `&mut self.pause`
-  argument lowers to Terminal but `terminal-verifier` rejects it with
-  `InvalidStructuralArgumentPath`: `resolve_structural_path` walks only
-  `Structural` fields and `pause` is a `ByteSequence(BoundedOwned)` field; an
-  owned `self` stops at the same verifier site. General receiver-store
+  `INSTALLED-PROGRAM-LOCAL-ROOT-INTRODUCTION` in P1. The projected byte-field
+  argument still needs the carrier transport below: `resolve_structural_path`
+  in `terminal-verifier` walks only `Structural` fields, while `pause` is a
+  `ByteSequence(BoundedOwned)` field. General receiver-store
   sequences still need planning: `win64_direct_aggregate_import_compile`
   combines scalar writes, an aggregate replacement, and a foreign-result
   assignment. Extend the checked Unit statement sequence without dropping

@@ -117,6 +117,41 @@ const PROGRAM_STORAGE_PROVIDER_SOURCE: &str = r#"
 "#;
 
 #[test]
+fn invalid_unit_provider_plan_names_the_exact_candidate() {
+    let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let baseline = lower_typed_trees(typed).expect("check");
+    for candidate in ["FirstProvider::emit", "SecondProvider::emit"] {
+        let symbol = baseline
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == candidate)
+            .expect("authored provider candidate")
+            .symbol;
+        for duplicate in [false, true] {
+            let mut checked = baseline.clone();
+            let plans = &mut checked.facts.flow.terminal_unit_effects;
+            let reason = if duplicate {
+                let repeated = plans.for_machine(symbol).expect("candidate plan").clone();
+                plans.machines.push(repeated);
+                "attached Unit closure contains duplicate checked machine plans"
+            } else {
+                plans.machines.retain(|plan| plan.machine != symbol);
+                "attached Unit closure is missing a checked transitive machine plan"
+            };
+            assert!(matches!(
+                checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter"),
+                Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan {
+                    machine, reason: actual_reason,
+                }) if machine == candidate && actual_reason == reason
+            ));
+        }
+    }
+}
+
+#[test]
 fn checked_unit_provider_candidates_are_cataloged_without_selection_or_call_rewrite() {
     let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
