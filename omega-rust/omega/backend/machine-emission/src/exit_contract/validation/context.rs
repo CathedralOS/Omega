@@ -71,14 +71,8 @@ pub(super) fn check(
             return Err(WholeFunctionExitContractError::RootMismatch);
         }
         policy = match policy {
-            WholeFunctionExitPolicy::MicrosoftX64FramelessLeafV1
-                if frame
-                    .plan()
-                    .functions
-                    .iter()
-                    .all(|function| !function.contains_call) =>
-            {
-                WholeFunctionExitPolicy::MicrosoftX64CanonicalLeafFrameV1
+            WholeFunctionExitPolicy::MicrosoftX64FramelessLeafV1 => {
+                WholeFunctionExitPolicy::MicrosoftX64CanonicalFixedFrameV1
             }
             WholeFunctionExitPolicy::SystemVAMD64FramelessLeafV1 => {
                 WholeFunctionExitPolicy::SystemVAMD64CanonicalFixedFrameV1

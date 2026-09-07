@@ -33,6 +33,8 @@ fn source_ordered_calls_reach_executable_publication() {
     for target_profile in [
         target::TargetProfile::LinuxX64,
         target::TargetProfile::LinuxArm64,
+        target::TargetProfile::WindowsX64,
+        target::TargetProfile::MacosArm64,
     ] {
         let target = target_profile.native_target();
         let signature =

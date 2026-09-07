@@ -1,4 +1,4 @@
-//! Canonical unresolved AAPCS64 ordinary scalar-call templates.
+//! Canonical unresolved AArch64 ordinary register scalar-call templates.
 
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
@@ -137,7 +137,7 @@ pub fn validate_aarch64_selected_scalar_call_template(
     bytes: &[u8],
     fixup: Aarch64ScalarCallFixup,
 ) -> Result<ValidatedAarch64SelectedScalarCallTemplate, Aarch64ScalarCallTemplateError> {
-    if target != NativeTarget::linux_arm64() {
+    if target != NativeTarget::linux_arm64() && target != NativeTarget::macos_arm64() {
         return Err(Aarch64ScalarCallTemplateError::UnsupportedTarget);
     }
     if physical.model() != &aarch64_physical_register_model() {
@@ -163,7 +163,7 @@ pub fn validate_aarch64_selected_scalar_call_template(
     if operand_views != expected_operand_views {
         return Err(Aarch64ScalarCallTemplateError::OperandViewMismatch);
     }
-    if effects != &expected_effects(physical, arity) {
+    if effects != &expected_effects(target, physical, arity) {
         return Err(Aarch64ScalarCallTemplateError::EffectMismatch);
     }
     let bytes: [u8; AARCH64_SCALAR_CALL_TEMPLATE_BYTE_COUNT] = bytes
@@ -216,6 +216,7 @@ fn expected_operand_views(
 }
 
 fn expected_effects(
+    target: NativeTarget,
     physical: &ValidatedPhysicalRegisterModel,
     arity: usize,
 ) -> MachineEncodedEffects {
@@ -223,7 +224,14 @@ fn expected_effects(
     let row = catalog
         .constraints
         .iter()
-        .find(|row| row.key == aarch64_aapcs64_register_call_keys()[arity])
+        .find(|row| {
+            row.key
+                == if target == NativeTarget::linux_arm64() {
+                    aarch64_aapcs64_register_call_keys()[arity]
+                } else {
+                    crate::aarch64_darwin_register_call_keys()[arity]
+                }
+        })
         .expect("canonical AArch64 catalog contains scalar-call constraint");
     MachineEncodedEffects {
         external_operand_reads: (0..arity as u16).collect(),
@@ -237,6 +245,9 @@ fn expected_effects(
         control: MachineEncodedControlEffect::DirectRelativeCallV1,
     }
 }
+
+#[cfg(test)]
+mod target_abis;
 
 #[cfg(test)]
 mod tests {
@@ -260,7 +271,7 @@ mod tests {
             variant: 0,
         };
         let operands = expected_operand_views(&physical, 2);
-        let effects = expected_effects(&physical, 2);
+        let effects = expected_effects(NativeTarget::linux_arm64(), &physical, 2);
         (physical, kind, alternative, operands, effects)
     }
 
@@ -283,7 +294,7 @@ mod tests {
                     .collect::<Vec<_>>(),
                 operands
             );
-            let effects = expected_effects(&physical, arity);
+            let effects = expected_effects(NativeTarget::linux_arm64(), &physical, arity);
             assert_eq!(
                 effects.external_operand_reads,
                 (0..arity as u16).collect::<Vec<_>>()
@@ -334,7 +345,7 @@ mod tests {
                 kind,
                 alternative,
                 &oversized,
-                &expected_effects(&physical, 0),
+                &expected_effects(NativeTarget::linux_arm64(), &physical, 0),
             ),
             Err(Aarch64ScalarCallTemplateError::OperandViewMismatch)
         );

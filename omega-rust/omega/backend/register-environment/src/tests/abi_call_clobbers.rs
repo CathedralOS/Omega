@@ -1,5 +1,7 @@
 use std::collections::BTreeSet;
 
+mod register_calls;
+
 use isa_aarch64::{
     AARCH64_AAPCS64_CALL, AARCH64_DARWIN_CALL, Aarch64RegisterConstraintCatalogValidationError,
     aarch64_preservation_convention_for_target,

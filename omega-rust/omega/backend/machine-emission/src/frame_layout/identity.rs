@@ -9,7 +9,7 @@ use super::{
 
 pub fn target_frame_layout_identity(plan: &TargetFrameLayoutPlan) -> TargetFrameLayoutIdentity {
     let mut hasher = Sha256::new();
-    hasher.update(b"omega.target-frame-layout.v1");
+    hasher.update(b"omega.target-frame-layout.v2");
     hasher.update(plan.post_allocation_machine.bytes());
     hasher.update(plan.callee_saved_requirements.bytes());
     hasher.update(plan.callee_save_storage.bytes());
@@ -33,6 +33,8 @@ pub fn target_frame_layout_identity(plan: &TargetFrameLayoutPlan) -> TargetFrame
         hasher.update(function.pre_call_stack_alignment.to_le_bytes());
         hasher.update(function.frame_size_bytes.to_le_bytes());
         hasher.update(function.abi_stack_alignment_bytes.to_le_bytes());
+        hasher.update(function.outgoing_abi_area.byte_size.to_le_bytes());
+        hasher.update(function.outgoing_abi_area.shadow_bytes.to_le_bytes());
         encode_len(&mut hasher, function.callee_save_slots.len());
         for slot in &function.callee_save_slots {
             hasher.update(slot.abstract_slot.0.to_le_bytes());

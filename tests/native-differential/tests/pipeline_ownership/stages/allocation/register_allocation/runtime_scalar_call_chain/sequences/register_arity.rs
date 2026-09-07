@@ -2,6 +2,15 @@
 
 use crate::tests::*;
 
+fn register_targets() -> [(NativeTarget, usize); 4] {
+    [
+        (NativeTarget::linux_x64(), 6),
+        (NativeTarget::linux_arm64(), 8),
+        (NativeTarget::windows_x64(), 4),
+        (NativeTarget::macos_arm64(), 8),
+    ]
+}
+
 fn artifact(argument_count: usize) -> (Vec<u8>, Vec<u8>) {
     scalar_call_unit_artifact_with(|module| {
         let callee = &mut module.machines[1];
@@ -56,12 +65,7 @@ fn artifact(argument_count: usize) -> (Vec<u8>, Vec<u8>) {
 
 #[test]
 fn register_argument_rosters_use_shared_selection() {
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let maximum = if target == NativeTarget::linux_x64() {
-            6
-        } else {
-            8
-        };
+    for (target, maximum) in register_targets() {
         for argument_count in 0..=maximum {
             let (semantic, proof) = artifact(argument_count);
             let selections = OptimizationSelections::new([]).unwrap();
@@ -86,12 +90,7 @@ fn register_argument_rosters_use_shared_selection() {
 
 #[test]
 fn register_call_arity_reaches_image_and_installation_with_empty_and_selected_phases() {
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let maximum = if target == NativeTarget::linux_x64() {
-            6
-        } else {
-            8
-        };
+    for (target, maximum) in register_targets() {
         for argument_count in [0, 1, 3, maximum] {
             for choices in [Vec::new(), vec![Optimization::CopyPropagation]] {
                 let (semantic, proof) = artifact(argument_count);
@@ -151,6 +150,8 @@ fn stack_argument_calls_do_not_claim_register_only_publication() {
     for (target, argument_count) in [
         (NativeTarget::linux_x64(), 7),
         (NativeTarget::linux_arm64(), 9),
+        (NativeTarget::windows_x64(), 5),
+        (NativeTarget::macos_arm64(), 9),
     ] {
         let (semantic, proof) = artifact(argument_count);
         let selections = OptimizationSelections::new([]).unwrap();

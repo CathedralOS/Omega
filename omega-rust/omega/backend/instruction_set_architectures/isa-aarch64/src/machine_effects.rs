@@ -108,7 +108,7 @@ fn selected_keys(
         call_i64: if matches!(target.object_format, ObjectFormat::Elf) {
             aarch64_aapcs64_register_call_keys()
         } else {
-            Vec::new()
+            crate::aarch64_darwin_register_call_keys()
         },
         materialize_i64: AARCH64_MATERIALIZE_I64,
         copy_i64: AARCH64_COPY_I64,
@@ -353,8 +353,8 @@ mod tests {
                 .declarations
                 .iter()
                 .find(|row| row.semantic == MachineSemanticKind::CallI64);
-            if target == NativeTarget::linux_arm64() {
-                let scalar_call = scalar_call.expect("AAPCS64 target declares scalar call");
+            {
+                let scalar_call = scalar_call.expect("supported target declares scalar call");
                 assert_eq!(
                     scalar_call.call,
                     MachineCallEffect::DirectInternalNormalReturnV1 {
@@ -373,8 +373,6 @@ mod tests {
                     scalar_call.alternatives[0].encoded.stack,
                     MachineEncodedStackEffect::UnchangedV1
                 );
-            } else {
-                assert!(scalar_call.is_none());
             }
             assert!(validate_aarch64_machine_effect_catalog(target, &constraints, catalog).is_ok());
             let catalog = aarch64_machine_effect_catalog(target, &constraints).unwrap();

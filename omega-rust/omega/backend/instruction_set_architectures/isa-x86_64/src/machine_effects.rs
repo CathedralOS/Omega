@@ -122,7 +122,7 @@ fn selected_keys(
         call_i64: if matches!(target.object_format, ObjectFormat::Elf) {
             x86_64_system_v_register_call_keys()
         } else {
-            Vec::new()
+            crate::x86_64_microsoft_register_call_keys()
         },
         materialize_i64: X86_64_MATERIALIZE_I64,
         copy_i64: X86_64_COPY_I64,
@@ -552,8 +552,8 @@ mod tests {
                 .declarations
                 .iter()
                 .find(|row| row.semantic == MachineSemanticKind::CallI64);
-            if target == NativeTarget::linux_x64() {
-                let scalar_call = scalar_call.expect("System V target declares scalar call");
+            {
+                let scalar_call = scalar_call.expect("supported target declares scalar call");
                 assert_eq!(
                     scalar_call.call,
                     MachineCallEffect::DirectInternalNormalReturnV1 {
@@ -578,8 +578,6 @@ mod tests {
                         ..
                     }
                 ));
-            } else {
-                assert!(scalar_call.is_none());
             }
             let return_unit = catalog
                 .declarations

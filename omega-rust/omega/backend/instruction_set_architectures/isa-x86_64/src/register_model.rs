@@ -96,6 +96,16 @@ pub const X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR: RegisterConstraintKey 
         family: RegisterConstraintFamily::Call,
         variant: 2,
     };
+/// Arity-ordered keys for the microsoft register-only U64 call ABI.
+pub fn x86_64_microsoft_register_call_keys() -> Vec<RegisterConstraintKey> {
+    (10..=14)
+        .map(|variant| RegisterConstraintKey {
+            family: RegisterConstraintFamily::Call,
+            variant,
+        })
+        .collect()
+}
+
 /// Arity-ordered keys for the complete register-only U64 call ABI.
 pub fn x86_64_system_v_register_call_keys() -> Vec<RegisterConstraintKey> {
     [4, 5, 3, 6, 7, 8, 9]
@@ -197,7 +207,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 26] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 31] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR,
@@ -225,6 +235,26 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 26] = [
     RegisterConstraintKey {
         family: RegisterConstraintFamily::Call,
         variant: 9,
+    },
+    RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 10,
+    },
+    RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 11,
+    },
+    RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 12,
+    },
+    RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 13,
+    },
+    RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 14,
     },
     X86_64_SYSTEM_V_RETURN,
     X86_64_MICROSOFT_RETURN,
@@ -863,6 +893,34 @@ pub fn x86_64_register_constraint_catalog(
         constraints.push(call);
     }
 
+    let abi_call = constraints
+        .iter()
+        .find(|row| row.key == X86_64_MICROSOFT_CALL)
+        .expect("canonical ABI call row")
+        .clone();
+    for (arity, key) in x86_64_microsoft_register_call_keys()
+        .into_iter()
+        .enumerate()
+    {
+        let mut call = abi_call.clone();
+        call.key = key;
+        call.implicit_uses = sorted_units(
+            view("rsp")
+                .units
+                .iter()
+                .copied()
+                .chain(view("rip").units.iter().copied()),
+        );
+        call.operands = ["rcx", "rdx", "r8", "r9"]
+            .into_iter()
+            .take(arity)
+            .enumerate()
+            .map(|(index, name)| fixed(index as u16, RegisterOperandAccess::Use, name))
+            .chain([fixed(arity as u16, RegisterOperandAccess::Def, "rax")])
+            .collect();
+        constraints.push(call);
+    }
+
     constraints.sort_by_key(|constraint| constraint.key);
     for (id, constraint) in constraints.iter_mut().enumerate() {
         constraint.id =
@@ -995,6 +1053,28 @@ mod tests {
 
     use super::*;
 
+    fn row(
+        catalog: &RegisterConstraintCatalog,
+        key: RegisterConstraintKey,
+    ) -> &RegisterInstructionConstraint {
+        catalog
+            .constraints
+            .iter()
+            .find(|row| row.key == key)
+            .unwrap()
+    }
+
+    fn row_mut(
+        catalog: &mut RegisterConstraintCatalog,
+        key: RegisterConstraintKey,
+    ) -> &mut RegisterInstructionConstraint {
+        catalog
+            .constraints
+            .iter_mut()
+            .find(|row| row.key == key)
+            .unwrap()
+    }
+
     #[test]
     fn fixed_machine_register_views_are_target_owned() {
         let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
@@ -1057,7 +1137,7 @@ mod tests {
             X86_64_REQUIRED_REGISTER_CONSTRAINTS
         );
 
-        let sysv_call = &catalog.constraints[0];
+        let sysv_call = row(catalog, X86_64_SYSTEM_V_CALL);
         assert_eq!(sysv_call.key, X86_64_SYSTEM_V_CALL);
         assert_eq!(sysv_call.operands.len(), 7);
         assert_eq!(sysv_call.operands[6].access, RegisterOperandAccess::Def);
@@ -1076,7 +1156,7 @@ mod tests {
                     && sysv_call.implicit_defs.contains(unit))
         );
 
-        let structural_unit_call = &catalog.constraints[2];
+        let structural_unit_call = row(catalog, X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR);
         assert_eq!(
             structural_unit_call.key,
             X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR
@@ -1107,7 +1187,7 @@ mod tests {
                     .all(|unit| structural_unit_call.clobbers.contains(unit))
             );
         }
-        let scalar_call = &catalog.constraints[3];
+        let scalar_call = row(catalog, X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64);
         assert_eq!(scalar_call.key, X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64);
         assert_eq!(scalar_call.operands.len(), 3);
         assert_eq!(
@@ -1123,7 +1203,7 @@ mod tests {
             Some(model.model().view_named("rax").unwrap().id)
         );
 
-        let syscall = &catalog.constraints[14];
+        let syscall = row(catalog, X86_64_LINUX_SYSTEM_CALL);
         assert_eq!(syscall.key, X86_64_LINUX_SYSTEM_CALL);
         assert_eq!(syscall.operands[0].access, RegisterOperandAccess::UseDef);
         assert_eq!(
@@ -1142,18 +1222,18 @@ mod tests {
             );
         }
 
-        let materialize = &catalog.constraints[16];
+        let materialize = row(catalog, X86_64_MATERIALIZE_I64);
         assert_eq!(materialize.key, X86_64_MATERIALIZE_I64);
         assert_eq!(materialize.operands.len(), 1);
         assert_eq!(materialize.operands[0].access, RegisterOperandAccess::Def);
         assert_eq!(materialize.operands[0].class, GPR64);
 
-        let copy = &catalog.constraints[17];
+        let copy = row(catalog, X86_64_COPY_I64);
         assert_eq!(copy.key, X86_64_COPY_I64);
         assert_eq!(copy.operands[0].access, RegisterOperandAccess::Use);
         assert_eq!(copy.operands[1].access, RegisterOperandAccess::Def);
 
-        let compare = &catalog.constraints[18];
+        let compare = row(catalog, X86_64_COMPARE_I64_ZERO);
         assert_eq!(compare.key, X86_64_COMPARE_I64_ZERO);
         assert_eq!(compare.operands[0].class, GPR64);
         assert_eq!(
@@ -1161,7 +1241,7 @@ mod tests {
             model.model().view_named("rflags").unwrap().units
         );
 
-        let branch = &catalog.constraints[19];
+        let branch = row(catalog, X86_64_CONDITIONAL_BRANCH);
         assert_eq!(branch.key, X86_64_CONDITIONAL_BRANCH);
         for state in ["rflags", "rip"] {
             assert!(
@@ -1175,7 +1255,7 @@ mod tests {
             );
         }
 
-        let add = &catalog.constraints[20];
+        let add = row(catalog, X86_64_ADD_I64);
         assert_eq!(add.key, X86_64_ADD_I64);
         assert_eq!(add.operands.len(), 3);
         assert_eq!(add.operands[0].access, RegisterOperandAccess::Use);
@@ -1187,7 +1267,7 @@ mod tests {
         assert!(add.implicit_defs.is_empty());
         assert!(add.clobbers.is_empty());
 
-        let add_immediate = &catalog.constraints[21];
+        let add_immediate = row(catalog, X86_64_ADD_I64_IMMEDIATE);
         assert_eq!(add_immediate.key, X86_64_ADD_I64_IMMEDIATE);
         assert_eq!(add_immediate.operands.len(), 2);
         assert_eq!(add_immediate.operands[0].access, RegisterOperandAccess::Use);
@@ -1205,7 +1285,7 @@ mod tests {
         assert!(add_immediate.implicit_defs.is_empty());
         assert!(add_immediate.clobbers.is_empty());
 
-        let subtract = &catalog.constraints[22];
+        let subtract = row(catalog, X86_64_SUBTRACT_I64);
         assert_eq!(subtract.key, X86_64_SUBTRACT_I64);
         assert_eq!(subtract.operands.len(), 3);
         assert_eq!(subtract.operands[0].access, RegisterOperandAccess::Use);
@@ -1279,28 +1359,31 @@ mod tests {
     fn x86_64_constraint_semantic_corruption_rejects() {
         let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
         let mut wrong_class = x86_64_register_constraint_catalog(&model);
-        wrong_class.constraints[0].operands[6].class = VECTOR128;
+        let call_id = row(&wrong_class, X86_64_SYSTEM_V_CALL).id;
+        row_mut(&mut wrong_class, X86_64_SYSTEM_V_CALL).operands[6].class = VECTOR128;
         assert_eq!(
             validate_x86_64_register_constraint_catalog(wrong_class, &model),
             Err(X86_64RegisterConstraintCatalogValidationError::Structural(
                 RegisterConstraintCatalogValidationError::FixedViewClassMismatch {
-                    constraint: RegisterConstraintId(0),
+                    constraint: call_id,
                     operand: 6,
                 },
             )),
         );
 
         let mut contradictory_post_state = x86_64_register_constraint_catalog(&model);
-        let unit = contradictory_post_state.constraints[0].implicit_defs[0];
-        contradictory_post_state.constraints[0].clobbers.push(unit);
-        contradictory_post_state.constraints[0]
+        let unit = row_mut(&mut contradictory_post_state, X86_64_SYSTEM_V_CALL).implicit_defs[0];
+        row_mut(&mut contradictory_post_state, X86_64_SYSTEM_V_CALL)
+            .clobbers
+            .push(unit);
+        row_mut(&mut contradictory_post_state, X86_64_SYSTEM_V_CALL)
             .clobbers
             .sort_unstable();
         assert_eq!(
             validate_x86_64_register_constraint_catalog(contradictory_post_state, &model),
             Err(X86_64RegisterConstraintCatalogValidationError::Structural(
                 RegisterConstraintCatalogValidationError::DefClobberOverlap {
-                    constraint: RegisterConstraintId(0),
+                    constraint: call_id,
                     unit,
                 },
             )),
@@ -1311,7 +1394,7 @@ mod tests {
     fn x86_64_target_semantics_reject_compatible_substitution_and_missing_clobbers() {
         let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
         let mut wrong_syscall_register = x86_64_register_constraint_catalog(&model);
-        wrong_syscall_register.constraints[14].operands[4].fixed_view =
+        row_mut(&mut wrong_syscall_register, X86_64_LINUX_SYSTEM_CALL).operands[4].fixed_view =
             Some(model.model().view_named("r11").unwrap().id);
         assert_eq!(
             validate_x86_64_register_constraint_catalog(wrong_syscall_register, &model),
@@ -1325,7 +1408,7 @@ mod tests {
         for clobber in ["rcx", "r11", "rflags"] {
             let mut missing_clobber = x86_64_register_constraint_catalog(&model);
             let omitted = model.model().view_named(clobber).unwrap().units[0];
-            missing_clobber.constraints[14]
+            row_mut(&mut missing_clobber, X86_64_LINUX_SYSTEM_CALL)
                 .clobbers
                 .retain(|unit| *unit != omitted);
             assert_eq!(
@@ -1340,7 +1423,8 @@ mod tests {
         }
 
         let mut wrong_add_role = x86_64_register_constraint_catalog(&model);
-        wrong_add_role.constraints[20].operands[1].access = RegisterOperandAccess::Def;
+        row_mut(&mut wrong_add_role, X86_64_ADD_I64).operands[1].access =
+            RegisterOperandAccess::Def;
         assert_eq!(
             validate_x86_64_register_constraint_catalog(wrong_add_role, &model),
             Err(
@@ -1351,7 +1435,8 @@ mod tests {
         );
 
         let mut wrong_immediate_role = x86_64_register_constraint_catalog(&model);
-        wrong_immediate_role.constraints[21].operands[0].access = RegisterOperandAccess::Def;
+        row_mut(&mut wrong_immediate_role, X86_64_ADD_I64_IMMEDIATE).operands[0].access =
+            RegisterOperandAccess::Def;
         assert_eq!(
             validate_x86_64_register_constraint_catalog(wrong_immediate_role, &model),
             Err(
@@ -1362,7 +1447,8 @@ mod tests {
         );
 
         let mut wrong_subtract_role = x86_64_register_constraint_catalog(&model);
-        wrong_subtract_role.constraints[22].operands[1].access = RegisterOperandAccess::Def;
+        row_mut(&mut wrong_subtract_role, X86_64_SUBTRACT_I64).operands[1].access =
+            RegisterOperandAccess::Def;
         assert_eq!(
             validate_x86_64_register_constraint_catalog(wrong_subtract_role, &model),
             Err(
@@ -1373,7 +1459,9 @@ mod tests {
         );
 
         let mut missing_subtract_flags = x86_64_register_constraint_catalog(&model);
-        missing_subtract_flags.constraints[22].clobbers.clear();
+        row_mut(&mut missing_subtract_flags, X86_64_SUBTRACT_I64)
+            .clobbers
+            .clear();
         assert_eq!(
             validate_x86_64_register_constraint_catalog(missing_subtract_flags, &model),
             Err(
@@ -1389,7 +1477,7 @@ mod tests {
         let model = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
         let mut catalog = x86_64_register_constraint_catalog(&model);
         let flags = model.model().view_named("rflags").unwrap().units[0];
-        catalog.constraints[19]
+        row_mut(&mut catalog, X86_64_CONDITIONAL_BRANCH)
             .implicit_uses
             .retain(|unit| *unit != flags);
         assert_eq!(

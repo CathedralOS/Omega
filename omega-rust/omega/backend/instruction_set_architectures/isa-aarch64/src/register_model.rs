@@ -72,6 +72,16 @@ pub const AARCH64_DARWIN_CALL: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Call,
     variant: 1,
 };
+/// Arity-ordered keys for the darwin register-only U64 call ABI.
+pub fn aarch64_darwin_register_call_keys() -> Vec<RegisterConstraintKey> {
+    (11..=19)
+        .map(|variant| RegisterConstraintKey {
+            family: RegisterConstraintFamily::Call,
+            variant,
+        })
+        .collect()
+}
+
 /// Arity-ordered keys for the complete register-only U64 call ABI.
 pub fn aarch64_aapcs64_register_call_keys() -> Vec<RegisterConstraintKey> {
     [3, 4, 2, 5, 6, 7, 8, 9, 10]
@@ -169,7 +179,7 @@ pub const AARCH64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// register-passed scalar conditional-return CFG plus the first arithmetic row
 /// needed by the pressure vertical. Other ordinary and feature-specific
 /// instruction rows remain intentionally absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 27] = [
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 36] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
@@ -204,6 +214,42 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 27] = [
     RegisterConstraintKey {
         family: RegisterConstraintFamily::Call,
         variant: 10,
+    },
+    RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 11,
+    },
+    RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 12,
+    },
+    RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 13,
+    },
+    RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 14,
+    },
+    RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 15,
+    },
+    RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 16,
+    },
+    RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 17,
+    },
+    RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 18,
+    },
+    RegisterConstraintKey {
+        family: RegisterConstraintFamily::Call,
+        variant: 19,
     },
     AARCH64_AAPCS64_RETURN,
     AARCH64_DARWIN_RETURN,
@@ -862,6 +908,24 @@ pub fn aarch64_register_constraint_catalog(
         constraints.push(call);
     }
 
+    let abi_call = constraints
+        .iter()
+        .find(|row| row.key == AARCH64_DARWIN_CALL)
+        .expect("canonical ABI call row")
+        .clone();
+    for (arity, key) in aarch64_darwin_register_call_keys().into_iter().enumerate() {
+        let mut call = abi_call.clone();
+        call.key = key;
+        call.operands = ["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"]
+            .into_iter()
+            .take(arity)
+            .enumerate()
+            .map(|(index, name)| fixed(index as u16, RegisterOperandAccess::Use, name))
+            .chain([fixed(arity as u16, RegisterOperandAccess::Def, "x0")])
+            .collect();
+        constraints.push(call);
+    }
+
     constraints.sort_by_key(|constraint| constraint.key);
     for (id, constraint) in constraints.iter_mut().enumerate() {
         constraint.id =
@@ -965,6 +1029,28 @@ mod tests {
 
     use super::*;
 
+    fn row(
+        catalog: &RegisterConstraintCatalog,
+        key: RegisterConstraintKey,
+    ) -> &RegisterInstructionConstraint {
+        catalog
+            .constraints
+            .iter()
+            .find(|row| row.key == key)
+            .unwrap()
+    }
+
+    fn row_mut(
+        catalog: &mut RegisterConstraintCatalog,
+        key: RegisterConstraintKey,
+    ) -> &mut RegisterInstructionConstraint {
+        catalog
+            .constraints
+            .iter_mut()
+            .find(|row| row.key == key)
+            .unwrap()
+    }
+
     #[test]
     fn fixed_machine_register_views_are_target_owned() {
         let model = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
@@ -1035,7 +1121,7 @@ mod tests {
             AARCH64_REQUIRED_REGISTER_CONSTRAINTS
         );
 
-        let call = &catalog.constraints[0];
+        let call = row(catalog, AARCH64_AAPCS64_CALL);
         assert_eq!(call.key, AARCH64_AAPCS64_CALL);
         assert_eq!(call.operands.len(), 9);
         assert_eq!(call.operands[8].access, RegisterOperandAccess::Def);
@@ -1051,7 +1137,7 @@ mod tests {
             );
         }
 
-        let scalar_call = &catalog.constraints[2];
+        let scalar_call = row(catalog, AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64);
         assert_eq!(scalar_call.key, AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64);
         assert_eq!(scalar_call.operands.len(), 3);
         assert_eq!(
@@ -1067,7 +1153,7 @@ mod tests {
             Some(model.model().view_named("x0").unwrap().id)
         );
 
-        let returned = &catalog.constraints[11];
+        let returned = row(catalog, AARCH64_AAPCS64_RETURN);
         assert!(
             model
                 .model()
@@ -1087,7 +1173,7 @@ mod tests {
                 .all(|unit| returned.implicit_defs.contains(unit))
         );
 
-        let syscall = &catalog.constraints[15];
+        let syscall = row(catalog, AARCH64_LINUX_SYSTEM_CALL);
         assert_eq!(syscall.key, AARCH64_LINUX_SYSTEM_CALL);
         assert_eq!(syscall.operands[1].access, RegisterOperandAccess::UseDef);
         assert_eq!(
@@ -1104,18 +1190,18 @@ mod tests {
                 .all(|unit| syscall.clobbers.contains(unit))
         );
 
-        let materialize = &catalog.constraints[17];
+        let materialize = row(catalog, AARCH64_MATERIALIZE_I64);
         assert_eq!(materialize.key, AARCH64_MATERIALIZE_I64);
         assert_eq!(materialize.operands.len(), 1);
         assert_eq!(materialize.operands[0].access, RegisterOperandAccess::Def);
         assert_eq!(materialize.operands[0].class, GPR64);
 
-        let copy = &catalog.constraints[18];
+        let copy = row(catalog, AARCH64_COPY_I64);
         assert_eq!(copy.key, AARCH64_COPY_I64);
         assert_eq!(copy.operands[0].access, RegisterOperandAccess::Use);
         assert_eq!(copy.operands[1].access, RegisterOperandAccess::Def);
 
-        let compare = &catalog.constraints[19];
+        let compare = row(catalog, AARCH64_COMPARE_I64_ZERO);
         assert_eq!(compare.key, AARCH64_COMPARE_I64_ZERO);
         assert_eq!(compare.operands[0].class, GPR64);
         assert_eq!(
@@ -1123,7 +1209,7 @@ mod tests {
             model.model().view_named("nzcv").unwrap().units
         );
 
-        let branch = &catalog.constraints[20];
+        let branch = row(catalog, AARCH64_CONDITIONAL_BRANCH);
         assert_eq!(branch.key, AARCH64_CONDITIONAL_BRANCH);
         for state in ["nzcv", "pc"] {
             assert!(
@@ -1137,7 +1223,7 @@ mod tests {
             );
         }
 
-        let add = &catalog.constraints[21];
+        let add = row(catalog, AARCH64_ADD_I64);
         assert_eq!(add.key, AARCH64_ADD_I64);
         assert_eq!(add.operands.len(), 3);
         assert_eq!(add.operands[0].access, RegisterOperandAccess::Use);
@@ -1149,7 +1235,7 @@ mod tests {
         assert!(add.implicit_defs.is_empty());
         assert!(add.clobbers.is_empty());
 
-        let add_immediate = &catalog.constraints[22];
+        let add_immediate = row(catalog, AARCH64_ADD_I64_IMMEDIATE);
         assert_eq!(add_immediate.key, AARCH64_ADD_I64_IMMEDIATE);
         assert_eq!(add_immediate.operands.len(), 2);
         assert_eq!(add_immediate.operands[0].access, RegisterOperandAccess::Use);
@@ -1167,7 +1253,7 @@ mod tests {
         assert!(add_immediate.implicit_defs.is_empty());
         assert!(add_immediate.clobbers.is_empty());
 
-        let subtract = &catalog.constraints[23];
+        let subtract = row(catalog, AARCH64_SUBTRACT_I64);
         assert_eq!(subtract.key, AARCH64_SUBTRACT_I64);
         assert_eq!(subtract.operands.len(), 3);
         assert_eq!(subtract.operands[0].access, RegisterOperandAccess::Use);
@@ -1217,7 +1303,7 @@ mod tests {
     fn aarch64_target_semantics_reject_class_compatible_corruption() {
         let model = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
         let mut wrong_syscall_register = aarch64_register_constraint_catalog(&model);
-        wrong_syscall_register.constraints[15].operands[5].fixed_view =
+        row_mut(&mut wrong_syscall_register, AARCH64_LINUX_SYSTEM_CALL).operands[5].fixed_view =
             Some(model.model().view_named("x3").unwrap().id);
         assert_eq!(
             validate_aarch64_register_constraint_catalog(wrong_syscall_register, &model),
@@ -1229,7 +1315,9 @@ mod tests {
         );
 
         let mut missing_nzcv = aarch64_register_constraint_catalog(&model);
-        missing_nzcv.constraints[15].clobbers.clear();
+        row_mut(&mut missing_nzcv, AARCH64_LINUX_SYSTEM_CALL)
+            .clobbers
+            .clear();
         assert_eq!(
             validate_aarch64_register_constraint_catalog(missing_nzcv, &model),
             Err(
@@ -1241,7 +1329,7 @@ mod tests {
 
         let mut missing_link_state = aarch64_register_constraint_catalog(&model);
         let x30 = model.model().view_named("x30").unwrap().units[0];
-        missing_link_state.constraints[0]
+        row_mut(&mut missing_link_state, AARCH64_AAPCS64_CALL)
             .implicit_defs
             .retain(|unit| *unit != x30);
         assert_eq!(
@@ -1258,7 +1346,9 @@ mod tests {
     fn aarch64_compare_rejects_one_field_missing_flags_definition() {
         let model = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
         let mut catalog = aarch64_register_constraint_catalog(&model);
-        catalog.constraints[19].implicit_defs.clear();
+        row_mut(&mut catalog, AARCH64_COMPARE_I64_ZERO)
+            .implicit_defs
+            .clear();
         assert_eq!(
             validate_aarch64_register_constraint_catalog(catalog, &model),
             Err(
@@ -1269,7 +1359,8 @@ mod tests {
         );
 
         let mut immediate = aarch64_register_constraint_catalog(&model);
-        immediate.constraints[22].operands[0].access = RegisterOperandAccess::Def;
+        row_mut(&mut immediate, AARCH64_ADD_I64_IMMEDIATE).operands[0].access =
+            RegisterOperandAccess::Def;
         assert_eq!(
             validate_aarch64_register_constraint_catalog(immediate, &model),
             Err(
@@ -1284,14 +1375,15 @@ mod tests {
     fn aarch64_add_rejects_one_field_operand_role_change() {
         let model = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
         let mut catalog = aarch64_register_constraint_catalog(&model);
-        catalog.constraints[21].operands[1].access = RegisterOperandAccess::Def;
+        row_mut(&mut catalog, AARCH64_ADD_I64).operands[1].access = RegisterOperandAccess::Def;
         assert_eq!(
             validate_aarch64_register_constraint_catalog(catalog, &model),
             Err(Aarch64RegisterConstraintCatalogValidationError::TargetSemantics(AARCH64_ADD_I64,))
         );
 
         let mut subtract = aarch64_register_constraint_catalog(&model);
-        subtract.constraints[23].operands[1].access = RegisterOperandAccess::Def;
+        row_mut(&mut subtract, AARCH64_SUBTRACT_I64).operands[1].access =
+            RegisterOperandAccess::Def;
         assert_eq!(
             validate_aarch64_register_constraint_catalog(subtract, &model),
             Err(
@@ -1302,7 +1394,7 @@ mod tests {
         );
 
         let mut flag_clobber = aarch64_register_constraint_catalog(&model);
-        flag_clobber.constraints[23].clobbers =
+        row_mut(&mut flag_clobber, AARCH64_SUBTRACT_I64).clobbers =
             model.model().view_named("nzcv").unwrap().units.clone();
         assert_eq!(
             validate_aarch64_register_constraint_catalog(flag_clobber, &model),

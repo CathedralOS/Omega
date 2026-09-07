@@ -121,15 +121,33 @@ fn function_layout(
     machine: semantic_vocabulary::MachineId,
     contains_call: bool,
     callee_save_area_bytes: u64,
-    callee_save_slots: Vec<CalleeSaveFrameSlot>,
+    mut callee_save_slots: Vec<CalleeSaveFrameSlot>,
 ) -> Result<FunctionTargetFrameLayout, TargetFrameLayoutError> {
+    let shadow_bytes = if contains_call && abi == FrameAbiPreservationConvention::MicrosoftX64 {
+        32
+    } else {
+        0
+    };
+    let outgoing_abi_area = machine_code::OutgoingAbiFrameArea {
+        byte_size: u64::from(shadow_bytes),
+        shadow_bytes,
+    };
+    for slot in &mut callee_save_slots {
+        slot.frame_offset_bytes = slot
+            .frame_offset_bytes
+            .checked_add(outgoing_abi_area.byte_size)
+            .ok_or(TargetFrameLayoutError::GeometryOverflow)?;
+    }
+    let used_area_bytes = callee_save_area_bytes
+        .checked_add(outgoing_abi_area.byte_size)
+        .ok_or(TargetFrameLayoutError::GeometryOverflow)?;
     let (stack_pointer, frame_size_bytes, return_address) =
         match (environment.target().architecture, abi) {
             (
                 Architecture::X86_64,
                 convention @ (FrameAbiPreservationConvention::SystemVAMD64
                 | FrameAbiPreservationConvention::MicrosoftX64),
-            ) if !contains_call || convention == FrameAbiPreservationConvention::SystemVAMD64 => {
+            ) => {
                 let stack_pointer = environment
                     .physical()
                     .model()
@@ -138,14 +156,14 @@ fn function_layout(
                     .id;
                 // A Windows leaf with no storage preserves the incoming RSP.
                 // Once storage is allocated its body keeps the ABI alignment.
-                // Calls need an outgoing home area and remain unsupported here.
+                // Outgoing ABI storage precedes all preservation storage.
                 let frame_size = if contains_call
                     || (convention == FrameAbiPreservationConvention::MicrosoftX64
                         && callee_save_area_bytes != 0)
                 {
-                    align_to_residue(callee_save_area_bytes, 16, 8)?
+                    align_to_residue(used_area_bytes, 16, 8)?
                 } else {
-                    align_up(callee_save_area_bytes, 8)?
+                    align_up(used_area_bytes, 8)?
                 };
                 (
                     stack_pointer,
@@ -176,7 +194,7 @@ fn function_layout(
                 if contains_call
                     || policy == TargetFrameLayoutPolicy::CanonicalSavedReturnAddressFrameV1
                 {
-                    let link_offset = align_up(callee_save_area_bytes, 8)?;
+                    let link_offset = align_up(used_area_bytes, 8)?;
                     let used = link_offset
                         .checked_add(8)
                         .ok_or(TargetFrameLayoutError::GeometryOverflow)?;
@@ -192,7 +210,7 @@ fn function_layout(
                 } else {
                     (
                         stack_pointer,
-                        align_up(callee_save_area_bytes, 16)?,
+                        align_up(used_area_bytes, 16)?,
                         ReturnAddressFrameCustody::LiveLinkRegister { view: link },
                     )
                 }
@@ -208,6 +226,7 @@ fn function_layout(
         pre_call_stack_alignment: 16,
         frame_size_bytes,
         abi_stack_alignment_bytes: 16,
+        outgoing_abi_area,
         callee_save_slots,
         return_address,
     })
@@ -240,7 +259,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn windows_leaf_storage_aligns_the_body_without_an_outgoing_home_area() {
+    fn windows_frames_separate_shadow_space_from_preservation_storage() {
         let environment = register_environment::baseline_target_register_environment(
             target::NativeTarget::windows_x64(),
         )
@@ -257,12 +276,46 @@ mod tests {
             )
             .unwrap();
             assert_eq!(layout.frame_size_bytes, extent);
+            assert_eq!(layout.outgoing_abi_area.byte_size, 0);
+            assert_eq!(layout.outgoing_abi_area.shadow_bytes, 0);
             assert_eq!(
                 layout.return_address,
                 ReturnAddressFrameCustody::CallerActivationStack {
                     post_prologue_offset_bytes: extent,
                     size_bytes: 8,
                 }
+            );
+        }
+        for (area, expected_extent) in [(0, 40), (8, 40), (16, 56)] {
+            let slots = if area == 0 {
+                Vec::new()
+            } else {
+                vec![CalleeSaveFrameSlot {
+                    abstract_slot: machine_code::NonAuthoritativeCalleeSaveSlotId(0),
+                    storage_view: environment.physical().model().view_named("rbx").unwrap().id,
+                    frame_offset_bytes: 0,
+                    size_bytes: area,
+                    alignment_bytes: 8,
+                }]
+            };
+            let layout = function_layout(
+                &environment,
+                FrameAbiPreservationConvention::MicrosoftX64,
+                TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
+                semantic_vocabulary::MachineId::new(1).unwrap(),
+                true,
+                area,
+                slots,
+            )
+            .unwrap();
+            assert_eq!(layout.outgoing_abi_area.byte_size, 32);
+            assert_eq!(layout.outgoing_abi_area.shadow_bytes, 32);
+            assert_eq!(layout.frame_size_bytes, expected_extent);
+            assert!(
+                layout
+                    .callee_save_slots
+                    .iter()
+                    .all(|slot| slot.frame_offset_bytes == 32)
             );
         }
         assert_eq!(
@@ -272,10 +325,10 @@ mod tests {
                 TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
                 semantic_vocabulary::MachineId::new(1).unwrap(),
                 true,
-                0,
+                u64::MAX,
                 Vec::new(),
             ),
-            Err(TargetFrameLayoutError::UnsupportedTarget)
+            Err(TargetFrameLayoutError::GeometryOverflow)
         );
     }
 }

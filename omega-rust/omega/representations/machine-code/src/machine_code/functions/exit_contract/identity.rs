@@ -14,7 +14,7 @@ use super::{
     WholeFunctionReturnEvidence, WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
 };
 
-const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v9\0";
+const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v10\0";
 
 pub fn whole_function_exit_contract_identity(
     contract: &WholeFunctionExitContract,
@@ -245,7 +245,7 @@ fn policy_tag(policy: WholeFunctionExitPolicy) -> u8 {
         WholeFunctionExitPolicy::SystemVAMD64CanonicalFixedFrameV1 => 7,
         WholeFunctionExitPolicy::Aapcs64CanonicalFixedFrameV1 => 8,
         WholeFunctionExitPolicy::DarwinAapcs64CanonicalFixedFrameV1 => 9,
-        WholeFunctionExitPolicy::MicrosoftX64CanonicalLeafFrameV1 => 10,
+        WholeFunctionExitPolicy::MicrosoftX64CanonicalFixedFrameV1 => 11,
     }
 }
 

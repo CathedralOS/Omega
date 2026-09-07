@@ -5,6 +5,7 @@ use crate::tests::*;
 mod executable;
 mod frames;
 mod register_arity;
+mod windows;
 
 #[derive(Debug, Clone, Copy)]
 enum Sequence {

@@ -18,12 +18,6 @@ pub(super) fn accepts(
     optimized: &PsiOptimizationFunction,
     call: &CallPlan,
 ) -> bool {
-    // The current selected call encoders and frame policies support these
-    // descriptors only. Register-only does not imply a Microsoft home area.
-    if native != target::NativeTarget::linux_x64() && native != target::NativeTarget::linux_arm64()
-    {
-        return false;
-    }
     let arity = abstracted.parameters.len();
     let integer = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
     let scalar = ScalarType::Integer(integer);
@@ -36,8 +30,10 @@ pub(super) fn accepts(
     ) else {
         return false;
     };
-    if expected.shadow_bytes != 0
-        || !expected.parameters.iter().all(register_u64)
+    // Register transport and the outgoing ABI area are separate facts. The
+    // canonical CallPlan retains Microsoft's shadow area even when every
+    // argument is in a register; frame planning reserves that area later.
+    if !expected.parameters.iter().all(register_u64)
         || !expected.result.as_ref().is_some_and(register_u64)
     {
         return false;

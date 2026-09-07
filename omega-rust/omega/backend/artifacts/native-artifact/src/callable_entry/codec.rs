@@ -433,7 +433,7 @@ pub(super) fn exit_policy_tag(policy: WholeFunctionExitPolicy) -> u8 {
         WholeFunctionExitPolicy::SystemVAMD64CanonicalFixedFrameV1 => 7,
         WholeFunctionExitPolicy::Aapcs64CanonicalFixedFrameV1 => 8,
         WholeFunctionExitPolicy::DarwinAapcs64CanonicalFixedFrameV1 => 9,
-        WholeFunctionExitPolicy::MicrosoftX64CanonicalLeafFrameV1 => 10,
+        WholeFunctionExitPolicy::MicrosoftX64CanonicalFixedFrameV1 => 11,
     }
 }
 pub(super) fn decode_exit_policy(
@@ -449,9 +449,20 @@ pub(super) fn decode_exit_policy(
         7 => Ok(WholeFunctionExitPolicy::SystemVAMD64CanonicalFixedFrameV1),
         8 => Ok(WholeFunctionExitPolicy::Aapcs64CanonicalFixedFrameV1),
         9 => Ok(WholeFunctionExitPolicy::DarwinAapcs64CanonicalFixedFrameV1),
-        10 => Ok(WholeFunctionExitPolicy::MicrosoftX64CanonicalLeafFrameV1),
+        11 => Ok(WholeFunctionExitPolicy::MicrosoftX64CanonicalFixedFrameV1),
         tag => Err(OptimizedOrdinaryCallableEntryDecodeError::UnknownExitPolicy(tag)),
     }
+}
+
+#[test]
+fn fixed_frame_exit_policy_retires_the_leaf_only_tag() {
+    let policy = WholeFunctionExitPolicy::MicrosoftX64CanonicalFixedFrameV1;
+    assert_eq!(exit_policy_tag(policy), 11);
+    assert_eq!(decode_exit_policy(&mut Cursor::new(&[11])), Ok(policy));
+    assert_eq!(
+        decode_exit_policy(&mut Cursor::new(&[10])),
+        Err(OptimizedOrdinaryCallableEntryDecodeError::UnknownExitPolicy(10)),
+    );
 }
 pub(super) fn encode_entry_assumption(bytes: &mut Vec<u8>, a: WholeFunctionEntryAssumption) {
     match a {
