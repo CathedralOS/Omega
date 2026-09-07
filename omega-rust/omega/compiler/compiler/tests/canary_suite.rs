@@ -708,6 +708,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "termination/bounded_distance_named_view",
     "termination/increasing_cursor_bounded_view",
     "termination/increasing_cursor_rank_range",
+    "termination/rank_range_disjoint_receiver_write",
     "termination/default_order_unsigned_width_countdown_compile",
     "termination/proof_non_tail_joint_machine_cycle_compile",
     "versioning/migration_generic_trait",

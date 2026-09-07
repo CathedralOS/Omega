@@ -107,6 +107,39 @@ fn preserved_entry_prefix<'program>(
         if validation::is_arm_pattern_marker(statement) {
             continue;
         }
+        if let StatementNode::Assignment(assignment) = statement {
+            // Entry hypotheses mention immutable parameters only. A direct
+            // disjoint store preserves them, but its alias-closed frame and
+            // operand evaluation must both be known before reusing them.
+            let preserved = inert_store_target(program, assignment.target, 0)
+                && pure_guard(program, assignment.value, 0)
+                && frames.is_some_and(|frames| {
+                    frames
+                        .assignment_write_frame(machine, statement)
+                        .into_complete_paths()
+                        .is_some_and(|paths| {
+                            program
+                                .state_parameters(state)
+                                .iter()
+                                .filter(|parameter| !parameter.is_self)
+                                .all(|parameter| {
+                                    paths.iter().all(|path| {
+                                        !validation::frame_paths_overlap(
+                                            path,
+                                            parameter.name.as_str(),
+                                        )
+                                    })
+                                })
+                        })
+                });
+            if !preserved {
+                return None;
+            }
+            // Retain selected-operator custody without assuming the stored
+            // expression establishes a new entry hypothesis.
+            evaluated.push(assignment.value);
+            continue;
+        }
         if let StatementNode::LocalData(local) = statement {
             // An immutable, unrelated local does not revise the entry
             // telescope. Keep numeric substitution handle-first: local
@@ -144,6 +177,21 @@ fn preserved_entry_prefix<'program>(
         }
     }
     Some(evaluated)
+}
+
+fn inert_store_target(
+    program: &typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+    depth: usize,
+) -> bool {
+    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+        return false;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(_) => true,
+        ExpressionNode::Member(member) => inert_store_target(program, member.receiver, depth + 1),
+        _ => false,
+    }
 }
 
 fn pure_guard(
