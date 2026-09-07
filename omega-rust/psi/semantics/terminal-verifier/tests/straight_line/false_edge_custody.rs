@@ -93,6 +93,7 @@ fn module(with_alias_hop: bool) -> TerminalModule {
                 edge: edge(4),
                 target: block(4),
                 arguments: vec![value(11)],
+                residual_affine_discards: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             },
         });
@@ -224,6 +225,7 @@ fn false_edge_only_fact_cannot_escape_a_reconverged_join() {
         edge: edge(6),
         target: block(4),
         arguments: vec![value(10)],
+        residual_affine_discards: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };
     let site = division_site(&module);

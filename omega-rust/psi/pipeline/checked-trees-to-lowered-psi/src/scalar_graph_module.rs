@@ -246,6 +246,7 @@ pub(super) fn build_scalar_graph_module(
                                 edge,
                                 target: next_stage,
                                 arguments,
+                                residual_affine_discards: Vec::new(),
                                 trivial_affine_discards: Vec::new(),
                             },
                         };
@@ -483,6 +484,7 @@ pub(super) fn build_scalar_graph_module(
                             edge,
                             target: target.block,
                             arguments: target.arguments,
+                            residual_affine_discards: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         }
                     } else {
@@ -501,6 +503,7 @@ pub(super) fn build_scalar_graph_module(
                             edge,
                             target: scalar_source_block(identity_base, target),
                             arguments,
+                            residual_affine_discards: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         }
                     }
@@ -599,6 +602,7 @@ pub(super) fn build_scalar_graph_module(
                         edge,
                         target: target.block,
                         arguments: target.arguments,
+                        residual_affine_discards: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     }
                 } else {
@@ -621,6 +625,7 @@ pub(super) fn build_scalar_graph_module(
                         edge,
                         target: scalar_source_block(identity_base, *target),
                         arguments,
+                        residual_affine_discards: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     }
                 }
@@ -847,6 +852,7 @@ pub(super) fn build_scalar_graph_module(
                         edge,
                         target: pending.target,
                         arguments,
+                        residual_affine_discards: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                 });
@@ -916,6 +922,7 @@ pub(super) fn build_scalar_graph_module(
                                 edge,
                                 target: next_stage,
                                 arguments,
+                                residual_affine_discards: Vec::new(),
                                 trivial_affine_discards: Vec::new(),
                             },
                         }));
@@ -941,6 +948,7 @@ pub(super) fn build_scalar_graph_module(
                             .iter()
                             .map(|parameter| parameter.id)
                             .collect(),
+                        residual_affine_discards: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                 }));

@@ -37,6 +37,7 @@ impl Evaluation {
                 edge: edge_id(allocate_dense(next_edge)?),
                 target: continuation,
                 arguments: values.iter().map(|value| value.id).collect(),
+                residual_affine_discards: Vec::new(),
                 trivial_affine_discards: discards,
             },
         });
@@ -269,6 +270,7 @@ impl Evaluation {
                     "call computation entry is absent",
                 ))?,
                 arguments: values.iter().map(|value| value.id).collect(),
+                residual_affine_discards: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             },
         });
@@ -435,6 +437,7 @@ fn emit_state(
                 "call computation target is absent",
             ))?,
             arguments: arguments(outgoing)?,
+            residual_affine_discards: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
         LoweredScalarBranchTerminator::Conditional {

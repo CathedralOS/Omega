@@ -2,6 +2,8 @@
 
 use super::*;
 
+mod continuation;
+
 pub(super) fn nominal_cleanup_contract_receiver(
     module: &TerminalModule,
     cleanup_machine: MachineId,
@@ -39,9 +41,13 @@ pub(super) fn validate_partial_affine_cleanup_shape(
     machine: &TerminalMachine,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
 ) -> Result<(), ModuleError> {
+    for block in &machine.blocks {
+        continuation::validate(module, machine, block, machines)?;
+    }
     let field_calls = machine
         .blocks
         .iter()
+        .filter(|block| !matches!(block.terminator, Terminator::Jump { .. }))
         .flat_map(|block| {
             block.operations.iter().filter_map(move |operation| {
                 let OperationKind::CallUnit {

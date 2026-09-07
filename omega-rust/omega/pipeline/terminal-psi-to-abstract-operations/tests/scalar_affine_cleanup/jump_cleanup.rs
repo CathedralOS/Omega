@@ -97,6 +97,7 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
                         edge: edge_id(1),
                         target: block_id(2),
                         arguments: vec![value_id(1)],
+                        residual_affine_discards: Vec::new(),
                         trivial_affine_discards: vec![place],
                     },
                 },

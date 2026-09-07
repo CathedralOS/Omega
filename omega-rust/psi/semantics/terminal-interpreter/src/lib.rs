@@ -3052,8 +3052,39 @@ impl TerminalExecution {
                     target,
                     arguments,
                     trivial_affine_discards,
+                    residual_affine_discards,
                     ..
                 } => {
+                    if let Some(first) = residual_affine_discards.first() {
+                        let root = self.structural_values.get(&first.place).ok_or(
+                            TerminalInterpretError::VerifiedStructuralPlaceMissing(first.place),
+                        )?;
+                        let mut expected = BTreeSet::new();
+                        for discard in residual_affine_discards {
+                            if discard.place != first.place
+                                || discard.path.is_empty()
+                                || resolve_structural_path_type(
+                                    &self.structural_types,
+                                    root.structural_type,
+                                    &discard.path,
+                                )? != discard.structural_type
+                                || !expected.insert(discard.clone())
+                            {
+                                return Err(TerminalInterpretError::AffineFrontierMismatch);
+                            }
+                        }
+                        if !trivial_affine_discards.is_empty()
+                            || self
+                                .live_affine_frontier
+                                .iter()
+                                .filter(|entry| entry.place == first.place)
+                                .cloned()
+                                .collect::<BTreeSet<_>>()
+                                != expected
+                        {
+                            return Err(TerminalInterpretError::AffineFrontierMismatch);
+                        }
+                    }
                     if let Err(error) = meter.charge_terminator(&terminator) {
                         return meter_status(error);
                     }
@@ -3070,6 +3101,14 @@ impl TerminalExecution {
                                 .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
                         })
                         .collect::<Result<Vec<_>, _>>()?;
+                    for discard in residual_affine_discards {
+                        self.live_affine_frontier.remove(discard);
+                    }
+                    if let Some(first) = residual_affine_discards.first() {
+                        // Every remaining semantic path was validated and disposed.
+                        // Only now may the dead result's opaque backing leave storage.
+                        self.structural_values.remove(&first.place);
+                    }
                     for place in trivial_affine_discards {
                         if self.structural_values.remove(place).is_none() {
                             return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(

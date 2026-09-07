@@ -528,8 +528,16 @@ pub(super) fn validate_structural_frontier(
                 edge,
                 target,
                 trivial_affine_discards,
+                residual_affine_discards,
                 ..
             } => {
+                apply_continuation_residual_discards(
+                    module,
+                    machine,
+                    block.id,
+                    &mut frontier,
+                    residual_affine_discards,
+                )?;
                 apply_edge_trivial_affine_discards(
                     machine,
                     &mut frontier,
@@ -1271,6 +1279,12 @@ fn apply_edge_trivial_affine_discards(
     edge: EdgeId,
     discards: &[PlaceId],
 ) -> Result<(), ModuleError> {
+    if discards
+        .iter()
+        .any(|place| frontier.partial_custody_paths.contains_key(place))
+    {
+        return Err(ModuleError::EdgeAffineDiscardsInvalid { edge });
+    }
     let eligible = expected_trivial_affine_discards(machine, frontier);
     let mut next = 0;
     for eligible_place in eligible {
@@ -1283,6 +1297,55 @@ fn apply_edge_trivial_affine_discards(
     }
     for place in discards {
         frontier.owned_places.remove(place);
+    }
+    Ok(())
+}
+
+fn apply_continuation_residual_discards(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    block: BlockId,
+    frontier: &mut StructuralOwnershipFrontier,
+    discards: &[terminal_psi::StructuralAffineDiscard],
+) -> Result<(), ModuleError> {
+    let invalid = || ModuleError::InvalidPartialAffineCleanup {
+        machine: machine.id,
+        block,
+    };
+    if let Some(first) = discards.first() {
+        let moved = frontier
+            .partial_custody_paths
+            .get(&first.place)
+            .ok_or_else(invalid)?;
+        let expected = partial_affine_root_type(machine, first.place)
+            .and_then(|root_type| {
+                partial_affine_residuals(module, root_type, moved, discards.len())
+            })
+            .ok_or_else(invalid)?;
+        if expected.len() != discards.len()
+            || discards
+                .iter()
+                .zip(expected)
+                .any(|(discard, (path, structural_type))| {
+                    discard.place != first.place
+                        || discard.path != path
+                        || discard.structural_type != structural_type
+                })
+            || frontier.owned_places.get(&first.place) != Some(&StructuralMultiplicity::Affine)
+        {
+            return Err(invalid());
+        }
+        frontier.partial_custody_paths.remove(&first.place);
+        frontier.owned_places.remove(&first.place);
+    }
+    // A dying partial root cannot leak across an unannotated continuation.
+    // Fully transferred roots have already left both frontier maps at the call.
+    if frontier
+        .partial_custody_paths
+        .keys()
+        .any(|place| partial_affine_root_type(machine, *place).is_some())
+    {
+        return Err(invalid());
     }
     Ok(())
 }

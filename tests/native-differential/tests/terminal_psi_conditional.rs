@@ -286,6 +286,7 @@ fn unconditional_entry_prefix_reaches_runtime_conditional_control() {
             edge: EdgeId::new(8).unwrap(),
             target: BlockId::new(1).unwrap(),
             arguments: Vec::new(),
+            residual_affine_discards: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
     });
@@ -1029,6 +1030,7 @@ fn conditional_shared_tail_module() -> TerminalModule {
                         edge: EdgeId::new(3).unwrap(),
                         target: BlockId::new(4).unwrap(),
                         arguments: vec![ValueId::new(6).unwrap()],
+                        residual_affine_discards: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                 },
@@ -1047,6 +1049,7 @@ fn conditional_shared_tail_module() -> TerminalModule {
                         edge: EdgeId::new(4).unwrap(),
                         target: BlockId::new(4).unwrap(),
                         arguments: vec![ValueId::new(7).unwrap()],
+                        residual_affine_discards: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                 },

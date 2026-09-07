@@ -34,6 +34,11 @@ pub enum LoweringError {
         machine: MachineId,
         edge: semantic_vocabulary::EdgeId,
     },
+    /// Native continuation replay does not yet carry exact residual cleanup.
+    UnsupportedPartialAffineContinuation {
+        machine: MachineId,
+        edge: semantic_vocabulary::EdgeId,
+    },
     VerifiedEntryMachineMissing(MachineId),
     VerifiedBlockMissing {
         machine: MachineId,

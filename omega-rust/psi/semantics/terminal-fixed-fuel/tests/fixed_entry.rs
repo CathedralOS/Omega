@@ -2469,6 +2469,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
                         edge: edge_id(1),
                         target: block_id(2),
                         arguments: vec![value_id(1)],
+                        residual_affine_discards: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                 },

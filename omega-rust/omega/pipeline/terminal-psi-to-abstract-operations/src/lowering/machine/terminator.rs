@@ -18,7 +18,14 @@ pub(super) fn lower_terminator(
             target,
             arguments,
             trivial_affine_discards,
+            residual_affine_discards,
         } => {
+            if !residual_affine_discards.is_empty() {
+                return Err(LoweringError::UnsupportedPartialAffineContinuation {
+                    machine: machine.id,
+                    edge: *edge,
+                });
+            }
             let target_block =
                 blocks
                     .get(target)

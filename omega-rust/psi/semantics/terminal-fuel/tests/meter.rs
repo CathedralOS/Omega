@@ -115,6 +115,7 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
         edge: edge_id(1),
         target: semantic_vocabulary::BlockId::new(2).unwrap(),
         arguments: vec![value_id(1)],
+        residual_affine_discards: Vec::new(),
         trivial_affine_discards: vec![place_id(1)],
     };
     let return_edge = Terminator::Return {

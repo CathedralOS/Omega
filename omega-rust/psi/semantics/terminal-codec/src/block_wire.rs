@@ -600,8 +600,14 @@ pub(super) fn encode_block_for_result_paths(
             target,
             arguments,
             trivial_affine_discards,
+            residual_affine_discards,
         } => {
-            writer.u8(1);
+            // Preserve the established root-only encoding byte for byte.
+            writer.u8(if residual_affine_discards.is_empty() {
+                1
+            } else {
+                10
+            });
             writer.id(*edge);
             writer.id(*target);
             writer.len("jump arguments", arguments.len())?;
@@ -614,6 +620,17 @@ pub(super) fn encode_block_for_result_paths(
             )?;
             for place in trivial_affine_discards {
                 writer.id(*place);
+            }
+            if !residual_affine_discards.is_empty() {
+                writer.len(
+                    "jump residual affine discards",
+                    residual_affine_discards.len(),
+                )?;
+                for discard in residual_affine_discards {
+                    writer.id(discard.place);
+                    encode_structural_path(writer, "partial affine discard path", &discard.path)?;
+                    writer.id(discard.structural_type);
+                }
             }
         }
         Terminator::Return {
@@ -1141,7 +1158,7 @@ pub(super) fn decode_block_for_result_paths(
         });
     }
     let terminator = match reader.u8()? {
-        1 => {
+        tag @ (1 | 10) => {
             let edge = reader.id("EdgeId")?;
             let target = reader.id("BlockId")?;
             let argument_count = reader.count()?;
@@ -1154,6 +1171,21 @@ pub(super) fn decode_block_for_result_paths(
                 target,
                 arguments,
                 trivial_affine_discards: decode_counted(reader, |reader| reader.id("PlaceId"))?,
+                residual_affine_discards: if tag == 10 {
+                    let residuals = decode_counted(reader, |reader| {
+                        Ok(StructuralAffineDiscard {
+                            place: reader.id("PlaceId")?,
+                            path: decode_structural_path(reader)?,
+                            structural_type: reader.id("StructuralTypeId")?,
+                        })
+                    })?;
+                    if residuals.is_empty() {
+                        return Err(CodecError::NonCanonicalEncoding);
+                    }
+                    residuals
+                } else {
+                    Vec::new()
+                },
             }
         }
         2 => Terminator::Return {
@@ -1268,6 +1300,84 @@ mod tests {
 
     fn id<T: semantic_vocabulary::PsiSemanticId>(raw: u64) -> T {
         T::new(raw).expect("test ids are nonzero")
+    }
+
+    fn jump_block(residual_affine_discards: Vec<terminal_psi::StructuralAffineDiscard>) -> Block {
+        Block {
+            id: id(1),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::Jump {
+                edge: id(2),
+                target: id(3),
+                arguments: vec![id(4)],
+                trivial_affine_discards: vec![id(5)],
+                residual_affine_discards,
+            },
+        }
+    }
+
+    #[test]
+    fn root_only_jump_retains_its_exact_wire_encoding() {
+        let block = jump_block(Vec::new());
+        let mut writer = Writer::default();
+        encode_block(&mut writer, &block).unwrap();
+        let bytes = writer.finish();
+        let expected = [
+            1_u64.to_le_bytes().as_slice(),
+            0_u32.to_le_bytes().as_slice(),
+            0_u32.to_le_bytes().as_slice(),
+            &[1],
+            2_u64.to_le_bytes().as_slice(),
+            3_u64.to_le_bytes().as_slice(),
+            1_u32.to_le_bytes().as_slice(),
+            4_u64.to_le_bytes().as_slice(),
+            1_u32.to_le_bytes().as_slice(),
+            5_u64.to_le_bytes().as_slice(),
+        ]
+        .concat();
+        assert_eq!(bytes, expected);
+        assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(block));
+    }
+
+    #[test]
+    fn residual_jump_round_trips_exact_ordered_paths_and_types() {
+        let block = jump_block(vec![
+            terminal_psi::StructuralAffineDiscard {
+                place: id(6),
+                path: vec![StructuralPathSegment::FixedIndex(2)],
+                structural_type: id(7),
+            },
+            terminal_psi::StructuralAffineDiscard {
+                place: id(6),
+                path: vec![StructuralPathSegment::FixedIndex(0)],
+                structural_type: id(7),
+            },
+        ]);
+        let mut writer = Writer::default();
+        encode_block(&mut writer, &block).unwrap();
+        let bytes = writer.finish();
+        assert_eq!(bytes[16], 10);
+        let mut reader = Reader::new(&bytes);
+        let decoded = decode_block(&mut reader).unwrap();
+        assert_eq!(decoded, block);
+        assert_eq!(reader.remaining(), 0);
+        let mut writer = Writer::default();
+        encode_block(&mut writer, &decoded).unwrap();
+        assert_eq!(writer.finish(), bytes);
+    }
+
+    #[test]
+    fn residual_jump_tag_rejects_an_empty_complement() {
+        let mut writer = Writer::default();
+        encode_block(&mut writer, &jump_block(Vec::new())).unwrap();
+        let mut bytes = writer.finish();
+        bytes[16] = 10;
+        bytes.extend(0_u32.to_le_bytes());
+        assert_eq!(
+            decode_block(&mut Reader::new(&bytes)),
+            Err(CodecError::NonCanonicalEncoding),
+        );
     }
 
     fn structural_call_block() -> Block {
