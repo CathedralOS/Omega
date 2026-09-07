@@ -146,36 +146,47 @@ fn foreign_same_spelled_arrival_symbols_do_not_transport_rank_facts() {
     use typed_trees::expression::ExpressionNode;
     use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
-    let source = format!("{COUNTDOWN} machine other(remaining: u32) -> u32 {{ remaining }}");
-    for replace_head in [false, true] {
-        let mut program = typed(&source);
-        let root = &program.machine_states(&program.machines()[0])[0];
-        let StatementNode::Transition(arrival) =
-            &program.statement_table.statements(root.statement_nodes)[0]
-        else {
-            panic!("root arrival");
-        };
-        let TransitionTargetNode::Named { arguments, .. } =
-            program.statement_table.transition_target(arrival.target)
-        else {
-            panic!("named arrival");
-        };
-        let argument = program.statement_table.expression_handles(*arguments)[0];
-        let foreign =
-            program.state_parameters(&program.machine_states(&program.machines()[1])[0])[0].symbol;
-        let ExpressionNode::Name(path) = program.expression_table.expression_mut(argument) else {
-            panic!("identity forwarding");
-        };
-        path.symbol = foreign;
-        if replace_head {
-            path.head_symbol = foreign;
-        }
-        let diagnostics = crate::checks::termination::check_machine_termination(&program)
-            .expect_err("spelling does not establish arrival custody");
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("cannot prove rank range"))
+    for actual in ["remaining", "remaining + 0"] {
+        let source = format!(
+            "{} machine other(remaining: u32) -> u32 {{ remaining }}",
+            COUNTDOWN.replace("iterate(remaining)", &format!("iterate({actual})"))
         );
+        for replace_head in [false, true] {
+            let mut program = typed(&source);
+            let root = &program.machine_states(&program.machines()[0])[0];
+            let StatementNode::Transition(arrival) =
+                &program.statement_table.statements(root.statement_nodes)[0]
+            else {
+                panic!("root arrival");
+            };
+            let TransitionTargetNode::Named { arguments, .. } =
+                program.statement_table.transition_target(arrival.target)
+            else {
+                panic!("named arrival");
+            };
+            let argument = program.statement_table.expression_handles(*arguments)[0];
+            let argument = match program.expression_table.expression(argument) {
+                ExpressionNode::Binary(binary) => binary.left,
+                _ => argument,
+            };
+            let foreign = program
+                .state_parameters(&program.machine_states(&program.machines()[1])[0])[0]
+                .symbol;
+            let ExpressionNode::Name(path) = program.expression_table.expression_mut(argument)
+            else {
+                panic!("identity forwarding");
+            };
+            path.symbol = foreign;
+            if replace_head {
+                path.head_symbol = foreign;
+            }
+            let diagnostics = crate::checks::termination::check_machine_termination(&program)
+                .expect_err("spelling does not establish arrival custody");
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains("cannot prove rank range"))
+            );
+        }
     }
 }

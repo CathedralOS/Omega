@@ -1,10 +1,10 @@
-//! Entry-rooted identity transfers establish exact state telescopes. Every
+//! Entry-rooted parameter transfers establish exact state telescopes. Every
 //! arrival then rechecks range membership; cyclic edges also owe strict descent.
 
 use super::{graph, patterns, preserved_entry_prefix};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
@@ -86,10 +86,11 @@ pub(super) fn prove<'program>(
     true
 }
 
-/// Only identity edges choose a telescope. Arithmetic edges may use a target
-/// already discovered elsewhere, but cannot invent which subject it ranks.
-/// Each state receives one finite correspondence and enters the worklist once.
-/// Conflicting identity arrivals reject even after a target was processed.
+/// Identity transfers anchor the first closure. Single-parameter computations
+/// can then establish remaining telescopes without choosing a different subject.
+/// Each state enters the worklist once per tier. Every eligible incoming edge
+/// checks its proposal, including edges to already-processed destinations, so
+/// provisional discovery order cannot resolve conflicting correspondences.
 fn discover_mappings(
     program: &TypedTrees,
     machine: &Machine,
@@ -106,32 +107,48 @@ fn discover_mappings(
             .map(|parameter| parameter.symbol)
             .collect::<Vec<_>>(),
     );
-    let mut pending_states = vec![0];
-    while let Some(source_position) = pending_states.pop() {
-        let source = states.get(source_position)?;
-        let source_mapping = mappings[source_position].as_ref()?.clone();
-        for &target_position in &adjacency[source_position] {
-            if target_position == 0 {
-                continue;
-            }
-            let target = states.get(target_position)?;
-            for edge in patterns::edges_to_state(program, source, target.symbol) {
-                if !edge.arguments.iter().all(|argument| {
-                    matches!(
-                        program.expression_table.expression(*argument),
-                        ExpressionNode::Name(_)
-                    )
-                }) {
+    for computed in [false, true] {
+        let anchored = mappings.iter().map(Option::is_some).collect::<Vec<_>>();
+        let mut pending_states = anchored
+            .iter()
+            .enumerate()
+            .filter_map(|(position, known)| known.then_some(position))
+            .collect::<Vec<_>>();
+        while let Some(source_position) = pending_states.pop() {
+            let source = states.get(source_position)?;
+            let source_mapping = mappings[source_position].as_ref()?.clone();
+            for &target_position in &adjacency[source_position] {
+                if target_position == 0 {
                     continue;
                 }
-                let incoming =
-                    identity_mapping(program, source, target, &source_mapping, edge.arguments)?;
-                match &mappings[target_position] {
-                    Some(existing) if *existing != incoming => return None,
-                    Some(_) => {}
-                    None => {
-                        mappings[target_position] = Some(incoming);
-                        pending_states.push(target_position);
+                let target = states.get(target_position)?;
+                for edge in patterns::edges_to_state(program, source, target.symbol) {
+                    let identity = edge.arguments.iter().all(|argument| {
+                        matches!(
+                            program.expression_table.expression(*argument),
+                            ExpressionNode::Name(_)
+                        )
+                    });
+                    if !identity && (!computed || anchored[target_position]) {
+                        // Arithmetic actuals use an identity-anchored target;
+                        // they do not redefine its parameter correspondence.
+                        continue;
+                    }
+                    let Some(incoming) =
+                        argument_mapping(program, source, target, &source_mapping, edge.arguments)
+                    else {
+                        if identity {
+                            return None;
+                        }
+                        continue;
+                    };
+                    match &mappings[target_position] {
+                        Some(existing) if *existing != incoming => return None,
+                        Some(_) => {}
+                        None => {
+                            mappings[target_position] = Some(incoming);
+                            pending_states.push(target_position);
+                        }
                     }
                 }
             }
@@ -143,7 +160,7 @@ fn discover_mappings(
 /// Compose destination formal ordinal -> exact source parameter -> entry
 /// subject. States may drop or repeat unrelated parameters. The arithmetic
 /// query independently requires an unambiguous slot for every rank input.
-fn identity_mapping(
+fn argument_mapping(
     program: &TypedTrees,
     source: &State,
     target: &State,
@@ -167,17 +184,58 @@ fn identity_mapping(
     }
     let mut parameters = Vec::with_capacity(arguments.len());
     for argument in arguments {
-        let ExpressionNode::Name(name) = program.expression_table.expression(*argument) else {
-            return None;
-        };
-        if !name.symbol.is_valid() || name.head_symbol != name.symbol {
-            return None;
-        }
+        let subject = argument_subject(program, *argument, 0)?;
         let source_position = source_parameters.iter().position(|parameter| {
-            parameter.symbol == name.symbol && !parameter.is_mutable && !parameter.is_const
+            subject.is_valid()
+                && parameter.symbol == subject
+                && !parameter.is_mutable
+                && !parameter.is_const
         })?;
         let entry_symbol = source_mapping[source_position];
         parameters.push(entry_symbol);
     }
     Some(parameters)
+}
+
+/// Discover a dependency, not a value equality or an arithmetic theorem. The
+/// ordinary edge query still checks selected builtin meaning and every rank
+/// obligation before this provisional correspondence can authorize anything.
+/// Count distinct current symbols before translating them to entry subjects:
+/// two copies with shared ancestry may have diverged. Zero denotes a literal
+/// subtree, which cannot establish a subject on its own.
+fn argument_subject(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    depth: usize,
+) -> Option<SymbolHandle> {
+    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+        return None;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(_) => Some(SymbolHandle::default()),
+        ExpressionNode::Name(name) if name.symbol.is_valid() && name.head_symbol == name.symbol => {
+            Some(name.symbol)
+        }
+        ExpressionNode::Atomic(atomic) => argument_subject(program, atomic.value, depth + 1),
+        ExpressionNode::Binary(binary)
+            if matches!(
+                binary.operator,
+                BinaryOperator::Add
+                    | BinaryOperator::Subtract
+                    | BinaryOperator::Multiply
+                    | BinaryOperator::Modulo
+            ) =>
+        {
+            let left = argument_subject(program, binary.left, depth + 1)?;
+            let right = argument_subject(program, binary.right, depth + 1)?;
+            if !left.is_valid() || left == right {
+                Some(right)
+            } else if !right.is_valid() {
+                Some(left)
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
 }

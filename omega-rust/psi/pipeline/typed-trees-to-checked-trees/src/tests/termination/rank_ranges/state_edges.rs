@@ -150,11 +150,101 @@ fn cross_state_argument_ordinals_preserve_the_exact_view_bound() {
 }
 
 #[test]
-fn computed_arguments_do_not_invent_an_unestablished_state_mapping() {
-    reject(&ALTERNATING.replace(
+fn computed_arrivals_transport_the_unique_authored_rank_subject() {
+    let source = ALTERNATING.replace(
         "transition remaining > 2 {\n        true -> first(remaining)\n        false -> second(remaining)\n    }",
         "transition { _ -> first(remaining) }",
+    );
+    prove(&source);
+    for argument in ["remaining + 0", "(remaining - 0) * 1"] {
+        prove(&source.replace("first(remaining)", &format!("first({argument})")));
+    }
+    // Repeated occurrences are one dependency in the rank proof. General
+    // exact-arithmetic checking independently owes each intermediate bound;
+    // this assertion does not claim complete checking of those expressions.
+    for argument in [
+        "(2 * remaining) - remaining",
+        "(remaining + remaining) - remaining",
+    ] {
+        crate::checks::termination::check_machine_termination(&typed(
+            &source.replace("first(remaining)", &format!("first({argument})")),
+        ))
+        .expect("one current parameter despite repeated occurrences");
+    }
+    prove(&source.replace(
+        "transition { _ -> first(remaining) }",
+        "transition remaining > 0 { true -> first(remaining - 1) false -> remaining }",
     ));
+    reject(&source.replace("first(remaining)", "first(remaining - 1)"));
+    reject(&source.replace("second(pending - 1)", "second(pending)"));
+    reject(&source.replace("second(pending - 1)", "second(pending - 2)"));
+    reject(&format!(
+        "operator + u32::add(left: u32, right: u32) -> u32; {}",
+        source.replace("first(remaining)", "first(remaining + 0)")
+    ));
+}
+
+#[test]
+fn computed_increasing_arrivals_preserve_reordered_bound_slots() {
+    let source = r#"
+        machine climb(limit: u64, index: u64)
+        requires index <= limit;
+        terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1);
+        -> u64 {
+            transition index < limit {
+                true -> first(index + 1, limit)
+                false -> index
+            }
+            state first(cursor: u64, ceiling: u64) {
+                transition cursor < ceiling {
+                    true -> second(ceiling, cursor + 1)
+                    false -> cursor
+                }
+            }
+            state second(bound: u64, position: u64) {
+                transition position < bound {
+                    true -> first(position + 1, bound)
+                    false -> position
+                }
+            }
+        }
+    "#;
+    prove(source);
+    reject(&source.replace("first(index + 1, limit)", "first(index + 1, limit + 1)"));
+    reject(&source.replace(
+        "second(ceiling, cursor + 1)",
+        "second(ceiling + 1, cursor + 1)",
+    ));
+    reject(&source.replace("first(position + 1, bound)", "first(position, bound)"));
+    reject(&format!(
+        "operator + u64::add(left: u64, right: u64) -> u64; {source}"
+    ));
+}
+
+#[test]
+fn multiple_current_parameters_do_not_invent_one_computed_rank_subject() {
+    let source = ALTERNATING
+        .replace("remaining: u32 [0..=5]", "remaining: u32 [0..=5], other: u32 [0..=5]")
+        .replace("transition remaining > 2 {\n        true -> first(remaining)\n        false -> second(remaining)\n    }",
+            "transition { _ -> first(remaining + (other - other)) }");
+    reject(&source);
+    reject(&source.replace("remaining + (other - other)", "0"));
+
+    // Copying a root subject into two current slots does not make arithmetic
+    // over both slots a single-current-parameter computation.
+    reject(
+        r#"
+        machine walk(remaining: u32 [0..=5], payload: u32)
+        terminates by remaining in 0..=5;
+        -> u32 {
+            transition { _ -> prepare(remaining, payload, payload) }
+            state prepare(pending: u32, left: u32, right: u32) {
+                transition { _ -> finish(pending, left + (right - right)) }
+            }
+            state finish(result: u32, spare: u32) { result }
+        }
+    "#,
+    );
 }
 
 #[test]
@@ -168,8 +258,7 @@ fn cross_state_rank_proofs_do_not_reuse_written_parameter_values() {
 
 #[test]
 fn a_late_conflicting_identity_arrival_cannot_reuse_a_processed_mapping() {
-    reject(
-        r#"
+    let source = r#"
     machine walk(remaining: u32 [0..=5], other: u32 [0..=5])
     terminates by remaining in 0..=5;
     -> u32 {
@@ -185,8 +274,17 @@ fn a_late_conflicting_identity_arrival_cannot_reuse_a_processed_mapping() {
         }
         state finish(result: u32 [0..=5], unused: u32 [0..=5]) { result }
     }
-    "#,
-    );
+    "#;
+    reject(source);
+    let computed = source
+        .replace("first(remaining, other)", "first(remaining + 0, other + 0)")
+        .replace(
+            "second(remaining, other)",
+            "second(remaining + 0, other + 0)",
+        )
+        .replace("finish(pending, spare)", "finish(pending + 0, spare + 0)")
+        .replace("finish(extra, left)", "finish(extra + 0, left + 0)");
+    reject(&computed);
 }
 
 #[test]

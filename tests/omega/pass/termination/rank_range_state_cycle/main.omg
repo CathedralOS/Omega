@@ -9,8 +9,8 @@ machine Main::walk(remaining: u32 [0..=5], payload: Payload, spare: u32)
 terminates by remaining in 0..=5;
 -> u32 {
     transition remaining > 2 {
-        true -> first(payload, remaining, spare, spare)
-        false -> second(remaining, payload)
+        true -> first(payload, remaining - 1, spare, spare)
+        false -> second(remaining + 0, payload)
     }
     state first(carried: Payload, pending: u32 [0..=5], first_spare: u32, second_spare: u32) {
         transition pending > 0 {
