@@ -2,6 +2,61 @@
 
 use super::*;
 
+/// Empty spelling resolution is builtin only when the exact operand types
+/// independently carry the builtin index meaning.
+pub(super) fn indexed_read_is_builtin(
+    program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
+    parameters: &[StateParameter],
+    expression: ExpressionHandle,
+    collection_type: TypeReferenceHandle,
+    index: ExpressionHandle,
+) -> bool {
+    use language_core::OperatorSpelling;
+    if let Some(selected) = operators.expression_use(expression)
+        && (selected.spelling != OperatorSpelling::Index
+            || selected.selected_operator_symbol.is_valid()
+            || selected.candidate_count != 0
+            || !matches!(
+                selected.status,
+                CheckedOperatorResolutionStatus::Missing
+                    | CheckedOperatorResolutionStatus::BuiltinFallback
+            ))
+    {
+        return false;
+    }
+    let Some((machine, state)) = program.machines().iter().find_map(|machine| {
+        program.machine_states(machine).iter().find_map(|state| {
+            let authored = program.state_parameters(state);
+            (authored.len() == parameters.len()
+                && authored
+                    .iter()
+                    .zip(parameters)
+                    .all(|(left, right)| left.symbol == right.symbol))
+            .then_some((machine, state))
+        })
+    }) else {
+        return false;
+    };
+    let operands = [
+        Some(collection_type),
+        validation::declared_place_type_raw(program, machine, Some(state), index),
+    ];
+    typed_trees::operator::resolve_indexed_spelling_for_operands(
+        program,
+        OperatorSpelling::Index,
+        &operands,
+    )
+    .is_empty()
+        && typed_trees::operator::has_builtin_spelled_expression_meaning(
+            program,
+            machine.symbol,
+            expression,
+            OperatorSpelling::Index,
+            &operands,
+        )
+}
+
 pub(super) fn structural_parameter_field_path(
     program: &TypedTrees,
     parameters: &[StateParameter],
@@ -214,6 +269,31 @@ pub(super) fn lower_structural_parameter_field(
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
+    let (parameter_position, path, type_reference) =
+        structural_parameter_place(program, parameters, expression)?;
+    let primitive_type = program.primitive_type_reference(type_reference)?;
+    if !is_integer(primitive_type) || primitive_type == PrimitiveType::Addr {
+        return None;
+    }
+    Some((
+        CheckedScalarExpression::StructuralParameterField {
+            parameter_position,
+            path,
+            primitive_type,
+        },
+        program.arithmetic_domain_for_type_reference(type_reference),
+    ))
+}
+
+pub(super) fn structural_parameter_place(
+    program: &TypedTrees,
+    parameters: &[StateParameter],
+    expression: ExpressionHandle,
+) -> Option<(
+    u32,
+    Vec<CheckedStructuralPredicatePathSegment>,
+    TypeReferenceHandle,
+)> {
     let place = crate::flow::canonical_place_from_expression(program, expression)?;
     let root = crate::flow::normalized_event_place_root(program, place.root);
     let facts::PlaceRoot::Symbol(_) = root else {
@@ -283,16 +363,5 @@ pub(super) fn lower_structural_parameter_field(
     {
         return None;
     }
-    let primitive_type = program.primitive_type_reference(type_reference)?;
-    if !is_integer(primitive_type) || primitive_type == PrimitiveType::Addr {
-        return None;
-    }
-    Some((
-        CheckedScalarExpression::StructuralParameterField {
-            parameter_position,
-            path,
-            primitive_type,
-        },
-        program.arithmetic_domain_for_type_reference(type_reference),
-    ))
+    Some((parameter_position, path, type_reference))
 }

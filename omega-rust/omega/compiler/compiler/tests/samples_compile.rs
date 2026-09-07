@@ -702,6 +702,11 @@ fn fletcher_checksum_checks_its_slice_iteration() {
 }
 
 #[test]
+fn caesar_cipher_preserves_its_declared_text_carrier() {
+    assert_authored_entry_cohort("text", &["caesar_cipher"]);
+}
+
+#[test]
 fn rendering_samples_compile_from_authored_program_entry_bindings() {
     assert_authored_entry_cohort("rendering", EXPLICIT_ENTRY_RENDERING_SAMPLES);
 }

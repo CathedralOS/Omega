@@ -175,6 +175,11 @@ pub enum ProofObligationKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FactPayload {
+    /// Inclusive bounds on the value captured at this program point, not a
+    /// deferred expression or a claim that any particular value was produced.
+    AssignedIntegerBounds {
+        bounds: Handle<IntegerRange>,
+    },
     /// A completed scalar value captured at this fact's program point. The
     /// value contains no source expression or storage to evaluate again.
     AssignedScalarValue {
@@ -314,6 +319,7 @@ impl QualificationPayloadIdentity {
             }
             FactPayload::CarryOrigin { .. } => Some(Self::CarryOrigin),
             FactPayload::AssignedValue { .. }
+            | FactPayload::AssignedIntegerBounds { .. }
             | FactPayload::AssignedScalarValue { .. }
             | FactPayload::StorageDependency { .. }
             | FactPayload::BytePredicate { .. }
@@ -337,6 +343,14 @@ pub enum ScalarValue {
     Unknown,
     Integer(numerics::bignum::BigInt),
     Boolean(bool),
+}
+
+/// Inclusive mathematical integer bounds. The consumer must establish both
+/// endpoint ordering and the source of the bounds before using this vocabulary.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct IntegerRange {
+    pub minimum: numerics::bignum::BigInt,
+    pub maximum: numerics::bignum::BigInt,
 }
 
 /// Checked-only proof ledger row for one qualification-preserving statement

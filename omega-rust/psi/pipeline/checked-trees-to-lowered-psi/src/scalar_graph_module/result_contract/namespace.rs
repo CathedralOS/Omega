@@ -38,6 +38,11 @@ pub(super) fn validate(predicate: &CheckedBooleanExpression) -> Result<(), Lower
 
 fn scalar(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
     match expression {
+        CheckedScalarExpression::StructuralParameterIndexedRead { .. } => {
+            Err(LoweringError::Unsupported(
+                "indexed structural scalar reads are not supported contract operands",
+            ))
+        }
         CheckedScalarExpression::IntegerTrappingCast { .. } => Err(LoweringError::Unsupported(
             "trapping conversion is not total scalar contract arithmetic",
         )),

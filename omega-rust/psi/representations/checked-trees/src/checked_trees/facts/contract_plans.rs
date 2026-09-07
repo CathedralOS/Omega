@@ -855,6 +855,9 @@ impl CrashPlan {
     pub fn uses_structural_proof_gated_arithmetic(&self) -> bool {
         fn scalar_uses_proof_gated_arithmetic(expression: &crate::CheckedScalarExpression) -> bool {
             match expression {
+                crate::CheckedScalarExpression::StructuralParameterIndexedRead {
+                    index, ..
+                } => scalar_uses_proof_gated_arithmetic(index),
                 crate::CheckedScalarExpression::IntegerBinary {
                     kind, left, right, ..
                 } => {

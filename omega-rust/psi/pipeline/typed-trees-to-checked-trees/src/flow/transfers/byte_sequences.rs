@@ -147,6 +147,7 @@ pub(super) fn append_element_replacement_predicates(
     target: ExpressionHandle,
     source_expression: ExpressionHandle,
     scalar_value: Option<&facts::ScalarValue>,
+    integer_bounds: Option<&facts::IntegerRange>,
     point: ProgramPoint,
     references: &mut HandleSpan<facts::FactRef>,
 ) {
@@ -199,7 +200,7 @@ pub(super) fn append_element_replacement_predicates(
         }
         _ => None,
     };
-    let Some(byte) = byte.or_else(|| {
+    let byte = byte.or_else(|| {
         replacement_byte(
             program,
             semantic,
@@ -210,7 +211,14 @@ pub(super) fn append_element_replacement_predicates(
             statement_index,
             source_expression,
         )
-    }) else {
+    });
+    let bounds = byte.map(|byte| (byte, byte)).or_else(|| {
+        let bounds = integer_bounds?;
+        let minimum = u8::try_from(bounds.minimum.to_i64()?).ok()?;
+        let maximum = u8::try_from(bounds.maximum.to_i64()?).ok()?;
+        (minimum <= maximum).then_some((minimum, maximum))
+    });
+    let Some((minimum, maximum)) = bounds else {
         return;
     };
 
@@ -218,7 +226,9 @@ pub(super) fn append_element_replacement_predicates(
         .into_iter()
         .filter(|predicate| predicate.is_subslice_preserving())
     {
-        if !predicate.holds_for(&[byte])
+        // Both supported per-byte classes are intervals. Their endpoints
+        // establish every possible replacement byte, not just one witness.
+        if !predicate.holds_for(&[minimum, maximum])
             || !carrier_proves_predicate(
                 program,
                 semantic,

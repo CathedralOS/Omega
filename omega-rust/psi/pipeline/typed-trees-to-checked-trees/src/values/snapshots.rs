@@ -95,9 +95,9 @@ pub(crate) fn literal_at_place<'a>(
     contexts: impl IntoIterator<Item = &'a FactContext>,
     subject: &CanonicalPlace,
 ) -> Option<ExpressionHandle> {
-    payloads_at_place(program, semantic, contexts, subject)
-        .into_iter()
-        .find_map(|payload| match payload {
+    let mut retained = None;
+    for payload in payloads_at_place(program, semantic, contexts, subject) {
+        let value = match payload {
             FactPayload::AssignedValue { value }
                 if program.expression_table.expression_is_valid(value)
                     && matches!(
@@ -107,10 +107,68 @@ pub(crate) fn literal_at_place<'a>(
                             | ExpressionNode::String(_)
                     ) =>
             {
-                Some(value)
+                value
             }
-            _ => None,
-        })
+            _ => return None,
+        };
+        if retained.is_some_and(|previous| previous != value) {
+            return None;
+        }
+        retained = Some(value);
+    }
+    retained
+}
+
+pub(crate) fn integer_bounds_at_place<'a>(
+    program: &TypedTrees,
+    semantic: &FactPlan,
+    contexts: impl IntoIterator<Item = &'a FactContext>,
+    subject: &CanonicalPlace,
+) -> Option<facts::IntegerRange> {
+    let mut retained: Option<facts::IntegerRange> = None;
+    for payload in payloads_at_place(program, semantic, contexts, subject) {
+        let incoming = match payload {
+            FactPayload::AssignedIntegerBounds { bounds }
+                if semantic.integer_ranges.is_valid(bounds) =>
+            {
+                semantic.integer_ranges.get(bounds).clone()
+            }
+            FactPayload::AssignedScalarValue { value } => {
+                let ScalarValue::Integer(value) = semantic.scalar_values.get(value) else {
+                    return None;
+                };
+                facts::IntegerRange {
+                    minimum: value.clone(),
+                    maximum: value.clone(),
+                }
+            }
+            FactPayload::AssignedValue { value }
+                if program.expression_table.expression_is_valid(value) =>
+            {
+                let ExpressionNode::Integer(literal) = program.expression_table.expression(value)
+                else {
+                    return None;
+                };
+                let value = literal.value_bignum()?;
+                facts::IntegerRange {
+                    minimum: value.clone(),
+                    maximum: value,
+                }
+            }
+            _ => return None,
+        };
+        if incoming.minimum > incoming.maximum {
+            return None;
+        }
+        retained = Some(match retained {
+            Some(previous) => facts::IntegerRange {
+                minimum: previous.minimum.min(incoming.minimum),
+                maximum: previous.maximum.max(incoming.maximum),
+            },
+            None => incoming,
+        });
+    }
+    retained
 }
 
 fn payloads_at_place<'a>(
@@ -136,6 +194,7 @@ fn payloads_at_place<'a>(
                 if !matches!(
                     fact.payload,
                     FactPayload::AssignedValue { .. } | FactPayload::AssignedScalarValue { .. }
+                        | FactPayload::AssignedIntegerBounds { .. }
                 ) {
                     return None;
                 }
@@ -175,6 +234,95 @@ fn payloads_at_place<'a>(
 mod tests {
     use super::*;
     use facts::{Fact, FactOrigin, ProgramPoint};
+
+    #[test]
+    fn byte_literals_reject_unknown_and_conflicting_live_snapshots() {
+        let mut program = TypedTrees::default();
+        let first = program
+            .expression_table
+            .insert(ExpressionNode::String(std::sync::Arc::from(&b"ABC"[..])));
+        let second = program
+            .expression_table
+            .insert(ExpressionNode::String(std::sync::Arc::from(&b"XYZ"[..])));
+        let symbol = symbols::SymbolHandle::from_arena_index(1);
+        let subject = canonical_place_from_symbol(symbol).expect("symbol place");
+        for (other, accepted) in [
+            (first, true),
+            (second, false),
+            (ExpressionHandle::invalid(), false),
+        ] {
+            for reverse in [false, true] {
+                let mut semantic = FactPlan::default();
+                let place = semantic.append_symbol_place(symbol);
+                let mut references = Default::default();
+                let values = if reverse {
+                    [other, first]
+                } else {
+                    [first, other]
+                };
+                for value in values {
+                    let fact = semantic.append_fact(Fact {
+                        place: FactPlace::Place(place),
+                        point: ProgramPoint::default(),
+                        origin: FactOrigin::StatementTransfer,
+                        evidence: Default::default(),
+                        payload: FactPayload::AssignedValue { value },
+                    });
+                    semantic.append_ref(&mut references, fact);
+                }
+                let context = semantic.append_context(ProgramPoint::default(), references);
+                assert_eq!(
+                    literal_at_place(
+                        &program,
+                        &semantic,
+                        [semantic.contexts.get(context)],
+                        &subject
+                    )
+                    .is_some(),
+                    accepted
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn integer_bounds_hull_live_values_and_reject_invalid_range_handles() {
+        let program = TypedTrees::default();
+        let symbol = symbols::SymbolHandle::from_arena_index(1);
+        let subject = canonical_place_from_symbol(symbol).expect("symbol place");
+        for corrupt in [false, true] {
+            let mut semantic = FactPlan::default();
+            let place = semantic.append_symbol_place(symbol);
+            let mut references = Default::default();
+            for (minimum, maximum) in [(65, 70), (75, 80)] {
+                let bounds = semantic.integer_ranges.append(facts::IntegerRange {
+                    minimum: numerics::bignum::BigInt::from_u64(minimum),
+                    maximum: numerics::bignum::BigInt::from_u64(maximum),
+                });
+                let fact = semantic.append_fact(Fact {
+                    place: FactPlace::Place(place),
+                    point: ProgramPoint::default(),
+                    origin: FactOrigin::StatementTransfer,
+                    evidence: Default::default(),
+                    payload: FactPayload::AssignedIntegerBounds {
+                        bounds: if corrupt { Default::default() } else { bounds },
+                    },
+                });
+                semantic.append_ref(&mut references, fact);
+            }
+            let context = semantic.append_context(ProgramPoint::default(), references);
+            let range = integer_bounds_at_place(
+                &program,
+                &semantic,
+                [semantic.contexts.get(context)],
+                &subject,
+            );
+            assert_eq!(
+                range.map(|range| (range.minimum.to_u64(), range.maximum.to_u64())),
+                (!corrupt).then_some((Some(65), Some(80)))
+            );
+        }
+    }
 
     #[test]
     fn call_provenance_requires_its_own_snapshot_and_conflicts_still_reject() {

@@ -17,15 +17,9 @@ pub(super) fn capture_statement(
     statement: &StatementNode,
     active: HandleSpan<FlowSemanticContextRef>,
 ) -> Option<ScalarValue> {
-    let (source, destination) = match statement {
-        StatementNode::LocalData(local) => (local.initial_value, local.symbol),
-        StatementNode::Assignment(assignment) => (
-            assignment.value,
-            match program.expression_table.expression(assignment.target) {
-                ExpressionNode::Name(path) => path.symbol,
-                _ => SymbolHandle::invalid(),
-            },
-        ),
+    let source = match statement {
+        StatementNode::LocalData(local) => local.initial_value,
+        StatementNode::Assignment(assignment) => assignment.value,
         _ => return None,
     };
     if !program.expression_table.expression_is_valid(source) {
@@ -43,8 +37,96 @@ pub(super) fn capture_statement(
             active,
         );
     }
+    let (expression, symbols) = selected_statement(
+        program,
+        context.scalar_expressions,
+        state,
+        statement_index,
+        statement,
+    )?;
+    crate::values::evaluate_checked_scalar(
+        expression,
+        &mut crate::values::PlaceScalarValues {
+            program,
+            parameters: program.state_parameters(crate::find_state(program, state)?),
+            symbols,
+            value_at_place: |place: &CanonicalPlace| {
+                crate::values::scalar_value_at_place(
+                    program,
+                    semantic,
+                    context
+                        .contexts
+                        .semantic_context_refs
+                        .span_or_empty(active)
+                        .iter()
+                        .map(|reference| semantic.contexts.get(reference.context)),
+                    place,
+                )
+            },
+        },
+    )
+}
+
+pub(super) fn capture_bounds(
+    program: &typed_trees::TypedTrees,
+    semantic: &FactPlan,
+    context: &FlowBuildContext,
+    state: SymbolHandle,
+    statement_index: usize,
+    statement: &StatementNode,
+    active: HandleSpan<FlowSemanticContextRef>,
+) -> Option<facts::IntegerRange> {
+    let (expression, symbols) = selected_statement(
+        program,
+        context.scalar_expressions,
+        state,
+        statement_index,
+        statement,
+    )?;
+    let contexts = context
+        .contexts
+        .semantic_context_refs
+        .span_or_empty(active)
+        .iter()
+        .map(|reference| reference.context)
+        .collect::<Vec<_>>();
+    crate::values::bounds::evaluate(
+        expression,
+        &mut crate::values::bounds::PlaceIntegerBounds {
+            program,
+            semantic,
+            contexts: &contexts,
+            parameters: program.state_parameters(crate::find_state(program, state)?),
+            symbols,
+        },
+    )
+}
+
+fn selected_statement<'plans>(
+    program: &typed_trees::TypedTrees,
+    plans: &'plans checked_trees::CheckedScalarExpressionPlans,
+    state: SymbolHandle,
+    statement_index: usize,
+    statement: &StatementNode,
+) -> Option<(
+    &'plans checked_trees::CheckedScalarExpression,
+    &'plans [SymbolHandle],
+)> {
+    let (source, destination) = match statement {
+        StatementNode::LocalData(local) => (local.initial_value, local.symbol),
+        StatementNode::Assignment(assignment) => (
+            assignment.value,
+            match program.expression_table.expression(assignment.target) {
+                ExpressionNode::Name(path) => path.symbol,
+                _ => SymbolHandle::invalid(),
+            },
+        ),
+        _ => return None,
+    };
+    if !program.expression_table.expression_is_valid(source) {
+        return None;
+    }
     let statement_ordinal = u32::try_from(statement_index).ok()?;
-    let plans = context.scalar_expressions;
     let mut bindings = plans.source_bindings.iter().filter(|(_, binding)| {
         binding.state == state
             && binding.statement_ordinal == statement_ordinal
@@ -78,27 +160,7 @@ pub(super) fn capture_statement(
         return None;
     }
     let symbols = plans.binding_symbols.span_or_empty(binding.symbols);
-    crate::values::evaluate_checked_scalar(
-        expression,
-        &mut crate::values::PlaceScalarValues {
-            program,
-            parameters: program.state_parameters(crate::find_state(program, state)?),
-            symbols,
-            value_at_place: |place: &CanonicalPlace| {
-                crate::values::scalar_value_at_place(
-                    program,
-                    semantic,
-                    context
-                        .contexts
-                        .semantic_context_refs
-                        .span_or_empty(active)
-                        .iter()
-                        .map(|reference| semantic.contexts.get(reference.context)),
-                    place,
-                )
-            },
-        },
-    )
+    Some((expression, symbols))
 }
 
 // Evaluate selected scalar locals and local stores followed by one return.

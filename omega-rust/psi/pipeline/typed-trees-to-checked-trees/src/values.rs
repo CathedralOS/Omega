@@ -7,6 +7,7 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 
+pub(crate) mod bounds;
 mod evaluation;
 mod expression;
 mod snapshots;

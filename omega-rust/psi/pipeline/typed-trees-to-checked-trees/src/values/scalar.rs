@@ -2335,6 +2335,62 @@ fn lower_scalar_expression(
     if let Some(length) = exact_inline_literal_subslice_length(program, expression) {
         return Some((length, ArithmeticDomain::Exact));
     }
+    if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) {
+        let (parameter_position, path, mut collection_type) =
+            structural_fields::structural_parameter_place(
+                program,
+                authored_parameters,
+                indexed.collection,
+            )?;
+        if !structural_fields::indexed_read_is_builtin(
+            program,
+            operators,
+            authored_parameters,
+            expression,
+            collection_type,
+            indexed.index,
+        ) {
+            return None;
+        }
+        let element_type = loop {
+            match program.type_reference_table.type_reference(collection_type) {
+                TypeReferenceNode::Reference { referee, .. }
+                | TypeReferenceNode::Constrained {
+                    base_type: referee, ..
+                } => collection_type = *referee,
+                TypeReferenceNode::FixedArray { element_type, .. }
+                | TypeReferenceNode::Slice { element_type } => break *element_type,
+                _ => return None,
+            }
+        };
+        let primitive_type = program.primitive_type_reference(element_type)?;
+        if primitive_type != PrimitiveType::U8 {
+            return None;
+        }
+        let (index, _) = lower_scalar_expression(
+            program,
+            operators,
+            indexed.index,
+            parameters,
+            authored_parameters,
+            parameter_types,
+            locals,
+            exact_integer_casts,
+        )?;
+        let index_type = scalar_expression_type(&index)?;
+        if !is_integer(index_type) || index_type == PrimitiveType::Addr {
+            return None;
+        }
+        return Some((
+            CheckedScalarExpression::StructuralParameterIndexedRead {
+                parameter_position,
+                path,
+                index: Box::new(index),
+                primitive_type,
+            },
+            program.arithmetic_domain_for_type_reference(element_type),
+        ));
+    }
     if matches!(
         program.expression_table.expression(expression),
         ExpressionNode::Name(_) | ExpressionNode::Member(_)
@@ -3125,6 +3181,7 @@ pub(crate) fn scalar_expression_type(
         | CheckedScalarExpression::StorageRead { primitive_type, .. }
         | CheckedScalarExpression::Local { primitive_type, .. }
         | CheckedScalarExpression::StructuralParameterField { primitive_type, .. }
+        | CheckedScalarExpression::StructuralParameterIndexedRead { primitive_type, .. }
         | CheckedScalarExpression::IntegerBinary { primitive_type, .. }
         | CheckedScalarExpression::IntegerBitwiseNot { primitive_type, .. }
         | CheckedScalarExpression::IntegerWiden { primitive_type, .. }

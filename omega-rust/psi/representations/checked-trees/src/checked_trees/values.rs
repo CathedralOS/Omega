@@ -13,11 +13,7 @@ pub type CheckedValueHandle = Handle<CheckedValueFact>;
 
 /// A checker-established inclusive integer interval for one value at its exact
 /// use site. Big integers preserve the full `u64` proof domain.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct CheckedIntegerRange {
-    pub minimum: numerics::bignum::BigInt,
-    pub maximum: numerics::bignum::BigInt,
-}
+pub use facts::IntegerRange as CheckedIntegerRange;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CheckedValueOrigin {
@@ -280,6 +276,14 @@ pub enum CheckedScalarExpression {
     StructuralParameterField {
         parameter_position: u32,
         path: Vec<CheckedStructuralPredicatePathSegment>,
+        primitive_type: typed_trees::types::PrimitiveType,
+    },
+    /// Selected builtin element read from current structural parameter storage.
+    /// The index remains an evaluated dependency, not a fixed field projection.
+    StructuralParameterIndexedRead {
+        parameter_position: u32,
+        path: Vec<CheckedStructuralPredicatePathSegment>,
+        index: Box<CheckedScalarExpression>,
         primitive_type: typed_trees::types::PrimitiveType,
     },
     IntegerLiteral {
