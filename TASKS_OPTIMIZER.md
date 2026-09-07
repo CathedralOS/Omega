@@ -142,8 +142,7 @@ needed for independent replay through publication.
   preserving exact register-unit aliases, liveness, and target custody.
 
 - **FRAME-LAYOUT.** Extend exact nonzero-frame realization beyond the current
-  single-block and canonical three-block/two-return System V AMD64/AAPCS64
-  family: broader CFG admission, Microsoft shadow space, red-zone policy,
+  bounded ordinary CFG family: broader CFG admission, stack-argument storage, red-zone policy,
   probing, unwind information, stable-address loans, and dynamic-allocation
   constraints. General calls need target-owned frame, callee-save,
   link-register, and call-site alignment plans. Acceptance: every admitted frame

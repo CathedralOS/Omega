@@ -49,8 +49,8 @@ pub enum WholeFunctionExitPolicy {
     SystemVAMD64CanonicalFixedFrameV1,
     Aapcs64CanonicalFixedFrameV1,
     DarwinAapcs64CanonicalFixedFrameV1,
-    /// Canonical Microsoft-x64 frame for a function with no outgoing calls.
-    MicrosoftX64CanonicalLeafFrameV1,
+    /// Canonical Microsoft-x64 frame with exact outgoing ABI and preservation storage.
+    MicrosoftX64CanonicalFixedFrameV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

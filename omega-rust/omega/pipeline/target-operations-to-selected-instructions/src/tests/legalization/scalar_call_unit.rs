@@ -4,6 +4,40 @@ use crate::tests::fixtures::scalar_call_unit::scalar_call_unit_fixture;
 use crate::{legalize_target_operations, validate_legalized_operations};
 
 #[test]
+fn register_calls_retain_the_target_abi_home_area() {
+    let (abstract_plan, _, unit) = scalar_call_unit_fixture();
+    for native in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::windows_x64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            &abstract_plan,
+            native,
+        )
+        .unwrap();
+        let legalized = legalize_target_operations(&target, &abstract_plan, &unit).unwrap();
+        let expected_shadow = if native == target::NativeTarget::windows_x64() {
+            32
+        } else {
+            0
+        };
+        let mut changed = legalized.plan().clone();
+        let call = call_mut(&mut changed.scalar_call_unit_functions[0], 0);
+        assert_eq!(call.call_plan.shadow_bytes, expected_shadow);
+        call.call_plan.shadow_bytes = if expected_shadow == 0 { 32 } else { 0 };
+        assert!(validate_legalized_operations(&target, &abstract_plan, &unit, changed).is_err());
+    }
+    assert_ne!(
+        crate::legalization_validator_identity(),
+        optimization_core::OptimizationValidatorIdentity::from_canonical_bytes(
+            b"omega.terminal-target-legalization-independent-replay.v25"
+        )
+    );
+}
+
+#[test]
 fn one_call_and_equal_constant_operands_have_no_fixture_topology_requirement() {
     let (mut abstract_plan, _, _) = scalar_call_unit_fixture();
     let caller = &mut abstract_plan.functions[0];
@@ -260,6 +294,8 @@ fn every_register_arity_uses_one_input_contract_and_independent_replay() {
     for (native, capacity) in [
         (target::NativeTarget::linux_x64(), 6),
         (target::NativeTarget::linux_arm64(), 8),
+        (target::NativeTarget::windows_x64(), 4),
+        (target::NativeTarget::macos_arm64(), 8),
     ] {
         for arity in 0..=capacity {
             let source = register_arity_source(arity);
@@ -300,28 +336,6 @@ fn every_register_arity_uses_one_input_contract_and_independent_replay() {
             semantic_vocabulary::FuelScheduleIdentity::new(1).unwrap(),
         )
         .unwrap();
-        assert!(!crate::legalization::accepts_fragment_publication_input(
-            &target, &source, &unit
-        ));
-        assert!(legalize_target_operations(&target, &source, &unit).is_err());
-    }
-}
-
-#[test]
-fn register_calls_do_not_claim_other_target_frame_contracts() {
-    let source = register_arity_source(1);
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
-        &source,
-        semantic_vocabulary::FuelScheduleIdentity::new(1).unwrap(),
-    )
-    .unwrap();
-    for native in [
-        target::NativeTarget::windows_x64(),
-        target::NativeTarget::macos_arm64(),
-    ] {
-        let target =
-            abstract_operations_to_target_operations::lower_to_target_operations(&source, native)
-                .unwrap();
         assert!(!crate::legalization::accepts_fragment_publication_input(
             &target, &source, &unit
         ));

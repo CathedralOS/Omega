@@ -1,4 +1,4 @@
-//! Canonical unresolved System V AMD64 ordinary scalar-call templates.
+//! Canonical unresolved AMD64 ordinary register scalar-call templates.
 
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
@@ -137,7 +137,7 @@ pub fn validate_x86_64_selected_scalar_call_template(
     bytes: &[u8],
     fixup: X86_64ScalarCallFixup,
 ) -> Result<ValidatedX86_64SelectedScalarCallTemplate, X86_64ScalarCallTemplateError> {
-    if target != NativeTarget::linux_x64() {
+    if target != NativeTarget::linux_x64() && target != NativeTarget::windows_x64() {
         return Err(X86_64ScalarCallTemplateError::UnsupportedTarget);
     }
     if physical.model() != &x86_64_physical_register_model() {
@@ -157,13 +157,20 @@ pub fn validate_x86_64_selected_scalar_call_template(
     let arity = operand_views
         .len()
         .checked_sub(1)
-        .filter(|arity| *arity <= 6)
+        .filter(|arity| {
+            *arity
+                <= if target == NativeTarget::linux_x64() {
+                    6
+                } else {
+                    4
+                }
+        })
         .ok_or(X86_64ScalarCallTemplateError::OperandViewMismatch)?;
-    let expected_operand_views = expected_operand_views(physical, arity);
+    let expected_operand_views = expected_operand_views(target, physical, arity);
     if operand_views != expected_operand_views {
         return Err(X86_64ScalarCallTemplateError::OperandViewMismatch);
     }
-    if effects != &expected_effects(physical, arity) {
+    if effects != &expected_effects(target, physical, arity) {
         return Err(X86_64ScalarCallTemplateError::EffectMismatch);
     }
     let bytes: [u8; X86_64_SCALAR_CALL_TEMPLATE_BYTE_COUNT] = bytes
@@ -198,11 +205,18 @@ fn canonical_fixup(callee: MachineId) -> X86_64ScalarCallFixup {
 }
 
 fn expected_operand_views(
+    target: NativeTarget,
     physical: &ValidatedPhysicalRegisterModel,
     arity: usize,
 ) -> Vec<RegisterViewId> {
-    ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
-        .into_iter()
+    let arguments: &[&str] = if target == NativeTarget::linux_x64() {
+        &["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
+    } else {
+        &["rcx", "rdx", "r8", "r9"]
+    };
+    arguments
+        .iter()
+        .copied()
         .take(arity)
         .chain(["rax"])
         .map(|name| {
@@ -216,6 +230,7 @@ fn expected_operand_views(
 }
 
 fn expected_effects(
+    target: NativeTarget,
     physical: &ValidatedPhysicalRegisterModel,
     arity: usize,
 ) -> MachineEncodedEffects {
@@ -223,7 +238,14 @@ fn expected_effects(
     let row = catalog
         .constraints
         .iter()
-        .find(|row| row.key == x86_64_system_v_register_call_keys()[arity])
+        .find(|row| {
+            row.key
+                == if target == NativeTarget::linux_x64() {
+                    x86_64_system_v_register_call_keys()[arity]
+                } else {
+                    crate::x86_64_microsoft_register_call_keys()[arity]
+                }
+        })
         .expect("canonical x86-64 catalog contains scalar-call constraint");
     let stack_pointer = physical
         .model()
@@ -250,6 +272,9 @@ fn expected_effects(
 }
 
 #[cfg(test)]
+mod target_abis;
+
+#[cfg(test)]
 mod tests {
     use register_model::validate_physical_register_model;
 
@@ -270,8 +295,8 @@ mod tests {
             family: MachineAlternativeFamily::CallI64,
             variant: 0,
         };
-        let operands = expected_operand_views(&physical, 2);
-        let effects = expected_effects(&physical, 2);
+        let operands = expected_operand_views(NativeTarget::linux_x64(), &physical, 2);
+        let effects = expected_effects(NativeTarget::linux_x64(), &physical, 2);
         (physical, kind, alternative, operands, effects)
     }
 
@@ -285,7 +310,7 @@ mod tests {
                 .iter()
                 .find(|row| row.key == key)
                 .unwrap();
-            let operands = expected_operand_views(&physical, arity);
+            let operands = expected_operand_views(NativeTarget::linux_x64(), &physical, arity);
             assert_eq!(row.operands.len(), arity + 1);
             assert_eq!(
                 row.operands
@@ -294,7 +319,7 @@ mod tests {
                     .collect::<Vec<_>>(),
                 operands
             );
-            let effects = expected_effects(&physical, arity);
+            let effects = expected_effects(NativeTarget::linux_x64(), &physical, arity);
             assert_eq!(
                 effects.external_operand_reads,
                 (0..arity as u16).collect::<Vec<_>>()
@@ -345,7 +370,7 @@ mod tests {
                 kind,
                 alternative,
                 &oversized,
-                &expected_effects(&physical, 0),
+                &expected_effects(NativeTarget::linux_x64(), &physical, 0),
             ),
             Err(X86_64ScalarCallTemplateError::OperandViewMismatch)
         );

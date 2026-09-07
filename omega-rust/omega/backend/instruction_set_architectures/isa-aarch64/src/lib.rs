@@ -31,6 +31,7 @@ pub use preservation_storage::{
 };
 pub use ranked_u32_countdown::*;
 pub use register_model::aarch64_aapcs64_register_call_keys;
+pub use register_model::aarch64_darwin_register_call_keys;
 pub use register_model::{
     AARCH64_AAPCS64_CALL, AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64, AARCH64_AAPCS64_RETURN,
     AARCH64_AAPCS64_RETURN_UNIT, AARCH64_ADD_I64, AARCH64_ADD_I64_IMMEDIATE, AARCH64_COMPARE_I64,

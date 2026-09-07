@@ -48,6 +48,14 @@ pub struct CalleeSaveFrameSlot {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OutgoingAbiFrameArea {
+    /// Reserved interval [0, byte_size) from the post-prologue stack pointer.
+    /// This is caller ABI storage, never allocator spill or preservation storage.
+    pub byte_size: u64,
+    pub shadow_bytes: u16,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionTargetFrameLayout {
     pub machine: MachineId,
     pub kind: AllocatedCalleeSavedFunctionKind,
@@ -56,6 +64,7 @@ pub struct FunctionTargetFrameLayout {
     pub pre_call_stack_alignment: u16,
     pub frame_size_bytes: u64,
     pub abi_stack_alignment_bytes: u16,
+    pub outgoing_abi_area: OutgoingAbiFrameArea,
     pub callee_save_slots: Vec<CalleeSaveFrameSlot>,
     pub return_address: ReturnAddressFrameCustody,
 }

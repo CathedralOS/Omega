@@ -98,7 +98,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
         }),
         (Architecture::X86_64, ObjectFormat::Coff) => Some(SelectedConstraintKeys {
             structural_unit_call: Some(X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR),
-            call_i64: Vec::new(),
+            call_i64: isa_x86_64::x86_64_microsoft_register_call_keys(),
             materialize_i64: X86_64_MATERIALIZE_I64,
             copy_i64: X86_64_COPY_I64,
             add_i64: X86_64_ADD_I64,
@@ -130,7 +130,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
         }),
         (Architecture::Aarch64, ObjectFormat::MachO) => Some(SelectedConstraintKeys {
             structural_unit_call: None,
-            call_i64: Vec::new(),
+            call_i64: isa_aarch64::aarch64_darwin_register_call_keys(),
             materialize_i64: AARCH64_MATERIALIZE_I64,
             copy_i64: AARCH64_COPY_I64,
             add_i64: AARCH64_ADD_I64,
