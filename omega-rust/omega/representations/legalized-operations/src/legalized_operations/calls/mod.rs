@@ -5,7 +5,5 @@
 
 mod projected_returns;
 pub use projected_returns::*;
-mod scalar;
-pub use scalar::*;
 mod structural;
 pub use structural::*;

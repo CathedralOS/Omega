@@ -60,12 +60,6 @@ pub enum LegalizationRecipe {
     ReturnU64NotEqualZeroParameterConditionalV1,
 }
 
-/// Closed identity legalization admitted for a value-less Unit function.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum UnitLegalizationRecipe {
-    ReturnUnitV1,
-}
-
 /// Closed structural-Unit legalization forms admitted by the mandatory stage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralUnitLegalizationRecipe {

@@ -6,11 +6,10 @@
 mod integer_sequence;
 mod projected_structural_call_return;
 mod scalar;
-mod scalar_call_unit;
+mod scalar_graph;
 mod scalar_leaf;
 mod shared_return;
 mod structural_unit;
-mod unit;
 
 use crate::selection::constraints::require_key_rows;
 use crate::selection::shared::*;
@@ -41,19 +40,12 @@ pub(super) fn build_plan(
         .collect::<Result<Vec<_>, _>>()?;
     functions.extend(
         target
-            .unit_functions
-            .iter()
-            .map(|source| unit::build(source, &constraints.keys, catalog))
-            .collect::<Result<Vec<_>, _>>()?,
-    );
-    functions.extend(
-        target
-            .scalar_call_unit_functions
+            .scalar_functions
             .iter()
             .enumerate()
             .map(|(index, source)| {
-                scalar_call_unit::build(
-                    index + target.functions.len() + target.unit_functions.len(),
+                scalar_graph::build(
+                    index + target.functions.len(),
                     source,
                     target.target,
                     constraints,

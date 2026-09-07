@@ -44,59 +44,6 @@ pub(super) fn validate_function(
     Ok(())
 }
 
-pub(super) fn validate_unit_function(
-    function_index: usize,
-    source: &SourceUnitFunction,
-    function: &SelectedFunction,
-    keys: &SelectedConstraintKeys,
-    catalog: &ValidatedRegisterConstraintCatalog,
-) -> Result<(), SelectedInstructionError> {
-    let expected_provenance = SelectedInstructionProvenance {
-        edges: vec![source.return_edge],
-        fuel: source.return_fuel.clone(),
-        ..Default::default()
-    };
-    let valid_shape = function.machine == source.machine
-        && function.attachment == source.attachment
-        && function.provenance == source.provenance
-        && function.entry_block == SelectedBlockId(0)
-        && function.virtual_registers.is_empty()
-        && function.blocks.len() == 1
-        && function.blocks[0].id == SelectedBlockId(0)
-        && function.blocks[0].source_block == source.entry_block
-        && function.blocks[0].instructions.is_empty();
-    if !valid_shape {
-        return Err(SelectedInstructionError::FunctionProjectionMismatch {
-            function: function_index,
-        });
-    }
-    let block = &function.blocks[0];
-    let SelectedTerminator::Return {
-        instruction,
-        psi_return_edge,
-    } = &block.terminator
-    else {
-        return Err(SelectedInstructionError::BlockProjectionMismatch {
-            function: function_index,
-            block: 0,
-        });
-    };
-    if instruction.id != SelectedInstructionId(0)
-        || instruction.kind != SelectedInstructionKind::ReturnUnit
-        || instruction.constraint != keys.return_unit
-        || !instruction.operands.is_empty()
-        || instruction.provenance != expected_provenance
-        || *psi_return_edge != source.return_edge
-    {
-        return Err(SelectedInstructionError::InstructionProjectionMismatch {
-            function: function_index,
-            instruction: instruction.id.0,
-        });
-    }
-    validate_block_constraints(function_index, block, function, catalog)?;
-    validate_def_use(function_index, function, catalog)
-}
-
 pub(super) fn validate_structural_unit_function(
     function_index: usize,
     source: &SourceStructuralUnitFunction,

@@ -1,12 +1,12 @@
 //! Input-only join from the admitted register CallPlan to target constraint rows.
 
 use super::shared::*;
-use legalized_operations::LegalizedScalarCallUnitCall;
+use legalized_operations::LegalizedScalarCall;
 use register_environment::ValidatedTargetRegisterEnvironment;
 
 pub(super) fn validate(
     function: usize,
-    call: &LegalizedScalarCallUnitCall,
+    call: &LegalizedScalarCall,
     key: RegisterConstraintKey,
     row: &RegisterInstructionConstraint,
     environment: &ValidatedTargetRegisterEnvironment,
@@ -23,6 +23,9 @@ pub(super) fn validate(
         return Err(invalid());
     }
     let result = call.call_plan.result.as_ref().ok_or_else(invalid)?;
+    if *result != call.result_placement {
+        return Err(invalid());
+    }
     for (index, (placement, operand)) in call
         .call_plan
         .parameters
@@ -53,7 +56,7 @@ pub(super) fn validate(
             return Err(invalid());
         }
         if let Some(argument) = call.arguments.get(index)
-            && (argument.parameter_index as usize != index || argument.placement != *placement)
+            && argument.placement != *placement
         {
             return Err(invalid());
         }

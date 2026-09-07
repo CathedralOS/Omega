@@ -1,15 +1,10 @@
 //! Typed rows consumed by the sole ordered legalization catalog.
 
-use legalized_operations::{
-    LegalizationRecipe, ScalarCallUnitLegalizationRecipe, StructuralUnitLegalizationRecipe,
-    UnitLegalizationRecipe,
-};
+use legalized_operations::{LegalizationRecipe, StructuralUnitLegalizationRecipe};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::legalization) enum LegalizationFormRecipe {
     Scalar(LegalizationRecipe),
-    Unit(UnitLegalizationRecipe),
-    ScalarCallUnit(ScalarCallUnitLegalizationRecipe),
     StructuralUnit(StructuralUnitLegalizationRecipe),
 }
 
@@ -25,16 +20,6 @@ pub(in crate::legalization) enum ScalarLegalizationMatcherKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::legalization) enum UnitLegalizationMatcherKind {
-    ReturnUnit,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::legalization) enum ScalarCallUnitLegalizationMatcherKind {
-    OrderedU64RegisterCalls,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(clippy::enum_variant_names)] // Rows retain the exact legalization shape they recognize.
 pub(in crate::legalization) enum StructuralUnitLegalizationMatcherKind {
     ReturnUnit,
@@ -46,8 +31,6 @@ pub(in crate::legalization) enum StructuralUnitLegalizationMatcherKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::legalization) enum LegalizationProducerMatcherKind {
     Scalar(ScalarLegalizationMatcherKind),
-    Unit(UnitLegalizationMatcherKind),
-    ScalarCallUnit(ScalarCallUnitLegalizationMatcherKind),
     StructuralUnit(StructuralUnitLegalizationMatcherKind),
 }
 
@@ -63,16 +46,6 @@ pub(in crate::legalization) enum ScalarLegalizationValidatorKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::legalization) enum UnitLegalizationValidatorKind {
-    ReturnUnit,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::legalization) enum ScalarCallUnitLegalizationValidatorKind {
-    OrderedU64RegisterCalls,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(clippy::enum_variant_names)] // Rows retain the exact legalization shape they validate.
 pub(in crate::legalization) enum StructuralUnitLegalizationValidatorKind {
     ReturnUnit,
@@ -84,8 +57,6 @@ pub(in crate::legalization) enum StructuralUnitLegalizationValidatorKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::legalization) enum LegalizationValidatorKind {
     Scalar(ScalarLegalizationValidatorKind),
-    Unit(UnitLegalizationValidatorKind),
-    ScalarCallUnit(ScalarCallUnitLegalizationValidatorKind),
     StructuralUnit(StructuralUnitLegalizationValidatorKind),
 }
 
@@ -113,21 +84,6 @@ pub(in crate::legalization) enum ScalarConditionShape {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::legalization) struct UnitShapeConstraints {
-    pub block_count: usize,
-    pub operation_count: usize,
-    pub node_count: usize,
-    pub scalar_parameter_count: usize,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::legalization) struct ScalarCallUnitShapeConstraints {
-    pub block_count: usize,
-    pub minimum_call_count: usize,
-    pub scalar_parameter_count: usize,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::legalization) enum StructuralUnitOperationShape {
     ReturnOnly,
     CallThenReturn,
@@ -145,8 +101,6 @@ pub(in crate::legalization) struct StructuralUnitShapeConstraints {
 pub(in crate::legalization) enum LegalizationShapeConstraints {
     Scalar(ScalarShapeConstraints),
     ScalarSequence,
-    Unit(UnitShapeConstraints),
-    ScalarCallUnit(ScalarCallUnitShapeConstraints),
     StructuralUnit(StructuralUnitShapeConstraints),
 }
 

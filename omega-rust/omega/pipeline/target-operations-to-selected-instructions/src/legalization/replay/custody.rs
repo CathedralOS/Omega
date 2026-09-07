@@ -23,8 +23,7 @@ pub(super) fn validate_replay_custody(
         || proposed.target != target.target
         || proposed.entry != target.entry
         || proposed.functions.len()
-            + proposed.unit_functions.len()
-            + proposed.scalar_call_unit_functions.len()
+            + proposed.scalar_functions.len()
             + proposed.structural_unit_functions.len()
             + proposed.projected_structural_call_returns.len() * 2
             != target.functions.len()

@@ -17,10 +17,7 @@ pub(super) fn validate_initial_roots(
     {
         return Err(SelectedInstructionError::TargetRegisterArchitectureMismatch);
     }
-    if target.functions.len()
-        + target.unit_functions.len()
-        + target.scalar_call_unit_functions.len()
-        != plan.functions.len()
+    if target.functions.len() + target.scalar_functions.len() != plan.functions.len()
         || target.structural_unit_functions.len() != plan.structural_unit_functions.len()
         || target.projected_structural_call_returns.len()
             != plan.projected_structural_call_returns.len()
@@ -33,13 +30,7 @@ pub(super) fn validate_initial_roots(
         .map(|function| function.machine())
         .chain(
             target
-                .unit_functions
-                .iter()
-                .map(|function| function.machine),
-        )
-        .chain(
-            target
-                .scalar_call_unit_functions
+                .scalar_functions
                 .iter()
                 .map(|function| function.machine),
         )
@@ -109,7 +100,7 @@ pub(super) fn validate_initial_roots(
                     SourceLeafValue::EntryParameter { .. }
                 ))
         })
-        .sum::<usize>();
+        .sum::<usize>() + target.scalar_functions.iter().map(|source| source.parameters.len()).sum::<usize>();
     if constraints.fixed_inputs.len() != expected_fixed_inputs {
         return Err(SelectedInstructionError::SourceCustodyMismatch);
     }

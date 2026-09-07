@@ -11,29 +11,31 @@ fn plain_unit_catalog_form_is_produced_and_independently_replayed() {
         .expect("plain Unit return legalizes through its catalog row");
     assert!(legalized.plan().functions.is_empty());
     assert!(legalized.plan().structural_unit_functions.is_empty());
-    assert_eq!(legalized.plan().unit_functions.len(), 1);
+    assert_eq!(legalized.plan().scalar_functions.len(), 1);
     assert_eq!(
-        legalized.plan().unit_functions[0].recipe,
-        legalized_operations::UnitLegalizationRecipe::ReturnUnitV1
+        legalized.plan().scalar_functions[0].blocks[0]
+            .terminator
+            .value,
+        legalized_operations::LegalizedScalarReturnValue::Unit
     );
     assert_eq!(legalized.receipt().function_count(), 1);
 
     let mut wrong_edge = legalized.plan().clone();
-    wrong_edge.unit_functions[0].return_edge = EdgeId::new(2).unwrap();
+    wrong_edge.scalar_functions[0].blocks[0].terminator.edge = EdgeId::new(2).unwrap();
     assert!(validate_legalized_operations(&target, &abstract_plan, &unit, wrong_edge).is_err());
 
     let mut wrong_machine = legalized.plan().clone();
-    wrong_machine.unit_functions[0].machine = MachineId::new(2).unwrap();
+    wrong_machine.scalar_functions[0].machine = MachineId::new(2).unwrap();
     assert!(validate_legalized_operations(&target, &abstract_plan, &unit, wrong_machine).is_err());
 
     let mut duplicate = legalized.plan().clone();
     duplicate
-        .unit_functions
-        .push(duplicate.unit_functions[0].clone());
+        .scalar_functions
+        .push(duplicate.scalar_functions[0].clone());
     assert!(validate_legalized_operations(&target, &abstract_plan, &unit, duplicate).is_err());
 
     let mut erased = legalized.plan().clone();
-    erased.unit_functions.clear();
+    erased.scalar_functions.clear();
     assert!(validate_legalized_operations(&target, &abstract_plan, &unit, erased).is_err());
 }
 

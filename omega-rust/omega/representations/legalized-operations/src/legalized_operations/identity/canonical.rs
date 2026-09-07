@@ -3,7 +3,6 @@
 use super::condition::encode_condition;
 
 use super::projected_structural_call_return::encode_projected_structural_call_return;
-use super::scalar_call_unit::encode_scalar_call_unit_function;
 use super::{
     plan::encode_structural_unit_function,
     scalar::{
@@ -16,9 +15,8 @@ pub(super) fn identity(
     plan: &LegalizedOperationPlan,
     domain: &[u8],
     retain_call_contract: bool,
-    retain_scalar_call_unit_roster: bool,
+    retain_historical_empty_call_roster: bool,
     retain_scalar_body: bool,
-    retain_ordered_calls: bool,
 ) -> LegalizedOperationPlanIdentity {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
@@ -97,32 +95,8 @@ pub(super) fn identity(
         encode_leaf(&mut bytes, &function.when_true);
         encode_leaf(&mut bytes, &function.when_false);
     }
-    encode_len(&mut bytes, plan.unit_functions.len());
-    for function in &plan.unit_functions {
-        bytes.extend_from_slice(&function.machine.get().to_le_bytes());
-        encode_option_id(
-            &mut bytes,
-            function.attachment.map(|attachment| attachment.get()),
-        );
-        encode_ids(
-            &mut bytes,
-            function
-                .provenance
-                .operations
-                .iter()
-                .map(|operation| operation.get()),
-        );
-        encode_ids(
-            &mut bytes,
-            function.provenance.edges.iter().map(|edge| edge.get()),
-        );
-        bytes.push(match function.recipe {
-            UnitLegalizationRecipe::ReturnUnitV1 => 0,
-        });
-        bytes.extend_from_slice(&function.entry_block.get().to_le_bytes());
-        bytes.extend_from_slice(&function.return_edge.get().to_le_bytes());
-        encode_fuel(&mut bytes, &function.return_fuel);
-    }
+    // Retired Unit roster remains empty in historical fingerprint domains.
+    encode_len(&mut bytes, 0);
     encode_len(&mut bytes, plan.structural_unit_functions.len());
     for function in &plan.structural_unit_functions {
         encode_structural_unit_function(&mut bytes, function, retain_call_contract);
@@ -131,10 +105,15 @@ pub(super) fn identity(
     for closure in &plan.projected_structural_call_returns {
         encode_projected_structural_call_return(&mut bytes, closure);
     }
-    if retain_scalar_call_unit_roster {
-        encode_len(&mut bytes, plan.scalar_call_unit_functions.len());
-        for function in &plan.scalar_call_unit_functions {
-            encode_scalar_call_unit_function(&mut bytes, function, retain_ordered_calls);
+    if retain_historical_empty_call_roster {
+        encode_len(&mut bytes, 0);
+    }
+    // A graph can never disappear under a legacy commitment.
+    if !plan.scalar_functions.is_empty() {
+        bytes.extend_from_slice(b"ordinary-scalar-graph.v1\0");
+        encode_len(&mut bytes, plan.scalar_functions.len());
+        for function in &plan.scalar_functions {
+            super::scalar_graph::encode(&mut bytes, function);
         }
     }
     LegalizedOperationPlanIdentity::from_canonical_bytes(&bytes)

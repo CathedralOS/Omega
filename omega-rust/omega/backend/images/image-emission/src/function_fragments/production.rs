@@ -2,8 +2,8 @@ use super::{
     Error, attribution, host, source, validation::validate_function_fragment_object_artifact,
 };
 use crate::{
-    ObjectArtifact, ObjectCodeAttribution, ObjectFunction, ObjectScalarStack, ObjectUnitCallStack,
-    ObjectUnitStack,
+    ObjectArtifact, ObjectCodeAttribution, ObjectFunction, ObjectScalarCallStack,
+    ObjectScalarStack, ObjectUnitCallStack, ObjectUnitStack,
 };
 use object_file::{
     ObjectPlan, RelocationPlan, SectionKind, SectionPlan,
@@ -53,7 +53,12 @@ pub fn build_function_fragment_object_artifact(
             target::Architecture::X86_64 => 8,
             target::Architecture::Aarch64 => 0,
         };
+        let unit = matches!(
+            abstracted.result,
+            abstract_operations::AbstractFunctionResult::Unit
+        );
         let mut unit_call_stacks = Vec::new();
+        let mut scalar_call_stacks = Vec::new();
         let mut local_peak = frame_bytes;
         for call in text
             .resolved_internal_machine_calls
@@ -62,26 +67,38 @@ pub fn build_function_fragment_object_artifact(
         {
             let caller_live_bytes = frame_bytes.checked_add(linkage).ok_or(Error::Overflow)?;
             local_peak = local_peak.max(caller_live_bytes);
-            unit_call_stacks.push(ObjectUnitCallStack {
-                owner: target_operations::CallSiteOwner::Operation(call.operation),
-                target: call.callee,
-                text_offset: host(call.field_section_offset)?,
-                active_frame_bytes: frame_bytes,
-                transient_bytes: linkage,
-                caller_live_bytes,
-            });
+            let owner = target_operations::CallSiteOwner::Operation(call.operation);
+            let text_offset = host(call.field_section_offset)?;
+            if unit {
+                unit_call_stacks.push(ObjectUnitCallStack {
+                    owner,
+                    target: call.callee,
+                    text_offset,
+                    active_frame_bytes: frame_bytes,
+                    transient_bytes: linkage,
+                    caller_live_bytes,
+                });
+            } else {
+                scalar_call_stacks.push(ObjectScalarCallStack {
+                    owner,
+                    target: call.callee,
+                    text_offset,
+                    caller_live_bytes,
+                });
+            }
         }
-        let unit = matches!(
-            abstracted.result,
-            abstract_operations::AbstractFunctionResult::Unit
-        );
         functions.push(ObjectFunction {
             machine: placed.machine,
             attachment,
             fixed_integer_scalar_abi: targeted.fixed_integer_scalar_abi.clone(),
             mixed_structural_scalar_abi: None,
             structural_call_scalar_return: None,
-            unit_scalar_abi: None,
+            unit_scalar_abi: source::unit_scalar_body(targeted).map(|body| {
+                machine_code::UnitScalarFunctionAbiRecord {
+                    call_plan: body.call_plan.clone(),
+                    parameters: body.scalar_parameters.clone(),
+                }
+            }),
             provenance: provenance.clone(),
             symbol,
             text_offset: offset,
@@ -99,7 +116,7 @@ pub fn build_function_fragment_object_artifact(
                 stack_alignment: alignment,
             }),
             unit_call_stacks,
-            scalar_call_stacks: Vec::new(),
+            scalar_call_stacks,
             internal_unit_calls: Vec::new(),
             internal_unit_scalar_calls: Vec::new(),
             installed_provider_unit_scalar_calls: Vec::new(),

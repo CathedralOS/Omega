@@ -21,11 +21,18 @@ pub(super) fn derive(
     let mut calls = function
         .unit_call_stacks
         .iter()
-        .filter(|call| call.owner == CallSiteOwner::Operation(occurrence.operation()));
-    let call = calls
+        .map(|call| (call.owner, call.target, call.text_offset))
+        .chain(
+            function
+                .scalar_call_stacks
+                .iter()
+                .map(|call| (call.owner, call.target, call.text_offset)),
+        )
+        .filter(|(owner, _, _)| *owner == CallSiteOwner::Operation(occurrence.operation()));
+    let (_, call_target, call_offset) = calls
         .next()
         .ok_or("D29 fragment call has no exact stack/call record")?;
-    if calls.next().is_some() || call.target != expected_callee {
+    if calls.next().is_some() || call_target != expected_callee {
         return Err("D29 fragment call changed its unique owner or callee");
     }
     let callee = object
@@ -34,12 +41,11 @@ pub(super) fn derive(
         .find(|function| function.machine == expected_callee)
         .ok_or("D29 fragment call names an absent callee")?;
     let opcode = match target.architecture {
-        Architecture::X86_64 => call.text_offset.checked_sub(1),
-        Architecture::Aarch64 => Some(call.text_offset),
+        Architecture::X86_64 => call_offset.checked_sub(1),
+        Architecture::Aarch64 => Some(call_offset),
     }
     .ok_or("D29 fragment call opcode offset underflow")?;
-    let end = call
-        .text_offset
+    let end = call_offset
         .checked_add(4)
         .ok_or("D29 fragment call extent overflow")?;
     let bytes = object

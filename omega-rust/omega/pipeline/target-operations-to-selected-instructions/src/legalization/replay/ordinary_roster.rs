@@ -35,53 +35,68 @@ pub(super) fn replay_remaining(
         else {
             return Err(Error::SourceCustodyMismatch);
         };
-        let count = if matches!(target_function.operation, TargetOperation::UnitBody(_)) {
-            let plain = proposed
-                .unit_functions
+        let graphs = proposed
+            .scalar_functions
+            .iter()
+            .filter(|candidate| candidate.machine == target_function.machine)
+            .collect::<Vec<_>>();
+        if graphs.is_empty()
+            && crate::legalization::scalar_graph_input::match_input(
+                target_function,
+                abstracted,
+                optimized,
+                target,
+                abstract_plan,
+                unit,
+            )
+            .is_ok()
+        {
+            return Err(Error::NonCanonicalLegalizedPlan);
+        }
+        let count = if let [graph] = graphs.as_slice() {
+            if proposed
+                .functions
                 .iter()
-                .filter(|candidate| candidate.machine == target_function.machine)
-                .collect::<Vec<_>>();
-            let structural = proposed
+                .any(|candidate| candidate.machine() == target_function.machine)
+                || proposed
+                    .structural_unit_functions
+                    .iter()
+                    .any(|candidate| candidate.machine == target_function.machine)
+            {
+                return Err(Error::NonCanonicalLegalizedPlan);
+            }
+            super::scalar_graph::replay(
+                target_function,
+                abstracted,
+                optimized,
+                target,
+                abstract_plan,
+                unit,
+                proposed,
+                graph,
+            )?;
+            0
+        } else if !graphs.is_empty() {
+            return Err(Error::NonCanonicalLegalizedPlan);
+        } else if matches!(target_function.operation, TargetOperation::UnitBody(_)) {
+            let matches = proposed
                 .structural_unit_functions
                 .iter()
                 .filter(|candidate| candidate.machine == target_function.machine)
                 .collect::<Vec<_>>();
-            let scalar_call = proposed
-                .scalar_call_unit_functions
-                .iter()
-                .filter(|candidate| candidate.machine == target_function.machine)
-                .collect::<Vec<_>>();
-            match (
-                plain.as_slice(),
-                scalar_call.as_slice(),
-                structural.as_slice(),
-            ) {
-                ([legalized], [], []) => {
-                    replay_unit_function(index, target_function, abstracted, optimized, legalized)?
-                }
-                ([], [legalized], []) => replay_scalar_call_unit_function(
-                    index,
-                    target_function,
-                    abstracted,
-                    optimized,
-                    target,
-                    abstract_plan,
-                    unit,
-                    proposed,
-                    legalized,
-                )?,
-                ([], [], [legalized]) => replay_structural_unit_function(
-                    index,
-                    target_function,
-                    abstracted,
-                    optimized,
-                    legalized,
-                    target,
-                    abstract_plan,
-                    unit,
-                )?,
-                _ => return Err(Error::NonCanonicalLegalizedPlan),
-            }
+            let [legalized] = matches.as_slice() else {
+                return Err(Error::NonCanonicalLegalizedPlan);
+            };
+            replay_structural_unit_function(
+                index,
+                target_function,
+                abstracted,
+                optimized,
+                legalized,
+                target,
+                abstract_plan,
+                unit,
+            )?
         } else {
             let mut matches = proposed
                 .functions

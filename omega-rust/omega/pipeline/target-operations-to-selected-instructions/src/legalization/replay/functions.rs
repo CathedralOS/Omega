@@ -1,91 +1,11 @@
 use super::conditions;
-use super::leaf::{replay_edge_fuel, replay_leaf};
+use super::leaf::replay_leaf;
 use super::shared::*;
-use super::validators::{scalar_validator_accepts, validate_unit_form};
+use super::validators::scalar_validator_accepts;
 use crate::legalization::catalog::{
     LegalizationFormRecipe, LegalizationValidatorKind, legalization_form_for_recipe,
 };
 
-pub(super) fn replay_unit_function(
-    function: usize,
-    target: &target_operations::TargetFunction,
-    abstracted: &abstract_operations::AbstractFunction,
-    optimized: &optimization_unit::PsiOptimizationFunction,
-    proposed: &LegalizedUnitFunction,
-) -> Result<usize, LegalizationError> {
-    validate_unit_form(target, abstracted, optimized, proposed.recipe)
-        .ok_or(Error::NonCanonicalLegalizedPlan)?;
-    let TargetOperation::UnitBody(body) = &target.operation else {
-        return Err(Error::UnsupportedSourceShape { function });
-    };
-    let [target_return] = body.operations.as_slice() else {
-        return Err(Error::UnsupportedSourceShape { function });
-    };
-    let target_operations::TargetUnitOperation::Return {
-        psi_edge,
-        cleanup_actions,
-    } = target_return
-    else {
-        return Err(Error::UnsupportedSourceShape { function });
-    };
-    let [abstract_entry] = abstracted.block_entries.as_slice() else {
-        return Err(Error::UnsupportedSourceShape { function });
-    };
-    let [abstract_return] = abstracted.operations.as_slice() else {
-        return Err(Error::UnsupportedSourceShape { function });
-    };
-    let [optimized_block] = optimized.blocks.as_slice() else {
-        return Err(Error::UnsupportedSourceShape { function });
-    };
-    let [optimized_return] = optimized_block.nodes.as_slice() else {
-        return Err(Error::UnsupportedSourceShape { function });
-    };
-    if target.machine != abstracted.machine
-        || target.machine != optimized.machine
-        || target.attachment != abstracted.attachment
-        || !matches!(
-            abstracted.result,
-            abstract_operations::AbstractFunctionResult::Unit
-        )
-        || !abstracted.parameters.is_empty()
-        || !optimized.parameters.is_empty()
-        // This closed Unit record has no structural ABI or ownership
-        // vocabulary. Independent replay must fail rather than validate a
-        // proposal that erased those source declarations.
-        || !body.parameters.is_empty()
-        || !abstracted.structural_parameters.is_empty()
-        || !optimized.structural_parameters.is_empty()
-        || !abstracted.entry_claims.is_empty()
-        || !optimized.entry_claim_declarations.is_empty()
-        || !optimized.entry_claims.is_empty()
-        || !optimized.declared_places.is_empty()
-        || !abstracted.published_service_ceiling.is_empty()
-        || !optimized.published_service_ceiling.is_empty()
-        || abstracted.entry != abstract_entry.block
-        || optimized.entry != abstract_entry.block
-        || optimized_block.id != abstract_entry.block
-        || abstract_entry.operation_offset != 0
-        || !abstract_entry.parameters.is_empty()
-        || !optimized_block.parameters.is_empty()
-        || !cleanup_actions.is_empty()
-        || abstract_return != &optimized_return.operation
-        || !matches!(abstract_return, AbstractOperation::ReturnUnit { psi_edge: edge, cleanup_actions } if edge == psi_edge && cleanup_actions.is_empty())
-    {
-        return Err(Error::UnsupportedSourceShape { function });
-    }
-    if proposed.machine != target.machine
-        || proposed.attachment != target.attachment
-        || proposed.provenance != target.provenance
-        || proposed.entry_block != optimized_block.id
-        || proposed.return_edge != *psi_edge
-        || proposed.return_fuel != optimized_return.fuel
-    {
-        return Err(Error::NonCanonicalLegalizedPlan);
-    }
-    Ok(0)
-}
-
-#[allow(clippy::too_many_arguments)]
 pub(super) fn replay_function(
     function: usize,
     architecture: target::Architecture,

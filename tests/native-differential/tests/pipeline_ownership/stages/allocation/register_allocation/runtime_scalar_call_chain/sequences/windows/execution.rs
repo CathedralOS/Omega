@@ -3,7 +3,7 @@
 use super::physical;
 use crate::tests::*;
 
-mod memory;
+use super::super::super::native_execution as memory;
 mod stress;
 
 pub(super) fn run() {

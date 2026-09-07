@@ -17,7 +17,7 @@ pub(super) fn lower_and_select_structural_call() -> StagedOptimizedSelectedInstr
     )
     .expect("structural Unit call must reach the distinct v6 custody roster");
 
-    assert!(legalized.plan().unit_functions.is_empty());
+    assert!(legalized.plan().scalar_functions.is_empty());
     assert_eq!(legalized.plan().structural_unit_functions.len(), 2);
     assert_eq!(legalized.receipt().function_count(), 2);
     let caller = &legalized.plan().structural_unit_functions[0];

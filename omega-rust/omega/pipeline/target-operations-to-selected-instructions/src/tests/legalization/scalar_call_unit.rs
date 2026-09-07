@@ -24,7 +24,7 @@ fn register_calls_retain_the_target_abi_home_area() {
             0
         };
         let mut changed = legalized.plan().clone();
-        let call = call_mut(&mut changed.scalar_call_unit_functions[0], 0);
+        let call = call_mut(&mut changed.scalar_functions[0], 0);
         assert_eq!(call.call_plan.shadow_bytes, expected_shadow);
         call.call_plan.shadow_bytes = if expected_shadow == 0 { 32 } else { 0 };
         assert!(validate_legalized_operations(&target, &abstract_plan, &unit, changed).is_err());
@@ -62,8 +62,8 @@ fn one_call_and_equal_constant_operands_have_no_fixture_topology_requirement() {
     let legalized = legalize_target_operations(&target, &abstract_plan, &unit)
         .expect("one ordinary register call with equal constants");
     assert_eq!(
-        legalized.plan().scalar_call_unit_functions[0]
-            .operations
+        legalized.plan().scalar_functions[0].blocks[0]
+            .instructions
             .len(),
         3
     );
@@ -76,12 +76,12 @@ fn zero_call_proposal_and_forward_references_reject() {
     let (abstract_plan, target, unit) = scalar_call_unit_fixture();
     let legalized = legalize_target_operations(&target, &abstract_plan, &unit).unwrap();
     let mut no_calls = legalized.plan().clone();
-    no_calls.scalar_call_unit_functions[0]
-        .operations
+    no_calls.scalar_functions[0].blocks[0]
+        .instructions
         .retain(|operation| {
             matches!(
-                operation,
-                legalized_operations::LegalizedScalarCallUnitOperation::Constant(_)
+                operation.kind,
+                legalized_operations::LegalizedScalarInstructionKind::Constant(_)
             )
         });
     assert!(validate_legalized_operations(&target, &abstract_plan, &unit, no_calls).is_err());
@@ -158,48 +158,50 @@ fn exact_u64_equality_three_call_chain_is_produced_and_replayed() {
     let (abstract_plan, target, unit) = scalar_call_unit_fixture();
     let legalized = legalize_target_operations(&target, &abstract_plan, &unit)
         .expect("exact attached-Unit scalar call chain legalizes");
-    assert_eq!(legalized.plan().scalar_call_unit_functions.len(), 1);
+    assert_eq!(legalized.plan().scalar_functions.len(), 1);
     assert_eq!(legalized.plan().functions.len(), 1);
     assert_eq!(legalized.receipt().function_count(), 2);
-    let function = &legalized.plan().scalar_call_unit_functions[0];
-    let calls = function
-        .operations
+    let function = &legalized.plan().scalar_functions[0];
+    let calls = function.blocks[0]
+        .instructions
         .iter()
-        .filter_map(|operation| match operation {
-            legalized_operations::LegalizedScalarCallUnitOperation::Call(call) => Some(call),
+        .filter_map(|operation| match &operation.kind {
+            legalized_operations::LegalizedScalarInstructionKind::Call(call) => Some(call),
             _ => None,
         })
         .collect::<Vec<_>>();
-    assert_eq!(function.operations.len(), 5);
+    assert_eq!(function.blocks[0].instructions.len(), 5);
     assert_eq!(calls.len(), 3);
     assert_eq!(calls[0].arguments, calls[1].arguments);
-    assert!(
-        matches!(calls[2].arguments[0].source, target_operations::TargetUnitScalarArgumentSource::Home(home) if home == calls[0].result_home)
+    assert_eq!(
+        calls[2].arguments[0].source,
+        function.blocks[0].instructions[2].result
     );
-    assert!(
-        matches!(calls[2].arguments[1].source, target_operations::TargetUnitScalarArgumentSource::Home(home) if home == calls[1].result_home)
+    assert_eq!(
+        calls[2].arguments[1].source,
+        function.blocks[0].instructions[3].result
     );
 
     let mut corruptions = Vec::new();
     let mut corrupted = legalized.plan().clone();
-    corrupted.scalar_call_unit_functions[0]
-        .operations
+    corrupted.scalar_functions[0].blocks[0]
+        .instructions
         .swap(0, 1);
     corruptions.push(corrupted);
     let mut corrupted = legalized.plan().clone();
-    call_mut(&mut corrupted.scalar_call_unit_functions[0], 0)
+    call_mut(&mut corrupted.scalar_functions[0], 0)
         .arguments
         .swap(0, 1);
     corruptions.push(corrupted);
     let mut corrupted = legalized.plan().clone();
-    call_mut(&mut corrupted.scalar_call_unit_functions[0], 2).result_home =
-        call_mut(&mut corrupted.scalar_call_unit_functions[0], 1).result_home;
+    corrupted.scalar_functions[0].blocks[0].instructions[4].result =
+        corrupted.scalar_functions[0].blocks[0].instructions[3].result;
     corruptions.push(corrupted);
     let mut corrupted = legalized.plan().clone();
-    call_mut(&mut corrupted.scalar_call_unit_functions[0], 1).fuel[0].units += 1;
+    corrupted.scalar_functions[0].blocks[0].instructions[3].fuel[0].units += 1;
     corruptions.push(corrupted);
     let mut corrupted = legalized.plan().clone();
-    corrupted.scalar_call_unit_functions.clear();
+    corrupted.scalar_functions.clear();
     corruptions.push(corrupted);
     for corrupted in corruptions {
         assert!(validate_legalized_operations(&target, &abstract_plan, &unit, corrupted).is_err());
@@ -207,14 +209,14 @@ fn exact_u64_equality_three_call_chain_is_produced_and_replayed() {
 }
 
 fn call_mut(
-    function: &mut legalized_operations::LegalizedScalarCallUnitFunction,
+    function: &mut legalized_operations::LegalizedScalarFunction,
     index: usize,
-) -> &mut legalized_operations::LegalizedScalarCallUnitCall {
-    function
-        .operations
+) -> &mut legalized_operations::LegalizedScalarCall {
+    function.blocks[0]
+        .instructions
         .iter_mut()
-        .filter_map(|operation| match operation {
-            legalized_operations::LegalizedScalarCallUnitOperation::Call(call) => Some(call),
+        .filter_map(|operation| match &mut operation.kind {
+            legalized_operations::LegalizedScalarInstructionKind::Call(call) => Some(call),
             _ => None,
         })
         .nth(index)
@@ -312,9 +314,9 @@ fn every_register_arity_uses_one_input_contract_and_independent_replay() {
                 &target, &source, &unit
             ));
             let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
-            for operation in &legalized.plan().scalar_call_unit_functions[0].operations {
-                if let legalized_operations::LegalizedScalarCallUnitOperation::Call(call) =
-                    operation
+            for operation in &legalized.plan().scalar_functions[0].blocks[0].instructions {
+                if let legalized_operations::LegalizedScalarInstructionKind::Call(call) =
+                    &operation.kind
                 {
                     assert_eq!(call.arguments.len(), arity);
                 }
@@ -322,7 +324,7 @@ fn every_register_arity_uses_one_input_contract_and_independent_replay() {
             validate_legalized_operations(&target, &source, &unit, legalized.plan().clone())
                 .unwrap();
             let mut omitted = legalized.plan().clone();
-            let call = call_mut(&mut omitted.scalar_call_unit_functions[0], 0);
+            let call = call_mut(&mut omitted.scalar_functions[0], 0);
             if call.arguments.pop().is_some() {
                 assert!(validate_legalized_operations(&target, &source, &unit, omitted).is_err());
             }

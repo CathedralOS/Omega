@@ -1,7 +1,7 @@
 //! Replay numeric image-publisher facts against admitted frame and call inputs.
 
 use super::{Error, host};
-use crate::{ObjectScalarStack, ObjectUnitCallStack, ObjectUnitStack};
+use crate::{ObjectScalarCallStack, ObjectScalarStack, ObjectUnitCallStack, ObjectUnitStack};
 use machine_code::PlacedInternalMachineCallResolution;
 use target::Architecture;
 
@@ -13,9 +13,13 @@ pub(super) fn validate(
     unit_stack: Option<ObjectUnitStack>,
     scalar_stack: Option<ObjectScalarStack>,
     unit_call_stacks: &[ObjectUnitCallStack],
+    scalar_call_stacks: &[ObjectScalarCallStack],
 ) -> Result<(), Error> {
     let (frame_bytes, alignment, contains_call) = geometry;
-    if unit_call_stacks.len() != calls.len() || (!unit && !calls.is_empty()) || alignment == 0 {
+    if (unit && (!scalar_call_stacks.is_empty() || unit_call_stacks.len() != calls.len()))
+        || (!unit && (!unit_call_stacks.is_empty() || scalar_call_stacks.len() != calls.len()))
+        || alignment == 0
+    {
         return Err(Error::Mismatch("shared call stack roster changed"));
     }
     let return_bytes = match architecture {
@@ -23,24 +27,46 @@ pub(super) fn validate(
         Architecture::Aarch64 => 0,
     };
     let mut peak = frame_bytes;
-    for (row, call) in unit_call_stacks.iter().zip(calls) {
+    let edges = unit_call_stacks
+        .iter()
+        .map(|row| {
+            (
+                row.owner,
+                row.target,
+                row.text_offset,
+                row.caller_live_bytes,
+            )
+        })
+        .chain(scalar_call_stacks.iter().map(|row| {
+            (
+                row.owner,
+                row.target,
+                row.text_offset,
+                row.caller_live_bytes,
+            )
+        }));
+    for ((owner, target, text_offset, caller_live_bytes), call) in edges.zip(calls) {
         if !contains_call
-            || row.owner != target_operations::CallSiteOwner::Operation(call.operation)
-            || row.target != call.callee
-            || row.text_offset != host(call.field_section_offset)?
-            || u64::from(row.active_frame_bytes) != frame_bytes
-            || u64::from(row.transient_bytes) != return_bytes
-            || u64::from(row.caller_live_bytes)
+            || owner != target_operations::CallSiteOwner::Operation(call.operation)
+            || target != call.callee
+            || text_offset != host(call.field_section_offset)?
+            || u64::from(caller_live_bytes)
                 != frame_bytes
                     .checked_add(return_bytes)
                     .ok_or(Error::Overflow)?
-            || !row.caller_live_bytes.is_multiple_of(u32::from(alignment))
+            || !caller_live_bytes.is_multiple_of(u32::from(alignment))
         {
             return Err(Error::Mismatch(
                 "shared call prefix differs from its validated frame and call",
             ));
         }
-        peak = peak.max(u64::from(row.caller_live_bytes));
+        peak = peak.max(u64::from(caller_live_bytes));
+    }
+    if unit_call_stacks.iter().any(|row| {
+        u64::from(row.active_frame_bytes) != frame_bytes
+            || u64::from(row.transient_bytes) != return_bytes
+    }) {
+        return Err(Error::Mismatch("shared call frame decomposition changed"));
     }
     match (unit, unit_stack, scalar_stack) {
         (true, Some(stack), None)
@@ -101,6 +127,75 @@ mod tests {
     }
 
     #[test]
+    fn scalar_call_edges_retain_exact_frame_prefix_owner_target_and_role() {
+        for architecture in [Architecture::X86_64, Architecture::Aarch64] {
+            let call = call(architecture);
+            let (frame_bytes, peak) = match architecture {
+                Architecture::X86_64 => (24, 32),
+                Architecture::Aarch64 => (16, 16),
+            };
+            let stack = ObjectScalarStack {
+                local_peak_bytes: peak,
+                stack_alignment: 16,
+            };
+            let row = ObjectScalarCallStack {
+                owner: target_operations::CallSiteOwner::Operation(call.operation),
+                target: call.callee,
+                text_offset: call.field_section_offset as usize,
+                caller_live_bytes: peak,
+            };
+            let check = |stack, rows: &[ObjectScalarCallStack]| {
+                validate(
+                    false,
+                    (frame_bytes, 16, true),
+                    architecture,
+                    &[&call],
+                    None,
+                    Some(stack),
+                    &[],
+                    rows,
+                )
+            };
+            check(stack, &[row]).unwrap();
+            let mut changed = row;
+            changed.caller_live_bytes += 16;
+            assert!(check(stack, &[changed]).is_err());
+            changed = row;
+            changed.target = call.caller;
+            assert!(check(stack, &[changed]).is_err());
+            changed = row;
+            changed.owner =
+                target_operations::CallSiteOwner::Operation(OperationId::new(9).unwrap());
+            assert!(check(stack, &[changed]).is_err());
+            changed = row;
+            changed.text_offset += 1;
+            assert!(check(stack, &[changed]).is_err());
+            let mut changed_stack = stack;
+            changed_stack.local_peak_bytes += 16;
+            assert!(check(changed_stack, &[row]).is_err());
+            assert!(check(stack, &[]).is_err());
+            assert!(check(stack, &[row, row]).is_err());
+            assert!(
+                validate(
+                    true,
+                    (frame_bytes, 16, true),
+                    architecture,
+                    &[&call],
+                    Some(ObjectUnitStack {
+                        frame_bytes: frame_bytes as u32,
+                        local_peak_bytes: peak,
+                        stack_alignment: 16
+                    }),
+                    None,
+                    &[],
+                    &[row]
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
     fn retained_call_prefix_and_local_peak_cannot_be_changed_or_removed() {
         for architecture in [Architecture::X86_64, Architecture::Aarch64] {
             let call = call(architecture);
@@ -130,6 +225,7 @@ mod tests {
                     Some(stack),
                     None,
                     rows,
+                    &[],
                 )
             };
             check(stack, &[row]).unwrap();

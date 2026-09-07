@@ -138,39 +138,43 @@ fn exact_target_legal_and_selected_call_chain_survives_on_both_isas() {
         );
 
         let legal = staged.legalized().plan();
-        assert_eq!(legal.scalar_call_unit_functions.len(), 1);
-        let legal_caller = &legal.scalar_call_unit_functions[0];
-        assert_eq!(legal_caller.machine, caller);
-        assert_eq!(
-            legal_caller.recipe,
-            ScalarCallUnitLegalizationRecipe::OrderedU64RegisterCallsThenReturnUnitV1
-        );
-        let calls = legal_caller
-            .operations
+        let legal_caller = legal
+            .scalar_functions
             .iter()
-            .filter_map(|operation| match operation {
-                legalized_operations::LegalizedScalarCallUnitOperation::Call(call) => Some(call),
+            .find(|function| function.machine == caller)
+            .unwrap();
+        assert_eq!(legal_caller.machine, caller);
+        let calls = legal_caller.blocks[0]
+            .instructions
+            .iter()
+            .filter_map(|instruction| match &instruction.kind {
+                legalized_operations::LegalizedScalarInstructionKind::Call(call) => {
+                    Some((instruction, call))
+                }
                 _ => None,
             })
             .collect::<Vec<_>>();
-        assert_eq!(legal_caller.operations.len(), 5);
+        assert_eq!(legal_caller.blocks[0].instructions.len(), 5);
         assert_eq!(calls.len(), 3);
         assert_eq!(
-            calls.iter().map(|call| call.operation).collect::<Vec<_>>(),
+            calls
+                .iter()
+                .map(|(instruction, _)| instruction.operation)
+                .collect::<Vec<_>>(),
             call_operations
         );
-        assert!(calls.iter().all(|call| call.callee == callee));
-        assert_eq!(calls[0].arguments[0].source.source_value(), left);
-        assert_eq!(calls[0].arguments[1].source.source_value(), right);
-        assert_eq!(calls[1].arguments[0].source.source_value(), left);
-        assert_eq!(calls[1].arguments[1].source.source_value(), right);
-        assert_eq!(calls[2].arguments[0].source.source_value(), first_result);
-        assert_eq!(calls[2].arguments[1].source.source_value(), second_result);
+        assert!(calls.iter().all(|(_, call)| call.callee == callee));
+        assert_eq!(calls[0].1.arguments[0].source, left);
+        assert_eq!(calls[0].1.arguments[1].source, right);
+        assert_eq!(calls[1].1.arguments[0].source, left);
+        assert_eq!(calls[1].1.arguments[1].source, right);
+        assert_eq!(calls[2].1.arguments[0].source, first_result);
+        assert_eq!(calls[2].1.arguments[1].source, second_result);
         assert_eq!(
-            legal_caller.return_edge,
+            legal_caller.blocks[0].terminator.edge,
             EdgeId::new(SCALAR_CALL_UNIT_RETURN_EDGE).unwrap()
         );
-        assert_eq!(legal_caller.return_fuel.len(), 1);
+        assert_eq!(legal_caller.blocks[0].terminator.fuel.len(), 1);
 
         let selected = staged.selected().plan();
         let selected_caller = selected

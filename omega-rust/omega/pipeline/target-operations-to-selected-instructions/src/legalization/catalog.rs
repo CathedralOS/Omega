@@ -5,10 +5,7 @@
 
 mod model;
 
-use legalized_operations::{
-    LegalizationRecipe, ScalarCallUnitLegalizationRecipe, StructuralUnitLegalizationRecipe,
-    UnitLegalizationRecipe,
-};
+use legalized_operations::{LegalizationRecipe, StructuralUnitLegalizationRecipe};
 pub(super) use model::*;
 
 const fn scalar_form(
@@ -139,50 +136,6 @@ const fn four_node_integer_comparison_scalar_form(
     descriptor
 }
 
-const fn unit_form() -> LegalizationFormDescriptor {
-    LegalizationFormDescriptor {
-        recipe: LegalizationFormRecipe::Unit(UnitLegalizationRecipe::ReturnUnitV1),
-        producer_matcher: LegalizationProducerMatcherKind::Unit(
-            UnitLegalizationMatcherKind::ReturnUnit,
-        ),
-        constraints: LegalizationShapeConstraints::Unit(UnitShapeConstraints {
-            block_count: 1,
-            operation_count: 1,
-            node_count: 1,
-            scalar_parameter_count: 0,
-        }),
-        cost: LegalizationStructuralCost {
-            projected_selected_instruction_count: 1,
-            introduced_temporary_count: 0,
-        },
-        validator: LegalizationValidatorKind::Unit(UnitLegalizationValidatorKind::ReturnUnit),
-    }
-}
-
-const fn scalar_call_unit_form() -> LegalizationFormDescriptor {
-    LegalizationFormDescriptor {
-        recipe: LegalizationFormRecipe::ScalarCallUnit(
-            ScalarCallUnitLegalizationRecipe::OrderedU64RegisterCallsThenReturnUnitV1,
-        ),
-        producer_matcher: LegalizationProducerMatcherKind::ScalarCallUnit(
-            ScalarCallUnitLegalizationMatcherKind::OrderedU64RegisterCalls,
-        ),
-        constraints: LegalizationShapeConstraints::ScalarCallUnit(ScalarCallUnitShapeConstraints {
-            block_count: 1,
-            minimum_call_count: 1,
-            scalar_parameter_count: 0,
-        }),
-        cost: LegalizationStructuralCost {
-            // Lower bound: a zero-argument call, its result copy, and return.
-            projected_selected_instruction_count: 3,
-            introduced_temporary_count: 0,
-        },
-        validator: LegalizationValidatorKind::ScalarCallUnit(
-            ScalarCallUnitLegalizationValidatorKind::OrderedU64RegisterCalls,
-        ),
-    }
-}
-
 const fn structural_unit_form(
     recipe: StructuralUnitLegalizationRecipe,
     producer_matcher: StructuralUnitLegalizationMatcherKind,
@@ -207,7 +160,7 @@ const fn structural_unit_form(
 }
 
 /// The sole precedence, shape, and planning inventory for all current forms.
-pub(super) const LEGALIZATION_FORMS: [LegalizationFormDescriptor; 21] = [
+pub(super) const LEGALIZATION_FORMS: [LegalizationFormDescriptor; 19] = [
     scalar_form(
         LegalizationRecipe::ReturnU64ImmediateConditionalV1,
         ScalarLegalizationMatcherKind::Immediate,
@@ -387,8 +340,6 @@ pub(super) const LEGALIZATION_FORMS: [LegalizationFormDescriptor; 21] = [
         0,
         ScalarLegalizationValidatorKind::Immediate,
     ),
-    scalar_call_unit_form(),
-    unit_form(),
     structural_unit_form(
         StructuralUnitLegalizationRecipe::ReturnUnitV1,
         StructuralUnitLegalizationMatcherKind::ReturnUnit,

@@ -1,4 +1,4 @@
-//! Windows-only W^X allocation for bounded test-machine-code execution.
+//! Shared Windows-only W^X allocation for bounded test-machine-code execution.
 
 use std::ffi::c_void;
 
@@ -16,13 +16,13 @@ unsafe extern "system" {
     fn FlushInstructionCache(process: *mut c_void, address: *const c_void, size: usize) -> i32;
 }
 
-pub(super) struct Code {
+pub(crate) struct Code {
     address: *mut c_void,
     length: usize,
 }
 
 impl Code {
-    pub(super) fn new(bytes: &[u8]) -> Self {
+    pub(crate) fn new(bytes: &[u8]) -> Self {
         assert!(!bytes.is_empty());
         // SAFETY: allocate private committed RW pages, copy only within the
         // requested extent, then remove write permission before execution.
@@ -48,7 +48,7 @@ impl Code {
         }
     }
 
-    pub(super) fn call_unit(&self, offset: usize) {
+    pub(crate) fn call_unit(&self, offset: usize) {
         assert!(offset < self.length);
         // SAFETY: the caller supplies a validated no-argument Unit entry.
         // This allocation remains executable and live for the entire call.
@@ -59,7 +59,7 @@ impl Code {
         }
     }
 
-    pub(super) fn call_scalar(&self, offset: usize, arguments: [u64; 4]) -> u64 {
+    pub(crate) fn call_scalar(&self, offset: usize, arguments: [u64; 4]) -> u64 {
         assert!(offset < self.length);
         // SAFETY: caller supplies a scalar callee or our preservation wrapper.
         // Extra register arguments are ignored by smaller-arity callees.

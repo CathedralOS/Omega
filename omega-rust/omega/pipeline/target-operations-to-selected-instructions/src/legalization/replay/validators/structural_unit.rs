@@ -4,7 +4,6 @@ use crate::legalization::catalog::{
 };
 
 use super::super::shared::*;
-use super::unit::independently_plain_unit_contract;
 
 pub(crate) struct ValidatedStructuralUnitForm<'a> {
     pub target_call: Option<&'a TargetUnitOperation>,
@@ -195,4 +194,27 @@ fn validate_form<'a>(
         optimized_return,
         settlement_rows,
     })
+}
+
+fn independently_plain_unit_contract(
+    target: &target_operations::TargetFunction,
+    abstracted: &abstract_operations::AbstractFunction,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+) -> bool {
+    let TargetOperation::UnitBody(body) = &target.operation else {
+        return false;
+    };
+    body.parameters.is_empty()
+        && abstracted.structural_parameters.is_empty()
+        && optimized.structural_parameters.is_empty()
+        && abstracted.entry_claims.is_empty()
+        && optimized.entry_claim_declarations.is_empty()
+        && optimized.entry_claims.is_empty()
+        && optimized.declared_places.is_empty()
+        && abstracted.published_service_ceiling.is_empty()
+        && optimized.published_service_ceiling.is_empty()
+        && matches!(
+            body.operations.as_slice(),
+            [TargetUnitOperation::Return { .. }]
+        )
 }
