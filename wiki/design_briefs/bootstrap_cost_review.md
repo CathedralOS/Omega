@@ -11,7 +11,7 @@ The objective remains the [smallest human-auditable chain](bootstrap_minimizatio
 | Delta height normalization | Current Epsilon customer lowers to height 69; normalization adds no helpers. | Freeze expansion. Do not raise Gamma depth for this customer. Resolve deep-source conformance before deleting the transform. |
 | Generic Gamma checker | Entire raw source/tape lists can be checked, but separately represented copies cost 229 seconds before any encoding derivation. | Keep the narrow checker; require a costed, shared certificate strategy before further encoder helper families. |
 | Partial Beta theory | Lexical and word helpers exist; full encoder, independent owner root, and source-owned certificate producer do not. | Do not treat helper completion as full-proof feasibility or trust reduction. |
-| Retained concatenative route | Eleven bootstrap files, 236,347 bytes, with twelve test entrypoints still consuming it. | Candidate for retirement, not dead code. Map unique coverage and preserve useful findings before coordinated removal. |
+| Retained concatenative route | Eleven bootstrap files, 236,347 bytes; eleven remaining test entrypoints after completed-discriminator retirement below. | Candidate for further retirement, not dead code. Map unique coverage and preserve useful findings before coordinated removal. |
 
 No production implementation, private capacity, language contract, or trusted
 assumption changed in this review. It adds one optional diagnostic alongside the
@@ -242,13 +242,13 @@ receipt files totaling 6,658 lines/195,831 bytes, one 26,674-byte tape, and six 
 These are outside the selected execution route; their size is maintenance and
 review-discovery cost, not automatically additional trusted chain material.
 
-The six Gamma entrypoints are `evaluator-slice.sh`, `evaluator-reconstruction.sh`,
+The six remaining Gamma entrypoints are `evaluator-slice.sh`, `evaluator-reconstruction.sh`,
 `compiler-fixed-point.sh`, `state-machine-customer.sh`, and the `run.sh` files in
 `gamma1-augmentation-experiment/` and `gamma-to-beta-experiment/`.
-The six Delta entrypoints are the `run.sh` files in `compiler-slice/`,
+The five remaining Delta entrypoints are the `run.sh` files in `compiler-slice/`,
 `state-machine-experiment/`, `functional-compiler-experiment/`,
-`forth-gamma-experiment/`, `direct-beta-feasibility-experiment/`, and
-`streaming-compiler-experiment/`. The role registry, two artifact helpers, and
+`forth-gamma-experiment/`, and `streaming-compiler-experiment/`.
+The role registry, two artifact helpers, and
 chain-hygiene gate also retain the old route. Searches must include helper calls
 and role variables, not only literal directory names.
 
@@ -260,3 +260,44 @@ assertion against selected-route gates; keep useful findings in existing design
 documentation and retire obsolete execution paths together with their adapters
 and hygiene requirements. Do not preserve them merely to make inventory checks
 pass, or delete them while leaving their consumers broken.
+
+### Completed topology discriminators
+
+The direct-Beta feasibility and direct-Delta evaluator experiments meet their
+documented retirement conditions. D88 selected the implemented direct functional
+Gamma evaluator; D92 rejected moving Delta's recursive-data machinery into its
+Beta trust root. Those ratified records and the selected evaluator's
+[measurement discussion](../../tests/gamma/evaluator-development/README.md)
+preserve the reasons: generated-call expansion was expensive, but removing Gamma
+by enlarging the low-level evaluator did not reduce matched audit cost.
+
+The retired directories are `tests/delta/direct-beta-feasibility-experiment/`
+and `tests/delta/direct-beta-evaluator-experiment/`: six files, 2,430 lines,
+62,896 bytes, including the 2,019-line symbolic direct-Delta prototype.
+Their source, measurement assertions, and reconstruction recipes remain
+recoverable from Git at `0ac643b7237ec7d667dff4868c3fc8ebee542e83`.
+They are not accepted artifacts or sources used by another executable gate.
+
+| Former obligation | Retained evidence or selected-route coverage |
+| --- | --- |
+| Generated tokenizer/call/helper size comparison | D88 and the selected evaluator measurement discussion retain the topology finding; old generated-code sizes are not selected-language conformance. |
+| Exact Nat, List, and recursive rope observations | `tests/delta/staged-compiler/{recursive_match,list_match,bytes_rope}.{delta,gamma}` and `run.sh` compile, compare exact receipts, and execute results. |
+| 100,000-node proper-tail construction/traversal | `proper_tail` in that same selected gate exercises tail calls through `if`, `let`, and `match`. |
+| 3,001-function witness | `stress` in that gate retains the same source and result 199. |
+| Unknown nominal field and missing match arm | The selected gate's `malformed` cases reject without emitted bytes. |
+| Rejection of reordered exhaustive arms | Not retained: it contradicts current Delta. D110 and the selected `reordered_match` case require acceptance and correct dispatch. |
+| Prototype tape/source hashes and old evaluator size pins | Identify an unselected prototype, not a selected-chain obligation. They remain historical Git data. |
+
+At the retirement review's base revision above, a focused selected-route run
+compiled and executed all six positive programs in this mapping and rejected
+the two malformed sources. The three stored receipts remained exact; no legacy
+compiler, host translator, or direct-Delta prototype participated. This is not
+a full Delta conformance claim. The existing selected Gamma augmentation gate
+also reproduced its exact receipt and result 42. Checks ran on macOS arm64;
+Windows execution was unavailable. The selected source, artifacts, and permanent
+tests were not changed to make retirement pass.
+
+No shared resolver, concatenative compiler, artifact helper, fixture, or hygiene
+requirement was removed: their other consumers remain. This retires completed
+comparison work without pretending that the complete Gamma-to-Delta edge has
+closed or that every retained experiment is equally disposable.
