@@ -2,7 +2,9 @@
 (def $application () Int 1)
 (def main () Int
   (let mode Int (read 0)
-    (if (lt mode 8) (internal_test_typing mode) (internal_test_metadata mode))))
+    (if (if (lt mode 8) 1 (lt 24 mode))
+      (internal_test_typing mode)
+      (internal_test_metadata mode))))
 
 (def source_length () Int (if (lt (read 0) 8) (input) 0))
 (def source_read ((index Int)) Int (read index))

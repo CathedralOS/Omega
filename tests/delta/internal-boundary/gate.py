@@ -80,7 +80,23 @@ metadata_controls = (
     # 14-byte definition prefix + cached body + ')' + LF + final entry LF.
     ("positive_payload_extent", 24, 2, frame(2, 2, 12, 16777212, 16777212, 16777229)),
 )
-for name, mode, status, output in typing_controls + metadata_controls:
+argument_controls = (
+    ("zero_actual_count", 25, 3, frame(3, 3, 1, 0)),
+    ("negative_actual_count_at_row_two", 26, 3, frame(3, 3, 1, 2)),
+    ("zero_expected_count", 27, 3, frame(3, 3, 1, 0)),
+    ("negative_expected_count", 28, 3, frame(3, 3, 1, 0)),
+    ("zero_counts_before_empty_spines", 29, 3, frame(3, 3, 1, 0)),
+    ("zero_actual_before_type_mismatch", 30, 3, frame(3, 3, 1, 0)),
+    ("valid_argument", 31, 0, b"\x01"),
+    ("valid_counts_type_mismatch", 32, 1, frame(1, 1, 15, 23)),
+    ("valid_counts_extra_argument", 33, 1, frame(1, 1, 16, 17)),
+    ("valid_counts_missing_argument", 34, 1, frame(1, 1, 16, 17)),
+    ("invalid_count_negative_depth", 35, 249, b""),
+    ("minimum_actual_count", 36, 3, frame(3, 3, 1, 0)),
+    ("minimum_expected_count", 37, 3, frame(3, 3, 1, 0)),
+    ("invalid_count_minimum_depth", 38, 249, b""),
+)
+for name, mode, status, output in typing_controls + metadata_controls + argument_controls:
     for repetition in range(2):
         observe(f"{name}/{repetition + 1}", "diagnostic", bytes([mode]), status, output)
 
@@ -93,4 +109,4 @@ for name, source, code, coordinate in (
     request = b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(source)) + source
     observe(name, "canonical", request, 1, frame(1, 1, code, coordinate))
 
-print("Delta internal boundary: 8 typing and 17 emission controls twice, plus 2 authored rejections passed (52 observations)")
+print("Delta internal boundary: 22 typing and 17 emission controls twice, plus 2 authored rejections passed (80 observations)")

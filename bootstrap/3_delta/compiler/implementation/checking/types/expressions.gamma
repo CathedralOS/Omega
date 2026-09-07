@@ -40,8 +40,10 @@
                       (typing_resume_initializer
                         type payload next_depth previous globals)
                       (if (eq kind 5)
-                        (typing_resume_argument
-                          type payload next_depth previous globals)
+                        (if (lt 0 depth)
+                          (typing_resume_argument
+                            type payload next_depth previous globals)
+                          (fail))
                         (if (eq kind 6)
                           (typing_resume_subject
                             type payload next_depth previous globals)
