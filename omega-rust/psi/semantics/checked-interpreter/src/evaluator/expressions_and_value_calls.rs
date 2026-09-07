@@ -1300,9 +1300,8 @@ impl<'program> Evaluator<'program> {
         };
         for field in self.program.expression_table.struct_fields(literal.fields) {
             let field_type = self.field_type_reference(type_symbol, field.name.as_str());
-            let destination =
-                field_type.and_then(|reference| self.program.primitive_type_reference(reference));
-            let value = self.eval_expression_with_destination(field.value, destination, frame)?;
+            let value =
+                self.eval_expression_at_type(field.value, field_type.unwrap_or_default(), frame)?;
             // Coerce the field value to the field's declared width/domain, matching
             // the native store into the field slot (`Point { x: a+b }` with `a+b`
             // = 300 into a u8 field reads 44). The field type carries its own
@@ -1376,9 +1375,8 @@ impl<'program> Evaluator<'program> {
                 .find(|declared| declared.name == field.name)
                 .map(|declared| declared.type_reference)
                 .or_else(|| self.field_type_reference(data.symbol, field.name.as_str()));
-            let destination =
-                field_type.and_then(|reference| self.program.primitive_type_reference(reference));
-            let value = self.eval_expression_with_destination(field.value, destination, frame)?;
+            let value =
+                self.eval_expression_at_type(field.value, field_type.unwrap_or_default(), frame)?;
             let Some(slot) = payload
                 .iter_mut()
                 .find(|(name, _)| name == field.name.as_str())

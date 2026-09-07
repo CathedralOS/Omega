@@ -1,5 +1,6 @@
 use super::*;
 
+mod anonymous_array_landing;
 mod anonymous_integer_exits;
 mod anonymous_rational_arguments;
 mod anonymous_rational_exits;

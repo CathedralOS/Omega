@@ -52,7 +52,7 @@ impl<'program> Evaluator<'program> {
                 // shared. `Ref` is likewise left shared for `&mut` write-through.
                 let destination = self
                     .expression_type_reference(assignment.target, frame)
-                    .and_then(|mut target| {
+                    .map(|mut target| {
                         // Assignment through a reference requests the referee's
                         // value type; it does not replace the reference itself.
                         while let TypeReferenceNode::Reference { referee: base, .. }
@@ -62,10 +62,10 @@ impl<'program> Evaluator<'program> {
                         {
                             target = *base;
                         }
-                        self.program.primitive_type_reference(target)
-                    });
-                let value =
-                    self.eval_expression_with_destination(assignment.value, destination, frame)?;
+                        target
+                    })
+                    .unwrap_or_default();
+                let value = self.eval_expression_at_type(assignment.value, destination, frame)?;
                 let copy_array = matches!(value, Value::Array(_))
                     && self
                         .assignment_target_type_reference(assignment.target, frame)
@@ -194,10 +194,9 @@ impl<'program> Evaluator<'program> {
                 // view and must keep sharing the array's cells. A `Ref` keeps aliasing the
                 // referent.
                 let value = if local.initial_value.is_valid() {
-                    let destination = self.program.primitive_type_reference(local.type_reference);
-                    let value = self.eval_expression_with_destination(
+                    let value = self.eval_expression_at_type(
                         local.initial_value,
-                        destination,
+                        local.type_reference,
                         frame,
                     )?;
                     let copy_array = matches!(value, Value::Array(_))
@@ -288,11 +287,7 @@ impl<'program> Evaluator<'program> {
             TransitionTargetNode::Terminal => Ok(TransitionDecision::Terminal),
             TransitionTargetNode::SelfTarget => Ok(TransitionDecision::SelfTarget),
             TransitionTargetNode::Value(expression) => {
-                let value = self.eval_expression_with_destination(
-                    *expression,
-                    frame.return_primitive,
-                    frame,
-                )?;
+                let value = self.eval_expression_at_type(*expression, frame.return_type, frame)?;
                 Ok(TransitionDecision::Value(value))
             }
             TransitionTargetNode::Named {

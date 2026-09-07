@@ -5,7 +5,38 @@ use typed_trees::data::{DataDefinition, DataMember};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+
+fn validate_anonymous_element_landing(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    value: ExpressionHandle,
+    destination: PrimitiveType,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    // Narrowing discards arithmetic diagnostics already emitted by statement
+    // validation. Aggregate children need their own destination for fractional
+    // landing errors; typed operands keep their ordinary arithmetic checks.
+    if crate::literals::anonymous_numeric_value(program, value, &mut |expression| {
+        crate::literals::has_anonymous_operator_meaning(program, expression)
+    })
+    .is_some()
+    {
+        validate_arithmetic_domains(
+            program,
+            machine,
+            Some(state),
+            value,
+            &ValueEnv::new(),
+            Some(destination),
+            numerics::arithmetic::ArithmeticDomain::Exact,
+            owner,
+            diagnostics,
+        );
+    }
+}
 
 /// Enforce a constructed field's value against its declared type: (1) the
 /// cross-CLASS check -- a `bool`/text value into a numeric field (or vice versa)
@@ -141,26 +172,15 @@ pub(super) fn enforce_construction_field_obligations(
                 "construction of `{type_name}` field `{}`",
                 field.name.as_str()
             );
-            // The ordinary narrowing helper discards arithmetic diagnostics
-            // already emitted by statement validation. Constructor children
-            // need their own integer destination for fractional landing errors.
-            if crate::literals::anonymous_numeric_value(program, field.value, &mut |expression| {
-                crate::literals::has_anonymous_operator_meaning(program, expression)
-            })
-            .is_some()
-            {
-                validate_arithmetic_domains(
-                    program,
-                    machine,
-                    Some(state),
-                    field.value,
-                    &ValueEnv::new(),
-                    Some(field_primitive),
-                    numerics::arithmetic::ArithmeticDomain::Exact,
-                    &owner,
-                    diagnostics,
-                );
-            }
+            validate_anonymous_element_landing(
+                program,
+                machine,
+                state,
+                field.value,
+                field_primitive,
+                &owner,
+                diagnostics,
+            );
             check_value_narrowing(
                 program,
                 machine,
@@ -342,6 +362,15 @@ pub(crate) fn validate_array_literal_elements_for_shape(
                     continue;
                 }
                 // Narrowing check: the element must fit the element type's width.
+                validate_anonymous_element_landing(
+                    program,
+                    machine,
+                    state,
+                    *element,
+                    element_primitive,
+                    &owner,
+                    diagnostics,
+                );
                 check_value_narrowing(
                     program,
                     machine,

@@ -6,6 +6,9 @@ use diagnostics::Diagnostic;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use typed_trees::types::TypeReferenceHandle;
 
+mod array_elements;
+use array_elements::admit_array_elements;
+
 /// Query only after successful validation: warnings do not participate in the
 /// admission diagnostic count. The fractional source occurrence survives even
 /// when the final value is integral.
@@ -204,6 +207,16 @@ fn collect_destination_trees(
     mut admitted: impl FnMut(TypeReferenceHandle, ExpressionHandle) -> bool,
 ) -> DestinationTrees {
     let mut trees = DestinationTrees::default();
+    let mut other_elements = Vec::new();
+    let mut admitted = |destination, expression| {
+        admit_array_elements(
+            program,
+            destination,
+            expression,
+            &mut admitted,
+            &mut other_elements,
+        )
+    };
     let DestinationTrees {
         owned,
         other_roots,
@@ -401,6 +414,7 @@ fn collect_destination_trees(
             }
         }
     }
+    trees.other_roots.extend(other_elements);
     trees
 }
 
@@ -502,6 +516,8 @@ fn append_tree(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    mod arrays;
 
     fn typed(source_text: &str) -> TypedTrees {
         let tokens = source_files_to_tokens::Lexer::new(source_text)

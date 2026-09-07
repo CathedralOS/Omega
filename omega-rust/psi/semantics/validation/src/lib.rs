@@ -1297,6 +1297,14 @@ fn validate_state_statement_node(
             }
 
             let shape_before = diagnostics.len();
+            struct_literals::validate_array_literal_elements(
+                program,
+                machine,
+                state,
+                *expression,
+                state.return_type,
+                diagnostics,
+            );
             validate_expression_type_handle(
                 program,
                 *expression,
@@ -1784,6 +1792,14 @@ fn validate_state_statement_node(
                     if let TransitionTargetNode::Value(return_expression) =
                         program.statement_table.transition_target(target)
                     {
+                        struct_literals::validate_array_literal_elements(
+                            program,
+                            machine,
+                            state,
+                            *return_expression,
+                            state.return_type,
+                            diagnostics,
+                        );
                         let return_env = transition_values
                             .for_target(target)
                             .first()

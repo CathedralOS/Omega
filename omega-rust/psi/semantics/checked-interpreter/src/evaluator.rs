@@ -1104,7 +1104,7 @@ struct MutableRecordProjection {
 /// `locals` is behind a `RefCell` so `let` bindings can be added while the frame is
 /// shared by `&` during statement execution.
 struct Frame {
-    return_primitive: Option<PrimitiveType>,
+    return_type: TypeReferenceHandle,
     locals: RefCell<BTreeMap<String, Cell>>,
     type_locals: RefCell<BTreeMap<String, TypeReferenceHandle>>,
     /// DECLARED scalar (primitive, arithmetic-domain) of locals/params, recorded
