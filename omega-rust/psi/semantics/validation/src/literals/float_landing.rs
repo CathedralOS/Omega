@@ -17,6 +17,8 @@ pub(super) use integer_operands::validate_integer_tree_destination;
 /// argument materialization, AND the interpreter -- consumes the same single
 /// rounding. A nonconstant tree instead stamps its anonymous literal leaves;
 /// its runtime operations then execute at the destination format.
+/// Authored operators retain their nodes and choose operand formats from their
+/// signatures; the result destination is not authority to fold or stamp them.
 /// Without this landing pass an anonymous literal at an f32 place takes the
 /// transitional f64-then-narrow route (double rounding; the
 /// 8388609.499999999999999 witness lands on the wrong side of the tie).
@@ -500,7 +502,9 @@ fn anonymous_exact_float_tree(
             numerics::bignum::ExactFloat::from_decimal_str(literal.text())
         }
         ExpressionNode::Borrow(inner) => anonymous_exact_float_tree(program, inner.target),
-        ExpressionNode::Binary(binary) => {
+        ExpressionNode::Binary(binary)
+            if super::integer_landing::has_anonymous_operator_meaning(program, expression) =>
+        {
             let left = anonymous_exact_float_tree(program, binary.left)?;
             let right = anonymous_exact_float_tree(program, binary.right)?;
             Some(match binary.operator {
@@ -523,6 +527,18 @@ fn fold_anonymous_float_comparison(program: &mut TypedTrees, expression: Express
     else {
         return;
     };
+    let spelling = match binary.operator {
+        BinaryOperator::Equal => language_core::OperatorSpelling::Equal,
+        BinaryOperator::NotEqual => language_core::OperatorSpelling::NotEqual,
+        BinaryOperator::Greater => language_core::OperatorSpelling::Greater,
+        BinaryOperator::GreaterOrEqual => language_core::OperatorSpelling::GreaterEqual,
+        BinaryOperator::Less => language_core::OperatorSpelling::Less,
+        BinaryOperator::LessOrEqual => language_core::OperatorSpelling::LessEqual,
+        _ => return,
+    };
+    if !super::integer_landing::has_builtin_anonymous_operands(program, expression, spelling) {
+        return;
+    }
     let Some(left) = anonymous_exact_float_tree(program, binary.left) else {
         return;
     };
@@ -615,7 +631,9 @@ fn stamp_float_tree(
             let operand = unary.operand;
             stamp_float_tree(program, operand, format);
         }
-        ExpressionNode::Binary(binary) => {
+        ExpressionNode::Binary(binary)
+            if super::integer_landing::has_anonymous_operator_meaning(program, expression) =>
+        {
             let (left, right) = (binary.left, binary.right);
             stamp_float_tree(program, left, format);
             stamp_float_tree(program, right, format);

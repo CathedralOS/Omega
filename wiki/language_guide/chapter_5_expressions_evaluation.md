@@ -825,6 +825,9 @@ expression-only suppression restriction.
 > rational value and rounds once, without an integer-landing warning. Retained
 > but unused operands do not impose runtime integer-width limits after this
 > folding; another executable use still has its own width obligation.
+> Decimal-float folding and comparisons also require builtin operator meaning;
+> authored operations retain their nodes and independently chosen operand
+> destinations for checked selection, rather than inheriting the result format.
 > Caller result proofs can also
 > transport a callee's builtin `result == immutable_parameter` guarantee from retained closed
 > fixed-integer operands, without replaying their source expressions. General runtime argument
