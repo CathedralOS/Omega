@@ -72,13 +72,24 @@ prerequisite to every lower-rung milestone.
   conformance until a simpler implementation or owner-approved scope replaces it.
   Map unique legacy assertions to selected gates before removing the old
   execution routes and their adapters together.
-  For P1, resolve capacity-accounting cost within the reviewed encoder/scanner
-  outline: global sharing still leaves the existing per-byte Word-counter recipe
-  outside current input/work provisions before encoding. Cost a contiguous
-  sequence covering operands, trivia, assertions, and exact endpoints, composed
-  with textual-ASCII validation and the costed source-capacity route under one
-  budget, before another helper family. Compare direct counting with the shape
-  intermediary on total proof and definition cost before choosing a representation.
+  For P1, resolve the combined encoder cost in
+  `bootstrap/2_gamma/beta_encoding/`: the measured capacity and normalized
+  forward-fold recipes cannot fit together unchanged under the current budget.
+  Do not adopt the per-byte Word counter or raise work just enough for the
+  identity-fold diagnostic. Cost a contiguous real sequence covering operands,
+  trivia, assertions, and exact endpoints, composed with textual-ASCII validation
+  and source capacity. Compare fused traversal against separate passes under a
+  coherent larger work/input/allocation provision before another helper family.
+  Acceptance needs a full-subject estimate with state-sharing assumptions and
+  total definition/proof cost, not just a checked small sequence. Keep direct
+  counting versus the shape intermediary in that whole-route comparison.
+  Resume evidence: the [state-fold cost probe](wiki/design_briefs/bootstrap_cost_review.md#forward-state-threading-reject-the-recipes-budget-premise)
+  uses `06b76d3eb6` on macOS arm64: the full raw-source identity fold returns
+  owned Incomplete (`checking_work`, limit 655,360, requested 655,361).
+  It is not a complete encoder probe.
+  The actual `encode_Beta(S, limits) = Success(T)` probe has not run and has no
+  repository command yet: complete definitions, owner-root reconstruction, and
+  the source-owned producer remain missing.
   The existing representation and fold probes are prerequisite measurements, not
   full-certificate feasibility; do not promote unchecked source lengths or
   independent chunk budgets into proof premises.
