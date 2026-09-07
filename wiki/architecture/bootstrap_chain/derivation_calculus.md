@@ -128,6 +128,11 @@ this first finite-instance implementation.
 
 ## Complete Beta theory
 
+The [source-owned lexical portion](../../../bootstrap/gamma/beta_encoding/README.md)
+provides finite Byte/Nibble constructors and total source-byte, separator,
+comment-ending, and lowercase-hexadecimal definitions. It is not the complete
+encoder or owner-root reconstruction described below.
+
 The error-valued encoder must cover the full
 [Beta contract](../../../bootstrap/beta/LANGUAGE.md): textual ASCII, separators,
 comments, EOF, complete-token lowercase hexadecimal words and registers, every

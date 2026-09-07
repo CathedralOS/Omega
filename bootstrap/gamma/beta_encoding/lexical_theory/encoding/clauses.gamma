@@ -1,0 +1,9 @@
+; A constant clause has seven payload words and one constructor template.
+(def beta_constant_clause ((constructor Int) (result Int)) Int
+  (let header Int (beta_theory_fields3 7 constructor 1)
+    (let template Int (beta_constant_template result)
+      (beta_theory_word 1))))
+
+(def beta_constant_template ((constructor Int)) Int
+  (let header Int (beta_theory_fields3 3 1 constructor)
+    (beta_theory_word 0)))
