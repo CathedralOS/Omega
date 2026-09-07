@@ -847,8 +847,12 @@ expression-only suppression restriction.
 > bounds checking; callee return validation remains independent. Interval bounds
 > can prove endpoint ordering after inclusive-end normalization; overlapping
 > intervals or identical call spellings alone cannot establish it.
-> Dependent/public-trait result bounds and inline generic selector specialization
-> remain incomplete. Ordinary selector calls execute once in source order.
+> Inline generic selector calls infer from their argument types, including
+> fixed-array const witnesses and borrowed fields. Distinct concrete tuples
+> receive distinct instances; incomplete or conflicting evidence rejects.
+> Dependent/public-trait result bounds remain incomplete, as do declared
+> return-range proofs from known fixed-array lengths. Ordinary and generic
+> selector calls execute once in source order.
 > Shared record-valued elements retain their own field checks.
 > The destination's arithmetic policy cannot truncate an anonymous fraction or
 > wrap an out-of-range initial value. Successful integral

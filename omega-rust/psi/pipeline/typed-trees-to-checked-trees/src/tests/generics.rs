@@ -2,6 +2,8 @@ use super::{Lexer, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_
 use checked_trees::{ContractProofFactKind, ContractProofFactOwner};
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 
+mod nested_calls;
+
 fn typed_source(source: &str) -> Result<typed_trees::TypedTrees, Vec<diagnostics::Diagnostic>> {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");

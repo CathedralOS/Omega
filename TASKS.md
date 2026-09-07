@@ -473,6 +473,15 @@ Owners include
 
 ## Parallel language and compiler lanes
 
+- **MACHINE-CONST-VALUE-SUBSTITUTION.** Substitute closed machine const binders
+  in executable values and contracts, not only type positions and forwarded
+  static arguments. A machine returning its inferred `N` currently retains an
+  unresolved name after specialization. Owning area: Psi monomorphization;
+  see [generic const parameters](wiki/language_guide/chapter_13_generics.md#const-and-proof-parameters).
+  Acceptance: original and cloned instances check and execute distinct closed
+  values; lexical names cannot capture another binder's substitution, and
+  independent return-range checks still reject false declarations.
+
 - **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Finish consumer permission rows and
   exact target-mechanism classification under the settled
   [filesystem control/lifecycle policy](wiki/design_briefs/effects_authority_and_observation.md#portable-filesystem-control-and-lifecycle-authority).
@@ -623,11 +632,12 @@ Owners include
   caller-specific snapshots beyond immutable scalar formal comparisons, including
   a callee's borrowed collection length in caller-side requirement proofs; carry
   those facts into nested exact-cast obligations without rereading arguments.
+  Use known fixed-array extents in declared return-range proofs; returning
+  `witness.len` from a specialized fixed-array parameter currently fails even
+  when its concrete length fits the declared interval.
   Transport dependent and public-trait call-result bounds into subslice proofs
   through their actual call-entry and public requirement identities, not caller
-  fields or private realization types. Complete specialization of inline generic
-  selector calls before bounds checking; even a const-generic endpoint with a
-  fixed-array witness currently lacks its complete specialization tuple there.
+  fields or private realization types.
   Retire the remaining flat guarded-argument call hoisting once these paths use
   the same evaluation graph. Owning area: argument normalization and checked scalar
   computation lowering. Acceptance: selected arguments
