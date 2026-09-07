@@ -74,6 +74,36 @@
         "Reused successful checks on unchanged inputs instead of repeating a full suite for landing",
         "Recorded confirmed unrelated failures without adding their repairs to the task"
       ]
+    },
+    {
+      "id": 3,
+      "name": "infrastructure-streak-pauses-for-scope",
+      "prompt": "Continue the bootstrap goal. The last two checkpoints added tested encoding helpers, but neither enabled a customer execution nor completed the required full-source certificate. Another helper is ready to implement.",
+      "status": "Not run",
+      "expected_output": "Pause before another implementation milestone; explain accumulated machinery, the incomplete customer outcome, alternatives, and ask for scope direction without changing language contracts.",
+      "files": [],
+      "assertions": [
+        "Inspects prior milestone evidence and the whole-chain retention contract",
+        "Does not count helper tests as completed customer execution or certificate acceptance",
+        "Does not implement or delegate another helper before user direction",
+        "Reports a concrete continue, simplify, or defer recommendation",
+        "Does not manufacture an owner-level design blocker or delete code without authority"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "private-limit-workaround-compares-total-cost",
+      "prompt": "Advance the selected bootstrap customer. Its generated body exceeds an evaluator-private nesting provision. The owner permits coherent capacity increases. A helper-extraction pass could work around the limit.",
+      "status": "Not run",
+      "expected_output": "Measure the actual customer demand and compare coherent provision growth with the transformation's whole-chain cost before choosing implementation; do not assume either alternative wins.",
+      "files": [],
+      "assertions": [
+        "Distinguishes the private provision from source-language validity and required failure behavior",
+        "Examines evaluator storage and dependent guards before proposing a limit increase",
+        "Accounts for capture analysis, helper generation, tests, and evidence when evaluating extraction",
+        "Does not add generic language features or weaken admission to avoid the limit",
+        "Does not claim an unexecuted capacity experiment or end-to-end bootstrap pass"
+      ]
     }
   ]
 }

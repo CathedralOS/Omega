@@ -416,6 +416,36 @@ See [landing](tools/landing.md) for commands,
 observed-owner recovery, and handling an uncertain network result. This protocol
 coordinates publishing across machines; it does not assign work ownership.
 
+### Scope checkpoints
+
+Before each advancement milestone, name the exact customer, the behavior or
+required evidence it will deliver, and the downstream dependencies still missing.
+Read the owning minimization/design contract; a board item or passing helper
+test is not by itself a reason to retain machinery. For bootstrap work, apply
+[whole-chain minimization](wiki/design_briefs/bootstrap_minimization.md), counting
+source, profiles, proofs, tests, and host plumbing together.
+
+Before adding a subsystem, a new helper layer, or a workaround for a resource
+limit, compare the simpler alternatives in commentary: deletion/deferment,
+consolidation, or changing the underlying implementation/provision where the
+owner permits it. Distinguish language semantics and ratified observation
+contracts from private capacities. Do not invent measurements, weaken checking,
+or change the trusted boundary to make an alternative appear cheaper.
+
+At checkpoint handoff, state what now works for that customer, what complexity
+was added or removed, and whether the remaining plan still makes sense. After
+two consecutive milestones that only add supporting machinery without advancing
+customer execution or closing a required evidence claim, pause implementation
+before a third: summarize the accumulated cost and propose continuing,
+simplifying, or deferring for the user's direction. Successful helper tests do
+not reset this checkpoint. Apply the same pause immediately when the required
+customer or downstream contract is absent and work would become speculative.
+This applies across commits, agent handoffs, and automatic goal continuations.
+
+Scope/prioritization questions belong in the conversation; only actual owner
+language/architecture decisions belong in `OWNER_QUESTIONS.md`. A pause does not
+authorize deletion, abandoning required proofs, or rewriting settled decisions.
+
 ### Agent delegation
 
 Use Astra for coordination and delegated work requiring judgment: repository

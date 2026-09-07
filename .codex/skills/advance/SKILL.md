@@ -5,10 +5,11 @@ description: Drive the Omega Rust reference compiler toward completion by workin
 
 # Advance the Omega compiler
 
-One invocation delivers one bounded compiler improvement: choose it, reproduce
-it, implement it, validate its affected behavior, and land it. Repository-wide
-health is a separate job. Follow `AGENTS.md` for ownership, commands, validation
-scope, board hygiene, and publication.
+One invocation delivers one bounded compiler improvement, or an evidence-backed
+scope pause when the existing plan no longer justifies implementation. For an
+improvement: choose it, reproduce it, implement it, validate its affected
+behavior, and land it. Repository-wide health is a separate job. Follow
+`AGENTS.md` for ownership, commands, validation scope, board hygiene, and publication.
 
 ## Choose a useful slice
 
@@ -32,6 +33,21 @@ blocked; report that boundary accurately. If a probe passes, remove the stale
 board claim. Do not spend the session repeatedly scouting larger alternatives.
 
 ## Work in isolation
+
+Before implementation, apply [scope checkpoints](../../../AGENTS.md#scope-checkpoints).
+Read recent milestones for the same customer, not just the current board line.
+State the customer, missing dependency, smallest useful outcome, and simpler
+alternative before adding machinery. Bootstrap work must also read
+[whole-chain minimization](../../../wiki/design_briefs/bootstrap_minimization.md).
+Do not turn an unavailable downstream compiler into speculative upstream
+generality, or treat private resource limits as immutable language laws.
+
+The infrastructure-only checkpoint spans invocations and delegated work. When
+it requires a pause, report evidence and ask for scope/prioritization direction;
+do not evade it by selecting another helper, adding tests, or calling the audit
+an owner-blocked language issue. Resume feature work only after that direction.
+At handoff, report customer progress and added/removed complexity, not just
+commit and test counts.
 
 Use an isolated worktree with a short path on Windows. Generated linker paths
 can exceed MAX_PATH even when the source path looks reasonable. Measure the
