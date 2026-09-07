@@ -9,9 +9,7 @@ that led to typed scalar/effect Gamma. The selected Delta compiler remains open.
 | `emission/` | Compares source-owned Gamma-plan extents, cached unary publication, fallback, ordering, and capture reconstruction against exact bytes. | Retain while the selected compiler owns this private serialization cache; replace when complete conformance directly covers the same invariants. |
 | `internal-boundary/` | Exercises retained typing-continuation contradictions through actual dispatch and canonical failure publication, with valid and malformed companions. | Replace when complete compiler invariant conformance directly covers these owned internal rows. |
 | `compiler-slice/` | Reconstructs and executes the downgraded concatenative-Gamma-written Delta compiler across its retained surface. | Delete after the selected staged Delta edge supersedes its evidence. |
-| `streaming-compiler-experiment/` | Tests declaration-only retention, validation by rescan, direct Gamma emission, and inherited tail position on the Functional scalar surface. | Delete after Gamma augmentation or a replacement Delta architecture resolves its auditability finding. |
 | `state-machine-experiment/` | Exercises the speculative source-owned typed state-machine compiler across nominal data, fixed storage, states, exhaustive transitions, calls, and direct Alpha emission. | Delete after its evidence is superseded by a representative canonical Delta compiler comparison. |
-| `functional-compiler-experiment/` | Exercises a noncanonical current-Gamma compiler for scalar Functional Delta and records the first executable source-to-Alpha density measurement. | Delete when the canonical Functional Delta compiler subsumes its scalar and recursion evidence. |
 
 Run the focused serializer gate with `sh tests/delta/emission/run.sh`; its
 [README](emission/README.md) distinguishes private representation controls from
@@ -31,3 +29,9 @@ The owner-retired Forth-Gamma experiment and its unused symbolic-label resolver
 are also removed. D93/D94 retain its historical comparison; the
 [Forth retirement review](../../wiki/design_briefs/bootstrap_cost_review.md#forth-experiment)
 maps useful behavior to the selected tests without retaining the alternate dialect.
+
+The scalar direct-Alpha and streaming compiler prototypes are retired as well:
+D80/D82/D88 retain their architectural findings, and their shared recursive and
+scalar-surface sources now belong to `staged-compiler/`. See the
+[scalar retirement review](../../wiki/design_briefs/bootstrap_cost_review.md#scalar-compiler-experiments)
+for coverage and the remaining concatenative dependencies.

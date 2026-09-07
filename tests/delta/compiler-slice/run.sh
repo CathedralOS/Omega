@@ -17,11 +17,11 @@ command -v python3 >/dev/null 2>&1 || {
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
 ELABORATOR="$GATE_DIR/schema_elaborator.gamma"
-SOURCE="$GATE_DIR/../functional-compiler-experiment/scalar_recursive.delta"
+SOURCE="$OMEGA_REPO_ROOT/tests/delta/staged-compiler/scalar_recursive.delta"
 EXPANSION="$GATE_DIR/scalar_recursive.gamma"
 SCALAR_ELABORATOR="$OMEGA_PATH_CONCATENATIVE_DELTA_COMPILER_SOURCE"
 SCALAR_RECURSIVE_EXPANSION="$GATE_DIR/generalized_scalar_recursive.gamma"
-SCALAR_SURFACE_SOURCE="$GATE_DIR/scalar_surface.delta"
+SCALAR_SURFACE_SOURCE="$OMEGA_REPO_ROOT/tests/delta/staged-compiler/scalar_surface.delta"
 SCALAR_SURFACE_EXPANSION="$GATE_DIR/scalar_surface.gamma"
 OPTION_MATCH_SOURCE="$GATE_DIR/option_match.delta"
 OPTION_MATCH_EXPANSION="$GATE_DIR/option_match.gamma"

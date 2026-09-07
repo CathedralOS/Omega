@@ -19,7 +19,7 @@ TAPE="$OMEGA_PATH_GAMMA_EVALUATOR_TAPE"
 AUGMENTER="$OMEGA_REPO_ROOT/tests/gamma/self-augmentation-experiment/constant_augmenter.gamma"
 AUGMENTED="$OMEGA_REPO_ROOT/tests/gamma/self-augmentation-experiment/program.gamma1"
 EXPANDED="$OMEGA_REPO_ROOT/tests/gamma/self-augmentation-experiment/program.gamma"
-RECURSIVE="$OMEGA_REPO_ROOT/tests/delta/functional-compiler-experiment/scalar_recursive.delta"
+RECURSIVE="$OMEGA_REPO_ROOT/tests/delta/staged-compiler/scalar_recursive.delta"
 
 stamp_seed "$TAPE" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" \
     "$TMP/evaluator" >/dev/null

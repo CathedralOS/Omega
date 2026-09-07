@@ -11,7 +11,7 @@ The objective remains the [smallest human-auditable chain](bootstrap_minimizatio
 | Delta height normalization | Current Epsilon customer lowers to height 69; normalization adds no helpers. | Freeze expansion. Do not raise Gamma depth for this customer. Resolve deep-source conformance before deleting the transform. |
 | Generic Gamma checker | Entire raw source/tape lists can be checked, but separately represented copies cost 229 seconds before any encoding derivation. | Keep the narrow checker; require a costed, shared certificate strategy before further encoder helper families. |
 | Partial Beta theory | Lexical and word helpers exist; full encoder, independent owner root, and source-owned certificate producer do not. | Do not treat helper completion as full-proof feasibility or trust reduction. |
-| Retained concatenative route | Eleven bootstrap files, 236,347 bytes; ten remaining test entrypoints after experiment retirement below. | Candidate for further retirement, not dead code. Map unique coverage and preserve useful findings before coordinated removal. |
+| Retained concatenative route | Eleven bootstrap files, 236,347 bytes; eight remaining test entrypoints after experiment retirement below. | Candidate for further retirement, not dead code. Map unique coverage and preserve useful findings before coordinated removal. |
 
 No production implementation, private capacity, language contract, or trusted
 assumption changed in this review. It adds one optional diagnostic alongside the
@@ -245,9 +245,8 @@ review-discovery cost, not automatically additional trusted chain material.
 The six remaining Gamma entrypoints are `evaluator-slice.sh`, `evaluator-reconstruction.sh`,
 `compiler-fixed-point.sh`, `state-machine-customer.sh`, and the `run.sh` files in
 `gamma1-augmentation-experiment/` and `gamma-to-beta-experiment/`.
-The four remaining Delta entrypoints are the `run.sh` files in `compiler-slice/`,
-`state-machine-experiment/`, `functional-compiler-experiment/`,
-and `streaming-compiler-experiment/`.
+The two remaining Delta entrypoints are the `run.sh` files in `compiler-slice/`
+and `state-machine-experiment/`.
 The role registry, two artifact helpers, and
 chain-hygiene gate also retain the old route. Searches must include helper calls
 and role variables, not only literal directory names.
@@ -333,3 +332,39 @@ the former 301-function source to 99 through selected Gamma/Delta. Earlier
 selected-route tail and 3,001-function results above have unchanged inputs.
 Chain hygiene and remaining-consumer checks passed; Windows was unavailable.
 No selected compiler, evaluator, artifact, or permanent control changed.
+
+### Scalar compiler experiments
+
+`tests/delta/functional-compiler-experiment/` and
+`tests/delta/streaming-compiler-experiment/` no longer need executable prototypes.
+D80/D82 preserve the direct-Alpha versus scalar-elaboration comparison; D88
+selected direct functional Gamma after measuring the streaming compiler's
+call expansion and manually managed state. Declaration-only retention and
+validation by rescan avoided a universal expression table, but the 193-line
+Gamma1 lowerer raised the authored streaming route to 859 lines without removing
+its manual frame protocol. Extending that prototype no longer distinguishes the
+architecture choice. The selected compiler now covers its scalar customers.
+
+Six prototype/compiler/gate/documentation files totaling 67,322 bytes are removed,
+recoverable at `a8b46e48e498259f83cbf0757320378b7ddbaefa`. The shared 202-byte
+recursive and 951-byte scalar-surface fixtures move unchanged to
+`tests/delta/staged-compiler/`. Its gate now compiles and executes both, covering
+recursion, all seven operators, lexical binding, forward/nested calls, and
+thirteen ordered parameters. The Gamma evaluator and remaining legacy comparison
+read the moved fixtures; neither reads a retired compiler implementation.
+
+Existing selected malformed controls own missing main, duplicate functions,
+unknown locals, call arity, result-type disagreement, and initializer scope.
+The old rejection of fourteen parameters is not retained: Delta has arbitrary
+arity. Direct-Alpha halt statuses, experiment tape/receipt hashes, and agreement
+between two executions of an obsolete compiler are not selected-route contracts.
+The Gamma1 lowerer and concatenative tools remain used by other gates; their
+retirement still requires a separate consumer review.
+
+Focused macOS arm64 validation ran the newly registered selected-gate loop,
+six malformed sources, and an admitted fourteen-argument call yielding 14.
+The selected Gamma evaluator also ran the moved recursion fixture directly.
+All three remaining fixture bindings resolve to byte-identical pre-move sources;
+shell syntax, consumer searches, documentation links, and chain hygiene were
+checked. Full legacy/capacity suites and Windows execution were not rerun for
+these fixture moves; production source and artifact inputs are unchanged.

@@ -6,7 +6,7 @@ bootstrap evidence for the downgraded concatenative language.
 | Retained child | Role | Deletion condition |
 | --- | --- | --- |
 | `functional-evaluator.sh` | Reconstructs the selected Beta evaluator and runs the scalar/effect plus self-augmentation gates. | Replace only with a stronger selected Gamma evaluator gate. |
-| `evaluator-development/` | Detailed behavior gate for the canonical addressed-Beta evaluator; its small label resolver serves only nonauthoritative comparison experiments. | Delete comparison-only resolver when the remaining symbolic experiments retire. |
+| `evaluator-development/` | Detailed behavior gate for the canonical addressed-Beta evaluator. | Replace only with selected-evaluator conformance retaining these behavior and resource controls. |
 | `heap-boundary/` | Explicit slow gate for full selected pair capacity, adjacent scalar/application refusals, and buffered-prefix suppression. | Delete only when another selected-evaluator gate subsumes all full-size observations. |
 | `derivation-admission/` | Checks the ordinary-Gamma derivation request envelope, validation order, exact section custody, and exact/adjacent request provision; grants no proof acceptance. | Replace only with a complete checker gate covering these admission boundaries. |
 | `derivation-layout/` | Traverses all inner physical records, pins malformed-field coordinates and deep-table iteration, and distinguishes layout from semantic validity. | Replace only with a complete checker gate covering these physical boundaries and negative semantic controls. |
