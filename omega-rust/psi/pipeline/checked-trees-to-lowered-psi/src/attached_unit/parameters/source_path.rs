@@ -24,6 +24,12 @@ pub(crate) fn expression_producer(
         visited.push(expression);
         expression = match checked.expression_table.expression(expression) {
             ExpressionNode::Call(_) => return Some(expression),
+            ExpressionNode::Borrow(borrow)
+                if visited.len() == 1
+                    && borrow.access == language_core::ReferenceAccess::Shared =>
+            {
+                borrow.target
+            }
             ExpressionNode::Member(member) if member.case_variant.is_none() => member.receiver,
             ExpressionNode::Indexed(indexed)
                 if matches!(

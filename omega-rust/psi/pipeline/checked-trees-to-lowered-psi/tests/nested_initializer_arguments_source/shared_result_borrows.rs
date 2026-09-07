@@ -5,6 +5,187 @@ use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
 use terminal_psi::{OperationResult, Terminator};
 
+#[test]
+fn anonymous_shared_result_keeps_its_owner_until_call_completion() {
+    let pure = checked(
+        r#"
+        data Token { value: u64; }
+        machine forward(token: Token) -> Token { token }
+        machine read(token: &Token) {}
+        machine main(token: Token) { read(&forward(token)); }
+    "#,
+    );
+    let _pure_artifact = terminal_production::produce_terminal_artifact(&pure, "main")
+        .expect("anonymous shared call with an empty consumer publishes");
+    let boundary = checked(
+        r#"
+        pub data Token { value: u64; }
+        boundary trait Factory { machine create() -> Token reaches Factory; }
+        machine read(token: &Token) {}
+        machine main() reaches Factory { read(&Factory::create()); }
+    "#,
+    );
+    let _boundary_artifact = terminal_production::produce_terminal_artifact(&boundary, "main")
+        .expect("zero-parameter free caller retains a boundary-produced temporary");
+    for boundary in [false, true] {
+        for fields in ["value: u64;", "", "elements: [u16; 3];"] {
+            assert_anonymous_shared(&anonymous_source(boundary, fields), boundary);
+        }
+    }
+}
+
+fn anonymous_source(boundary: bool, fields: &str) -> String {
+    let mut source = format!(
+        r#"
+        pub data Token {{ {fields} }}
+        machine forward(token: Token) -> Token {{ token }}
+        machine read(token: &Token) reaches Sink {{ Sink::observe(token); }}
+        boundary trait Sink {{ machine observe(token: &Token) reaches Sink; }}
+        data Main {{}}
+        machine Main::main(token: Token) reaches Sink {{ read(&forward(token)); }}
+    "#
+    );
+    if boundary {
+        source = source
+            .replace(
+                "Main::main(token: Token) reaches Sink",
+                "Main::main() reaches Sink + Factory",
+            )
+            .replace("read(&forward(token))", "read(&Factory::create())");
+        source.push_str("boundary trait Factory { machine create() -> Token reaches Factory; }");
+    }
+    source
+}
+
+fn assert_anonymous_shared(source: &str, boundary: bool) {
+    use terminal_fuel::FuelChargeSite;
+    use terminal_psi::{OperationKind, StructuralAccess};
+
+    let checked = checked(source);
+    let artifact = encoded_locals(&checked, &[]);
+    let published = terminal_production::produce_terminal_artifact(&checked, "Main::main")
+        .expect("anonymous shared argument retains and then cleans its owner");
+    let module = decode_module(&artifact.0).unwrap();
+    assert_eq!(decode_module(published.semantic_bytes()).unwrap(), module);
+    let caller = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let operations = caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .collect::<Vec<_>>();
+    let result = operations
+        .iter()
+        .find_map(|operation| match &operation.result {
+            OperationResult::Structural(result) => Some(result),
+            _ => None,
+        })
+        .unwrap();
+    let consumer = operations.iter().find(|operation| matches!(&operation.kind,
+        OperationKind::CallUnit { structural_arguments, .. }
+            if structural_arguments.len() == 1 && structural_arguments[0].access == StructuralAccess::SharedBorrow
+    )).unwrap();
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &consumer.kind
+    else {
+        unreachable!()
+    };
+    assert_eq!(structural_arguments[0].place, result.place);
+    let cleanup = caller
+        .blocks
+        .iter()
+        .find(|block| {
+            matches!(&block.terminator,
+                Terminator::ReturnUnit { trivial_affine_discards, .. }
+                    if trivial_affine_discards == &[result.place]
+            )
+        })
+        .expect("only the actual temporary owner is cleaned");
+    let arguments = if boundary {
+        Vec::new()
+    } else {
+        vec![TerminalStructuralValue {
+            opaque_identity: 700,
+            structural_type: caller.structural_parameters[0].structural_type,
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        }]
+    };
+    let mut reference = None;
+    for incremental in [false, true] {
+        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+            &artifact.0,
+            &artifact.1,
+            &AdmissionProfile::default(),
+            &[],
+            &arguments,
+        )
+        .unwrap();
+        let mut observer = ObserveMoves::default();
+        let mut fuel = if incremental {
+            TerminalFuelMeter::with_allowance(0)
+        } else {
+            TerminalFuelMeter::unbounded()
+        };
+        let mut complete = false;
+        let mut observed_return = false;
+        let mut observed_consumer = false;
+        for _ in 0..256 {
+            match execution
+                .resume_with_effect_handler(&mut fuel, &mut observer)
+                .unwrap()
+            {
+                TerminalExecutionStatus::SponsorExhausted(exhaustion) => {
+                    assert!(incremental);
+                    if exhaustion.site == FuelChargeSite::Operation(consumer.id) {
+                        assert_eq!(
+                            execution.live_affine_frontier().count(),
+                            1,
+                            "owner remains live at the shared call"
+                        );
+                        observed_consumer = true;
+                    }
+                    if exhaustion.site == FuelChargeSite::Edge(cleanup.terminator.edge()) {
+                        assert_eq!(
+                            execution.live_affine_frontier().count(),
+                            1,
+                            "read did not consume its owner"
+                        );
+                        assert_eq!(observer.consumed, [700]);
+                        observed_return = true;
+                    }
+                    fuel.replenish(1).unwrap();
+                }
+                TerminalExecutionStatus::Complete(result) => {
+                    assert_eq!(result, TerminalExecutionResult::Unit);
+                    complete = true;
+                    break;
+                }
+                status => panic!("unexpected shared temporary status: {status:?}"),
+            }
+        }
+        assert!(complete);
+        assert_eq!(observed_return, incremental);
+        assert_eq!(observed_consumer, incremental);
+        assert_eq!(
+            observer.produced,
+            if boundary { vec![700] } else { Vec::new() }
+        );
+        assert_eq!(observer.consumed, [700]);
+        assert!(execution.live_affine_frontier().next().is_none());
+        if let Some(reference) = &reference {
+            assert_eq!(execution.effects(), reference);
+        } else {
+            reference = Some(execution.effects().to_vec());
+        }
+    }
+}
+
 fn source(completion: &str) -> String {
     format!(
         "{}\n\
@@ -19,6 +200,113 @@ fn source(completion: &str) -> String {
                 machine inspect(token: &Token, first: u16, second: u16) -> u16 reaches Sink;"
         )
     )
+}
+
+#[test]
+fn anonymous_shared_result_permissions_rejoin_exact_owner_and_continuation() {
+    use language_semantics::{PermissionAccess, PermissionEventSource, PermissionProvenance};
+    for boundary in [false, true] {
+        let original = checked(&anonymous_source(boundary, "value: u64;"));
+        encoded_locals(&original, &[]);
+        let events = original
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .filter(|(_, event)| matches!(event.root, facts::PlaceRoot::Expression(_)))
+            .map(|(handle, event)| (handle, event.clone()))
+            .collect::<Vec<_>>();
+        assert_eq!(events.len(), 3, "owner, loan, then owner cleanup");
+        for (handle, event) in &events {
+            for mutation in 0..9 {
+                let mut changed = original.clone();
+                let mut altered = event.clone();
+                match mutation {
+                    0 => altered.root = facts::PlaceRoot::Unknown,
+                    1 => altered.provenance = PermissionProvenance::Unknown,
+                    2 => altered.source = PermissionEventSource::StateExit,
+                    3 => altered.obligation_live = true,
+                    4 => altered.access = PermissionAccess::Exclusive,
+                    5 => altered.multiplicity = language_semantics::Multiplicity::Linear,
+                    6 => {
+                        changed
+                            .facts
+                            .flow
+                            .ownership
+                            .permissions
+                            .insert(altered.clone());
+                    }
+                    7 => altered.kind = language_semantics::PermissionEventKind::Transfer,
+                    8 => {
+                        altered.segments = changed
+                            .facts
+                            .flow
+                            .ownership
+                            .segments
+                            .insert_many([facts::PlaceSegment::FixedIndex { index: 0 }])
+                    }
+                    _ => unreachable!(),
+                }
+                *changed.facts.flow.ownership.permissions.get_mut(*handle) = altered;
+                assert!(
+                    terminal_production::produce_terminal_artifact(&changed, "Main::main").is_err(),
+                    "boundary={boundary}, kind={:?}, mutation={mutation}",
+                    event.kind
+                );
+            }
+        }
+        let mut changed = original.clone();
+        *changed
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .get_mut(events[1].0) = events[2].1.clone();
+        *changed
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .get_mut(events[2].0) = events[1].1.clone();
+        assert!(terminal_production::produce_terminal_artifact(&changed, "Main::main").is_err());
+    }
+}
+
+#[test]
+fn anonymous_shared_results_reject_missing_cleanup_and_later_statements() {
+    for boundary in [false, true] {
+        let source = anonymous_source(boundary, "value: u64;");
+        let original = checked(&source);
+        encoded_locals(&original, &[]);
+        let mut changed = original.clone();
+        let plan = changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .find(|plan| plan.machine == main_machine(&original).symbol)
+            .unwrap();
+        let (CheckedUnitEffectOperationPlan::StructuralCall {
+            discard_result_on_return,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+            discard_result_on_return,
+            ..
+        }) = &mut plan.operations[0]
+        else {
+            panic!("anonymous producer")
+        };
+        *discard_result_on_return = false;
+        assert!(terminal_production::produce_terminal_artifact(&changed, "Main::main").is_err());
+        let extended = source.replace(")); }", ")); done(); }") + "machine done() {}";
+        assert!(
+            terminal_production::produce_terminal_artifact(&checked(&extended), "Main::main")
+                .is_err()
+        );
+    }
 }
 
 #[test]

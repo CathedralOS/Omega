@@ -1080,6 +1080,7 @@ pub(super) fn build_checked_machine_with(
                 || structural_result_local.is_some()
                 || has_structural_result)
                 && !carries_scalar_parameter
+                && !program.state_parameters(state).is_empty()
             {
                 let structural =
                     free_selected_operator_structural_signature(program, shapes, state, &binders)?;
