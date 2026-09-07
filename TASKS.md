@@ -383,9 +383,9 @@ Owners include
   mutable borrow. Acceptance includes read rejection, exact write coverage,
   unwind/return behavior, and both Linux targets.
 
-  Finish native lowering and execution coverage for literal indexed write-only
-  receivers, retaining original referent identity, exact element type, ordered
-  place coordinates, bounds, and exclusive access. Extend Terminal receiver
+  Run literal indexed write-only receiver caller-observation coverage on both
+  Linux hosts, retaining original referent identity and exclusive access through
+  register- and stack-passed pointers. Extend Terminal receiver
   production to dynamic indexes and retained local aliases; checked admission
   alone does not supply their portable address and lifetime evidence.
   Extend non-observing receiver admission to
@@ -409,8 +409,11 @@ Owners include
   write-only non-reading, and register/stack pointer passing work on both Linux
   targets. Independently formed or substituted access/shape/placement pairs
   reject; replace the hand-built mutable/direct-copy fixture with a reference
-  case or a rejection control. Do not claim copy equivalence merely because a
-  following callee sees the staged write.
+  case or a rejection control. Repair the ranked-receiver regression in
+  `abstract-operations-to-target-operations/src/tests/ranked_countdown.rs` to
+  assert the reference's usage multiplicity and pointer ABI rather than the
+  referent's affine multiplicity and value shape. Do not claim copy equivalence
+  merely because a following callee sees the staged write.
 
 - **BORROW-PROOF-CONVERGENCE.** Make ordinary borrow checking proof-producing
   without allowing propositions to create or amplify authority. Extend symbolic

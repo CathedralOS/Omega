@@ -196,18 +196,15 @@ pub(super) fn lower_structural_unit_call(
                 && parameters_by_place
                     .get(&argument.place)
                     .is_some_and(|source| {
-                        source.access == StructuralAccess::WriteOnlyBorrow
-                            && source.multiplicity == StructuralMultiplicity::Unrestricted
+                        matches!(
+                            source.access,
+                            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                        ) && source.multiplicity == StructuralMultiplicity::Unrestricted
                     })
                 && argument
                     .path
                     .iter()
-                    .any(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)))
-                && argument
-                    .path
-                    .iter()
-                    .skip_while(|segment| matches!(segment, StructuralPathSegment::Field(_)))
-                    .all(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)));
+                    .any(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)));
             let (
                 projected_type,
                 projected_shape,
@@ -263,7 +260,10 @@ pub(super) fn lower_structural_unit_call(
                             structural_types
                                 .get(&projected_type)
                                 .map(|declaration| &declaration.shape),
-                            Some(StructuralTypeShape::PrimitiveScalar(_))
+                            Some(
+                                StructuralTypeShape::PrimitiveScalar(_)
+                                    | StructuralTypeShape::Record { .. }
+                            )
                         ) {
                             return Err(LoweringError::StructuralCallArgumentTypeMismatch {
                                 callee: *callee,

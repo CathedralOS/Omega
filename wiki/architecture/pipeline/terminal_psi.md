@@ -744,16 +744,21 @@ have closed material record/array/scalar structure, without erased fields,
 descriptors, or sums. Dynamic and range paths, whole nested-array leaves, and
 retained local receiver aliases remain outside this producer. Canonical
 receiver artifacts execute under incremental fuel without repeating calls or
-stores; this does not establish their native realization. The verifier also
-rejects widening, target disagreement, overlapping exclusive arguments, and
-Boolean structural observation through write-only access.
+stores. The verifier also rejects widening, target disagreement, overlapping
+exclusive arguments, and Boolean structural observation through write-only access.
 For direct Unit calls, target lowering walks the same finite field/index path
 and derives one borrowed-reference pointer adjustment. Both Linux targets emit
 that adjustment, including split AArch64 immediates beyond 4 KiB; assignment,
 object, and installed replay independently reconstruct the exact offset from
-the retained structural declarations. A checked scalar prefix may
-coexist with that projected argument and is replayed through its ordinary
-scalar ABI custody rather than folded into projection authority. The legacy fixed-array length/stride
+the retained structural declarations. Literal indexed Unit receivers use this
+same route for material record leaves, including interleaved fields/indexes and
+mutable-root attenuation to write-only access. The root and leaf retain
+`BorrowedReference` shapes; the argument adjusts the original pointer rather
+than staging a referent copy. Wrong paths, offsets, types, access, or value-copy
+shapes reject independently during assignment and object/installed replay.
+A checked scalar prefix may coexist with that projected argument and is replayed
+through its ordinary scalar ABI custody rather than folded into projection
+authority. The legacy fixed-array length/stride
 rows remain reserved for affine element-transfer cleanup and are not attached
 to this unrestricted write-only subloan.
 Terminal format 42/vocabulary 45 retains one executable direct whole-root
@@ -920,8 +925,12 @@ direct native executable realization rejects a retained receiver entry until
 the generated bridge supplies its root-backed, initialized activation loan.
 An attached namespace with no runtime receiver parameter needs no such pointer.
 
-This native coverage alone does not establish caller-visible structural
-mutation after return. The [structural borrow identity contract](../../design_briefs/core_multiplicity_and_linearity.md#structural-borrow-identity-at-native-calls)
+Literal indexed write-only receiver regressions execute complete relocated text
+with caller-owned storage and verify the selected write and unchanged surrounding
+bytes after return. This covers register-passed references, nested/interleaved
+paths, mutable-root attenuation, and scalar replacement prefixes on macOS
+AArch64; Linux-host and stack-passed receiver execution remain unfinished.
+It does not establish general structural-borrow identity. The [structural borrow identity contract](../../design_briefs/core_multiplicity_and_linearity.md#structural-borrow-identity-at-native-calls)
 is settled: every borrowed mode preserves the original referent, using the
 existing reference ABI tag without erasing semantic access. Native structural
 signatures must derive through one access classifier; caller argument

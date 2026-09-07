@@ -200,9 +200,12 @@ storage containing no live `T` is a separate feature.
 > interleaved with record fields, from either mutable or write-only parameter
 > roots. Source replay checks the exact authored path, and Terminal verification
 > reconstructs its bounds, type, and non-transferring access. Canonical artifacts
-> execute across fuel boundaries without replaying the call or store. Dynamic
-> indexes and retained local aliases remain outside this Terminal receiver
-> producer; indexed receiver native execution is not established by this rung.
+> execute across fuel boundaries without replaying the call or store. Literal
+> indexed Unit receiver calls use the same native borrowed-reference pointer
+> adjustment as explicit subloans; lowering, assignment, object construction,
+> and installed replay retain the exact leaf and offset without copying the
+> referent. Dynamic indexes and retained local aliases remain outside this
+> Terminal receiver producer.
 > Borrowed `self` uses the reference type's usage multiplicity, just like an
 > explicit reference parameter; its access still controls reading and mutation.
 > This does not provision a native executable's entry receiver.
