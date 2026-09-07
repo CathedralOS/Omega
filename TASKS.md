@@ -129,9 +129,9 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   and source locations: std has one blocking `dangerous_authority` row for
   `FilesystemHost` and four `opaque_blocking` `external_executable_supply` rows
   for Console `read_line`, `read_byte`, `write_byte`, and `exit_process`.
-  With production sources at `c0412fe31b`, the macOS ARM64 command
+  The macOS ARM64 outer command
   `CARGO_INCREMENTAL=0 cargo run -p omega -- --target macos_arm64
-  --build-dir build/cli-mvp-tails samples/cli/basics/cli_mvp/main.omg` exits 1
+  --build-dir build/cli-mvp-ranks samples/cli/basics/cli_mvp/main.omg` exits 1
   after checked package review: `fresh package review has blocking rows but no
   explicit --package-root-policy`. Implement
   [single package acceptance](wiki/design_briefs/build_and_package_model.md#single-package-acceptance):
@@ -149,27 +149,22 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   without changing the independent native-lowering requirements. The inner sample
   harness bypasses this policy route; independent writer work remains actionable.
 
-  The downstream native `cli_mvp` probe at code checkpoint `cf1ca5f862` remains red.
+  The downstream native `cli_mvp` probe at `6773132220` remains red after ranked graph admission.
   On macOS ARM64, `CARGO_INCREMENTAL=0 OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
   samples_with_documented_exit_run_correctly --no-fail-fast` exits 100 before
-  execution: `Unit-effect member has an invalid checked terminal selection`.
-  The call closure now reaches selection validation; the source selector in
-  `typed-trees-to-checked-trees/src/flow/terminal_scalar.rs` excludes free
-  machines with implementation witnesses. Retain the writer's slice-decrease
-  proof when widening that selector, not just its eligibility flag. Complete the
+  execution: `call source custody disagrees with its authored caller or target`.
+  Locate the disagreeing call and reconcile its exact authored and selected
+  identities in `checked-trees-to-lowered-psi/src/call_source_custody/authored.rs`
+  and the owning checked call plan; do not relax the identity check. Complete the
   [borrowed-byte writer closure](wiki/architecture/pipeline/terminal_psi.md#borrowed-byte-writer-composition)
   in `typed-trees-to-checked-trees/src/flow/terminal_unit/` and
   `checked-trees-to-lowered-psi/src/attached_unit/`.
-  Extend shared graph emission to the writer without splitting authored states
-  into synthetic machines. Slice-ranked cyclic execution remains unsupported.
   The private writer calls its concrete provider's byte leaf directly; extending
   plain boundary-trait or `Service` forwarding is not a prerequisite.
   The callable plan must retain exact intrinsic settlement, view/scalar transfers,
   length and guarded head/tail observations at selected edges, and
   slice-decrease evidence.
-  Carry the derived-view extent equations and checked integer subtraction-order
-  certificates into the generic ranking proof for the actual cyclic edges.
   Native whole-byte-view layout, length, indexed reads, and subslice realization
   are also still missing.
   Acceptance: empty/nonempty bytes and both newline settings preserve exact
@@ -375,7 +370,8 @@ Owners include
   Reuse full-graph dominance, exact successor transfers, and ownership-frontier
   replay. Current-iteration guards are reconstructed after resetting incoming
   facts at every proof-scheduling cut target; general cyclic proposition
-  invariants and ranking still need retained evidence. Guarded-crash path
+  invariants and ranking views beyond fixed unsigned natural ranks still need
+  retained evidence. Guarded-crash path
   reconstruction must also cover cycles without exhausting path enumeration.
   Keep cycle safety independent from optional termination certificates and
   finite fuel. Existing bounded admission cannot
@@ -400,7 +396,7 @@ Owners include
   `terminal-psi-to-abstract-operations/src/artifact/ranked_native.rs`.
   Full acceptance is the unchanged `print_squares` native exit/output oracle
   on the hosted matrix. Its field/byte operations and the Console writer's
-  borrowed-view operations and slice-decrease proof remain separate required
+  borrowed-view native operations and retained ranking through native replay remain required
   dependencies under `SAMPLE-CORPUS`; interpreted loop support alone does not
   complete either customer.
 

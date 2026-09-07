@@ -58,8 +58,8 @@ The Windows and macOS outer CLI probes complete fresh checked package review,
 then stop with
 `fresh package review has blocking rows but no explicit --package-root-policy`.
 This is a policy boundary before accepted native production. The compiler-library
-sample test bypasses it and stops later at checked Terminal selection for the
-writer closure.
+sample test bypasses it and stops later at authored/selected call identity
+reconciliation in Terminal production.
 Neither result establishes native execution.
 
 The missing-policy diagnostic includes exact conflict identities and source
@@ -102,19 +102,18 @@ native production, and execution.
 | Native image and publication | [`object.rs`](../../../../omega-rust/omega/compiler/native-realization/src/realization/object.rs) sequences physical lowering and emission. PE image support exists. [`compilation-report`](../../../../omega-rust/omega/compiler/compilation-report/src/lib.rs) validates the retained artifact and requires compiler-text/function evidence before publishing exact bytes. Preserve these gates. |
 
 The observed compiler-library failure is
-`Unit-effect member has an invalid checked terminal selection`. The free-machine
-selector in `typed-trees-to-checked-trees/src/flow/terminal_scalar.rs` excludes
-implementation witnesses; `console_write_bytes` has a slice-decrease witness.
-Retaining that proof through cyclic execution is required before admitting it;
-removing the eligibility check alone does not implement the writer. The
-ordinary planner handles one-state bodies, and the shared composed call catalog
-now traverses acyclic free and attached graphs with borrowed views and
-selected-edge tails.
-The shared route retains scalar declaration/assignment prefixes and computed
-scalar successor operands, including guarded byte-head reads. The writer still
-needs descriptor rebinding and cyclic execution with retained slice ranking.
-The call closure now reaches selection validation rather than failing to find
-the adapter's transitive body.
+`call source custody disagrees with its authored caller or target`, from
+`checked-trees-to-lowered-psi/src/call_source_custody/authored.rs`. The selected
+closure now passes the previous ranked-body eligibility fence. Locate the
+disagreeing call and reconcile its exact authored/selected identities; an
+intrinsic settlement must not bypass that check.
+
+The shared free/attached Unit graph retains scalar prefixes, guarded head/tail
+operands, repeated descriptor bindings, and authored `Slice::Length` ranking.
+A writer-shaped source regression passes serialized Terminal verification and
+interpretation with raw bytes, both newline choices, caller continuation, and
+fuel suspension. This does not establish that the unchanged std provider closure
+or this native sample executes.
 
 The next writer acceptance is the actual authored closure through verified
 Terminal execution: empty/nonempty bytes, both newline choices, exact output

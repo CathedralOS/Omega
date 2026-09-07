@@ -139,7 +139,7 @@ representation.
 ### Boundary-argument realization fence
 
 Ordinary in-module and bodyless boundary calls both carry positional scalar
-arguments. In current terminal-Psi vocabulary 29,
+arguments. Since terminal-Psi vocabulary 29,
 `BoundaryMachineDeclaration` declares ordered scalar parameter types and
 `BoundaryCall` carries the matching ordered `ValueId` arguments alongside its
 structural lane. Canonical encoding binds
@@ -1181,7 +1181,7 @@ Validation rejoins the complete application, Unit callable interface, selected
 row or parameter slot, operation, access, and source. Fixed fuel and reference
 execution resolve the same rows without allocating a value ID or result home.
 Format 71/vocabulary 74 added a distinct owner-local selection argument source,
-retained by current format 78/vocabulary 84 alongside rebound descriptors and
+retained by current format 79/vocabulary 85 alongside rebound descriptors and
 inbound parameters. Direct-selection
 Unit and scalar forwarding therefore cross the helper without relabeling their
 custody. The scalar form retains its exact result through the ordinary caller,
@@ -5268,8 +5268,8 @@ that alternative appended to the enclosing assumptions and requires the same
 conclusion in every branch. Discharged local assumptions are not ambient
 requirements in the acceptance record. This permits signed division to use
 both nonzero signs while independently proving the `MIN / -1` exclusion.
-The current proof vocabulary uses proof-bundle format 29, canonical
-proof-calculus trust root 29, proof-system marker 2, and Rust admission kernel
+The current proof vocabulary uses proof-bundle format 30, canonical
+proof-calculus trust root 30, proof-system marker 2, and Rust admission kernel
 v12. `EqualitySymmetry` reverses one independently proved scalar
 equality, retaining its exact child citation. This lets canonical contract
 equalities participate in either direction without inventing an equality or
@@ -5410,7 +5410,7 @@ and mutable-borrowed roots remain observable. It walks the complete relevant
 record/mixed-field, fixed-array-index, or sum-case payload path, and requires the selected leaf to
 declare the same IEEE format. Owner, root, path, relevance, leaf kind, and
 format substitution fail closed. Introduced in Terminal format 70 / vocabulary
-73 and retained by current format 78 / vocabulary 84, source tag 9 rejects
+73 and retained by current format 79 / vocabulary 85, source tag 9 rejects
 under legacy formats. Checked/source production now
 covers one nonempty field/case path below a direct structural parameter in the
 owning top-level machine contract. Checked custody retains exact owner symbol,
