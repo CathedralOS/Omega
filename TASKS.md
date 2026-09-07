@@ -129,9 +129,9 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   and source locations: std has one blocking `dangerous_authority` row for
   `FilesystemHost` and four `opaque_blocking` `external_executable_supply` rows
   for Console `read_line`, `read_byte`, `write_byte`, and `exit_process`.
-  With production sources at `60b02a9fff`, the macOS ARM64 command
+  With production sources at `c0412fe31b`, the macOS ARM64 command
   `CARGO_INCREMENTAL=0 cargo run -p omega -- --target macos_arm64
-  --build-dir build/cli-mvp-final samples/cli/basics/cli_mvp/main.omg` exits 1
+  --build-dir build/cli-mvp-tails samples/cli/basics/cli_mvp/main.omg` exits 1
   after checked package review: `fresh package review has blocking rows but no
   explicit --package-root-policy`. **OWNER-BLOCKED: native package acceptance**
   awaits the [acceptance decision](OWNER_QUESTIONS.md#q1--package-acceptance-at-native-build).
@@ -144,20 +144,21 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   verification, and lets this CLI route reach native production. The inner sample
   harness bypasses this policy route; independent writer work remains actionable.
 
-  The downstream native `cli_mvp` probe at code checkpoint `9f93744f34` remains red.
+  The downstream native `cli_mvp` probe at code checkpoint `c0412fe31b` remains red.
   On macOS ARM64, `CARGO_INCREMENTAL=0 OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
   samples_with_documented_exit_run_correctly --no-fail-fast` exits 100 before
-  execution: `InvalidUnitMachinePlan` names `ConsoleNativeProvider::write_line`
-  with a missing checked transitive machine plan. After the policy step,
-  retain selected-edge tail descriptors for the
+  execution: `Unit-effect member has an invalid checked terminal selection`.
+  The call closure now reaches selection validation; the source selector in
+  `typed-trees-to-checked-trees/src/flow/terminal_scalar.rs` excludes free
+  machines with implementation witnesses. Retain the writer's slice-decrease
+  proof when widening that selector, not just its eligibility flag. Complete the
   [borrowed-byte writer closure](wiki/architecture/pipeline/terminal_psi.md#borrowed-byte-writer-composition)
   in `typed-trees-to-checked-trees/src/flow/terminal_unit/` and
   `checked-trees-to-lowered-psi/src/attached_unit/`.
   Extend shared graph emission to the writer without splitting authored states
-  into synthetic machines. Slice-ranked cyclic execution remains unsupported;
-  the acyclic graph can retain selected-edge tails but cannot rebind descriptors
-  on loop iterations.
+  into synthetic machines. Slice-ranked cyclic execution and descriptor rebinding
+  on loop iterations remain unsupported.
   The private writer calls its concrete provider's byte leaf directly; extending
   plain boundary-trait or `Service` forwarding is not a prerequisite.
   The callable plan must retain exact intrinsic settlement, view/scalar transfers,

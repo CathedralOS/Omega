@@ -58,7 +58,8 @@ The Windows and macOS outer CLI probes complete fresh checked package review,
 then stop with
 `fresh package review has blocking rows but no explicit --package-root-policy`.
 This is a policy boundary before accepted native production. The compiler-library
-sample test bypasses it and stops later at the missing Terminal writer body.
+sample test bypasses it and stops later at checked Terminal selection for the
+writer closure.
 Neither result establishes native execution.
 
 The missing-policy diagnostic includes exact conflict identities and source
@@ -101,15 +102,20 @@ native production, and execution.
 | Entry storage and providers | [`native_artifact.rs`](../../../../omega-rust/omega/compiler/native-realization/src/realization/native_artifact.rs) rejects an executable entry retaining unprovisioned `self`. `Main` needs real storage, including its 256-byte buffer, and a loan from the entry bridge. [`compiler_intrinsic.rs`](../../../../omega-rust/omega/build/selected-dispatch/src/compiler_intrinsic.rs) must supply closed identities for the selected Windows output, input, and exit leaves; declarations alone are not native implementations. |
 | Native image and publication | [`object.rs`](../../../../omega-rust/omega/compiler/native-realization/src/realization/object.rs) sequences physical lowering and emission. PE image support exists. [`compilation-report`](../../../../omega-rust/omega/compiler/compilation-report/src/lib.rs) validates the retained artifact and requires compiler-text/function evidence before publishing exact bytes. Preserve these gates. |
 
-The observed compiler-library failure names `ConsoleNativeProvider::write_line`,
-but its missing dependency is the five-state `console_write_bytes` body. The
+The observed compiler-library failure is
+`Unit-effect member has an invalid checked terminal selection`. The free-machine
+selector in `typed-trees-to-checked-trees/src/flow/terminal_scalar.rs` excludes
+implementation witnesses; `console_write_bytes` has a slice-decrease witness.
+Retaining that proof through cyclic execution is required before admitting it;
+removing the eligibility check alone does not implement the writer. The
 ordinary planner handles one-state bodies, and the shared composed call catalog
 now traverses acyclic free and attached graphs with borrowed views and
 selected-edge tails.
 The shared route retains scalar declaration/assignment prefixes and computed
 scalar successor operands, including guarded byte-head reads. The writer still
 needs descriptor rebinding and cyclic execution with retained slice ranking.
-Caller pruning exposes that missing transitive body at the adapter.
+The call closure now reaches selection validation rather than failing to find
+the adapter's transitive body.
 
 The next writer acceptance is the actual authored closure through verified
 Terminal execution: empty/nonempty bytes, both newline choices, exact output
