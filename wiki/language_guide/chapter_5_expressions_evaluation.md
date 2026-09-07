@@ -838,7 +838,12 @@ expression-only suppression restriction.
 > replaces only the selected cells or backing bytes, preserving element order and
 > neighbors, and rejects invalid bounds or a mismatched element count rather than
 > clamping the write. This includes whole-array loans into slice parameters and
-> inferred generic-length calls, not general borrowed-subslice place execution.
+> inferred generic-length calls. Borrowed subslices preserve the selected backing
+> cells or packed bytes through nested windows, local loans, and forwarding;
+> bounds and counts remain relative to that view. Packed-byte windows share the
+> original allocation, and a live bounded view prevents resizing its backing.
+> Inline selector-call bound proofs remain incomplete, independently of runtime
+> selector evaluation.
 > Shared record-valued elements retain their own field checks.
 > The destination's arithmetic policy cannot truncate an anonymous fraction or
 > wrap an out-of-range initial value. Successful integral
@@ -873,7 +878,6 @@ expression-only suppression restriction.
 > transport a callee's builtin `result == immutable_parameter` guarantee from retained closed
 > fixed-integer operands, without replaying their source expressions. General runtime argument
 > snapshots, generic/evidence-adapted and boundary destination custody,
-> borrowed-subslice places,
 > general aggregate production/proof consumers,
 > remaining mutable parameter carriers and Unit-body storage, numeric policies,
 > remaining float destinations,

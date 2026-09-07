@@ -137,7 +137,7 @@ impl BuildTimeValue {
             Value::Int(value) => BuildTimeValue::Int(*value),
             Value::Bool(value) => BuildTimeValue::Bool(*value),
             Value::Float(value) => BuildTimeValue::Float(*value),
-            Value::Str(bytes) => BuildTimeValue::Text(bytes.borrow().clone()),
+            Value::Str(bytes) => BuildTimeValue::Text(bytes.borrow().to_vec()),
             Value::Struct {
                 type_name, fields, ..
             } => BuildTimeValue::Struct {

@@ -520,6 +520,14 @@ impl<'program> Evaluator<'program> {
                 self.field_cell(&receiver, member.member.as_str())
             }
             ExpressionNode::Indexed(indexed) => {
+                if let ExpressionNode::Range(range) =
+                    self.program.expression_table.expression(indexed.index)
+                {
+                    let range = *range;
+                    self.tick()?;
+                    let view = self.eval_subslice(indexed.collection, &range, frame)?;
+                    return self.allocate_cell(view);
+                }
                 let collection = self.resolve_place(indexed.collection, frame)?;
                 let index = self.eval_index(indexed.index, frame)?;
                 self.element_cell(&collection, index)
@@ -890,8 +898,8 @@ impl<'program> Evaluator<'program> {
         }
     }
 
-    /// Evaluate a subslice `collection[start..end]` into an `Array` view that SHARES the
-    /// collection's element cells (so writes through the subslice alias the original). A
+    /// Evaluate a subslice `collection[start..end]` into a view sharing the
+    /// collection's element cells or packed bytes. A
     /// missing start defaults to 0; a missing end to the length; `end_inclusive` extends by
     /// one.
     pub(super) fn eval_subslice(
@@ -900,57 +908,41 @@ impl<'program> Evaluator<'program> {
         range: &typed_trees::expression::TableRangeExpression,
         frame: &Frame,
     ) -> EvalResult<Value> {
-        // A nested subslice base (`sub[1..][1..]`) is not a place — the inner
-        // range-indexed expression produces a VIEW value. Evaluate it as a value
-        // (recursing through this function) and slice the resulting window;
-        // element cells stay shared, matching the fat-descriptor model where a
-        // subslice only offsets the pointer.
-        let nested_view = if let ExpressionNode::Indexed(inner) =
-            self.program.expression_table.expression(collection).clone()
-            && matches!(
-                self.program.expression_table.expression(inner.index),
-                ExpressionNode::Range(_)
-            ) {
-            Some(self.eval_expression(collection, frame)?)
-        } else {
-            None
+        // Resolve nested windows recursively without replaying their selectors.
+        // Clone only the view descriptor; its element cells or bytes stay shared.
+        let collection = self.resolve_place(collection, frame)?;
+        let collection = self.deref_cell(collection).borrow().clone();
+        let length = match &collection {
+            Value::Array(elements) => elements.len(),
+            Value::Str(text) => text.borrow().len(),
+            other => return trap(format!("cannot subslice {other:?}")),
         };
-        let elements = match nested_view {
-            Some(Value::Array(elements)) => elements,
-            Some(other) => return trap(format!("cannot subslice {other:?}")),
-            None => {
-                let collection_cell = self.resolve_place(collection, frame)?;
-                match &*self.deref_cell(collection_cell).borrow() {
-                    Value::Array(elements) => elements.clone(),
-                    // A Str-backed slice (a `&[u8] in Path` bound to a string
-                    // literal) subslices into a byte view: expose each byte as an
-                    // Int cell so the shared range logic + the `Array` host-arg arm
-                    // (eval_fs_bytes) handle `path[a..b]` uniformly.
-                    Value::Str(text) => text
-                        .borrow()
-                        .iter()
-                        .map(|byte| self.allocate_cell(Value::Int(i64::from(*byte))))
-                        .collect::<EvalResult<Vec<_>>>()?,
-                    other => return trap(format!("cannot subslice {other:?}")),
-                }
-            }
-        };
-        let len = elements.len();
         let start = if range.start.is_valid() {
             self.eval_index(range.start, frame)?
         } else {
             0
         };
-        let mut end = if range.end.is_valid() {
+        let end = if range.end.is_valid() {
             self.eval_index(range.end, frame)?
         } else {
-            len
+            length
         };
-        if range.end_inclusive {
-            end = end.saturating_add(1);
+        let end = if range.end_inclusive {
+            end.checked_add(1)
+                .ok_or_else(|| Halt::Trap("inclusive subslice bound overflow".to_owned()))?
+        } else {
+            end
+        };
+        if start > end || end > length {
+            return trap("subslice range is out of bounds");
         }
-        let end = end.min(len);
-        let start = start.min(end);
-        Ok(Value::Array(elements[start..end].to_vec()))
+        match collection {
+            Value::Array(elements) => Ok(Value::Array(elements[start..end].to_vec())),
+            Value::Str(text) => text
+                .subslice(start, end)
+                .map(Value::Str)
+                .map_err(Halt::Trap),
+            other => trap(format!("cannot subslice {other:?}")),
+        }
     }
 }

@@ -47,12 +47,13 @@ impl<'program> Evaluator<'program> {
                 // native fold of `(arr[a..b]).len`.
                 match self.resolve_place(handle, frame) {
                     Ok(cell) => Ok(cell.borrow().clone()),
-                    Err(_) => {
+                    Err(Halt::Unsupported(_)) => {
                         let receiver = self.eval_expression(member.receiver, frame)?;
                         let receiver = self.allocate_cell(receiver)?;
                         let field = self.field_cell(&receiver, member.member.as_str())?;
                         Ok(self.deref_cell(field).borrow().clone())
                     }
+                    Err(error) => Err(error),
                 }
             }
             ExpressionNode::Borrow(inner) => {
@@ -202,29 +203,19 @@ impl<'program> Evaluator<'program> {
                 {
                     return self.eval_subslice(indexed.collection, &range, frame);
                 }
-                // A scalar index into a string VIEW (`Value::Str`) reads the i-th BYTE as an Int
-                // -- this is how the oracle cross-checks byte-string canaries (hashing,
-                // comparison, byte walks) instead of skipping them as "cannot index Str". A
-                // carrier `[u8; N]` is a `Value::Array` and takes the element path below. READ
-                // ONLY: a write `s[i] = x` still traps via element_cell (string views are
-                // immutable), so there is no silent no-op.
-                if let Ok(collection_cell) = self.resolve_place(indexed.collection, frame) {
-                    let collection_cell = self.deref_cell(collection_cell);
-                    let indexes_str = matches!(&*collection_cell.borrow(), Value::Str(_));
-                    if indexes_str {
-                        let index = self.eval_index(indexed.index, frame)?;
-                        if let Value::Str(text) = &*collection_cell.borrow() {
-                            return text
-                                .borrow()
-                                .get(index)
-                                .map(|byte| Value::Int(i64::from(*byte)))
-                                .ok_or_else(|| {
-                                    Halt::Trap(format!("string index {index} out of bounds"))
-                                });
-                        }
-                    }
+                // Select the collection and index once, including nested views.
+                // Packed bytes share their buffer; other arrays share cells.
+                let collection = self.resolve_place(indexed.collection, frame)?;
+                let collection = self.deref_cell(collection);
+                let index = self.eval_index(indexed.index, frame)?;
+                if let Value::Str(text) = &*collection.borrow() {
+                    return text
+                        .borrow()
+                        .get(index)
+                        .map(|byte| Value::Int(i64::from(*byte)))
+                        .ok_or_else(|| Halt::Trap(format!("string index {index} out of bounds")));
                 }
-                let cell = self.resolve_place(handle, frame)?;
+                let cell = self.element_cell(&collection, index)?;
                 let value = self.deref_cell(cell).borrow().clone();
                 Ok(value)
             }

@@ -89,7 +89,7 @@ impl<'program> Evaluator<'program> {
                 let bytes = if let Some(first) = arguments.first() {
                     let value = self.eval_expression(*first, frame)?;
                     match value {
-                        Value::Str(text) => text.borrow().clone(),
+                        Value::Str(text) => text.borrow().to_vec(),
                         other => {
                             return unsupported(format!(
                                 "host write of non-string value {other:?}"

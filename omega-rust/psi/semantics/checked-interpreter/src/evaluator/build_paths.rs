@@ -79,7 +79,7 @@ impl<'program> Evaluator<'program> {
             ));
         };
         let relative = match self.eval_expression(*relative, frame)? {
-            Value::Str(bytes) => bytes.borrow().clone(),
+            Value::Str(bytes) => bytes.borrow().to_vec(),
             Value::Array(cells) => cells
                 .iter()
                 .map(|cell| {
@@ -440,7 +440,7 @@ pub(super) fn rooted_build_path_parts(
     let relative = fields
         .get("relative")
         .and_then(|relative| match &*relative.borrow() {
-            Value::Str(bytes) => Some(bytes.borrow().clone()),
+            Value::Str(bytes) => Some(bytes.borrow().to_vec()),
             _ => None,
         })
         .ok_or_else(|| Halt::Trap("rooted build path has no relative bytes".to_owned()))?;

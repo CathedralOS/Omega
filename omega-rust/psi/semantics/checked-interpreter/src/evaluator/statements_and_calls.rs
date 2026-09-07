@@ -138,7 +138,7 @@ impl<'program> Evaluator<'program> {
                 // BYTES). The byte has no per-element cell, so write it straight into the vec
                 // rather than resolving an element place (element_cell only handles Array). The
                 // value is the byte (an Int); a range index is not a scalar write.
-                if let ExpressionNode::Indexed(indexed) = self
+                let target = if let ExpressionNode::Indexed(indexed) = self
                     .program
                     .expression_table
                     .expression(assignment.target)
@@ -146,12 +146,11 @@ impl<'program> Evaluator<'program> {
                     && !matches!(
                         self.program.expression_table.expression(indexed.index),
                         ExpressionNode::Range(_)
-                    )
-                    && let Ok(collection_cell) = self.resolve_place(indexed.collection, frame)
-                {
+                    ) {
+                    let collection_cell = self.resolve_place(indexed.collection, frame)?;
                     let collection_cell = self.deref_cell(collection_cell);
+                    let index = self.eval_index(indexed.index, frame)?;
                     if matches!(&*collection_cell.borrow(), Value::Str(_)) {
-                        let index = self.eval_index(indexed.index, frame)?;
                         let byte = value.as_int().ok_or_else(|| {
                             Halt::Trap("carrier byte write value is not an integer".to_owned())
                         })? as u8;
@@ -164,8 +163,10 @@ impl<'program> Evaluator<'program> {
                         }
                         return Ok(());
                     }
-                }
-                let target = self.resolve_place(assignment.target, frame)?;
+                    self.element_cell(&collection_cell, index)?
+                } else {
+                    self.resolve_place(assignment.target, frame)?
+                };
                 // Assigning to a `&mut` place writes THROUGH the reference into the aliased
                 // cell (so assigning through a mutable text-carrier parameter mutates the
                 // caller's carrier), rather than rebinding the local to a non-reference value.
@@ -721,6 +722,17 @@ impl<'program> Evaluator<'program> {
         frame: &Frame,
     ) -> EvalResult<Cell> {
         match self.program.expression_table.expression(argument) {
+            ExpressionNode::Indexed(indexed)
+                if matches!(
+                    self.program.expression_table.expression(indexed.index),
+                    ExpressionNode::Range(_)
+                ) =>
+            {
+                // A view is already the argument value. Probing its place and
+                // then evaluating it again would replay effectful selectors.
+                let value = self.eval_expression(argument, frame)?;
+                self.allocate_cell(value)
+            }
             ExpressionNode::Borrow(inner) => {
                 // &mut place -> a Ref to the SAME cell (the whole point of the oracle). The
                 // param binding holds a `Ref`, so a later forward of that param (as a bare
