@@ -1596,6 +1596,9 @@ machine Main::main(&mut self) { self.sink.emit(7); }
             panic!("settled direct adapter call");
         };
         let execution_target = execution_call.target_symbol;
+        let argument = checked
+            .statement_table
+            .expression_handles(execution_call.arguments)[0];
         let source = checked.pre_selected_dispatch_source_trees().unwrap();
         let StatementNode::Call(source_call) = &source.statement_table.statements(statements)[0]
         else {
@@ -1628,6 +1631,13 @@ machine Main::main(&mut self) { self.sink.emit(7); }
         );
         drop(terminal);
         drop(source);
+        let mut altered = checked.clone();
+        *altered.typed.expression_table.expression_mut(argument) = ExpressionNode::Boolean(false);
+        assert!(
+            altered.terminal_production_trees().is_err(),
+            "a changed selected operand must reject before restoring its requirement call"
+        );
+        assert!(altered.pre_selected_dispatch_source_trees().is_err());
         let StatementNode::Call(call) =
             &mut checked.typed.statement_table.statements_mut(statements)[0]
         else {
