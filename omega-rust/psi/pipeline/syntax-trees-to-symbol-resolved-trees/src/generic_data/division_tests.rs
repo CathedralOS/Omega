@@ -4,6 +4,9 @@ use source::{SourceId, SourceSpan, Span};
 use source_files_to_tokens::Lexer;
 use tokens_to_syntax_trees::parse_syntax_trees_with_id;
 
+#[path = "division_tests/decimal.rs"]
+mod decimal;
+
 fn normalize(source: &str) -> Result<(SyntaxTrees, Vec<Diagnostic>), Vec<Diagnostic>> {
     let tokens = Lexer::new(source)
         .tokenize()
@@ -19,6 +22,18 @@ fn anonymous_const_fact_cannot_discharge_a_truncated_equality() {
         data Main { value: Buffer<2>; }",
         "is false",
     );
+}
+
+#[test]
+fn decimal_const_arguments_preserve_exact_values() {
+    for expression in ["7 / 2.0 * 2", "7.0", "0.1 * 70", "7e0", "0.07e2"] {
+        let source = format!(
+            "data Buffer<const N: u64> {{ values: [u8; N]; }}
+             data Main {{ value: Buffer<{expression}>; }}"
+        );
+        let (syntax, _) = normalize(&source).expect("integral decimal argument");
+        assert_buffer(&syntax, 7);
+    }
 }
 
 fn instance<'syntax>(

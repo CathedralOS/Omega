@@ -84,6 +84,12 @@ fn anonymous_const_facts_compare_exact_rationals_without_integer_landing() {
         ("-7 / 2 < -3", "-7 / 2 == -3"),
         ("7 / -2 * 2 == -7", "7 / -2 * 2 == -6"),
         ("-7 / -2 == 7 / 2", "-7 / -2 == 3"),
+        ("7 / 2.0 > 3", "7 / 2.0 == 3"),
+        ("0.1 + 0.2 == 0.3", "0.1 + 0.2 > 0.3"),
+        (
+            "9007199254740993.0 - 9007199254740992 == 1",
+            "9007199254740993.0 - 9007199254740992 == 0",
+        ),
     ] {
         assert_case(&generic_fact(true_fact), None, false, 0);
         assert_case(&generic_fact(false_fact), Some("is false"), false, 0);
@@ -113,6 +119,9 @@ fn typed_literals_and_bound_values_keep_integer_quotients_and_remainders() {
         ("N / 2 * 2 == 6", None),
         ("N % 2 == 1", None),
         ("Sizes::COUNT / 2 == 3", None),
+        ("N / 2.0 * 2 == 6", None),
+        ("Sizes::COUNT / 2.0 == 3", None),
+        ("N * (7 / 2.0) == 21", Some("exact anonymous value `7/2`")),
         ("N / 2 * 2 == 7", Some("is false")),
         ("7i64 / 2 * 2 == 7", Some("is false")),
         ("N * (7 / 2) == 21", Some("exact anonymous value `7/2`")),
@@ -149,6 +158,9 @@ fn direct_and_transitive_const_domains_preserve_anonymous_and_typed_facts() {
     for membership in ["Direct", "Transitive"] {
         for (expression, error, warning_count) in [
             ("7 / 2 > 3", None, 0),
+            ("7 / 2.0 > 3", None, 0),
+            ("0.1 + 0.2 == 0.3", None, 0),
+            ("7 / 2.0 == 3", Some("is false"), 0),
             ("7 / 2 * 2 == 7", None, 0),
             ("-7 / 2 < -3", None, 0),
             ("7 / 2 == 3", Some("is false"), 0),
@@ -178,6 +190,8 @@ fn domain_membership_lands_only_integral_anonymous_values() {
     for membership in ["Direct", "Transitive"] {
         for (value, error, warning_count) in [
             ("7 / 2 * 2", None, 1),
+            ("7 / 2.0 * 2", None, 1),
+            ("7 / 2.0", Some("exact anonymous value `7/2`"), 0),
             ("7 / 2", Some("exact anonymous value `7/2`"), 0),
             ("7i64 / 2 * 2", Some("is false"), 0),
         ] {
@@ -199,6 +213,7 @@ fn domain_membership_lands_only_integral_anonymous_values() {
 fn integer_landing_warnings_require_a_discharged_operation() {
     for (expression, retained, warning_count) in [
         ("N == 7 / 2 * 2", false, 1),
+        ("N == 7 / 2.0 * 2", false, 1),
         ("7 / 2 * 2 == N", false, 1),
         ("N * (7 / 2 * 2) == 49", false, 1),
         ("7 / 2 * 2 == 7", false, 0),
@@ -221,6 +236,7 @@ fn integer_landing_warnings_require_a_discharged_operation() {
 fn authored_operator_facts_remain_for_typed_declaration_selection() {
     for (operator, result_type, expression) in [
         ("/", "i64", "7 / 2 == 3"),
+        ("/", "i64", "7 / 2.0 == 3"),
         ("*", "i64", "7 / 2 * 2 == 6"),
         ("+", "i64", "7 / 2 + 1 / 2 == 3"),
         ("%", "i64", "8 % 2 == 0"),

@@ -187,11 +187,14 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
             }
 
             // Const data arguments share the generic argument list with type
-            // arguments. Keep literal values and scoped const paths as
-            // symbol-free named leaves until the declaration's parameter kinds
-            // are available during validation/layout; literal decimal spelling
-            // is canonical.
+            // arguments. Keep integer atoms and scoped const paths as named
+            // leaves; decimal and operator-bearing arguments retain expressions
+            // when their value requires declaration-aware semantic admission.
             let (argument, rest) = if input.at_integer()
+                || input
+                    .tokens
+                    .first()
+                    .is_some_and(|token| token.float_literal_kind().is_some())
                 || input.at_punctuation(PunctuationKind::Minus)
                 || (input.at_punctuation(PunctuationKind::LeftParen)
                     && input
@@ -357,8 +360,14 @@ fn const_expression_requires_semantic_admission(
     syntax_trees: &SyntaxTrees,
     expression: syntax_trees::expression::ExpressionHandle,
 ) -> bool {
-    // Division needs operand-directed meaning and exact anonymous intermediates;
-    // the parser must not choose truncation from a const destination.
+    // Decimal literals and division need exact anonymous evaluation before a
+    // declaration requests integer landing. The parser must not render them.
+    if matches!(
+        syntax_trees.expressions.expression(expression),
+        ExpressionNode::Float(_)
+    ) {
+        return true;
+    }
     let ExpressionNode::Binary(binary) = syntax_trees.expressions.expression(expression) else {
         return false;
     };

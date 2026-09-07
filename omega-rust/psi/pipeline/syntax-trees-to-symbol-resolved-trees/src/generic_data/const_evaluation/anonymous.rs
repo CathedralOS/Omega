@@ -2,6 +2,7 @@
 
 use diagnostics::Diagnostic;
 use numerics::bignum::BigRational;
+use numerics::literals::FloatLiteral;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::BinaryOperator;
 use syntax_trees::expression::ExpressionHandle;
@@ -49,6 +50,14 @@ pub(super) fn evaluate_anonymous_numeric_expression(
                         .value_bignum()
                         .ok_or_else(|| "anonymous integer literal has no exact value".to_owned())?;
                     values.push(BigRational::from_integer(value));
+                }
+                ExpressionNode::Float(text) => {
+                    let value = BigRational::from_decimal_str(text.as_str())
+                        .ok_or_else(|| "anonymous decimal literal has no exact value".to_owned())?;
+                    if fractional.is_none() && value.to_integer_exact().is_none() {
+                        fractional = Some((expression, value.clone()));
+                    }
+                    values.push(value);
                 }
                 ExpressionNode::Binary(binary) => {
                     pending.push(Step::Binary(expression, binary.operator));
@@ -108,7 +117,7 @@ impl AnonymousNumericValue {
             })?;
         if let Some((origin, fractional_value)) = self.fractional {
             warnings.push(Diagnostic::warning(format!(
-            "anonymous division preserves the exact fractional intermediate `{fractional_value}` before landing as integer `{integer}`; type an operand if typed integer division was intended"
+            "anonymous arithmetic preserves the exact fractional intermediate `{fractional_value}` before landing as integer `{integer}`; type an operand if typed integer division was intended"
         )).with_source_span(syntax.expressions.source_span(origin)));
         }
         Ok(value)
@@ -201,6 +210,9 @@ pub(super) fn anonymous_numeric_expression(
         }
         match syntax.expressions.expression(expression) {
             ExpressionNode::Integer(literal) if literal.landing().is_none() => {}
+            ExpressionNode::Float(text)
+                if FloatLiteral::parse(text.as_str())
+                    .is_some_and(|literal| literal.landing().is_none()) => {}
             ExpressionNode::Binary(binary) => {
                 let spelling = match binary.operator {
                     BinaryOperator::Add => OperatorSpelling::Add,

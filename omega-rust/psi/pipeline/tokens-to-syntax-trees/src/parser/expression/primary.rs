@@ -234,13 +234,15 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
             TokenKind::NumericLiteral(NumericLiteralKind::Float(_))
         )
     }) {
+        let source_span = input.current_source_span();
         let (value, input) = input.take_float_text()?;
-        return Ok((
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::Float(value)),
-            input,
-        ));
+        let expression = syntax_trees
+            .expressions
+            .insert(ExpressionNode::Float(value));
+        syntax_trees
+            .expressions
+            .set_source_span(expression, source_span);
+        return Ok((expression, input));
     }
 
     // `utf16"..."`: UTF-16 text sugar for UEFI/Windows CHAR16 data. Desugars in
