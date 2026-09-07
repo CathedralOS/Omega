@@ -58,10 +58,8 @@ def require(name, result, status, output):
         )
 
 
-def main():
-    if len(sys.argv) != 2:
-        raise SystemExit("usage: gate.py PREPARED_DIRECTORY (producer.gamma, checker.gamma, evaluator)")
-    temporary = Path(sys.argv[1]).resolve()
+def prepare(temporary):
+    """Load pinned diagnostics and obtain the theory from its Gamma emitter."""
     gate = Path(__file__).resolve().parent
     producer = (temporary / "producer.gamma").read_bytes()
     checker = (temporary / "checker.gamma").read_bytes()
@@ -83,6 +81,13 @@ def main():
     if actual != (int(identity["bytes"]), identity["sha256"]):
         raise SystemExit(f"Beta encoding theory: emitted package identity changed: {actual}")
     print(f"Beta encoding theory emitted: bytes={actual[0]} sha256={actual[1]}, {elapsed:.3f}s", flush=True)
+    return evaluator, producer, checker, definitions
+
+
+def main():
+    if len(sys.argv) != 2:
+        raise SystemExit("usage: gate.py PREPARED_DIRECTORY (producer.gamma, checker.gamma, evaluator)")
+    evaluator, producer, checker, definitions = prepare(Path(sys.argv[1]).resolve())
     repeated, _ = invoke(evaluator, "repeat_emit", producer, b"")
     require("repeat_emit", repeated, 0, definitions)
     for name, request in (("nul", b"\x00"), ("space", b" "), ("theory_prefix", b"GTH1")):

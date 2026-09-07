@@ -26,6 +26,24 @@ execution, not learned from output. This measures one full-size prerequisite,
 not certificate production, Beta semantics, or full encoding-proof feasibility.
 See the [cost review](../../../wiki/design_briefs/bootstrap_cost_review.md).
 
+`sh tests/gamma/beta-encoding-theory/run.sh --counter-cost` selects the separate
+[counter recipe probe](counter_cost.py). It reuses the existing literal successor
+derivations, interns identical ground records across them, and reuses identical
+proof rows after remapping their backward references. It performs no theory
+interpretation, Beta parsing, or search for alternative proofs. Small combined
+requests check 1, 24, and 257 consecutive increments; the last crosses the byte
+carry boundary. A corrupted final endpoint must reject after the valid prefix.
+The work ledger uses the existing counter recipe's row costs, charging one
+combined proof index/root and charging each retained row once.
+
+The final measurement constructs the same shared recipe for one increment per
+raw evaluator source byte. It prints term/row/byte counts and the derived work,
+but does **not** invoke the checker on that oversized request. This tests one
+proposed source-counter strategy, not a lower bound for all encoders. Neither
+the small checked examples nor the large constructed table proves source length,
+source traversal, or Beta encoding. Retain this probe only while deciding that
+strategy; it is not another compulsory component gate or production producer.
+
 The shell entry resolves bootstrap roles, materializes both complete source
 closures, and invokes `materialize_gamma_evaluator` for the selected
 Beta-authored evaluator. All test logic uses Python's standard library.

@@ -10,9 +10,10 @@ export OMEGA_REPO_ROOT
 case "${1:-}" in
     '') ENCODING_GATE=gate.py ;;
     --subject-shape) ENCODING_GATE=subject_shape.py ;;
-    *) echo "usage: run.sh [--subject-shape]" >&2; exit 2 ;;
+    --counter-cost) ENCODING_GATE=counter_cost.py ;;
+    *) echo "usage: run.sh [--subject-shape|--counter-cost]" >&2; exit 2 ;;
 esac
-[ "$#" -le 1 ] || { echo "usage: run.sh [--subject-shape]" >&2; exit 2; }
+[ "$#" -le 1 ] || { echo "usage: run.sh [--subject-shape|--counter-cost]" >&2; exit 2; }
 
 command -v python3 >/dev/null 2>&1 || {
     echo "Beta encoding theory: skipped (python3 absent)"
