@@ -1,0 +1,19 @@
+; These bounded emitter walks emit fixed template syntax, never proof evidence.
+(def beta_theory_repeated_word ((value Int) (remaining Int)) Int
+  (if (eq remaining 0) 0
+    (let field Int (beta_theory_word value)
+      (beta_theory_repeated_word value (- remaining 1)))))
+
+(def beta_theory_variables ((slot Int) (remaining Int)) Int
+  (if (eq remaining 0) 0
+    (let variable Int (beta_variable_template slot)
+      (beta_theory_variables (+ slot 1) (- remaining 1)))))
+
+(def beta_unary_template ((tag Int) (symbol Int) (child Int)) Int
+  (let header Int (beta_theory_fields3 4 tag symbol)
+    (let arity Int (beta_theory_word 1)
+      (beta_theory_word child))))
+
+(def beta_binary_template ((function Int) (left Int) (right Int)) Int
+  (let header Int (beta_theory_fields3 5 2 function)
+    (beta_theory_fields3 2 left right)))

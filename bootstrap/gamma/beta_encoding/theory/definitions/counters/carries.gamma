@@ -11,18 +11,18 @@
   (let highest Int (eq position 7)
     (let length Int (beta_theory_word (if highest 79 91))
       (let signature Int (beta_theory_fields3 7 8 1)
-        (let sorts Int (beta_counter_repeated_word 1 7)
+        (let sorts Int (beta_theory_repeated_word 1 7)
           (let mode Int (beta_theory_fields3 0 0 1)
             (let clause Int (beta_theory_fields3
               (if highest 65 77) 0 (if highest 14 15))
-              (let variables Int (beta_counter_variables 0 8)
+              (let variables Int (beta_theory_variables 0 8)
                 (beta_counter_carry_body position highest)))))))))
 
 (def beta_counter_carry_body ((position Int) (highest Int)) Int
-  (let maximum Int (beta_counter_unary_template 2 26 (+ position 1))
-    (let increment Int (beta_counter_unary_template 2 25 (+ position 1))
+  (let maximum Int (beta_unary_template 2 26 (+ position 1))
+    (let increment Int (beta_unary_template 2 25 (+ position 1))
       (let word Int (beta_counter_word_template 1 277 position 10)
-        (let value Int (beta_counter_unary_template 1 281 11)
+        (let value Int (beta_unary_template 1 281 11)
           (let fallback Int
             (if highest (beta_constant_template 280)
               (let zero Int (beta_constant_template 1)

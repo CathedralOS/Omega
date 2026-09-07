@@ -1,0 +1,30 @@
+; Function 54: ordering_then(high, low). Only Equal selects the low result.
+(def beta_ordering_then_definition () Int
+  (let length Int (beta_theory_word 30)
+    (let signature Int (beta_theory_fields3 8 2 8)
+      (let low_sort Int (beta_theory_word 8)
+        (let mode Int (beta_theory_fields3 1 0 3)
+          (let less Int (beta_constant_clause 282 282)
+            (let equal_header Int (beta_theory_fields3 6 283 1)
+              (let equal_variable Int (beta_variable_template 1)
+                (let equal_body Int (beta_theory_word 1)
+                  (beta_constant_clause 284 284))))))))))
+
+; Function 55: byte_compare(left, right), high nibble before low nibble.
+; Rows 1..2 bind the bytes, 3..5 compare high, 6..8 compare low, 9 combines.
+(def beta_ordering_byte_definition () Int
+  (let length Int (beta_theory_word 55)
+    (let signature Int (beta_theory_fields3 8 2 1)
+      (let right_sort Int (beta_theory_word 1)
+        (let mode Int (beta_theory_fields3 0 0 1)
+          (let clause Int (beta_theory_fields3 47 0 9)
+            (let variables Int (beta_theory_variables 0 2)
+              (let high Int (beta_ordering_byte_nibbles 22 3)
+                (let low Int (beta_ordering_byte_nibbles 23 6)
+                  (let combined Int (beta_binary_template 54 5 8)
+                    (beta_theory_word 9)))))))))))
+
+(def beta_ordering_byte_nibbles ((projection Int) (first_row Int)) Int
+  (let left Int (beta_unary_template 2 projection 1)
+    (let right Int (beta_unary_template 2 projection 2)
+      (beta_binary_template 53 first_row (+ first_row 1)))))

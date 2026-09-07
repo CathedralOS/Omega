@@ -104,7 +104,8 @@ def main():
         f"Beta encoding theory: two identical emissions, three empty-output producer refusals, "
         f"{observations} exact checker diagnostics; 1024 lexical truths, 256 joins, "
         f"512 splits, 256 composed roundtrips, 13 word emissions, "
-        f"512 byte counter helper equations, 19 checked word successors; no artifact admission",
+        f"512 byte counter helper equations, 19 checked word successors, "
+        f"256 nibble comparisons, 12 byte comparisons, 30 word comparisons; no artifact admission",
         flush=True,
     )
 

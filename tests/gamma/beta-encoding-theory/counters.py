@@ -1,6 +1,7 @@
 """Fixed closed carry derivations, not a normalizer or Beta proof producer."""
 
 from lexical import certificate, checked, envelope, proposition, record, rejected
+from literal_rows import LiteralRows
 
 
 # Each tuple states input, result, and the number of carried low bytes. The
@@ -26,26 +27,6 @@ SUCCESSORS = (
     ("maximum_minus_one", (254, 255, 255, 255, 255, 255, 255, 255), (255, 255, 255, 255, 255, 255, 255, 255), 0),
     ("maximum_overflow", (255, 255, 255, 255, 255, 255, 255, 255), None, 8),
 )
-
-
-class LiteralRows:
-    """Intern physical terms and append authored proof rows; no rule inference."""
-
-    def __init__(self):
-        self.terms = []
-        self.references = {}
-        self.proofs = []
-
-    def term(self, tag, symbol, *children):
-        encoded = record(tag, symbol, len(children), *children)
-        if encoded not in self.references:
-            self.terms.append(encoded)
-            self.references[encoded] = len(self.terms)
-        return self.references[encoded]
-
-    def proof(self, rule, left, right, *fields):
-        self.proofs.append(record(rule, left, right, *fields))
-        return len(self.proofs)
 
 
 def successor_rows(values, expected, carries):

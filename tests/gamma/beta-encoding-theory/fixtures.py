@@ -5,6 +5,7 @@ import nibbles
 import roundtrip
 import words
 import counters
+import ordering
 
 
 def cases(definitions):
@@ -13,3 +14,4 @@ def cases(definitions):
     yield from roundtrip.cases(definitions)
     yield from words.cases(definitions)
     yield from counters.cases(definitions)
+    yield from ordering.cases(definitions)

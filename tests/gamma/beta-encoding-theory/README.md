@@ -44,6 +44,9 @@ The finite equations transcribe [Beta's language contract](../../../bootstrap/be
 | [Eight-byte word emission](words.py) | 13 | 13 | 928 |
 | [Byte counter helpers](counters.py), four batches | 512 | 128 per batch | 9,029 or 25,413 |
 | [Checked word successor](counters.py), nineteen requests | 19 | 21–84 per request | 290–3,341 |
+| [Unsigned nibble comparison](ordering/nibbles.py) | 256 | 768 | 10,757 |
+| [Unsigned byte comparison](ordering/bytes.py), twelve requests | 12 | 19 per request | 204–1,284 |
+| [Unsigned word comparison](ordering/words.py), thirty requests | 30 | 177 per request | 2,004–10,644 |
 
 Each family uses a separate checker request. All rows, including those unused
 by the final owner equation, must check. Lexical coverage retains every byte of
@@ -74,6 +77,27 @@ WordValue Congruence, and final Transitivity. These are finite authored proof
 families over the listed literals; no code reads theory clauses to infer a
 rewrite, recursively normalizes terms, or constructs a proof of arbitrary input.
 
+Ordering has three results: `Less`, `Equal`, and `Greater`. The fixed nibble
+table covers all 256 pairs. Twelve byte examples include equal values, zero,
+maximum, a higher nibble opposing the lower nibble, a matching higher nibble
+requiring lower-nibble comparison, and values on either side of the unsigned
+high bit. Thirty word examples include equal zero/maximum/varied words, both
+directions across the high bit, and each highest differing byte position in
+both directions. Lower bytes deliberately oppose the highest difference while
+higher bytes agree. Separate literal rows compare the exact Beta source limit
+`0x4000000` and output limit `0xfffffc`, and the adjacent values on each side,
+against those limit words. These are numeric comparisons, not source or output
+accounting judgments.
+
+The [fixed ordering recipes](ordering/proofs.py) explicitly unfold both nibble
+splits, both public/helper nibble comparisons, and every choice. They supply
+ordered Congruence and Transitivity rows for each argument rewrite. A byte
+proof always normalizes both nibble comparisons. A word proof always supplies
+all eight byte proofs, then seven fixed bottom-up ordering choices, then the
+two word entrance unfoldings and their composition. Nothing inspects emitted
+definitions to select a rewrite, searches for proofs, or recursively normalizes
+arbitrary terms. Word and byte owner outcomes are separately stated literals.
+
 Negative controls preserve the lexical wrong answers, wrong clauses, altered
 formed body, and wrong owner root. New controls corrupt join answers and
 clauses, swap high/low results, omit the helper step, corrupt transitivity,
@@ -83,7 +107,7 @@ the high bit, truncate the maximum, corrupt each byte position, and select an
 invalid clause. Expected rejection coordinates come from physical record
 sizes, never decoded or learned checker observations.
 
-The 106 vectors also include seven-field and nine-field Word constructor
+The 181 vectors also include seven-field and nine-field Word constructor
 applications. These are physically complete records that must reject during
 ground admission with code 8 at the argument-count field, independently of
 the separate seven-byte and nine-byte output-list mutations.
@@ -94,6 +118,12 @@ the wrong condition premise, omit increment normalization, and corrupt each
 result byte in a carry-three and highest-bit-crossing derivation. The maximum
 case explicitly rejects a proposed wrapped zero result. Their exact failure
 coordinates use the authored record lengths, including earlier valid rows.
+
+Ordering adds 32 mutation controls. They reverse a nibble answer, attempt to
+skip its helper, select wrong nibble and word clauses, reverse high-nibble
+priority, interpret the high bit as a sign bit, ignore the highest differing
+word byte, omit normalization or Congruence, swap ordered premises, and change
+the owner root after an otherwise valid proof. All 106 earlier vectors remain.
 
 The work expectations follow the generic checker accounting. Every batch pays
 `P+1` for its proof index and four for its final root. Lexical clause walks cost
@@ -130,12 +160,42 @@ uses `21+9*c` proof rows and `290+402*c+2*b` work. Carrying seven bytes uses
 84 rows and `3087+2*b` work. Maximum overflow uses 73 rows and 3,251 work.
 These equations were fixed from checker/source accounting before execution.
 
+For ordering, each nibble pair `(l,r)` uses three rows costing `l+r+24` before
+index/root work. A normalized high- or low-nibble comparison of bytes `(a,b)`
+uses seven rows costing `a+b+l+r+54`. The byte definition Unfold costs 38:
+one row, one clause, ten template-index units, 22 substitution transitions
+across ten child edges, and four variable comparison transitions. Its two
+variable templates each incur one ground comparison; later occurrences reuse
+the invocation-local memo. The ordering choice costs six for Less, nine for
+Equal, or eight for Greater, including its row and clause walk. Its Equal
+clause compares the bound lower result; the other two have constant bodies.
+
+Let `q(L)=6`, `q(E)=9`, and `q(G)=8`. A nineteen-row byte proof has row work
+`B(a,b)=2*a+2*b+ah+al+bh+bl+171+q(high_order)`, where the four nibble values
+come from the finite split cases. Its exact checker work adds 24 for its index
+and final root. Word public unfolding costs 51: one row, one clause, eleven
+index units, twenty substitution transitions, and eighteen variable comparison
+transitions. Right-word unfolding costs 128: one row, one clause, 32 index
+units, 62 substitution transitions across thirty edges, and 32 variable
+comparison transitions. All sixteen variable templates are distinct even when
+their ground bytes coincide.
+
+Each of the seven word choice levels costs `18+q(byte_order)`: binary
+Congruence eleven, choice unfolding, and Transitivity seven. Two entrance
+Transitivity rows cost fourteen. Thus every word request has 177 proof rows
+and exact work `375 + sum(B(left[i],right[i]), i=0..7) +
+sum(18+q(byte_order[i]), i=1..7)`. The constant 375 includes both entrance
+unfoldings, their Transitivity rows, proof indexing, and final root comparison.
+This gives 2,004 work for equal zero words and 10,644 for equal maximum words.
+Ordering requests contain at most 531 ground terms, 768 proof rows, 10,757 work,
+and 121,144 request bytes. All formulas and expected failures were fixed from
+the checker rules and source templates before runtime observations.
+
 Rejections require the exact 33-byte owned diagnostic, process zero, and empty
 stderr. Timeouts and process failures never count as proof results. Request
 sizes and elapsed times are printed per vector; none establishes full-certificate
 size or runtime. This gate proves only these finite equations under the fixed
-partial theory. Token scanning, word parsing, counter ordering and limit
-comparisons, opcodes, source/output accounting, full
+partial theory. Token scanning, word parsing, opcodes, source/output accounting, full
 Beta reconstruction, and accepted artifact custody remain outside its claim.
 It does not close the complete obligation in the
 [derivation calculus](../../../wiki/architecture/bootstrap_chain/derivation_calculus.md).

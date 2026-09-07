@@ -5,6 +5,6 @@
     (let magic_t Int (write 'T')
       (let magic_h Int (write 'H')
         (let magic_version Int (write '1')
-          (let sorts Int (beta_theory_word 7)
+          (let sorts Int (beta_theory_word 8)
             (let constructors Int (beta_encoding_vocabulary)
               (beta_encoding_definitions))))))))
