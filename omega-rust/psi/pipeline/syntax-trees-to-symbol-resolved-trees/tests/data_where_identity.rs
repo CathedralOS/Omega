@@ -84,6 +84,22 @@ fn data_where_fields_and_static_parameters_receive_exact_local_symbols() {
     assert_eq!(call.target_symbol, entry.symbol);
 }
 
+#[test]
+fn unresolved_template_facts_stay_gated_until_concrete_instantiation() {
+    for fact in ["N / 2 > 0", "count / 2 <= N"] {
+        let source = format!("data Buffer<const N: u64> where {fact}, {{ count: u64; }}");
+        let tokens = Lexer::new(&source).tokenize().expect("tokenize template");
+        let syntax = parse_syntax_trees(&tokens).expect("parse template");
+        let program = lower_syntax_trees(&syntax).expect("retain open template facts");
+        let definition = program.data_definitions.iter().next().expect("template");
+        assert!(
+            definition.zero_gated,
+            "an unresolved fact cannot authorize zero construction"
+        );
+        assert_eq!(program.proof_facts(definition.where_facts).len(), 1);
+    }
+}
+
 fn assert_name_identity(
     program: &SymbolResolvedTrees,
     expression: ExpressionHandle,

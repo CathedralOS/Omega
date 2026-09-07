@@ -31,6 +31,8 @@ mod uses;
 #[cfg(test)]
 mod division_tests;
 #[cfg(test)]
+mod fact_division_tests;
+#[cfg(test)]
 mod remainder_tests;
 
 use arguments::*;

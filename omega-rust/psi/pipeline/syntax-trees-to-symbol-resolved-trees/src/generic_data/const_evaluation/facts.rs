@@ -1,12 +1,7 @@
 //! Constant evaluation: facts.
 
+use super::anonymous::{evaluate_anonymous_numeric_expression, has_builtin_const_operator};
 use super::*;
-
-#[derive(Clone, Copy)]
-pub(in crate::generic_data) enum ConstFactValue {
-    Integer(i128),
-    Boolean(bool),
-}
 
 /// Evaluate a proof expression exactly when every operand is known at generic
 /// instantiation time. `None` means the fact still depends on a runtime field
@@ -17,8 +12,13 @@ pub(in crate::generic_data) fn evaluate_const_fact_expression(
     const_values: &HashMap<String, i128>,
     parameter_values: &HashMap<String, i128>,
     self_value: Option<i128>,
+    warnings: &mut Vec<Diagnostic>,
 ) -> Result<Option<ConstFactValue>, String> {
-    match syntax.expressions.expression(expression) {
+    if let Some(value) = evaluate_anonymous_numeric_expression(syntax, expression)? {
+        return Ok(Some(ConstFactValue::Anonymous(value)));
+    }
+    let warning_start = warnings.len();
+    let result = (|| match syntax.expressions.expression(expression) {
         ExpressionNode::Integer(value) => integer_literal_value(value)
             .map(ConstFactValue::Integer)
             .map(Some)
@@ -42,6 +42,9 @@ pub(in crate::generic_data) fn evaluate_const_fact_expression(
         }
         ExpressionNode::SelfValue => Ok(self_value.map(ConstFactValue::Integer)),
         ExpressionNode::Binary(binary) => {
+            if !has_builtin_const_operator(syntax, binary.operator) {
+                return Ok(None);
+            }
             validate_anonymous_remainder(syntax, binary)?;
             let Some(left) = evaluate_const_fact_expression(
                 syntax,
@@ -49,6 +52,7 @@ pub(in crate::generic_data) fn evaluate_const_fact_expression(
                 const_values,
                 parameter_values,
                 self_value,
+                warnings,
             )?
             else {
                 return Ok(None);
@@ -59,14 +63,20 @@ pub(in crate::generic_data) fn evaluate_const_fact_expression(
                 const_values,
                 parameter_values,
                 self_value,
+                warnings,
             )?
             else {
                 return Ok(None);
             };
-            evaluate_const_fact_binary(binary.operator, left, right).map(Some)
+            evaluate_const_fact_binary(syntax, expression, binary.operator, left, right, warnings)
+                .map(Some)
         }
         _ => Ok(None),
+    })();
+    if !matches!(result, Ok(Some(_))) {
+        warnings.truncate(warning_start);
     }
+    result
 }
 
 /// Discharge `N in Domain` when `N` is a concrete const parameter and the
@@ -78,6 +88,7 @@ pub(in crate::generic_data) fn evaluate_const_membership_fact(
     const_values: &HashMap<String, i128>,
     parameter_values: &HashMap<String, i128>,
     parameter_type_names: &HashMap<String, String>,
+    warnings: &mut Vec<Diagnostic>,
 ) -> Result<Option<bool>, String> {
     let ExpressionNode::Name(value_path) = syntax.expressions.expression(membership.value) else {
         return Ok(None);
@@ -110,6 +121,7 @@ pub(in crate::generic_data) fn evaluate_const_membership_fact(
         value,
         const_values,
         &mut Vec::new(),
+        warnings,
     )
 }
 
@@ -120,6 +132,7 @@ pub(in crate::generic_data) fn evaluate_named_const_domain(
     value: i128,
     const_values: &HashMap<String, i128>,
     visiting: &mut Vec<String>,
+    warnings: &mut Vec<Diagnostic>,
 ) -> Result<Option<bool>, String> {
     if visiting.iter().any(|name| name == domain_name) {
         return Ok(None);
@@ -143,63 +156,73 @@ pub(in crate::generic_data) fn evaluate_named_const_domain(
             domain_target.as_str(),
         ));
     }
+    let warning_start = warnings.len();
     visiting.push(domain_name.to_owned());
-    for fact in syntax.items.proof_facts(domain.facts) {
-        let holds = match fact {
-            ProofFact::Expression(expression) => evaluate_const_domain_expression(
-                syntax,
-                *expression,
-                const_values,
-                value,
-                carrier,
-                visiting,
-            )?,
-            ProofFact::Membership(membership) => {
-                let Some(ConstFactValue::Integer(nested_value)) = evaluate_const_fact_expression(
+    let result = (|| {
+        for fact in syntax.items.proof_facts(domain.facts) {
+            let holds = match fact {
+                ProofFact::Expression(expression) => evaluate_const_domain_expression(
                     syntax,
-                    membership.value,
+                    *expression,
                     const_values,
-                    &HashMap::new(),
-                    Some(value),
-                )?
-                else {
-                    visiting.pop();
-                    return Ok(None);
-                };
-                let path = syntax
-                    .items
-                    .identifier_path_members(membership.domain)
-                    .iter()
-                    .map(|member| member.as_str())
-                    .collect::<Vec<_>>()
-                    .join("::");
-                let nested_domain = if path.contains("::") {
-                    path
-                } else {
-                    format!("{carrier}::{path}")
-                };
-                evaluate_named_const_domain(
-                    syntax,
-                    &nested_domain,
+                    value,
                     carrier,
-                    nested_value,
-                    const_values,
                     visiting,
-                )?
-                .map(ConstFactValue::Boolean)
+                    warnings,
+                )?,
+                ProofFact::Membership(membership) => {
+                    let Some(nested_value) = evaluate_const_fact_expression(
+                        syntax,
+                        membership.value,
+                        const_values,
+                        &HashMap::new(),
+                        Some(value),
+                        warnings,
+                    )?
+                    else {
+                        return Ok(None);
+                    };
+                    let Some(nested_value) = nested_value.into_integer(syntax, warnings)? else {
+                        return Ok(None);
+                    };
+                    let path = syntax
+                        .items
+                        .identifier_path_members(membership.domain)
+                        .iter()
+                        .map(|member| member.as_str())
+                        .collect::<Vec<_>>()
+                        .join("::");
+                    let nested_domain = if path.contains("::") {
+                        path
+                    } else {
+                        format!("{carrier}::{path}")
+                    };
+                    evaluate_named_const_domain(
+                        syntax,
+                        &nested_domain,
+                        carrier,
+                        nested_value,
+                        const_values,
+                        visiting,
+                        warnings,
+                    )?
+                    .map(ConstFactValue::Boolean)
+                }
+            };
+            let Some(ConstFactValue::Boolean(holds)) = holds else {
+                return Ok(None);
+            };
+            if !holds {
+                return Ok(Some(false));
             }
-        };
-        let Some(ConstFactValue::Boolean(holds)) = holds else {
-            visiting.pop();
-            return Ok(None);
-        };
-        if !holds {
-            visiting.pop();
-            return Ok(Some(false));
         }
-    }
+        Ok(Some(true))
+    })();
     visiting.pop();
-    Ok(Some(true))
+    if !matches!(result, Ok(Some(_))) {
+        warnings.truncate(warning_start);
+    }
+    result
 }
 
 pub(in crate::generic_data) fn evaluate_const_domain_expression(
@@ -209,17 +232,26 @@ pub(in crate::generic_data) fn evaluate_const_domain_expression(
     self_value: i128,
     carrier: &str,
     visiting: &mut Vec<String>,
+    warnings: &mut Vec<Diagnostic>,
 ) -> Result<Option<ConstFactValue>, String> {
-    match syntax.expressions.expression(expression) {
+    if let Some(value) = evaluate_anonymous_numeric_expression(syntax, expression)? {
+        return Ok(Some(ConstFactValue::Anonymous(value)));
+    }
+    let warning_start = warnings.len();
+    let result = (|| match syntax.expressions.expression(expression) {
         ExpressionNode::Membership(membership) => {
-            let Some(ConstFactValue::Integer(value)) = evaluate_const_fact_expression(
+            let Some(value) = evaluate_const_fact_expression(
                 syntax,
                 membership.value,
                 const_values,
                 &HashMap::new(),
                 Some(self_value),
+                warnings,
             )?
             else {
+                return Ok(None);
+            };
+            let Some(value) = value.into_integer(syntax, warnings)? else {
                 return Ok(None);
             };
             let path = syntax
@@ -241,10 +273,14 @@ pub(in crate::generic_data) fn evaluate_const_domain_expression(
                 value,
                 const_values,
                 visiting,
+                warnings,
             )
             .map(|result| result.map(ConstFactValue::Boolean))
         }
         ExpressionNode::Binary(binary) => {
+            if !has_builtin_const_operator(syntax, binary.operator) {
+                return Ok(None);
+            }
             validate_anonymous_remainder(syntax, binary)?;
             let Some(left) = evaluate_const_domain_expression(
                 syntax,
@@ -253,6 +289,7 @@ pub(in crate::generic_data) fn evaluate_const_domain_expression(
                 self_value,
                 carrier,
                 visiting,
+                warnings,
             )?
             else {
                 return Ok(None);
@@ -264,11 +301,13 @@ pub(in crate::generic_data) fn evaluate_const_domain_expression(
                 self_value,
                 carrier,
                 visiting,
+                warnings,
             )?
             else {
                 return Ok(None);
             };
-            evaluate_const_fact_binary(binary.operator, left, right).map(Some)
+            evaluate_const_fact_binary(syntax, expression, binary.operator, left, right, warnings)
+                .map(Some)
         }
         _ => evaluate_const_fact_expression(
             syntax,
@@ -276,63 +315,11 @@ pub(in crate::generic_data) fn evaluate_const_domain_expression(
             const_values,
             &HashMap::new(),
             Some(self_value),
+            warnings,
         ),
+    })();
+    if !matches!(result, Ok(Some(_))) {
+        warnings.truncate(warning_start);
     }
-}
-
-pub(in crate::generic_data) fn evaluate_const_fact_binary(
-    operator: BinaryOperator,
-    left: ConstFactValue,
-    right: ConstFactValue,
-) -> Result<ConstFactValue, String> {
-    use BinaryOperator::*;
-    match (left, right) {
-        (ConstFactValue::Integer(left), ConstFactValue::Integer(right)) => match operator {
-            Add => checked_fact_integer(left.checked_add(right), "addition"),
-            Subtract => checked_fact_integer(left.checked_sub(right), "subtraction"),
-            Multiply => checked_fact_integer(left.checked_mul(right), "multiplication"),
-            Divide => left
-                .checked_div(right)
-                .map(ConstFactValue::Integer)
-                .ok_or_else(|| "division by zero is invalid".to_string()),
-            Modulo => left
-                .checked_rem(right)
-                .map(ConstFactValue::Integer)
-                .ok_or_else(|| "remainder by zero is invalid".to_string()),
-            ShiftLeft if left >= 0 => u32::try_from(right)
-                .ok()
-                .filter(|amount| *amount < u64::BITS)
-                .and_then(|amount| left.checked_shl(amount))
-                .and_then(const_integer_in_envelope)
-                .map(ConstFactValue::Integer)
-                .ok_or_else(|| "left shift exceeds the `u64` width".to_string()),
-            ShiftRight if left >= 0 => u32::try_from(right)
-                .ok()
-                .filter(|amount| *amount < u64::BITS)
-                .and_then(|amount| left.checked_shr(amount))
-                .map(ConstFactValue::Integer)
-                .ok_or_else(|| "right shift exceeds the `u64` width".to_string()),
-            BitwiseAnd if left >= 0 && right >= 0 => Ok(ConstFactValue::Integer(left & right)),
-            BitwiseOr if left >= 0 && right >= 0 => Ok(ConstFactValue::Integer(left | right)),
-            BitwiseXor if left >= 0 && right >= 0 => Ok(ConstFactValue::Integer(left ^ right)),
-            Equal => Ok(ConstFactValue::Boolean(left == right)),
-            NotEqual => Ok(ConstFactValue::Boolean(left != right)),
-            Greater => Ok(ConstFactValue::Boolean(left > right)),
-            GreaterOrEqual => Ok(ConstFactValue::Boolean(left >= right)),
-            Less => Ok(ConstFactValue::Boolean(left < right)),
-            LessOrEqual => Ok(ConstFactValue::Boolean(left <= right)),
-            And | Or => Err("logical operators require boolean operands".to_string()),
-            ShiftLeft | ShiftRight | BitwiseAnd | BitwiseOr | BitwiseXor => Err(
-                "signed shifts and bitwise operators require declared-width semantics".to_string(),
-            ),
-        },
-        (ConstFactValue::Boolean(left), ConstFactValue::Boolean(right)) => match operator {
-            And => Ok(ConstFactValue::Boolean(left && right)),
-            Or => Ok(ConstFactValue::Boolean(left || right)),
-            Equal => Ok(ConstFactValue::Boolean(left == right)),
-            NotEqual => Ok(ConstFactValue::Boolean(left != right)),
-            _ => Err("arithmetic and ordering operators require integer operands".to_string()),
-        },
-        _ => Err("const fact operands have incompatible types".to_string()),
-    }
+    result
 }
