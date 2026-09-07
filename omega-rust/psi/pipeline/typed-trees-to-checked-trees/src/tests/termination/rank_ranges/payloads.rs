@@ -204,6 +204,99 @@ fn missing_rank_or_endpoint_slots_reject_even_on_impossible_arrivals() {
 }
 
 #[test]
+fn duplicated_rank_inputs_are_equal_at_every_arrival() {
+    let source = CLIMB
+        .replace(
+            "iterate(payload, index, flag, limit)",
+            "iterate(index, index, flag, limit)",
+        )
+        .replace("carried: Payload", "carried: u64")
+        .replace(
+            "carried, cursor + 1, enabled, ceiling",
+            "cursor + 1, cursor + 1, enabled, ceiling",
+        );
+    prove(&source);
+    reject(&source.replace(
+        "iterate(index, index, flag, limit)",
+        "iterate(index + 1, index, flag, limit)",
+    ));
+    reject(&source.replace(
+        "cursor + 1, cursor + 1, enabled, ceiling",
+        "cursor + 1, cursor, enabled, ceiling",
+    ));
+    reject(&source.replace(
+        "cursor + 1, cursor + 1, enabled, ceiling",
+        "cursor, cursor + 1, enabled, ceiling",
+    ));
+}
+
+#[test]
+fn duplicated_endpoints_are_pinned_as_equal_copies() {
+    let source = CLIMB
+        .replace(
+            "iterate(payload, index, flag, limit)",
+            "iterate(limit, index, flag, limit)",
+        )
+        .replace("carried: Payload", "carried: u64");
+    prove(&source);
+    reject(&source.replace(
+        "carried, cursor + 1, enabled, ceiling",
+        "carried + 1, cursor + 1, enabled, ceiling + 1",
+    ));
+}
+
+#[test]
+fn duplicate_equality_checks_parallel_and_acyclic_arrivals() {
+    let source = r#"
+        machine walk(remaining: u32 [0..=5])
+        terminates by remaining in 0..=5;
+        -> u32 {
+            transition remaining > 2 {
+                true -> prepare(remaining, remaining)
+                false -> prepare(remaining, remaining)
+            }
+            state prepare(first: u32 [0..=5], second: u32 [0..=5]) {
+                transition { _ -> iterate(second, first) }
+            }
+            state iterate(left: u32 [0..=5], right: u32 [0..=5]) {
+                transition left > 0 && right > 0 {
+                    true -> iterate(left - 1, right - 1)
+                    false -> left
+                }
+            }
+        }
+    "#;
+    prove(source);
+    reject(&source.replace(
+        "false -> prepare(remaining, remaining)",
+        "false -> prepare(remaining + 1, remaining)",
+    ));
+    reject(&source.replace("iterate(second, first)", "iterate(second + 1, first)"));
+}
+
+#[test]
+fn auxiliary_step_copies_are_an_inductively_checked_premise() {
+    let source = r#"
+        machine walk(remaining: u32 [0..=5], step: u32 [1..=1])
+        terminates by remaining in 0..=5;
+        -> u32 {
+            transition { _ -> iterate(remaining, step, step) }
+            state iterate(pending: u32, first: u32 [1..=1], second: u32 [1..=1]) {
+                transition pending > 0 {
+                    true -> iterate(pending - first, first, second)
+                    false -> pending
+                }
+            }
+        }
+    "#;
+    prove(source);
+    reject(&source.replace(
+        "pending - first, first, second",
+        "pending - first, first, second + 1",
+    ));
+}
+
+#[test]
 fn duplicated_rank_or_endpoint_slots_cannot_choose_a_convenient_copy() {
     for (actual, arrivals) in [
         (

@@ -169,7 +169,8 @@ fn discover_mappings(
 
 /// Compose destination formal ordinal -> exact source parameter -> entry
 /// subject. States may drop or repeat unrelated parameters. The arithmetic
-/// query independently requires an unambiguous slot for every rank input.
+/// query independently proves equality among required scalar copies on every
+/// arrival; discovering shared ancestry does not establish equal values.
 fn argument_mapping(
     program: &TypedTrees,
     machine: &Machine,

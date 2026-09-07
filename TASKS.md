@@ -237,7 +237,7 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   `typed-trees-to-checked-trees/src/checks/termination/ranking/` and
   `validation/src/call_cycles/runtime_ranking/`.
   Computed-only paths lacking a unique current-parameter origin,
-  non-bijective transfers involving rank inputs, and call components with
+  transfers with diverging copies of rank inputs, and call components with
   internal state arrivals, or slice-length,
   bounded-distance, or custom views need
   exact arrival mappings and preserved premises for ranked subjects and pinned
