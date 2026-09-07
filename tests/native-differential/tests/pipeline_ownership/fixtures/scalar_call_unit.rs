@@ -63,6 +63,7 @@ pub(crate) fn scalar_call_unit_artifact_with(
         content_partition_compositions: Vec::new(),
         entry,
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: entry,
             parameters: Vec::new(),
             operations: vec![

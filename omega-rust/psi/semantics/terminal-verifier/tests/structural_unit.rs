@@ -2317,6 +2317,7 @@ fn linear_projected_custody_survives_an_empty_jump() {
     structural_arguments[0].path = vec![StructuralPathSegment::FixedIndex(1)];
     claim_transfers[0].claim = claim_id(2);
     module.machines[0].blocks[0].terminator = Terminator::Jump {
+        structural_arguments: Vec::new(),
         edge: edge_id(1),
         target: block_id(3),
         arguments: Vec::new(),
@@ -2324,6 +2325,7 @@ fn linear_projected_custody_survives_an_empty_jump() {
         residual_affine_discards: Vec::new(),
     };
     module.machines[0].blocks.push(Block {
+        structural_parameters: Vec::new(),
         id: block_id(3),
         parameters: Vec::new(),
         operations: vec![second],
@@ -3874,10 +3876,12 @@ fn jump_applies_a_canonical_subset_of_affine_discards() {
     });
     machine.blocks = vec![
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),
             operations: Vec::new(),
             terminator: Terminator::Jump {
+                structural_arguments: Vec::new(),
                 edge: edge_id(2),
                 target: block_id(3),
                 arguments: vec![value_id(10)],
@@ -3886,6 +3890,7 @@ fn jump_applies_a_canonical_subset_of_affine_discards() {
             },
         },
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(3),
             parameters: vec![ValueDeclaration {
                 id: value_id(12),
@@ -3957,18 +3962,21 @@ fn conditional_applies_affine_discards_only_to_each_selected_successor() {
     });
     machine.blocks = vec![
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),
             operations: Vec::new(),
             terminator: Terminator::Conditional {
                 condition: value_id(10),
                 when_true: SuccessorEdge {
+                    structural_arguments: Vec::new(),
                     edge: edge_id(2),
                     target: block_id(3),
                     arguments: vec![value_id(10)],
                     trivial_affine_discards: vec![place_id(4)],
                 },
                 when_false: SuccessorEdge {
+                    structural_arguments: Vec::new(),
                     edge: edge_id(3),
                     target: block_id(4),
                     arguments: vec![value_id(10)],
@@ -3977,6 +3985,7 @@ fn conditional_applies_affine_discards_only_to_each_selected_successor() {
             },
         },
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(3),
             parameters: vec![ValueDeclaration {
                 id: value_id(12),
@@ -3990,6 +3999,7 @@ fn conditional_applies_affine_discards_only_to_each_selected_successor() {
             },
         },
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(4),
             parameters: vec![ValueDeclaration {
                 id: value_id(13),
@@ -4252,10 +4262,12 @@ fn unit_crash_ceiling_follows_only_unanimous_cfg_formal_copies() {
     *arguments = vec![value_id(30)];
     *crash_continuations = vec![route(30)];
     let bridge = |block, parameter, edge| Block {
+        structural_parameters: Vec::new(),
         id: block_id(block),
         parameters: vec![declaration(parameter)],
         operations: Vec::new(),
         terminator: Terminator::Jump {
+            structural_arguments: Vec::new(),
             edge: edge_id(edge),
             target: completion.id,
             arguments: vec![value_id(parameter)],
@@ -4265,18 +4277,21 @@ fn unit_crash_ceiling_follows_only_unanimous_cfg_formal_copies() {
     };
     module.machines[0].blocks = vec![
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(1),
             parameters: Vec::new(),
             operations: Vec::new(),
             terminator: Terminator::Conditional {
                 condition: value_id(10),
                 when_true: SuccessorEdge {
+                    structural_arguments: Vec::new(),
                     edge: edge_id(100),
                     target: block_id(101),
                     arguments: vec![value_id(11)],
                     trivial_affine_discards: Vec::new(),
                 },
                 when_false: SuccessorEdge {
+                    structural_arguments: Vec::new(),
                     edge: edge_id(101),
                     target: block_id(102),
                     arguments: vec![value_id(11)],
@@ -4309,12 +4324,14 @@ fn unit_crash_ceiling_follows_only_unanimous_cfg_formal_copies() {
     cyclic.machines[0].blocks[2].terminator = Terminator::Conditional {
         condition: value_id(10),
         when_true: SuccessorEdge {
+            structural_arguments: Vec::new(),
             edge: edge_id(103),
             target: block_id(102),
             arguments: vec![value_id(50)],
             trivial_affine_discards: Vec::new(),
         },
         when_false: SuccessorEdge {
+            structural_arguments: Vec::new(),
             edge: edge_id(104),
             target: block_id(103),
             arguments: vec![value_id(50)],
@@ -4420,6 +4437,7 @@ fn write_only_primitive_store_module() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(1),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(1),
             parameters: Vec::new(),
             operations: vec![store(1), store(2)],
@@ -4523,6 +4541,7 @@ fn hard_root_module() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(1),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(1),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -4571,6 +4590,7 @@ fn hard_root_module() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(2),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),
             operations: vec![
@@ -4760,6 +4780,7 @@ fn partial_affine_field_module() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(1),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(1),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -4812,6 +4833,7 @@ fn partial_affine_field_module() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(2),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),
             operations: Vec::new(),
@@ -5045,6 +5067,7 @@ fn nominal_affine_module() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(1),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(1),
             parameters: Vec::new(),
             operations: Vec::new(),
@@ -5076,6 +5099,7 @@ fn nominal_affine_module() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(2),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),
             operations: Vec::new(),
@@ -5439,6 +5463,7 @@ fn executable_nominal_affine_module() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: block_id(3),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(3),
             parameters: Vec::new(),
             operations: Vec::new(),

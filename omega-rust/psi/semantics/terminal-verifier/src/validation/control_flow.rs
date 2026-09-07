@@ -20,6 +20,9 @@ pub(super) fn validate_control_flow(
     let mut definition_blocks = BTreeMap::new();
     let mut borrowed_view_definitions = BTreeMap::new();
     for block in blocks.values() {
+        for parameter in &block.structural_parameters {
+            borrowed_view_definitions.insert(parameter.place, block.id);
+        }
         for parameter in &block.parameters {
             definition_blocks.insert(parameter.id, block.id);
         }
@@ -205,6 +208,12 @@ pub(super) fn validate_control_flow(
                 (*definition != block_id && block_dominators.contains(definition)).then_some(*place)
             })
             .collect::<BTreeSet<_>>();
+        available_views.extend(
+            block
+                .structural_parameters
+                .iter()
+                .map(|parameter| parameter.place),
+        );
         for operation in &block.operations {
             super::byte_sequence_subslice::validate_uses(machine, operation, &available_views)?;
             validate_operation_operands(
@@ -230,15 +239,25 @@ pub(super) fn validate_control_flow(
                 edge,
                 target,
                 arguments,
+                structural_arguments,
                 ..
-            } => validate_successor_bindings(
-                *edge,
-                *target,
-                arguments,
-                blocks,
-                value_types,
-                &defined,
-            )?,
+            } => {
+                validate_successor_bindings(
+                    *edge,
+                    *target,
+                    arguments,
+                    blocks,
+                    value_types,
+                    &defined,
+                )?;
+                super::block_views::validate_successor(
+                    machine,
+                    *edge,
+                    blocks[target],
+                    structural_arguments,
+                    &available_views,
+                )?;
+            }
             Terminator::Conditional {
                 condition,
                 when_true,
@@ -254,6 +273,13 @@ pub(super) fn validate_control_flow(
                     });
                 }
                 for successor in [when_true, when_false] {
+                    super::block_views::validate_successor(
+                        machine,
+                        successor.edge,
+                        blocks[&successor.target],
+                        &successor.structural_arguments,
+                        &available_views,
+                    )?;
                     validate_successor_bindings(
                         successor.edge,
                         successor.target,
@@ -265,6 +291,15 @@ pub(super) fn validate_control_flow(
                 }
             }
             Terminator::StructuralCase { source, cases } => {
+                for successor in cases {
+                    super::block_views::validate_successor(
+                        machine,
+                        successor.edge,
+                        blocks[&successor.target],
+                        &[],
+                        &available_views,
+                    )?;
+                }
                 let source_signature = super::structural_result_contracts::source_signature(
                     machine, *source,
                 )
@@ -335,7 +370,9 @@ pub(super) fn validate_control_flow(
                 }
             }
             Terminator::ReturnStructural { source, .. } => {
-                if super::byte_sequence_subslice::borrowed_result(machine, *source).is_some() {
+                if super::byte_sequence_subslice::borrowed_result(machine, *source).is_some()
+                    || super::block_views::parameter(machine, *source).is_some()
+                {
                     return Err(ModuleError::ByteSequenceSubsliceReturnUnsupported {
                         machine: machine.id,
                         place: *source,
@@ -399,6 +436,7 @@ fn validate_unranked_effectful_unit_cycle(
     globally_defined: &BTreeSet<ValueId>,
 ) -> Result<(), ModuleError> {
     if !machine.structural_parameters.is_empty()
+        || super::block_views::has_bindings(machine)
         || blocks.values().any(|block| !block.parameters.is_empty())
     {
         return Err(ModuleError::ControlCycle(machine.entry));

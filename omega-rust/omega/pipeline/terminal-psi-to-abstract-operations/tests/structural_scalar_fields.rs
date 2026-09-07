@@ -130,6 +130,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: id::<BlockId>(1),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: id::<BlockId>(1),
                     parameters: Vec::new(),
                     operations: vec![
@@ -207,6 +208,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: id::<BlockId>(2),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: id::<BlockId>(2),
                     parameters: Vec::new(),
                     operations: vec![Operation {

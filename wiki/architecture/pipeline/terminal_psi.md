@@ -173,8 +173,8 @@ unimplemented; source and Terminal subslice execution are described below.
 
 Vocabulary 81 adds `ByteSequenceLength { source }`: a total observation of one
 whole immutable byte view, producing its exact `u64` byte count. The source is
-an exact immutable structural parameter, an earlier established literal, or a
-dominating subslice result, not a nominal field, opaque identity, or
+an exact immutable machine or block structural parameter, an earlier established
+literal, or a dominating subslice result, not a nominal field, opaque identity, or
 text-character count. Verification checks the view carrier, shared access, and
 result type; interpretation reads the invocation's
 actual bytes and charges one operation unit. This supplies no indexing proof.
@@ -261,10 +261,29 @@ checks those coordinates and builtin range meaning, evaluates mixed scalar and
 view arguments in authored order, and emits conditional tails only after edge
 selection. Later states can observe and subslice the exact derived descriptor.
 Descriptor identities follow graph dependencies rather than state declaration
-order. A join can reuse one descriptor but cannot select between different ones.
+order. Different incoming descriptors bind the target state's own typed places;
+they need not alias one static source.
+
+Format 78 / vocabulary 84 retains `Block.structural_parameters` and the ordered
+`structural_arguments` of `Jump` and conditional successors. Each block parameter
+joins one `BlockParameter { block, position }` place; positions are dense within
+the structural vector, independent of mixed authored argument positions. Entry
+blocks have no such parameters: invocation inputs retain their machine signature.
+The executable slice accepts only whole, unqualified, claim-free, unrestricted
+shared byte views. Every incoming edge supplies the exact type and access, and
+its sources must be established and dominate that edge. Block parameters become
+available at block entry. They add no owned cleanup or content-proof authority.
+The interpreter snapshots scalar values and view descriptors before replacing
+any destination or applying cleanup; fuel exhaustion commits no bindings. Only
+the selected conditional arm is evaluated, and descriptor copies share byte
+backing. Structural-case transfers and borrowed returns remain unsupported.
+Legacy format 56 has no binding fields and rejects nonempty new payloads.
+The existing value-independent logical fuel schedule covers these acyclic
+transfers. Native lowering rejects the bindings before projection until it can
+retain and realize the byte descriptors; fuel evidence does not grant that support.
 
 This closes acyclic call and state-edge tail execution, not slice-ranked loops.
-Those still need changing structural block bindings and ranking evidence.
+Those still need cyclic safety and ranking evidence for changing bindings.
 Ranked-body execution must also
 support rebinding borrowed descriptors when a producer executes again; the
 current executable countdown shape excludes subslice operations.
@@ -1162,7 +1181,7 @@ Validation rejoins the complete application, Unit callable interface, selected
 row or parameter slot, operation, access, and source. Fixed fuel and reference
 execution resolve the same rows without allocating a value ID or result home.
 Format 71/vocabulary 74 added a distinct owner-local selection argument source,
-retained by current format 77/vocabulary 83 alongside rebound descriptors and
+retained by current format 78/vocabulary 84 alongside rebound descriptors and
 inbound parameters. Direct-selection
 Unit and scalar forwarding therefore cross the helper without relabeling their
 custody. The scalar form retains its exact result through the ordinary caller,
@@ -5327,7 +5346,7 @@ and mutable-borrowed roots remain observable. It walks the complete relevant
 record/mixed-field, fixed-array-index, or sum-case payload path, and requires the selected leaf to
 declare the same IEEE format. Owner, root, path, relevance, leaf kind, and
 format substitution fail closed. Introduced in Terminal format 70 / vocabulary
-73 and retained by current format 77 / vocabulary 83, source tag 9 rejects
+73 and retained by current format 78 / vocabulary 84, source tag 9 rejects
 under legacy formats. Checked/source production now
 covers one nonempty field/case path below a direct structural parameter in the
 owning top-level machine contract. Checked custody retains exact owner symbol,
@@ -6436,8 +6455,8 @@ ledger and therefore supplies no reconstruction assurance.
 ## Canonical semantic bytes
 
 `terminal-codec` owns one canonical encoding of the supported in-memory
-vocabulary. `PSITERM\0` bytes currently carry format marker 77 and vocabulary
-marker 81. They use fixed-width little-endian counts, stable nonzero identities,
+vocabulary. `PSITERM\0` bytes currently carry format marker 78 and vocabulary
+marker 84. They use fixed-width little-endian counts, stable nonzero identities,
 full-width integer payloads, and closed sum tags. The format favors auditability
 over density.
 
@@ -6714,9 +6733,8 @@ with scalar parameters, immutable byte views, selected-edge subslices, and
 ordered Unit calls.
 State construction and emission traverse the authored roster rather than match
 a particular number of states. Scalar successor bindings become simultaneous
-block arguments. Whole borrowed views retain their invocation identity through
-branches and joins; a join selecting different descriptors rejects until its
-structural bindings can be represented. Source-state identity, call order,
+block arguments. Whole borrowed views use typed structural block arguments through
+branches and joins, including joins selecting different descriptors. Source-state identity, call order,
 guard facts, successor operands, and cleanup facts are checked before emission.
 These graphs can call byte boundaries and scalar-only Unit helpers; general
 structural helper calls remain unfinished. Before a state's calls, a contiguous
@@ -6738,7 +6756,7 @@ already available on the current emission path, including inside scalar edge
 arguments. A fresh observation must not displace the exact guard-bound value;
 branch-local observations do not become available on sibling paths.
 
-The writer still needs descriptor rebinding and its slice-ranked body admitted
+The writer still needs repeated-producer descriptor rebinding and its slice-ranked body admitted
 through that shared catalog. Acyclic selected-edge tails already use the existing
 `ByteSequenceSubslice` operation and its independent bounds checks; this does not
 establish repeated-producer execution or native descriptor realization. A

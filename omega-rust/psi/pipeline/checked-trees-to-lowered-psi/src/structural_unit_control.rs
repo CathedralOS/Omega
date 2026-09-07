@@ -454,6 +454,7 @@ pub(super) fn lower_structural_unit_control_machine(
                     );
                 }
                 Terminator::Jump {
+                    structural_arguments: Vec::new(),
                     edge,
                     target: state_ids
                         .iter()
@@ -513,6 +514,7 @@ pub(super) fn lower_structural_unit_control_machine(
                      edge: EdgeId|
                      -> Result<SuccessorEdge, LoweringError> {
                         Ok(SuccessorEdge {
+                            structural_arguments: Vec::new(),
                             edge,
                             target: state_ids
                                 .iter()
@@ -558,6 +560,7 @@ pub(super) fn lower_structural_unit_control_machine(
             }
         };
         blocks.push(Block {
+            structural_parameters: Vec::new(),
             id: state_ids[index].1,
             parameters: if index == 0 {
                 Vec::new()
@@ -833,10 +836,12 @@ fn lower_ranked_structural_unit_countdown(
         entry: preheader,
         blocks: vec![
             Block {
+                structural_parameters: Vec::new(),
                 id: preheader,
                 parameters: Vec::new(),
                 operations: Vec::new(),
                 terminator: Terminator::Jump {
+                    structural_arguments: Vec::new(),
                     edge: preheader_edge,
                     target: header,
                     arguments: vec![initial],
@@ -845,6 +850,7 @@ fn lower_ranked_structural_unit_countdown(
                 },
             },
             Block {
+                structural_parameters: Vec::new(),
                 id: header,
                 parameters: vec![rank_declaration],
                 operations: vec![
@@ -873,12 +879,14 @@ fn lower_ranked_structural_unit_countdown(
                 terminator: Terminator::Conditional {
                     condition,
                     when_true: SuccessorEdge {
+                        structural_arguments: Vec::new(),
                         edge: guard_edge,
                         target: decrement,
                         arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                     when_false: SuccessorEdge {
+                        structural_arguments: Vec::new(),
                         edge: exit_edge,
                         target: done,
                         arguments: Vec::new(),
@@ -887,6 +895,7 @@ fn lower_ranked_structural_unit_countdown(
                 },
             },
             Block {
+                structural_parameters: Vec::new(),
                 id: decrement,
                 parameters: Vec::new(),
                 operations: vec![
@@ -914,6 +923,7 @@ fn lower_ranked_structural_unit_countdown(
                     },
                 ],
                 terminator: Terminator::Jump {
+                    structural_arguments: Vec::new(),
                     edge: backedge,
                     target: header,
                     arguments: vec![next],
@@ -922,6 +932,7 @@ fn lower_ranked_structural_unit_countdown(
                 },
             },
             Block {
+                structural_parameters: Vec::new(),
                 id: done,
                 parameters: Vec::new(),
                 operations: Vec::new(),

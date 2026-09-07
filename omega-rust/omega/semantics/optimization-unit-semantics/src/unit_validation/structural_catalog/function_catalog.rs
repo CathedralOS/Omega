@@ -3,6 +3,7 @@ use super::*;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum ValidatorStructuralRootKey {
     Parameter(u32),
+    BlockParameter(BlockId, u32),
     Result,
     OperationResult(OperationId),
     ByteSequenceLiteral(u32),
@@ -18,6 +19,9 @@ pub(crate) fn structural_root_key(kind: StructuralPlaceKind) -> ValidatorStructu
     match kind {
         StructuralPlaceKind::Parameter { position, .. } => {
             ValidatorStructuralRootKey::Parameter(position)
+        }
+        StructuralPlaceKind::BlockParameter { block, position } => {
+            ValidatorStructuralRootKey::BlockParameter(block, position)
         }
         StructuralPlaceKind::Result => ValidatorStructuralRootKey::Result,
         StructuralPlaceKind::OperationResult { producer, .. } => {
@@ -93,6 +97,9 @@ pub(crate) fn validate_function_structural_catalog(
             return Err(mismatch());
         }
         let known_type = match place.kind {
+            // Optimizer blocks do not yet retain structural parameter signatures
+            // or incoming descriptor bindings.
+            StructuralPlaceKind::BlockParameter { .. } => false,
             StructuralPlaceKind::Parameter { position, is_self } => function
                 .structural_parameters
                 .get(position as usize)

@@ -455,10 +455,12 @@ pub(super) fn emit_staged_scalar_call_binding(
                 .checked_add(1)
                 .expect("staged direct call-argument edge identities advance");
             blocks.push(Block {
+                structural_parameters: Vec::new(),
                 id: current_block,
                 parameters: current_block_parameters,
                 operations: operations[operation_start..].to_vec(),
                 terminator: Terminator::Jump {
+                    structural_arguments: Vec::new(),
                     edge,
                     target: next_stage,
                     arguments,
@@ -499,10 +501,12 @@ pub(super) fn emit_staged_scalar_call_binding(
         .checked_add(1)
         .expect("staged call continuation edge identities advance");
     blocks.push(Block {
+        structural_parameters: Vec::new(),
         id: current_block,
         parameters: current_block_parameters,
         operations: operations[operation_start..].to_vec(),
         terminator: Terminator::Jump {
+            structural_arguments: Vec::new(),
             edge,
             target: continuation,
             arguments: continuation_arguments,

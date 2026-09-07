@@ -208,6 +208,7 @@ pub(super) fn empty_verified() -> VerifiedPsiOptimizationUnit {
             block,
             TerminalMachineResult::Unit,
             vec![Block {
+                structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),
                 operations: Vec::new(),

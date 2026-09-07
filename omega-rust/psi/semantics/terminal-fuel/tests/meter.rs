@@ -112,6 +112,7 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
     }
     let operation = operation();
     let jump = Terminator::Jump {
+        structural_arguments: Vec::new(),
         edge: edge_id(1),
         target: semantic_vocabulary::BlockId::new(2).unwrap(),
         arguments: vec![value_id(1)],

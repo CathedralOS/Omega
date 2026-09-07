@@ -3,11 +3,12 @@
 //! This module owns exact content claims, partition compositions,
 //! conservation/reshuffle rows, algebras, recursive terms, and structural
 //! places. It does not validate content authority or interpret projections.
+//! Content theorem signatures cannot declare machine-local block roots.
 
 use semantic_vocabulary::{
     ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentDomainId,
     ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
-    ContentTerm,
+    ContentTerm, StructuralPlaceKind,
 };
 use terminal_psi::{
     ClaimContentProjection, ContentConservationGuarantee, ContentEntryClaim,
@@ -41,6 +42,9 @@ pub(super) fn encode_content_partition_composition(
         composition.source_structural_places.len(),
     )?;
     for place in &composition.source_structural_places {
+        if matches!(place.kind, StructuralPlaceKind::BlockParameter { .. }) {
+            return Err(CodecError::InvalidTag("ContentStructuralPlaceKind", 8));
+        }
         writer.id(place.id);
         encode_structural_place_kind(writer, place.kind);
     }
@@ -70,6 +74,9 @@ pub(super) fn encode_content_conservation_guarantee(
         guarantee.structural_places.len(),
     )?;
     for place in &guarantee.structural_places {
+        if matches!(place.kind, StructuralPlaceKind::BlockParameter { .. }) {
+            return Err(CodecError::InvalidTag("ContentStructuralPlaceKind", 8));
+        }
         writer.id(place.id);
         encode_structural_place_kind(writer, place.kind);
     }
@@ -195,10 +202,12 @@ pub(super) fn decode_content_partition_composition(
     let source_place_count = reader.count()?;
     let mut source_structural_places = Vec::new();
     for _ in 0..source_place_count {
-        source_structural_places.push(StructuralPlaceDeclaration {
-            id: reader.id("PlaceId")?,
-            kind: decode_structural_place_kind(reader)?,
-        });
+        let id = reader.id("PlaceId")?;
+        let kind = decode_structural_place_kind(reader)?;
+        if matches!(kind, StructuralPlaceKind::BlockParameter { .. }) {
+            return Err(CodecError::InvalidTag("ContentStructuralPlaceKind", 8));
+        }
+        source_structural_places.push(StructuralPlaceDeclaration { id, kind });
     }
     let source = decode_content_conservation(reader)?;
     let input_claim_count = reader.count()?;
@@ -231,10 +240,12 @@ pub(super) fn decode_content_conservation_guarantee(
 ) -> Result<ContentConservationGuarantee, CodecError> {
     let report_fingerprint = reader.u64()?;
     let structural_places = decode_counted(reader, |reader| {
-        Ok(StructuralPlaceDeclaration {
-            id: reader.id("PlaceId")?,
-            kind: decode_structural_place_kind(reader)?,
-        })
+        let id = reader.id("PlaceId")?;
+        let kind = decode_structural_place_kind(reader)?;
+        if matches!(kind, StructuralPlaceKind::BlockParameter { .. }) {
+            return Err(CodecError::InvalidTag("ContentStructuralPlaceKind", 8));
+        }
+        Ok(StructuralPlaceDeclaration { id, kind })
     })?;
     let conservation = decode_content_conservation(reader)?;
     Ok(ContentConservationGuarantee {

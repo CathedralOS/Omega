@@ -54,6 +54,10 @@ pub struct TerminalMachine {
 pub struct Block {
     pub id: BlockId,
     pub parameters: Vec<ValueDeclaration>,
+    /// Ordered structural bindings supplied simultaneously by the selected edge.
+    /// Positions are dense and zero-based; `is_self` is false. Entry blocks
+    /// declare no structural parameters.
+    pub structural_parameters: Vec<StructuralParameterDeclaration>,
     pub operations: Vec<Operation>,
     pub terminator: Terminator,
 }

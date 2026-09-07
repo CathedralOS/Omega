@@ -48,6 +48,7 @@ fn machine(identity: u64) -> TerminalMachine {
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(identity).unwrap(),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: BlockId::new(identity).unwrap(),
             parameters: Vec::new(),
             operations: Vec::new(),

@@ -120,18 +120,21 @@ pub(crate) fn conditional_widened_u8_exact_binary_artifact_with_values(
             entry,
             blocks: vec![
                 Block {
+                    structural_parameters: Vec::new(),
                     id: entry,
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Conditional {
                         condition,
                         when_true: SuccessorEdge {
+                            structural_arguments: Vec::new(),
                             edge: EdgeId::new(5_141).unwrap(),
                             target: when_true,
                             arguments: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
+                            structural_arguments: Vec::new(),
                             edge: EdgeId::new(5_142).unwrap(),
                             target: when_false,
                             arguments: Vec::new(),
@@ -140,6 +143,7 @@ pub(crate) fn conditional_widened_u8_exact_binary_artifact_with_values(
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: when_true,
                     parameters: Vec::new(),
                     operations: vec![
@@ -193,6 +197,7 @@ pub(crate) fn conditional_widened_u8_exact_binary_artifact_with_values(
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: when_false,
                     parameters: Vec::new(),
                     operations: vec![

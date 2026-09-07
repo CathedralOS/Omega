@@ -348,6 +348,7 @@ fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(1),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(1),
                     parameters: Vec::new(),
                     operations: vec![Operation {
@@ -396,6 +397,7 @@ fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(2),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: Vec::new(),
                     operations: Vec::new(),

@@ -10,18 +10,28 @@ use terminal_psi::{
     SuccessorEdge,
 };
 
+use super::structural_result_wire::ResultPathWireFormat;
 use super::wire::{Reader, Writer};
 use super::{CodecError, decode_counted, decode_proposition, encode_proposition};
+use super::{decode_structural_arguments, encode_structural_arguments};
 
 pub(super) fn encode_successor_edge(
     writer: &mut Writer,
     successor: &SuccessorEdge,
+    result_path_format: ResultPathWireFormat,
 ) -> Result<(), CodecError> {
     writer.id(successor.edge);
     writer.id(successor.target);
     writer.len("conditional successor arguments", successor.arguments.len())?;
     for argument in &successor.arguments {
         writer.id(*argument);
+    }
+    if result_path_format == ResultPathWireFormat::Current {
+        encode_structural_arguments(writer, &successor.structural_arguments)?;
+    } else if !successor.structural_arguments.is_empty() {
+        return Err(CodecError::MalformedStructuralFoundation(
+            "legacy format cannot encode structural successor arguments",
+        ));
     }
     writer.len(
         "conditional successor trivial affine discards",
@@ -100,7 +110,10 @@ pub(super) fn encode_crash_predicate(
     encode_proposition(writer, predicate.proposition(), 0)
 }
 
-pub(super) fn decode_successor_edge(reader: &mut Reader<'_>) -> Result<SuccessorEdge, CodecError> {
+pub(super) fn decode_successor_edge(
+    reader: &mut Reader<'_>,
+    result_path_format: ResultPathWireFormat,
+) -> Result<SuccessorEdge, CodecError> {
     let edge = reader.id("EdgeId")?;
     let target = reader.id("BlockId")?;
     let argument_count = reader.count()?;
@@ -112,6 +125,11 @@ pub(super) fn decode_successor_edge(reader: &mut Reader<'_>) -> Result<Successor
         edge,
         target,
         arguments,
+        structural_arguments: if result_path_format == ResultPathWireFormat::Current {
+            decode_structural_arguments(reader)?
+        } else {
+            Vec::new()
+        },
         trivial_affine_discards: decode_counted(reader, |reader| reader.id("PlaceId"))?,
     })
 }

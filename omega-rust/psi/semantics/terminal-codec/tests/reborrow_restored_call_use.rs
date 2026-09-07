@@ -135,6 +135,7 @@ fn restored_call_use_module() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: id(1, BlockId::new),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: id(1, BlockId::new),
                     parameters: Vec::new(),
                     operations: vec![Operation {
@@ -181,6 +182,7 @@ fn restored_call_use_module() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: id(2, BlockId::new),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: id(2, BlockId::new),
                     parameters: Vec::new(),
                     operations: Vec::new(),
@@ -333,6 +335,7 @@ fn restored_call_use_round_trips_and_commits_every_variable_axis() {
         content_partition_compositions: Vec::new(),
         entry: id(3, BlockId::new),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: id(3, BlockId::new),
             parameters: Vec::new(),
             operations: Vec::new(),

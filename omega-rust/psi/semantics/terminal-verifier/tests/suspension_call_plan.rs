@@ -127,6 +127,7 @@ fn fixture() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: id(1),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: id(1),
                     parameters: Vec::new(),
                     operations: vec![
@@ -187,6 +188,7 @@ fn fixture() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: id(2),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: id(2),
                     parameters: Vec::new(),
                     operations: Vec::new(),

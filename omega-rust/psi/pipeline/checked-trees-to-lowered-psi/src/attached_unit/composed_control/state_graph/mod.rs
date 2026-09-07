@@ -11,7 +11,7 @@ mod edges;
 mod emission;
 mod scalars;
 mod subslices;
-mod views;
+mod topology;
 
 pub(in crate::attached_unit) use admission::AdmittedGraph;
 pub(super) use admission::admit;

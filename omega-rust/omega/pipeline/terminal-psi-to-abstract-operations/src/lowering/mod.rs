@@ -2,6 +2,7 @@
 //! every verified machine through the ordinary or structural family, and
 //! retain the canonical Terminal-Psi identity.
 
+mod block_bindings;
 mod error;
 mod machine;
 mod payloadless;
@@ -41,6 +42,7 @@ fn lower_decoded_module(
     module: &TerminalModule,
     retain_payloadless_for_optimization: bool,
 ) -> Result<AbstractOperationPlan, LoweringError> {
+    block_bindings::reject_structural_block_bindings(module)?;
     if !module
         .machines
         .iter()

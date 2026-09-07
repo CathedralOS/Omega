@@ -51,6 +51,7 @@ fn module(ordinary: bool, nested: bool, complete_transfer: bool) -> TerminalModu
         },
     );
     caller.blocks[0].terminator = Terminator::Jump {
+        structural_arguments: Vec::new(),
         edge: edge_id(1),
         target: block_id(4),
         arguments: vec![value_id(1)],
@@ -62,6 +63,7 @@ fn module(ordinary: bool, nested: bool, complete_transfer: bool) -> TerminalModu
         },
     };
     caller.blocks.push(Block {
+        structural_parameters: Vec::new(),
         id: block_id(4),
         parameters: vec![ValueDeclaration {
             id: value_id(2),

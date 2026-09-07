@@ -239,10 +239,12 @@ pub(super) fn build_scalar_graph_module(
                             .checked_add(1)
                             .expect("staged direct-local edge identity advances");
                         let block = Block {
+                            structural_parameters: Vec::new(),
                             id: stage_block,
                             parameters: stage_block_parameters,
                             operations: all_operations[stage_operation_start..].to_vec(),
                             terminator: Terminator::Jump {
+                                structural_arguments: Vec::new(),
                                 edge,
                                 target: next_stage,
                                 arguments,
@@ -448,12 +450,14 @@ pub(super) fn build_scalar_graph_module(
                     Terminator::Conditional {
                         condition,
                         when_true: SuccessorEdge {
+                            structural_arguments: Vec::new(),
                             edge: when_true_edge,
                             target: when_true.block,
                             arguments: when_true.arguments,
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
+                            structural_arguments: Vec::new(),
                             edge: when_false_edge,
                             target: when_false.block,
                             arguments: when_false.arguments,
@@ -481,6 +485,7 @@ pub(super) fn build_scalar_graph_module(
                             identity_base,
                         );
                         Terminator::Jump {
+                            structural_arguments: Vec::new(),
                             edge,
                             target: target.block,
                             arguments: target.arguments,
@@ -500,6 +505,7 @@ pub(super) fn build_scalar_graph_module(
                             })
                             .collect();
                         Terminator::Jump {
+                            structural_arguments: Vec::new(),
                             edge,
                             target: scalar_source_block(identity_base, target),
                             arguments,
@@ -522,6 +528,7 @@ pub(super) fn build_scalar_graph_module(
                 }
             };
             inlined_blocks.push(Block {
+                structural_parameters: Vec::new(),
                 id: stage_block,
                 parameters: stage_parameters,
                 operations: all_operations[operation_start..].to_vec(),
@@ -599,6 +606,7 @@ pub(super) fn build_scalar_graph_module(
                         .checked_add(1)
                         .expect("mixed tuple entry edge identity advances");
                     Terminator::Jump {
+                        structural_arguments: Vec::new(),
                         edge,
                         target: target.block,
                         arguments: target.arguments,
@@ -622,6 +630,7 @@ pub(super) fn build_scalar_graph_module(
                         .checked_add(1)
                         .expect("scalar graph jump edge identities advance");
                     Terminator::Jump {
+                        structural_arguments: Vec::new(),
                         edge,
                         target: scalar_source_block(identity_base, *target),
                         arguments,
@@ -736,12 +745,14 @@ pub(super) fn build_scalar_graph_module(
                     Terminator::Conditional {
                         condition,
                         when_true: SuccessorEdge {
+                            structural_arguments: Vec::new(),
                             edge: when_true_edge,
                             target: when_true.block,
                             arguments: when_true.arguments,
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
+                            structural_arguments: Vec::new(),
                             edge: when_false_edge,
                             target: when_false.block,
                             arguments: when_false.arguments,
@@ -816,6 +827,7 @@ pub(super) fn build_scalar_graph_module(
             }
         };
         blocks.push(Block {
+            structural_parameters: Vec::new(),
             id: source_block,
             parameters: source_block_parameters,
             operations: all_operations[operation_start..].to_vec(),
@@ -845,10 +857,12 @@ pub(super) fn build_scalar_graph_module(
                     .checked_add(1)
                     .expect("conditional binding jump edge identities advance");
                 blocks.push(Block {
+                    structural_parameters: Vec::new(),
                     id: pending.id,
                     parameters: pending.parameters,
                     operations: all_operations[operation_start..].to_vec(),
                     terminator: Terminator::Jump {
+                        structural_arguments: Vec::new(),
                         edge,
                         target: pending.target,
                         arguments,
@@ -915,10 +929,12 @@ pub(super) fn build_scalar_graph_module(
                             .checked_add(1)
                             .expect("mixed tuple stage edge identity advances");
                         pending_stage_blocks.push(Some(Block {
+                            structural_parameters: Vec::new(),
                             id: block_id(next_stage_identity),
                             parameters: parameters.clone(),
                             operations: all_operations[operation_start..].to_vec(),
                             terminator: Terminator::Jump {
+                                structural_arguments: Vec::new(),
                                 edge,
                                 target: next_stage,
                                 arguments,
@@ -938,10 +954,12 @@ pub(super) fn build_scalar_graph_module(
                     .checked_add(1)
                     .expect("mixed tuple convergence edge identity advances");
                 pending_stage_blocks.push(Some(Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(next_stage_identity),
                     parameters: parameters.clone(),
                     operations: Vec::new(),
                     terminator: Terminator::Jump {
+                        structural_arguments: Vec::new(),
                         edge,
                         target: pending.target,
                         arguments: parameters[pending.original_parameter_count..]

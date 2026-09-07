@@ -1,6 +1,6 @@
 use legalized_operations::LegalizedCallUnitParameter;
 use semantic_vocabulary::{
-    AffineConstructionElement, IeeeFloatFormat, OperationId, PlaceId, StructuralCaseId,
+    AffineConstructionElement, BlockId, IeeeFloatFormat, OperationId, PlaceId, StructuralCaseId,
     StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
 };
 use target_operations::{TargetStructuralArgument, TargetStructuralParameter};
@@ -340,6 +340,11 @@ pub(super) fn encode_place(bytes: &mut Vec<u8>, place: StructuralPlaceDeclaratio
             bytes.extend_from_slice(&position.to_le_bytes());
             bytes.push(u8::from(is_self));
         }
+        StructuralPlaceKind::BlockParameter { block, position } => {
+            bytes.push(8);
+            bytes.extend_from_slice(&block.get().to_le_bytes());
+            bytes.extend_from_slice(&position.to_le_bytes());
+        }
         StructuralPlaceKind::Result => bytes.push(2),
         StructuralPlaceKind::OperationResult {
             producer,
@@ -418,6 +423,10 @@ pub(super) fn decode_place(
                 root_structural_type: decode_id(cursor, StructuralTypeId::new)?,
                 index: cursor.u64()?,
             }),
+        },
+        8 => StructuralPlaceKind::BlockParameter {
+            block: decode_id(cursor, BlockId::new)?,
+            position: cursor.u32()?,
         },
         tag => return Err(FixedViewCopyDecodeError::UnknownStructuralPlaceKind(tag)),
     };
@@ -566,3 +575,6 @@ fn decode_option_u32(cursor: &mut Cursor<'_>) -> Result<Option<u32>, FixedViewCo
         tag => Err(FixedViewCopyDecodeError::UnknownOption(tag)),
     }
 }
+
+#[cfg(test)]
+mod tests;

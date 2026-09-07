@@ -166,8 +166,8 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   slice-decrease evidence.
   Carry the derived-view extent equations and checked integer subtraction-order
   certificates into the generic ranking proof for the actual cyclic edges.
-  Changing structural state-edge bindings and repeated-producer descriptor
-  rebinding remain necessary for that loop; native whole-byte-view layout,
+  Cyclic validation of changing structural state-edge bindings and repeated-producer
+  descriptor rebinding remain necessary for that loop; native whole-byte-view layout,
   length, indexed reads, and subslice realization are also still missing.
   Acceptance: empty/nonempty bytes and both newline settings preserve exact
   output order and caller continuation; unguarded head reads and unchanged

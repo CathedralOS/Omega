@@ -1272,6 +1272,19 @@ pub enum ModuleError {
         expected: usize,
         actual: usize,
     },
+    InvalidBlockStructuralParameter {
+        block: BlockId,
+        place: PlaceId,
+    },
+    StructuralJumpArityMismatch {
+        edge: EdgeId,
+        expected: usize,
+        actual: usize,
+    },
+    InvalidStructuralSuccessorArgument {
+        edge: EdgeId,
+        place: PlaceId,
+    },
     JumpTypeMismatch {
         edge: EdgeId,
         argument: ScalarType,

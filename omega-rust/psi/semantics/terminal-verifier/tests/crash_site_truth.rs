@@ -48,6 +48,7 @@ fn crash(edge: u64, guards: Vec<Proposition>) -> Terminator {
 
 fn block(identity: u64, terminator: Terminator) -> Block {
     Block {
+        structural_parameters: Vec::new(),
         id: BlockId::new(identity).unwrap(),
         parameters: Vec::new(),
         operations: Vec::new(),
@@ -57,6 +58,7 @@ fn block(identity: u64, terminator: Terminator) -> Block {
 
 fn successor(edge: u64, target: u64, arguments: &[u64]) -> SuccessorEdge {
     SuccessorEdge {
+        structural_arguments: Vec::new(),
         edge: EdgeId::new(edge).unwrap(),
         target: BlockId::new(target).unwrap(),
         arguments: arguments.iter().copied().map(value).collect(),
@@ -67,6 +69,7 @@ fn successor(edge: u64, target: u64, arguments: &[u64]) -> SuccessorEdge {
 fn jump(edge: u64, target: u64, arguments: &[u64]) -> Terminator {
     let successor = successor(edge, target, arguments);
     Terminator::Jump {
+        structural_arguments: Vec::new(),
         edge: successor.edge,
         target: successor.target,
         arguments: successor.arguments,

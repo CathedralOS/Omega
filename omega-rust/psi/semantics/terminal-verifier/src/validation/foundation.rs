@@ -519,6 +519,7 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
         .map(|machine| (machine.id, machine))
         .collect::<BTreeMap<_, _>>();
     for machine in &module.machines {
+        super::block_views::validate_declarations(module, machine)?;
         validate_attachment(machine.id, machine.attachment, &types)?;
         validate_structural_signature(
             &machine.structural_parameters,

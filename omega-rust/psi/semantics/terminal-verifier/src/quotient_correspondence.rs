@@ -815,6 +815,7 @@ mod tests {
                 entry: BlockId::new(1).unwrap(),
                 blocks: vec![Block {
                     id: BlockId::new(1).unwrap(),
+                    structural_parameters: Vec::new(),
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::ReturnUnit {

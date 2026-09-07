@@ -265,6 +265,7 @@ pub(super) fn lower_trait_operator_scalar_return_machine(
         content_partition_compositions: Vec::new(),
         entry: block_id(1),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(1),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -760,6 +761,7 @@ pub(super) fn lower_structural_scalar_return_machine_in_namespace(
                 &mut operations,
             );
             blocks.push(Block {
+                structural_parameters: Vec::new(),
                 id: next_block,
                 parameters: next_block_parameters,
                 operations: operations.operations[operation_start..].to_vec(),
@@ -839,6 +841,7 @@ pub(super) fn lower_structural_scalar_return_machine_in_namespace(
             &mut operations,
         );
         vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(
                 identity_base
                     .checked_add(1)

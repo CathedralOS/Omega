@@ -90,10 +90,12 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
             entry: block_id(1),
             blocks: vec![
                 Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(1),
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Jump {
+                        structural_arguments: Vec::new(),
                         edge: edge_id(1),
                         target: block_id(2),
                         arguments: vec![value_id(1)],
@@ -102,6 +104,7 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: vec![ValueDeclaration {
                         id: value_id(3),

@@ -74,7 +74,7 @@ fn suspension_call_plan_round_trips_canonically_and_rejects_prior_format() {
     module.suspension_call_plans = vec![plan];
 
     let bytes = encode_module(&module).expect("suspension plan encodes");
-    assert_eq!(&bytes[8..10], 77_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 78_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(
         encode_module(&decode_module(&bytes).unwrap()),
@@ -104,7 +104,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 77_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 78_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -112,7 +112,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "167f7dcd059fbb3fdd102c7a9dfe6edc53b9804db94c4b985257513424181210"
+        "31ee3edd760fbe010bbd5eecb653c588048fd8210a6107cecd41988a253c0191"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -125,7 +125,7 @@ fn proof_recursive_components_round_trip_and_enter_terminal_identity() {
     let mut module = unit_fixture();
     module.proof_recursive_components = vec![proof_recursive_component_fixture()];
     let bytes = encode_module(&module).expect("proof-recursive module should encode");
-    assert_eq!(&bytes[8..10], 77_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 78_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
 
     let original = semantic_fingerprint(&module).expect("recursive semantic identity");
@@ -229,7 +229,7 @@ fn placed_view_input_round_trips_with_exact_semantic_identity() {
 fn ranked_countdown_round_trips_in_current_terminal_identity() {
     let module = ranked_countdown_fixture();
     let bytes = encode_module(&module).expect("ranked representation should encode");
-    assert_eq!(&bytes[8..10], 77_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 78_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -389,6 +389,7 @@ fn proof_only_float_projections_round_trip_and_reject_tampering() {
         entry: block_id(3),
         blocks: vec![
             Block {
+                structural_parameters: Vec::new(),
                 id: block_id(3),
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -399,6 +400,7 @@ fn proof_only_float_projections_round_trip_and_reject_tampering() {
                     },
                 }],
                 terminator: Terminator::Jump {
+                    structural_arguments: Vec::new(),
                     edge: edge_id(3),
                     target: block_id(4),
                     arguments: vec![direct_operation_result.id],
@@ -407,6 +409,7 @@ fn proof_only_float_projections_round_trip_and_reject_tampering() {
                 },
             },
             Block {
+                structural_parameters: Vec::new(),
                 id: block_id(4),
                 parameters: vec![direct_block_parameter],
                 operations: Vec::new(),
@@ -988,7 +991,7 @@ fn payload_sum_shape_round_trips_exact_fields_and_requires_canonical_order() {
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 77_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 78_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -1001,7 +1004,7 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
 fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 77_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 78_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -1036,7 +1039,7 @@ fn scalar_return_round_trips_nominal_affine_cleanup_action() {
     };
 
     let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
-    assert_eq!(&bytes[8..10], 77_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 78_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -1453,6 +1456,7 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
         content_partition_compositions: Vec::new(),
         entry: block_id(1),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(1),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -1534,6 +1538,7 @@ fn scalar_jump_affine_discard_round_trips_canonically() {
     });
     let place = machine.structural_parameters[0].place;
     machine.blocks[0].terminator = Terminator::Jump {
+        structural_arguments: Vec::new(),
         edge: edge_id(101),
         target: block_id(102),
         arguments: vec![value_id(50)],
@@ -1541,6 +1546,7 @@ fn scalar_jump_affine_discard_round_trips_canonically() {
         trivial_affine_discards: vec![place],
     };
     machine.blocks.push(Block {
+        structural_parameters: Vec::new(),
         id: block_id(102),
         parameters: vec![ValueDeclaration {
             id: value_id(52),
@@ -1579,18 +1585,21 @@ fn conditional_affine_discards_round_trip_canonically() {
     let place = machine.structural_parameters[0].place;
     machine.blocks = vec![
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(101),
             parameters: Vec::new(),
             operations: Vec::new(),
             terminator: Terminator::Conditional {
                 condition: value_id(50),
                 when_true: SuccessorEdge {
+                    structural_arguments: Vec::new(),
                     edge: edge_id(101),
                     target: block_id(102),
                     arguments: vec![value_id(50)],
                     trivial_affine_discards: vec![place],
                 },
                 when_false: SuccessorEdge {
+                    structural_arguments: Vec::new(),
                     edge: edge_id(102),
                     target: block_id(103),
                     arguments: vec![value_id(50)],
@@ -1599,6 +1608,7 @@ fn conditional_affine_discards_round_trip_canonically() {
             },
         },
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(102),
             parameters: vec![ValueDeclaration {
                 id: value_id(52),
@@ -1612,6 +1622,7 @@ fn conditional_affine_discards_round_trip_canonically() {
             },
         },
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(103),
             parameters: vec![ValueDeclaration {
                 id: value_id(53),
@@ -2377,7 +2388,12 @@ fn structural_unit_calls_participate_in_call_graph_validation() {
 
 #[test]
 fn decoder_rejects_an_unknown_machine_result_shape() {
-    let mut bytes = encode_module(&unit_fixture()).expect("unit terminal module should encode");
+    let mut module = unit_fixture();
+    // Distinct machine and block IDs keep the empty block envelope from
+    // matching the machine prefix used to locate the result tag.
+    module.machines[0].entry = block_id(901);
+    module.machines[0].blocks[0].id = block_id(901);
+    let mut bytes = encode_module(&module).expect("unit terminal module should encode");
     let mut machine_prefix = 1_u32.to_le_bytes().to_vec(); // one machine
     machine_prefix.extend(machine_id(900).get().to_le_bytes());
     machine_prefix.push(0); // no attachment
@@ -2854,10 +2870,10 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&78_u16.to_le_bytes());
+    future_format[8..10].copy_from_slice(&79_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(78))
+        Err(CodecError::UnsupportedFormatMarker(79))
     );
 
     let mut stale_format = bytes.clone();
@@ -3080,6 +3096,7 @@ fn partial_affine_fixture() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(1),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(1),
                     parameters: Vec::new(),
                     operations: vec![Operation {
@@ -3146,6 +3163,7 @@ fn partial_affine_fixture() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(2),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: Vec::new(),
                     operations: Vec::new(),
@@ -3320,6 +3338,7 @@ fn nominal_affine_fixture() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(1),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(1),
                     parameters: Vec::new(),
                     operations: Vec::new(),
@@ -3357,6 +3376,7 @@ fn nominal_affine_fixture() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(2),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: Vec::new(),
                     operations: Vec::new(),
@@ -3511,6 +3531,7 @@ fn structural_effect_fixture() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(100),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(100),
                     parameters: Vec::new(),
                     operations: vec![Operation {
@@ -3575,6 +3596,7 @@ fn structural_effect_fixture() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(101),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(101),
                     parameters: Vec::new(),
                     operations: vec![
@@ -3627,7 +3649,7 @@ fn structural_call_result_round_trips_with_current_format_and_vocabulary() {
     let module = structural_call_fixture();
     let bytes = encode_module(&module).expect("structural call should encode");
 
-    assert_eq!(&bytes[8..10], 77_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 78_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -4301,6 +4323,7 @@ fn unit_fixture() -> TerminalModule {
             content_partition_compositions: Vec::new(),
             entry: block_id(900),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: block_id(900),
                 parameters: Vec::new(),
                 operations: Vec::new(),
@@ -4371,10 +4394,12 @@ fn ranked_countdown_fixture() -> TerminalModule {
     machine.entry = preheader;
     machine.blocks = vec![
         Block {
+            structural_parameters: Vec::new(),
             id: preheader,
             parameters: Vec::new(),
             operations: Vec::new(),
             terminator: Terminator::Jump {
+                structural_arguments: Vec::new(),
                 edge: preheader_edge,
                 target: header,
                 arguments: vec![initial],
@@ -4383,6 +4408,7 @@ fn ranked_countdown_fixture() -> TerminalModule {
             },
         },
         Block {
+            structural_parameters: Vec::new(),
             id: header,
             parameters: vec![ValueDeclaration {
                 id: rank,
@@ -4414,12 +4440,14 @@ fn ranked_countdown_fixture() -> TerminalModule {
             terminator: Terminator::Conditional {
                 condition,
                 when_true: SuccessorEdge {
+                    structural_arguments: Vec::new(),
                     edge: guard_edge,
                     target: decrement,
                     arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
                 when_false: SuccessorEdge {
+                    structural_arguments: Vec::new(),
                     edge: exit_edge,
                     target: done,
                     arguments: Vec::new(),
@@ -4428,6 +4456,7 @@ fn ranked_countdown_fixture() -> TerminalModule {
             },
         },
         Block {
+            structural_parameters: Vec::new(),
             id: decrement,
             parameters: Vec::new(),
             operations: vec![
@@ -4455,6 +4484,7 @@ fn ranked_countdown_fixture() -> TerminalModule {
                 },
             ],
             terminator: Terminator::Jump {
+                structural_arguments: Vec::new(),
                 edge: backedge,
                 target: header,
                 arguments: vec![next],
@@ -4463,6 +4493,7 @@ fn ranked_countdown_fixture() -> TerminalModule {
             },
         },
         Block {
+            structural_parameters: Vec::new(),
             id: done,
             parameters: Vec::new(),
             operations: Vec::new(),
@@ -4531,6 +4562,7 @@ fn fixture() -> TerminalModule {
             entry: block_id(1),
             blocks: vec![
                 Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(1),
                     parameters: Vec::new(),
                     operations: vec![Operation {
@@ -4544,6 +4576,7 @@ fn fixture() -> TerminalModule {
                         },
                     }],
                     terminator: Terminator::Jump {
+                        structural_arguments: Vec::new(),
                         edge: edge_id(1),
                         target: block_id(2),
                         arguments: vec![value_id(1)],
@@ -4552,6 +4585,7 @@ fn fixture() -> TerminalModule {
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: vec![ValueDeclaration {
                         id: value_id(2),
@@ -4696,6 +4730,7 @@ fn content_conservation_fixture(vocabulary_marker: VocabularyMarker) -> Terminal
             content_partition_compositions: Vec::new(),
             entry: block_id(80),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: block_id(80),
                 parameters: Vec::new(),
                 operations: Vec::new(),
@@ -4911,6 +4946,7 @@ fn call_fixture() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(100),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(100),
                     parameters: Vec::new(),
                     operations: vec![
@@ -4959,6 +4995,7 @@ fn call_fixture() -> TerminalModule {
                 content_partition_compositions: Vec::new(),
                 entry: block_id(101),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: block_id(101),
                     parameters: Vec::new(),
                     operations: Vec::new(),

@@ -38,6 +38,7 @@ pub(super) fn place_structural_type(
                         ..
                     } => Some(attachment),
                     semantic_vocabulary::StructuralPlaceKind::Parameter { .. }
+                    | semantic_vocabulary::StructuralPlaceKind::BlockParameter { .. }
                     | semantic_vocabulary::StructuralPlaceKind::Result => None,
                 })
         })

@@ -2,6 +2,9 @@ use super::calling::{encode_placement, encode_shape};
 use super::scalar::encode_scalar_type;
 use super::shared::*;
 
+#[cfg(test)]
+mod block_parameter_tests;
+
 pub(super) fn encode_structural_parameter(
     bytes: &mut Vec<u8>,
     parameter: &StructuralParameterDeclaration,
@@ -81,6 +84,11 @@ pub(super) fn encode_structural_path(bytes: &mut Vec<u8>, path: &[StructuralPath
 pub(super) fn encode_structural_place(bytes: &mut Vec<u8>, place: StructuralPlaceDeclaration) {
     bytes.extend_from_slice(&place.id.get().to_le_bytes());
     match place.kind {
+        StructuralPlaceKind::BlockParameter { block, position } => {
+            bytes.push(8);
+            bytes.extend_from_slice(&block.get().to_le_bytes());
+            bytes.extend_from_slice(&position.to_le_bytes());
+        }
         StructuralPlaceKind::Parameter { position, is_self } => {
             bytes.push(1);
             bytes.extend_from_slice(&position.to_le_bytes());

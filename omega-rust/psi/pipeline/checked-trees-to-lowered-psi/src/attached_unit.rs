@@ -3203,6 +3203,7 @@ fn assemble_unit_closure(
                 Vec::new()
             };
         evaluation.blocks.push(Block {
+            structural_parameters: Vec::new(),
             id: block,
             parameters: evaluation.parameters,
             operations: operations[evaluation.operation_start..].to_vec(),

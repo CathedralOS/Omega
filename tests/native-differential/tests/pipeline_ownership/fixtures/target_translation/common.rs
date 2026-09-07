@@ -103,6 +103,7 @@ pub(super) fn scalar_terminal_artifact(
             content_partition_compositions: Vec::new(),
             entry,
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: entry,
                 parameters: Vec::new(),
                 operations,

@@ -26,6 +26,7 @@ fn declaration(place: u64, producer: u64) -> StructuralPlaceDeclaration {
 
 fn jump(edge: u64, target: u64) -> Terminator {
     Terminator::Jump {
+        structural_arguments: Vec::new(),
         edge: edge_id(edge),
         target: block_id(target),
         arguments: Vec::new(),
@@ -89,6 +90,7 @@ fn module(bytes: Vec<u8>) -> TerminalModule {
     helper.blocks[1].terminator = jump(4, 5);
     helper.blocks[2].terminator = jump(5, 5);
     helper.blocks.push(Block {
+        structural_parameters: Vec::new(),
         id: block_id(5),
         parameters: Vec::new(),
         operations: Vec::new(),
@@ -103,6 +105,7 @@ fn module(bytes: Vec<u8>) -> TerminalModule {
     inspector.structural_places.push(declaration(6, 35));
     inspector.blocks = vec![
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(6),
             parameters: Vec::new(),
             operations: vec![
@@ -133,6 +136,7 @@ fn module(bytes: Vec<u8>) -> TerminalModule {
             },
         },
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(7),
             parameters: Vec::new(),
             operations: vec![
@@ -173,12 +177,14 @@ fn module(bytes: Vec<u8>) -> TerminalModule {
             },
         },
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(8),
             parameters: Vec::new(),
             operations: Vec::new(),
             terminator: finish(10),
         },
         Block {
+            structural_parameters: Vec::new(),
             id: block_id(9),
             parameters: Vec::new(),
             operations: vec![
@@ -691,7 +697,7 @@ fn subslice_wire_and_certificate_tampering_reject_before_execution() {
     let module = module(vec![0, 128]);
     let proof = encode_proof_bundle(&certificate(&module)).unwrap();
     let bytes = encode_module(&module).unwrap();
-    assert_eq!(&bytes[10..12], &83_u16.to_le_bytes());
+    assert_eq!(&bytes[10..12], &84_u16.to_le_bytes());
     let pattern = [
         vec![57],
         3_u64.to_le_bytes().to_vec(),

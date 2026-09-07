@@ -139,6 +139,7 @@ pub(in crate::attached_unit) fn emit_callable_body(
     );
     let mut next_operation = entry_operations.next_identity;
     let mut blocks = vec![Block {
+        structural_parameters: Vec::new(),
         id: state_ids[0],
         parameters: Vec::new(),
         operations: entry_operations.operations,
@@ -288,6 +289,7 @@ pub(crate) fn emit_call_leaf(
     )?;
     *next_operation = operations.next_identity;
     evaluation.blocks.push(Block {
+        structural_parameters: Vec::new(),
         id: evaluation.current,
         parameters: evaluation.parameters,
         operations: operations[evaluation.operation_start..].to_vec(),
@@ -473,6 +475,7 @@ pub(super) fn emit_boundary_call_operation(
 
 fn empty_successor(target: BlockId, next_edge: &mut u64) -> Result<SuccessorEdge, LoweringError> {
     Ok(SuccessorEdge {
+        structural_arguments: Vec::new(),
         edge: edge_id(allocate_dense(next_edge)?),
         target,
         arguments: Vec::new(),

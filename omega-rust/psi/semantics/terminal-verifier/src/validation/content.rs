@@ -33,6 +33,7 @@ pub(super) fn validate_boundary_content_guarantees(
                         })
                     }
                     StructuralPlaceKind::Result
+                    | StructuralPlaceKind::BlockParameter { .. }
                     | StructuralPlaceKind::OperationResult { .. }
                     | StructuralPlaceKind::ByteSequenceLiteral { .. }
                     | StructuralPlaceKind::ProviderAttachment { .. }
@@ -834,7 +835,8 @@ fn validate_partition_source_places(
                 StructuralRootKey::Parameter(position)
             }
             StructuralPlaceKind::Result => StructuralRootKey::Result,
-            StructuralPlaceKind::OperationResult { .. } => {
+            StructuralPlaceKind::OperationResult { .. }
+            | StructuralPlaceKind::BlockParameter { .. } => {
                 return Err(ModuleError::ContentPartitionSourceLocalUnsupported(
                     place.id,
                 ));

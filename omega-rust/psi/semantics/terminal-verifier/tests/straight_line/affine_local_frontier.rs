@@ -35,12 +35,14 @@ fn branched_locals() -> TerminalModule {
     machine.blocks[0].terminator = Terminator::Conditional {
         condition,
         when_true: SuccessorEdge {
+            structural_arguments: Vec::new(),
             edge: EdgeId::new(901).unwrap(),
             target: BlockId::new(901).unwrap(),
             arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
         when_false: SuccessorEdge {
+            structural_arguments: Vec::new(),
             edge: EdgeId::new(902).unwrap(),
             target: BlockId::new(902).unwrap(),
             arguments: Vec::new(),
@@ -49,6 +51,7 @@ fn branched_locals() -> TerminalModule {
     };
     for index in 0..2 {
         machine.blocks.push(Block {
+            structural_parameters: Vec::new(),
             id: BlockId::new(901 + index).unwrap(),
             parameters: Vec::new(),
             operations: Vec::new(),

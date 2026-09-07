@@ -99,6 +99,7 @@ fn omega_fences_verified_payloadless_case_materialization() {
             content_partition_compositions: Vec::new(),
             entry: block_id(91),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: block_id(91),
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -182,6 +183,7 @@ fn omega_fences_verified_payloadless_case_materialization() {
         content_partition_compositions: Vec::new(),
         entry: block_id(91),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(91),
             parameters: Vec::new(),
             operations: vec![Operation {

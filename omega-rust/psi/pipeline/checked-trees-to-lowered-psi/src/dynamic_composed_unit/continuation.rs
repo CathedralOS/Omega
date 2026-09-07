@@ -271,6 +271,7 @@ pub(super) fn lower(
     });
     caller_operations.extend(guard_operations);
     let mut caller_blocks = vec![Block {
+        structural_parameters: Vec::new(),
         id: caller_block,
         parameters: Vec::new(),
         operations: caller_operations,
@@ -434,6 +435,7 @@ fn append_dynamic_dispatch(
 
 fn empty_successor(target: BlockId, next_edge: &mut u64) -> Result<SuccessorEdge, LoweringError> {
     Ok(SuccessorEdge {
+        structural_arguments: Vec::new(),
         edge: edge_id(allocate_dense(next_edge)?),
         target,
         arguments: Vec::new(),

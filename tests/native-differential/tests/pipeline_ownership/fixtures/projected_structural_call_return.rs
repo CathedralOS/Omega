@@ -159,6 +159,7 @@ pub(crate) fn projected_structural_call_return_artifact() -> (Vec<u8>, Vec<u8>) 
     }];
     callee_machine.entry = BlockId::new(3_816).unwrap();
     callee_machine.blocks = vec![Block {
+        structural_parameters: Vec::new(),
         id: callee_machine.entry,
         parameters: Vec::new(),
         operations: Vec::new(),

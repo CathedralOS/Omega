@@ -2775,7 +2775,11 @@ impl PropositionContext {
                 {
                     return Err(PropositionError::EntryResultStructuralPlace(subject.root));
                 }
-                if matches!(kind, StructuralPlaceKind::TrivialAffineLocal { .. }) {
+                if matches!(
+                    kind,
+                    StructuralPlaceKind::TrivialAffineLocal { .. }
+                        | StructuralPlaceKind::BlockParameter { .. }
+                ) {
                     return Err(PropositionError::UnsupportedContentLocalStructuralPlace(
                         subject.root,
                     ));

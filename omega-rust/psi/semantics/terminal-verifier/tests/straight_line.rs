@@ -654,6 +654,7 @@ fn boolean_constant_axiom_proves_the_return_contract() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(10).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(10).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -768,6 +769,7 @@ fn boolean_not_axiom_proves_the_return_contract() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(20).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(20).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -1011,6 +1013,7 @@ fn boolean_equality_axiom_proves_the_return_contract() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(30).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(30).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -1165,6 +1168,7 @@ fn integer_equality_axiom_proves_the_return_contract() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(40).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(40).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -1367,6 +1371,7 @@ fn integer_ordering_axioms_prove_return_contracts() {
                 content_partition_compositions: Vec::new(),
                 entry: BlockId::new(50).expect("block"),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: BlockId::new(50).expect("block"),
                     parameters: Vec::new(),
                     operations: vec![Operation {
@@ -1561,6 +1566,7 @@ fn integer_bitwise_axioms_prove_exact_result_contracts() {
                 content_partition_compositions: Vec::new(),
                 entry: BlockId::new(60).expect("block"),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: BlockId::new(60).expect("block"),
                     parameters: Vec::new(),
                     operations: vec![Operation {
@@ -1699,6 +1705,7 @@ fn integer_bitwise_not_reconstructs_its_exact_result_axiom() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(65).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(65).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -1823,6 +1830,7 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(68).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(68).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -1975,6 +1983,7 @@ fn preserves_address_carrier_identity() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(168).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(168).expect("block"),
                 parameters: Vec::new(),
                 operations: Vec::new(),
@@ -2054,6 +2063,7 @@ fn exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_obligatio
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(170).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(170).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -2185,6 +2195,7 @@ fn exact_right_shift_requires_fixed_integer_operands_and_an_obligation() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(180).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(180).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -2286,6 +2297,7 @@ fn exact_left_shift_requires_fixed_integer_operands_and_an_obligation() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(190).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(190).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -2374,6 +2386,7 @@ fn exact_add_requires_same_fixed_integer_operands_and_an_obligation() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(194).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(194).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -2459,6 +2472,7 @@ fn exact_subtract_requires_same_fixed_integer_operands_and_an_obligation() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(198).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(198).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -2544,6 +2558,7 @@ fn exact_multiply_requires_same_fixed_integer_operands_and_an_obligation() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(202).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(202).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -2637,6 +2652,7 @@ fn exact_divide_requires_same_fixed_integer_operands_and_an_obligation() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(212).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(212).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -2748,6 +2764,7 @@ fn exact_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(222).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(222).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -2832,6 +2849,7 @@ fn wrapping_divide_requires_same_fixed_integer_operands_and_an_obligation() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(232).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(232).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -2916,6 +2934,7 @@ fn wrapping_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(242).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(242).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -3000,6 +3019,7 @@ fn saturating_divide_requires_same_fixed_integer_operands_and_an_obligation() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(252).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(252).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -3084,6 +3104,7 @@ fn saturating_remainder_requires_same_fixed_integer_operands_and_an_obligation()
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(256).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(256).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -3209,6 +3230,7 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
                 content_partition_compositions: Vec::new(),
                 entry: BlockId::new(70).expect("block"),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: BlockId::new(70).expect("block"),
                     parameters: Vec::new(),
                     operations: vec![Operation {
@@ -4888,6 +4910,7 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(90).expect("block"),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: BlockId::new(90).expect("block"),
             parameters: Vec::new(),
             operations: Vec::new(),
@@ -5031,6 +5054,7 @@ fn structural_call_module() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(1).unwrap(),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: BlockId::new(1).unwrap(),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -5112,6 +5136,7 @@ fn structural_call_module() -> TerminalModule {
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(2).unwrap(),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: BlockId::new(2).unwrap(),
             parameters: Vec::new(),
             operations: Vec::new(),
@@ -5398,6 +5423,7 @@ fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId)
         content_partition_compositions: vec![composition],
         entry: BlockId::new(90).expect("block"),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: BlockId::new(90).expect("block"),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -5597,6 +5623,7 @@ fn reflexive_content_module() -> (TerminalModule, Proposition, ObligationId) {
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(80).expect("block"),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: BlockId::new(80).expect("block"),
             parameters: Vec::new(),
             operations: Vec::new(),
@@ -6039,6 +6066,7 @@ fn saturating_multiply_requires_defined_exact_type_operands() {
 fn initial_control_vocabulary_rejects_unreachable_semantic_axioms() {
     let mut fixture = Fixture::new();
     fixture.module.machines[0].blocks.push(Block {
+        structural_parameters: Vec::new(),
         id: BlockId::new(3).expect("unreachable block"),
         parameters: Vec::new(),
         operations: Vec::new(),
@@ -6114,6 +6142,7 @@ fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationId) {
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(20).expect("block"),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: BlockId::new(20).expect("block"),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -6215,6 +6244,7 @@ fn saturating_add_module() -> (TerminalModule, Proposition, ObligationId) {
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(30).expect("block"),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: BlockId::new(30).expect("block"),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -6316,6 +6346,7 @@ fn wrapping_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(40).expect("block"),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: BlockId::new(40).expect("block"),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -6417,6 +6448,7 @@ fn saturating_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(50).expect("block"),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: BlockId::new(50).expect("block"),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -6518,6 +6550,7 @@ fn wrapping_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(60).expect("block"),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: BlockId::new(60).expect("block"),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -6619,6 +6652,7 @@ fn saturating_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
         content_partition_compositions: Vec::new(),
         entry: BlockId::new(70).expect("block"),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: BlockId::new(70).expect("block"),
             parameters: Vec::new(),
             operations: vec![Operation {
@@ -6841,6 +6875,7 @@ fn unit_module() -> TerminalModule {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(900).unwrap(),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(900).unwrap(),
                 parameters: Vec::new(),
                 operations: Vec::new(),
@@ -7020,6 +7055,7 @@ fn multi_exit_payloadless_guard_module() -> (
         },
     ];
     let return_block = |block_raw, operation, place, result_case, edge_raw| Block {
+        structural_parameters: Vec::new(),
         id: BlockId::new(block_raw).unwrap(),
         parameters: Vec::new(),
         operations: vec![Operation {
@@ -7044,18 +7080,21 @@ fn multi_exit_payloadless_guard_module() -> (
     machine.entry = BlockId::new(930).expect("entry block");
     machine.blocks = vec![
         Block {
+            structural_parameters: Vec::new(),
             id: BlockId::new(930).unwrap(),
             parameters: Vec::new(),
             operations: Vec::new(),
             terminator: Terminator::Conditional {
                 condition: first,
                 when_true: SuccessorEdge {
+                    structural_arguments: Vec::new(),
                     edge: EdgeId::new(930).unwrap(),
                     target: BlockId::new(931).unwrap(),
                     arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
                 when_false: SuccessorEdge {
+                    structural_arguments: Vec::new(),
                     edge: EdgeId::new(931).unwrap(),
                     target: BlockId::new(934).unwrap(),
                     arguments: Vec::new(),
@@ -7064,18 +7103,21 @@ fn multi_exit_payloadless_guard_module() -> (
             },
         },
         Block {
+            structural_parameters: Vec::new(),
             id: BlockId::new(931).unwrap(),
             parameters: Vec::new(),
             operations: Vec::new(),
             terminator: Terminator::Conditional {
                 condition: second,
                 when_true: SuccessorEdge {
+                    structural_arguments: Vec::new(),
                     edge: EdgeId::new(932).unwrap(),
                     target: BlockId::new(932).unwrap(),
                     arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
                 when_false: SuccessorEdge {
+                    structural_arguments: Vec::new(),
                     edge: EdgeId::new(933).unwrap(),
                     target: BlockId::new(933).unwrap(),
                     arguments: Vec::new(),
@@ -7129,6 +7171,7 @@ impl Fixture {
             entry: BlockId::new(1).expect("entry block"),
             blocks: vec![
                 Block {
+                    structural_parameters: Vec::new(),
                     id: BlockId::new(1).expect("entry block"),
                     parameters: Vec::new(),
                     operations: vec![Operation {
@@ -7142,6 +7185,7 @@ impl Fixture {
                         },
                     }],
                     terminator: Terminator::Jump {
+                        structural_arguments: Vec::new(),
                         edge: EdgeId::new(1).expect("jump edge"),
                         target: BlockId::new(2).expect("exit block"),
                         arguments: vec![constant],
@@ -7150,6 +7194,7 @@ impl Fixture {
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: BlockId::new(2).expect("exit block"),
                     parameters: vec![ValueDeclaration {
                         id: forwarded,

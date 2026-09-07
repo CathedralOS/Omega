@@ -62,6 +62,7 @@ fn partial_continuation_module() -> TerminalModule {
         unreachable!()
     };
     caller.blocks[0].terminator = Terminator::Jump {
+        structural_arguments: Vec::new(),
         edge,
         target: block_id(3),
         arguments: Vec::new(),
@@ -69,6 +70,7 @@ fn partial_continuation_module() -> TerminalModule {
         residual_affine_discards,
     };
     caller.blocks.push(Block {
+        structural_parameters: Vec::new(),
         id: block_id(3),
         parameters: Vec::new(),
         operations: Vec::new(),

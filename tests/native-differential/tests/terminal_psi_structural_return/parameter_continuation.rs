@@ -33,6 +33,7 @@ fn projected_parameter_cleanup_precedes_a_distinct_native_return() {
         panic!("partial parameter return")
     };
     caller.blocks[0].terminator = Terminator::Jump {
+        structural_arguments: Vec::new(),
         edge,
         target: successor,
         arguments: Vec::new(),
@@ -40,6 +41,7 @@ fn projected_parameter_cleanup_precedes_a_distinct_native_return() {
         residual_affine_discards,
     };
     caller.blocks.push(terminal_psi::Block {
+        structural_parameters: Vec::new(),
         id: successor,
         parameters: Vec::new(),
         operations: Vec::new(),

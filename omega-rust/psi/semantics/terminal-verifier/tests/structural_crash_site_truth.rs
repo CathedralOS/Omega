@@ -137,18 +137,21 @@ fn module(store_first: bool, entry_predicate: bool) -> TerminalModule {
             entry: id::<BlockId>(1),
             blocks: vec![
                 Block {
+                    structural_parameters: Vec::new(),
                     id: id(1),
                     parameters: Vec::new(),
                     operations,
                     terminator: Terminator::Conditional {
                         condition: id(2),
                         when_true: SuccessorEdge {
+                            structural_arguments: Vec::new(),
                             edge: id(1),
                             target: id(2),
                             arguments: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
+                            structural_arguments: Vec::new(),
                             edge: id(2),
                             target: id(3),
                             arguments: Vec::new(),
@@ -157,6 +160,7 @@ fn module(store_first: bool, entry_predicate: bool) -> TerminalModule {
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: id(2),
                     parameters: Vec::new(),
                     operations: Vec::new(),
@@ -168,6 +172,7 @@ fn module(store_first: bool, entry_predicate: bool) -> TerminalModule {
                     },
                 },
                 Block {
+                    structural_parameters: Vec::new(),
                     id: id(3),
                     parameters: Vec::new(),
                     operations: Vec::new(),

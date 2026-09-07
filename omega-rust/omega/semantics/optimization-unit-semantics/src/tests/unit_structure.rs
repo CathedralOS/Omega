@@ -3,6 +3,51 @@
 use super::*;
 
 #[test]
+fn structural_block_root_keys_retain_block_and_position() {
+    let block = id(1, BlockId::new);
+    let other_block = id(2, BlockId::new);
+    let keys = [
+        StructuralPlaceKind::Parameter {
+            position: 0,
+            is_self: false,
+        },
+        StructuralPlaceKind::BlockParameter { block, position: 0 },
+        StructuralPlaceKind::BlockParameter { block, position: 1 },
+        StructuralPlaceKind::BlockParameter {
+            block: other_block,
+            position: 0,
+        },
+    ]
+    .map(crate::unit_validation::structural_root_key);
+    assert_eq!(keys.into_iter().collect::<BTreeSet<_>>().len(), 4);
+}
+
+#[test]
+fn structural_block_parameters_cannot_enter_scalar_only_optimizer_blocks() {
+    let mut candidate = byte_literal_boundary_unit();
+    let function = &mut candidate.functions[0];
+    function.structural_places[0].kind = StructuralPlaceKind::BlockParameter {
+        block: function.entry,
+        position: 0,
+    };
+    let types = candidate
+        .structural_types
+        .iter()
+        .map(|declaration| (declaration.id, declaration))
+        .collect();
+    assert_eq!(
+        crate::unit_validation::validate_function_structural_catalog(
+            function,
+            &types,
+            &BTreeMap::new()
+        ),
+        Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
+            machine: Some(function.machine),
+        })
+    );
+}
+
+#[test]
 fn independently_accepts_builder_output() {
     validate_psi_optimization_unit(&unit()).unwrap();
     validate_psi_optimization_unit(&scalar_call_unit()).unwrap();

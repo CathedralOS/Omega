@@ -247,6 +247,7 @@ pub(crate) fn emit_boundary_scalar_return(
         ..
     } = operations;
     evaluation.blocks.push(Block {
+        structural_parameters: Vec::new(),
         id: evaluation.current,
         parameters: evaluation.parameters,
         operations: operations[evaluation.operation_start..].to_vec(),

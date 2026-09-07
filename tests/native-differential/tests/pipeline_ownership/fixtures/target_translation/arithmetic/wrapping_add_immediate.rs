@@ -56,6 +56,7 @@ pub(crate) fn wrapping_integer_add_immediate_return_artifact(
             content_partition_compositions: Vec::new(),
             entry,
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: entry,
                 parameters: Vec::new(),
                 operations: vec![

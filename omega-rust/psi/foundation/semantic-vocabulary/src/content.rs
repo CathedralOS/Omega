@@ -68,6 +68,13 @@ pub enum StructuralPlaceKind {
         position: u32,
         is_self: bool,
     },
+    /// One block-local structural binding. The position is dense and zero-based
+    /// in the owning block's structural parameter vector, never an authored
+    /// source argument position or a machine `self` parameter.
+    BlockParameter {
+        block: crate::BlockId,
+        position: u32,
+    },
     Result,
     /// One structural operation result, established only after the exact
     /// producer succeeds. The producer identity prevents a result place from
@@ -276,10 +283,11 @@ fn encode_fingerprint_term(
                     output.extend_from_slice(&producer.get().to_le_bytes());
                     output.extend_from_slice(&structural_type.get().to_le_bytes());
                 }
-                // Literal and trivial affine locals carry no claims or content
+                // Block parameters, literals, and trivial affine locals carry no claims or content
                 // qualifications in the accepted slice, so they cannot become
                 // content-proposition roots by merely being declared.
                 StructuralPlaceKind::ByteSequenceLiteral { .. }
+                | StructuralPlaceKind::BlockParameter { .. }
                 | StructuralPlaceKind::ProviderAttachment { .. }
                 | StructuralPlaceKind::TrivialAffineLocal { .. } => return None,
             }
@@ -451,5 +459,43 @@ mod tests {
             ))),
             Err(PropositionError::EntryResultStructuralPlace(result))
         );
+    }
+
+    #[test]
+    fn block_parameters_cannot_supply_entry_or_current_content_authority() {
+        let place = PlaceId::new(1).expect("place");
+        let places = BTreeMap::from([(
+            place,
+            StructuralPlaceKind::BlockParameter {
+                block: crate::BlockId::new(2).expect("block"),
+                position: 0,
+            },
+        )]);
+        let context = PropositionContext::from_value_types_and_places(
+            [],
+            places.iter().map(|(place, kind)| (*place, *kind)),
+        )
+        .expect("block place context");
+        for version in [ContentPlaceVersion::Entry, ContentPlaceVersion::Current] {
+            let term = projection(place, version, "bytes");
+            let conservation = ContentConservation::new(
+                ContentAlgebra {
+                    kind: ContentAlgebraKind::IntervalSet,
+                    parameter: "Address".into(),
+                },
+                term.clone(),
+                term,
+            );
+            assert_eq!(
+                context.validate(&Proposition::ContentConservation(conservation.clone())),
+                Err(PropositionError::UnsupportedContentLocalStructuralPlace(
+                    place
+                ))
+            );
+            assert_eq!(
+                content_conservation_report_fingerprint(&conservation, &places),
+                None
+            );
+        }
     }
 }

@@ -50,6 +50,7 @@ pub(in crate::pass_manager::tests) fn verified_empty_unit() -> VerifiedPsiOptimi
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(402).unwrap(),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(402).unwrap(),
                 parameters: Vec::new(),
                 operations: Vec::new(),

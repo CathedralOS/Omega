@@ -77,6 +77,7 @@ pub(super) fn validate(
         .iter()
         .find(|row| row.place == source)
         .map(|row| row.structural_type)
+        .or_else(|| super::block_views::parameter(machine, source).map(|row| row.structural_type))
         .or_else(|| {
             machine
                 .structural_places
@@ -99,7 +100,7 @@ pub(super) fn validate(
     Ok(())
 }
 
-/// Only the new exact borrowed-result class is handled here. Other structural
+/// Block-local views and exact borrowed results need dominance. Other structural
 /// operations retain their existing ownership/frontier admission rules.
 pub(super) fn validate_uses(
     machine: &TerminalMachine,
@@ -107,7 +108,10 @@ pub(super) fn validate_uses(
     available: &BTreeSet<PlaceId>,
 ) -> Result<(), ModuleError> {
     let require = |place| {
-        if borrowed_result(machine, place).is_some() && !available.contains(&place) {
+        if (borrowed_result(machine, place).is_some()
+            || super::block_views::parameter(machine, place).is_some())
+            && !available.contains(&place)
+        {
             Err(ModuleError::ByteSequenceViewNotEstablished {
                 operation: operation.id,
                 place,

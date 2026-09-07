@@ -25,6 +25,7 @@ pub(super) fn emit(
     let mut blocks = (0..admitted.controls.len() - 1)
         .map(|index| {
             Ok(Block {
+                structural_parameters: Vec::new(),
                 id: state_ids[index],
                 parameters: (index != 0)
                     .then_some(control_parameters[index])
@@ -32,6 +33,7 @@ pub(super) fn emit(
                     .collect(),
                 operations: Vec::new(),
                 terminator: Terminator::Jump {
+                    structural_arguments: Vec::new(),
                     edge: edge_id(allocate_dense(&mut next_edge)?),
                     target: state_ids[index + 1],
                     arguments: vec![control_parameters[index].id],
@@ -59,6 +61,7 @@ pub(super) fn emit(
     );
     let mut next_operation = dispatch_operations.next_identity;
     let dispatch_block = Block {
+        structural_parameters: Vec::new(),
         id: state_ids[dispatch_index],
         parameters: vec![dispatch_parameter],
         operations: dispatch_operations.operations,
@@ -159,6 +162,7 @@ pub(super) fn emit(
 
 fn empty_successor(target: BlockId, next_edge: &mut u64) -> Result<SuccessorEdge, LoweringError> {
     Ok(SuccessorEdge {
+        structural_arguments: Vec::new(),
         edge: edge_id(allocate_dense(next_edge)?),
         target,
         arguments: Vec::new(),

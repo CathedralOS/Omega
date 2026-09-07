@@ -119,6 +119,7 @@ fn boolean_reaches_owned_object_image_and_native_execution() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(20).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(20).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -292,6 +293,7 @@ fn wrapping_add_reaches_owned_object_image_and_native_execution() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(30).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(30).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![
@@ -493,6 +495,7 @@ fn saturating_add_reaches_owned_object_image_and_native_execution() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(40).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(40).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![
@@ -701,6 +704,7 @@ fn signed_i64_saturating_subtract_matches_both_bounds_natively() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(120).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(120).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -865,6 +869,7 @@ fn wrapping_subtract_matches_interpretation_and_native_execution() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(100).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(100).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -1036,6 +1041,7 @@ fn wrapping_multiply_matches_interpretation_and_native_execution() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(110).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(110).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -1207,6 +1213,7 @@ fn saturating_multiply_matches_interpretation_and_native_execution() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(130).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(130).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -1372,6 +1379,7 @@ fn nested_runtime_arithmetic_uses_register_and_stack_parameters_natively() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(60).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(60).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![
@@ -1540,6 +1548,7 @@ fn signed_i64_runtime_saturation_matches_both_bounds_natively() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(80).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(80).expect("block"),
                 parameters: Vec::new(),
                 operations: vec![Operation {
@@ -1677,6 +1686,7 @@ fn runtime_stack_parameter_matches_interpretation_and_native_execution() {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(50).expect("block"),
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: BlockId::new(50).expect("block"),
                 parameters: Vec::new(),
                 operations: Vec::new(),

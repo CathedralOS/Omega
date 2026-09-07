@@ -1268,6 +1268,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
         blocks.push(root);
         blocks.append(&mut children);
         blocks.push(Block {
+            structural_parameters: Vec::new(),
             id: continuation_block,
             parameters: vec![convergence_value],
             operations: operations.operations[continuation_operation_start..].to_vec(),
@@ -1329,6 +1330,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
             &mut operations,
         );
         vec![Block {
+            structural_parameters: Vec::new(),
             id: entry.entry,
             parameters: Vec::new(),
             operations: operations.operations,

@@ -46,6 +46,7 @@ pub(crate) fn unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
             content_partition_compositions: Vec::new(),
             entry,
             blocks: vec![Block {
+                structural_parameters: Vec::new(),
                 id: entry,
                 parameters: Vec::new(),
                 operations: Vec::new(),
@@ -540,6 +541,7 @@ pub(crate) fn structural_extent_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
                 content_partition_compositions: Vec::new(),
                 entry: BlockId::new(3_610).unwrap(),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: BlockId::new(3_610).unwrap(),
                     parameters: Vec::new(),
                     operations: vec![Operation {
@@ -583,6 +585,7 @@ pub(crate) fn structural_extent_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
                 content_partition_compositions: Vec::new(),
                 entry: BlockId::new(3_614).unwrap(),
                 blocks: vec![Block {
+                    structural_parameters: Vec::new(),
                     id: BlockId::new(3_614).unwrap(),
                     parameters: Vec::new(),
                     operations: Vec::new(),

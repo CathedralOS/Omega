@@ -1,27 +1,16 @@
-//! Emit every authored state using shared catalogs and simultaneous scalar edges.
+//! Emit every authored state using shared catalogs and simultaneous typed edges.
 
 use super::*;
 
 pub(in crate::attached_unit::composed_control) fn emit(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
-    admitted: AdmittedGraph<'_>,
+    _admitted: AdmittedGraph<'_>,
     terminal_machine: MachineId,
     parameters: Vec<StructuralParameterDeclaration>,
     scalar_parameters: Vec<ValueDeclaration>,
     catalogs: &mut catalogs::ComposedCatalogs,
 ) -> Result<(TerminalMachine, Vec<LoweredSourceCallOccurrence>), LoweringError> {
-    let mut view_parameters = parameters.clone();
-    for derived in &admitted.views.derived {
-        let mut view = view_parameters
-            .get(derived.source_root)
-            .ok_or(LoweringError::Unsupported(
-                "Unit graph derived view has no source descriptor",
-            ))?
-            .clone();
-        view.place = place_id(allocate_dense(&mut catalogs.next_place)?);
-        view_parameters.push(view);
-    }
     let mut structural_places = parameters
         .iter()
         .map(|parameter| StructuralPlaceDeclaration {
@@ -33,10 +22,27 @@ pub(in crate::attached_unit::composed_control) fn emit(
         })
         .collect::<Vec<_>>();
     let mut state_ids = Vec::new();
+    let mut state_views = vec![parameters.clone()];
     let mut state_values = vec![scalar_parameters.clone()];
     for (position, state) in plan.states.iter().enumerate() {
         state_ids.push(block_id(allocate_dense(&mut catalogs.next_block)?));
         if position != 0 {
+            let block_parameters = lower_unit_parameters(
+                &state.structural_parameters,
+                &catalogs.type_ids,
+                &catalogs.domain_ids,
+                &mut catalogs.next_place,
+            )?;
+            structural_places.extend(block_parameters.iter().map(|parameter| {
+                StructuralPlaceDeclaration {
+                    id: parameter.place,
+                    kind: StructuralPlaceKind::BlockParameter {
+                        block: state_ids[position],
+                        position: parameter.position,
+                    },
+                }
+            }));
+            state_views.push(block_parameters);
             state_values.push(
                 state
                     .scalar_parameters
@@ -54,11 +60,12 @@ pub(in crate::attached_unit::composed_control) fn emit(
     let mut blocks = Vec::new();
     let mut occurrences = Vec::new();
     for (position, state) in plan.states.iter().enumerate() {
-        let state_parameters = admitted.views.state_roots[position]
+        let state_parameters = state_views[position]
             .iter()
             .zip(&state.structural_parameters)
-            .map(|(root, source)| {
-                let mut parameter = view_parameters[*root].clone();
+            .map(|(parameter, source)| {
+                // Source readers use authored positions in mixed signatures.
+                let mut parameter = parameter.clone();
                 parameter.position = source.position;
                 parameter
             })
@@ -164,6 +171,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
                     }));
                 let operation_start = operations.len();
                 let mut arguments = Vec::new();
+                let mut structural_arguments = Vec::new();
                 let target_state = &plan.states[target];
                 for argument_position in 0..target_state.structural_parameters.len()
                     + target_state.scalar_parameters.len()
@@ -174,20 +182,29 @@ pub(in crate::attached_unit::composed_control) fn emit(
                         .zip(&edge.transfers)
                         .find(|(parameter, _)| parameter.position as usize == argument_position)
                     {
-                        if let checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { parameter_index, expression } = transfer.source {
-                            let derived = admitted.views.derived.iter().position(|derived| {
-                                derived.state == state.state && derived.statement_ordinal == edge.statement_ordinal
-                                    && derived.target_parameter_index == transfer.target_parameter_index
-                            }).ok_or(LoweringError::Unsupported("Unit graph subslice has no admitted descriptor"))?;
-                            let destination = view_parameters[parameters.len() + derived].place;
-                            let source = state_parameters.get(parameter_index as usize).ok_or(
-                                LoweringError::Unsupported("Unit graph subslice source descriptor disappeared"),
-                            )?;
-                            structural_places.push(subslices::emit(
-                                checked, state, edge.statement_ordinal, target_parameter.position, expression,
-                                source, destination, &bindings, &values, &mut next_value, &mut operations,
-                            )?);
-                        }
+                        let place = match transfer.source {
+                            checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
+                                state_parameters.get(index as usize).ok_or(
+                                    LoweringError::Unsupported("Unit graph transfer source descriptor disappeared"),
+                                )?.place
+                            }
+                            checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { parameter_index, expression } => {
+                                let destination = place_id(allocate_dense(&mut catalogs.next_place)?);
+                                let source = state_parameters.get(parameter_index as usize).ok_or(
+                                    LoweringError::Unsupported("Unit graph subslice source descriptor disappeared"),
+                                )?;
+                                structural_places.push(subslices::emit(
+                                    checked, state, edge.statement_ordinal, target_parameter.position, expression,
+                                    source, destination, &bindings, &values, &mut next_value, &mut operations,
+                                )?);
+                                destination
+                            }
+                        };
+                        structural_arguments.push(StructuralArgument {
+                            place,
+                            path: Vec::new(),
+                            access: StructuralAccess::SharedBorrow,
+                        });
                         continue;
                     }
                     let transfer = edge
@@ -242,11 +259,13 @@ pub(in crate::attached_unit::composed_control) fn emit(
                     edge_blocks.push(Block {
                         id: staged,
                         parameters: Vec::new(),
+                        structural_parameters: Vec::new(),
                         operations: operations[operation_start..].to_vec(),
                         terminator: Terminator::Jump {
                             edge: edge_id(allocate_dense(&mut next_edge)?),
                             target,
                             arguments,
+                            structural_arguments,
                             trivial_affine_discards: Vec::new(),
                             residual_affine_discards: Vec::new(),
                         },
@@ -255,6 +274,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
                         edge: edge_id(allocate_dense(&mut next_edge)?),
                         target: staged,
                         arguments: Vec::new(),
+                        structural_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     })
                 } else {
@@ -262,6 +282,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
                         edge: edge_id(allocate_dense(&mut next_edge)?),
                         target,
                         arguments,
+                        structural_arguments,
                         trivial_affine_discards: Vec::new(),
                     })
                 }
@@ -277,6 +298,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
                     edge: edge.edge,
                     target: edge.target,
                     arguments: edge.arguments,
+                    structural_arguments: edge.structural_arguments,
                     trivial_affine_discards: Vec::new(),
                     residual_affine_discards: Vec::new(),
                 }
@@ -297,6 +319,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
         evaluation.blocks.push(Block {
             id: evaluation.current,
             parameters: evaluation.parameters,
+            structural_parameters: Vec::new(),
             operations: operations[evaluation.operation_start..if condition.is_some() {
                 body_end
             } else {
@@ -305,6 +328,17 @@ pub(in crate::attached_unit::composed_control) fn emit(
                 .to_vec(),
             terminator,
         });
+        if position != 0 {
+            // Argument evaluation can split the body; bindings belong to its source root.
+            let root = evaluation
+                .blocks
+                .iter_mut()
+                .find(|block| block.id == state_ids[position])
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph state root disappeared during evaluation",
+                ))?;
+            root.structural_parameters = std::mem::take(&mut state_views[position]);
+        }
         blocks.extend(evaluation.blocks);
         blocks.extend(edge_blocks);
         occurrences.extend(operations.source_calls);

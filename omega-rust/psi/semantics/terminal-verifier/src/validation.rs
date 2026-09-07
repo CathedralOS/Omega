@@ -27,6 +27,7 @@ use crate::verification::{
 };
 
 mod affine_cleanup;
+mod block_views;
 mod byte_sequence_length;
 mod byte_sequence_read;
 mod byte_sequence_subslice;
@@ -1034,6 +1035,7 @@ struct IdRegistry {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum StructuralRootKey {
+    BlockParameter(BlockId, u32),
     Parameter(u32),
     Result,
     OperationResult(OperationId),

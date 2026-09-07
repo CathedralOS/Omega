@@ -226,6 +226,7 @@ pub(super) fn lower_structural_return_machine(
         content_partition_compositions: Vec::new(),
         entry: block_id(1),
         blocks: vec![Block {
+            structural_parameters: Vec::new(),
             id: block_id(1),
             parameters: Vec::new(),
             operations: local_places
