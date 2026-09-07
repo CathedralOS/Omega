@@ -8,7 +8,7 @@ use crate::attached_unit::{lower_shared_unit_closure, shared_closure::ExternalUn
 pub(in crate::attached_unit::composed_control) fn lower(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
-    attachment_type_identity: &str,
+    attachment_type_identity: Option<&str>,
     contract_service_reach: ServiceReachPlan,
     service_reach: ServiceReachSummary,
     states: &[checked_trees::CheckedComposedUnitControlStatePlan],
@@ -32,7 +32,10 @@ pub(in crate::attached_unit::composed_control) fn lower(
         };
         collect_service_summary(&checked.facts.service_reaches.rows, reach, &mut services)?;
     }
-    let mut type_roots = vec![attachment_type_identity.to_owned()];
+    let mut type_roots = attachment_type_identity
+        .map(str::to_owned)
+        .into_iter()
+        .collect::<Vec<_>>();
     type_roots.extend(
         states
             .iter()

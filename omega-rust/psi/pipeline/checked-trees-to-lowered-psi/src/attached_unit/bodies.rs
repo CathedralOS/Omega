@@ -103,7 +103,7 @@ impl<'a> UnitBody<'a> {
     pub(crate) fn attachment(self) -> Option<&'a str> {
         match self {
             Self::Ordinary(plan) => plan.attachment_type_identity.as_deref(),
-            Self::Composed(plan) => Some(&plan.attachment_type_identity),
+            Self::Composed(plan) => plan.attachment_type_identity.as_deref(),
         }
     }
 

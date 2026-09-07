@@ -114,7 +114,7 @@ pub fn derive_fused_program_entry_establishments(
                     plan.machine == machine.symbol
                         && plan.states.iter().any(|plan| plan.state == state.symbol)
                 })
-                .map(|plan| plan.attachment_type_identity.clone()),
+                .filter_map(|plan| plan.attachment_type_identity.clone()),
         )
         .collect::<Vec<_>>();
     attachment_identities.sort();

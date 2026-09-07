@@ -86,7 +86,7 @@ pub(super) fn finish(
     super::super::assembly::finish(
         facts,
         machine,
-        topology.attachment,
+        Some(topology.attachment),
         provider_requirements,
         checked_states,
     )

@@ -167,27 +167,38 @@ pub(in crate::attached_unit) fn emit_callable_body(
         blocks.extend(lowered_block);
         source_call_occurrences.append(&mut occurrences);
     }
-    let attachment = lookup_type_id(&catalogs.type_ids, &plan.attachment_type_identity)?;
-    let attachment_declaration = catalogs
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == attachment)
-        .expect("composed attachment declaration was selected");
-    let provider_boundaries = catalogs
-        .lowered_boundaries
-        .iter()
-        .map(|boundary| (boundary.source, boundary.id))
-        .collect::<Vec<_>>();
-    let structural_places = super::super::provider_attachments::lower_provider_attachment_places(
-        attachment,
-        attachment_declaration,
-        &plan.provider_attachment_requirements,
-        &provider_boundaries,
-        &mut next_place,
-    )?;
+    let attachment = plan
+        .attachment_type_identity
+        .as_deref()
+        .map(|identity| lookup_type_id(&catalogs.type_ids, identity))
+        .transpose()?;
+    let structural_places = if let Some(attachment) = attachment {
+        let attachment_declaration = catalogs
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == attachment)
+            .expect("composed attachment declaration was selected");
+        let provider_boundaries = catalogs
+            .lowered_boundaries
+            .iter()
+            .map(|boundary| (boundary.source, boundary.id))
+            .collect::<Vec<_>>();
+        super::super::provider_attachments::lower_provider_attachment_places(
+            attachment,
+            attachment_declaration,
+            &plan.provider_attachment_requirements,
+            &provider_boundaries,
+            &mut next_place,
+        )?
+    } else {
+        if !plan.provider_attachment_requirements.is_empty() {
+            return unsupported("free composed Unit cannot emit provider attachment places");
+        }
+        Vec::new()
+    };
     let mut machine = TerminalMachine {
         id: terminal_machine,
-        attachment: Some(attachment),
+        attachment,
         parameters: entry_parameters,
         structural_parameters: structural_parameters.clone(),
         ranked_scc: None,

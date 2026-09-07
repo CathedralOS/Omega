@@ -1054,7 +1054,7 @@ pub fn lower_machine(
                 | SelectedMachineRoute::PayloadlessCaseReturn
                 | SelectedMachineRoute::StructuralReturn
                 | SelectedMachineRoute::AffineReturn
-                | SelectedMachineRoute::ComposedAttachedUnit
+                | SelectedMachineRoute::ComposedUnit
                 | SelectedMachineRoute::StructuralUnitControl => vec![selection.machine],
             }
         };
@@ -1246,6 +1246,7 @@ pub fn lower_machine(
     }
     lowered.debug_map = if selection.signature == CheckedTerminalSignatureEligibility::Eligible
         && route != SelectedMachineRoute::UnitEffect
+        && route != SelectedMachineRoute::ComposedUnit
         && route != SelectedMachineRoute::PartialAffineUnitCleanup
         && route != SelectedMachineRoute::AffineReturn
     {

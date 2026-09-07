@@ -369,7 +369,9 @@ pub(crate) fn build_checked_unit_effect_plans(
                 )
         }))
         .chain(composed_machines.iter().flat_map(|plan| {
-            std::iter::once(plan.attachment_type_identity.as_str())
+            plan.attachment_type_identity
+                .as_deref()
+                .into_iter()
                 .chain(
                     plan.states
                         .iter()

@@ -110,7 +110,14 @@ pub(super) fn emit(
         blocks.extend(leaf);
         source_call_occurrences.append(&mut occurrences);
     }
-    let attachment = lookup_type_id(&catalogs.type_ids, &plan.attachment_type_identity)?;
+    let attachment = lookup_type_id(
+        &catalogs.type_ids,
+        plan.attachment_type_identity
+            .as_deref()
+            .ok_or(LoweringError::Unsupported(
+                "composed control family requires an attachment",
+            ))?,
+    )?;
     let attachment_declaration = catalogs
         .structural_types
         .iter()

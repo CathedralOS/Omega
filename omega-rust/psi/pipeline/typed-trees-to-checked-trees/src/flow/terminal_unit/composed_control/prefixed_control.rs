@@ -178,7 +178,7 @@ pub(super) fn build(
     super::assembly::finish(
         facts,
         machine,
-        attachment?,
+        Some(attachment?),
         provider_requirements,
         checked_states,
     )

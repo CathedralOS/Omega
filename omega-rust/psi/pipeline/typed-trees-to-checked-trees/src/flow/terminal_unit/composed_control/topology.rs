@@ -5,7 +5,7 @@ use super::*;
 pub(super) struct Topology<'a> {
     pub(super) entry: &'a typed_trees::state::State,
     pub(super) leaves: [&'a typed_trees::state::State; 2],
-    pub(super) attachment_type_identity: String,
+    pub(super) attachment_type_identity: Option<String>,
     pub(super) entry_structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
     pub(super) entry_scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
     pub(super) entry_claims: Vec<CheckedUnitEntryClaimPlan>,
@@ -33,8 +33,15 @@ pub(super) fn admit<'a>(
         if !is_unit(program, state.return_type) || !program.state_contracts(state).is_empty() {
             return None;
         }
-        let (attachment, structural, scalar) =
-            structural_scalar_signature(program, shapes, machine, state, &binders, false)?;
+        let (attachment, structural, scalar) = if machine.attached_data.is_some() {
+            let (attachment, structural, scalar) =
+                structural_scalar_signature(program, shapes, machine, state, &binders, false)?;
+            (Some(attachment), structural, scalar)
+        } else {
+            let (structural, scalar) =
+                free_structural_scalar_signature(program, shapes, state, &binders)?;
+            (None, structural, scalar)
+        };
         if !only_implicit_reference_self_is_omitted(program, state, &structural, &scalar)
             || attachment_type_identity
                 .as_ref()

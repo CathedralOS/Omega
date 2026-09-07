@@ -686,7 +686,8 @@ impl CheckedUnitEffectPlans {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedComposedUnitControlMachinePlan {
     pub machine: SymbolHandle,
-    pub attachment_type_identity: String,
+    /// Free helpers have no attachment; attached bodies retain their authored owner.
+    pub attachment_type_identity: Option<String>,
     pub provider_attachment_requirements: Vec<CheckedProviderAttachmentRequirementPlan>,
     pub body_qualifications: Vec<SemanticDomainId>,
     pub contract_report_fingerprint: u64,

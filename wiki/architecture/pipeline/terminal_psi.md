@@ -6648,9 +6648,11 @@ caller substitution are not yet represented in Terminal. A contracted source
 Do not inject a body SSA value into the parameter-only contract scope or add
 an unrelated length parameter as a replacement for the view's actual extent.
 
-The Unit call closure now includes ordinary bodies and the existing three-state
-composed family. The writer still needs its free view/scalar signature and
-slice-ranked body admitted through that shared catalog. A separate
+The Unit call closure includes ordinary bodies and the existing three-state
+composed family, including free scalar-parameter helpers. Free helpers retain no
+attachment; attached helpers rejoin their exact authored owner. The writer still
+needs borrowed-view state transfers and its slice-ranked body admitted through
+that shared catalog. A separate
 multistate plan is insufficient until calls, structural/scalar transfers,
 byte-view operations, effect ordering, and ranking survive Terminal production
 and its independent consumers together. Empty/nonempty raw bytes, both newline
