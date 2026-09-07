@@ -74,6 +74,31 @@ fn ranged_call_uses_each_authored_telescope_and_classifies_weak_edges() {
 }
 
 #[test]
+fn unranged_natural_call_still_requires_a_nonnegative_destination_rank() {
+    let source = RANGED
+        .replace(" in lower..=upper", "")
+        .replace(" in floor..=ceiling", "");
+    let program = typed_source(&source);
+    assert_eq!(
+        progress(&program, 0),
+        Some(RankingRangeCallProgress::NonIncreasing)
+    );
+    assert_eq!(
+        progress(&program, 1),
+        Some(RankingRangeCallProgress::Strict)
+    );
+    assert_eq!(admitted(&program).len(), 1);
+    let underflow = typed_source(&source.replace("pending - 1", "pending - 2"));
+    assert!(progress(&underflow, 1).is_none());
+    assert!(admitted(&underflow).is_empty());
+    let mut foreign = program;
+    foreign.ranking_expression_custody[0].subjects[0] =
+        foreign.ranking_expression_custody[1].subjects[0];
+    assert!(progress(&foreign, 0).is_none());
+    assert!(admitted(&foreign).is_empty());
+}
+
+#[test]
 fn call_range_does_not_assume_destination_requirements_or_moved_endpoints() {
     for source in [
         RANGED.replace(

@@ -230,6 +230,16 @@ fn prove_edge(
         admit(*expression)?;
     }
     let parameters = program.state_parameters(state);
+    // Local-state induction still has no mutable-parameter arrival evidence.
+    // Call components own a separate exact prefix-preservation judgment;
+    // shared meaning and symbol binding do not establish either guarantee.
+    if parameters.iter().any(|parameter| {
+        !parameter.is_self
+            && parameter.is_mutable
+            && exact_integer_parameter(program, parameter.type_reference).is_some()
+    }) {
+        return None;
+    }
     if arguments.is_some_and(|arguments| {
         program
             .state_parameters(destination.map_or(state, |destination| destination.state))
@@ -722,7 +732,7 @@ fn integer_bindings(
             // Unrelated payloads are never promoted to numeric facts.
             continue;
         };
-        if !parameter.symbol.is_valid() || parameter.is_mutable {
+        if !parameter.symbol.is_valid() {
             return None;
         }
         bindings.push(StrictArithmeticSymbolBinding {
@@ -778,6 +788,9 @@ fn exact_integer_parameter(
 
 type Comparison = (BinaryOperator, Polynomial, Polynomial);
 
+/// Project already meaning-checked hypotheses into integer comparisons.
+/// Unreadable Boolean facts contribute nothing; they cannot strengthen a rank
+/// proof, but need not prevent an independently proven forwarding edge.
 fn collect_guard(
     engine: &mut Engine<'_>,
     expression: ExpressionHandle,
@@ -800,29 +813,37 @@ fn collect_guard(
             collect_guard(engine, binary.right, holds, comparisons, depth + 1)
         }
         ExpressionNode::Binary(binary)
-            if binary.operator == BinaryOperator::Equal
-                && matches!(
-                    engine.program.expression_table.expression(binary.right),
-                    ExpressionNode::Boolean(_)
-                ) =>
+            if matches!(
+                binary.operator,
+                BinaryOperator::Equal | BinaryOperator::NotEqual
+            ) =>
         {
-            let ExpressionNode::Boolean(polarity) =
-                engine.program.expression_table.expression(binary.right)
-            else {
-                return None;
-            };
-            collect_guard(
-                engine,
-                binary.left,
-                *polarity == holds,
-                comparisons,
-                depth + 1,
-            )
+            for (condition, boolean) in [(binary.left, binary.right), (binary.right, binary.left)] {
+                if let ExpressionNode::Boolean(polarity) =
+                    engine.program.expression_table.expression(boolean)
+                {
+                    return collect_guard(
+                        engine,
+                        condition,
+                        holds == (*polarity == (binary.operator == BinaryOperator::Equal)),
+                        comparisons,
+                        depth + 1,
+                    );
+                }
+            }
+            if let Some(comparison) =
+                inductive_judgment::guard_arm_comparison(engine, expression, holds)
+            {
+                comparisons.push(comparison);
+            }
+            Some(())
         }
         _ => {
-            comparisons.push(inductive_judgment::guard_arm_comparison(
-                engine, expression, holds,
-            )?);
+            if let Some(comparison) =
+                inductive_judgment::guard_arm_comparison(engine, expression, holds)
+            {
+                comparisons.push(comparison);
+            }
             Some(())
         }
     }

@@ -222,10 +222,6 @@ impl RankProjection {
         expression: ExpressionHandle,
         field: SymbolHandle,
     ) -> bool {
-        if !field.is_valid() {
-            return matches!(self.order, RankOrder::Natural(_))
-                && self.is_subject(program, expression);
-        }
         let RankOrder::Lexicographic { data: owner, .. } = self.order else {
             return false;
         };

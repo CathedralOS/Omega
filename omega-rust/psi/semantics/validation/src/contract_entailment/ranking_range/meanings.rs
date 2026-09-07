@@ -22,8 +22,10 @@ pub(super) fn builtin(
                 .state_parameters(state)
                 .iter()
                 .find(|parameter| parameter.symbol == path.symbol)?;
-            (!parameter.is_self && !parameter.is_mutable && !parameter.is_const)
-                .then_some(Some(parameter.type_reference))
+            // Meaning is independent of binding stability. The state-edge
+            // owner requires immutable inputs; call edges instead establish
+            // exact prefix preservation, including for mutable parameters.
+            (!parameter.is_self && !parameter.is_const).then_some(Some(parameter.type_reference))
         }
         ExpressionNode::Atomic(atomic) => builtin(program, machine, state, atomic.value, depth + 1),
         ExpressionNode::Member(_) => {

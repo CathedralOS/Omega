@@ -16,17 +16,17 @@ pub(super) fn argument_comparison(
     argument: ExpressionHandle,
     guards: &[(ExpressionHandle, bool)],
 ) -> Option<Comparison> {
-    if rank.is_subject(program, argument) {
-        return Some(Comparison::Equal);
-    }
     let RankOrder::Lexicographic {
         data,
         fields: components,
         ..
     } = &rank.order
     else {
-        return component_comparison(program, rank, argument, SymbolHandle::invalid(), guards);
+        return None;
     };
+    if rank.is_subject(program, argument) {
+        return Some(Comparison::Equal);
+    }
     let ExpressionNode::StructLiteral(literal) = program
         .expression_table
         .expression(unwrapped(program, argument))
