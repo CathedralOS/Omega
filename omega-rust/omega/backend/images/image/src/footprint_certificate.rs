@@ -282,26 +282,14 @@ impl FinalFootprintCertificate {
                 "region-complete final footprint certificate cannot retain executable gaps",
             ));
         }
-        if compiler_function_validation.body_specification_instruction_count > 0
+        if compiler_function_validation
+            .boundary_contract_report_fingerprint
+            .is_some()
             && boundary_contract_report_fingerprint
-                != Some(
-                    compiler_function_validation
-                        .body_specification_boundary_contract_report_fingerprint,
-                )
+                != compiler_function_validation.boundary_contract_report_fingerprint
         {
             return Err(Diagnostic::error(
-                "final body-specification footprint evidence names a different boundary contract",
-            ));
-        }
-        if compiler_function_validation.fixed_mechanics_instruction_count > 0
-            && boundary_contract_report_fingerprint
-                != Some(
-                    compiler_function_validation
-                        .fixed_mechanics_boundary_contract_report_fingerprint,
-                )
-        {
-            return Err(Diagnostic::error(
-                "final call-return footprint evidence names a different boundary contract",
+                "final compiler-function report names a different boundary contract",
             ));
         }
         validate_entry_footprint_binding(
@@ -389,30 +377,15 @@ impl FinalFootprintCertificate {
         }
         if self
             .compiler_function_validation
-            .body_specification_instruction_count
-            > 0
+            .boundary_contract_report_fingerprint
+            .is_some()
             && self.boundary_contract_report_fingerprint
-                != Some(
-                    self.compiler_function_validation
-                        .body_specification_boundary_contract_report_fingerprint,
-                )
+                != self
+                    .compiler_function_validation
+                    .boundary_contract_report_fingerprint
         {
             return Err(Diagnostic::error(
-                "final body-specification footprint evidence names a different boundary contract",
-            ));
-        }
-        if self
-            .compiler_function_validation
-            .fixed_mechanics_instruction_count
-            > 0
-            && self.boundary_contract_report_fingerprint
-                != Some(
-                    self.compiler_function_validation
-                        .fixed_mechanics_boundary_contract_report_fingerprint,
-                )
-        {
-            return Err(Diagnostic::error(
-                "final call-return footprint evidence names a different boundary contract",
+                "final compiler-function report names a different boundary contract",
             ));
         }
         if self.coverage.region_enumeration_complete && !self.inventory.unclassified_gaps.is_empty()
@@ -800,18 +773,13 @@ mod tests {
                 function_count: 1,
                 instruction_count: 2,
                 zero_width_instruction_count: 0,
-                checked_assembly_instruction_count: 0,
-                fixed_mechanics_instruction_count: 2,
-                fixed_mechanics_validation_report_fingerprint: 14,
-                fixed_mechanics_boundary_contract_report_fingerprint: 1,
-                fixed_mechanics_footprint_report_fingerprint: 17,
-                body_specification_instruction_count: 3,
-                body_specification_validation_report_fingerprint: 15,
-                body_specification_boundary_contract_report_fingerprint: 1,
-                body_specification_footprint_report_fingerprint: 16,
-                composed_footprint_report_fingerprint: 18,
+                frame_prologue_byte_count: 4,
+                frame_epilogue_byte_count: 8,
+                fragment_manifest_report_fingerprint: 14,
+                frame_application_report_fingerprint: 15,
+                boundary_contract_report_fingerprint: Some(1),
                 final_region_binding_report_fingerprint: 19,
-                validation_report_fingerprint: 11,
+                final_text_validation_report_fingerprint: 8,
             },
             Some(binding),
             inventory,
@@ -863,12 +831,36 @@ mod tests {
                 let mut value = certificate.clone();
                 value
                     .compiler_function_validation
-                    .validation_report_fingerprint = 99;
+                    .final_text_validation_report_fingerprint = 99;
                 value
             },
             {
                 let mut value = certificate.clone();
                 value.compiler_function_validation.instruction_count = 99;
+                value
+            },
+            {
+                let mut value = certificate.clone();
+                value.compiler_function_validation.frame_prologue_byte_count = 99;
+                value
+            },
+            {
+                let mut value = certificate.clone();
+                value.compiler_function_validation.frame_epilogue_byte_count = 99;
+                value
+            },
+            {
+                let mut value = certificate.clone();
+                value
+                    .compiler_function_validation
+                    .boundary_contract_report_fingerprint = None;
+                value
+            },
+            {
+                let mut value = certificate.clone();
+                value
+                    .compiler_function_validation
+                    .boundary_contract_report_fingerprint = Some(99);
                 value
             },
             {
@@ -905,6 +897,49 @@ mod tests {
             },
         ] {
             assert!(drifted.validate_identity().is_err());
+        }
+    }
+
+    #[test]
+    fn optional_function_boundary_preserves_exact_entry_footprint_requirements() {
+        let original = certificate();
+        for (boundary, reported_boundary, retain_binding, accepted) in [
+            (Some(1), Some(1), true, true),
+            (Some(1), None, true, true),
+            (None, None, false, true),
+            (Some(1), Some(99), true, false),
+            (Some(1), Some(1), false, false),
+            (Some(1), None, false, false),
+            (None, Some(1), false, false),
+            (None, None, true, false),
+        ] {
+            let mut function_validation = original.compiler_function_validation;
+            function_validation.boundary_contract_report_fingerprint = reported_boundary;
+            let binding = if retain_binding {
+                original.compiler_entry_footprint_binding
+            } else {
+                None
+            };
+            let result = FinalFootprintCertificate::current(
+                boundary,
+                original.implementation_evidence_report_fingerprint,
+                original.implementation_fragment_count,
+                original.callback_placement_identity_report_fingerprint,
+                original.compiler_text_validation,
+                function_validation,
+                binding,
+                original.inventory.clone(),
+            );
+            assert_eq!(
+                result.is_ok(),
+                accepted,
+                "boundary {boundary:?}, report {reported_boundary:?}, binding {retain_binding}"
+            );
+            if let Ok(certificate) = result {
+                certificate
+                    .validate_identity()
+                    .expect("accepted boundary replays");
+            }
         }
     }
 
@@ -1013,18 +1048,13 @@ mod tests {
                     function_count: 0,
                     instruction_count: 0,
                     zero_width_instruction_count: 0,
-                    checked_assembly_instruction_count: 0,
-                    fixed_mechanics_instruction_count: 0,
-                    fixed_mechanics_validation_report_fingerprint: 0,
-                    fixed_mechanics_boundary_contract_report_fingerprint: 0,
-                    fixed_mechanics_footprint_report_fingerprint: 0,
-                    body_specification_instruction_count: 0,
-                    body_specification_validation_report_fingerprint: 0,
-                    body_specification_boundary_contract_report_fingerprint: 0,
-                    body_specification_footprint_report_fingerprint: 0,
-                    composed_footprint_report_fingerprint: 0,
+                    frame_prologue_byte_count: 0,
+                    frame_epilogue_byte_count: 0,
+                    fragment_manifest_report_fingerprint: 0,
+                    frame_application_report_fingerprint: 0,
+                    boundary_contract_report_fingerprint: None,
                     final_region_binding_report_fingerprint: 0,
-                    validation_report_fingerprint: 0,
+                    final_text_validation_report_fingerprint: 0,
                 },
                 None,
                 inventory,

@@ -134,14 +134,17 @@ pub fn emit_executable_image(
         }
     }?;
     let mut output = emitted_direct_executable_output(output);
-    output.compiler_text_validation = Some(validate_terminal_image(
+    let text_validation = validate_terminal_image(
         artifact,
         &artifact.object,
         &artifact.relocations,
         &artifact.text_bytes,
         None,
         &output,
-    )?);
+    )?;
+    output.compiler_function_validation =
+        super::function_fragments::reporting::summarize(artifact, &output, &text_validation)?;
+    output.compiler_text_validation = Some(text_validation);
     Ok(ExecutableImage {
         psi: artifact.psi,
         target: artifact.target,
@@ -213,9 +216,16 @@ pub fn validate_executable_image(
         None,
         image.output(),
     )?;
+    let function_validation =
+        super::function_fragments::reporting::summarize(artifact, image.output(), &recomputed)?;
     if image.output().compiler_text_validation != Some(recomputed) {
         return Err(Diagnostic::error(
             "terminal executable image retained stale final-text validation evidence",
+        ));
+    }
+    if image.output().compiler_function_validation != function_validation {
+        return Err(Diagnostic::error(
+            "terminal executable image retained stale compiler-function validation evidence",
         ));
     }
     Ok(())
@@ -349,6 +359,11 @@ pub struct ExecutableImage {
 }
 
 impl ExecutableImage {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn output_mut_for_test(&mut self) -> &mut EmittedImageOutput {
+        &mut self.output
+    }
+
     pub const fn psi(&self) -> TerminalPsiIdentity {
         self.psi
     }

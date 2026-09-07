@@ -152,22 +152,6 @@ pub fn executable_installation_evidence_digest(
     ExecutableInstallationEvidenceDigest::from_digest(digest.finalize().into())
 }
 
-fn publication_boundary_contract_report_fingerprint(
-    validation: image::CompilerFunctionValidationEvidence,
-) -> Result<Option<u64>, String> {
-    let body = (validation.body_specification_instruction_count > 0)
-        .then_some(validation.body_specification_boundary_contract_report_fingerprint);
-    let mechanics = (validation.fixed_mechanics_instruction_count > 0)
-        .then_some(validation.fixed_mechanics_boundary_contract_report_fingerprint);
-    match (body, mechanics) {
-        (Some(left), Some(right)) if left != right => {
-            Err("native artifact final validation names inconsistent boundary contracts".to_owned())
-        }
-        (Some(value), _) | (_, Some(value)) => Ok(Some(value)),
-        (None, None) => Ok(None),
-    }
-}
-
 fn native_publication_certificate_digest(
     artifact: &RetainedNativeArtifact,
     boundary_contract_report_fingerprint: Option<u64>,
@@ -585,11 +569,8 @@ impl CompileReport {
         let function_validation_digest = function_validation.evidence_digest();
         let function_validation_report_fingerprint =
             function_validation.evidence_report_fingerprint();
-        let boundary_contract_report_fingerprint = output
-            .compiler_function_validation
-            .map(publication_boundary_contract_report_fingerprint)
-            .transpose()?
-            .flatten();
+        let boundary_contract_report_fingerprint =
+            function_validation.boundary_contract_report_fingerprint;
 
         std::fs::create_dir_all(build_dir).map_err(|error| {
             format!(
@@ -957,24 +938,19 @@ mod tests {
     use super::{CompileOutputKind, CompileReport, ExecutablePublicationReceipt};
 
     fn function_validation_digest(
-        validation_report_fingerprint: u64,
+        final_text_validation_report_fingerprint: u64,
     ) -> image::CompilerFunctionValidationDigest {
         image::CompilerFunctionValidationEvidence {
             function_count: 1,
             instruction_count: 2,
             zero_width_instruction_count: 0,
-            checked_assembly_instruction_count: 0,
-            fixed_mechanics_instruction_count: 2,
-            fixed_mechanics_validation_report_fingerprint: 3,
-            fixed_mechanics_boundary_contract_report_fingerprint: 2,
-            fixed_mechanics_footprint_report_fingerprint: 4,
-            body_specification_instruction_count: 0,
-            body_specification_validation_report_fingerprint: 0,
-            body_specification_boundary_contract_report_fingerprint: 0,
-            body_specification_footprint_report_fingerprint: 0,
-            composed_footprint_report_fingerprint: 5,
+            frame_prologue_byte_count: 4,
+            frame_epilogue_byte_count: 8,
+            fragment_manifest_report_fingerprint: 3,
+            frame_application_report_fingerprint: 4,
+            boundary_contract_report_fingerprint: Some(2),
             final_region_binding_report_fingerprint: 6,
-            validation_report_fingerprint,
+            final_text_validation_report_fingerprint,
         }
         .evidence_digest()
     }

@@ -181,6 +181,9 @@ fn accepted_claim_application() -> PathBuf {
 machine build(builder: &mut Build) {
     builder.application("accepted-claim-app");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }
 "#,
     )
@@ -271,13 +274,21 @@ fn package_native_cli_directs_missing_or_empty_lock_to_update() {
 }
 
 #[test]
-fn package_native_cli_reuses_update_acceptance_before_publication() {
+fn package_native_cli_reuses_update_acceptance_and_publishes() {
+    for target in [
+        "linux_x86_64",
+        "linux_arm64",
+        "macos_arm64",
+        "windows_x86_64",
+    ] {
+        assert_package_native_publication(target);
+    }
+}
+
+fn assert_package_native_publication(target: &str) {
     let project = accepted_claim_application();
     let build_dir = temp_path("accepted-package-native-build");
-    let update = omega_in(
-        &project,
-        &["update", "--target", "linux_x86_64", "--offline"],
-    );
+    let update = omega_in(&project, &["update", "--target", target, "--offline"]);
     assert_eq!(
         update.status.code(),
         Some(3),
@@ -329,27 +340,25 @@ fn package_native_cli_reuses_update_acceptance_before_publication() {
             "--output-only",
             "--offline",
             "--target",
-            "linux_x86_64",
+            target,
             "--build-dir",
             &build_dir_argument,
             "main.omg",
         ],
     );
-    // TARGET-MATRICES in TASKS_OPTIMIZER.md owns the missing function-validation
-    // evidence producer. Package acceptance must reach that independent gate,
-    // not ask for another approval or weaken publication to make this test pass.
-    assert_eq!(
-        native.status.code(),
-        Some(1),
+    assert!(
+        native.status.success(),
         "stdout:\n{}\nstderr:\n{}",
         String::from_utf8_lossy(&native.stdout),
         String::from_utf8_lossy(&native.stderr)
     );
-    assert_eq!(
-        String::from_utf8_lossy(&native.stderr).trim(),
-        "native publication requires compiler-function validation evidence"
-    );
-    assert!(!String::from_utf8_lossy(&native.stdout).contains("published native output"));
+    let stdout = String::from_utf8_lossy(&native.stdout);
+    let published = stdout
+        .lines()
+        .find_map(|line| line.strip_prefix("published native output to "))
+        .map(PathBuf::from)
+        .expect("native build reports a validated published output");
+    assert!(published.is_file(), "{stdout}");
     assert_eq!(
         std::fs::read(project.join("omega.lock")).expect("read lock after native build"),
         accepted_lock,

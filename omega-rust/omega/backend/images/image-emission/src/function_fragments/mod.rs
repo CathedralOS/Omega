@@ -4,6 +4,7 @@
 mod attribution;
 mod production;
 pub(crate) mod replay;
+pub(crate) mod reporting;
 mod source;
 mod structural;
 mod validation;
