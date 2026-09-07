@@ -2,8 +2,9 @@
 
 This defines the outer admission layer for the
 [ground equality checker design](../../../wiki/architecture/bootstrap_chain/derivation_calculus.md).
-The inner theory, proposition, and certificate formats and the complete checker
-remain unimplemented. **Framed is not proof acceptance.** No canonical checker
+The [inner theory, proposition, and certificate formats](FORMAT.md) are specified
+but their decoders and the complete checker remain unimplemented.
+**Framed is not proof acceptance.** No canonical checker
 entry or accepted artifact is supplied by this layer.
 
 ## Byte framing
