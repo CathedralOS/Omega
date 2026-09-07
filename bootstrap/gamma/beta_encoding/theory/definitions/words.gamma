@@ -1,0 +1,23 @@
+; Function 24: word_bytes(Word(lowest, ..., highest)) produces exactly eight
+; Cons cells followed by Nil. Slot 0 is unbound; slots 1..8 retain field order.
+(def beta_word_bytes_definition () Int
+  (let length Int (beta_theory_word 86)
+    (let signature Int (beta_theory_fields3 6 1 5)
+      (let mode Int (beta_theory_fields3 1 0 1)
+        (let clause Int (beta_theory_fields3 79 277 17)
+          (let variables Int (beta_word_byte_variables 1)
+            (let empty_list Int (beta_constant_template 278)
+              (let cells Int (beta_word_byte_cells 8)
+                (beta_theory_word 17)))))))))
+
+(def beta_word_byte_variables ((slot Int)) Int
+  (if (eq slot 9) 0
+    (let variable Int (beta_variable_template slot)
+      (beta_word_byte_variables (+ slot 1)))))
+
+; Row 9 is Nil; rows 10..17 prepend rows 8..1, so the result starts with low.
+(def beta_word_byte_cells ((byte_row Int)) Int
+  (if (eq byte_row 0) 0
+    (let constructor Int (beta_theory_fields3 5 1 279)
+      (let children Int (beta_theory_fields3 2 byte_row (- 17 byte_row))
+        (beta_word_byte_cells (- byte_row 1))))))

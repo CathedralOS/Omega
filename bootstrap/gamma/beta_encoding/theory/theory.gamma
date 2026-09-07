@@ -1,0 +1,10 @@
+; Emit the lexical and fixed-width word portion, not the complete Beta encoder.
+; Constructor/function order here owns the symbol identities; no input selects it.
+(def beta_encoding_theory () Int
+  (let magic_g Int (write 'G')
+    (let magic_t Int (write 'T')
+      (let magic_h Int (write 'H')
+        (let magic_version Int (write '1')
+          (let sorts Int (beta_theory_word 6)
+            (let constructors Int (beta_encoding_vocabulary)
+              (beta_encoding_definitions))))))))

@@ -39,7 +39,7 @@ Epsilon evaluator.
   reconstructed proposition and performs no proof search, artifact discovery,
   deployment policy, or source-to-obligation inference. Follow the
   [ground equality implementation design](wiki/architecture/bootstrap_chain/derivation_calculus.md):
-  extend the [source-owned lexical theory](bootstrap/gamma/beta_encoding/README.md)
+  extend the [source-owned Beta theory](bootstrap/gamma/beta_encoding/README.md)
   into the complete Beta definition package and owner-fixed encoding proposition
   for the [generic checker](bootstrap/gamma/derivation_checker/CHECKING.md), then
   produce the untrusted certificate through the selected source-owned chain.

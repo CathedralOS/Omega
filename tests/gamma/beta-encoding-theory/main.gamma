@@ -2,6 +2,6 @@
 (def $application () Int 1)
 (def main () Int
   (if (eq (input) 0)
-    (let emitted Int (beta_lexical_theory)
+    (let emitted Int (beta_encoding_theory)
       (pair 0 1))
     (pair 1 0)))

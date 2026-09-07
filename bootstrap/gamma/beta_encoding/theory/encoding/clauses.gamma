@@ -7,3 +7,6 @@
 (def beta_constant_template ((constructor Int)) Int
   (let header Int (beta_theory_fields3 3 1 constructor)
     (beta_theory_word 0)))
+
+(def beta_variable_template ((slot Int)) Int
+  (beta_theory_fields3 2 0 slot))
