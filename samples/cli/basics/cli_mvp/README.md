@@ -67,13 +67,12 @@ locations. On Windows, std contributes `FilesystemHost` authority and four
 external Console leaves: `read_line`, `read_byte`, `write_byte`, and
 `exit_process`. These are review findings, not accepted permissions.
 
-The native package-acceptance workflow is under
-[owner review](../../../../OWNER_QUESTIONS.md#q1--package-acceptance-at-native-build):
-the current implementation requires a second candidate-bound file even when
-ordinary package review already accepted unchanged policy. The existing
-[root-policy contract](../../../../wiki/design_briefs/build_and_package_model.md)
-has not been changed. Std has no implicit authority; do not supply blanket
-acceptance merely to advance the example. Native proof, provider, and receiving
+The settled [single package-acceptance rule](../../../../wiki/design_briefs/build_and_package_model.md#single-package-acceptance)
+removes the duplicate approval workflow. Implementation is still pending: the
+current native route requires a second candidate-bound file even when ordinary
+package review already accepted unchanged policy. Std has no implicit authority;
+do not supply blanket acceptance merely to advance the example. Native proof,
+provider, and receiving
 permission checks remain independent requirements. The next assignment and
 tested revision remain on the execution board.
 
