@@ -53,7 +53,12 @@ fn disabled_not_equal_zero_baseline_retains_compare_and_branch_on_both_isas() {
         .unwrap();
         let entry = &allocation.selected_plan().functions[0].blocks[0];
         assert_eq!(
-            entry.instructions[0].kind,
+            entry
+                .instructions
+                .iter()
+                .find(|instruction| instruction.kind == SelectedInstructionKind::CompareI64Zero)
+                .expect("retained compare-zero")
+                .kind,
             SelectedInstructionKind::CompareI64Zero
         );
         assert!(matches!(

@@ -142,6 +142,10 @@ fn valid_non_candidates_are_retained_with_typed_outcomes() {
     returned.operands[0].virtual_register = VirtualRegisterId(3);
     wrong_value.source.functions[0].blocks[0].instructions[1].operands[0].virtual_register =
         VirtualRegisterId(3);
+    let live = &mut wrong_value.liveness.functions[0].blocks[0].instructions;
+    live[0].virtual_live_out = vec![VirtualRegisterId(3)];
+    live[1].virtual_live_in = vec![VirtualRegisterId(3)];
+    live[1].virtual_uses = vec![VirtualRegisterId(3)];
     let plan = compute(
         &wrong_value,
         OptimizationWorkBudget::new(1, 1, 1, 1, 1).unwrap(),

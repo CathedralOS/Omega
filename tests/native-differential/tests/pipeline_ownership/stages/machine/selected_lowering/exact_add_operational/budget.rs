@@ -39,9 +39,9 @@ fn exact_add_rule_pins_exact_aggregate_work_and_deterministic_first_over_boundar
         assert_eq!(
             usage,
             OptimizationWorkUsage {
-                rule_evaluations: 19,
+                rule_evaluations: 25,
                 candidates: 8,
-                validation_steps: 123,
+                validation_steps: 174,
                 commits: 6,
                 iterations: 9,
             }

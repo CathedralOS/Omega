@@ -25,23 +25,63 @@ fn runtime_u64_parameter_inequality_reaches_object_and_callable_on_both_isas() {
         assert_eq!(artifact.source().object().relocation_record_count, 0);
         assert_eq!(artifact.source().object().symbols.len(), 1);
         let text = &artifact.source().object().text_section.bytes;
+        let emission = artifact.source().source().source();
+        let compare = emission.fragments().functions[0]
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .find(|span| {
+                span.alternative.family
+                    == selected_instructions::MachineAlternativeFamily::CompareI64
+            })
+            .unwrap();
+        let source = emission.source();
+        let operands = &source.program().machine.functions[0]
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .find(|row| row.instruction == compare.instruction)
+            .unwrap()
+            .operands;
+        let model = source.register_environment().physical().model();
+        let operand_name = |index: usize| {
+            model
+                .views
+                .iter()
+                .find(|view| view.id == operands[index].view)
+                .unwrap()
+                .name
+                .as_str()
+        };
+        assert!(
+            text.windows(compare.bytes.len())
+                .any(|bytes| bytes == compare.bytes)
+        );
         match target.architecture {
             target::Architecture::X86_64 => {
-                assert!(
-                    text.windows(3).any(|bytes| bytes == [0x48, 0x39, 0xf7]),
-                    "x86 object must contain `cmp rdi, rsi`"
-                );
+                let bytes = &compare.bytes;
+                assert_eq!(bytes.len(), 3);
+                assert_eq!(bytes[0] & 0xf8, 0x48);
+                assert_eq!(bytes[1], 0x39);
+                assert_eq!(bytes[2] & 0xc0, 0xc0);
+                let names = [
+                    "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi", "r8", "r9", "r10",
+                    "r11", "r12", "r13", "r14", "r15",
+                ];
+                let left = (bytes[2] & 7) | ((bytes[0] & 1) << 3);
+                let right = ((bytes[2] >> 3) & 7) | ((bytes[0] & 4) << 1);
+                assert_eq!(names[usize::from(left)], operand_name(0));
+                assert_eq!(names[usize::from(right)], operand_name(1));
                 assert!(
                     text.windows(2).any(|bytes| bytes[0] == 0x75),
                     "x86 object must branch to the unequal arm with JNE"
                 );
             }
             target::Architecture::Aarch64 => {
-                assert!(
-                    text.windows(4)
-                        .any(|bytes| bytes == [0x1f, 0x00, 0x01, 0xeb]),
-                    "AArch64 object must contain `cmp x0, x1`"
-                );
+                let word = u32::from_le_bytes(compare.bytes.as_slice().try_into().unwrap());
+                assert_eq!(word & 0xffe0_fc1f, 0xeb00_001f);
+                assert_eq!(format!("x{}", (word >> 5) & 31), operand_name(0));
+                assert_eq!(format!("x{}", (word >> 16) & 31), operand_name(1));
                 assert!(
                     text.windows(4).any(|bytes| {
                         let word = u32::from_le_bytes(bytes.try_into().unwrap());

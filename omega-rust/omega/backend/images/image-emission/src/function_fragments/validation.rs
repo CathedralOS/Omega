@@ -88,7 +88,7 @@ pub fn validate_function_fragment_object_artifact(
         if function.machine != placed.machine
             || function.attachment != attachment
             || function.provenance != *provenance
-            || function.fixed_integer_scalar_abi != targeted.fixed_integer_scalar_abi
+            || function.scalar_abi != targeted.scalar_abi
             || !unit_abi_matches
             || function.text_offset != offset
             || function.byte_count != length

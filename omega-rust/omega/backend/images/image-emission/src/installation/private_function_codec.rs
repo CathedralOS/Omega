@@ -6,11 +6,8 @@ use symbols::SymbolHandle;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 use super::{
-    InstallationError, InstalledCompilerPrivateFunction, Reader,
-    fixed_integer_scalar_abi_codec::{
-        decode_fixed_integer_scalar_abi, encode_fixed_integer_scalar_abi,
-    },
-    push_u16, push_u32, push_u64,
+    InstallationError, InstalledCompilerPrivateFunction, Reader, push_u16, push_u32, push_u64,
+    scalar_abi_codec::{decode_scalar_abi, encode_scalar_abi},
 };
 
 const CALLBACK_THUNK_ROLE: u8 = 1;
@@ -57,7 +54,7 @@ pub(super) fn encode_private_functions(
             u64::try_from(function.byte_count)
                 .map_err(|_| InstallationError::CompilerPrivateFunctionOffsetNotRepresentable)?,
         );
-        encode_fixed_integer_scalar_abi(bytes, Some(&function.fixed_integer_scalar_abi))?;
+        encode_scalar_abi(bytes, Some(&function.scalar_abi))?;
     }
     Ok(())
 }
@@ -108,13 +105,13 @@ pub(super) fn decode_private_functions(
             .map_err(|_| InstallationError::CompilerPrivateFunctionOffsetNotRepresentable)?;
         let byte_count = usize::try_from(reader.u64()?)
             .map_err(|_| InstallationError::CompilerPrivateFunctionOffsetNotRepresentable)?;
-        let fixed_integer_scalar_abi = decode_fixed_integer_scalar_abi(reader)?
+        let scalar_abi = decode_scalar_abi(reader)?
             .ok_or(InstallationError::MissingCompilerPrivateFunctionAbi)?;
         functions.push(InstalledCompilerPrivateFunction {
             identity,
             source_psi,
             machine,
-            fixed_integer_scalar_abi,
+            scalar_abi,
             text_offset,
             byte_count,
         });
@@ -127,7 +124,7 @@ mod tests {
     use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
     use semantic_vocabulary::{IntegerSign, IntegerType, ValueId};
     use target::NativeTarget;
-    use target_operations::{FixedIntegerScalarAbiValue, FixedIntegerScalarFunctionAbi};
+    use target_operations::{ScalarAbiValue, ScalarFunctionAbi};
 
     use super::*;
 
@@ -160,16 +157,16 @@ mod tests {
                 program_fingerprint: SemanticFingerprint::from_bytes([0x5a; 32]),
             },
             machine: MachineId::new(17).expect("private machine"),
-            fixed_integer_scalar_abi: FixedIntegerScalarFunctionAbi {
+            scalar_abi: ScalarFunctionAbi {
                 call_plan,
-                parameters: vec![FixedIntegerScalarAbiValue {
+                parameters: vec![ScalarAbiValue {
                     value: ValueId::new(19).expect("parameter value"),
-                    scalar_type,
+                    scalar_type: semantic_vocabulary::ScalarType::Integer(scalar_type),
                     placement: parameter_placement,
                 }],
-                result: FixedIntegerScalarAbiValue {
+                result: ScalarAbiValue {
                     value: ValueId::new(23).expect("result value"),
-                    scalar_type,
+                    scalar_type: semantic_vocabulary::ScalarType::Integer(scalar_type),
                     placement: result_placement,
                 },
             },

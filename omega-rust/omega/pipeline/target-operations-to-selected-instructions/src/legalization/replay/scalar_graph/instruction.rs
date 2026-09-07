@@ -22,6 +22,23 @@ pub(super) fn validate(
     }
     match (&actual.kind, &node.operation) {
         (
+            LegalizedScalarInstructionKind::BooleanNot { operand },
+            AbstractOperation::BooleanNot {
+                operand: source, ..
+            },
+        ) if operand == source => {}
+        (
+            LegalizedScalarInstructionKind::IntegerWiden {
+                operand,
+                source_type,
+            },
+            AbstractOperation::IntegerWiden {
+                operand: source,
+                source_type: source_integer,
+                ..
+            },
+        ) if operand == source && source_type == source_integer => {}
+        (
             LegalizedScalarInstructionKind::Constant(actual),
             AbstractOperation::IntegerConstant { value, .. },
         ) if actual == value => {}
@@ -55,11 +72,6 @@ pub(super) fn validate(
                     .iter()
                     .filter(|function| function.machine == *callee)
                     .count()
-                    + proposed_plan
-                        .functions
-                        .iter()
-                        .filter(|function| function.machine() == *callee)
-                        .count()
                     != 1
             {
                 return Err(invalid);

@@ -66,7 +66,7 @@ fn both_recursive_paths_project_exact_abstract_accesses_on_both_targets() {
                     effect,
                     selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Write {
                         source: selected_instructions_to_register_homes::SpillPseudoStoredValue::Original(
-                            selected_instructions::VirtualRegisterId(5)
+                            selected_instructions::VirtualRegisterId(6)
                         ),
                         ..
                     }

@@ -49,38 +49,31 @@ fn independent_replay_rejects_every_output_layer() {
     corruptions.push(plan);
 
     let mut plan = original.clone();
-    plan.functions[0].registers[1].fragments[1].block = selected_instructions::SelectedBlockId(99);
+    plan.functions[0].registers[3].fragments[1].block = selected_instructions::SelectedBlockId(99);
     corruptions.push(plan);
 
     let mut plan = original.clone();
-    plan.functions[0].registers[1].fragments[1].source_start = LiveRangePoint(99);
+    plan.functions[0].registers[3].fragments[1].source_start = LiveRangePoint(99);
     corruptions.push(plan);
 
     let mut plan = original.clone();
-    plan.functions[0].registers[1].fragments[1].segments[0].id =
+    plan.functions[0].registers[3].fragments[1].segments[0].id =
         register_homes::FixedPrecoloredSourceSegmentId(99);
     corruptions.push(plan);
 
     let mut plan = original.clone();
-    plan.functions[0].registers[1].fragments[1].segments[0].end = LiveRangePoint(99);
+    plan.functions[0].registers[3].fragments[1].segments[0].end = LiveRangePoint(99);
     corruptions.push(plan);
 
     let mut plan = original.clone();
-    let register_homes::FixedPrecoloredSourceSegmentOpening::IncompatibleFixedUseDomainBoundaryV1 {
-        incoming: Some(mut connector),
-        site,
-        destination_view,
-    } = plan.functions[0].registers[1].fragments[1].segments[0].opening
+    let register_homes::FixedPrecoloredSourceSegmentOpening::IncomingSourceEdgeV1 { mut connector } =
+        plan.functions[0].registers[3].fragments[1].segments[0].opening
     else {
-        panic!("fixture must expose an incoming fixed-use boundary");
+        panic!("fixture must expose an incoming source edge");
     };
     connector.polarity_ordinal = 99;
-    plan.functions[0].registers[1].fragments[1].segments[0].opening =
-        register_homes::FixedPrecoloredSourceSegmentOpening::IncompatibleFixedUseDomainBoundaryV1 {
-            incoming: Some(connector),
-            site,
-            destination_view,
-        };
+    plan.functions[0].registers[3].fragments[1].segments[0].opening =
+        register_homes::FixedPrecoloredSourceSegmentOpening::IncomingSourceEdgeV1 { connector };
     corruptions.push(plan);
 
     for corruption in corruptions {

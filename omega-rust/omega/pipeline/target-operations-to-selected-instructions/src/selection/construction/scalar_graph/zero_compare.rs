@@ -41,6 +41,10 @@ pub(super) fn folded_zero<'a>(
             }
             let uses = match &instruction.kind {
                 LegalizedScalarInstructionKind::Constant(_) => false,
+                LegalizedScalarInstructionKind::BooleanNot { operand }
+                | LegalizedScalarInstructionKind::IntegerWiden { operand, .. } => {
+                    *operand == zero.result
+                }
                 LegalizedScalarInstructionKind::Call(call) => call
                     .arguments
                     .iter()

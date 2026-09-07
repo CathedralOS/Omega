@@ -13,10 +13,9 @@ use semantic_vocabulary::{
 };
 use target::NativeTarget;
 use target_operations::{
-    FixedIntegerScalarAbiValue, FixedIntegerScalarFunctionAbi, ScalarParameterLocation,
-    TargetFunction, TargetOperation, TargetOperationPlan, TargetUnitBody, TargetUnitOperation,
-    TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
-    TerminalPsiProvenance,
+    ScalarAbiValue, ScalarFunctionAbi, ScalarParameterLocation, TargetFunction, TargetOperation,
+    TargetOperationPlan, TargetUnitBody, TargetUnitOperation, TargetUnitScalarArgumentSource,
+    TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
 };
 use target_operations_to_assigned_target_operations::assign_registers;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
@@ -48,15 +47,15 @@ fn scalar_transport_plan() -> TargetOperationPlan {
         [ValueLocation::Register { register, .. }] => *register,
         _ => panic!("fixed i32 parameter uses one register"),
     };
-    let abi = FixedIntegerScalarFunctionAbi {
-        parameters: vec![FixedIntegerScalarAbiValue {
+    let abi = ScalarFunctionAbi {
+        parameters: vec![ScalarAbiValue {
             value: parameter_value,
-            scalar_type,
+            scalar_type: semantic_vocabulary::ScalarType::Integer(scalar_type),
             placement: call_plan.parameters[0].clone(),
         }],
-        result: FixedIntegerScalarAbiValue {
+        result: ScalarAbiValue {
             value: function_result,
-            scalar_type,
+            scalar_type: semantic_vocabulary::ScalarType::Integer(scalar_type),
             placement: call_plan.result.clone().expect("result placement"),
         },
         call_plan: call_plan.clone(),
@@ -72,7 +71,7 @@ fn scalar_transport_plan() -> TargetOperationPlan {
             TargetFunction {
                 machine: caller,
                 attachment: Some(StructuralTypeId::new(1).expect("attachment")),
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance {
                     operations: vec![constant_operation, call_operation],
@@ -127,7 +126,7 @@ fn scalar_transport_plan() -> TargetOperationPlan {
             TargetFunction {
                 machine: callee,
                 attachment: None,
-                fixed_integer_scalar_abi: Some(abi),
+                scalar_abi: Some(abi),
                 mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance {
                     operations: Vec::new(),
@@ -156,8 +155,8 @@ fn scalar_installation_record_round_trips_and_rejects_tampering() {
         build_installation_record(&image, ProfileDecisionId::new(1).expect("profile decision"))
             .expect("build scalar installation record");
 
-    assert!(record.functions()[0].fixed_integer_scalar_abi.is_none());
-    assert!(record.functions()[1].fixed_integer_scalar_abi.is_some());
+    assert!(record.functions()[0].scalar_abi.is_none());
+    assert!(record.functions()[1].scalar_abi.is_some());
     assert_eq!(record.functions()[0].unit_scalar_homes.len(), 1);
     assert_eq!(record.functions()[0].unit_integer_constants.len(), 1);
     assert_eq!(record.internal_unit_scalar_calls().len(), 1);

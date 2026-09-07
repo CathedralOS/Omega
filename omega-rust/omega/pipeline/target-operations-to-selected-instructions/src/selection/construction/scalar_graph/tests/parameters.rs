@@ -31,7 +31,7 @@ fn unused_stack_parameters_keep_abi_without_inventing_entry_transport() {
             .enumerate()
             .map(|(parameter_index, placement)| LegalizedScalarParameter {
                 value: ValueId::new(100 + parameter_index as u64).unwrap(),
-                scalar_type: integer,
+                scalar_type: ScalarType::Integer(integer),
                 definition_site: ValueDefinitionSite::FunctionParameter(parameter_index as u32),
                 placement: placement.clone(),
             })

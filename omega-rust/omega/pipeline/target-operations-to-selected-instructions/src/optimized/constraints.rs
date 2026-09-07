@@ -1,5 +1,4 @@
 use crate::ValidatedLegalizedOperations;
-use legalized_operations::{LegalizedCondition, LegalizedLeafValue};
 use selected_instructions::{SelectedFixedInputConstraint, SelectedSelectionConstraints};
 use semantic_vocabulary::MachineId;
 use target_operations::MachineRegister;
@@ -11,67 +10,6 @@ pub fn selection_constraints(
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> SelectedSelectionConstraints {
     let mut fixed_inputs = Vec::new();
-    for function in &legalized.plan().functions {
-        let legalized_operations::LegalizedFunction::Conditional(function) = function;
-        match &function.condition {
-            LegalizedCondition::DirectParameter {
-                parameter_index,
-                register,
-                ..
-            } => push_fixed_input(
-                &mut fixed_inputs,
-                environment,
-                function.machine,
-                function.condition_source,
-                *parameter_index,
-                *register,
-            ),
-            LegalizedCondition::IntegerEqualParametersV1 { left, right, .. }
-            | LegalizedCondition::IntegerLessThanParametersV1 { left, right, .. }
-            | LegalizedCondition::I64LessThanParametersV1 { left, right, .. }
-            | LegalizedCondition::I64LessOrEqualParametersV1 { left, right, .. }
-            | LegalizedCondition::IntegerLessOrEqualParametersV1 { left, right, .. }
-            | LegalizedCondition::IntegerNotEqualParametersV1 { left, right, .. } => {
-                for parameter in [left, right] {
-                    push_fixed_input(
-                        &mut fixed_inputs,
-                        environment,
-                        function.machine,
-                        parameter.source_value,
-                        parameter.parameter_index,
-                        parameter.register,
-                    );
-                }
-            }
-            LegalizedCondition::U64EqualZeroParameterV1 { parameter, .. }
-            | LegalizedCondition::U64NotEqualZeroParameterV1 { parameter, .. } => push_fixed_input(
-                &mut fixed_inputs,
-                environment,
-                function.machine,
-                parameter.source_value,
-                parameter.parameter_index,
-                parameter.register,
-            ),
-        }
-        for arm in [&function.when_true, &function.when_false] {
-            let LegalizedLeafValue::EntryParameter {
-                parameter_index,
-                register,
-                ..
-            } = &arm.value
-            else {
-                continue;
-            };
-            push_fixed_input(
-                &mut fixed_inputs,
-                environment,
-                function.machine,
-                arm.source_value,
-                *parameter_index,
-                *register,
-            );
-        }
-    }
     for function in &legalized.plan().scalar_functions {
         for (index, parameter) in function.parameters.iter().enumerate() {
             if !function.references_value(parameter.value) {
@@ -81,7 +19,7 @@ pub fn selection_constraints(
                 calling_conventions::ValueLocation::Register {
                     register,
                     value_byte_offset: 0,
-                    byte_size: 8,
+                    byte_size: _,
                 },
             ] = parameter.placement.locations.as_slice()
             {

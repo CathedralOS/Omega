@@ -106,16 +106,6 @@ pub(super) fn encode_origin(bytes: &mut Vec<u8>, origin: VirtualRegisterOrigin) 
             bytes.extend_from_slice(&instruction.0.to_le_bytes());
             bytes.extend_from_slice(&source_value.get().to_le_bytes());
         }
-        VirtualRegisterOrigin::LegalizationTemporary {
-            instruction,
-            temporary,
-            source_value,
-        } => {
-            bytes.push(2);
-            bytes.extend_from_slice(&instruction.0.to_le_bytes());
-            bytes.extend_from_slice(&temporary.0.to_le_bytes());
-            bytes.extend_from_slice(&source_value.get().to_le_bytes());
-        }
     }
 }
 
@@ -137,17 +127,6 @@ pub(super) fn decode_origin(
             let raw = u64::from_le_bytes(cursor.array()?);
             Ok(VirtualRegisterOrigin::InstructionResult {
                 instruction,
-                source_value: value(raw)?,
-            })
-        }
-        2 => {
-            let instruction = SelectedInstructionId(u32::from_le_bytes(cursor.array()?));
-            let temporary =
-                legalized_operations::LegalizedTemporaryId(u32::from_le_bytes(cursor.array()?));
-            let raw = u64::from_le_bytes(cursor.array()?);
-            Ok(VirtualRegisterOrigin::LegalizationTemporary {
-                instruction,
-                temporary,
                 source_value: value(raw)?,
             })
         }

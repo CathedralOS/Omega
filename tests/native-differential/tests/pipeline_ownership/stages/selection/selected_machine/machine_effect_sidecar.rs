@@ -28,7 +28,10 @@ fn machine_effect_sidecar_reconstructs_subtraction_and_control_barriers() {
         let selected = staged_exact_subtract_conditional(target);
         let staged =
             analyze_machine_effects(selected.selected(), selected.register_environment()).unwrap();
-        assert_eq!(staged.receipt().instruction_count(), 10);
+        assert_eq!(
+            staged.receipt().instruction_count(),
+            selected.selected().receipt().instruction_count()
+        );
         assert_eq!(
             staged.receipt().selected(),
             selected.selected().receipt().identity()
@@ -83,7 +86,11 @@ fn machine_effect_sidecar_reconstructs_subtraction_and_control_barriers() {
         }
 
         let mut corrupted = staged.plan().clone();
-        corrupted.functions[0].blocks[1].instructions[2]
+        corrupted.functions[0].blocks[1]
+            .instructions
+            .iter_mut()
+            .find(|row| matches!(row.kind, SelectedInstructionKind::ExactSubtractI64 { .. }))
+            .unwrap()
             .alternatives
             .clear();
         assert!(matches!(

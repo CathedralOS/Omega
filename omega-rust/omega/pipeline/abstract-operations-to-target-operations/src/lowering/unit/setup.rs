@@ -6,7 +6,7 @@ use super::super::structural_layout::{structural_parameter_shape, structural_sha
 
 pub(super) struct PreparedUnitFunction {
     pub(super) call_plan: CallPlan,
-    pub(super) scalar_parameters: Vec<UnitScalarAbiValue>,
+    pub(super) scalar_parameters: Vec<ScalarAbiValue>,
     pub(super) parameters: Vec<TargetStructuralParameter>,
 }
 
@@ -71,7 +71,7 @@ pub(super) fn prepare_unit_function(
                     parameter.value,
                 ));
             }
-            Ok(UnitScalarAbiValue {
+            Ok(ScalarAbiValue {
                 value: parameter.value,
                 scalar_type: parameter.scalar_type,
                 placement: placement.clone(),

@@ -52,9 +52,9 @@ pub(super) fn derive_mixed_structural_scalar_function_abi(
             let ScalarType::Integer(scalar_type) = parameter.scalar_type else {
                 unreachable!("mixed ABI scalar family was checked above")
             };
-            FixedIntegerScalarAbiValue {
+            ScalarAbiValue {
                 value: parameter.value,
-                scalar_type,
+                scalar_type: ScalarType::Integer(scalar_type),
                 placement: placement.clone(),
             }
         })
@@ -63,7 +63,7 @@ pub(super) fn derive_mixed_structural_scalar_function_abi(
         call_plan: prepared.call_plan,
         scalar_parameters,
         structural_parameters: prepared.target_structural_parameters,
-        result: MixedStructuralScalarAbiResult {
+        result: ScalarAbiValue {
             value: result.value,
             scalar_type: result.scalar_type,
             placement: result_placement,
@@ -74,7 +74,7 @@ pub(super) fn derive_mixed_structural_scalar_function_abi(
 pub(super) fn derive_fixed_integer_scalar_function_abi(
     function: &AbstractFunction,
     target: NativeTarget,
-) -> Result<Option<FixedIntegerScalarFunctionAbi>, LoweringError> {
+) -> Result<Option<ScalarFunctionAbi>, LoweringError> {
     if !function.published_service_ceiling.is_empty()
         || !function.structural_parameters.is_empty()
         || !function.entry_claims.is_empty()
@@ -101,10 +101,8 @@ pub(super) fn derive_fixed_integer_scalar_function_abi(
         .parameters
         .iter()
         .map(|parameter| {
-            let ScalarType::Integer(scalar_type) = parameter.scalar_type else {
-                return None;
-            };
-            Some((scalar_type, fixed_native_integer_shape(scalar_type)?))
+            let scalar_type = parameter.scalar_type;
+            Some((scalar_type, fixed_native_scalar_shape(scalar_type)?))
         })
         .collect::<Option<Vec<_>>>();
     let Some(parameter_types_and_shapes) = parameter_types_and_shapes else {
@@ -145,7 +143,7 @@ pub(super) fn derive_fixed_integer_scalar_function_abi(
                     parameter.value,
                 ));
             }
-            Ok(FixedIntegerScalarAbiValue {
+            Ok(ScalarAbiValue {
                 value: parameter.value,
                 scalar_type,
                 placement: placement.clone(),
@@ -157,17 +155,24 @@ pub(super) fn derive_fixed_integer_scalar_function_abi(
             function.machine,
         ));
     }
-    Ok(Some(FixedIntegerScalarFunctionAbi {
+    Ok(Some(ScalarFunctionAbi {
         call_plan,
         parameters,
-        result: FixedIntegerScalarAbiValue {
+        result: ScalarAbiValue {
             value: result.value,
-            scalar_type: result_type,
+            scalar_type: ScalarType::Integer(result_type),
             placement: result_placement,
         },
     }))
 }
 
+pub(super) fn fixed_native_scalar_shape(scalar_type: ScalarType) -> Option<ValueShape> {
+    match scalar_type {
+        ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
+        ScalarType::Integer(integer) => fixed_native_integer_shape(integer),
+        ScalarType::IeeeFloat(_) => None,
+    }
+}
 pub(super) fn fixed_native_integer_shape(scalar_type: IntegerType) -> Option<ValueShape> {
     if scalar_type.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
         || !matches!(scalar_type.bits(), 8 | 16 | 32 | 64)
@@ -181,6 +186,30 @@ pub(super) fn fixed_native_integer_shape(scalar_type: IntegerType) -> Option<Val
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn boolean_parameters_retain_semantic_type_and_one_byte_abi_placement() {
+        for target in [
+            NativeTarget::linux_x64(),
+            NativeTarget::linux_arm64(),
+            NativeTarget::windows_x64(),
+            NativeTarget::macos_arm64(),
+        ] {
+            let mut source = function();
+            source.parameters[0].scalar_type = ScalarType::Boolean;
+            let abi = derive_fixed_integer_scalar_function_abi(&source, target)
+                .unwrap()
+                .unwrap();
+            assert_eq!(abi.parameters[0].value, source.parameters[0].value);
+            assert_eq!(abi.parameters[0].scalar_type, ScalarType::Boolean);
+            assert_eq!(abi.parameters[0].placement.shape, ValueShape::integer(1, 1));
+            assert_eq!(abi.parameters[0].placement, abi.call_plan.parameters[0]);
+            assert_eq!(
+                abi.result.scalar_type,
+                source.result.scalar().unwrap().scalar_type
+            );
+        }
+    }
 
     fn function() -> AbstractFunction {
         let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());

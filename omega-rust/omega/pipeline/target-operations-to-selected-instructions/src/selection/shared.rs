@@ -5,11 +5,8 @@ pub(super) use calling_conventions::{
     ValueLocation,
 };
 pub(super) use legalized_operations::{
-    LegalizationRecipe, LegalizedCallUnit, LegalizedCallUnitArgument, LegalizedCallUnitParameter,
-    LegalizedCondition, LegalizedConditionalFunction as SourceFunction,
-    LegalizedImmediate as SourceImmediate, LegalizedLeaf as SourceLeaf,
-    LegalizedLeafValue as SourceLeafValue, LegalizedOperationPlan, LegalizedOperationPlanIdentity,
-    LegalizedProjectedStructuralCallReturn,
+    LegalizedCallUnit, LegalizedCallUnitArgument, LegalizedCallUnitParameter,
+    LegalizedOperationPlan, LegalizedOperationPlanIdentity, LegalizedProjectedStructuralCallReturn,
     LegalizedStructuralUnitFunction as SourceStructuralUnitFunction,
 };
 pub(super) use optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};

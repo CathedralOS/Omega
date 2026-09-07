@@ -427,7 +427,7 @@ fn assigns_forwarded_descriptor_registers_and_indirect_mechanism() {
         functions: vec![TargetFunction {
             machine,
             attachment: None,
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: vec![OperationId::new(1).unwrap()],

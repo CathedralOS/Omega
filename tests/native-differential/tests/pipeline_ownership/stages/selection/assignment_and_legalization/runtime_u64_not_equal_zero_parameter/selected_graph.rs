@@ -25,39 +25,23 @@ fn u64_parameter_not_equal_zero_selects_exact_compare_zero_graph_on_both_isas() 
         .unwrap();
         validate_raw_selection(&staged, staged.selected().plan().clone()).unwrap();
 
-        let legalized = staged.legalized().plan().functions[0].conditional();
-        assert_eq!(
-            legalized.recipe,
-            LegalizationRecipe::ReturnU64NotEqualZeroParameterConditionalV1
-        );
-        let legalized_operations::LegalizedCondition::U64NotEqualZeroParameterV1 {
-            equality_operation: legalized_equality,
-            equality_result,
-            boolean_not_operation: legalized_not,
-            boolean_not_result,
-            parameter: legalized_parameter,
-            zero: legalized_zero,
-            ..
-        } = &legalized.condition
-        else {
-            panic!("legalization must retain exact parameter-not-equal-zero custody")
-        };
-        assert_eq!(*legalized_equality, equality_operation);
-        assert_eq!(*equality_result, equality);
-        assert_eq!(*legalized_not, boolean_not_operation);
-        assert_eq!(*boolean_not_result, not_equal);
-        assert_eq!(legalized_parameter.source_value, parameter);
-        assert_eq!(legalized_zero.source_value, zero);
-        assert_eq!(legalized_zero.value, IntegerValue::Unsigned(0));
+        assert_ordinary_graph_custody(&staged);
 
         let function = &staged.selected().plan().functions[0];
-        assert_eq!(function.virtual_registers.len(), 3);
-        assert_eq!(staged.selected().receipt().instruction_count(), 6);
-        let [compare] = function.blocks[0].instructions.as_slice() else {
-            panic!("entry must contain exactly one compare-zero instruction")
-        };
+
+        let compare = function.blocks[0]
+            .instructions
+            .iter()
+            .find(|row| row.kind == SelectedInstructionKind::CompareI64Zero)
+            .expect("selected comparison");
         assert_eq!(compare.kind, SelectedInstructionKind::CompareI64Zero);
-        assert_eq!(compare.operands[0].virtual_register, VirtualRegisterId(0));
+        assert!(
+            matches!(
+                function.virtual_registers[compare.operands[0].virtual_register.0 as usize].origin,
+                VirtualRegisterOrigin::InstructionResult { source_value, .. } if source_value == parameter
+            ),
+            "comparison reads the durable parameter snapshot"
+        );
         assert_eq!(
             compare.provenance.operations,
             [zero_operation, equality_operation]

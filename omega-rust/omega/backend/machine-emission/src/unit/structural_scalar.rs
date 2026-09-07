@@ -401,7 +401,7 @@ pub(super) fn emit_structural_scalar_field_store(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit_unit_result_call(
     operation: &AssignedUnitOperation,
-    caller_scalar_parameters: &[target_operations::UnitScalarAbiValue],
+    caller_scalar_parameters: &[target_operations::ScalarAbiValue],
     target: NativeTarget,
     functions: &[AssignedFunction],
     preceding_operations: &[AssignedUnitOperation],
@@ -565,7 +565,7 @@ pub(super) fn emit_unit_result_call(
 
 pub(super) fn emit_structural_scalar_call(
     operation: &AssignedUnitOperation,
-    caller_scalar_parameters: &[target_operations::UnitScalarAbiValue],
+    caller_scalar_parameters: &[target_operations::ScalarAbiValue],
     target: NativeTarget,
     functions: &[AssignedFunction],
     preceding_operations: &[AssignedUnitOperation],
@@ -664,7 +664,7 @@ pub(super) fn emit_structural_scalar_call(
             .iter()
             .zip(copies)
             .any(|(placement, copy)| placement != &copy.destination)
-        || callee_function.fixed_integer_scalar_abi.is_some()
+        || callee_function.scalar_abi.is_some()
         || !assigned_integer_result_matches(&callee_function.operation, integer_type)
         || !mixed_abi_matches
         || !explicit_callee_call_plan_matches(&callee_function.operation, call_plan, copies)
@@ -747,7 +747,7 @@ pub(super) fn emit_structural_scalar_call(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit_structural_result_call(
     operation: &AssignedUnitOperation,
-    caller_scalar_parameters: &[target_operations::UnitScalarAbiValue],
+    caller_scalar_parameters: &[target_operations::ScalarAbiValue],
     target: NativeTarget,
     functions: &[AssignedFunction],
     preceding_operations: &[AssignedUnitOperation],
@@ -848,8 +848,7 @@ pub(super) fn emit_structural_result_call(
             .enumerate()
             .any(|(index, (argument, parameter))| {
                 usize::try_from(argument.parameter_index) != Ok(index)
-                    || argument.source.scalar_type()
-                        != semantic_vocabulary::ScalarType::Integer(parameter.scalar_type)
+                    || argument.source.scalar_type() != parameter.scalar_type
                     || call_plan.parameters.get(index) != Some(&parameter.placement)
                     || assigned_scalar_destination(&parameter.placement)
                         != Some(argument.destination)
@@ -995,8 +994,7 @@ fn exact_mixed_callee_abi_matches(
             .iter()
             .zip(scalar_arguments)
             .all(|(parameter, argument)| {
-                semantic_vocabulary::ScalarType::Integer(parameter.scalar_type)
-                    == argument.source.scalar_type()
+                parameter.scalar_type == argument.source.scalar_type()
                     && usize::try_from(argument.parameter_index)
                         .ok()
                         .and_then(|index| call_plan.parameters.get(index))
@@ -1085,7 +1083,7 @@ fn emit_x86_64_mixed_call(
     call_plan: &calling_conventions::CallPlan,
     scalar_arguments: &[assigned_target_operations::AssignedUnitScalarCallArgument],
     transport: &UnitScalarTransportPlan,
-    caller_scalar_parameters: &[target_operations::UnitScalarAbiValue],
+    caller_scalar_parameters: &[target_operations::ScalarAbiValue],
     copies: &[assigned_target_operations::AssignedAggregateCopy],
     preceding_operations: &[AssignedUnitOperation],
     homes: &[X86UnitStructuralHome],
@@ -1203,7 +1201,7 @@ fn emit_aarch64_mixed_call(
     call_plan: &calling_conventions::CallPlan,
     scalar_arguments: &[assigned_target_operations::AssignedUnitScalarCallArgument],
     transport: &UnitScalarTransportPlan,
-    caller_scalar_parameters: &[target_operations::UnitScalarAbiValue],
+    caller_scalar_parameters: &[target_operations::ScalarAbiValue],
     copies: &[assigned_target_operations::AssignedAggregateCopy],
     preceding_operations: &[AssignedUnitOperation],
     homes: &[Aarch64UnitStructuralHome],

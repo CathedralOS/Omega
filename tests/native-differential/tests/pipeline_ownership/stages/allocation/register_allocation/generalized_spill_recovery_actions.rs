@@ -51,7 +51,7 @@ fn epoch_two_reload_victim_becomes_exact_target_neutral_logical_obligations() {
         let action = &first.plan().actions[0];
         assert_eq!(action.source_work_item.epoch, 2);
         assert_eq!(action.source_work_item.ordinal, 0);
-        assert_eq!(action.pressure_point, LiveRangePoint(14));
+        assert_eq!(action.pressure_point, LiveRangePoint(16));
         assert_eq!(action.source_pressure, id(1, 0));
         assert_eq!(
             action.victim,
@@ -62,18 +62,18 @@ fn epoch_two_reload_victim_becomes_exact_target_neutral_logical_obligations() {
         assert_eq!(action.current_view, action.reclaimed_view);
         assert_eq!(action.storage.id, id(2, 0));
         assert_eq!(action.store.before_pressure_reload, id(1, 0));
-        assert_eq!(action.store.before_instruction.0, 7);
+        assert_eq!(action.store.before_instruction.0, 8);
         assert_eq!(
             action.store.source,
             selected_instructions_to_register_homes::GeneralizedSpillRecoveryVictim::Reload(id(
                 0, 0
             ))
         );
-        assert_eq!(action.reload.before_instruction.0, 8);
+        assert_eq!(action.reload.before_instruction.0, 9);
         assert_eq!(action.reload.result, id(2, 0));
         assert_eq!(action.rewrites.len(), 1);
-        assert_eq!(action.rewrites[0].point, LiveRangePoint(16));
-        assert_eq!(action.rewrites[0].instruction.0, 8);
+        assert_eq!(action.rewrites[0].point, LiveRangePoint(18));
+        assert_eq!(action.rewrites[0].instruction.0, 9);
         assert_eq!(action.rewrites[0].result, id(2, 0));
     }
 }

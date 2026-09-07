@@ -23,11 +23,11 @@ use super::{
 };
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGTSP\0\0";
-const MANIFEST_VERSION: u32 = 11;
+const MANIFEST_VERSION: u32 = 12;
 
 impl FunctionFragmentTextSectionManifest {
     pub fn recomputed_identity(&self) -> FunctionFragmentTextSectionManifestIdentity {
-        let mut canonical = b"omega.function-fragment-text-section-manifest.v11\0".to_vec();
+        let mut canonical = b"omega.function-fragment-text-section-manifest.v12\0".to_vec();
         canonical.extend_from_slice(&encode_manifest_content(self));
         FunctionFragmentTextSectionManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -77,7 +77,6 @@ impl FunctionFragmentTextSectionManifest {
             2 => FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
                 optimization: decode_post_allocation_optimization(cursor.byte()?)?,
             },
-            3 => FunctionFragmentEmissionSourceKind::AllocationRecoveryV1,
             4 => FunctionFragmentEmissionSourceKind::UnitBaselineV1,
             5 => FunctionFragmentEmissionSourceKind::StructuralUnitV1,
             6 => FunctionFragmentEmissionSourceKind::SelectedLoweringV1,
@@ -92,7 +91,6 @@ impl FunctionFragmentTextSectionManifest {
                 FunctionFragmentTextSectionSourceCustody::DirectFragmentEmissionV1,
                 FunctionFragmentEmissionSourceKind::X86Rel8V1
                 | FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 { .. }
-                | FunctionFragmentEmissionSourceKind::AllocationRecoveryV1
                 | FunctionFragmentEmissionSourceKind::UnitBaselineV1
                 | FunctionFragmentEmissionSourceKind::StructuralUnitV1
                 | FunctionFragmentEmissionSourceKind::SelectedLoweringV1,
@@ -246,7 +244,6 @@ fn encode_manifest_content(record: &FunctionFragmentTextSectionManifest) -> Vec<
             bytes.push(2);
             bytes.push(optimization as u8);
         }
-        FunctionFragmentEmissionSourceKind::AllocationRecoveryV1 => bytes.push(3),
         FunctionFragmentEmissionSourceKind::UnitBaselineV1 => bytes.push(4),
         FunctionFragmentEmissionSourceKind::StructuralUnitV1 => bytes.push(5),
         FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1 => bytes.push(7),

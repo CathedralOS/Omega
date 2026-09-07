@@ -1,7 +1,6 @@
 use semantic_vocabulary::MachineId;
 
 use crate::{
-    AllocationRecoveryFunctionRelativeRealizationError,
     FunctionRelativeOptimizationRealizationError,
     OptimizedStructuralUnitFunctionRelativeRealizationError,
     OptimizedUnitFunctionRelativeRealizationError,
@@ -10,7 +9,6 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunctionFragmentEmissionError {
     Source(FunctionRelativeOptimizationRealizationError),
-    AllocationRecoverySource(Box<AllocationRecoveryFunctionRelativeRealizationError>),
     UnitSource(OptimizedUnitFunctionRelativeRealizationError),
     StructuralUnitSource(OptimizedStructuralUnitFunctionRelativeRealizationError),
     SourceKindMismatch,

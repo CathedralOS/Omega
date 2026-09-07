@@ -1,12 +1,25 @@
 use crate::tests::*;
 
 pub(super) const EXACT_USAGE: OptimizationWorkUsage = OptimizationWorkUsage {
-    rule_evaluations: 8,
-    candidates: 11,
-    validation_steps: 29,
-    commits: 9,
-    iterations: 28,
+    rule_evaluations: 14,
+    candidates: 299,
+    validation_steps: 336,
+    commits: 15,
+    iterations: 179,
 };
+
+pub(super) fn exact_usage(target: NativeTarget) -> OptimizationWorkUsage {
+    if target == NativeTarget::linux_x64() {
+        EXACT_USAGE
+    } else {
+        OptimizationWorkUsage {
+            candidates: 1064,
+            validation_steps: 1101,
+            iterations: 344,
+            ..EXACT_USAGE
+        }
+    }
+}
 
 pub(super) struct HomeFixture {
     pub(super) source: StagedOptimizedAllocationLegality,

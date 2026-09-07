@@ -185,7 +185,7 @@ fn malformed_type_error(
     let target = target_operations::TargetFunction {
         machine: source.functions[0].machine,
         attachment: source.functions[0].attachment,
-        fixed_integer_scalar_abi: None,
+        scalar_abi: None,
         mixed_structural_scalar_abi: None,
         provenance: target_operations::TerminalPsiProvenance::default(),
         operation: target_operations::TargetOperation::ReturnIntegerImmediate {

@@ -449,7 +449,7 @@ fn text_publication_records_and_codec_belong_to_the_representation() {
         assert!(data.contains(declaration));
     }
     let codec = rust_source(&representation.with_extension(""));
-    assert!(codec.contains("const MANIFEST_VERSION: u32 = 11;"));
+    assert!(codec.contains("const MANIFEST_VERSION: u32 = 12;"));
     for forbidden in [
         "native_realization::",
         "machine_emission::",
@@ -589,7 +589,7 @@ fn program_representations_have_named_roots_and_concept_owners() {
             "legalized-operations",
             "legalized_operations",
             "LegalizedOperationPlan",
-            &["control_flow", "values", "calls", "legality", "identity"][..],
+            &["control_flow", "calls", "legality", "identity"][..],
         ),
         (
             "omega",
@@ -1141,8 +1141,8 @@ fn fragment_publication_data_and_codec_do_not_depend_on_admission() {
         );
     }
     let codec = rust_source(&representation.with_extension(""));
-    assert!(codec.contains("omega.function-fragment-emission-manifest.v10"));
-    assert!(!coordinator.contains("omega.function-fragment-emission-manifest.v10"));
+    assert!(codec.contains("omega.function-fragment-emission-manifest.v11"));
+    assert!(!coordinator.contains("omega.function-fragment-emission-manifest.v11"));
     assert!(!pipeline.join("manifest.rs").exists());
     assert!(!pipeline.join("statistics.rs").exists());
     for forbidden in [
@@ -1644,11 +1644,7 @@ fn physical_coordination_shares_selection_and_does_not_fork_machine_rules_by_his
             .count(),
         1
     );
-    for route in [
-        "routes/identity.rs",
-        "routes/selected_phases.rs",
-        "routes/allocation_recovery/mod.rs",
-    ] {
+    for route in ["routes/identity.rs", "routes/selected_phases.rs"] {
         let source = std::fs::read_to_string(root.join(route)).unwrap();
         assert!(!source.contains("::stage_optimized_instruction_selection("));
         assert!(!source.contains("stage_optimized_liveness("));
@@ -1692,7 +1688,7 @@ fn physical_coordination_shares_selection_and_does_not_fork_machine_rules_by_his
     let selected_source = rust_source(&selected_stage.join("src"));
     assert!(selected_source.contains("run_selected_lowering_optimizations(legality)"));
     assert!(!selected_source.contains("pub fn assign_register_homes("));
-    let recovery = rust_source(&root.join("routes/allocation_recovery"));
+    let realization = std::fs::read_to_string(root.join("routes/identity.rs")).unwrap();
     assert_eq!(
         entrance
             .matches("::stage_optimized_post_allocation_machine_plan(")
@@ -1711,10 +1707,9 @@ fn physical_coordination_shares_selection_and_does_not_fork_machine_rules_by_his
         "RecoveryClassificationPolicy",
         "FixedViewCopyPolicy",
         "stage_optimized_selected_reanalysis(",
-        "budget_per_pass()",
     ] {
         assert!(
-            !recovery.contains(owned_by_allocation),
+            !realization.contains(owned_by_allocation),
             "coordinator owns allocation details: {owned_by_allocation}"
         );
     }
@@ -1753,9 +1748,14 @@ fn completed_physical_results_and_emission_do_not_fork_by_history() {
         assert!(!source.contains("selected_stage()"));
         assert!(!source.contains("steps().last()"));
     }
-    let recovery = emission.join("function_realization/allocation_recovery");
-    assert!(!recovery.join("source/mod.rs").exists());
-    let source = rust_source(&recovery);
+    assert!(
+        !emission
+            .join("function_realization/allocation_recovery/mod.rs")
+            .exists()
+    );
+    let source =
+        std::fs::read_to_string(emission.join("function_realization/routes/fixed_frame.rs"))
+            .unwrap();
     assert!(source.contains("RetainedAllocation"));
     assert!(source.contains("replay_allocation()"));
     assert!(!source.contains("StagedAllocationRecoveryFunctionRelativeSource"));

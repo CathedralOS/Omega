@@ -15,7 +15,7 @@ pub fn stage_fixed_frame_function_relative_realization(
     let current = allocation
         .replay_allocation()
         .map_err(FunctionRelativeOptimizationRealizationError::Allocation)?;
-    let source = baseline_allocation_source(&current)?;
+    let source = current.evidence().clone();
     validate_optimized_post_allocation_machine_plan_custody(&current, &machine)
         .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
     let selected = current.selected();
@@ -67,7 +67,7 @@ pub fn stage_fixed_frame_function_relative_realization(
         &exit_contract,
     )?;
     let custody = fixed_frame_custody(
-        source,
+        source.clone(),
         &machine,
         frame.requirements(),
         frame.storage(),
@@ -101,7 +101,7 @@ pub fn validate_fixed_frame_function_relative_realization(
         .allocation
         .replay_allocation()
         .map_err(FunctionRelativeOptimizationRealizationError::Allocation)?;
-    let source = baseline_allocation_source(&current)?;
+    let source = current.evidence().clone();
     let machine =
         validate_optimized_post_allocation_machine_plan_custody(&current, &staged.machine)
             .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
@@ -157,7 +157,7 @@ pub fn validate_fixed_frame_function_relative_realization(
         &staged.exit_contract,
     )?;
     let custody = fixed_frame_custody(
-        source,
+        source.clone(),
         &staged.machine,
         frame.requirements(),
         frame.storage(),
@@ -166,7 +166,7 @@ pub fn validate_fixed_frame_function_relative_realization(
         &staged.exit_contract,
         &manifest,
     );
-    if source != staged.custody.source()
+    if &source != staged.custody.source()
         || machine != staged.machine.custody().clone()
         || manifest.record != staged.manifest.record
         || custody != staged.custody

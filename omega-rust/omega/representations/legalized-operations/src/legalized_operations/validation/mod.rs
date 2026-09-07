@@ -1,6 +1,5 @@
 //! Optimizer module role: executable entrance. Representation-owned validation for retained legalized-operation values.
 
-mod integer_sequences;
 mod scalar_calls;
 pub use scalar_calls::LegalizedScalarCallShapeError;
 

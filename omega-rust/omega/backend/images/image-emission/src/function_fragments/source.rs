@@ -103,8 +103,8 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
             || !abstracted.structural_parameters.is_empty()
             || !abstracted.entry_claims.is_empty()
             || !abstracted.published_service_ceiling.is_empty()
-            || (unit && targeted.fixed_integer_scalar_abi.is_some())
-            || (!unit && targeted.fixed_integer_scalar_abi.is_none())
+            || (unit && targeted.scalar_abi.is_some())
+            || (!unit && targeted.scalar_abi.is_none())
         {
             return Err(Error::Unsupported(
                 "shared function has unsupported ABI or boundary effects",
@@ -148,7 +148,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 } => {
                     let (body, target) = function(source, *callee)?;
                     target
-                        .fixed_integer_scalar_abi
+                        .scalar_abi
                         .as_ref()
                         .is_some_and(|abi| abi.parameters.len() == arguments.len())
                         && !matches!(body.result, AbstractFunctionResult::Unit)

@@ -1,3 +1,8 @@
+mod left_operand;
+pub(crate) use left_operand::{
+    compare_i64_left_operand_fixture, two_pair_compare_i64_left_operand_fixture,
+};
+
 use isa_aarch64::aarch64_physical_register_model;
 use optimization_core::{
     OptimizationUnitIdentity, OptimizationWorkBudget, PostAllocationOptimizationManifestIdentity,
@@ -130,6 +135,8 @@ pub(crate) fn fixture() -> Fixture {
     let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
     let x0 = physical.model().view_named("x0").unwrap();
     let x30 = physical.model().view_named("x30").unwrap();
+    let sp = physical.model().view_named("sp").unwrap();
+    let return_uses = super::sorted_units(sp.units.iter().chain(&x30.units).copied());
     let pc = physical.model().view_named("pc").unwrap();
     let machine = MachineId::new(1).unwrap();
     let block = SelectedBlockId(0);
@@ -164,7 +171,7 @@ pub(crate) fn fixture() -> Fixture {
             x0.class,
             Some(x0.id),
         )],
-        implicit_uses: x30.units.clone(),
+        implicit_uses: return_uses.clone(),
         implicit_defs: pc.units.clone(),
         clobbers: vec![],
         provenance: SelectedInstructionProvenance {
@@ -201,7 +208,7 @@ pub(crate) fn fixture() -> Fixture {
         projected_structural_call_returns: vec![],
     };
     let selected_identity = SelectedInstructionPlanIdentity::from_bytes([2; 32]);
-    let through = super::sorted_units(x0.units.iter().chain(&x30.units).copied());
+    let through = return_uses.clone();
     let liveness = LivenessPlan {
         selected: selected_identity,
         optimization_unit: OptimizationUnitIdentity::from_canonical_bytes(b"same-view-copy"),
@@ -226,8 +233,8 @@ pub(crate) fn fixture() -> Fixture {
                         virtual_defs: vec![VirtualRegisterId(2)],
                         virtual_live_in: vec![VirtualRegisterId(1)],
                         virtual_live_out: vec![VirtualRegisterId(2)],
-                        unit_uses: x0.units.clone(),
-                        unit_defs: x0.write_units.clone(),
+                        unit_uses: vec![],
+                        unit_defs: vec![],
                         unit_clobbers: vec![],
                         unit_live_in: through.clone(),
                         unit_live_out: through.clone(),
@@ -285,10 +292,10 @@ pub(crate) fn fixture() -> Fixture {
             },
         ),
         operands: vec![physical_operand(0, 2, RegisterOperandAccess::Use, x0)],
-        implicit_unit_uses: x30.units.clone(),
+        implicit_unit_uses: return_uses.clone(),
         implicit_unit_defs: pc.units.clone(),
         implicit_unit_clobbers: vec![],
-        unit_uses: through,
+        unit_uses: super::sorted_units(x0.units.iter().chain(&return_uses).copied()),
         unit_defs: pc.write_units.clone(),
         unit_clobbers: vec![],
     };
@@ -351,6 +358,8 @@ pub(crate) fn compare_fixture() -> Fixture {
     let x0 = fixture.physical.model().view_named("x0").unwrap().clone();
     let x30 = fixture.physical.model().view_named("x30").unwrap().clone();
     let pc = fixture.physical.model().view_named("pc").unwrap().clone();
+    let sp = fixture.physical.model().view_named("sp").unwrap().clone();
+    let return_uses = super::sorted_units(sp.units.iter().chain(&x30.units).copied());
     let nzcv = fixture.physical.model().view_named("nzcv").unwrap().clone();
     let value = ValueId::new(1).unwrap();
     let return_id = SelectedInstructionId(3);
@@ -375,7 +384,7 @@ pub(crate) fn compare_fixture() -> Fixture {
             kind: SelectedInstructionKind::ReturnUnit,
             constraint: super::constraint(),
             operands: vec![],
-            implicit_uses: x30.units.clone(),
+            implicit_uses: return_uses.clone(),
             implicit_defs: pc.units.clone(),
             clobbers: vec![],
             provenance: SelectedInstructionProvenance {
@@ -386,16 +395,16 @@ pub(crate) fn compare_fixture() -> Fixture {
         psi_return_edge,
     };
 
-    let through = super::sorted_units(x0.units.iter().chain(&x30.units).copied());
+    let through = return_uses.clone();
     let live_block = &mut fixture.liveness.functions[0].blocks[0];
     let compare_live = &mut live_block.instructions[1];
     compare_live.virtual_uses = vec![VirtualRegisterId(2)];
     compare_live.virtual_live_in = vec![VirtualRegisterId(2)];
     compare_live.virtual_live_out.clear();
-    compare_live.unit_uses = x0.units.clone();
+    compare_live.unit_uses.clear();
     compare_live.unit_defs = nzcv.write_units.clone();
     compare_live.unit_live_in = through;
-    compare_live.unit_live_out = x30.units.clone();
+    compare_live.unit_live_out = return_uses.clone();
     live_block.instructions.push(InstructionLiveness {
         position: LivenessPosition(2),
         instruction: return_id,
@@ -403,10 +412,10 @@ pub(crate) fn compare_fixture() -> Fixture {
         virtual_defs: vec![],
         virtual_live_in: vec![],
         virtual_live_out: vec![],
-        unit_uses: x30.units.clone(),
+        unit_uses: return_uses.clone(),
         unit_defs: pc.write_units.clone(),
         unit_clobbers: vec![],
-        unit_live_in: x30.units.clone(),
+        unit_live_in: return_uses.clone(),
         unit_live_out: vec![],
     });
 
@@ -452,7 +461,7 @@ pub(crate) fn compare_fixture() -> Fixture {
                 },
             ),
             operands: vec![],
-            implicit_unit_uses: x30.units.clone(),
+            implicit_unit_uses: return_uses.clone(),
             implicit_unit_defs: pc.units.clone(),
             implicit_unit_clobbers: vec![],
             unit_uses: x30.units.clone(),
@@ -467,121 +476,6 @@ pub(crate) fn compare_fixture() -> Fixture {
 
 pub(crate) fn two_pair_compare_fixture() -> Fixture {
     let mut fixture = compare_fixture();
-    let second_machine = MachineId::new(2).unwrap();
-
-    let mut selected = fixture.selected.functions[0].clone();
-    selected.machine = second_machine;
-    fixture.selected.functions.push(selected);
-
-    let mut liveness = fixture.liveness.functions[0].clone();
-    liveness.machine = second_machine;
-    fixture.liveness.functions.push(liveness);
-
-    let mut source = fixture.source.functions[0].clone();
-    source.machine = second_machine;
-    fixture.source.functions.push(source);
-
-    fixture
-}
-
-pub(crate) fn compare_i64_left_operand_fixture() -> Fixture {
-    let mut fixture = compare_fixture();
-    let x0 = fixture.physical.model().view_named("x0").unwrap().clone();
-    let x1 = fixture.physical.model().view_named("x1").unwrap().clone();
-    let x30 = fixture.physical.model().view_named("x30").unwrap().clone();
-    let nzcv = fixture.physical.model().view_named("nzcv").unwrap().clone();
-
-    let compare = &mut fixture.selected.functions[0].blocks[0].instructions[1];
-    compare.kind = SelectedInstructionKind::CompareI64;
-    compare.operands.push(selected_operand(
-        1,
-        3,
-        RegisterOperandAccess::Use,
-        x1.class,
-        None,
-    ));
-    compare.provenance.values = vec![
-        ValueId::new(1).unwrap(),
-        ValueId::new(2).unwrap(),
-        ValueId::new(3).unwrap(),
-    ];
-    fixture.selected.functions[0].virtual_registers = vec![
-        VirtualRegister {
-            id: VirtualRegisterId(1),
-            scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
-            class: x0.class,
-            origin: VirtualRegisterOrigin::EntryParameter {
-                source_value: ValueId::new(1).unwrap(),
-                parameter_index: 0,
-            },
-            definition_site: ValueDefinitionSite::FunctionParameter(0),
-            entry_fixed_view: Some(x0.id),
-        },
-        VirtualRegister {
-            id: VirtualRegisterId(2),
-            scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
-            class: x0.class,
-            origin: VirtualRegisterOrigin::InstructionResult {
-                instruction: SelectedInstructionId(1),
-                source_value: ValueId::new(1).unwrap(),
-            },
-            definition_site: ValueDefinitionSite::Node {
-                block: fixture.selected.functions[0].blocks[0].source_block,
-                node: 0,
-            },
-            entry_fixed_view: None,
-        },
-        VirtualRegister {
-            id: VirtualRegisterId(3),
-            scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
-            class: x1.class,
-            origin: VirtualRegisterOrigin::EntryParameter {
-                source_value: ValueId::new(2).unwrap(),
-                parameter_index: 1,
-            },
-            definition_site: ValueDefinitionSite::FunctionParameter(1),
-            entry_fixed_view: Some(x1.id),
-        },
-    ];
-
-    let through = super::sorted_units(x0.units.iter().chain(&x1.units).chain(&x30.units).copied());
-    let live_block = &mut fixture.liveness.functions[0].blocks[0];
-    live_block.instructions[0].virtual_live_in = vec![VirtualRegisterId(1), VirtualRegisterId(3)];
-    live_block.instructions[0].virtual_live_out = vec![VirtualRegisterId(2), VirtualRegisterId(3)];
-    live_block.instructions[0].unit_live_in = through.clone();
-    live_block.instructions[0].unit_live_out = through.clone();
-    live_block.instructions[1].virtual_uses = vec![VirtualRegisterId(2), VirtualRegisterId(3)];
-    live_block.instructions[1].virtual_live_in = vec![VirtualRegisterId(2), VirtualRegisterId(3)];
-    live_block.instructions[1].unit_uses =
-        super::sorted_units(x0.units.iter().chain(&x1.units).copied());
-    live_block.instructions[1].unit_live_in = through;
-    live_block.instructions[1].unit_defs = nzcv.write_units.clone();
-
-    let machine_compare = &mut fixture.source.functions[0].blocks[0].instructions[1];
-    machine_compare.alternative = alternative(
-        MachineAlternativeFamily::CompareI64,
-        MachineEncodedEffects {
-            external_operand_reads: vec![0, 1],
-            external_operand_writes: vec![],
-            implicit_unit_uses: vec![],
-            implicit_unit_defs: nzcv.units.clone(),
-            implicit_unit_clobbers: vec![],
-            memory: MachineEncodedMemoryEffect::NoneV1,
-            stack: MachineEncodedStackEffect::UnchangedV1,
-            trap: MachineEncodedTrapBehavior::NeverV1,
-            control: MachineEncodedControlEffect::FallThroughV1,
-        },
-    );
-    machine_compare
-        .operands
-        .push(physical_operand(1, 3, RegisterOperandAccess::Use, &x1));
-    machine_compare.unit_uses = super::sorted_units(x0.units.iter().chain(&x1.units).copied());
-    machine_compare.unit_defs = nzcv.write_units;
-    fixture
-}
-
-pub(crate) fn two_pair_compare_i64_left_operand_fixture() -> Fixture {
-    let mut fixture = compare_i64_left_operand_fixture();
     let second_machine = MachineId::new(2).unwrap();
 
     let mut selected = fixture.selected.functions[0].clone();

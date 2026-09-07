@@ -538,6 +538,7 @@ fn family_and_operand_count(
             (MachineAlternativeFamily::MaterializeI64, 1)
         }
         SelectedInstructionKind::CopyI64 => (MachineAlternativeFamily::CopyI64, 2),
+        SelectedInstructionKind::ZeroExtendU8 => (MachineAlternativeFamily::ZeroExtendU8, 2),
         SelectedInstructionKind::ExactAddI64 { .. } => (MachineAlternativeFamily::ExactAddI64, 3),
         SelectedInstructionKind::ExactSubtractI64 { .. } => {
             (MachineAlternativeFamily::ExactSubtractI64, 3)
@@ -629,6 +630,9 @@ fn encode_unchecked(
     match kind {
         SelectedInstructionKind::MaterializeI64 { value } => {
             append_canonical_materialization(&mut words, registers[0], integer_bits(value)?);
+        }
+        SelectedInstructionKind::ZeroExtendU8 => {
+            words.push(0xd340_1c00 | (u32::from(registers[0]) << 5) | u32::from(registers[1]));
         }
         SelectedInstructionKind::CopyI64 => {
             words.push(0xaa00_03e0 | (u32::from(registers[0]) << 16) | u32::from(registers[1]));
@@ -764,6 +768,10 @@ fn encode_movn_materialization_recipe(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DecodedWord {
+    ZeroExtendU8 {
+        source: u8,
+        destination: u8,
+    },
     MovN {
         register: u8,
         shift: u8,
@@ -826,6 +834,12 @@ fn decode_words(bytes: &[u8]) -> Result<Vec<DecodedWord>, Aarch64SelectedFormEnc
 }
 
 fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingError> {
+    if word & 0xffff_fc00 == 0xd340_1c00 {
+        return Ok(DecodedWord::ZeroExtendU8 {
+            source: ((word >> 5) & 31) as u8,
+            destination: (word & 31) as u8,
+        });
+    }
     let register = (word & 0x1f) as u8;
     let shift = ((word >> 21) & 0x3) as u8;
     let immediate = ((word >> 5) & 0xffff) as u16;
@@ -907,6 +921,13 @@ fn validate_decoded(
     decoded: &[DecodedWord],
 ) -> Result<(), Aarch64SelectedFormEncodingError> {
     let valid = match kind {
+        SelectedInstructionKind::ZeroExtendU8 => {
+            decoded
+                == [DecodedWord::ZeroExtendU8 {
+                    source: registers[0],
+                    destination: registers[1],
+                }]
+        }
         SelectedInstructionKind::MaterializeI64 { value } => {
             decode_materialization(decoded, registers[0]) == integer_bits(value).ok()
         }
@@ -1073,7 +1094,9 @@ fn footprint(
 ) -> Aarch64SelectedFormFootprint {
     let (reads, writes, writes_nzcv) = match kind {
         SelectedInstructionKind::MaterializeI64 { .. } => (vec![], vec![operands[0]], false),
-        SelectedInstructionKind::CopyI64 => (vec![operands[0]], vec![operands[1]], false),
+        SelectedInstructionKind::CopyI64 | SelectedInstructionKind::ZeroExtendU8 => {
+            (vec![operands[0]], vec![operands[1]], false)
+        }
         SelectedInstructionKind::CompareI64Zero => (vec![operands[0]], vec![], true),
         SelectedInstructionKind::CompareI64 => (vec![operands[0], operands[1]], vec![], true),
         SelectedInstructionKind::ExactAddI64 { .. }
@@ -1138,6 +1161,7 @@ fn footprint(
             match kind {
                 SelectedInstructionKind::MaterializeI64 { .. } => vec![],
                 SelectedInstructionKind::CopyI64
+                | SelectedInstructionKind::ZeroExtendU8
                 | SelectedInstructionKind::CompareI64Zero
                 | SelectedInstructionKind::ExactAddI64Immediate { .. }
                 | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![0],
@@ -1149,6 +1173,7 @@ fn footprint(
             match kind {
                 SelectedInstructionKind::MaterializeI64 { .. } => vec![0],
                 SelectedInstructionKind::CopyI64
+                | SelectedInstructionKind::ZeroExtendU8
                 | SelectedInstructionKind::ExactAddI64Immediate { .. }
                 | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![1],
                 SelectedInstructionKind::ExactAddI64 { .. }
@@ -1197,6 +1222,59 @@ mod tests {
             ),
             Err(Aarch64SelectedFormEncodingError::LayoutDependentForm),
         );
+    }
+
+    #[test]
+    fn zero_extend_u8_binds_width_registers_and_is_not_a_copy() {
+        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        for source in ["x0", "x1", "x9", "x16", "x29"] {
+            for destination in ["x0", "x1", "x9", "x16", "x29"] {
+                let operands = [
+                    physical.model().view_named(source).unwrap().id,
+                    physical.model().view_named(destination).unwrap().id,
+                ];
+                let kind = SelectedInstructionKind::ZeroExtendU8;
+                let key = alternative(MachineAlternativeFamily::ZeroExtendU8);
+                let encoded =
+                    encode_aarch64_selected_form(&physical, kind, key, &operands).unwrap();
+                assert_eq!(encoded.bytes().len(), 4);
+                validate_aarch64_selected_form_encoding(
+                    &physical,
+                    kind,
+                    key,
+                    &operands,
+                    encoded.bytes(),
+                )
+                .unwrap();
+                let copy = encode_aarch64_selected_form(
+                    &physical,
+                    SelectedInstructionKind::CopyI64,
+                    alternative(MachineAlternativeFamily::CopyI64),
+                    &operands,
+                )
+                .unwrap();
+                assert!(
+                    validate_aarch64_selected_form_encoding(
+                        &physical,
+                        kind,
+                        key,
+                        &operands,
+                        copy.bytes()
+                    )
+                    .is_err()
+                );
+                for byte in 0..4 {
+                    let mut changed = encoded.bytes().to_vec();
+                    changed[byte] ^= 1;
+                    assert!(
+                        validate_aarch64_selected_form_encoding(
+                            &physical, kind, key, &operands, &changed
+                        )
+                        .is_err()
+                    );
+                }
+            }
+        }
     }
 
     fn movn(register: u8, halfword: u8, immediate: u16) -> [u8; 4] {

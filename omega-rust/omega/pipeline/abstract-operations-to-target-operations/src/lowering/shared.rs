@@ -20,17 +20,17 @@ pub(super) use semantic_vocabulary::{
 pub(super) use target::{Architecture, NativeTarget, ObjectFormat};
 pub(super) use target_operations::{
     BoundaryByteSequenceArgument, BoundaryRealization, BoundaryScalarArgument,
-    BoundarySettlementBinding, FixedIntegerScalarAbiValue, FixedIntegerScalarFunctionAbi,
-    MachineRegister, MixedStructuralScalarAbiResult, MixedStructuralScalarFunctionAbi,
-    ScalarParameterLocation, TargetBooleanControl, TargetBooleanExpression, TargetCallArgument,
-    TargetConditionalBooleanArm, TargetConditionalIntegerArm, TargetDynamicDescriptorArgument,
-    TargetDynamicDescriptorInstanceArgument, TargetDynamicDescriptorParameterAbi, TargetFunction,
-    TargetIeeeFloatFmaOperand, TargetIntegerControl, TargetIntegerExpression, TargetOperation,
-    TargetOperationPlan, TargetRankedU32Countdown, TargetScalarExpression, TargetScalarImmediate,
+    BoundarySettlementBinding, MachineRegister, MixedStructuralScalarFunctionAbi, ScalarAbiValue,
+    ScalarFunctionAbi, ScalarParameterLocation, TargetBooleanControl, TargetBooleanExpression,
+    TargetCallArgument, TargetConditionalBooleanArm, TargetConditionalIntegerArm,
+    TargetDynamicDescriptorArgument, TargetDynamicDescriptorInstanceArgument,
+    TargetDynamicDescriptorParameterAbi, TargetFunction, TargetIeeeFloatFmaOperand,
+    TargetIntegerControl, TargetIntegerExpression, TargetOperation, TargetOperationPlan,
+    TargetRankedU32Countdown, TargetScalarExpression, TargetScalarImmediate,
     TargetScalarStructuralFieldStore, TargetStructuralArgument, TargetStructuralParameter,
     TargetUnitBody, TargetUnitOperation, TargetUnitScalarArgumentSource,
     TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement, TargetX86ScalarFmaSettlement,
-    TerminalPsiProvenance, UnitScalarAbiValue,
+    TerminalPsiProvenance,
 };
 pub(super) use terminal_psi::{
     StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralPathSegment,

@@ -161,16 +161,6 @@ fn encode_origin(bytes: &mut Vec<u8>, origin: VirtualRegisterOrigin) {
             bytes.extend_from_slice(&instruction.0.to_le_bytes());
             bytes.extend_from_slice(&source_value.get().to_le_bytes());
         }
-        VirtualRegisterOrigin::LegalizationTemporary {
-            instruction,
-            temporary,
-            source_value,
-        } => {
-            bytes.push(2);
-            bytes.extend_from_slice(&instruction.0.to_le_bytes());
-            bytes.extend_from_slice(&temporary.0.to_le_bytes());
-            bytes.extend_from_slice(&source_value.get().to_le_bytes());
-        }
     }
 }
 
@@ -394,29 +384,6 @@ mod tests {
         assert_eq!(
             RecoveryClassificationPlan::decode(&wrong_version),
             Err(RecoveryClassificationDecodeError::UnsupportedVersion(3))
-        );
-    }
-
-    #[test]
-    fn canonical_codec_binds_legalization_temporary_origins() {
-        let baseline = plan();
-        let mut legalized = baseline.clone();
-        legalized.functions[0]
-            .classification
-            .as_mut()
-            .unwrap()
-            .origin = VirtualRegisterOrigin::LegalizationTemporary {
-            instruction: SelectedInstructionId(7),
-            temporary: legalized_operations::LegalizedTemporaryId(17),
-            source_value: ValueId::new(9).unwrap(),
-        };
-        assert_ne!(
-            recovery_classification_identity(&baseline),
-            recovery_classification_identity(&legalized)
-        );
-        assert_eq!(
-            RecoveryClassificationPlan::decode(&legalized.encode()),
-            Ok(legalized)
         );
     }
 }

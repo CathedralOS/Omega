@@ -201,7 +201,7 @@ pub enum AssignedOperation {
     },
     ReturnStructuralParameter {
         call_plan: CallPlan,
-        scalar_parameters: Vec<target_operations::FixedIntegerScalarAbiValue>,
+        scalar_parameters: Vec<target_operations::ScalarAbiValue>,
         parameters: Vec<StructuralParameterDeclaration>,
         source: StructuralParameterDeclaration,
         result: StructuralResultDeclaration,

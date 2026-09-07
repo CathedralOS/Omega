@@ -1,86 +1,20 @@
-//! Typed rows consumed by the sole ordered legalization catalog.
-
-use legalized_operations::{LegalizationRecipe, StructuralUnitLegalizationRecipe};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::legalization) enum LegalizationFormRecipe {
-    Scalar(LegalizationRecipe),
-    StructuralUnit(StructuralUnitLegalizationRecipe),
-}
+//! Structural-call Unit catalog rows.
+use legalized_operations::StructuralUnitLegalizationRecipe;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::legalization) enum ScalarLegalizationMatcherKind {
-    Immediate,
-    EntryParameter,
-    ExactAddImmediate,
-    ExactSubtractImmediate,
-    WidenedU8ExactAddImmediate,
-    WidenedU8ExactSubtractImmediate,
-    ExactIntegerSequence,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(clippy::enum_variant_names)] // Rows retain the exact legalization shape they recognize.
 pub(in crate::legalization) enum StructuralUnitLegalizationMatcherKind {
-    ReturnUnit,
-    AuthoredCallThenReturnUnit,
-    InstalledProviderCallThenReturnUnit,
-    ClaimCompletionSettlementsThenReturnUnit,
+    ReturnOnly,
+    AuthoredCall,
+    InstalledProviderCall,
+    ClaimCompletionSettlements,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::legalization) enum LegalizationProducerMatcherKind {
-    Scalar(ScalarLegalizationMatcherKind),
-    StructuralUnit(StructuralUnitLegalizationMatcherKind),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::legalization) enum ScalarLegalizationValidatorKind {
-    Immediate,
-    EntryParameter,
-    ExactAddImmediate,
-    ExactSubtractImmediate,
-    WidenedU8ExactAddImmediate,
-    WidenedU8ExactSubtractImmediate,
-    ExactIntegerSequence,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(clippy::enum_variant_names)] // Rows retain the exact legalization shape they validate.
 pub(in crate::legalization) enum StructuralUnitLegalizationValidatorKind {
-    ReturnUnit,
-    AuthoredCallThenReturnUnit,
-    InstalledProviderCallThenReturnUnit,
-    ClaimCompletionSettlementsThenReturnUnit,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::legalization) enum LegalizationValidatorKind {
-    Scalar(ScalarLegalizationValidatorKind),
-    StructuralUnit(StructuralUnitLegalizationValidatorKind),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::legalization) struct ScalarShapeConstraints {
-    pub condition: ScalarConditionShape,
-    pub entry_node_count: usize,
-    pub block_offsets: [usize; 3],
-    pub operation_count: usize,
-    pub leaf_node_counts: [usize; 2],
-    pub parameter_count: usize,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::legalization) enum ScalarConditionShape {
-    DirectBooleanParameter,
-    IntegerEqualU64Parameters,
-    IntegerLessThanU64Parameters,
-    IntegerLessOrEqualU64Parameters,
-    IntegerNotEqualU64Parameters,
-    IntegerLessThanI64Parameters,
-    IntegerLessOrEqualI64Parameters,
-    U64EqualZeroParameter,
-    U64NotEqualZeroParameter,
+    ReturnOnly,
+    AuthoredCall,
+    InstalledProviderCall,
+    ClaimCompletionSettlements,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -98,14 +32,6 @@ pub(in crate::legalization) struct StructuralUnitShapeConstraints {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::legalization) enum LegalizationShapeConstraints {
-    Scalar(ScalarShapeConstraints),
-    ScalarSequence,
-    StructuralUnit(StructuralUnitShapeConstraints),
-}
-
-/// Planning metadata only. It never participates in legality or replay.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::legalization) struct LegalizationStructuralCost {
     pub projected_selected_instruction_count: usize,
     pub introduced_temporary_count: usize,
@@ -113,33 +39,9 @@ pub(in crate::legalization) struct LegalizationStructuralCost {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::legalization) struct LegalizationFormDescriptor {
-    pub recipe: LegalizationFormRecipe,
-    pub producer_matcher: LegalizationProducerMatcherKind,
-    pub constraints: LegalizationShapeConstraints,
+    pub recipe: StructuralUnitLegalizationRecipe,
+    pub producer_matcher: StructuralUnitLegalizationMatcherKind,
+    pub constraints: StructuralUnitShapeConstraints,
     pub cost: LegalizationStructuralCost,
-    pub validator: LegalizationValidatorKind,
-}
-impl LegalizationShapeConstraints {
-    /// Resolve only cardinality constraints from an existing source roster.
-    /// This constructs no legalized value or validation evidence.
-    pub(in crate::legalization) fn scalar(
-        self,
-        leaf_node_counts: [usize; 2],
-    ) -> Option<ScalarShapeConstraints> {
-        match self {
-            Self::Scalar(shape) => Some(shape),
-            Self::ScalarSequence if leaf_node_counts[0] >= 2 && leaf_node_counts[1] == 2 => {
-                let false_offset = 1usize.checked_add(leaf_node_counts[0])?;
-                Some(ScalarShapeConstraints {
-                    condition: ScalarConditionShape::DirectBooleanParameter,
-                    entry_node_count: 1,
-                    block_offsets: [0, 1, false_offset],
-                    operation_count: false_offset.checked_add(2)?,
-                    leaf_node_counts,
-                    parameter_count: 1,
-                })
-            }
-            _ => None,
-        }
-    }
+    pub validator: StructuralUnitLegalizationValidatorKind,
 }

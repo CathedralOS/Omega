@@ -1,5 +1,4 @@
 use crate::legalization::catalog::{
-    LegalizationFormRecipe, LegalizationShapeConstraints, LegalizationValidatorKind,
     StructuralUnitLegalizationValidatorKind, legalization_form_for_recipe,
 };
 
@@ -28,14 +27,8 @@ pub(crate) fn validate_structural_unit_form<'a>(
     if independently_plain_unit_contract(target, abstracted, optimized) {
         return None;
     }
-    let descriptor = legalization_form_for_recipe(LegalizationFormRecipe::StructuralUnit(recipe))?;
-    let (
-        LegalizationValidatorKind::StructuralUnit(validator),
-        LegalizationShapeConstraints::StructuralUnit(constraints),
-    ) = (descriptor.validator, descriptor.constraints)
-    else {
-        return None;
-    };
+    let descriptor = legalization_form_for_recipe(recipe)?;
+    let (validator, constraints) = (descriptor.validator, descriptor.constraints);
     let TargetOperation::UnitBody(body) = &target.operation else {
         return None;
     };
@@ -72,7 +65,7 @@ fn validate_form<'a>(
         optimized_return,
         settlement_rows,
     ) = match validator {
-        StructuralUnitLegalizationValidatorKind::ReturnUnit => {
+        StructuralUnitLegalizationValidatorKind::ReturnOnly => {
             match (target, abstracted, optimized) {
                 (
                     [target_return @ TargetUnitOperation::Return { .. }],
@@ -90,7 +83,7 @@ fn validate_form<'a>(
                 _ => return None,
             }
         }
-        StructuralUnitLegalizationValidatorKind::AuthoredCallThenReturnUnit => {
+        StructuralUnitLegalizationValidatorKind::AuthoredCall => {
             match (target, abstracted, optimized) {
                 (
                     [
@@ -114,7 +107,7 @@ fn validate_form<'a>(
                 _ => return None,
             }
         }
-        StructuralUnitLegalizationValidatorKind::InstalledProviderCallThenReturnUnit => {
+        StructuralUnitLegalizationValidatorKind::InstalledProviderCall => {
             match (target, abstracted, optimized) {
                 (
                     [
@@ -138,7 +131,7 @@ fn validate_form<'a>(
                 _ => return None,
             }
         }
-        StructuralUnitLegalizationValidatorKind::ClaimCompletionSettlementsThenReturnUnit => {
+        StructuralUnitLegalizationValidatorKind::ClaimCompletionSettlements => {
             match (target, abstracted, optimized) {
                 (
                     [

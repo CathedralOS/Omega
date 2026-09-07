@@ -13,6 +13,8 @@ fn descriptor_names_the_exact_pair_relations_and_dynamic_liveness() {
     assert_eq!(pattern.first().family, MachineAlternativeFamily::CopyI64);
     assert_eq!(pattern.second().semantic, MachineSemanticKind::ReturnI64);
     assert_eq!(pattern.second().family, MachineAlternativeFamily::ReturnI64);
+    assert_eq!(pattern.second().implicit_uses.0, &["x30"]);
+    assert_eq!(pattern.second().machine_implicit_uses.0, &["sp", "x30"]);
     assert_eq!(pattern.relations().len(), 2);
     assert!(matches!(
         pattern.relations()[0],

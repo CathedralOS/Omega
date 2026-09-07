@@ -153,7 +153,7 @@ fn publication_classification_reuses_the_existing_scalar_input() {
             &unit
         ));
         let mut changed = targeted.clone();
-        changed.functions[0].fixed_integer_scalar_abi = None;
+        changed.functions[0].scalar_abi = None;
         assert!(!crate::legalization::accepts_fragment_publication_input(
             &changed,
             &abstracted,

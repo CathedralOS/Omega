@@ -22,7 +22,7 @@ fn retained_selected_analysis_data_outlives_stages_and_requires_replay() {
         };
         // Both raw plans remain usable after every producing stage was dropped.
         assert_eq!(liveness.functions[0].blocks.len(), 3);
-        assert_eq!(ranges.functions[0].virtual_registers.len(), 2);
+        assert_eq!(ranges.functions[0].virtual_registers.len(), 6);
         assert_eq!(
             selected_instructions::liveness_identity(&liveness),
             liveness_commitment
@@ -72,9 +72,9 @@ fn live_ranges_are_block_local_and_interference_is_cfg_exact() {
                 .iter()
                 .map(|domain| (domain.block.0, domain.start.0, domain.end.0))
                 .collect::<Vec<_>>(),
-            vec![(0, 0, 4), (1, 4, 6), (2, 6, 8)]
+            vec![(0, 0, 8), (1, 8, 12), (2, 12, 16)]
         );
-        assert_eq!(function.virtual_registers.len(), 2);
+        assert_eq!(function.virtual_registers.len(), 6);
         assert_eq!(
             function.virtual_registers[0].fragments,
             vec![LiveRangeFragment {
@@ -84,15 +84,15 @@ fn live_ranges_are_block_local_and_interference_is_cfg_exact() {
             }]
         );
         assert_eq!(
-            function.virtual_registers[1]
+            function.virtual_registers[3]
                 .fragments
                 .iter()
                 .map(|fragment| (fragment.block.0, fragment.start.0, fragment.end.0))
                 .collect::<Vec<_>>(),
-            vec![(0, 0, 4), (1, 4, 5), (2, 6, 7)]
+            vec![(0, 3, 8), (1, 8, 9), (2, 12, 13)]
         );
         assert_eq!(
-            function.virtual_registers[1]
+            function.virtual_registers[3]
                 .edge_connectors
                 .iter()
                 .map(|edge| (edge.polarity_ordinal, edge.psi_edge, edge.target.0))
@@ -104,30 +104,41 @@ fn live_ranges_are_block_local_and_interference_is_cfg_exact() {
         );
         assert_eq!(
             function.interference,
-            vec![VirtualInterference {
-                lower: VirtualRegisterId(0),
-                higher: VirtualRegisterId(1),
-            }]
+            vec![
+                VirtualInterference {
+                    lower: VirtualRegisterId(0),
+                    higher: VirtualRegisterId(1),
+                },
+                VirtualInterference {
+                    lower: VirtualRegisterId(1),
+                    higher: VirtualRegisterId(2),
+                },
+                VirtualInterference {
+                    lower: VirtualRegisterId(2),
+                    higher: VirtualRegisterId(3),
+                }
+            ]
         );
         assert_eq!(function.virtual_registers[0].fixed_constraints.len(), 1);
         assert!(matches!(
             function.virtual_registers[0].fixed_constraints[0].site,
             VirtualFixedConstraintSite::Entry
         ));
-        assert_eq!(function.virtual_registers[1].fixed_constraints.len(), 3);
+        assert_eq!(function.virtual_registers[1].fixed_constraints.len(), 1);
         assert!(matches!(
             function.virtual_registers[1].fixed_constraints[0].site,
             VirtualFixedConstraintSite::Entry
         ));
         assert!(
-            function.virtual_registers[1].fixed_constraints[1..]
+            function.virtual_registers[4..]
                 .iter()
+                .flat_map(|register| &register.fixed_constraints)
                 .all(|constraint| matches!(
                     constraint.site,
                     VirtualFixedConstraintSite::Operand { .. }
                 ))
         );
-        assert_eq!(staged.custody().interference_count(), 1);
+        assert_eq!(staged.custody().interference_count(), 3);
         assert_eq!(
             staged.custody().register_environment(),
             staged
@@ -164,7 +175,7 @@ fn live_ranges_are_block_local_and_interference_is_cfg_exact() {
             .iter()
             .map(|domain| (domain.block.0, domain.start.0, domain.end.0))
             .collect::<Vec<_>>(),
-        vec![(0, 0, 4), (1, 4, 8), (2, 8, 12)]
+        vec![(0, 0, 6), (1, 6, 12), (2, 12, 18)]
     );
     assert_eq!(
         function
@@ -173,7 +184,14 @@ fn live_ranges_are_block_local_and_interference_is_cfg_exact() {
             .flat_map(|range| &range.fragments)
             .map(|fragment| (fragment.block.0, fragment.start.0, fragment.end.0))
             .collect::<Vec<_>>(),
-        vec![(0, 0, 1), (1, 5, 7), (2, 9, 11)]
+        vec![
+            (0, 0, 1),
+            (0, 1, 3),
+            (1, 7, 9),
+            (1, 9, 11),
+            (2, 13, 15),
+            (2, 15, 17)
+        ]
     );
     assert!(function.interference.is_empty());
     assert!(
@@ -206,10 +224,10 @@ fn architectural_actions_do_not_inflate_semantic_unit_fragments() {
                 .iter()
                 .map(|fragment| (fragment.block.0, fragment.start.0, fragment.end.0))
                 .collect::<Vec<_>>(),
-            vec![(0, 0, 3)]
+            vec![(0, 0, 7)]
         );
         assert!(range.actions.iter().any(|action| {
-            action.point == LiveRangePoint(3) && action.kind == ArchitecturalUnitActionKind::Def
+            action.point == LiveRangePoint(7) && action.kind == ArchitecturalUnitActionKind::Def
         }));
     }
 }
@@ -236,7 +254,7 @@ fn independent_live_range_validation_rejects_corruption_and_detachment() {
     assert_ne!(live_range_identity(&corrupted), identity);
 
     let mut corrupted = valid.plan().clone();
-    corrupted.functions[0].virtual_registers[1].edge_connectors[0].polarity_ordinal = 1;
+    corrupted.functions[0].virtual_registers[3].edge_connectors[0].polarity_ordinal = 1;
     assert!(matches!(
         validate_live_ranges(
             staged.selected_stage().selected(),

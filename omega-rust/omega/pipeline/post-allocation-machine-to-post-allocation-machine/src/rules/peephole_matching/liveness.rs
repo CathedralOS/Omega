@@ -26,11 +26,12 @@ pub(super) fn match_boundary(
         let Some(operand) = relations::operand(*coordinate, first_operands, second_operands) else {
             return Err(InstructionPairMatchError::Liveness(second.instruction));
         };
-        if !operand.storage_units.iter().all(|unit| {
-            first.unit_live_out.contains(unit)
-                && second.unit_live_in.contains(unit)
-                && second.unit_uses.contains(unit)
-        }) {
+        // Selected liveness tracks explicit values as virtual registers;
+        // architectural unit sets describe only implicit machine-state uses.
+        if !first.virtual_live_out.contains(&operand.virtual_register)
+            || !second.virtual_live_in.contains(&operand.virtual_register)
+            || !second.virtual_uses.contains(&operand.virtual_register)
+        {
             return Err(InstructionPairMatchError::Liveness(second.instruction));
         }
     }

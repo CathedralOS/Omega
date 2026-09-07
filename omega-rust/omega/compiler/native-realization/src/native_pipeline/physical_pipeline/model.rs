@@ -55,12 +55,6 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
     ) -> Option<&machine_emission::StagedSelectedLoweringFunctionRelativeRealization> {
         self.selected_lowering_for_test()
     }
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn allocation_recovery_function_relative_realization(
-        &self,
-    ) -> Option<&machine_emission::StagedAllocationRecoveryFunctionRelativeRealization> {
-        self.allocation_recovery_for_test()
-    }
 }
 
 impl From<machine_emission::StagedOptimizedUnitFunctionRelativeRealization>
@@ -100,18 +94,6 @@ impl From<machine_emission::StagedPostAllocationMachineFunctionRelativeRealizati
 {
     fn from(
         realization: machine_emission::StagedPostAllocationMachineFunctionRelativeRealization,
-    ) -> Self {
-        Self {
-            source: realization.into(),
-        }
-    }
-}
-
-impl From<machine_emission::StagedAllocationRecoveryFunctionRelativeRealization>
-    for StagedOptimizedVerifiedPhysicalPipeline
-{
-    fn from(
-        realization: machine_emission::StagedAllocationRecoveryFunctionRelativeRealization,
     ) -> Self {
         Self {
             source: realization.into(),

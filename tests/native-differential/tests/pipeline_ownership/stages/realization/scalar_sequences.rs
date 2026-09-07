@@ -33,7 +33,6 @@ fn scalar_sequence_replay_rejects_substituted_order_operands_proofs_and_fuel() {
         validate(original.clone()).unwrap();
         for mutation in 0..6 {
             let mut corrupted = original.clone();
-            assert!(corrupted.functions.is_empty());
             let instructions = &mut corrupted.scalar_functions[0].blocks[0].instructions;
             let LegalizedScalarInstructionKind::ExactBinary {
                 left: first_left,

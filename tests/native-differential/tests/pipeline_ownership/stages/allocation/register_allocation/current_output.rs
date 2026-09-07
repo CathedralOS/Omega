@@ -3,7 +3,7 @@ use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 fn callee_saved_budget() -> OptimizationWorkBudget {
     // Requirement traversal counts every selected operand, unlike rewrite rounds.
-    OptimizationWorkBudget::new(1024, 1024, 1024, 1024, 1024).unwrap()
+    OptimizationWorkBudget::new(1024, 2048, 2048, 1024, 1024).unwrap()
 }
 
 fn assert_owned_program(retained: &selected_instructions_to_register_homes::RetainedAllocation) {
@@ -314,14 +314,25 @@ fn retained_allocation_rejects_selected_recovery_without_recovery_evidence() {
 }
 
 #[test]
-fn plain_recovery_realization_rejects_non_recovery_allocation() {
+fn fixed_frame_realization_accepts_baseline_allocation_without_recovery_history() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let homes = baseline(target);
         let machine = stage_optimized_post_allocation_machine_plan(&homes).unwrap();
-        assert!(matches!(
-            stage_allocation_recovery_function_relative_realization(homes, machine),
-            Err(AllocationRecoveryFunctionRelativeRealizationError::UnsupportedSelections)
-        ));
+        let retained =
+            selected_instructions_to_register_homes::RetainedAllocation::try_from(homes).unwrap();
+        let original = retained.program().clone();
+        let realization = machine_emission::stage_fixed_frame_function_relative_realization(
+            retained,
+            machine,
+            selected_lowering_budget(),
+        )
+        .unwrap();
+        assert_eq!(realization.allocation().program(), &original);
+        assert_eq!(
+            realization.custody().source(),
+            realization.allocation().current().evidence()
+        );
+        machine_emission::validate_fixed_frame_function_relative_realization(&realization).unwrap();
     }
 }
 
@@ -412,7 +423,7 @@ fn fixed_view_recovery_publishes_the_same_owned_program_contract() {
                     Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
                 ])
                 .unwrap(),
-                OptimizationWorkBudget::new(1024, 1024, 1024, 1024, 1024).unwrap(),
+                OptimizationWorkBudget::new(1024, 2048, 2048, 1024, 1024).unwrap(),
             )
             .unwrap(),
         )

@@ -77,7 +77,7 @@ fn branch_call_selection_rejects_changed_join_bindings_and_edges() {
     }
 }
 
-fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
+pub(super) fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
     let (semantic, proof) = artifact(37);
     let mut module = terminal_codec::decode_module(&semantic).unwrap();
     let scalar_type = module.machines[1].parameters[0].scalar_type;

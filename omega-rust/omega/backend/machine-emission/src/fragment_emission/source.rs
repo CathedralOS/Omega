@@ -146,14 +146,6 @@ impl From<crate::StagedPostAllocationMachineFunctionRelativeRealization>
     }
 }
 
-impl From<crate::StagedAllocationRecoveryFunctionRelativeRealization>
-    for StagedOptimizedFunctionFragmentEmissionSource
-{
-    fn from(realization: crate::StagedAllocationRecoveryFunctionRelativeRealization) -> Self {
-        FunctionFragmentReplayInputs::AllocationRecovery(Box::new(realization)).into()
-    }
-}
-
 impl From<crate::StagedOptimizedUnitFunctionRelativeRealization>
     for StagedOptimizedFunctionFragmentEmissionSource
 {

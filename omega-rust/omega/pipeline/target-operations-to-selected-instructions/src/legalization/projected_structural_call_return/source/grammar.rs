@@ -115,8 +115,8 @@ pub(super) fn validate_pair(
         || *source_callee_id != source_callee.machine
         || target_caller.attachment.is_some()
         || target_callee.attachment.is_some()
-        || target_caller.fixed_integer_scalar_abi.is_some()
-        || target_callee.fixed_integer_scalar_abi.is_some()
+        || target_caller.scalar_abi.is_some()
+        || target_callee.scalar_abi.is_some()
         || structural_types != &abstract_plan.structural_types
         || callee_call_plan != call_plan
         || *psi_operation != *source_operation

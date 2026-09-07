@@ -963,8 +963,8 @@ fn direct_callback_relocation_resolves_to_its_private_function() {
     assert_eq!(installed_private.text_offset, private_plan.offset);
     assert_eq!(installed_private.byte_count, private_plan.size);
     assert_eq!(
-        Some(&installed_private.fixed_integer_scalar_abi),
-        image_private.function.fixed_integer_scalar_abi.as_ref()
+        Some(&installed_private.scalar_abi),
+        image_private.function.scalar_abi.as_ref()
     );
     let installation_bytes = image_emission::encode_installation_record(&installation)
         .expect("source-derived callback installation encoding");

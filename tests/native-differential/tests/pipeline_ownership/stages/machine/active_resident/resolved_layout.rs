@@ -78,23 +78,21 @@ fn active_resident_rematerialization_reaches_resolved_layout_on_both_architectur
 fn active_resident_resolved_layout_rejects_pre_layout_layout_and_receipt_mutation() {
     let mut corrupt_encoding =
         staged_active_resident_allocation_recovery_realization(NativeTarget::linux_x64());
-    corrupt_allocation_recovery_realization_encoding_for_test(&mut corrupt_encoding);
+    corrupt_fixed_frame_realization_encoding_for_test(&mut corrupt_encoding);
     assert!(matches!(
-        validate_allocation_recovery_function_relative_realization(&corrupt_encoding),
-        Err(
-            AllocationRecoveryFunctionRelativeRealizationError::Encoding(
-                OptimizedSelectedFormEncodingError::ArtifactMismatch
-            )
-        )
+        validate_fixed_frame_function_relative_realization(&corrupt_encoding),
+        Err(FunctionRelativeOptimizationRealizationError::Encoding(
+            OptimizedSelectedFormEncodingError::ArtifactMismatch
+        ))
     ));
 
     let mut corrupt_layout =
         staged_active_resident_allocation_recovery_realization(NativeTarget::linux_x64());
-    corrupt_allocation_recovery_realization_layout_for_test(&mut corrupt_layout);
+    corrupt_fixed_frame_realization_layout_for_test(&mut corrupt_layout);
     assert!(matches!(
-        validate_allocation_recovery_function_relative_realization(&corrupt_layout),
+        validate_fixed_frame_function_relative_realization(&corrupt_layout),
         Err(
-            AllocationRecoveryFunctionRelativeRealizationError::LayoutOptimization(
+            FunctionRelativeOptimizationRealizationError::LayoutOptimization(
                 ResolvedLayoutOptimizationError::Baseline(
                     OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch
                 )
@@ -104,9 +102,9 @@ fn active_resident_resolved_layout_rejects_pre_layout_layout_and_receipt_mutatio
 
     let mut corrupt_receipt =
         staged_active_resident_allocation_recovery_realization(NativeTarget::linux_x64());
-    corrupt_allocation_recovery_realization_custody_for_test(&mut corrupt_receipt);
+    corrupt_fixed_frame_realization_custody_for_test(&mut corrupt_receipt);
     assert!(matches!(
-        validate_allocation_recovery_function_relative_realization(&corrupt_receipt),
-        Err(AllocationRecoveryFunctionRelativeRealizationError::ReceiptMismatch)
+        validate_fixed_frame_function_relative_realization(&corrupt_receipt),
+        Err(FunctionRelativeOptimizationRealizationError::ReceiptMismatch)
     ));
 }

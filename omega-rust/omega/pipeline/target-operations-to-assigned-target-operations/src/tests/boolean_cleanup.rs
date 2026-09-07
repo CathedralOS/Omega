@@ -189,7 +189,7 @@ fn boolean_cleanup_plan(target: NativeTarget) -> TargetOperationPlan {
         target,
         entry: MachineId::new(1).unwrap(),
         functions: vec![TargetFunction {
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             machine: MachineId::new(1).unwrap(),
             attachment: None,

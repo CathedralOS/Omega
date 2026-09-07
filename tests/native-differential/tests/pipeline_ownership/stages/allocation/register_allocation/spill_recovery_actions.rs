@@ -80,14 +80,14 @@ fn epoch_one_action_is_exact_deterministic_and_target_neutral_on_both_architectu
         assert_eq!(action.source_work_item.epoch, 1);
         assert_eq!(action.source_work_item.ordinal, 0);
         assert_eq!(action.function, 0);
-        assert_eq!(action.pressure_point, LiveRangePoint(12));
-        assert_eq!(action.victim, VirtualRegisterId(3));
+        assert_eq!(action.pressure_point, LiveRangePoint(14));
+        assert_eq!(action.victim, VirtualRegisterId(4));
         assert_eq!(action.current_view, action.reclaimed_view);
         assert_eq!(action.store.before_source_reload, action.source_reload);
-        assert_eq!(action.store.before_instruction, SelectedInstructionId(6));
+        assert_eq!(action.store.before_instruction, SelectedInstructionId(7));
         assert_eq!(action.store.source, action.victim);
         assert_eq!(action.store.storage, action.storage.id);
-        assert_eq!(action.reload.before_instruction, SelectedInstructionId(7));
+        assert_eq!(action.reload.before_instruction, SelectedInstructionId(8));
         assert_eq!(action.reload.storage, action.storage.id);
         assert_eq!(action.reload.result.epoch, 1);
         assert_eq!(action.reload.result.ordinal, 0);
@@ -97,7 +97,7 @@ fn epoch_one_action_is_exact_deterministic_and_target_neutral_on_both_architectu
                 .iter()
                 .map(|rewrite| (rewrite.point, rewrite.instruction, rewrite.operand))
                 .collect::<Vec<_>>(),
-            vec![(LiveRangePoint(14), SelectedInstructionId(7), 0)]
+            vec![(LiveRangePoint(16), SelectedInstructionId(8), 0)]
         );
         assert!(
             action
@@ -129,7 +129,7 @@ fn independent_replay_rejects_root_action_namespace_and_usage_corruption() {
 
         for corrupt in [
             |candidate: &mut selected_instructions_to_register_homes::SpillRecoveryActionPlan| {
-                candidate.actions[0].victim = VirtualRegisterId(4);
+                candidate.actions[0].victim.0 += 1;
             },
             |candidate: &mut selected_instructions_to_register_homes::SpillRecoveryActionPlan| {
                 candidate.actions[0].store.before_instruction.0 += 1;

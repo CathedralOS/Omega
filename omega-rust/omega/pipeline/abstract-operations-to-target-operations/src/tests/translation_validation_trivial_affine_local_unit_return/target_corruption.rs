@@ -4,8 +4,7 @@ use super::*;
 fn trivial_affine_local_target_envelope_corruption_fails_closed() {
     assert_eq!(
         candidate_error(|candidate| {
-            candidate.functions[0].fixed_integer_scalar_abi =
-                Some(fixed_integer_scalar_abi(NativeTarget::linux_x64()));
+            candidate.functions[0].scalar_abi = Some(scalar_abi(NativeTarget::linux_x64()));
         }),
         StraightLineTrivialAffineLocalUnitReturnTranslationError::TargetFixedIntegerScalarAbi
     );

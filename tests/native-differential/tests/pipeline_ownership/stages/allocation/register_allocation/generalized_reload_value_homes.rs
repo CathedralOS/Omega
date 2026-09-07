@@ -368,13 +368,13 @@ fn first_reload_gets_a_home_and_second_retains_exact_pressure_on_both_targets() 
             panic!("epoch-zero reload must be assigned")
         };
         assert_eq!(assigned.result, action(0, 0));
-        assert_eq!(assigned.start, LiveRangePoint(12));
-        assert_eq!(assigned.exclusive_end, LiveRangePoint(17));
+        assert_eq!(assigned.start, LiveRangePoint(14));
+        assert_eq!(assigned.exclusive_end, LiveRangePoint(19));
         assert!(assigned.candidates.contains(&assigned.view));
         assert_eq!(assigned.coexisting_homes.len(), 2);
         assert!(assigned.coexisting_homes.iter().any(|home| {
             home.value
-                == selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(5))
+                == selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(6))
         }));
 
         let selected_instructions_to_register_homes::GeneralizedReloadValueHomeOutcome::Pressure(
@@ -384,8 +384,8 @@ fn first_reload_gets_a_home_and_second_retains_exact_pressure_on_both_targets() 
             panic!("epoch-one reload must retain recursive pressure")
         };
         assert_eq!(pressure.result, action(1, 0));
-        assert_eq!(pressure.start, LiveRangePoint(14));
-        assert_eq!(pressure.exclusive_end, LiveRangePoint(15));
+        assert_eq!(pressure.start, LiveRangePoint(16));
+        assert_eq!(pressure.exclusive_end, LiveRangePoint(17));
         assert_eq!(pressure.candidates.len(), 2);
         assert_eq!(pressure.blocking_homes.len(), 2);
         assert!(pressure.blocking_homes.iter().any(|home| {
@@ -393,7 +393,7 @@ fn first_reload_gets_a_home_and_second_retains_exact_pressure_on_both_targets() 
         }));
         assert!(pressure.blocking_homes.iter().any(|home| {
             home.value
-                == selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(5))
+                == selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(6))
         }));
     }
 }

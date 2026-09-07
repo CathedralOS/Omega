@@ -2,13 +2,12 @@
 
 use semantic_vocabulary::{PlaceId, StructuralTypeId, ValueId};
 use target_operations::{
-    MixedStructuralScalarAbiResult, MixedStructuralScalarFunctionAbi, TargetStructuralParameter,
+    MixedStructuralScalarFunctionAbi, ScalarAbiValue, TargetStructuralParameter,
 };
 
 use super::{
-    InstallationError, Reader,
-    fixed_integer_scalar_abi_codec::{decode_abi_value, encode_abi_value},
-    push_u32, push_u64,
+    InstallationError, Reader, push_u32, push_u64,
+    scalar_abi_codec::{decode_abi_value, encode_abi_value},
     scalar_call_plan_codec::{decode_scalar_call_plan, encode_scalar_call_plan},
     structural_scalar_codec::{access_tag, decode_access, decode_multiplicity, multiplicity_tag},
     unit_scalar_codec::{decode_scalar_type, encode_scalar_type},
@@ -114,7 +113,7 @@ pub(super) fn decode_mixed_structural_scalar_abi(
                 call_plan,
                 scalar_parameters,
                 structural_parameters,
-                result: MixedStructuralScalarAbiResult {
+                result: ScalarAbiValue {
                     value: ValueId::new(reader.u64()?)
                         .ok_or(InstallationError::ZeroInstalledScalarIdentity)?,
                     scalar_type: decode_scalar_type(reader)?,

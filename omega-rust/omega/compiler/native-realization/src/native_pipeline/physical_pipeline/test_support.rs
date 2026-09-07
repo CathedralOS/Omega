@@ -56,24 +56,6 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
     }
 }
 impl StagedOptimizedVerifiedPhysicalPipeline {
-    pub fn allocation_recovery_for_test(
-        &self,
-    ) -> Option<&machine_emission::StagedAllocationRecoveryFunctionRelativeRealization> {
-        match self.source.replay_for_test() {
-            FunctionFragmentReplayInputs::AllocationRecovery(realization) => Some(realization),
-            _ => None,
-        }
-    }
-    pub fn into_allocation_recovery_for_test(
-        self,
-    ) -> Option<Box<machine_emission::StagedAllocationRecoveryFunctionRelativeRealization>> {
-        match self.source.into_replay_for_test() {
-            FunctionFragmentReplayInputs::AllocationRecovery(realization) => Some(realization),
-            _ => None,
-        }
-    }
-}
-impl StagedOptimizedVerifiedPhysicalPipeline {
     pub fn function_relative_layout_mut_for_test(
         &mut self,
     ) -> Option<&mut machine_emission::StagedFunctionRelativeLayoutOptimizationRealization> {

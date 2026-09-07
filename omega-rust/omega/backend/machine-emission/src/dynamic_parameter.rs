@@ -438,7 +438,7 @@ mod tests {
                 functions: vec![AssignedFunction {
                     machine,
                     attachment: None,
-                    fixed_integer_scalar_abi: None,
+                    scalar_abi: None,
                     mixed_structural_scalar_abi: None,
                     provenance: target_operations::TerminalPsiProvenance {
                         operations: vec![OperationId::new(1).unwrap()],

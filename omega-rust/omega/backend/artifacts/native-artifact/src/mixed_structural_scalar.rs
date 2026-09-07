@@ -6,7 +6,6 @@
 //! the emitted object, so this is the first honest place to rejoin those IDs.
 
 use image_emission::ObjectArtifact;
-use semantic_vocabulary::ScalarType;
 use terminal_psi::{TerminalMachine, TerminalModule};
 
 pub(super) fn validate(
@@ -53,8 +52,7 @@ fn matches_terminal_machine(
             .iter()
             .zip(&abi.scalar_parameters)
             .all(|(declared, retained)| {
-                declared.id == retained.value
-                    && declared.scalar_type == ScalarType::Integer(retained.scalar_type)
+                declared.id == retained.value && declared.scalar_type == retained.scalar_type
             })
         && machine.result.scalar_ref().is_some_and(|declared| {
             declared.id == abi.result.value && declared.scalar_type == abi.result.scalar_type
@@ -83,8 +81,7 @@ mod tests {
         StructuralTypeId, ValueId,
     };
     use target_operations::{
-        FixedIntegerScalarAbiValue, MixedStructuralScalarAbiResult,
-        MixedStructuralScalarFunctionAbi, TargetStructuralParameter,
+        MixedStructuralScalarFunctionAbi, ScalarAbiValue, TargetStructuralParameter,
     };
     use terminal_psi::{
         MachineContract, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
@@ -147,9 +144,9 @@ mod tests {
             },
         };
         let abi = MixedStructuralScalarFunctionAbi {
-            scalar_parameters: vec![FixedIntegerScalarAbiValue {
+            scalar_parameters: vec![ScalarAbiValue {
                 value: scalar_parameter,
-                scalar_type: integer,
+                scalar_type: semantic_vocabulary::ScalarType::Integer(integer),
                 placement: call_plan.parameters[0].clone(),
             }],
             structural_parameters: vec![TargetStructuralParameter {
@@ -161,7 +158,7 @@ mod tests {
                 shape,
                 placement: call_plan.parameters[1].clone(),
             }],
-            result: MixedStructuralScalarAbiResult {
+            result: ScalarAbiValue {
                 value: result,
                 scalar_type: ScalarType::Integer(integer),
                 placement: call_plan.result.clone().expect("result placement"),

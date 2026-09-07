@@ -2,6 +2,7 @@
 
 use crate::tests::*;
 
+mod boolean_calls;
 mod control_flow;
 
 fn artifact(value: u64) -> (Vec<u8>, Vec<u8>) {
@@ -173,6 +174,17 @@ fn mixed_arithmetic_calls_reject_missing_or_substituted_exact_evidence() {
 }
 
 fn publish_scalar_artifacts(value: u64, artifacts: impl IntoIterator<Item = (Vec<u8>, Vec<u8>)>) {
+    publish_scalar_artifacts_with_arguments(value, artifacts, &[], [0; 4]);
+}
+
+fn publish_scalar_artifacts_with_arguments(
+    value: u64,
+    artifacts: impl IntoIterator<Item = (Vec<u8>, Vec<u8>)>,
+    arguments: &[terminal_interpreter::TerminalScalarValue],
+    native_arguments: [u64; 4],
+) {
+    #[cfg(not(all(target_os = "windows", target_arch = "x86_64")))]
+    let _ = native_arguments;
     #[cfg(not(all(target_os = "windows", target_arch = "x86_64")))]
     eprintln!(
         "SKIP: Windows native execution requires a Windows x86-64 host; cross-target replay still runs"
@@ -200,7 +212,7 @@ fn publish_scalar_artifacts(value: u64, artifacts: impl IntoIterator<Item = (Vec
             &semantic,
             &proof,
             &AdmissionProfile::default(),
-            &[],
+            arguments,
         )
         .expect("ordinary scalar call semantics must independently verify and execute");
         assert!(matches!(
@@ -289,7 +301,7 @@ fn publish_scalar_artifacts(value: u64, artifacts: impl IntoIterator<Item = (Vec
                     assert_eq!(
                         code.call_scalar(
                             usize::try_from(text.semantic_entry_offset).unwrap(),
-                            [0; 4]
+                            native_arguments
                         ),
                         value,
                         "compiled parameter/result flow must agree with Terminal interpretation"

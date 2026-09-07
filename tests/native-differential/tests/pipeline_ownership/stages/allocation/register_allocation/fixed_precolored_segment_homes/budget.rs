@@ -1,12 +1,12 @@
 use crate::tests::*;
 
-use super::fixture::{EXACT_USAGE, assign, source};
+use super::fixture::{assign, exact_usage, source};
 
 #[test]
 fn every_first_under_budget_axis_fails() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let fixture = source(target);
-        let required = EXACT_USAGE;
+        let required = exact_usage(target);
         let exact = OptimizationWorkBudget::new(
             required.rule_evaluations,
             required.candidates,

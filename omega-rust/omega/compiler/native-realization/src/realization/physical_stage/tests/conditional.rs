@@ -33,12 +33,14 @@ fn catalog_integer_predicates_use_shared_publication_without_opt_in() {
 }
 
 #[test]
-fn boolean_parameter_publication_waits_for_its_ordinary_scalar_abi() {
+fn boolean_parameter_uses_exact_scalar_abi_and_shared_publication() {
     let (semantic, proof) =
         conditional_fixture::artifact(Comparison::BooleanParameter, IntegerSign::Unsigned);
     for target in [
+        target::NativeTarget::windows_x64(),
         target::NativeTarget::linux_x64(),
         target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
     ] {
         let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
             &semantic,
@@ -56,20 +58,58 @@ fn boolean_parameter_publication_waits_for_its_ordinary_scalar_abi() {
                 optimized, target,
             )
             .unwrap();
-        assert!(
-            target_program.target_operations().functions[0]
-                .fixed_integer_scalar_abi
-                .is_none()
+        let abi = target_program.target_operations().functions[0]
+            .scalar_abi
+            .as_ref()
+            .expect("ordinary Boolean parameter ABI");
+        assert_eq!(abi.parameters.len(), 1);
+        assert_eq!(
+            abi.parameters[0].scalar_type,
+            semantic_vocabulary::ScalarType::Boolean
         );
-        assert!(!is_fragment_publication_program(&target_program));
-        // The catalog still admits the form for physical construction. Only
-        // native publication lacks the ordinary Boolean ABI carrier.
+        assert_eq!(
+            abi.parameters[0].placement.shape,
+            calling_conventions::ValueShape::integer(1, 1)
+        );
+        assert_eq!(
+            abi.parameters[0].value,
+            target_program.optimized().plan().functions[0].parameters[0].value
+        );
+        assert!(is_fragment_publication_program(&target_program));
         target_operations_to_selected_instructions::legalize_target_operations(
             target_program.target_operations(),
             target_program.optimized().plan(),
             target_program.optimized().unit(),
         )
         .unwrap();
+
+        // Identical byte width does not make an integer a Boolean ABI value.
+        let mut changed = target_program.target_operations().clone();
+        changed.functions[0].scalar_abi.as_mut().unwrap().parameters[0].scalar_type =
+            semantic_vocabulary::ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+            );
+        assert!(
+            target_operations_to_selected_instructions::legalize_target_operations(
+                &changed,
+                target_program.optimized().plan(),
+                target_program.optimized().unit(),
+            )
+            .is_err()
+        );
+
+        let selected = if target.architecture == target::Architecture::X86_64 {
+            Optimization::X86SelectXorZeroI64MaterializationV1
+        } else {
+            Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1
+        };
+        for selections in [
+            OptimizationSelections::default(),
+            OptimizationSelections::new([selected]).unwrap(),
+        ] {
+            let (published, _) = publish(&semantic, &proof, target, &selections);
+            assert_eq!(published.functions()[0].scalar_abi.as_ref(), Some(abi));
+        }
     }
 }
 

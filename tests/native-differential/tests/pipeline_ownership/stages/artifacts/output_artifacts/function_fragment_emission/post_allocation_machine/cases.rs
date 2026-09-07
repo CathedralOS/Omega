@@ -43,7 +43,7 @@ pub(super) fn hosted_cases() -> Vec<HostedCase> {
         (
             Optimization::Aarch64ElideSameViewCopyI64BeforeReturnV1,
             FixtureKind::ExactBinary,
-            ExpectedActions::Zero,
+            ExpectedActions::NonZero,
         ),
         (
             Optimization::Aarch64ElideSameViewCopyI64BeforeCompareZeroV1,

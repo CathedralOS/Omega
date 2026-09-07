@@ -74,7 +74,6 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
         fuel_schedule: FuelScheduleIdentity::new(1).expect("fuel schedule"),
         target: NativeTarget::from_omega_target_name(Some("uefi_x86_64")).expect("UEFI target"),
         entry: id(1),
-        functions: Vec::new(),
         scalar_functions: Vec::new(),
         structural_unit_functions: vec![LegalizedStructuralUnitFunction {
             machine: id(1),

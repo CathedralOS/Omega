@@ -10,7 +10,6 @@ pub(super) use input::accepts as accepts_publication_input;
 
 use super::matchers::MatchedStructuralUnitForm;
 use super::shared::*;
-use crate::legalization::catalog::LegalizationFormRecipe;
 use contract::validate_and_derive_parameters;
 use operations::derive_structural_operations;
 
@@ -50,9 +49,7 @@ pub(super) fn derive_source_structural_unit_function(
     let [optimized_block] = optimized.blocks.as_slice() else {
         unreachable!()
     };
-    let LegalizationFormRecipe::StructuralUnit(recipe) = matched.descriptor.recipe else {
-        unreachable!()
-    };
+    let recipe = matched.descriptor.recipe;
     let TargetUnitOperation::Return { psi_edge, .. } = matched.target_return else {
         unreachable!()
     };

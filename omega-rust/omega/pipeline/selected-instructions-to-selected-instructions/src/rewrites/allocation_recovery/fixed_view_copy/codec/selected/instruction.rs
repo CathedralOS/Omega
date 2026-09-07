@@ -86,6 +86,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::ConditionalBranchNonZero => 2,
         SelectedInstructionKind::ReturnI64 => 3,
         SelectedInstructionKind::CopyI64 => 4,
+        SelectedInstructionKind::ZeroExtendU8 => 15,
         SelectedInstructionKind::ExactAddI64 { .. } => 5,
         SelectedInstructionKind::ExactAddI64Immediate { .. } => 6,
         SelectedInstructionKind::ExactSubtractI64 { .. } => 7,
@@ -131,6 +132,18 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
     }
 }
 
+#[cfg(test)]
+#[test]
+fn zero_extension_has_a_distinct_round_trip_tag() {
+    let mut bytes = Vec::new();
+    encode_kind(&mut bytes, SelectedInstructionKind::ZeroExtendU8);
+    assert_eq!(bytes, [15]);
+    assert_eq!(
+        decode_kind(&mut Cursor::new(&bytes)).unwrap(),
+        SelectedInstructionKind::ZeroExtendU8
+    );
+}
+
 pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_kind(
     cursor: &mut Cursor<'_>,
 ) -> Result<SelectedInstructionKind, FixedViewCopyDecodeError> {
@@ -143,6 +156,7 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
         2 => SelectedInstructionKind::ConditionalBranchNonZero,
         3 => SelectedInstructionKind::ReturnI64,
         4 => SelectedInstructionKind::CopyI64,
+        15 => SelectedInstructionKind::ZeroExtendU8,
         5 => SelectedInstructionKind::ExactAddI64 {
             obligation: decode_id(cursor, ObligationId::new)?,
             accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(

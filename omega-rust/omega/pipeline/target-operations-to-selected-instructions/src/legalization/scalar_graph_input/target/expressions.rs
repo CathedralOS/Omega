@@ -12,7 +12,7 @@ impl Checker<'_> {
             Expression::Immediate {source_value,value:literal} => *source_value == value && self.optimized.blocks.iter().flat_map(|block|&block.nodes).any(|node|
                 matches!(&node.operation,AbstractOperation::IntegerConstant {result,value:actual,..} if *result == resolved && actual == literal)),
             Expression::Parameter {source_value,parameter_index,location} => {
-                let Some(parameter) = self.function.fixed_integer_scalar_abi.as_ref().and_then(|abi|abi.parameters.get(*parameter_index)) else {return false;};
+                let Some(parameter) = self.function.scalar_abi.as_ref().and_then(|abi|abi.parameters.get(*parameter_index)) else {return false;};
                 *source_value == value && parameter.value == resolved && location_matches(*location,&parameter.placement)
             }
             Expression::Call {psi_operation,source_value,callee,arguments,requirement_obligations,crash_continuations} => {
@@ -35,6 +35,11 @@ impl Checker<'_> {
                 };
                 result == resolved && source_obligation == *obligation && self.expression(left,source_left,aliases) && self.expression(right,source_right,aliases)
             }
+            Expression::IntegerWiden { psi_operation, source_type, operand } => {
+                self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                    AbstractOperation::IntegerWiden { psi_operation: operation, result, source_type: actual_type, operand: source, .. }
+                    if operation == psi_operation && *result == resolved && actual_type == source_type && self.expression(operand, *source, aliases)))
+            }
             _ => false,
         }
     }
@@ -44,6 +49,33 @@ impl Checker<'_> {
         value: ValueId,
         aliases: &[(ValueId, ValueId)],
     ) -> bool {
+        if let Boolean::Parameter {
+            source_value,
+            parameter_index,
+            location,
+        } = expression
+        {
+            return *source_value == value
+                && self
+                    .function
+                    .scalar_abi
+                    .as_ref()
+                    .and_then(|abi| abi.parameters.get(*parameter_index))
+                    .is_some_and(|parameter| {
+                        parameter.value == resolve(value, aliases)
+                            && parameter.scalar_type == ScalarType::Boolean
+                            && location_matches(*location, &parameter.placement)
+                    });
+        }
+        if let Boolean::Not {
+            psi_operation,
+            operand,
+        } = expression
+        {
+            return self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                AbstractOperation::BooleanNot { psi_operation: operation, result, operand: source }
+                if operation == psi_operation && *result == resolve(value, aliases) && self.boolean(operand, *source, aliases)));
+        }
         let Some(node) = self
             .optimized
             .blocks

@@ -51,12 +51,14 @@ pub(super) fn units_for(
         .collect()
 }
 
-fn instruction_unit_patterns(pattern: &InstructionPairPattern) -> [UnitSetPattern; 6] {
+fn instruction_unit_patterns(pattern: &InstructionPairPattern) -> [UnitSetPattern; 8] {
     [
         pattern.first().implicit_uses,
+        pattern.first().machine_implicit_uses,
         pattern.first().implicit_defs,
         pattern.first().implicit_clobbers,
         pattern.second().implicit_uses,
+        pattern.second().machine_implicit_uses,
         pattern.second().implicit_defs,
         pattern.second().implicit_clobbers,
     ]

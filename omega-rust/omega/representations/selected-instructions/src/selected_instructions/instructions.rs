@@ -27,6 +27,8 @@ pub enum SelectedInstructionKind {
         value: IntegerValue,
     },
     CopyI64,
+    /// Zero-extend the low eight input bits into the complete result register.
+    ZeroExtendU8,
     /// Exact mathematical addition whose source proof obligation was
     /// discharged before target lowering. A validated legalization theorem
     /// may transport a narrower exact operation to this i64 form; the selected

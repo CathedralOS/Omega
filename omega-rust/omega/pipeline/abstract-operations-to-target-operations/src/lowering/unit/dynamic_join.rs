@@ -50,7 +50,7 @@ pub(super) fn lower(
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    scalar_parameters: &[UnitScalarAbiValue],
+    scalar_parameters: &[ScalarAbiValue],
     parameters: &[TargetStructuralParameter],
 ) -> Result<LoweredUnitBody, LoweringError> {
     if !has_bounded_shape(function) {

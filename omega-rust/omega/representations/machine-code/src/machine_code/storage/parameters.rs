@@ -31,7 +31,7 @@ pub struct UnitParameterRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnitScalarFunctionAbiRecord {
     pub call_plan: CallPlan,
-    pub parameters: Vec<target_operations::UnitScalarAbiValue>,
+    pub parameters: Vec<target_operations::ScalarAbiValue>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

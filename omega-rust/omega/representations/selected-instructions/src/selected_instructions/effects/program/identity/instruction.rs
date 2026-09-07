@@ -82,6 +82,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CompareI64Zero => 0,
         SelectedInstructionKind::MaterializeI64 { .. } => 1,
         SelectedInstructionKind::CopyI64 => 2,
+        SelectedInstructionKind::ZeroExtendU8 => 15,
         SelectedInstructionKind::ExactAddI64 { .. } => 3,
         SelectedInstructionKind::ExactAddI64Immediate { .. } => 4,
         SelectedInstructionKind::ExactSubtractI64 { .. } => 5,
@@ -125,6 +126,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CompareI64Zero
         | SelectedInstructionKind::CompareI64
         | SelectedInstructionKind::CopyI64
+        | SelectedInstructionKind::ZeroExtendU8
         | SelectedInstructionKind::ConditionalBranchNonZero
         | SelectedInstructionKind::ConditionalBranchU64LessThan
         | SelectedInstructionKind::ConditionalBranchI64LessThan

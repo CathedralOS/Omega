@@ -2,7 +2,7 @@
 
 use machine_code::UnitScalarFunctionAbiRecord;
 use semantic_vocabulary::ValueId;
-use target_operations::UnitScalarAbiValue;
+use target_operations::ScalarAbiValue;
 
 use super::{
     InstallationError, Reader, push_u32, push_u64,
@@ -56,7 +56,7 @@ pub(super) fn decode_unit_scalar_abi(
             }
             let mut parameters = Vec::with_capacity(parameter_count);
             for _ in 0..parameter_count {
-                parameters.push(UnitScalarAbiValue {
+                parameters.push(ScalarAbiValue {
                     value: ValueId::new(reader.u64()?)
                         .ok_or(InstallationError::ZeroInstalledScalarIdentity)?,
                     scalar_type: decode_scalar_type(reader)?,

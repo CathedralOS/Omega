@@ -4,7 +4,7 @@ use target::Architecture;
 const RULE: Optimization = Optimization::Aarch64ElideSameViewCopyI64BeforeReturnV1;
 
 #[test]
-fn exact_selection_is_deterministic_and_reaches_generic_publication_without_a_candidate() {
+fn exact_selection_elides_both_ordinary_return_snapshots_and_preserves_custody() {
     let fixture = super::fixture(RULE, NativeTarget::linux_arm64());
     let first =
         stage_optimized_post_allocation_machine_optimization(&fixture.homes, &fixture.machine)
@@ -14,7 +14,7 @@ fn exact_selection_is_deterministic_and_reaches_generic_publication_without_a_ca
             .unwrap();
     assert_eq!(first, second);
     assert_eq!(first.optimization(), RULE);
-    assert_eq!(first.action_count(), 0);
+    assert_eq!(first.action_count(), 2);
     let StagedOptimizedPostAllocationMachineOptimization::Aarch64SameViewCopyElision(elision) =
         &first
     else {
@@ -29,24 +29,30 @@ fn exact_selection_is_deterministic_and_reaches_generic_publication_without_a_ca
     )
     .unwrap();
     assert_eq!(realization.optimization().optimization(), RULE);
-    assert_eq!(realization.custody().optimization().action_count(), 0);
+    assert_eq!(realization.custody().optimization().action_count(), 2);
     assert_eq!(
         realization.custody().optimization().expected_byte_savings(),
-        Some(0)
+        Some(8)
     );
-    assert_eq!(
-        realization.baseline_layout().functions(),
-        realization.layout().functions()
-    );
+    let baseline_bytes: u64 = realization
+        .baseline_layout()
+        .functions()
+        .iter()
+        .map(|function| function.byte_count)
+        .sum();
+    let current_bytes: u64 = realization
+        .layout()
+        .functions()
+        .iter()
+        .map(|function| function.byte_count)
+        .sum();
+    assert_eq!(baseline_bytes - current_bytes, 8);
     validate_post_allocation_machine_function_relative_realization_custody(&realization).unwrap();
 }
 
 #[test]
-fn compiler_generated_no_candidate_reaches_object_and_callable_publication() {
-    super::publication::assert_no_candidate_reaches_object_and_callable(
-        RULE,
-        NativeTarget::linux_arm64(),
-    );
+fn compiler_generated_return_elisions_reach_object_and_callable_publication() {
+    super::publication::assert_reaches_object_and_callable(RULE, NativeTarget::linux_arm64(), 2);
 }
 
 #[test]

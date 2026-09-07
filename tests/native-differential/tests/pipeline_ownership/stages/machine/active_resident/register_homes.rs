@@ -1,11 +1,10 @@
 //! Deterministic baseline and active-resident-rematerialized register homes.
 
 use crate::tests::{
-    ConditionalFixture, IntegerValue, LegalizationRecipe, NativeTarget, OptimizationWorkBudget,
-    PostAllocationSelectedTransformation, PressureRematerializationPolicy, RecoveryClassification,
-    RecoveryClassificationPolicy, RecoveryVictimRole, SelectedInstructionKind, SpillChoicePolicy,
-    ValueId, VirtualInterference, VirtualRegisterId, choose_spill_victims,
-    classify_pressure_recovery, selected_lowering_budget,
+    IntegerValue, NativeTarget, OptimizationWorkBudget, PostAllocationSelectedTransformation,
+    PressureRematerializationPolicy, RecoveryClassification, RecoveryClassificationPolicy,
+    RecoveryVictimRole, SelectedInstructionKind, SpillChoicePolicy, ValueId, VirtualInterference,
+    choose_spill_victims, classify_pressure_recovery, selected_lowering_budget,
     stage_optimized_active_resident_rematerialization, stage_optimized_allocation_legality,
     stage_optimized_live_ranges, stage_optimized_liveness,
     stage_optimized_post_allocation_machine_plan, stage_optimized_register_homes,
@@ -18,11 +17,13 @@ fn exact_add_pressure_reaches_deterministic_homes_on_both_architectures() {
     for (target, expected_homes) in [
         (
             NativeTarget::linux_x64(),
-            ["rdi", "rax", "rbx", "rax", "rax", "rbx", "rax"],
+            [
+                "rdi", "rax", "rax", "rbx", "rax", "rax", "rax", "rbx", "rax", "rax",
+            ],
         ),
         (
             NativeTarget::linux_arm64(),
-            ["x0", "x0", "x1", "x0", "x0", "x1", "x0"],
+            ["x0", "x0", "x0", "x1", "x0", "x0", "x0", "x1", "x0", "x0"],
         ),
     ] {
         let legality = stage_optimized_allocation_legality(
@@ -94,24 +95,34 @@ fn exact_add_pressure_reaches_deterministic_homes_on_both_architectures() {
         let ranges_stage = legality_stage.live_range_stage();
         let liveness_stage = ranges_stage.liveness_stage();
         let liveness = &liveness_stage.liveness().plan().functions[0];
-        for (block, registers) in liveness.blocks[1..].iter().zip([[1_u32, 2, 3], [4, 5, 6]]) {
-            assert_eq!(block.instructions.len(), 4);
-            assert_eq!(
-                block.instructions[2].virtual_uses,
-                registers[..2]
-                    .iter()
-                    .copied()
-                    .map(VirtualRegisterId)
-                    .collect::<Vec<_>>()
-            );
-            assert_eq!(
-                block.instructions[2].virtual_defs,
-                vec![VirtualRegisterId(registers[2])]
-            );
-            assert_eq!(
-                block.instructions[2].virtual_live_out,
-                vec![VirtualRegisterId(registers[2])]
-            );
+        let selected_function = &liveness_stage.selected_stage().selected().plan().functions[0];
+        let adds = selected_function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .filter(|instruction| {
+                matches!(
+                    instruction.kind,
+                    SelectedInstructionKind::ExactAddI64 { .. }
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(adds.len(), 2);
+        for (block, add) in liveness.blocks[1..].iter().zip(&adds) {
+            let registers = add
+                .operands
+                .iter()
+                .map(|operand| operand.virtual_register)
+                .collect::<Vec<_>>();
+            let live_add = block
+                .instructions
+                .iter()
+                .find(|instruction| instruction.instruction == add.id)
+                .unwrap();
+            assert_eq!(block.instructions.len(), 5);
+            assert_eq!(live_add.virtual_uses, registers[..2].to_vec());
+            assert_eq!(live_add.virtual_defs, vec![registers[2]]);
+            assert_eq!(live_add.virtual_live_out, vec![registers[2]]);
         }
 
         let ranges = &ranges_stage.ranges().plan().functions[0];
@@ -121,18 +132,18 @@ fn exact_add_pressure_reaches_deterministic_homes_on_both_architectures() {
                 .iter()
                 .map(|domain| (domain.block.0, domain.start.0, domain.end.0))
                 .collect::<Vec<_>>(),
-            vec![(0, 0, 4), (1, 4, 12), (2, 12, 20)]
+            vec![(0, 0, 6), (1, 6, 16), (2, 16, 26)]
         );
         assert_eq!(
             ranges.interference,
             vec![
                 VirtualInterference {
-                    lower: VirtualRegisterId(1),
-                    higher: VirtualRegisterId(2),
+                    lower: adds[0].operands[0].virtual_register,
+                    higher: adds[0].operands[1].virtual_register,
                 },
                 VirtualInterference {
-                    lower: VirtualRegisterId(4),
-                    higher: VirtualRegisterId(5),
+                    lower: adds[1].operands[0].virtual_register,
+                    higher: adds[1].operands[1].virtual_register,
                 },
             ]
         );
@@ -147,7 +158,7 @@ fn exact_add_pressure_reaches_deterministic_homes_on_both_architectures() {
         let environment = liveness_stage.selected_stage().register_environment();
         let model = environment.physical().model();
         let homes = &staged.homes().plan().functions[0];
-        assert_eq!(homes.assignments.len(), 7);
+        assert_eq!(homes.assignments.len(), 10);
         assert_eq!(
             homes
                 .assignments
@@ -164,9 +175,26 @@ fn exact_add_pressure_reaches_deterministic_homes_on_both_architectures() {
                 .collect::<Vec<_>>(),
             expected_homes
         );
-        assert_eq!(homes.assignments[1].view, homes.assignments[4].view);
-        assert_eq!(homes.assignments[2].view, homes.assignments[5].view);
-        assert_ne!(homes.assignments[1].view, homes.assignments[2].view);
+        let home = |register| {
+            homes
+                .assignments
+                .iter()
+                .find(|assignment| assignment.virtual_register == register)
+                .unwrap()
+                .view
+        };
+        assert_eq!(
+            home(adds[0].operands[0].virtual_register),
+            home(adds[1].operands[0].virtual_register)
+        );
+        assert_eq!(
+            home(adds[0].operands[1].virtual_register),
+            home(adds[1].operands[1].virtual_register)
+        );
+        assert_ne!(
+            home(adds[0].operands[0].virtual_register),
+            home(adds[0].operands[1].virtual_register)
+        );
     }
 }
 
@@ -174,18 +202,7 @@ fn exact_add_pressure_reaches_deterministic_homes_on_both_architectures() {
 fn active_resident_multi_use_rematerialization_reaches_fresh_homes_on_both_architectures() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let source = staged_active_resident_two_view_legality(target);
-        assert_eq!(
-            source
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .legalized()
-                .plan()
-                .functions[0]
-                .conditional()
-                .recipe,
-            LegalizationRecipe::ReturnU64ExactIntegerSequenceConditionalV1
-        );
+
         let source_selected = source
             .live_range_stage()
             .liveness_stage()
@@ -194,7 +211,19 @@ fn active_resident_multi_use_rematerialization_reaches_fresh_homes_on_both_archi
             .plan()
             .clone();
         let source_resident = source_selected.functions[0].blocks[1].instructions[0].clone();
-        assert_eq!(source_resident.id.0, 2);
+        let resident_register = source_resident.operands[0].virtual_register;
+        let incoming_register = source_selected.functions[0].blocks[1]
+            .instructions
+            .iter()
+            .find(|instruction| {
+                instruction
+                    .provenance
+                    .values
+                    .contains(&ValueId::new(5_208).unwrap())
+            })
+            .unwrap()
+            .operands[0]
+            .virtual_register;
         assert!(matches!(
             source_resident.kind,
             SelectedInstructionKind::MaterializeI64 {
@@ -218,13 +247,13 @@ fn active_resident_multi_use_rematerialization_reaches_fresh_homes_on_both_archi
             .choice
             .as_ref()
             .unwrap();
-        assert_eq!(choice.incoming, VirtualRegisterId(3));
-        assert_eq!(choice.selected_victim, VirtualRegisterId(1));
+        assert_eq!(choice.incoming, incoming_register);
+        assert_eq!(choice.selected_victim, resident_register);
         let classification = staged.classifications().plan().functions[0]
             .classification
             .as_ref()
             .unwrap();
-        assert_eq!(classification.victim, VirtualRegisterId(1));
+        assert_eq!(classification.victim, resident_register);
         assert!(matches!(
             classification.role,
             RecoveryVictimRole::ActiveResident { .. }
@@ -249,7 +278,7 @@ fn active_resident_multi_use_rematerialization_reaches_fresh_homes_on_both_archi
             .action
             .as_ref()
             .unwrap();
-        assert_eq!(action.victim, VirtualRegisterId(1));
+        assert_eq!(action.victim, resident_register);
         assert_eq!(action.original_materialize, source_resident.id);
         assert_eq!(action.rewrites.len(), 2);
         assert_eq!(
@@ -300,7 +329,7 @@ fn active_resident_multi_use_rematerialization_reaches_fresh_homes_on_both_archi
             staged.homes().receipt().legality(),
             staged.legality().receipt().identity()
         );
-        assert_eq!(staged.homes().receipt().assignment_count(), 9);
+        assert_eq!(staged.homes().receipt().assignment_count(), 12);
         assert_eq!(
             staged
                 .post_allocation_manifest()

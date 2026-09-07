@@ -111,7 +111,7 @@ fn fixture() -> TargetOperationPlanWithNativeCallbacks {
             functions: vec![TargetFunction {
                 machine,
                 attachment: None,
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance::default(),
                 operation: TargetOperation::UnitBody(TargetUnitBody {

@@ -40,13 +40,13 @@ fn logical_spill_operations_replay_the_active_resident_pressure_case_on_both_arc
         assert_eq!(first, second);
         let action = first.plan().functions[0].action.as_ref().unwrap();
         assert_eq!(action.block.0, 1);
-        assert_eq!(action.pressure_point, LiveRangePoint(9));
-        assert_eq!(action.incoming, VirtualRegisterId(3));
-        assert_eq!(action.victim, VirtualRegisterId(1));
-        assert_eq!(action.store.before_instruction, SelectedInstructionId(4));
+        assert_eq!(action.pressure_point, LiveRangePoint(11));
+        assert_eq!(action.incoming, VirtualRegisterId(4));
+        assert_eq!(action.victim, VirtualRegisterId(2));
+        assert_eq!(action.store.before_instruction, SelectedInstructionId(5));
         assert_eq!(action.store.source, action.victim);
         assert_eq!(action.store.storage, action.storage.id);
-        assert_eq!(action.reload.before_instruction, SelectedInstructionId(6));
+        assert_eq!(action.reload.before_instruction, SelectedInstructionId(7));
         assert_eq!(action.reload.storage, action.storage.id);
         assert_eq!(
             action
@@ -55,8 +55,8 @@ fn logical_spill_operations_replay_the_active_resident_pressure_case_on_both_arc
                 .map(|rewrite| (rewrite.point, rewrite.instruction, rewrite.operand))
                 .collect::<Vec<_>>(),
             vec![
-                (LiveRangePoint(12), SelectedInstructionId(6), 0),
                 (LiveRangePoint(14), SelectedInstructionId(7), 0),
+                (LiveRangePoint(16), SelectedInstructionId(8), 0),
             ]
         );
         assert_eq!(
@@ -268,7 +268,7 @@ fn logical_spill_validation_rejects_root_decision_and_namespace_corruption() {
         .0 += 1;
     decision_variants.push(changed);
     let mut changed = baseline.clone();
-    changed.functions[0].action.as_mut().unwrap().victim = VirtualRegisterId(2);
+    changed.functions[0].action.as_mut().unwrap().victim.0 += 1;
     decision_variants.push(changed);
     let mut changed = baseline.clone();
     changed.functions[0]

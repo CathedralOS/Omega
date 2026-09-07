@@ -77,6 +77,7 @@ fn decode_kind(
             value: decode_integer(cursor)?,
         },
         2 => SelectedInstructionKind::CopyI64,
+        15 => SelectedInstructionKind::ZeroExtendU8,
         3 => SelectedInstructionKind::ExactAddI64 {
             obligation: decode_obligation(cursor)?,
             accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
@@ -189,6 +190,7 @@ fn decode_alternative_for_version(
         0 => MachineAlternativeFamily::CompareI64Zero,
         1 => MachineAlternativeFamily::MaterializeI64,
         2 => MachineAlternativeFamily::CopyI64,
+        15 => MachineAlternativeFamily::ZeroExtendU8,
         3 => MachineAlternativeFamily::ExactAddI64,
         4 => MachineAlternativeFamily::ExactAddI64Immediate,
         5 => MachineAlternativeFamily::ExactSubtractI64,

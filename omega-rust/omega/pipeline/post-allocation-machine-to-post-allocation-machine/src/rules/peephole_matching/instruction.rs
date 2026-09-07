@@ -30,6 +30,7 @@ pub(super) fn match_instruction(
     }
     let encoded = &machine.alternative.encoded;
     let uses = registers::units_for(pattern.implicit_uses, named);
+    let machine_uses = registers::units_for(pattern.machine_implicit_uses, named);
     let defs = registers::units_for(pattern.implicit_defs, named);
     let clobbers = registers::units_for(pattern.implicit_clobbers, named);
     if machine.alternative.key.family != pattern.family
@@ -43,7 +44,7 @@ pub(super) fn match_instruction(
         || encoded.stack != pattern.stack
         || encoded.trap != pattern.trap
         || !control_matches(pattern.control, encoded.control, physical)
-        || machine.implicit_unit_uses != uses
+        || machine.implicit_unit_uses != machine_uses
         || machine.implicit_unit_defs != defs
         || machine.implicit_unit_clobbers != clobbers
         || machine.operands.len() != pattern.operands.len()
@@ -213,6 +214,7 @@ fn semantic(kind: &SelectedInstructionKind) -> MachineSemanticKind {
         SelectedInstructionKind::CompareI64 => MachineSemanticKind::CompareI64,
         SelectedInstructionKind::MaterializeI64 { .. } => MachineSemanticKind::MaterializeI64,
         SelectedInstructionKind::CopyI64 => MachineSemanticKind::CopyI64,
+        SelectedInstructionKind::ZeroExtendU8 => MachineSemanticKind::ZeroExtendU8,
         SelectedInstructionKind::ExactAddI64 { .. } => MachineSemanticKind::ExactAddI64,
         SelectedInstructionKind::ExactAddI64Immediate { .. } => {
             MachineSemanticKind::ExactAddI64Immediate

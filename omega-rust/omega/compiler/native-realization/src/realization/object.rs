@@ -192,7 +192,7 @@ mod tests {
         assert_eq!(
             private
                 .function
-                .fixed_integer_scalar_abi
+                .scalar_abi
                 .as_ref()
                 .expect("fixed callback ABI")
                 .call_plan,
@@ -273,8 +273,8 @@ mod tests {
         assert_eq!(installed_private.source_psi, private.source_psi);
         assert_eq!(installed_private.machine, private.function.machine);
         assert_eq!(
-            Some(&installed_private.fixed_integer_scalar_abi),
-            private.function.fixed_integer_scalar_abi.as_ref()
+            Some(&installed_private.scalar_abi),
+            private.function.scalar_abi.as_ref()
         );
         assert_eq!(installed_private.text_offset, private.function.text_offset);
         assert_eq!(installed_private.byte_count, private.function.byte_count);
@@ -311,9 +311,7 @@ mod tests {
         ));
 
         let mut missing_abi = object_input.clone();
-        missing_abi.private_functions[0]
-            .function
-            .fixed_integer_scalar_abi = None;
+        missing_abi.private_functions[0].function.scalar_abi = None;
         assert!(matches!(
             image_emission::build_object_artifact_with_private_functions(&missing_abi),
             Err(image_emission::ObjectError::InvalidPrivateFunctionAbi)

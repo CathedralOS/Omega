@@ -323,7 +323,6 @@ fn origin_value(origin: VirtualRegisterOrigin) -> ValueId {
     match origin {
         VirtualRegisterOrigin::EntryParameter { source_value, .. }
         | VirtualRegisterOrigin::BlockParameter { source_value, .. }
-        | VirtualRegisterOrigin::InstructionResult { source_value, .. }
-        | VirtualRegisterOrigin::LegalizationTemporary { source_value, .. } => source_value,
+        | VirtualRegisterOrigin::InstructionResult { source_value, .. } => source_value,
     }
 }

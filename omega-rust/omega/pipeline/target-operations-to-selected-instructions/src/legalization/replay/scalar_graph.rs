@@ -32,7 +32,7 @@ pub(super) fn replay(
             .zip(&call_plan.parameters)
             .any(|((actual, source), placement)| {
                 actual.value != source.value
-                    || ScalarType::Integer(actual.scalar_type) != source.scalar_type
+                    || actual.scalar_type != source.scalar_type
                     || actual.definition_site != source.site
                     || actual.placement != *placement
             })

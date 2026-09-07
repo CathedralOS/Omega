@@ -110,20 +110,76 @@ pub(super) fn validate(
                 },
                 actual,
             ) => {
-                let Some(comparison) = block.instructions.last() else {
-                    return Err(invalid());
-                };
-                let LegalizedScalarInstructionKind::Compare {
-                    predicate,
-                    operand_type,
-                    ..
-                } = comparison.kind
-                else {
-                    return Err(invalid());
-                };
-                if comparison.result != *condition {
-                    return Err(invalid());
+                let mut base = *condition;
+                let mut suffix_start = block.instructions.len();
+                let mut inverted = false;
+                let mut not_rows = Vec::new();
+                while let Some(previous) = suffix_start
+                    .checked_sub(1)
+                    .and_then(|index| block.instructions.get(index))
+                {
+                    let LegalizedScalarInstructionKind::BooleanNot { operand } = previous.kind
+                    else {
+                        break;
+                    };
+                    if previous.result != base || previous.scalar_type != ScalarType::Boolean {
+                        return Err(invalid());
+                    }
+                    base = operand;
+                    inverted = !inverted;
+                    not_rows.push(previous);
+                    suffix_start -= 1;
                 }
+                not_rows.reverse();
+                let comparison = suffix_start
+                    .checked_sub(1)
+                    .and_then(|index| block.instructions.get(index))
+                    .filter(|row| row.result == base);
+                let (predicate, operand_type) = if let Some(row) = comparison
+                    && let LegalizedScalarInstructionKind::Compare {
+                        predicate,
+                        operand_type,
+                        ..
+                    } = row.kind
+                {
+                    (predicate, operand_type)
+                } else {
+                    let (_, input, _, scalar_type) = replay.resolve(base).ok_or_else(invalid)?;
+                    if scalar_type != ScalarType::Boolean {
+                        return Err(invalid());
+                    }
+                    replay.check_instruction(
+                        SelectedInstructionKind::CompareI64Zero,
+                        keys.compare_i64_zero,
+                        &[input],
+                        &SelectedInstructionProvenance {
+                            values: vec![base],
+                            ..Default::default()
+                        },
+                    )?;
+                    // A Boolean register is true when nonzero, unlike Equal's zero predicate.
+                    inverted = !inverted;
+                    (
+                        Comparison::Equal,
+                        semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64)
+                            .map_err(|_| invalid())?,
+                    )
+                };
+                let branch_provenance = SelectedInstructionProvenance {
+                    operations: not_rows.iter().map(|row| row.operation).collect(),
+                    values: if not_rows.is_empty() {
+                        vec![*condition]
+                    } else {
+                        std::iter::once(base)
+                            .chain(not_rows.iter().map(|row| row.result))
+                            .collect()
+                    },
+                    fuel: not_rows
+                        .iter()
+                        .flat_map(|row| row.fuel.iter().copied())
+                        .collect(),
+                    ..Default::default()
+                };
                 let (instruction, actual_true, actual_false, kind) =
                     match (predicate, operand_type.sign(), actual) {
                         (
@@ -198,6 +254,11 @@ pub(super) fn validate(
                         ),
                         _ => return Err(invalid()),
                     };
+                let (actual_true, actual_false) = if inverted {
+                    (actual_false, actual_true)
+                } else {
+                    (actual_true, actual_false)
+                };
                 check_successor(replay, when_true, actual_true)?;
                 check_successor(replay, when_false, actual_false)?;
                 (
@@ -205,10 +266,7 @@ pub(super) fn validate(
                     kind,
                     keys.conditional_branch,
                     Vec::new(),
-                    SelectedInstructionProvenance {
-                        values: vec![*condition],
-                        ..Default::default()
-                    },
+                    branch_provenance,
                 )
             }
             _ => return Err(invalid()),

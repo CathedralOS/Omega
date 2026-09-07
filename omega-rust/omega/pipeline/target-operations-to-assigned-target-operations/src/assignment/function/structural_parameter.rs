@@ -74,13 +74,16 @@ pub(super) fn assign(
                     .iter()
                     .zip(&call_plan.parameters)
                     .any(|(parameter, placement)| {
+                        let semantic_vocabulary::ScalarType::Integer(integer) = parameter.scalar_type else {
+                            return true;
+                        };
                         parameter.placement != *placement
-                            || parameter.scalar_type.is_address()
-                            || !matches!(parameter.scalar_type.bits(), 8 | 16 | 32 | 64)
+                            || integer.is_address()
+                            || !matches!(integer.bits(), 8 | 16 | 32 | 64)
                             || placement.shape
                                 != calling_conventions::ValueShape::integer(
-                                    parameter.scalar_type.bits() / 8,
-                                    parameter.scalar_type.bits() / 8,
+                                    integer.bits() / 8,
+                                    integer.bits() / 8,
                                 )
                     })
                 || call_plan.parameters.get(source_index) != Some(source_placement)

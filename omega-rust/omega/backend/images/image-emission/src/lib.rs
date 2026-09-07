@@ -284,7 +284,7 @@ impl installation_evidence::ObjectEvidence for ObjectArtifact {
 pub struct ObjectFunction {
     pub machine: MachineId,
     pub attachment: Option<semantic_vocabulary::StructuralTypeId>,
-    pub fixed_integer_scalar_abi: Option<target_operations::FixedIntegerScalarFunctionAbi>,
+    pub scalar_abi: Option<target_operations::ScalarFunctionAbi>,
     pub mixed_structural_scalar_abi: Option<target_operations::MixedStructuralScalarFunctionAbi>,
     pub structural_call_scalar_return: Option<machine_code::StructuralCallScalarReturnEvidence>,
     pub unit_scalar_abi: Option<machine_code::UnitScalarFunctionAbiRecord>,
@@ -2222,7 +2222,7 @@ fn build_object_artifact_with_x86_feature_profile(
         functions.push(ObjectFunction {
             machine: function.machine,
             attachment: function.attachment,
-            fixed_integer_scalar_abi: function.fixed_integer_scalar_abi.clone(),
+            scalar_abi: function.scalar_abi.clone(),
             mixed_structural_scalar_abi: function.mixed_structural_scalar_abi.clone(),
             structural_call_scalar_return: function.structural_call_scalar_return,
             unit_scalar_abi: function.unit_scalar_abi.clone(),
@@ -3004,7 +3004,7 @@ fn validate_private_functions<'plan>(
         if private.private_symbol.is_empty() {
             return Err(ObjectError::EmptyPrivateFunctionSymbol);
         }
-        if private.function.fixed_integer_scalar_abi.is_none() {
+        if private.function.scalar_abi.is_none() {
             return Err(ObjectError::InvalidPrivateFunctionAbi);
         }
         if !private.function.internal_calls.is_empty()

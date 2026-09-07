@@ -32,14 +32,6 @@ pub enum VirtualRegisterOrigin {
         instruction: SelectedInstructionId,
         source_value: ValueId,
     },
-    /// A value introduced by mandatory target legalization. `source_value`
-    /// retains Psi lineage without claiming that the source value itself has
-    /// the legalized register type.
-    LegalizationTemporary {
-        instruction: SelectedInstructionId,
-        temporary: legalized_operations::LegalizedTemporaryId,
-        source_value: ValueId,
-    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

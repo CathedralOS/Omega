@@ -275,10 +275,6 @@ fn source_value(
             | selected_instructions::VirtualRegisterOrigin::InstructionResult {
                 source_value,
                 ..
-            }
-            | selected_instructions::VirtualRegisterOrigin::LegalizationTemporary {
-                source_value,
-                ..
             } => source_value,
         })
 }

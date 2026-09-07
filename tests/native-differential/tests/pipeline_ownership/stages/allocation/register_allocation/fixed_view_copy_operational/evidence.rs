@@ -69,28 +69,12 @@ fn shared_entry_copy_consumes_every_authenticated_boundary_and_binds_all_three_r
                 .split_requirements()
                 .receipt()
                 .incompatible_fixed_use_boundary_count(),
-            2
+            0
         );
-        assert_eq!(staged.copies().plan().copies.len(), 1);
-        assert_eq!(staged.copies().plan().copies[0].destinations.len(), 2);
-        let forwarded = source.segment_homes().plan().functions[0]
-            .assignments
-            .iter()
-            .filter(|assignment| assignment.virtual_register == VirtualRegisterId(1))
-            .collect::<Vec<_>>();
-        assert_eq!(forwarded.len(), 3);
-        let copy = &staged.copies().plan().copies[0];
-        assert_eq!(copy.from_view, forwarded[0].view);
-        assert_eq!(copy.to_view, forwarded[1].view);
-        assert_eq!(copy.destinations[0].view, forwarded[1].view);
-        assert_eq!(copy.destinations[1].view, forwarded[2].view);
-        assert_ne!(
-            forwarded[0].allocation_domain,
-            forwarded[1].allocation_domain
-        );
-        assert_ne!(
-            forwarded[0].allocation_domain,
-            forwarded[2].allocation_domain
+        assert!(staged.copies().plan().copies.is_empty());
+        assert_eq!(
+            staged.custody().source_selected(),
+            staged.custody().transformed_selected()
         );
         assert_eq!(
             selected_instructions_to_register_homes::FixedViewCopyPlan::decode(

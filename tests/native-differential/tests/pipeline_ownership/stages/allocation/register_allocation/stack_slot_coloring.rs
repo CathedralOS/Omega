@@ -29,8 +29,8 @@ fn stack_slot_coloring_is_deterministic_and_target_neutral() {
             assignment.class,
             LogicalSpillStorageClass::NonAddressUnsignedU64V1
         );
-        assert_eq!(assignment.live_from, LiveRangePoint(9));
-        assert_eq!(assignment.live_through, LiveRangePoint(12));
+        assert_eq!(assignment.live_from, LiveRangePoint(11));
+        assert_eq!(assignment.live_through, LiveRangePoint(14));
         assert_eq!(assignment.size_bytes, 8);
         assert_eq!(assignment.alignment_bytes, 8);
         assert_eq!(assignment.spill_area_offset, 0);

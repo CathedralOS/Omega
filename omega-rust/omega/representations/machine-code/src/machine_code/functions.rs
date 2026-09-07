@@ -43,7 +43,7 @@ pub struct MachineCodePlanWithPrivateFunctions {
 pub struct MachineCodeFunction {
     pub machine: MachineId,
     pub attachment: Option<StructuralTypeId>,
-    pub fixed_integer_scalar_abi: Option<target_operations::FixedIntegerScalarFunctionAbi>,
+    pub scalar_abi: Option<target_operations::ScalarFunctionAbi>,
     /// Independently supplied and emission-validated ABI for the bounded
     /// scalar-result function family with fixed-integer and structural
     /// parameters. Results may be a fixed integer or Boolean. Mixed calls must

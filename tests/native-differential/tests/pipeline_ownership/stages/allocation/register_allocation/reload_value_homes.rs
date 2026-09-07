@@ -165,11 +165,11 @@ fn bridge_chain_reaches_exact_reload_pressure_through_public_validation() {
             .action
             .as_ref()
             .expect("the public two-view chain must retain one spill action");
-        assert_eq!(action.pressure_point, LiveRangePoint(9));
-        assert_eq!(action.incoming, VirtualRegisterId(3));
-        assert_eq!(action.victim, VirtualRegisterId(1));
-        assert_eq!(action.store.before_instruction, SelectedInstructionId(4));
-        assert_eq!(action.reload.before_instruction, SelectedInstructionId(6));
+        assert_eq!(action.pressure_point, LiveRangePoint(11));
+        assert_eq!(action.incoming, VirtualRegisterId(4));
+        assert_eq!(action.victim, VirtualRegisterId(2));
+        assert_eq!(action.store.before_instruction, SelectedInstructionId(5));
+        assert_eq!(action.reload.before_instruction, SelectedInstructionId(7));
         assert_eq!(
             action
                 .rewrites
@@ -177,8 +177,8 @@ fn bridge_chain_reaches_exact_reload_pressure_through_public_validation() {
                 .map(|rewrite| (rewrite.point, rewrite.instruction, rewrite.operand))
                 .collect::<Vec<_>>(),
             vec![
-                (LiveRangePoint(12), SelectedInstructionId(6), 0),
-                (LiveRangePoint(16), SelectedInstructionId(8), 0),
+                (LiveRangePoint(14), SelectedInstructionId(7), 0),
+                (LiveRangePoint(18), SelectedInstructionId(9), 0),
             ]
         );
         assert_eq!(

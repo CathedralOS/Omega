@@ -1,9 +1,10 @@
 use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
 
-pub(super) fn assert_no_candidate_reaches_object_and_callable(
+pub(super) fn assert_reaches_object_and_callable(
     rule: Optimization,
     target: NativeTarget,
+    expected_actions: usize,
 ) {
     let (semantic, proof) = conditional_exact_binary_artifact(false);
     let selections = OptimizationSelections::new([rule]).unwrap();
@@ -23,7 +24,7 @@ pub(super) fn assert_no_candidate_reaches_object_and_callable(
             panic!("the exact post-allocation selection must use the generic machine route")
         });
     assert_eq!(realization.optimization().optimization(), rule);
-    assert_eq!(realization.optimization().action_count(), 0);
+    assert_eq!(realization.optimization().action_count(), expected_actions);
 
     let fragments = stage_optimized_function_fragment_emission(
         FunctionFragmentReplayInputs::PostAllocationMachine(Box::new(realization)).into(),

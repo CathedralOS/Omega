@@ -1,8 +1,7 @@
 //! Target functions and their declared ABI and semantic provenance.
 
 use crate::{
-    FixedIntegerScalarFunctionAbi, MixedStructuralScalarFunctionAbi, TargetOperation,
-    TerminalPsiProvenance,
+    MixedStructuralScalarFunctionAbi, ScalarFunctionAbi, TargetOperation, TerminalPsiProvenance,
 };
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 
@@ -14,7 +13,7 @@ pub struct TargetFunction {
     /// Canonical native ABI for the deliberately bounded service-free,
     /// fixed-integer scalar function family. Other function shapes carry no
     /// scalar ABI claim.
-    pub fixed_integer_scalar_abi: Option<FixedIntegerScalarFunctionAbi>,
+    pub scalar_abi: Option<ScalarFunctionAbi>,
     /// Canonical ABI for the bounded scalar-result family whose ordered inputs
     /// have a fixed-integer prefix and structural suffix. Results may be a
     /// fixed integer or Boolean.

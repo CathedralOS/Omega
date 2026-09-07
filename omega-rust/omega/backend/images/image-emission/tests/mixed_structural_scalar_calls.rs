@@ -18,8 +18,8 @@ use semantic_vocabulary::{
 };
 use target::NativeTarget;
 use target_operations::{
-    AbstractResult, FixedIntegerScalarAbiValue, MixedStructuralScalarAbiResult,
-    MixedStructuralScalarFunctionAbi, TargetStructuralParameter, TerminalPsiProvenance,
+    AbstractResult, MixedStructuralScalarFunctionAbi, ScalarAbiValue, TargetStructuralParameter,
+    TerminalPsiProvenance,
 };
 use terminal_psi::{
     BindingRelevance, SemanticFingerprint, StructuralAccess, StructuralFieldDeclaration,
@@ -103,13 +103,13 @@ fn mixed_plan(target: NativeTarget) -> AssignedOperationPlan {
     };
     let mixed_abi = MixedStructuralScalarFunctionAbi {
         call_plan: mixed_call_plan.clone(),
-        scalar_parameters: vec![FixedIntegerScalarAbiValue {
+        scalar_parameters: vec![ScalarAbiValue {
             value: callee_scalar,
-            scalar_type: integer,
+            scalar_type: semantic_vocabulary::ScalarType::Integer(integer),
             placement: mixed_call_plan.parameters[0].clone(),
         }],
         structural_parameters: vec![callee_parameter],
-        result: MixedStructuralScalarAbiResult {
+        result: ScalarAbiValue {
             value: callee_result,
             scalar_type: ScalarType::Integer(integer),
             placement: mixed_call_plan.result.clone().unwrap(),
@@ -126,7 +126,7 @@ fn mixed_plan(target: NativeTarget) -> AssignedOperationPlan {
             AssignedFunction {
                 machine: caller,
                 attachment: Some(structural_type),
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance {
                     operations: vec![constant_operation, call_operation],
@@ -198,7 +198,7 @@ fn mixed_plan(target: NativeTarget) -> AssignedOperationPlan {
             AssignedFunction {
                 machine: callee,
                 attachment: Some(structural_type),
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: Some(mixed_abi),
                 provenance: TerminalPsiProvenance {
                     operations: Vec::new(),
@@ -255,7 +255,9 @@ fn object_rejects_mixed_scalar_roster_and_abi_drift() {
         .as_mut()
         .unwrap()
         .scalar_parameters[0]
-        .scalar_type = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+        .scalar_type = semantic_vocabulary::ScalarType::Integer(
+        IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+    );
     assert_eq!(
         build_object_artifact(&changed_type),
         Err(ObjectError::InvalidInternalUnitCallEvidence(caller))

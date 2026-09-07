@@ -1,19 +1,20 @@
 use crate::tests::*;
 
 pub(super) const X64_EXACT_USAGE: OptimizationWorkUsage = OptimizationWorkUsage {
-    rule_evaluations: 3,
-    candidates: 7,
-    validation_steps: 59,
-    commits: 6,
-    iterations: 12,
+    rule_evaluations: 7,
+    candidates: 19,
+    validation_steps: 217,
+    commits: 8,
+    iterations: 28,
 };
 
 pub(super) const ARM64_EXACT_USAGE: OptimizationWorkUsage = OptimizationWorkUsage {
-    rule_evaluations: 3,
-    candidates: 7,
-    validation_steps: 104,
-    commits: 6,
-    iterations: 12,
+    rule_evaluations: 7,
+    candidates: 19,
+    // Four fixed points plus fifteen domains of 27 allocatable views.
+    validation_steps: 442,
+    commits: 8,
+    iterations: 28,
 };
 
 pub(super) fn exact_budget(target: NativeTarget) -> OptimizationWorkBudget {

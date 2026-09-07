@@ -27,10 +27,10 @@ use register_environment::baseline_target_register_environment;
 use selected_instructions_to_register_homes::stage_register_allocation;
 use selected_instructions_to_selected_instructions::optimize_selected_instructions;
 
+use routes::realize_allocated_program;
 pub(crate) use routes::{
     ResolvedPhysicalPhaseComposition, ResolvedRealizationPlan, resolve_physical_phase_composition,
 };
-use routes::{realize_allocated_program, realize_recovered_allocation};
 
 pub fn stage_optimized_verified_physical_pipeline(
     optimized_target: ValidatedOptimizedTargetOperations,
@@ -77,7 +77,14 @@ pub fn stage_optimized_verified_physical_pipeline(
         ResolvedPhysicalPhaseComposition::AllocationRecovery {
             post_allocation: None,
             ..
-        } => realize_recovered_allocation(allocation, machine),
+        } => {
+            let budget = allocation.current().budget_per_pass();
+            machine_emission::stage_fixed_frame_function_relative_realization(
+                allocation, machine, budget,
+            )
+            .map(StagedOptimizedVerifiedPhysicalPipeline::from)
+            .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization)
+        }
         ResolvedPhysicalPhaseComposition::Realization(composition) => {
             realize_allocated_program(allocation, machine, composition)
         }

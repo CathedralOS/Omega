@@ -1,102 +1,27 @@
 //! Canonical legalized-plan roster encoding shared by current and legacy identities.
 
-use super::condition::encode_condition;
-
 use super::projected_structural_call_return::encode_projected_structural_call_return;
-use super::{
-    plan::encode_structural_unit_function,
-    scalar::{encode_bindings, encode_leaf},
-    shared::*,
-};
+use super::{plan::encode_structural_unit_function, shared::*};
 
-pub(super) fn identity(
-    plan: &LegalizedOperationPlan,
-    domain: &[u8],
-    retain_call_contract: bool,
-    retain_historical_empty_call_roster: bool,
-    retain_scalar_body: bool,
-) -> LegalizedOperationPlanIdentity {
+pub(super) fn identity(plan: &LegalizedOperationPlan) -> LegalizedOperationPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(domain);
+    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v29\0");
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
     bytes.extend_from_slice(&plan.psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
     bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
     encode_target(&mut bytes, plan.target);
     bytes.extend_from_slice(&plan.entry.get().to_le_bytes());
-    encode_len(&mut bytes, plan.functions.len());
-    for function in &plan.functions {
-        let function = match function {
-            LegalizedFunction::Conditional(function) => {
-                if retain_scalar_body {
-                    bytes.push(0);
-                }
-                function
-            }
-        };
-        bytes.extend_from_slice(&function.machine.get().to_le_bytes());
-        encode_option_id(
-            &mut bytes,
-            function.attachment.map(|attachment| attachment.get()),
-        );
-        encode_ids(
-            &mut bytes,
-            function
-                .provenance
-                .operations
-                .iter()
-                .map(|operation| operation.get()),
-        );
-        encode_ids(
-            &mut bytes,
-            function.provenance.edges.iter().map(|edge| edge.get()),
-        );
-        bytes.push(match function.recipe {
-            LegalizationRecipe::ReturnU64ImmediateConditionalV1 => 0,
-            LegalizationRecipe::ReturnU64EntryParameterConditionalV1 => 1,
-            LegalizationRecipe::ReturnU64ExactAddImmediateConditionalV1 => 2,
-            LegalizationRecipe::ReturnU64ExactSubtractImmediateConditionalV1 => 3,
-            LegalizationRecipe::ReturnU64WidenedU8ExactAddImmediateConditionalV1 => 4,
-            LegalizationRecipe::ReturnU64WidenedU8ExactSubtractImmediateConditionalV1 => 5,
-            LegalizationRecipe::ReturnU64ExactIntegerSequenceConditionalV1 => 17,
-            LegalizationRecipe::ReturnU64IntegerEqualParametersConditionalV1 => 9,
-            LegalizationRecipe::ReturnU64IntegerLessThanParametersConditionalV1 => 10,
-            LegalizationRecipe::ReturnU64IntegerLessOrEqualParametersConditionalV1 => 11,
-            LegalizationRecipe::ReturnU64IntegerNotEqualParametersConditionalV1 => 12,
-            LegalizationRecipe::ReturnU64I64LessThanParametersConditionalV1 => 13,
-            LegalizationRecipe::ReturnU64EqualZeroParameterConditionalV1 => 14,
-            LegalizationRecipe::ReturnU64NotEqualZeroParameterConditionalV1 => 15,
-            LegalizationRecipe::ReturnU64I64LessOrEqualParametersConditionalV1 => 16,
-        });
-        encode_condition(&mut bytes, function.condition_source, &function.condition);
-        bytes.extend_from_slice(&function.entry_block.get().to_le_bytes());
-        bytes.extend_from_slice(&function.true_block.get().to_le_bytes());
-        bytes.extend_from_slice(&function.false_block.get().to_le_bytes());
-        bytes.extend_from_slice(&function.branch_true_edge.get().to_le_bytes());
-        bytes.extend_from_slice(&function.branch_false_edge.get().to_le_bytes());
-        encode_fuel(&mut bytes, &function.branch_true_fuel);
-        encode_fuel(&mut bytes, &function.branch_false_fuel);
-        encode_bindings(&mut bytes, &function.branch_true_bindings);
-        encode_bindings(&mut bytes, &function.branch_false_bindings);
-        encode_leaf(&mut bytes, &function.when_true);
-        encode_leaf(&mut bytes, &function.when_false);
-    }
-    // Retired Unit roster remains empty in historical fingerprint domains.
-    encode_len(&mut bytes, 0);
     encode_len(&mut bytes, plan.structural_unit_functions.len());
     for function in &plan.structural_unit_functions {
-        encode_structural_unit_function(&mut bytes, function, retain_call_contract);
+        encode_structural_unit_function(&mut bytes, function);
     }
     encode_len(&mut bytes, plan.projected_structural_call_returns.len());
     for closure in &plan.projected_structural_call_returns {
         encode_projected_structural_call_return(&mut bytes, closure);
     }
-    if retain_historical_empty_call_roster {
-        encode_len(&mut bytes, 0);
-    }
-    // A graph can never disappear under a legacy commitment.
-    if !plan.scalar_functions.is_empty() {
-        bytes.extend_from_slice(b"ordinary-scalar-graph.v2\0");
+    {
+        bytes.extend_from_slice(b"ordinary-scalar-graph.v3\0");
         encode_len(&mut bytes, plan.scalar_functions.len());
         for function in &plan.scalar_functions {
             super::scalar_graph::encode(&mut bytes, function);

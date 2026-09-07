@@ -155,7 +155,7 @@ fn contiguous(left: &SemanticCodeAttribution, right: &SemanticCodeAttribution) -
 fn valid_condition_branch(
     target: NativeTarget,
     function: &MachineCodeFunction,
-    parameter: &target_operations::UnitScalarAbiValue,
+    parameter: &target_operations::ScalarAbiValue,
     site: &SemanticCodeAttribution,
     false_offset: usize,
 ) -> bool {

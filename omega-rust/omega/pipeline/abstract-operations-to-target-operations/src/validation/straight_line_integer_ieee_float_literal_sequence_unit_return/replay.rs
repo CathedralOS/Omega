@@ -17,7 +17,7 @@ pub(super) fn validate(
     expected_target: NativeTarget,
     target: &TargetFunction,
 ) -> Result<(), Error> {
-    if target.fixed_integer_scalar_abi.is_some() {
+    if target.scalar_abi.is_some() {
         return Err(Error::TargetFixedIntegerScalarAbi);
     }
     if target.provenance.operations.len() != source.literals().len()

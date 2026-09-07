@@ -24,7 +24,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
     encode_len(bytes, function.parameters.len());
     for parameter in &function.parameters {
         bytes.extend_from_slice(&parameter.value.get().to_le_bytes());
-        encode_integer_type(bytes, parameter.scalar_type);
+        encode_scalar_type(bytes, parameter.scalar_type);
         encode_definition_site(bytes, parameter.definition_site);
         encode_placement(bytes, &parameter.placement);
     }
@@ -45,6 +45,18 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
             encode_scalar_type(bytes, instruction.scalar_type);
             encode_definition_site(bytes, instruction.definition_site);
             match &instruction.kind {
+                LegalizedScalarInstructionKind::BooleanNot { operand } => {
+                    bytes.push(4);
+                    bytes.extend_from_slice(&operand.get().to_le_bytes());
+                }
+                LegalizedScalarInstructionKind::IntegerWiden {
+                    operand,
+                    source_type,
+                } => {
+                    bytes.push(5);
+                    bytes.extend_from_slice(&operand.get().to_le_bytes());
+                    encode_integer_type(bytes, *source_type);
+                }
                 LegalizedScalarInstructionKind::Constant(value) => {
                     bytes.push(0);
                     encode_integer(bytes, *value);

@@ -90,7 +90,7 @@ pub fn build_function_fragment_object_artifact(
         functions.push(ObjectFunction {
             machine: placed.machine,
             attachment,
-            fixed_integer_scalar_abi: targeted.fixed_integer_scalar_abi.clone(),
+            scalar_abi: targeted.scalar_abi.clone(),
             mixed_structural_scalar_abi: None,
             structural_call_scalar_return: None,
             unit_scalar_abi: source::unit_scalar_body(targeted).map(|body| {

@@ -326,7 +326,7 @@ pub(super) fn lower(
         functions: vec![TargetFunction {
             machine: function.machine,
             attachment: function.attachment,
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: vec![

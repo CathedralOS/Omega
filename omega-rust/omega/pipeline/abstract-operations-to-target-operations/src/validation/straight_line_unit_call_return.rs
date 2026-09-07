@@ -97,7 +97,7 @@ pub(crate) fn validate(
     if !cleanup_actions.is_empty() {
         return Err(StraightLineUnitCallReturnTranslationError::SourceCleanupActions);
     }
-    if target.fixed_integer_scalar_abi.is_some() {
+    if target.scalar_abi.is_some() {
         return Err(StraightLineUnitCallReturnTranslationError::TargetFixedIntegerScalarAbi);
     }
     if target.provenance.operations.as_slice() != [*psi_operation]

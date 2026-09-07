@@ -64,58 +64,32 @@ fn runtime_u64_parameter_inequality_selects_exact_three_block_graph_on_both_isas
         .unwrap();
         validate_raw_selection(&staged, staged.selected().plan().clone()).unwrap();
 
-        let legalized = staged.legalized().plan().functions[0].conditional();
-        assert_eq!(
-            legalized.recipe,
-            LegalizationRecipe::ReturnU64IntegerNotEqualParametersConditionalV1
-        );
-        let legalized_operations::LegalizedCondition::IntegerNotEqualParametersV1 {
-            equality_operation: legalized_equal_operation,
-            equality_result,
-            equality_fuel,
-            boolean_not_operation: legalized_not_operation,
-            boolean_not_result,
-            boolean_not_fuel,
-            left: legalized_left,
-            right: legalized_right,
-            ..
-        } = &legalized.condition
-        else {
-            panic!("legalization must retain equality followed by BooleanNot")
-        };
-        assert_eq!(*legalized_equal_operation, equal_operation);
-        assert_eq!(*equality_result, equal);
-        assert_eq!(*legalized_not_operation, not_operation);
-        assert_eq!(*boolean_not_result, not_equal);
-        assert_eq!(
-            equality_fuel[0].site,
-            PsiProvenance::Operation(equal_operation)
-        );
-        assert_eq!(
-            boolean_not_fuel[0].site,
-            PsiProvenance::Operation(not_operation)
-        );
-        assert_eq!(legalized_left.source_value, left);
-        assert_eq!(legalized_left.parameter_index, 0);
-        assert_eq!(legalized_right.source_value, right);
-        assert_eq!(legalized_right.parameter_index, 1);
+        assert_ordinary_graph_custody(&staged);
 
         let function = &staged.selected().plan().functions[0];
         assert_eq!(function.blocks.len(), 3);
-        assert_eq!(function.virtual_registers.len(), 4);
-        assert_eq!(staged.selected().receipt().instruction_count(), 6);
+
         let entry = &function.blocks[0];
-        let [compare] = entry.instructions.as_slice() else {
-            panic!("entry must contain exactly one equality compare")
-        };
+        let compare = function.blocks[0]
+            .instructions
+            .iter()
+            .find(|row| row.kind == SelectedInstructionKind::CompareI64)
+            .expect("selected comparison");
         assert_eq!(compare.kind, SelectedInstructionKind::CompareI64);
         assert_eq!(
             compare
                 .operands
                 .iter()
-                .map(|operand| operand.virtual_register)
+                .map(|operand| {
+                    match function.virtual_registers[operand.virtual_register.0 as usize].origin {
+                        VirtualRegisterOrigin::InstructionResult { source_value, .. } => {
+                            source_value
+                        }
+                        _ => panic!("comparison must read durable snapshots"),
+                    }
+                })
                 .collect::<Vec<_>>(),
-            [VirtualRegisterId(0), VirtualRegisterId(1)]
+            [left, right]
         );
         assert_eq!(compare.provenance.operations, [equal_operation]);
         assert_eq!(compare.provenance.values, [left, right, equal]);

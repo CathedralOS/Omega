@@ -65,23 +65,23 @@ fn selected_original_becomes_exact_target_neutral_logical_obligations() {
         let action = &first.plan().actions[0];
         let victim =
             selected_instructions_to_register_homes::GeneralizedSpillRecoveryVictim::Original(
-                VirtualRegisterId(5),
+                VirtualRegisterId(6),
             );
         assert_eq!(action.source_work_item.epoch, 2);
         assert_eq!(action.source_work_item.ordinal, 0);
-        assert_eq!(action.pressure_point, LiveRangePoint(14));
+        assert_eq!(action.pressure_point, LiveRangePoint(16));
         assert_eq!(action.source_pressure, id(1, 0));
         assert_eq!(action.victim, victim);
         assert_eq!(action.current_view, action.reclaimed_view);
         assert_eq!(action.storage.id, id(2, 0));
         assert_eq!(action.store.before_pressure_reload, id(1, 0));
-        assert_eq!(action.store.before_instruction.0, 7);
+        assert_eq!(action.store.before_instruction.0, 8);
         assert_eq!(action.store.source, victim);
-        assert_eq!(action.reload.before_instruction.0, 8);
+        assert_eq!(action.reload.before_instruction.0, 9);
         assert_eq!(action.reload.result, id(2, 0));
         assert_eq!(action.rewrites.len(), 1);
-        assert_eq!(action.rewrites[0].point, LiveRangePoint(16));
-        assert_eq!(action.rewrites[0].instruction.0, 8);
+        assert_eq!(action.rewrites[0].point, LiveRangePoint(18));
+        assert_eq!(action.rewrites[0].instruction.0, 9);
         assert_eq!(action.rewrites[0].operand, 0);
         assert_eq!(action.rewrites[0].result, id(2, 0));
     }
@@ -123,7 +123,7 @@ fn independent_replay_rejects_every_new_root_and_action_surface_mutation() {
         for corrupt in [
             |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
                 plan.actions[0].victim =
-                    selected_instructions_to_register_homes::GeneralizedSpillRecoveryVictim::Original(VirtualRegisterId(6))
+                    selected_instructions_to_register_homes::GeneralizedSpillRecoveryVictim::Original(VirtualRegisterId(7))
             },
             |plan: &mut selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionPlan| {
                 plan.actions[0].store.source =
@@ -158,12 +158,12 @@ fn independent_replay_rejects_every_new_root_and_action_surface_mutation() {
 
 #[test]
 fn exact_budget_cross_target_custody_and_recursive_refusal_are_typed() {
-    let insufficient = OptimizationWorkBudget::new(1, 1, 37, 1, 1).unwrap();
+    let insufficient = OptimizationWorkBudget::new(1, 1, 44, 1, 1).unwrap();
     for nonrepresentable in [
-        OptimizationWorkBudget::new(0, 1, 38, 1, 1),
-        OptimizationWorkBudget::new(1, 0, 38, 1, 1),
-        OptimizationWorkBudget::new(1, 1, 38, 0, 1),
-        OptimizationWorkBudget::new(1, 1, 38, 1, 0),
+        OptimizationWorkBudget::new(0, 1, 45, 1, 1),
+        OptimizationWorkBudget::new(1, 0, 45, 1, 1),
+        OptimizationWorkBudget::new(1, 1, 45, 0, 1),
+        OptimizationWorkBudget::new(1, 1, 45, 1, 0),
     ] {
         assert!(nonrepresentable.is_err());
     }
@@ -186,7 +186,7 @@ fn exact_budget_cross_target_custody_and_recursive_refusal_are_typed() {
                     function: 0,
                     action: id(2, 0),
                     victim: selected_instructions_to_register_homes::GeneralizedSpillRecoveryVictim::Original(
-                        VirtualRegisterId(5),
+                        VirtualRegisterId(6),
                     ),
                 }
             )
@@ -214,14 +214,14 @@ const fn id(
 }
 
 fn exact_budget() -> OptimizationWorkBudget {
-    OptimizationWorkBudget::new(1, 1, 38, 1, 1).unwrap()
+    OptimizationWorkBudget::new(1, 1, 45, 1, 1).unwrap()
 }
 
 const fn exact_usage() -> OptimizationWorkUsage {
     OptimizationWorkUsage {
         rule_evaluations: 1,
         candidates: 1,
-        validation_steps: 38,
+        validation_steps: 45,
         commits: 1,
         iterations: 1,
     }

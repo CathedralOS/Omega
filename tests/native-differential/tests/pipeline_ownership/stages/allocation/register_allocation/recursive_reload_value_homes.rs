@@ -98,18 +98,18 @@ fn both_recursive_victim_paths_close_every_reload_segment_on_both_targets() {
             );
             assert_eq!(
                 (rows[1].start, rows[1].exclusive_end),
-                (LiveRangePoint(14), LiveRangePoint(15))
+                (LiveRangePoint(16), LiveRangePoint(17))
             );
             assert_eq!(
                 (rows[2].start, rows[2].exclusive_end),
-                (LiveRangePoint(16), LiveRangePoint(17))
+                (LiveRangePoint(18), LiveRangePoint(19))
             );
             assert_eq!(
                 rows[0].exclusive_end,
                 if original {
-                    LiveRangePoint(19)
+                    LiveRangePoint(21)
                 } else {
-                    LiveRangePoint(14)
+                    LiveRangePoint(16)
                 }
             );
             let candidates = rows[0].candidates.clone();
@@ -126,7 +126,7 @@ fn both_recursive_victim_paths_close_every_reload_segment_on_both_targets() {
                 assert!(matches!(
                     rows[2].source,
                     selected_instructions_to_register_homes::RecursiveSpillActionSource::EpochTwoOriginal {
-                        victim: VirtualRegisterId(5),
+                        victim: VirtualRegisterId(6),
                         ..
                     }
                 ));
@@ -139,13 +139,13 @@ fn both_recursive_victim_paths_close_every_reload_segment_on_both_targets() {
                     vec![
                         home(
                             selected_instructions_to_register_homes::RecursiveReloadCoexistingValue::Original(
-                                VirtualRegisterId(4)
+                                VirtualRegisterId(5)
                             ),
                             high
                         ),
                         home(
                             selected_instructions_to_register_homes::RecursiveReloadCoexistingValue::Original(
-                                VirtualRegisterId(5)
+                                VirtualRegisterId(6)
                             ),
                             high
                         ),
@@ -183,13 +183,13 @@ fn both_recursive_victim_paths_close_every_reload_segment_on_both_targets() {
                     vec![
                         home(
                             selected_instructions_to_register_homes::RecursiveReloadCoexistingValue::Original(
-                                VirtualRegisterId(4)
+                                VirtualRegisterId(5)
                             ),
                             high
                         ),
                         home(
                             selected_instructions_to_register_homes::RecursiveReloadCoexistingValue::Original(
-                                VirtualRegisterId(5)
+                                VirtualRegisterId(6)
                             ),
                             high
                         ),
@@ -199,7 +199,7 @@ fn both_recursive_victim_paths_close_every_reload_segment_on_both_targets() {
                     rows[1].coexisting_homes,
                     vec![home(
                         selected_instructions_to_register_homes::RecursiveReloadCoexistingValue::Original(
-                            VirtualRegisterId(5)
+                            VirtualRegisterId(6)
                         ),
                         high,
                     )]

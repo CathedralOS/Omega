@@ -2,15 +2,10 @@ use crate::{FixedViewCopyPlan, FixedViewCopyPolicy};
 use selected_instructions::{SelectedInstructionKind, SelectedTerminator};
 use semantic_vocabulary::MachineId;
 
-use super::{
-    super::{
-        encode_v4, encode_v5, encode_v6, encode_v7, encode_v8, encode_v9, encode_v10, encode_v11,
-    },
-    plan,
-};
+use super::{plan, with_stale_version};
 
 #[test]
-fn successor_transfer_vocabulary_requires_the_v13_envelope() {
+fn successor_transfer_vocabulary_requires_the_v14_envelope() {
     use crate::FixedViewCopyDecodeError;
     let mut transferred = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     std::sync::Arc::make_mut(&mut transferred.transformed).functions[0] =
@@ -22,14 +17,14 @@ fn successor_transfer_vocabulary_requires_the_v13_envelope() {
         transferred
     );
     for encoded in [
-        encode_v4(&transferred),
-        encode_v5(&transferred),
-        encode_v6(&transferred),
-        encode_v7(&transferred),
-        encode_v8(&transferred),
-        encode_v9(&transferred),
-        encode_v10(&transferred),
-        encode_v11(&transferred),
+        with_stale_version(&transferred, 4),
+        with_stale_version(&transferred, 5),
+        with_stale_version(&transferred, 6),
+        with_stale_version(&transferred, 7),
+        with_stale_version(&transferred, 8),
+        with_stale_version(&transferred, 9),
+        with_stale_version(&transferred, 10),
+        with_stale_version(&transferred, 11),
     ] {
         assert_eq!(
             FixedViewCopyPlan::decode(&encoded),
@@ -56,14 +51,14 @@ fn successor_transfer_vocabulary_requires_the_v13_envelope() {
         };
     assert_eq!(FixedViewCopyPlan::decode(&jumped.encode()).unwrap(), jumped);
     for encoded in [
-        encode_v4(&jumped),
-        encode_v5(&jumped),
-        encode_v6(&jumped),
-        encode_v7(&jumped),
-        encode_v8(&jumped),
-        encode_v9(&jumped),
-        encode_v10(&jumped),
-        encode_v11(&jumped),
+        with_stale_version(&jumped, 4),
+        with_stale_version(&jumped, 5),
+        with_stale_version(&jumped, 6),
+        with_stale_version(&jumped, 7),
+        with_stale_version(&jumped, 8),
+        with_stale_version(&jumped, 9),
+        with_stale_version(&jumped, 10),
+        with_stale_version(&jumped, 11),
     ] {
         assert_eq!(
             FixedViewCopyPlan::decode(&encoded),
@@ -78,7 +73,7 @@ fn successor_transfer_vocabulary_requires_the_v13_envelope() {
         .instructions[0]
         .kind = SelectedInstructionKind::Jump;
     assert_eq!(
-        FixedViewCopyPlan::decode(&encode_v11(&instruction_only)),
+        FixedViewCopyPlan::decode(&with_stale_version(&instruction_only, 11)),
         Err(FixedViewCopyDecodeError::UnsupportedVersion(11))
     );
 }
@@ -104,7 +99,7 @@ fn artifact_round_trips_both_policies_and_full_transformed_custody() {
 }
 
 #[test]
-fn artifact_v13_retains_segment_home_evidence_and_rejects_older_authority() {
+fn artifact_v14_retains_segment_home_evidence_and_rejects_older_authority() {
     let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     plan.source_evidence = crate::FixedViewCopySourceEvidence::FixedPrecoloredSegmentHomesV1 {
         fixed_intervals: crate::FixedPrecoloredIntervalPlanIdentity::from_bytes([21; 32]),
@@ -114,9 +109,9 @@ fn artifact_v13_retains_segment_home_evidence_and_rejects_older_authority() {
         segment_homes: crate::FixedPrecoloredSegmentHomePlanIdentity::from_bytes([23; 32]),
     };
     let encoded = plan.encode();
-    assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 13);
+    assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 14);
     assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), plan);
-    for encoded in [encode_v10(&plan), encode_v11(&plan)] {
+    for encoded in [with_stale_version(&plan, 10), with_stale_version(&plan, 11)] {
         let version = u32::from_le_bytes(encoded[8..12].try_into().unwrap());
         assert_eq!(
             FixedViewCopyPlan::decode(&encoded),
@@ -137,7 +132,7 @@ fn artifact_current_decodes_an_empty_structural_roster() {
 fn artifact_rejects_pre_compare_identity_version() {
     let plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     assert_eq!(
-        FixedViewCopyPlan::decode(&encode_v6(&plan)),
+        FixedViewCopyPlan::decode(&with_stale_version(&plan, 6)),
         Err(crate::FixedViewCopyDecodeError::UnsupportedVersion(6))
     );
 }
@@ -146,13 +141,13 @@ fn artifact_rejects_pre_compare_identity_version() {
 fn artifact_rejects_pre_predicate_identity_version() {
     let plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     assert_eq!(
-        FixedViewCopyPlan::decode(&encode_v7(&plan)),
+        FixedViewCopyPlan::decode(&with_stale_version(&plan, 7)),
         Err(crate::FixedViewCopyDecodeError::UnsupportedVersion(7))
     );
 }
 
 #[test]
-fn artifact_v13_round_trips_u64_less_than_terminator_vocabulary() {
+fn artifact_v14_round_trips_u64_less_than_terminator_vocabulary() {
     let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     let terminator = plan.transformed.functions[0].blocks[0].terminator.clone();
     let SelectedTerminator::ConditionalBranch {
@@ -175,7 +170,7 @@ fn artifact_v13_round_trips_u64_less_than_terminator_vocabulary() {
 }
 
 #[test]
-fn artifact_v13_round_trips_scalar_call_callee_vocabulary() {
+fn artifact_v14_round_trips_scalar_call_callee_vocabulary() {
     let mut plan = plan(FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1);
     let callee = MachineId::new(901).unwrap();
     std::sync::Arc::make_mut(&mut plan.transformed).functions[0].blocks[0].instructions[0].kind =
@@ -185,7 +180,7 @@ fn artifact_v13_round_trips_scalar_call_callee_vocabulary() {
 }
 
 #[test]
-fn artifact_v13_round_trips_signed_less_than_terminator_vocabulary() {
+fn artifact_v14_round_trips_signed_less_than_terminator_vocabulary() {
     let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     let terminator = plan.transformed.functions[0].blocks[0].terminator.clone();
     let SelectedTerminator::ConditionalBranch {
@@ -207,7 +202,7 @@ fn artifact_v13_round_trips_signed_less_than_terminator_vocabulary() {
     assert_eq!(FixedViewCopyPlan::decode(&plan.encode()).unwrap(), plan);
 
     assert_eq!(
-        FixedViewCopyPlan::decode(&encode_v9(&plan)),
+        FixedViewCopyPlan::decode(&with_stale_version(&plan, 9)),
         Err(crate::FixedViewCopyDecodeError::UnsupportedVersion(9))
     );
 }

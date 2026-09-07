@@ -1,6 +1,6 @@
 use crate::tests::*;
 #[test]
-fn allocation_legality_is_phase_exact_and_exposes_fixed_view_transitions() {
+fn allocation_legality_is_phase_exact_with_explicit_abi_transfers() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let staged = stage_optimized_allocation_legality(
             stage_optimized_live_ranges(
@@ -10,14 +10,32 @@ fn allocation_legality_is_phase_exact_and_exposes_fixed_view_transitions() {
         )
         .unwrap();
         let function = &staged.legality().plan().functions[0];
-        assert_eq!(function.virtual_registers.len(), 2);
-        assert_eq!(function.virtual_registers[0].entry_transitions.len(), 0);
-        assert_eq!(function.virtual_registers[1].entry_transitions.len(), 2);
-        assert!(
-            function.virtual_registers[1]
-                .entry_transitions
+        let selected = &staged
+            .live_range_stage()
+            .liveness_stage()
+            .selected_stage()
+            .selected()
+            .plan()
+            .functions[0];
+        assert_eq!(
+            function.virtual_registers.len(),
+            selected.virtual_registers.len()
+        );
+        assert_eq!(
+            selected
+                .virtual_registers
                 .iter()
-                .all(|transition| transition.from_view != transition.to_view)
+                .filter(|register| register.entry_fixed_view.is_some())
+                .count(),
+            2
+        );
+        // ABI live-ins are snapshotted into durable values. Return-view copies
+        // are distinct virtuals, not transitions on an entry-fixed virtual.
+        assert!(
+            function
+                .virtual_registers
+                .iter()
+                .all(|register| register.entry_transitions.is_empty())
         );
 
         let environment = staged
@@ -67,7 +85,7 @@ fn allocation_legality_is_phase_exact_and_exposes_fixed_view_transitions() {
             staged.custody().legality(),
             staged.legality().receipt().identity()
         );
-        assert_eq!(staged.custody().entry_transition_count(), 2);
+        assert_eq!(staged.custody().entry_transition_count(), 0);
 
         if target == NativeTarget::linux_x64() {
             let mut overlays = environment.reservations().profile().active_overlays.clone();

@@ -13,6 +13,7 @@ use optimization_unit::{
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType, ValueId};
 use target_operations::{TargetFunction, TargetOperation, TargetOperationPlan};
+mod boolean;
 mod control;
 mod header;
 mod nodes;
@@ -21,6 +22,18 @@ use header::function_abi;
 pub(super) use nodes::instruction;
 use target::validate_target;
 
+pub(super) fn u8_type() -> IntegerType {
+    IntegerType::new(IntegerSign::Unsigned, 8).expect("U8")
+}
+pub(super) fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
+    match scalar {
+        ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
+        ScalarType::Integer(integer) if integer == u64_type() || integer == i64_type() => {
+            Some(ValueShape::integer(8, 8))
+        }
+        _ => None,
+    }
+}
 pub(super) fn u64_type() -> IntegerType {
     IntegerType::new(IntegerSign::Unsigned, 64).expect("U64")
 }
@@ -103,7 +116,8 @@ pub(super) fn match_input(
                 .iter()
                 .flat_map(|block| &block.nodes)
                 .any(|node| node.uses.iter().any(|used| used.value == parameter.value))
-                && !register(placement)
+                && !(Some(placement.shape) == scalar_shape(parameter.scalar_type)
+                    && matches!(placement.locations.as_slice(), [ValueLocation::Register {value_byte_offset:0,byte_size,..}] if *byte_size == placement.shape.byte_size))
         })
     {
         return Err(invalid);

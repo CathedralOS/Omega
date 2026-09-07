@@ -198,10 +198,13 @@ fn validate_mixed_structural_scalar_abi(
         .scalar_parameters
         .iter()
         .map(|parameter| {
-            unit::unit_scalar_shape(
-                parameter.value,
-                semantic_vocabulary::ScalarType::Integer(parameter.scalar_type),
-            )
+            if !matches!(
+                parameter.scalar_type,
+                semantic_vocabulary::ScalarType::Integer(_)
+            ) {
+                return Err(invalid());
+            }
+            unit::unit_scalar_shape(parameter.value, parameter.scalar_type)
         })
         .collect::<Result<Vec<_>, _>>()
         .map_err(|_| invalid())?;
@@ -224,7 +227,7 @@ fn validate_mixed_structural_scalar_abi(
     )
     .map_err(|_| invalid())?;
     let scalar_count = row.scalar_parameters.len();
-    if function.fixed_integer_scalar_abi.is_some()
+    if function.scalar_abi.is_some()
         || result_type != row.result.scalar_type
         || expected_plan != row.call_plan
         || row.call_plan.parameters.len() != scalar_count + row.structural_parameters.len()
@@ -1190,7 +1193,7 @@ fn emit_function(
     Ok(MachineCodeFunction {
         machine: function.machine,
         attachment: function.attachment,
-        fixed_integer_scalar_abi: function.fixed_integer_scalar_abi.clone(),
+        scalar_abi: function.scalar_abi.clone(),
         mixed_structural_scalar_abi: function.mixed_structural_scalar_abi.clone(),
         structural_call_scalar_return: match &function.operation {
             AssignedOperation::ReturnStructuralScalarCall {

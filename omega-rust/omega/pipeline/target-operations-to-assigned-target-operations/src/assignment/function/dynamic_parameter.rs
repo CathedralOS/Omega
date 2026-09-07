@@ -268,7 +268,7 @@ fn assign_forwarded(
         result: result_shape,
     };
     if function.attachment.is_some()
-        || function.fixed_integer_scalar_abi.is_some()
+        || function.scalar_abi.is_some()
         || function.mixed_structural_scalar_abi.is_some()
         || parameter_abi.parameter.owner != function.machine
         || parameter_abi.parameter.ordinal != 0

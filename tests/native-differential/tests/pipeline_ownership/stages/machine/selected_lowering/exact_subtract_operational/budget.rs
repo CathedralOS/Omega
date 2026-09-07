@@ -3,9 +3,9 @@ use crate::tests::*;
 use super::fixture::*;
 
 const EXACT_USAGE: OptimizationWorkUsage = OptimizationWorkUsage {
-    rule_evaluations: 19,
+    rule_evaluations: 25,
     candidates: 8,
-    validation_steps: 123,
+    validation_steps: 174,
     commits: 6,
     iterations: 9,
 };

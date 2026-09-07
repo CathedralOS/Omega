@@ -54,11 +54,11 @@ fn exact_graph_selects_an_eligible_original_before_the_reload() {
         assert_eq!(first.receipt().ranges(), homes.receipt().ranges());
 
         let choice = &first.plan().choices[0];
-        assert_eq!(choice.point, LiveRangePoint(14));
+        assert_eq!(choice.point, LiveRangePoint(16));
         assert_eq!(
             choice.selected_victim,
             selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Original(
-                VirtualRegisterId(5)
+                VirtualRegisterId(6)
             )
         );
         assert_eq!(choice.selected_victim_view, choice.reclaimed_view);
@@ -70,7 +70,7 @@ fn exact_graph_selects_an_eligible_original_before_the_reload() {
                 .collect::<Vec<_>>(),
             vec![
                 selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Original(
-                    VirtualRegisterId(5)
+                    VirtualRegisterId(6)
                 ),
                 selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Reload(
                     action(0, 0)
@@ -86,13 +86,13 @@ fn exact_graph_selects_an_eligible_original_before_the_reload() {
             vec![
                 (
                     selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(
-                        5
+                        6
                     ),),
-                    LiveRangePoint(17),
+                    LiveRangePoint(19),
                 ),
                 (
                     selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Reload(action(0, 0)),
-                    LiveRangePoint(19),
+                    LiveRangePoint(21),
                 ),
             ]
         );
@@ -101,8 +101,8 @@ fn exact_graph_selects_an_eligible_original_before_the_reload() {
             .iter()
             .find(|resident| resident.value == choice.selected_victim)
             .unwrap();
-        assert_eq!(original.start, LiveRangePoint(13));
-        assert_eq!(original.exclusive_end, LiveRangePoint(17));
+        assert_eq!(original.start, LiveRangePoint(15));
+        assert_eq!(original.exclusive_end, LiveRangePoint(19));
     }
 }
 
@@ -142,7 +142,7 @@ fn independent_replay_rejects_reload_original_and_root_forgery() {
         let mut original = canonical.clone();
         original.choices[0].selected_victim =
             selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Original(
-                VirtualRegisterId(6),
+                VirtualRegisterId(7),
             );
         assert_eq!(
             sources.validate_generalized_victim(&homes, &worklist, original),
@@ -174,9 +174,9 @@ fn independent_replay_rejects_reload_original_and_root_forgery() {
 #[test]
 fn guarded_original_choice_has_exact_representable_budget_boundaries() {
     let insufficient = [
-        OptimizationWorkBudget::new(3, 2, 46, 1, 1).unwrap(),
-        OptimizationWorkBudget::new(4, 1, 46, 1, 1).unwrap(),
-        OptimizationWorkBudget::new(4, 2, 45, 1, 1).unwrap(),
+        OptimizationWorkBudget::new(3, 2, 53, 1, 1).unwrap(),
+        OptimizationWorkBudget::new(4, 1, 53, 1, 1).unwrap(),
+        OptimizationWorkBudget::new(4, 2, 52, 1, 1).unwrap(),
     ];
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let (sources, homes, worklist) = sources(target);
@@ -214,14 +214,14 @@ const fn action(
 }
 
 fn exact_budget() -> OptimizationWorkBudget {
-    OptimizationWorkBudget::new(4, 2, 46, 1, 1).unwrap()
+    OptimizationWorkBudget::new(4, 2, 53, 1, 1).unwrap()
 }
 
 const fn exact_usage() -> OptimizationWorkUsage {
     OptimizationWorkUsage {
         rule_evaluations: 4,
         candidates: 2,
-        validation_steps: 46,
+        validation_steps: 53,
         commits: 1,
         iterations: 1,
     }

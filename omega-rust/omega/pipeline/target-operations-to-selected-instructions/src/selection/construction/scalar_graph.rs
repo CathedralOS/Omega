@@ -49,12 +49,21 @@ pub(super) fn build(
             ValueLocation::Register {
                 register,
                 value_byte_offset: 0,
-                byte_size: 8,
+                byte_size,
             },
         ] = parameter.placement.locations.as_slice()
         else {
             return Err(invalid());
         };
+        if *byte_size
+            != match parameter.scalar_type {
+                ScalarType::Boolean => 1,
+                ScalarType::Integer(integer) if integer.bits() == 64 => 8,
+                _ => return Err(invalid()),
+            }
+        {
+            return Err(invalid());
+        }
         let fixed = fixed_input_constraint(
             source.machine,
             parameter.value,
@@ -69,7 +78,7 @@ pub(super) fn build(
         let id = VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
         builder.registers.push(VirtualRegister {
             id,
-            scalar_type: ScalarType::Integer(parameter.scalar_type),
+            scalar_type: parameter.scalar_type,
             class,
             origin: VirtualRegisterOrigin::EntryParameter {
                 source_value: parameter.value,
@@ -82,12 +91,26 @@ pub(super) fn build(
             parameter.value,
             id,
             parameter.definition_site,
-            ScalarType::Integer(parameter.scalar_type),
+            parameter.scalar_type,
         ));
     }
     for index in 0..builder.definitions.len() {
         let (value, input, site, scalar_type) = builder.definitions[index];
-        let output = builder.copy(input, value, site, scalar_type)?;
+        let output = if scalar_type == ScalarType::Boolean {
+            let output = builder.register(value, site, scalar_type)?;
+            builder.emit(
+                SelectedInstructionKind::ZeroExtendU8,
+                constraints.keys.copy_i64,
+                &[input, output],
+                SelectedInstructionProvenance {
+                    values: vec![value],
+                    ..Default::default()
+                },
+            )?;
+            output
+        } else {
+            builder.copy(input, value, site, scalar_type)?
+        };
         builder.definitions[index].1 = output;
     }
     // Forward successors name their materialized destination parameters explicitly.
@@ -138,6 +161,9 @@ pub(super) fn build(
                     left,
                     right,
                 } => {
+                    if !branch_suffix(block, operation_index) {
+                        return Err(invalid());
+                    }
                     if let Some(zero) = zero_compare::folded_zero(source, block, operation_index) {
                         let input = if *left == zero.result { *right } else { *left };
                         let (_, register, _, actual_type) =
@@ -190,6 +216,44 @@ pub(super) fn build(
                         },
                     )?;
                     continue;
+                }
+                LegalizedScalarInstructionKind::BooleanNot { .. } => {
+                    if !branch_suffix(block, operation_index) {
+                        return Err(invalid());
+                    }
+                    continue;
+                }
+                LegalizedScalarInstructionKind::IntegerWiden {
+                    operand,
+                    source_type,
+                } => {
+                    let (_, input, _, actual_type) =
+                        builder.resolve(*operand).ok_or_else(invalid)?;
+                    if actual_type != ScalarType::Integer(*source_type)
+                        || source_type.sign() != IntegerSign::Unsigned
+                        || source_type.bits() != 8
+                        || !matches!(scalar_type, ScalarType::Integer(integer)
+                            if integer.sign() == IntegerSign::Unsigned && integer.bits() == 64)
+                    {
+                        return Err(invalid());
+                    }
+                    let output = builder.register(
+                        operation.result,
+                        operation.definition_site,
+                        scalar_type,
+                    )?;
+                    builder.emit(
+                        SelectedInstructionKind::CopyI64,
+                        constraints.keys.copy_i64,
+                        &[input, output],
+                        SelectedInstructionProvenance {
+                            operations: vec![operation.operation],
+                            values: vec![*operand, operation.result],
+                            fuel: operation.fuel.clone(),
+                            ..Default::default()
+                        },
+                    )?;
+                    output
                 }
                 LegalizedScalarInstructionKind::Constant(value) => {
                     let output = builder.register(
@@ -437,4 +501,18 @@ impl Builder<'_> {
         )?;
         Ok(output)
     }
+}
+
+fn branch_suffix(block: &legalized_operations::LegalizedScalarBlock, index: usize) -> bool {
+    let mut value = block.instructions[index].result;
+    for row in &block.instructions[index + 1..] {
+        if !matches!(row.kind, LegalizedScalarInstructionKind::BooleanNot {operand} if operand == value)
+            || row.scalar_type != ScalarType::Boolean
+        {
+            return false;
+        }
+        value = row.result;
+    }
+    matches!(block.terminator, legalized_operations::LegalizedScalarTerminator::Conditional {condition,..}
+        if condition == value)
 }

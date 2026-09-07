@@ -262,7 +262,7 @@ fn codec_round_trips_complete_effect_content() {
 }
 
 #[test]
-fn jump_effects_require_the_v10_wire_vocabulary() {
+fn jump_effects_require_the_v11_wire_vocabulary() {
     let mut source = plan();
     let instruction = &mut source.functions[0].blocks[0].instructions[0];
     instruction.kind = SelectedInstructionKind::Jump;
@@ -271,7 +271,7 @@ fn jump_effects_require_the_v10_wire_vocabulary() {
         MachineEncodedControlEffect::UnconditionalRelativeBranchV1;
     source.identity = pre_allocation_machine_effect_identity(&source);
     let mut bytes = source.encode();
-    assert_eq!(&bytes[8..12], &10_u32.to_le_bytes());
+    assert_eq!(&bytes[8..12], &11_u32.to_le_bytes());
     assert_eq!(
         PreAllocationMachineEffectPlan::decode(&bytes).unwrap(),
         source
@@ -279,7 +279,7 @@ fn jump_effects_require_the_v10_wire_vocabulary() {
     bytes[8..12].copy_from_slice(&9_u32.to_le_bytes());
     assert_eq!(
         PreAllocationMachineEffectPlan::decode(&bytes),
-        Err(PreAllocationMachineEffectDecodeError::InvalidField)
+        Err(PreAllocationMachineEffectDecodeError::UnsupportedVersion(9))
     );
 }
 
@@ -298,50 +298,27 @@ fn codec_v8_round_trips_signed_less_than_branch_vocabulary() {
 }
 
 #[test]
-fn codec_v7_retains_unsigned_predicate_identity_decode_compatibility() {
+fn codec_zero_extension_round_trips_and_rejects_all_prior_versions() {
     let mut source = plan();
     let instruction = &mut source.functions[0].blocks[0].instructions[0];
-    instruction.kind = SelectedInstructionKind::ConditionalBranchU64LessThan;
-    instruction.alternatives[0].key.family = MachineAlternativeFamily::ConditionalBranchU64LessThan;
-    source.identity = super::identity::pre_allocation_machine_effect_identity_v6_legacy(&source);
-    let mut encoded = source.encode();
-    encoded[8..12].copy_from_slice(&7_u32.to_le_bytes());
-    encoded[12..44].copy_from_slice(&source.identity.bytes());
-
+    instruction.kind = SelectedInstructionKind::ZeroExtendU8;
+    instruction.alternatives[0].key.family = MachineAlternativeFamily::ZeroExtendU8;
+    source.identity = pre_allocation_machine_effect_identity(&source);
+    let encoded = source.encode();
     assert_eq!(
         PreAllocationMachineEffectPlan::decode(&encoded).unwrap(),
         source
     );
-}
-
-#[test]
-fn codec_v7_rejects_the_v8_signed_predicate_tag() {
-    let mut source = plan();
-    let instruction = &mut source.functions[0].blocks[0].instructions[0];
-    instruction.kind = SelectedInstructionKind::ConditionalBranchI64LessThan;
-    instruction.alternatives[0].key.family = MachineAlternativeFamily::ConditionalBranchI64LessThan;
-    source.identity = super::identity::pre_allocation_machine_effect_identity_v6_legacy(&source);
-    let mut encoded = source.encode();
-    encoded[8..12].copy_from_slice(&7_u32.to_le_bytes());
-    encoded[12..44].copy_from_slice(&source.identity.bytes());
-
-    assert_eq!(
-        PreAllocationMachineEffectPlan::decode(&encoded),
-        Err(PreAllocationMachineEffectDecodeError::InvalidField)
-    );
-}
-
-#[test]
-fn codec_v6_retains_pre_predicate_identity_decode_compatibility() {
-    let mut source = plan();
-    source.identity = super::identity::pre_allocation_machine_effect_identity_v5_legacy(&source);
-    let mut encoded = source.encode();
-    encoded[8..12].copy_from_slice(&6_u32.to_le_bytes());
-
-    assert_eq!(
-        PreAllocationMachineEffectPlan::decode(&encoded).unwrap(),
-        source
-    );
+    for version in 0_u32..11 {
+        let mut stale = encoded.clone();
+        stale[8..12].copy_from_slice(&version.to_le_bytes());
+        assert_eq!(
+            PreAllocationMachineEffectPlan::decode(&stale),
+            Err(PreAllocationMachineEffectDecodeError::UnsupportedVersion(
+                version
+            ))
+        );
+    }
 }
 
 #[test]

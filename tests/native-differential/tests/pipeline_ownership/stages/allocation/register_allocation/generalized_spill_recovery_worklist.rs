@@ -58,8 +58,8 @@ fn exact_epoch_two_work_retains_the_pressure_domain_and_blockers_on_both_targets
             selected_instructions_to_register_homes::GeneralizedSpillActionSource::EpochOne { .. }
         ));
         assert_eq!(item.block, selected_instructions::SelectedBlockId(1));
-        assert_eq!(item.start, LiveRangePoint(14));
-        assert_eq!(item.exclusive_end, LiveRangePoint(15));
+        assert_eq!(item.start, LiveRangePoint(16));
+        assert_eq!(item.exclusive_end, LiveRangePoint(17));
         assert_eq!(item.candidates.len(), 2);
         assert!(item.candidates.windows(2).all(|pair| pair[0] < pair[1]));
         assert_eq!(item.blocking_homes.len(), 2);
@@ -68,7 +68,7 @@ fn exact_epoch_two_work_retains_the_pressure_domain_and_blockers_on_both_targets
         }));
         assert!(item.blocking_homes.iter().any(|home| {
             home.value
-                == selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(5))
+                == selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(6))
         }));
     }
 }

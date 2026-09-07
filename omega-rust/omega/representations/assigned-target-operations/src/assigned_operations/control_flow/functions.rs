@@ -9,7 +9,7 @@ use target_operations::TerminalPsiProvenance;
 pub struct AssignedFunction {
     pub machine: MachineId,
     pub attachment: Option<StructuralTypeId>,
-    pub fixed_integer_scalar_abi: Option<target_operations::FixedIntegerScalarFunctionAbi>,
+    pub scalar_abi: Option<target_operations::ScalarFunctionAbi>,
     pub mixed_structural_scalar_abi: Option<target_operations::MixedStructuralScalarFunctionAbi>,
     pub provenance: TerminalPsiProvenance,
     pub operation: AssignedOperation,

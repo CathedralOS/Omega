@@ -3,12 +3,12 @@
 use crate::{
     BoundaryByteSequenceArgument, BoundaryExecutionBinding, BoundaryRealization,
     BoundaryScalarArgument, NormalizedForeignCallBinding, NormalizedForeignScalarArgument,
-    ProviderExecutionBinding, TargetBoundaryResult, TargetDynamicDescriptorArgument,
-    TargetIeeeFloatFmaOperand, TargetStructuralArgument, TargetStructuralHomeRequirement,
-    TargetStructuralParameter, TargetUnitConditionalSuccessor, TargetUnitScalarArgumentSource,
-    TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
+    ProviderExecutionBinding, ScalarAbiValue, TargetBoundaryResult,
+    TargetDynamicDescriptorArgument, TargetIeeeFloatFmaOperand, TargetStructuralArgument,
+    TargetStructuralHomeRequirement, TargetStructuralParameter, TargetUnitConditionalSuccessor,
+    TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
     TargetUnitStructuralCaseSuccessor, TargetUnitWriteOnlyPrimitiveStoreSource,
-    TargetX86ScalarFmaSettlement, UnitScalarAbiValue,
+    TargetX86ScalarFmaSettlement,
 };
 use abstract_operations::{
     AbstractReboundDynamicDispatch, AbstractResult, AbstractStoredDynamicDescriptor,
@@ -35,7 +35,7 @@ pub struct TargetUnitBody {
     /// Ordered scalar parameters and their exact incoming ABI placements.
     /// The bounded lane currently admits fixed integers and canonical
     /// Booleans; both remain distinct from zero-payload structural custody.
-    pub scalar_parameters: Vec<UnitScalarAbiValue>,
+    pub scalar_parameters: Vec<ScalarAbiValue>,
     pub parameters: Vec<TargetStructuralParameter>,
     pub operations: Vec<TargetUnitOperation>,
 }
@@ -278,7 +278,7 @@ pub enum TargetUnitOperation {
     /// that control consumes the declared Unit ABI parameter rather than a
     /// coincidentally equal transient home.
     ConditionalBooleanParameter {
-        condition: UnitScalarAbiValue,
+        condition: ScalarAbiValue,
         when_true: TargetUnitConditionalSuccessor,
         when_false: TargetUnitConditionalSuccessor,
     },

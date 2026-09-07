@@ -58,12 +58,13 @@ pub(super) fn validate_structural_return_record(
         .scalar_parameters
         .iter()
         .map(|parameter| {
-            if parameter.scalar_type.is_address()
-                || !matches!(parameter.scalar_type.bits(), 8 | 16 | 32 | 64)
-            {
+            let semantic_vocabulary::ScalarType::Integer(integer) = parameter.scalar_type else {
+                return None;
+            };
+            if integer.is_address() || !matches!(integer.bits(), 8 | 16 | 32 | 64) {
                 return None;
             }
-            let bytes = parameter.scalar_type.bits() / 8;
+            let bytes = integer.bits() / 8;
             Some(calling_conventions::ValueShape::integer(bytes, bytes))
         })
         .collect::<Option<Vec<_>>>();

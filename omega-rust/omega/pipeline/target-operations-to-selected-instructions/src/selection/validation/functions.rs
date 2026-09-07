@@ -1,48 +1,8 @@
-use super::blocks::validate_selected_blocks;
-use super::integrity::{
-    validate_block_constraints, validate_def_use, validate_dense, validate_provenance_partition,
-};
 use super::structural_unit::{
     reconstruct_structural_unit_contract, reconstruct_structural_unit_layout,
 };
-use super::virtual_registers::validate_virtual_registers;
 use crate::selection::constraints::row;
 use crate::selection::shared::*;
-
-pub(super) fn validate_function(
-    function_index: usize,
-    source: &SourceFunction,
-    function: &SelectedFunction,
-    constraints: &SelectedSelectionConstraints,
-    physical: &ValidatedPhysicalRegisterModel,
-    catalog: &ValidatedRegisterConstraintCatalog,
-) -> Result<(), SelectedInstructionError> {
-    if function.machine != source.machine
-        || function.attachment != source.attachment
-        || function.provenance != source.provenance
-        || function.entry_block != SelectedBlockId(0)
-    {
-        return Err(SelectedInstructionError::FunctionProjectionMismatch {
-            function: function_index,
-        });
-    }
-    validate_dense(function_index, source, function)?;
-    validate_virtual_registers(
-        function_index,
-        source,
-        function,
-        constraints,
-        physical,
-        catalog,
-    )?;
-    validate_selected_blocks(function_index, source, function, &constraints.keys, catalog)?;
-    for block in &function.blocks {
-        validate_block_constraints(function_index, block, function, catalog)?;
-    }
-    validate_def_use(function_index, function, catalog)?;
-    validate_provenance_partition(function_index, source, function)?;
-    Ok(())
-}
 
 pub(super) fn validate_structural_unit_function(
     function_index: usize,

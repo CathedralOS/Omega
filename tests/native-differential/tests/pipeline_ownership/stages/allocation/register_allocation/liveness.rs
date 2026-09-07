@@ -31,31 +31,31 @@ fn selected_liveness_is_exact_on_both_architectures() {
                 .flat_map(|block| &block.instructions)
                 .map(|instruction| instruction.position.0)
                 .collect::<Vec<_>>(),
-            (0..6).collect::<Vec<_>>()
+            (0..9).collect::<Vec<_>>()
         );
 
         let entry = &function.blocks[0];
         assert_eq!(entry.virtual_live_in, vec![VirtualRegisterId(0)]);
         assert!(entry.virtual_live_out.is_empty());
         assert_eq!(
-            entry.instructions[0].virtual_uses,
-            vec![VirtualRegisterId(0)]
+            entry.instructions[1].virtual_uses,
+            vec![VirtualRegisterId(1)]
         );
-        assert!(entry.instructions[0].virtual_defs.is_empty());
+        assert!(entry.instructions[1].virtual_defs.is_empty());
         assert_eq!(
-            entry.instructions[0].unit_live_in,
+            entry.instructions[1].unit_live_in,
             named_units(&staged, &before_compare)
         );
         assert_eq!(
-            entry.instructions[0].unit_live_out,
+            entry.instructions[1].unit_live_out,
             named_units(&staged, &after_compare)
         );
         assert_eq!(
-            entry.instructions[1].unit_live_in,
-            entry.instructions[0].unit_live_out
+            entry.instructions[2].unit_live_in,
+            entry.instructions[1].unit_live_out
         );
         assert_eq!(
-            entry.instructions[1].unit_live_out,
+            entry.instructions[2].unit_live_out,
             named_units(&staged, &after_branch)
         );
         assert_eq!(entry.successors.len(), 2);
@@ -69,7 +69,7 @@ fn selected_liveness_is_exact_on_both_architectures() {
 
         for (block, register) in function.blocks[1..]
             .iter()
-            .zip([VirtualRegisterId(1), VirtualRegisterId(2)])
+            .zip([VirtualRegisterId(2), VirtualRegisterId(4)])
         {
             assert!(block.virtual_live_in.is_empty());
             assert!(block.virtual_live_out.is_empty());
@@ -77,12 +77,24 @@ fn selected_liveness_is_exact_on_both_architectures() {
             assert_eq!(block.instructions[0].virtual_live_out, vec![register]);
             assert_eq!(block.instructions[1].virtual_uses, vec![register]);
             assert_eq!(block.instructions[1].virtual_live_in, vec![register]);
-            assert!(block.instructions[1].virtual_live_out.is_empty());
+            assert_eq!(
+                block.instructions[1].virtual_defs,
+                vec![VirtualRegisterId(register.0 + 1)]
+            );
+            assert_eq!(
+                block.instructions[1].virtual_live_out,
+                vec![VirtualRegisterId(register.0 + 1)]
+            );
+            assert_eq!(
+                block.instructions[2].virtual_uses,
+                vec![VirtualRegisterId(register.0 + 1)]
+            );
+            assert!(block.instructions[2].virtual_live_out.is_empty());
         }
         assert_eq!(staged.custody().function_count(), 1);
         assert_eq!(staged.custody().block_count(), 3);
-        assert_eq!(staged.custody().virtual_register_count(), 3);
-        assert_eq!(staged.custody().instruction_count(), 6);
+        assert_eq!(staged.custody().virtual_register_count(), 6);
+        assert_eq!(staged.custody().instruction_count(), 9);
         assert_eq!(staged.custody().successor_count(), 2);
         assert_eq!(
             staged.custody().register_environment(),
@@ -103,21 +115,16 @@ fn selected_liveness_is_exact_on_both_architectures() {
 fn forwarded_parameter_conditional_retains_cross_edge_liveness() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let selected = staged_forwarded_conditional(target);
-        assert_eq!(
-            selected.legalized().plan().functions[0]
-                .conditional()
-                .recipe,
-            LegalizationRecipe::ReturnU64EntryParameterConditionalV1
-        );
+
         let selected_plan = selected.selected().plan();
-        assert_eq!(selected_plan.functions[0].virtual_registers.len(), 2);
+        assert_eq!(selected_plan.functions[0].virtual_registers.len(), 6);
         assert_eq!(
             selected_plan.functions[0]
                 .blocks
                 .iter()
                 .map(|block| block.instructions.len() + 1)
                 .sum::<usize>(),
-            4
+            8
         );
         assert!(
             selected_plan.functions[0].virtual_registers[0]
@@ -138,20 +145,24 @@ fn forwarded_parameter_conditional_retains_cross_edge_liveness() {
         );
         assert_eq!(
             function.blocks[0].virtual_live_out,
-            vec![VirtualRegisterId(1)]
+            vec![VirtualRegisterId(3)]
         );
         for successor in &function.blocks[0].successors {
-            assert_eq!(successor.virtual_live, vec![VirtualRegisterId(1)]);
+            assert_eq!(successor.virtual_live, vec![VirtualRegisterId(3)]);
         }
-        for block in &function.blocks[1..] {
-            assert_eq!(block.virtual_live_in, vec![VirtualRegisterId(1)]);
+        for (index, block) in function.blocks[1..].iter().enumerate() {
+            assert_eq!(block.virtual_live_in, vec![VirtualRegisterId(3)]);
             assert!(block.virtual_live_out.is_empty());
             assert_eq!(
                 block.instructions[0].virtual_uses,
-                vec![VirtualRegisterId(1)]
+                vec![VirtualRegisterId(3)]
             );
-            assert!(block.instructions[0].virtual_live_out.is_empty());
-            assert!(block.instructions[0].unit_live_out.is_empty());
+            assert_eq!(
+                block.instructions[0].virtual_live_out,
+                vec![VirtualRegisterId(4 + index as u32)]
+            );
+            assert!(block.instructions[1].virtual_live_out.is_empty());
+            assert!(block.instructions[1].unit_live_out.is_empty());
         }
     }
 }
@@ -277,12 +288,12 @@ fn selected_liveness_is_deterministic_and_identity_binds_every_domain() {
         .clear();
     mutations.push(changed);
     let mut changed = original.clone();
-    changed.functions[0].blocks[0].instructions[1]
+    changed.functions[0].blocks[0].instructions[2]
         .unit_uses
         .clear();
     mutations.push(changed);
     let mut changed = original.clone();
-    changed.functions[0].blocks[0].instructions[0]
+    changed.functions[0].blocks[0].instructions[1]
         .unit_defs
         .clear();
     mutations.push(changed);

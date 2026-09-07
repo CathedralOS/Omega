@@ -31,8 +31,8 @@ use semantic_vocabulary::{
 use symbols::SymbolHandle;
 use target::NativeTarget;
 use target_operations::{
-    FixedIntegerScalarAbiValue, FixedIntegerScalarFunctionAbi, ScalarParameterLocation,
-    TargetFunction, TargetOperation, TargetOperationPlan, TerminalPsiProvenance,
+    ScalarAbiValue, ScalarFunctionAbi, ScalarParameterLocation, TargetFunction, TargetOperation,
+    TargetOperationPlan, TerminalPsiProvenance,
 };
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
@@ -78,16 +78,16 @@ fn private_function_plan() -> TargetOperationPlan {
         functions: vec![TargetFunction {
             machine,
             attachment: None,
-            fixed_integer_scalar_abi: Some(FixedIntegerScalarFunctionAbi {
+            scalar_abi: Some(ScalarFunctionAbi {
                 call_plan,
-                parameters: vec![FixedIntegerScalarAbiValue {
+                parameters: vec![ScalarAbiValue {
                     value: parameter,
-                    scalar_type,
+                    scalar_type: semantic_vocabulary::ScalarType::Integer(scalar_type),
                     placement: parameter_placement,
                 }],
-                result: FixedIntegerScalarAbiValue {
+                result: ScalarAbiValue {
                     value: result,
-                    scalar_type,
+                    scalar_type: semantic_vocabulary::ScalarType::Integer(scalar_type),
                     placement: result_placement,
                 },
             }),
@@ -120,7 +120,7 @@ fn emitted_object() -> (
         functions: vec![TargetFunction {
             machine: MachineId::new(1).expect("entry machine"),
             attachment: None,
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: Vec::new(),

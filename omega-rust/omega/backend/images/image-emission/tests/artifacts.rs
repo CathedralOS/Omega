@@ -339,7 +339,7 @@ fn linux_exit_group_object_validation_replays_exact_scalar_and_trap_bytes() {
             target,
             entry: machine,
             functions: vec![MachineCodeFunction {
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 structural_call_scalar_return: None,
                 unit_scalar_abi: None,
@@ -546,7 +546,7 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
         target,
         entry: machine,
         functions: vec![MachineCodeFunction {
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             structural_call_scalar_return: None,
             unit_scalar_abi: None,
@@ -2253,7 +2253,7 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
             target,
             entry: machine,
             functions: vec![MachineCodeFunction {
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 structural_call_scalar_return: None,
                 unit_scalar_abi: None,
@@ -2374,13 +2374,17 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "b3a739120393461af70443e8d40378b6938949592a6597d9f3be7fdfe2e0e4e0"
+        "855c90226818559aab3e3008e2f3f2d38cf8655382330b6eac56d440ac3b8724"
     );
-    // This fixture has no structural homes or calls. Format 80 adds explicit
-    // source-role encodings, so only the version header changes its bytes.
-    // Replacing that header must recover the pinned format-79 fingerprint.
+    // This fixture has no scalar ABI, structural homes or calls. Format 81
+    // preserves scalar kinds explicitly, so only the version header changes
+    // this fixture. Replacing it must recover the pinned format-80 fingerprint.
     let mut previous_bytes = bytes.clone();
-    previous_bytes[8..10].copy_from_slice(&79_u16.to_le_bytes());
+    previous_bytes[8..10].copy_from_slice(&80_u16.to_le_bytes());
+    assert_eq!(
+        decode_installation_record(&previous_bytes),
+        Err(InstallationError::UnsupportedFormatMarker(80))
+    );
     use sha2::{Digest, Sha256};
     let mut previous_digest = Sha256::new();
     previous_digest.update(b"omega-installation-record\0");
@@ -2388,7 +2392,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     previous_digest.update(&previous_bytes);
     assert_eq!(
         format!("{:x}", previous_digest.finalize()),
-        "e8a0c22b6e52a11ffea7936a39397252d803965446b77ef4446df9e5afc76edb"
+        "b3a739120393461af70443e8d40378b6938949592a6597d9f3be7fdfe2e0e4e0"
     );
 
     let mut changed_plan = plan;
@@ -2576,7 +2580,7 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
         target: NativeTarget::linux_x64(),
         entry: machine_id(1),
         functions: vec![MachineCodeFunction {
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             structural_call_scalar_return: None,
             unit_scalar_abi: None,
@@ -2769,7 +2773,7 @@ fn two_function_plan() -> MachineCodePlan {
         entry: machine_id(2),
         functions: vec![
             MachineCodeFunction {
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 structural_call_scalar_return: None,
                 unit_scalar_abi: None,
@@ -2815,7 +2819,7 @@ fn two_function_plan() -> MachineCodePlan {
                 structural_return: None,
             },
             MachineCodeFunction {
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 structural_call_scalar_return: None,
                 unit_scalar_abi: None,
@@ -2909,7 +2913,7 @@ fn semantic_x86_fma_plan(profile: TargetProfile) -> MachineCodePlan {
         functions: vec![TargetFunction {
             machine,
             attachment: None,
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: operations.to_vec(),
@@ -3023,7 +3027,7 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
         entry: machine_id(2),
         functions: vec![
             MachineCodeFunction {
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 structural_call_scalar_return: None,
                 unit_scalar_abi: None,
@@ -3069,7 +3073,7 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
                 structural_return: None,
             },
             MachineCodeFunction {
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 structural_call_scalar_return: None,
                 unit_scalar_abi: None,
@@ -3356,7 +3360,7 @@ fn shared_three_leaf_cleanup_plan(target: NativeTarget) -> MachineCodePlan {
         functions: vec![TargetFunction {
             machine: machine_id(1),
             attachment: None,
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: Vec::new(),
@@ -4239,7 +4243,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
         entry: machine_id(3),
         functions: vec![
             MachineCodeFunction {
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 structural_call_scalar_return: None,
                 unit_scalar_abi: None,
@@ -4298,7 +4302,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 structural_return: None,
             },
             MachineCodeFunction {
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 structural_call_scalar_return: None,
                 unit_scalar_abi: None,
@@ -4354,7 +4358,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 structural_return: None,
             },
             MachineCodeFunction {
-                fixed_integer_scalar_abi: None,
+                scalar_abi: None,
                 mixed_structural_scalar_abi: None,
                 structural_call_scalar_return: None,
                 unit_scalar_abi: None,

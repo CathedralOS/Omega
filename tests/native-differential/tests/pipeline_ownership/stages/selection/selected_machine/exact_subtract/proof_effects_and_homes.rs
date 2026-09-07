@@ -6,13 +6,14 @@ use crate::tests::*;
 fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let staged = staged_exact_subtract_conditional(target);
-        assert_eq!(
-            staged.legalized().plan().functions[0].conditional().recipe,
-            LegalizationRecipe::ReturnU64ExactSubtractImmediateConditionalV1
-        );
+
         let plan = staged.selected().plan();
-        assert_eq!(plan.functions[0].virtual_registers.len(), 7);
-        assert_eq!(staged.selected().receipt().instruction_count(), 10);
+        let binary_index = plan.functions[0].blocks[1]
+            .instructions
+            .iter()
+            .position(|row| matches!(row.kind, SelectedInstructionKind::ExactSubtractI64 { .. }))
+            .unwrap();
+
         let accepted = &staged
             .optimized_target()
             .optimized()
@@ -22,7 +23,11 @@ fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
             ObligationId::new(5_031).unwrap(),
             ObligationId::new(5_032).unwrap(),
         ]) {
-            let subtract = &block.instructions[2];
+            let subtract = block
+                .instructions
+                .iter()
+                .find(|row| matches!(row.kind, SelectedInstructionKind::ExactSubtractI64 { .. }))
+                .unwrap();
             let SelectedInstructionKind::ExactSubtractI64 {
                 obligation,
                 accepted_fact,
@@ -67,7 +72,7 @@ fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
         let identity = staged.selected().receipt().identity();
         let mut corrupted = plan.clone();
         let SelectedInstructionKind::ExactSubtractI64 { obligation, .. } =
-            &mut corrupted.functions[0].blocks[1].instructions[2].kind
+            &mut corrupted.functions[0].blocks[1].instructions[binary_index].kind
         else {
             unreachable!()
         };
@@ -75,18 +80,18 @@ fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
         assert_ne!(selected_instruction_plan_identity(&corrupted), identity);
         assert!(matches!(
             validate_raw_selection(&staged, corrupted),
-            Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+            Err(SelectedInstructionError::FunctionProjectionMismatch { function: 0 })
         ));
 
         let mut corrupted = plan.clone();
         let SelectedInstructionKind::ExactSubtractI64 {
             obligation,
             accepted_fact,
-        } = corrupted.functions[0].blocks[1].instructions[2].kind
+        } = corrupted.functions[0].blocks[1].instructions[binary_index].kind
         else {
             unreachable!()
         };
-        corrupted.functions[0].blocks[1].instructions[2].kind =
+        corrupted.functions[0].blocks[1].instructions[binary_index].kind =
             SelectedInstructionKind::ExactAddI64 {
                 obligation,
                 accepted_fact,
@@ -94,9 +99,11 @@ fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
         assert_ne!(selected_instruction_plan_identity(&corrupted), identity);
         assert!(matches!(
             validate_raw_selection(&staged, corrupted),
-            Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+            Err(SelectedInstructionError::FunctionProjectionMismatch { function: 0 })
         ));
 
+        let instruction_count = staged.selected().receipt().instruction_count();
+        let register_count = plan.functions[0].virtual_registers.len();
         let homes = stage_optimized_register_homes(
             stage_optimized_allocation_legality(
                 stage_optimized_live_ranges(
@@ -107,9 +114,9 @@ fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
             .expect("subtract legality"),
         )
         .expect("subtract homes");
-        assert_eq!(homes.custody().assignment_count(), 7);
+        assert_eq!(homes.custody().assignment_count() as usize, register_count);
         let post = stage_optimized_post_allocation_machine_plan(&homes).unwrap();
-        assert_eq!(post.custody().instruction_count(), 10);
+        assert_eq!(post.custody().instruction_count(), instruction_count);
         let decoded_post = physical_instructions::PostAllocationMachinePlan::decode(
             &post.machine().plan().encode(),
         )
@@ -142,7 +149,7 @@ fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
         .unwrap();
         assert_eq!(encodings.selected(), post.machine().receipt().selected());
         assert_eq!(encodings.machine(), post.machine().receipt().identity());
-        assert_eq!(encodings.rows().len(), 10);
+        assert_eq!(encodings.rows().len(), instruction_count);
         assert_eq!(
             encodings
                 .rows()

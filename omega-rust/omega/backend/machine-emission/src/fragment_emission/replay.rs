@@ -2,7 +2,6 @@ use super::FunctionFragmentEmissionSourceKind;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use crate::{
-    StagedAllocationRecoveryFunctionRelativeRealization,
     StagedFixedFrameFunctionRelativeRealization,
     StagedFunctionRelativeLayoutOptimizationRealization,
     StagedOptimizedStructuralUnitFunctionRelativeRealization,
@@ -18,7 +17,6 @@ pub enum FunctionFragmentReplayInputs {
     X86Rel8Direct(Box<StagedFunctionRelativeLayoutOptimizationRealization>),
     SelectedLowering(Box<StagedSelectedLoweringFunctionRelativeRealization>),
     PostAllocationMachine(Box<StagedPostAllocationMachineFunctionRelativeRealization>),
-    AllocationRecovery(Box<StagedAllocationRecoveryFunctionRelativeRealization>),
     UnitBaseline(Box<StagedOptimizedUnitFunctionRelativeRealization>),
     StructuralUnit(Box<StagedOptimizedStructuralUnitFunctionRelativeRealization>),
     FixedFrame(Box<StagedFixedFrameFunctionRelativeRealization>),
@@ -30,7 +28,6 @@ impl FunctionFragmentReplayInputs {
             Self::X86Rel8Direct(realization) => realization.allocation(),
             Self::SelectedLowering(realization) => realization.allocation(),
             Self::PostAllocationMachine(realization) => realization.allocation(),
-            Self::AllocationRecovery(realization) => realization.allocation(),
             Self::UnitBaseline(realization) => realization.allocation(),
             Self::StructuralUnit(realization) => realization.allocation(),
             Self::FixedFrame(realization) => realization.allocation(),
@@ -46,7 +43,6 @@ impl FunctionFragmentReplayInputs {
                     optimization: realization.optimization().optimization(),
                 }
             }
-            Self::AllocationRecovery(_) => FunctionFragmentEmissionSourceKind::AllocationRecoveryV1,
             Self::UnitBaseline(_) => FunctionFragmentEmissionSourceKind::UnitBaselineV1,
             Self::StructuralUnit(_) => FunctionFragmentEmissionSourceKind::StructuralUnitV1,
             Self::FixedFrame(_) => FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1,
@@ -63,7 +59,6 @@ impl FunctionFragmentReplayInputs {
             Self::StructuralUnit(realization) => realization.machine(),
             Self::FixedFrame(realization) => realization.machine(),
             Self::PostAllocationMachine(realization) => realization.machine(),
-            Self::AllocationRecovery(realization) => realization.machine(),
             Self::X86Rel8Direct(realization) => realization.machine(),
             Self::SelectedLowering(realization) => realization.machine(),
         }
@@ -81,7 +76,6 @@ impl FunctionFragmentReplayInputs {
             Self::StructuralUnit(realization) => realization.layout_optimization(),
             Self::FixedFrame(realization) => realization.layout_optimization(),
             Self::PostAllocationMachine(realization) => realization.layout_optimization(),
-            Self::AllocationRecovery(realization) => realization.layout_optimization(),
             Self::X86Rel8Direct(realization) => realization.layout_optimization(),
             Self::SelectedLowering(realization) => realization.layout_optimization(),
         }
@@ -144,7 +138,6 @@ impl FunctionFragmentReplayInputs {
             Self::X86Rel8Direct(realization) => realization.exit_contract(),
             Self::SelectedLowering(realization) => realization.exit_contract(),
             Self::PostAllocationMachine(realization) => realization.exit_contract(),
-            Self::AllocationRecovery(realization) => realization.exit_contract(),
             Self::UnitBaseline(realization) => realization.exit_contract(),
             Self::StructuralUnit(realization) => realization.exit_contract(),
             Self::FixedFrame(realization) => realization.exit_contract(),
@@ -158,7 +151,6 @@ impl FunctionFragmentReplayInputs {
             Self::X86Rel8Direct(realization) => realization.manifest(),
             Self::SelectedLowering(realization) => realization.manifest(),
             Self::PostAllocationMachine(realization) => realization.manifest(),
-            Self::AllocationRecovery(realization) => realization.manifest(),
             Self::UnitBaseline(realization) => realization.manifest(),
             Self::StructuralUnit(realization) => realization.manifest(),
             Self::FixedFrame(realization) => realization.manifest(),
@@ -197,7 +189,6 @@ impl FunctionFragmentReplayInputs {
             Self::X86Rel8Direct(realization) => realization.encoding(),
             Self::SelectedLowering(realization) => realization.encoding(),
             Self::PostAllocationMachine(realization) => realization.encoding(),
-            Self::AllocationRecovery(realization) => realization.encoding(),
             Self::UnitBaseline(realization) => realization.encoding(),
             Self::StructuralUnit(realization) => realization.encoding(),
             Self::FixedFrame(realization) => realization.encoding(),

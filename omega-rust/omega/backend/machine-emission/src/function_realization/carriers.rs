@@ -60,14 +60,14 @@ impl StagedFixedFrameFunctionRelativeRealization {
     pub const fn manifest(&self) -> &ValidatedFunctionRelativeOptimizationRealizationManifest {
         &self.manifest
     }
-    pub const fn custody(&self) -> StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
-        self.custody
+    pub const fn custody(&self) -> &StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
+        &self.custody
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
-    pub(super) source: StagedOptimizedRegisterHomeCustodyReceipt,
+    pub(super) source: AllocationEvidence,
     pub(super) machine: physical_instructions::PostAllocationMachineIdentity,
     pub(super) requirements: AllocatedCalleeSavedRequirementIdentity,
     pub(super) storage: NonAuthoritativeCalleeSaveStorageIdentity,
@@ -78,28 +78,28 @@ pub struct StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
 }
 
 impl StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
-    pub const fn source(self) -> StagedOptimizedRegisterHomeCustodyReceipt {
-        self.source
+    pub const fn source(&self) -> &AllocationEvidence {
+        &self.source
     }
-    pub const fn machine(self) -> physical_instructions::PostAllocationMachineIdentity {
+    pub const fn machine(&self) -> physical_instructions::PostAllocationMachineIdentity {
         self.machine
     }
-    pub const fn requirements(self) -> AllocatedCalleeSavedRequirementIdentity {
+    pub const fn requirements(&self) -> AllocatedCalleeSavedRequirementIdentity {
         self.requirements
     }
-    pub const fn storage(self) -> NonAuthoritativeCalleeSaveStorageIdentity {
+    pub const fn storage(&self) -> NonAuthoritativeCalleeSaveStorageIdentity {
         self.storage
     }
-    pub const fn frame(self) -> TargetFrameLayoutIdentity {
+    pub const fn frame(&self) -> TargetFrameLayoutIdentity {
         self.frame
     }
-    pub const fn protocol(self) -> TargetFrameProtocolEncodingIdentity {
+    pub const fn protocol(&self) -> TargetFrameProtocolEncodingIdentity {
         self.protocol
     }
-    pub const fn exit_contract(self) -> WholeFunctionExitContractIdentity {
+    pub const fn exit_contract(&self) -> WholeFunctionExitContractIdentity {
         self.exit_contract
     }
-    pub const fn realization(self) -> FunctionRelativeOptimizationRealizationManifestIdentity {
+    pub const fn realization(&self) -> FunctionRelativeOptimizationRealizationManifestIdentity {
         self.realization
     }
 }

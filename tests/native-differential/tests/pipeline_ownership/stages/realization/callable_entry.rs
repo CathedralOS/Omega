@@ -63,16 +63,15 @@ fn staged_active_resident_callable_object_artifact(
     let physical =
         stage_optimized_verified_physical_pipeline_with_provider_executions(optimized, target, &[])
             .unwrap();
-    let realization = (physical)
-        .into_allocation_recovery_for_test()
-        .unwrap_or_else(|| {
-            panic!("the root-build rematerialization selection must retain its owning realization")
-        });
+    let realization = (physical).into_fixed_frame_for_test().unwrap_or_else(|| {
+        panic!("the root-build rematerialization selection must retain its owning realization")
+    });
     let fragments = stage_optimized_function_fragment_emission(
-        FunctionFragmentReplayInputs::AllocationRecovery(realization).into(),
+        FunctionFragmentReplayInputs::FixedFrame(Box::new(realization)).into(),
     )
     .unwrap();
-    let text = stage_optimized_relocation_free_text_section(fragments).unwrap();
+    let applied = stage_function_fragment_frame_application(fragments).unwrap();
+    let text = stage_optimized_fixed_frame_text_section(applied).unwrap();
     let object = stage_optimized_relocation_free_object_container(text).unwrap();
     stage_validated_optimized_object_artifact(canonical_artifact(&semantic, &proof), object)
         .unwrap()
@@ -116,11 +115,13 @@ fn active_resident_root_build_reaches_object_artifact_and_ordinary_callable_on_b
         let artifact = staged_active_resident_callable_object_artifact(target);
         let object_stage = artifact.source();
         let text_stage = object_stage.source();
-        let StagedOptimizedObjectTextSectionSource::Direct(direct_text_stage) = text_stage else {
-            panic!("active-resident publication must retain direct text custody")
+        let StagedOptimizedObjectTextSectionSource::FixedFrame(fixed_text_stage) = text_stage
+        else {
+            panic!("active-resident publication must retain canonical fixed-frame custody")
         };
-        let fragment_stage = direct_text_stage.source();
-        let FunctionFragmentReplayInputs::AllocationRecovery(realization) =
+        let application = fixed_text_stage.source();
+        let fragment_stage = application.source();
+        let FunctionFragmentReplayInputs::FixedFrame(realization) =
             fragment_stage.source().replay_for_test()
         else {
             panic!("object custody must retain the rematerialization realization")
@@ -150,8 +151,8 @@ fn active_resident_root_build_reaches_object_artifact_and_ordinary_callable_on_b
             fragment_stage.custody()
         );
         assert_eq!(
-            validate_optimized_relocation_free_text_section(direct_text_stage).unwrap(),
-            direct_text_stage.custody()
+            validate_optimized_fixed_frame_text_section(fixed_text_stage).unwrap(),
+            fixed_text_stage.custody()
         );
         assert_eq!(
             validate_optimized_relocation_free_object_container(object_stage).unwrap(),
@@ -170,7 +171,7 @@ fn active_resident_root_build_reaches_object_artifact_and_ordinary_callable_on_b
         );
         assert_eq!(
             fragment_stage.manifest().record().source_kind,
-            FunctionFragmentEmissionSourceKind::AllocationRecoveryV1
+            FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1
         );
         assert_eq!(
             current
@@ -235,7 +236,7 @@ fn active_resident_root_build_reaches_object_artifact_and_ordinary_callable_on_b
         let artifact_report = optimization_pipeline_report_from_object_artifact(&artifact);
         assert_eq!(
             artifact_report.function_fragment().unwrap().source_kind,
-            FunctionFragmentEmissionSourceKind::AllocationRecoveryV1
+            FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1
         );
         assert!(artifact_report.ordinary_callable_entry().is_none());
 
@@ -276,7 +277,7 @@ fn active_resident_root_build_reaches_object_artifact_and_ordinary_callable_on_b
         let report = optimization_pipeline_report_from_ordinary_callable_entry(&staged);
         assert_eq!(
             report.function_fragment().unwrap().source_kind,
-            FunctionFragmentEmissionSourceKind::AllocationRecoveryV1
+            FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1
         );
         assert_eq!(
             report.object_container().unwrap().identity,

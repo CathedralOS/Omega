@@ -152,6 +152,188 @@ fn graph(
 }
 
 #[test]
+fn boolean_not_branch_suffix_preserves_each_operation_and_polarity() {
+    for target in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::windows_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let environment =
+            register_environment::baseline_target_register_environment(target).unwrap();
+        let constraints = SelectedSelectionConstraints {
+            keys: environment.selected_keys(),
+            projected_structural_call: None,
+            fixed_inputs: Vec::new(),
+        };
+        for count in 1..=2 {
+            let mut source = graph(target, Comparison::Equal, false);
+            let entry = source
+                .blocks
+                .iter_mut()
+                .find(|block| block.id == source.entry_block)
+                .unwrap();
+            let mut value = entry.instructions.last().unwrap().result;
+            for index in 0..count {
+                let mut row = entry.instructions.last().unwrap().clone();
+                row.operation = OperationId::new(100 + index).unwrap();
+                row.result = ValueId::new(100 + index).unwrap();
+                row.kind = LegalizedScalarInstructionKind::BooleanNot { operand: value };
+                row.definition_site = ValueDefinitionSite::Node {
+                    block: entry.id,
+                    node: entry.instructions.len() as u32,
+                };
+                row.fuel = vec![FuelSettlement {
+                    site: PsiProvenance::Operation(row.operation),
+                    units: 1,
+                }];
+                value = row.result;
+                entry.instructions.push(row);
+            }
+            let LegalizedScalarTerminator::Conditional { condition, .. } = &mut entry.terminator
+            else {
+                unreachable!()
+            };
+            *condition = value;
+            let selected = build(
+                0,
+                &source,
+                target,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .unwrap();
+            let validate = |candidate: &SelectedFunction| {
+                crate::selection::validation::scalar_graph::validate(
+                    0,
+                    &source,
+                    candidate,
+                    target,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                )
+            };
+            validate(&selected).unwrap();
+            let SelectedTerminator::ConditionalBranch { instruction, .. } =
+                &selected.blocks[0].terminator
+            else {
+                unreachable!()
+            };
+            assert_eq!(instruction.provenance.operations.len(), count as usize);
+            for corruption in 0..3 {
+                let mut changed = selected.clone();
+                let SelectedTerminator::ConditionalBranch {
+                    instruction,
+                    when_zero,
+                    when_nonzero,
+                } = &mut changed.blocks[0].terminator
+                else {
+                    unreachable!()
+                };
+                match corruption {
+                    0 => instruction.provenance.operations.clear(),
+                    1 => instruction.provenance.fuel[0].units += 1,
+                    _ => std::mem::swap(when_zero, when_nonzero),
+                }
+                assert!(validate(&changed).is_err());
+            }
+        }
+    }
+}
+
+#[test]
+fn boolean_entry_is_snapshotted_before_calls_and_tested_at_its_branch() {
+    for target in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::windows_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let environment =
+            register_environment::baseline_target_register_environment(target).unwrap();
+        let mut source = graph(target, Comparison::Equal, false);
+        source.call_plan = evaluate_call_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: vec![ValueShape::integer(1, 1)],
+                result: Some(ValueShape::integer(8, 8)),
+            },
+        )
+        .unwrap();
+        let value = ValueId::new(100).unwrap();
+        let placement = source.call_plan.parameters[0].clone();
+        let [ValueLocation::Register { register, .. }] = placement.locations.as_slice() else {
+            unreachable!()
+        };
+        let constraints = SelectedSelectionConstraints {
+            keys: environment.selected_keys(),
+            projected_structural_call: None,
+            fixed_inputs: vec![SelectedFixedInputConstraint {
+                machine: source.machine,
+                source_value: value,
+                parameter_index: 0,
+                register: *register,
+                fixed_view: environment.fixed_register_view(*register).unwrap(),
+            }],
+        };
+        source.parameters = vec![LegalizedScalarParameter {
+            value,
+            scalar_type: ScalarType::Boolean,
+            definition_site: ValueDefinitionSite::FunctionParameter(0),
+            placement,
+        }];
+        let entry = source
+            .blocks
+            .iter_mut()
+            .find(|block| block.id == source.entry_block)
+            .unwrap();
+        entry.instructions.pop();
+        let LegalizedScalarTerminator::Conditional { condition, .. } = &mut entry.terminator else {
+            unreachable!()
+        };
+        *condition = value;
+        let selected = build(
+            0,
+            &source,
+            target,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        let validate = |candidate: &SelectedFunction| {
+            crate::selection::validation::scalar_graph::validate(
+                0,
+                &source,
+                candidate,
+                target,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+        };
+        validate(&selected).unwrap();
+        assert!(matches!(
+            selected.blocks[0].instructions.last().unwrap().kind,
+            SelectedInstructionKind::CompareI64Zero
+        ));
+        assert_eq!(
+            selected.virtual_registers[0].scalar_type,
+            ScalarType::Boolean
+        );
+        let mut changed = selected.clone();
+        changed.blocks[0].instructions.last_mut().unwrap().operands[0].virtual_register =
+            VirtualRegisterId(0);
+        assert!(
+            validate(&changed).is_err(),
+            "branch must use durable snapshot, not short ABI input"
+        );
+    }
+}
+
+#[test]
 fn scalar_control_keeps_blocks_branches_calls_and_parallel_bindings() {
     for target in [
         target::NativeTarget::linux_x64(),

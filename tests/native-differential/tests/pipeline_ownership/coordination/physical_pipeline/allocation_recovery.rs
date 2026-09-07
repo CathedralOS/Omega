@@ -32,7 +32,7 @@ fn compiler_facing_physical_pipeline_runs_only_the_named_shared_entry_copy() {
             &[],
         )
         .unwrap();
-        let realization = (staged).allocation_recovery_for_test().unwrap_or_else(|| {
+        let realization = (staged).fixed_frame_for_test().unwrap_or_else(|| {
             panic!("the exact allocation-recovery phase must use its fixed-copy route")
         });
         let current = realization.allocation().current();
@@ -55,9 +55,11 @@ fn compiler_facing_physical_pipeline_runs_only_the_named_shared_entry_copy() {
             copy_receipt.policy(),
             FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1
         );
-        assert_eq!(copy_receipt.copy_count(), 1);
-        assert_eq!(plan.copies.len(), 1);
-        assert_eq!(plan.copies[0].destinations.len(), 2);
+        assert_eq!(copy_receipt.copy_count(), 0);
+        assert!(
+            plan.copies.is_empty(),
+            "ordinary entry snapshots need no redundant recovery copy"
+        );
         assert_eq!(reanalysis.entry_transition_count(), 0);
         assert_eq!(current.legality().receipt().entry_transition_count(), 0);
         assert_eq!(
@@ -93,7 +95,7 @@ fn compiler_facing_physical_pipeline_runs_only_the_named_active_resident_remater
             &[],
         )
         .unwrap();
-        let realization = (staged).allocation_recovery_for_test().unwrap_or_else(|| {
+        let realization = (staged).fixed_frame_for_test().unwrap_or_else(|| {
             panic!("the exact rematerialization selection must use its owning realization")
         });
         let current = realization.allocation().current();
@@ -116,10 +118,7 @@ fn compiler_facing_physical_pipeline_runs_only_the_named_active_resident_remater
                 .is_none()
         );
         assert_eq!(
-            staged
-                .allocation_recovery_function_relative_realization()
-                .unwrap()
-                .custody(),
+            staged.fixed_frame_for_test().unwrap().custody(),
             realization.custody()
         );
         assert_eq!(staged.function_relative_manifest(), realization.manifest());

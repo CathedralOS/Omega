@@ -351,23 +351,23 @@ using the same input predicates and ordered form catalog as legalization.
 The coordinator contains no separate scalar grammar and does not try legalization
 or emission before choosing a route. Classification grants no proof or physical
 authority; construction and independent replay still check the exact program.
-Return-only Unit programs, free `u64` scalar leaves, and the catalog's
-integer-ABI conditionals use the shared fragment stages even with empty selections.
-Scalar expression leaves carry ordered constants and proof-checked exact
-addition/subtraction steps, with operands referencing earlier definitions or
-register-passed ABI inputs. Legalization and selection do not classify these
-sequences by tree shape or chain length. The same representation carries the
-existing conditional pressure graphs; rematerialization remains an opt-in
-rewrite over their ordinary instructions, not a special source-program kind.
-Independent replay checks definition order, operand identity, accepted arithmetic
-facts and logical fuel. Legalized identity v25 binds these ordered steps; the
-retired chain-specific tags are not reused. Incoming stack arguments and other
-scalar operations remain outside this sequence contract.
+Ordinary Unit and scalar functions use the shared fragment stages even with
+empty selections. Their common graph carries ordered constants, proof-checked
+exact addition/subtraction and explicit integer widening, with operands referring
+to available definitions or admitted register-passed inputs. Legalization and
+selection do not classify arithmetic by tree shape or chain length. The same
+graph carries conditional pressure programs; rematerialization remains an opt-in
+rewrite over ordinary instructions, not a special source-program kind.
+Independent replay checks definition availability, operand identity, accepted
+arithmetic facts and logical fuel. Canonical graph encoding binds those facts;
+retired source-family tags are not reused. Reading incoming stack arguments
+remains outside this contract.
 The direct-return conditional forms include unsigned equality and inequality,
 signed/unsigned less-than and less-or-equal, and unsigned equality/inequality
-against zero, returning `u64` constants from two arms. Boolean-parameter forms
-remain outside default fragment publication until the ordinary scalar ABI
-carrier represents Boolean explicitly; catalog membership cannot replace that ABI.
+against zero. Boolean parameters have an explicit one-byte scalar ABI and enter
+the ordinary graph through zero-extending snapshots; unspecified upper register
+bits cannot affect a branch. BooleanNot chains may control branches, including
+after calls. Boolean-valued returns and call transport remain unsupported.
 Source-generated common-return functions retain all four blocks, both jumps,
 the shared result parameter, and every authored successor binding. Selection
 does not duplicate the return or manufacture a different source graph.
@@ -381,10 +381,10 @@ register transfer, naming both the current argument register and destination
 parameter register. Liveness and allocation consume that pair; they do not
 search for a register by semantic value identity, which ABI temporaries may
 share. Independent validation checks the transfer against the source binding,
-types and destination parameter. Selected identity v18 commits to that
-disposition and its registers; fixed-view-copy wire v13 retains them and rejects
+types and destination parameter. Selected identity commits to that
+disposition and its registers; fixed-view-copy encoding retains them and rejects
 older payload formats instead of reconstructing a transfer by guesswork.
-Scalar leaves retain their target ABI, keep incoming parameter precolors, and explicitly
+Scalar functions retain their target ABI, keep incoming parameter precolors, and explicitly
 copy a returned parameter into a separate return-constrained virtual value.
 Structural parameters, cleanup, callbacks and provider settlements remain
 outside this scalar migration. Direct-return controls start at separately
@@ -395,7 +395,7 @@ legalized graph: typed function and block parameters, ordered instructions,
 explicit branches and jumps, and value or Unit returns. Exact U64 addition and
 subtraction are ordinary instructions in that same graph, retaining each
 operation's obligation and accepted proof fact.
-The separate Unit, Unit-caller, arithmetic-leaf and fixed shared-return
+The separate Unit, Unit-caller, arithmetic-leaf, conditional-only and fixed shared-return
 representations and selectors are removed. Calls may occur in conditional arms
 and carry their results through join parameters. Calls may target other callers;
 their results may be returned, reused, or discarded without erasing the call.
@@ -403,9 +403,12 @@ Executable order comes from the checked
 operation stream, not recursive target return expressions. Those expressions
 remain source/ABI evidence, not the new graph's executable payload.
 Signed and unsigned 64-bit equality, less-than and less-or-equal comparisons
-retain their operand types. The admitted comparison result feeds only its
-immediately following conditional; selection realizes that pair with flags,
-not a Boolean value transport. Selected block scheduling is deterministic and
+retain their operand types. A comparison and optional BooleanNot chain form a
+contiguous, sole-use suffix ending at their conditional; selection checks and
+realizes that suffix with flags, not an escaping Boolean result. Every authored
+operation and fuel settlement remains represented. Boolean entry values are
+tested at the branch, so flags need not survive intervening calls. Selected block
+scheduling is deterministic and
 topological, independent of authored block-roster order. Edge bindings retain
 their source identities and parallel-transfer meaning.
 Each call retains its exact ABI and source operation; allocation sees explicit
@@ -444,8 +447,8 @@ admit all-register U64 arguments. A function retains its complete ABI even when
 some parameters are unused and stack-passed; selection emits only referenced
 inputs, preserving their original positions. Reading a stack parameter or
 passing a stack argument remains outside this contract.
-Legalized identity v28 binds the ordinary graph, block parameters, comparisons
-and control roles; legalization verifier v29 independently checks its source, ABI,
+Legalized identity binds the ordinary graph, block parameters, comparisons
+and control roles; legalization replay independently checks its source, ABI,
 fuel, effects and ownership. Register-environment and machine-effect identities
 bind the exact arity-key roster. Empty physical selection uses the same
 admission and encoding route. Microsoft calls reserve their required shadow
@@ -482,9 +485,11 @@ blocks and inconsistent incoming stack depths at joins. A shared frame is restor
 at the actual return, not at each jump. The
 taken edge owns the branch interval; the fallthrough edge has a zero-width
 coordinate at the next instruction. Both retain their one semantic conditional
-ordinal. Microsoft-x64 leaf frames retain the incoming stack when
-empty and align any allocated storage; outgoing calls still need a home-area
-contract and are not admitted by that frame policy. The
+ordinal. Recovery allocations use the same canonical fixed-frame realization
+as ordinary allocations. The retained recovery evidence is checked at allocation,
+and actual calls and preservation writes determine frame storage and protocol;
+recovery history does not select a frameless publisher. Microsoft-x64 frames
+reserve the outgoing ABI home area separately from save and link storage. The
 public request surface uses the closed post-Terminal selection type, so this
 transitional branch cannot reopen an earlier phase. Ranked-countdown native
 authority currently rejects a nonempty post-Terminal selection: the ordinary

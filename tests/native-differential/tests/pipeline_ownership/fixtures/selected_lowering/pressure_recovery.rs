@@ -6,13 +6,12 @@ use crate::tests::{
     MachineContract, MachineId, NativeTarget, ObligationId, Operation, OperationId, OperationKind,
     OperationResult, Optimization, OptimizationSelections, PressureRematerializationPolicy,
     RecoveryClassificationPolicy, ScalarType, SpillChoicePolicy,
-    StagedAllocationRecoveryFunctionRelativeRealization,
-    StagedOptimizedActiveResidentRematerialization, StagedOptimizedAllocationLegality,
-    StagedOptimizedPostAllocationMachinePlan, StagedOptimizedSelectedInstructions, SuccessorEdge,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, ValueId,
-    VocabularyMarker, lower_optimized_to_target_operations, operation_proof_bundle,
-    optimize_artifact_sections, selected_lowering_budget,
-    stage_allocation_recovery_function_relative_realization,
+    StagedFixedFrameFunctionRelativeRealization, StagedOptimizedActiveResidentRematerialization,
+    StagedOptimizedAllocationLegality, StagedOptimizedPostAllocationMachinePlan,
+    StagedOptimizedSelectedInstructions, SuccessorEdge, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator, ValueDeclaration, ValueId, VocabularyMarker,
+    lower_optimized_to_target_operations, operation_proof_bundle, optimize_artifact_sections,
+    selected_lowering_budget, stage_fixed_frame_function_relative_realization,
     stage_optimized_active_resident_rematerialization,
     stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
     stage_optimized_instruction_selection, stage_optimized_live_ranges, stage_optimized_liveness,
@@ -452,7 +451,12 @@ pub(crate) fn staged_active_resident_rematerialization_and_machine(
 
 pub(crate) fn staged_active_resident_allocation_recovery_realization(
     target: NativeTarget,
-) -> StagedAllocationRecoveryFunctionRelativeRealization {
+) -> StagedFixedFrameFunctionRelativeRealization {
     let (source, machine) = staged_active_resident_rematerialization_and_machine(target);
-    stage_allocation_recovery_function_relative_realization(source, machine).unwrap()
+    stage_fixed_frame_function_relative_realization(
+        source.try_into().unwrap(),
+        machine,
+        selected_lowering_budget(),
+    )
+    .unwrap()
 }

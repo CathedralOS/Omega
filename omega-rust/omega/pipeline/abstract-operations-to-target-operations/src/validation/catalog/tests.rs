@@ -91,7 +91,7 @@ fn boolean_literal_pair() -> (AbstractFunction, TargetFunction) {
         TargetFunction {
             machine,
             attachment: None,
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: vec![constant_operation],
@@ -146,7 +146,7 @@ fn unit_call_pair() -> (AbstractFunction, TargetFunction) {
         TargetFunction {
             machine,
             attachment: None,
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: vec![call_operation],
@@ -235,7 +235,7 @@ fn byte_sequence_literal_pair() -> (AbstractFunction, TargetFunction) {
         TargetFunction {
             machine,
             attachment: None,
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: vec![operation],
@@ -306,7 +306,7 @@ fn integer_literal_unit_return_pair() -> (AbstractFunction, TargetFunction) {
         TargetFunction {
             machine,
             attachment: None,
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: vec![operation],
@@ -375,7 +375,7 @@ fn ieee_float_literal_unit_return_pair() -> (AbstractFunction, TargetFunction) {
         TargetFunction {
             machine,
             attachment: None,
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: vec![operation],
@@ -483,7 +483,7 @@ fn trivial_affine_local_pair() -> (AbstractFunction, TargetFunction) {
         TargetFunction {
             machine,
             attachment: None,
-            fixed_integer_scalar_abi: None,
+            scalar_abi: None,
             mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: vec![operation],

@@ -130,7 +130,7 @@ fn encode_callee(bytes: &mut Vec<u8>, function: &target_operations::TargetFuncti
 fn encode_function_header(bytes: &mut Vec<u8>, function: &target_operations::TargetFunction) {
     bytes.extend_from_slice(&function.machine.get().to_le_bytes());
     encode_option_id(bytes, function.attachment.map(|value| value.get()));
-    bytes.push(u8::from(function.fixed_integer_scalar_abi.is_some()));
+    bytes.push(u8::from(function.scalar_abi.is_some()));
     encode_ids(
         bytes,
         function

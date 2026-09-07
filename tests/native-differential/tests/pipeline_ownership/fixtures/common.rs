@@ -7,7 +7,9 @@ pub(crate) fn budget() -> OptimizationWorkBudget {
 }
 
 pub(crate) fn selected_lowering_budget() -> OptimizationWorkBudget {
-    OptimizationWorkBudget::new(10_000, 10_000, 100_000, 10_000, 64).unwrap()
+    // This is capacity for end-to-end fixtures, not an exact-work expectation.
+    // The ordinary graph includes ABI transport in its allocation work.
+    OptimizationWorkBudget::new(10_000, 10_000, 100_000, 10_000, 512).unwrap()
 }
 
 pub(crate) fn canonical_artifact(

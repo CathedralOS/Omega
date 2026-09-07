@@ -2,10 +2,7 @@
 
 use super::*;
 
-pub(super) fn identity(
-    plan: &SelectedInstructionPlan,
-    schema: StructuralLegalizedIdentitySchema,
-) -> LegalizedOperationPlanIdentity {
+pub(super) fn identity(plan: &SelectedInstructionPlan) -> LegalizedOperationPlanIdentity {
     let legalized = LegalizedOperationPlan {
         psi: plan.psi,
         optimization_unit: optimization_core::OptimizationUnitIdentity::from_canonical_bytes(
@@ -14,7 +11,6 @@ pub(super) fn identity(
         fuel_schedule: plan.fuel_schedule,
         target: plan.target,
         entry: plan.entry,
-        functions: Vec::new(),
         scalar_functions: Vec::new(),
         structural_unit_functions: plan
             .structural_unit_functions
@@ -79,18 +75,5 @@ pub(super) fn identity(
             .collect(),
         projected_structural_call_returns: Vec::new(),
     };
-    match schema {
-        StructuralLegalizedIdentitySchema::V9 => {
-            legalized_operations::legalized_operation_plan_identity_v9_legacy(&legalized)
-        }
-        StructuralLegalizedIdentitySchema::V12 => {
-            legalized_operations::legalized_operation_plan_identity_v12_legacy(&legalized)
-        }
-        StructuralLegalizedIdentitySchema::V13 => {
-            legalized_operations::legalized_operation_plan_identity_v13_legacy(&legalized)
-        }
-        StructuralLegalizedIdentitySchema::V14 => {
-            legalized_operations::legalized_operation_plan_identity_v14_legacy(&legalized)
-        }
-    }
+    legalized_operations::legalized_operation_plan_identity(&legalized)
 }
