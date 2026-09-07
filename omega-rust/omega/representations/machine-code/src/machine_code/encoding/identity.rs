@@ -67,6 +67,14 @@ fn encode_encoding_row(hasher: &mut Sha256, row: &SelectedFormEncodingRow) {
         Some(address) => {
             use physical_instructions::PhysicalAddressOperation as Address;
             match address.symbolic {
+                Address::Load8Indexed {
+                    base_operand,
+                    index_operand,
+                } => {
+                    hasher.update([4]);
+                    hasher.update(base_operand.to_le_bytes());
+                    hasher.update(index_operand.to_le_bytes());
+                }
                 Address::Load64 {
                     base_operand,
                     byte_offset,
@@ -198,6 +206,16 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
         MachineEncodedStackEffect as Stack, MachineEncodedTrapBehavior as Trap,
     };
     match effects.memory {
+        Memory::ReadIndexedPointerV1 {
+            pointer_operand,
+            index_operand,
+            byte_count,
+        } => {
+            hasher.update([5]);
+            hasher.update(pointer_operand.to_le_bytes());
+            hasher.update(index_operand.to_le_bytes());
+            hasher.update(byte_count.to_le_bytes());
+        }
         Memory::NoneV1 => hasher.update([0]),
         Memory::ReadPointerV1 {
             pointer_operand,
@@ -288,6 +306,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::CallI64 => 13,
         MachineAlternativeFamily::Jump => 14,
         MachineAlternativeFamily::Load64 => 16,
+        MachineAlternativeFamily::Load8Indexed => 21,
         MachineAlternativeFamily::Store64 => 17,
         MachineAlternativeFamily::FrameAddress => 18,
         MachineAlternativeFamily::CallUnit => 19,

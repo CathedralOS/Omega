@@ -30,10 +30,13 @@ pub(super) fn encode_row(
     let alternative = machine.alternative.key;
     let state = match selected.kind {
         kind @ (SelectedInstructionKind::Load64 { .. }
+        | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Store64 { .. }
         | SelectedInstructionKind::FrameAddress { .. }) => {
-            if !matches!(kind, SelectedInstructionKind::Load64 { .. })
-                && target != NativeTarget::windows_x64()
+            if !matches!(
+                kind,
+                SelectedInstructionKind::Load64 { .. } | SelectedInstructionKind::Load8Indexed
+            ) && target != NativeTarget::windows_x64()
             {
                 return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
             }

@@ -9,6 +9,31 @@ pub(super) fn project(
     let (operation, result) =
         scalar_graph_input::instruction(node).ok_or(Error::SourceCustodyMismatch)?;
     let kind = match &node.operation {
+        AbstractOperation::ByteSequenceRead {
+            psi_operation,
+            source,
+            index,
+            length,
+            obligation,
+            ..
+        } => {
+            let fact = unit
+                .accepted_obligation_facts
+                .iter()
+                .find(|fact| {
+                    fact.machine == optimized.machine
+                        && fact.operation == *psi_operation
+                        && fact.obligation == *obligation
+                })
+                .ok_or(Error::SourceCustodyMismatch)?;
+            LegalizedScalarInstructionKind::ByteSequenceRead {
+                source: *source,
+                index: *index,
+                length: *length,
+                obligation: *obligation,
+                accepted_fact: fact.identity,
+            }
+        }
         AbstractOperation::ByteSequenceLength { source, .. } => {
             LegalizedScalarInstructionKind::ByteSequenceLength {
                 source: *source,

@@ -13,13 +13,21 @@ access through as a value shape. [scalar/setup.rs](src/lowering/scalar/setup.rs)
 has another access-to-shape decision. These are implementation gaps, not a
 shared-reference snapshot contract.
 
-The native byte-length path admits one unqualified, unrestricted shared
-`BorrowedView` parameter and a `u64` result. It uses `BorrowedReference(16, 8)`:
+The native byte-observation path admits one unqualified, unrestricted shared
+`BorrowedView` parameter, `u64` scalar inputs, and a `u64` result. It uses
+`BorrowedReference(16, 8)`:
 one pointer to the original two-word descriptor, with the length at byte offset
 eight. The selected `Load64` retains the logical source place and independently
-replayed read footprint. This does not complete the general shared-reference
-classifier below, literal descriptor materialization, structural helper calls,
-byte reads/subslices, or ranked control. The
+replayed read footprint. A guarded `ByteSequenceRead` loads the backing pointer
+at offset zero, then performs an indexed, zero-extending byte load. It retains
+the exact index, same-view length witness, and accepted bounds obligation.
+The ordinary conditional graph preserves the non-reading branch; shared
+[byte observations](src/lowering/scalar/byte_views.rs) serve both straight-line
+and integer-result conditional lowering. Scalar inputs precede the descriptor
+pointer in the derived call signature.
+
+This does not complete the general shared-reference classifier below, literal
+descriptor materialization, structural helper calls, subslices, or ranked control. The
 [native regression](../../../../tests/native-differential/tests/terminal_byte_views.rs)
 starts from encoded, verified Terminal, cross-lowers four hosted targets, and
 executes caller-owned descriptors on supported hosts; it does not establish

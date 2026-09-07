@@ -1,5 +1,6 @@
 //! Optimizer module role: executable entrance. Scalar-result lowering: ABI setup, exact special forms, conditionals, then straight-line evaluation.
 
+mod byte_views;
 mod conditional_control;
 mod conditional_route;
 mod conditional_scalar;

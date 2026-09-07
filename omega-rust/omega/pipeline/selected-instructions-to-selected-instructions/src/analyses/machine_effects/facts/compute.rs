@@ -107,6 +107,7 @@ fn terminal_selected_keys(
 ) -> SelectedConstraintKeys {
     SelectedConstraintKeys {
         load64: keys.load64,
+        load8_indexed: keys.load8_indexed,
         store64: keys.store64,
         frame_address: keys.frame_address,
         call_unit: keys.call_unit,
@@ -218,6 +219,7 @@ fn semantic(kind: SelectedInstructionKind) -> MachineSemanticKind {
         SelectedInstructionKind::ReturnUnit => MachineSemanticKind::ReturnUnit,
         SelectedInstructionKind::CallI64 { .. } => MachineSemanticKind::CallI64,
         SelectedInstructionKind::Load64 { .. } => MachineSemanticKind::Load64,
+        SelectedInstructionKind::Load8Indexed => MachineSemanticKind::Load8Indexed,
         SelectedInstructionKind::Store64 { .. } => MachineSemanticKind::Store64,
         SelectedInstructionKind::FrameAddress { .. } => MachineSemanticKind::FrameAddress,
         SelectedInstructionKind::CallUnit { .. } => MachineSemanticKind::CallUnit,

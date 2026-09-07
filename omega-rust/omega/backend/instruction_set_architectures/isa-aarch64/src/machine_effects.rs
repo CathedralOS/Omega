@@ -104,6 +104,7 @@ fn selected_keys(
     };
     Ok(SelectedConstraintKeys {
         load64: Some(crate::AARCH64_LOAD64),
+        load8_indexed: Some(crate::AARCH64_LOAD8_INDEXED),
         store64: None,
         frame_address: None,
         call_unit: None,
@@ -136,12 +137,18 @@ fn declaration(
         constraint: keys
             .for_semantic(semantic)
             .expect("required AArch64 machine semantic has a constraint"),
-        memory: if semantic == MachineSemanticKind::Load64 {
+        memory: if matches!(
+            semantic,
+            MachineSemanticKind::Load64 | MachineSemanticKind::Load8Indexed
+        ) {
             MachineMemoryEffect::ReadPointerV1
         } else {
             MachineMemoryEffect::NoneV1
         },
-        trap: if semantic == MachineSemanticKind::Load64 {
+        trap: if matches!(
+            semantic,
+            MachineSemanticKind::Load64 | MachineSemanticKind::Load8Indexed
+        ) {
             MachineTrapBehavior::MayArchitecturalFaultV1
         } else {
             MachineTrapBehavior::NeverV1
@@ -190,6 +197,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
             .id
     };
     let (reads, writes) = match semantic {
+        MachineSemanticKind::Load8Indexed => (vec![0, 1], vec![2]),
         MachineSemanticKind::CompareI64Zero => (vec![0], vec![]),
         MachineSemanticKind::CompareI64 => (vec![0, 1], vec![]),
         MachineSemanticKind::MaterializeI64 => (vec![], vec![0]),
@@ -252,7 +260,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
                 target: view("x30"),
             },
         ),
-        MachineSemanticKind::Load64 => (
+        MachineSemanticKind::Load64 | MachineSemanticKind::Load8Indexed => (
             vec![],
             vec![],
             MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
@@ -275,6 +283,12 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
             MachineEncodedMemoryEffect::ReadPointerV1 {
                 pointer_operand: 0,
                 byte_count: 8,
+            }
+        } else if semantic == MachineSemanticKind::Load8Indexed {
+            MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
+                pointer_operand: 0,
+                index_operand: 1,
+                byte_count: 1,
             }
         } else {
             MachineEncodedMemoryEffect::NoneV1

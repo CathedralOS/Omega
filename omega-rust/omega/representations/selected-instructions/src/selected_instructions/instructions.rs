@@ -18,6 +18,8 @@ pub struct SelectedInstruction {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedInstructionKind {
+    /// Load one byte from base plus byte index and zero-extend the register result.
+    Load8Indexed,
     Load64 {
         byte_offset: u32,
     },

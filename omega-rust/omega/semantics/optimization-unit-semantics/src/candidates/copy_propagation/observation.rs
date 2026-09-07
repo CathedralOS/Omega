@@ -208,6 +208,7 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         | O::IeeeFloatConstant { .. }
         | O::BooleanConstant { .. }
         | O::BooleanStructuralField { .. }
+        | O::ByteSequenceRead { .. }
         | O::ByteSequenceLength { .. }
         | O::IntegerStructuralField { .. }
         | O::ReturnUnit { .. }

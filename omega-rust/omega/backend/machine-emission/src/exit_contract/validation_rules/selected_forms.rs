@@ -197,6 +197,22 @@ pub(in crate::exit_contract) fn validate_non_return(
     }
     let memory_matches = match (kind, effects.memory, encoding.address) {
         (
+            SelectedInstructionKind::Load8Indexed,
+            MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
+                pointer_operand: 0,
+                index_operand: 1,
+                byte_count: 1,
+            },
+            Some(address),
+        ) => {
+            address.symbolic
+                == physical_instructions::PhysicalAddressOperation::Load8Indexed {
+                    base_operand: 0,
+                    index_operand: 1,
+                }
+                && address.displacement == 0
+        }
+        (
             SelectedInstructionKind::Load64 { byte_offset },
             MachineEncodedMemoryEffect::ReadPointerV1 {
                 pointer_operand: 0,

@@ -41,6 +41,9 @@ pub(super) fn folded_zero<'a>(
                 continue;
             }
             let uses = match &instruction.kind {
+                LegalizedScalarInstructionKind::ByteSequenceRead { index, length, .. } => {
+                    *index == definition.value || *length == definition.value
+                }
                 LegalizedScalarInstructionKind::Constant(_)
                 | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
                 | LegalizedScalarInstructionKind::BoundarySettlement(_) => false,

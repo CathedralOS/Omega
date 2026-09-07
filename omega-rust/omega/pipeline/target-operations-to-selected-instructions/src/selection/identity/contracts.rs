@@ -54,6 +54,18 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
         bytes.extend_from_slice(&row.byte_offset.to_le_bytes());
         bytes.extend_from_slice(&row.byte_count.to_le_bytes());
         match row.role {
+            SelectedMemoryAccessRole::ReadByteSequence {
+                index,
+                length,
+                obligation,
+                accepted_fact,
+            } => {
+                bytes.push(3);
+                bytes.extend_from_slice(&index.get().to_le_bytes());
+                bytes.extend_from_slice(&length.get().to_le_bytes());
+                bytes.extend_from_slice(&obligation.get().to_le_bytes());
+                bytes.extend_from_slice(&accepted_fact.bytes());
+            }
             SelectedMemoryAccessRole::ReadPlace => bytes.push(0),
             SelectedMemoryAccessRole::WriteOutgoing { slot: value } => {
                 bytes.push(1);

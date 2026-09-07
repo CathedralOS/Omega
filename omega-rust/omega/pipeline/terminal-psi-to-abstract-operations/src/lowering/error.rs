@@ -21,7 +21,7 @@ pub enum LoweringError {
     UnsupportedByteSequenceLiteral(semantic_vocabulary::OperationId),
     /// The length observation did not retain its exact scalar u64 result.
     InvalidByteSequenceLength(semantic_vocabulary::OperationId),
-    UnsupportedByteSequenceRead(semantic_vocabulary::OperationId),
+    InvalidByteSequenceRead(semantic_vocabulary::OperationId),
     UnsupportedByteSequenceSubslice(semantic_vocabulary::OperationId),
     /// Independent Terminal-to-Omega projection could not rejoin one exact
     /// descriptor, its initializer/latest selections, and its indirect row.

@@ -9,6 +9,18 @@ use terminal_psi::CrashRouteBucket;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetIntegerExpression {
+    /// Exact `u8` observation. Placement locates the descriptor, whose backing
+    /// pointer is at offset zero. The index expression retains its Terminal
+    /// identity; length and obligation retain proof custody, not a new check.
+    ByteSequenceRead {
+        psi_operation: OperationId,
+        source_value: ValueId,
+        source: PlaceId,
+        source_placement: ValuePlacement,
+        index: Box<TargetIntegerExpression>,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+    },
     ByteSequenceLength {
         psi_operation: OperationId,
         source_value: ValueId,

@@ -30,6 +30,7 @@ pub(crate) fn expected_definitions(
         | O::CallDynamicScalar { result, .. }
         | O::CallStoredDynamicScalar { result, .. }
         | O::CallDynamicParameterScalar { result, .. }
+        | O::ByteSequenceRead { result, .. }
         | O::ByteSequenceLength { result, .. }
         | O::IntegerStructuralField { result, .. } => Some((result.value, result.scalar_type)),
         O::BoundaryCall {
@@ -179,6 +180,7 @@ pub(crate) fn expected_uses(
 ) -> Vec<ValueUse> {
     use abstract_operations::AbstractOperation as O;
     let values = match operation {
+        O::ByteSequenceRead { index, length, .. } => vec![*index, *length],
         O::Call { arguments, .. } | O::BoundaryCall { arguments, .. } => arguments.clone(),
         O::WriteOnlyPrimitiveStore { value, .. } | O::StructuralScalarFieldStore { value, .. } => {
             vec![value.value]

@@ -8,6 +8,8 @@ pub(in crate::lowering::scalar) fn lower_integer_conditional(
     values: &BTreeMap<ValueId, KnownScalar>,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
+    structural_parameters: &[TargetStructuralParameter],
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<TargetFunction, LoweringError> {
     let function_result = scalar_function_result(function)?;
     let ScalarType::Integer(result_type) = function_result.scalar_type else {
@@ -23,6 +25,8 @@ pub(in crate::lowering::scalar) fn lower_integer_conditional(
         BTreeSet::new(),
         target,
         functions,
+        structural_parameters,
+        structural_types,
     )?;
     Ok(TargetFunction {
         machine: function.machine,
@@ -39,6 +43,7 @@ struct LoweredConditionalArm {
     edges: Vec<EdgeId>,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn lower_conditional_arm(
     function: &AbstractFunction,
     result_type: IntegerType,
@@ -47,6 +52,8 @@ fn lower_conditional_arm(
     visited: &BTreeSet<BlockId>,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
+    structural_parameters: &[TargetStructuralParameter],
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<LoweredConditionalArm, LoweringError> {
     // See `lower_boolean_arm`: this is an explicit verified no-code erasure.
     let _ = &successor.trivial_affine_discards;
@@ -60,6 +67,8 @@ fn lower_conditional_arm(
         visited.clone(),
         target,
         functions,
+        structural_parameters,
+        structural_types,
     )?;
     lowered.edges.insert(0, successor.psi_edge);
     Ok(LoweredConditionalArm {
@@ -78,6 +87,7 @@ struct LoweredIntegerControl {
     edges: Vec<EdgeId>,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn lower_conditional_block(
     function: &AbstractFunction,
     result_type: IntegerType,
@@ -86,6 +96,8 @@ fn lower_conditional_block(
     mut visited: BTreeSet<BlockId>,
     native_target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
+    structural_parameters: &[TargetStructuralParameter],
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<LoweredIntegerControl, LoweringError> {
     if !visited.insert(block) {
         return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
@@ -117,6 +129,16 @@ fn lower_conditional_block(
     };
     let mut operations = Vec::new();
     for operation in body {
+        if byte_views::lower_byte_observation(
+            operation,
+            function,
+            structural_types,
+            structural_parameters,
+            &mut values,
+            &mut operations,
+        )? {
+            continue;
+        }
         if !lower_conditional_scalar_operation(
             operation,
             function.machine,
@@ -124,8 +146,8 @@ fn lower_conditional_block(
             &mut operations,
             native_target,
             functions,
-            &[],
-            &BTreeMap::new(),
+            structural_parameters,
+            structural_types,
         )? {
             return Err(LoweringError::ConditionalControlFlowRequiresBlockLowering(
                 function.machine,
@@ -156,6 +178,8 @@ fn lower_conditional_block(
                 visited,
                 native_target,
                 functions,
+                structural_parameters,
+                structural_types,
             )?;
             operations.append(&mut lowered.operations);
             lowered.operations = operations;
@@ -185,6 +209,8 @@ fn lower_conditional_block(
                     &visited,
                     native_target,
                     functions,
+                    structural_parameters,
+                    structural_types,
                 )?;
                 operations.append(&mut lowered.operations);
                 Ok(LoweredIntegerControl {
@@ -209,6 +235,8 @@ fn lower_conditional_block(
                     &visited,
                     native_target,
                     functions,
+                    structural_parameters,
+                    structural_types,
                 )?;
                 let lowered_false = lower_conditional_arm(
                     function,
@@ -218,6 +246,8 @@ fn lower_conditional_block(
                     &visited,
                     native_target,
                     functions,
+                    structural_parameters,
+                    structural_types,
                 )?;
                 operations.extend(lowered_true.operations);
                 operations.extend(lowered_false.operations);

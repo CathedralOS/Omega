@@ -59,6 +59,7 @@ pub fn x86_64_machine_effect_catalog(
                 if matches!(
                     semantic,
                     MachineSemanticKind::Load64
+                        | MachineSemanticKind::Load8Indexed
                         | MachineSemanticKind::Store64
                         | MachineSemanticKind::FrameAddress
                         | MachineSemanticKind::CallUnit
@@ -112,6 +113,7 @@ fn selected_keys(
     };
     Ok(SelectedConstraintKeys {
         load64: Some(crate::X86_64_LOAD64),
+        load8_indexed: Some(crate::X86_64_LOAD8_INDEXED),
         store64: (target.object_format == ObjectFormat::Coff).then_some(crate::X86_64_STORE64),
         frame_address: (target.object_format == ObjectFormat::Coff)
             .then_some(crate::X86_64_FRAME_ADDRESS),
@@ -283,6 +285,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::ReturnUnit => (vec![], vec![]),
         MachineSemanticKind::CallI64
         | MachineSemanticKind::Load64
+        | MachineSemanticKind::Load8Indexed
         | MachineSemanticKind::Store64
         | MachineSemanticKind::FrameAddress
         | MachineSemanticKind::CallUnit => {
@@ -417,6 +420,7 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         }
         MachineSemanticKind::CallI64
         | MachineSemanticKind::Load64
+        | MachineSemanticKind::Load8Indexed
         | MachineSemanticKind::Store64
         | MachineSemanticKind::FrameAddress
         | MachineSemanticKind::CallUnit => {

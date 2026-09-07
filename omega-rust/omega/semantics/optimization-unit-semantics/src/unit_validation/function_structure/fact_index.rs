@@ -28,7 +28,12 @@ pub(crate) fn reconstruct_fact_index(function: &PsiOptimizationFunction) -> Vec<
         .flat_map(|block| block.nodes.iter().map(|node| &node.operation))
     {
         match operation {
-            O::IntegerExactCast {
+            O::ByteSequenceRead {
+                psi_operation,
+                obligation,
+                ..
+            }
+            | O::IntegerExactCast {
                 psi_operation,
                 obligation,
                 ..

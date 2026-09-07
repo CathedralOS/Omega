@@ -1,5 +1,5 @@
-//! Native length observation starts from encoded, independently verified Terminal.
-//! Source helper closure and byte reads/subslices are not admitted by this fixture.
+//! Native byte observations start from encoded, independently verified Terminal.
+//! Source helper closure and byte subslices are not admitted by these fixtures.
 
 use native_realization::{compiler_baseline_request_v1, optimize_artifact_sections};
 use optimization_core::OptimizationSelections;
@@ -9,16 +9,15 @@ use selected_form_encoding_to_resolved_layout::{
     validate_optimized_resolved_selected_form_layout,
 };
 use semantic_vocabulary::{
-    BlockId, ContractId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, PlaceId,
-    ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
+    IntegerValue, ObligationId, OperationId, PlaceId, StructuralPlaceKind, ValueId,
 };
 use target::NativeTarget;
-use terminal_psi::{
-    Block, ByteSequenceCarrier, MachineContract, Operation, OperationKind, OperationResult,
-    StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
-};
+use terminal_psi::{OperationKind, StructuralPlaceDeclaration, TerminalModule};
+use terminal_verifier::ProofBundle;
+
+#[path = "terminal_byte_views/fixtures.rs"]
+mod fixtures;
+use fixtures::{byte_view_length_module, byte_view_read_module, byte_view_read_proof};
 
 #[cfg(any(
     all(target_os = "linux", target_arch = "x86_64"),
@@ -28,108 +27,17 @@ use terminal_psi::{
 #[path = "common/native_function.rs"]
 mod native_function;
 
-fn byte_view_length_module() -> TerminalModule {
-    let machine = MachineId::new(1).unwrap();
-    let block = BlockId::new(2).unwrap();
-    let source = PlaceId::new(3).unwrap();
-    let structural_type = StructuralTypeId::new(4).unwrap();
-    let length = ValueId::new(5).unwrap();
-    let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
-    TerminalModule {
-        vocabulary_marker: VocabularyMarker::CURRENT,
-        entry: machine,
-        structural_types: vec![StructuralTypeDeclaration {
-            id: structural_type,
-            identity: "test::ImmutableBytes".into(),
-            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
-        }],
-        structural_domains: Vec::new(),
-        services: Vec::new(),
-        root_service_reach: Default::default(),
-        placed_view_inputs: Vec::new(),
-        reborrow_root_handoffs: Vec::new(),
-        reborrow_restored_call_uses: Vec::new(),
-        boundary_machines: Vec::new(),
-        provider_candidates: Vec::new(),
-        float_meaning_projections: Vec::new(),
-        float_meaning_equalities: Vec::new(),
-        proposition_declarations: Vec::new(),
-        proposition_applications: Vec::new(),
-        evidence_terms: Vec::new(),
-        evidence_contract_lanes: Vec::new(),
-        proof_output_calls: Vec::new(),
-        proof_recursive_components: Vec::new(),
-        closed_conformance_applications: Vec::new(),
-        dynamic_dispatch: Default::default(),
-        suspension_call_plan_count: 0,
-        suspension_call_sites: Vec::new(),
-        suspension_call_plans: Vec::new(),
-        quotient_correspondences: Vec::new(),
-        machines: vec![TerminalMachine {
-            id: machine,
-            attachment: None,
-            parameters: Vec::new(),
-            structural_parameters: vec![StructuralParameterDeclaration {
-                place: source,
-                position: 0,
-                is_self: false,
-                structural_type,
-                multiplicity: StructuralMultiplicity::Unrestricted,
-                access: StructuralAccess::SharedBorrow,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-            }],
-            ranked_scc: None,
-            result: TerminalMachineResult::Scalar(ValueDeclaration {
-                id: ValueId::new(6).unwrap(),
-                scalar_type,
-            }),
-            structural_places: vec![StructuralPlaceDeclaration {
-                id: source,
-                kind: StructuralPlaceKind::Parameter {
-                    position: 0,
-                    is_self: false,
-                },
-            }],
-            entry_claims: Vec::new(),
-            published_service_ceiling: Vec::new(),
-            content_entry_claims: Vec::new(),
-            content_identity_reshuffles: Vec::new(),
-            content_partition_compositions: Vec::new(),
-            entry: block,
-            blocks: vec![Block {
-                id: block,
-                parameters: Vec::new(),
-                structural_parameters: Vec::new(),
-                operations: vec![Operation {
-                    id: OperationId::new(7).unwrap(),
-                    result: OperationResult::Scalar(ValueDeclaration {
-                        id: length,
-                        scalar_type,
-                    }),
-                    kind: OperationKind::ByteSequenceLength { source },
-                }],
-                terminator: Terminator::Return {
-                    edge: EdgeId::new(8).unwrap(),
-                    value: length,
-                    cleanup_actions: Vec::new(),
-                },
-            }],
-            contract: MachineContract {
-                id: ContractId::new(9).unwrap(),
-                crash_routes: Vec::new(),
-                requires: Vec::new(),
-                ensures: Vec::new(),
-                outcome_specific_ensures: Vec::new(),
-            },
-        }],
-    }
+fn stage_byte_view_length(target: NativeTarget) -> StagedOptimizedResolvedSelectedFormLayout {
+    stage_byte_view(&byte_view_length_module(), &ProofBundle::default(), target)
 }
 
-fn stage_byte_view_length(target: NativeTarget) -> StagedOptimizedResolvedSelectedFormLayout {
-    let semantic = terminal_codec::encode_module(&byte_view_length_module()).unwrap();
-    let proof =
-        terminal_codec::encode_proof_bundle(&terminal_verifier::ProofBundle::default()).unwrap();
+fn stage_byte_view(
+    module: &TerminalModule,
+    proof: &ProofBundle,
+    target: NativeTarget,
+) -> StagedOptimizedResolvedSelectedFormLayout {
+    let semantic = terminal_codec::encode_module(module).unwrap();
+    let proof = terminal_codec::encode_proof_bundle(proof).unwrap();
     let selections = OptimizationSelections::new([]).unwrap();
     // This public boundary decodes and verifies the artifact before projection.
     let optimized = optimize_artifact_sections(
@@ -138,11 +46,11 @@ fn stage_byte_view_length(target: NativeTarget) -> StagedOptimizedResolvedSelect
         &AdmissionProfile::default(),
         compiler_baseline_request_v1(&selections),
     )
-    .expect("verified byte length reaches the ordinary optimizer input");
+    .expect("verified byte observation reaches the ordinary optimizer input");
     let target = abstract_operations_to_target_operations::lower_optimized_to_target_operations(
         optimized, target,
     )
-    .expect("byte length reaches target operations");
+    .expect("byte observation reaches target operations");
     let environment =
         register_environment::baseline_target_register_environment(target.target()).unwrap();
     let selected =
@@ -150,7 +58,7 @@ fn stage_byte_view_length(target: NativeTarget) -> StagedOptimizedResolvedSelect
             target,
             environment,
         )
-        .expect("byte descriptor length selects native instructions");
+        .expect("byte observation selects native instructions");
     let liveness =
         selected_instructions_to_register_homes::stage_optimized_liveness(selected).unwrap();
     let ranges =
@@ -188,8 +96,76 @@ fn stage_byte_view_length(target: NativeTarget) -> StagedOptimizedResolvedSelect
         &encoding,
         &layout,
     )
-    .expect("byte length's retained machine bytes independently replay");
+    .expect("byte observation's retained machine bytes independently replay");
     layout
+}
+
+#[test]
+fn byte_view_read_cross_lowers_on_hosted_targets() {
+    let module = byte_view_read_module();
+    let proof = byte_view_read_proof(&module);
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let layout = stage_byte_view(&module, &proof, target);
+        assert_eq!(layout.functions().len(), 1);
+        assert!(layout.functions()[0].byte_count > 0);
+    }
+}
+
+#[test]
+fn byte_view_read_executes_raw_bytes_and_skips_out_of_bounds_access() {
+    #[cfg(any(
+        all(target_os = "linux", target_arch = "x86_64"),
+        all(target_os = "linux", target_arch = "aarch64"),
+        all(target_os = "macos", target_arch = "aarch64"),
+    ))]
+    {
+        let module = byte_view_read_module();
+        let proof = byte_view_read_proof(&module);
+        native_function::assert_c_driver(
+            &stage_byte_view(&module, &proof, NativeTarget::host()),
+            r#"
+            #include <stdint.h>
+            #include <stddef.h>
+            struct ByteView { const uint8_t *bytes; uint64_t length; };
+            _Static_assert(sizeof(struct ByteView) == 16, "descriptor size");
+            _Static_assert(offsetof(struct ByteView, length) == 8, "length offset");
+            extern uint64_t omega_entry(uint64_t, const struct ByteView *);
+            int main(void) {
+                const uint8_t raw[] = { 0xff, 0x00, 0x80, 0x41 };
+                const uint8_t other[] = { 0x17, 0xfe };
+                struct ByteView view = { NULL, 0 };
+                if (omega_entry(0, &view) != 256) return 1;
+                if (omega_entry(UINT64_MAX, &view) != 256) return 2;
+                view.bytes = raw; view.length = sizeof(raw);
+                for (uint64_t position = 0; position < sizeof(raw); ++position)
+                    if (omega_entry(position, &view) != raw[position]) return 3;
+                if (omega_entry(sizeof(raw), &view) != 256) return 4;
+                if (omega_entry(UINT64_MAX, &view) != 256) return 5;
+                view.bytes = other; view.length = sizeof(other);
+                if (omega_entry(0, &view) != 0x17) return 6;
+                if (omega_entry(1, &view) != 0xfe) return 7;
+                view.length = 1;
+                if (omega_entry(1, &view) != 256) return 8;
+                view.bytes = NULL; view.length = 0;
+                if (omega_entry(0, &view) != 256) return 9;
+                return 0;
+            }
+        "#,
+        );
+    }
+    #[cfg(not(any(
+        all(target_os = "linux", target_arch = "x86_64"),
+        all(target_os = "linux", target_arch = "aarch64"),
+        all(target_os = "macos", target_arch = "aarch64"),
+    )))]
+    eprintln!(
+        "SKIP guarded byte-read native execution: existing cc harness supports Linux x86-64/AArch64 and macOS AArch64; Windows runtime route unavailable"
+    );
 }
 
 #[test]
@@ -268,4 +244,107 @@ fn byte_view_length_rejects_an_unavailable_descriptor_source() {
         )),
         "a missing descriptor cannot enter a canonical artifact",
     );
+}
+
+fn assert_byte_read_proof_rejected(module: &TerminalModule, proof: &ProofBundle) {
+    let semantic =
+        terminal_codec::encode_module(module).expect("negative fixture remains structurally valid");
+    let proof = terminal_codec::encode_proof_bundle(proof).unwrap();
+    match terminal_psi_to_abstract_operations::lower_artifact_sections(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+    ) {
+        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::Verification(_)) => {}
+        Err(error) => panic!("byte-read proof must reject before native lowering: {error}"),
+        Ok(_) => panic!("unproved byte-read bounds entered native lowering"),
+    }
+}
+
+#[test]
+fn byte_view_read_rejects_weakened_guards_and_retargeted_evidence() {
+    let module = byte_view_read_module();
+    let proof = byte_view_read_proof(&module);
+    assert_byte_read_proof_rejected(&module, &ProofBundle::default());
+    let mut retargeted = proof.clone();
+    retargeted.evidence[0].obligation = ObligationId::new(2).unwrap();
+    assert_byte_read_proof_rejected(&module, &retargeted);
+
+    let mut weaker = module.clone();
+    weaker.machines[0].blocks[0].operations[1].kind = OperationKind::IntegerLessOrEqual {
+        left: ValueId::new(10).unwrap(),
+        right: ValueId::new(5).unwrap(),
+    };
+    assert_byte_read_proof_rejected(&weaker, &proof);
+
+    let mut wrong_arm = module;
+    let terminal_psi::Terminator::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &mut wrong_arm.machines[0].blocks[0].terminator
+    else {
+        panic!("guarded fixture")
+    };
+    std::mem::swap(&mut when_true.target, &mut when_false.target);
+    assert_byte_read_proof_rejected(&wrong_arm, &proof);
+}
+
+#[test]
+fn byte_view_read_rejects_a_length_not_proven_by_its_guard() {
+    let mut module = byte_view_read_module();
+    let proof = byte_view_read_proof(&module);
+    let mut fresh_length = module.machines[0].blocks[0].operations[0].clone();
+    fresh_length.id = OperationId::new(21).unwrap();
+    let terminal_psi::OperationResult::Scalar(result) = &mut fresh_length.result else {
+        panic!("length is scalar")
+    };
+    result.id = ValueId::new(21).unwrap();
+    module.machines[0].blocks[0].operations.push(fresh_length);
+    let OperationKind::ByteSequenceRead { length, .. } =
+        &mut module.machines[0].blocks[1].operations[0].kind
+    else {
+        panic!("byte read")
+    };
+    *length = ValueId::new(21).unwrap();
+    // Equal contents do not make this SSA observation the guard's length fact.
+    assert_byte_read_proof_rejected(&module, &proof);
+}
+
+#[test]
+fn byte_view_read_rejects_counterfeit_and_different_descriptor_lengths() {
+    for other_descriptor in [false, true] {
+        let mut module = byte_view_read_module();
+        let machine = &mut module.machines[0];
+        if other_descriptor {
+            let mut parameter = machine.structural_parameters[0].clone();
+            parameter.place = PlaceId::new(21).unwrap();
+            parameter.position = 1;
+            machine.structural_parameters.push(parameter);
+            machine.structural_places.push(StructuralPlaceDeclaration {
+                id: PlaceId::new(21).unwrap(),
+                kind: StructuralPlaceKind::Parameter {
+                    position: 1,
+                    is_self: false,
+                },
+            });
+            machine.blocks[0].operations[0].kind = OperationKind::ByteSequenceLength {
+                source: PlaceId::new(21).unwrap(),
+            };
+        } else {
+            machine.blocks[0].operations[0].kind = OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(256),
+            };
+        }
+        assert_eq!(
+            terminal_codec::encode_module(&module),
+            Err(terminal_codec::CodecError::InvalidModule(
+                terminal_verifier::ModuleError::InvalidByteSequenceReadLength {
+                    operation: OperationId::new(13).unwrap(),
+                    source: PlaceId::new(3).unwrap(),
+                    length: ValueId::new(5).unwrap(),
+                }
+            ))
+        );
+    }
 }

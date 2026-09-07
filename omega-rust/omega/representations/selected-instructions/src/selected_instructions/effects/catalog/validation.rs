@@ -216,6 +216,18 @@ fn validate_encoded_effects(
     }
     match (encoded.memory, encoded.stack, encoded.trap) {
         (
+            MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
+                pointer_operand,
+                index_operand,
+                byte_count: 1,
+            },
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if declaration.memory == crate::MachineMemoryEffect::ReadPointerV1
+            && pointer_operand != index_operand
+            && encoded.external_operand_reads.contains(&pointer_operand)
+            && encoded.external_operand_reads.contains(&index_operand) => {}
+        (
             MachineEncodedMemoryEffect::ReadActivationStackV1 {
                 stack_pointer: memory_pointer,
                 byte_count: memory_bytes,

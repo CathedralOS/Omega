@@ -63,6 +63,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::IeeeFloatConstant { .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }
         | O::BooleanStructuralField { .. }
+        | O::ByteSequenceRead { .. }
         | O::ByteSequenceLength { .. }
         | O::IntegerStructuralField { .. }
         | O::Jump { .. }

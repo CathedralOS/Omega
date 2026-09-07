@@ -547,6 +547,7 @@ pub(super) fn lower_unit_body(
             | AbstractOperation::BooleanStructuralField { .. }
             | AbstractOperation::IntegerStructuralField { .. }
             | AbstractOperation::ByteSequenceLength { .. }
+            | AbstractOperation::ByteSequenceRead { .. }
             | AbstractOperation::BooleanNot { .. }
             | AbstractOperation::BooleanEqual { .. }
             | AbstractOperation::IntegerEqual { .. }

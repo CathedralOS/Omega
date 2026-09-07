@@ -150,7 +150,17 @@ pub(super) fn lower_operation(
             provenance.operations.push(*psi_operation);
         }
         AbstractOperation::ByteSequenceLength { .. }
-        | AbstractOperation::BooleanStructuralField { .. }
+        | AbstractOperation::ByteSequenceRead { .. } => {
+            byte_views::lower_byte_observation(
+                operation,
+                function,
+                structural_types,
+                target_structural_parameters,
+                values,
+                &mut provenance.operations,
+            )?;
+        }
+        AbstractOperation::BooleanStructuralField { .. }
         | AbstractOperation::IntegerStructuralField { .. } => structural_scalar_field::lower(
             operation,
             function,

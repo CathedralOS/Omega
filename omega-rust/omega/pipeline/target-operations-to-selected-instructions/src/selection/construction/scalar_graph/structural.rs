@@ -93,7 +93,8 @@ pub(super) fn entry(
     for (parameter_index, parameter) in signature.parameters.iter().enumerate() {
         let place = parameter.semantic.place;
         let used = source.blocks.iter().flat_map(|block| &block.instructions).any(|row| match &row.kind {
-            LegalizedScalarInstructionKind::ByteSequenceLength { source, .. } => *source == place,
+            LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
+            | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. } => *source == place,
             LegalizedScalarInstructionKind::Call(call) => call.arguments.iter().any(|argument| matches!(argument,LegalizedScalarArgument::Structural {semantic,..} if semantic.place == place)),
             _ => false,
         });
@@ -348,7 +349,104 @@ fn row_constraint<'a>(
 ) -> Result<&'a register_model::RegisterInstructionConstraint, SelectedInstructionError> {
     crate::selection::constraints::row(builder.catalog, key)
 }
-pub(super) fn byte_sequence_length(
+pub(super) fn byte_observation(
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    match row.kind {
+        LegalizedScalarInstructionKind::ByteSequenceRead { .. } => byte_sequence_read(builder, row),
+        LegalizedScalarInstructionKind::ByteSequenceLength {
+            source,
+            length_byte_offset,
+        } => byte_sequence_length(builder, row, source, length_byte_offset),
+        _ => Err(invalid()),
+    }
+}
+
+fn byte_sequence_read(
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let LegalizedScalarInstructionKind::ByteSequenceRead {
+        source,
+        index,
+        length,
+        obligation,
+        accepted_fact,
+    } = row.kind
+    else {
+        return Err(invalid());
+    };
+    let definition = row.result.ok_or_else(invalid)?;
+    let (_, index_register, _, index_type) = builder.resolve(index).ok_or_else(invalid)?;
+    if definition.scalar_type
+        != ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| invalid())?)
+        || index_type
+            != ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
+            )
+    {
+        return Err(invalid());
+    }
+    let descriptor = builder
+        .transport
+        .pointers
+        .iter()
+        .find(|(place, _)| *place == source)
+        .map(|(_, register)| *register)
+        .ok_or_else(invalid)?;
+    let pointer = transport_register(builder, source, 0)?;
+    memory(
+        builder,
+        row,
+        source,
+        0,
+        8,
+        SelectedMemoryAccessRole::ReadPlace,
+    )?;
+    builder.emit(
+        SelectedInstructionKind::Load64 { byte_offset: 0 },
+        builder.constraints.keys.load64.ok_or_else(invalid)?,
+        &[descriptor, pointer],
+        provenance(row),
+    )?;
+    let output = builder.register(
+        definition.value,
+        definition.definition_site,
+        definition.scalar_type,
+    )?;
+    memory(
+        builder,
+        row,
+        source,
+        0,
+        1,
+        SelectedMemoryAccessRole::ReadByteSequence {
+            index,
+            length,
+            obligation,
+            accepted_fact,
+        },
+    )?;
+    builder.emit(
+        SelectedInstructionKind::Load8Indexed,
+        builder
+            .constraints
+            .keys
+            .load8_indexed
+            .ok_or_else(invalid)?,
+        &[pointer, index_register, output],
+        SelectedInstructionProvenance {
+            operations: vec![row.operation],
+            values: vec![index, length, definition.value],
+            fuel: row.fuel.clone(),
+            ..Default::default()
+        },
+    )?;
+    Ok(output)
+}
+
+fn byte_sequence_length(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
     source: PlaceId,

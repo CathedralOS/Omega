@@ -156,6 +156,7 @@ pub fn target_register_environment_identity(
     bytes.extend_from_slice(&reservations.identity().bytes());
     for key in [
         selected_keys.load64,
+        selected_keys.load8_indexed,
         selected_keys.store64,
         selected_keys.frame_address,
         selected_keys.call_unit,
