@@ -6,6 +6,7 @@
 //! edges, then requires evidence for every bodyful contract clause. Proof
 //! bundles cannot choose which obligations exist.
 
+mod control_graph;
 mod optimization;
 mod proof_recursion;
 mod quotient_correspondence;

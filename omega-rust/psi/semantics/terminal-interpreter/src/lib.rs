@@ -6,6 +6,7 @@
 //! boundary.
 
 mod block_bindings;
+mod byte_sequence_subslice;
 mod byte_sequence_view;
 mod effect_results;
 use byte_sequence_view::ByteSequenceView;
@@ -2411,75 +2412,8 @@ impl TerminalExecution {
                         }
                         self.values.insert(result.id, value);
                     }
-                    OperationKind::ByteSequenceSubslice {
-                        source,
-                        start,
-                        end,
-                        length,
-                        ..
-                    } => {
-                        let result = operation
-                            .result
-                            .structural()
-                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        let count_type =
-                            IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
-                                .expect("u64 is valid");
-                        let count = |operand| -> Result<usize, TerminalInterpretError> {
-                            let value = self
-                                .values
-                                .get(&operand)
-                                .ok_or(TerminalInterpretError::VerifiedValueMissing(operand))?;
-                            let TerminalScalarValue::Integer {
-                                scalar_type,
-                                value: IntegerValue::Unsigned(value),
-                            } = value
-                            else {
-                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                            };
-                            if *scalar_type != count_type {
-                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                            }
-                            let value = u64::try_from(*value)
-                                .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
-                            usize::try_from(value)
-                                .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)
-                        };
-                        let start = count(start)?;
-                        let end = count(end)?;
-                        let length = count(length)?;
-                        let source_value = self.structural_values.get(&source).ok_or(
-                            TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
-                        )?;
-                        let bytes = self.byte_sequence_values.get(&source).ok_or(
-                            TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
-                        )?;
-                        if bytes.len() != length
-                            || source_value.structural_type != result.structural_type
-                            || !source_value.path.is_empty()
-                            || !source_value.qualifications.is_empty()
-                            || result.multiplicity != StructuralMultiplicity::Unrestricted
-                            || !result.qualifications.is_empty()
-                            || !result.projected_qualifications.is_empty()
-                            || !result.claims.is_empty()
-                            || self.structural_values.contains_key(&result.place)
-                            || self.byte_sequence_values.contains_key(&result.place)
-                        {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let view = bytes
-                            .subslice(start, end)
-                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        self.byte_sequence_values.insert(result.place, view);
-                        self.structural_values.insert(
-                            result.place,
-                            TerminalStructuralValue {
-                                opaque_identity: result.place.get(),
-                                structural_type: result.structural_type,
-                                qualifications: Vec::new(),
-                                path: Vec::new(),
-                            },
-                        );
+                    OperationKind::ByteSequenceSubslice { .. } => {
+                        self.execute_byte_sequence_subslice(&operation)?;
                     }
                     OperationKind::ByteSequenceRead {
                         source,

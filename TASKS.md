@@ -157,8 +157,7 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   in `typed-trees-to-checked-trees/src/flow/terminal_unit/` and
   `checked-trees-to-lowered-psi/src/attached_unit/`.
   Extend shared graph emission to the writer without splitting authored states
-  into synthetic machines. Slice-ranked cyclic execution and descriptor rebinding
-  on loop iterations remain unsupported.
+  into synthetic machines. Slice-ranked cyclic execution remains unsupported.
   The private writer calls its concrete provider's byte leaf directly; extending
   plain boundary-trait or `Service` forwarding is not a prerequisite.
   The callable plan must retain exact intrinsic settlement, view/scalar transfers,
@@ -166,8 +165,7 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   slice-decrease evidence.
   Carry the derived-view extent equations and checked integer subtraction-order
   certificates into the generic ranking proof for the actual cyclic edges.
-  Cyclic validation of changing structural state-edge bindings and repeated-producer
-  descriptor rebinding remain necessary for that loop; native whole-byte-view layout,
+  Native whole-byte-view layout,
   length, indexed reads, and subslice realization are also still missing.
   Acceptance: empty/nonempty bytes and both newline settings preserve exact
   output order and caller continuation; unguarded head reads and unchanged
@@ -367,14 +365,13 @@ Owners include
   and ordinary operations. No new loop opcode, fabricated per-state machine,
   private countdown, or second interpreter is needed.
 
-  `terminal-verifier/src/validation/control_flow.rs` still requires a
-  topological order after removing only the exact countdown's backedge;
-  the bounded no-custody Unit-effect route is the only unranked exception,
-  and general cycles with definitions, parameters, or structural
-  custody still fail. Derive SCCs and scalar dominance from the full graph,
-  extend exact ownership-frontier replay to those admitted forms, and validate
-  every incoming scalar/structural transfer. Reconstruct cyclic proposition
-  invariants for guards and ranking instead of relying on block-local facts.
+  Extend `terminal-verifier/src/validation/control_flow.rs` beyond scalar and
+  immutable-byte-view loops to persistent mutable receivers and owned custody.
+  Reuse full-graph dominance, exact successor transfers, and ownership-frontier
+  replay. Current-iteration guards are reconstructed after resetting incoming
+  facts at every proof-scheduling cut target; general cyclic proposition
+  invariants and ranking still need retained evidence. Guarded-crash path
+  reconstruction must also cover cycles without exhausting path enumeration.
   Keep cycle safety independent from optional termination certificates and
   finite fuel. Existing bounded admission cannot
   authorize general effectful cyclic callers or callees by relaxing its shape

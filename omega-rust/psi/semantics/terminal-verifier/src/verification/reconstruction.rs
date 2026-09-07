@@ -292,40 +292,36 @@ fn reconstruct_machine_semantics_with_crash_facts(
     let mut outcome_exits = BTreeMap::<OutcomeSpecificGuard, Vec<Vec<Proposition>>>::new();
     let mut operation_obligations = Vec::new();
     let mut crash_sites = Vec::new();
-    let ranked_backedges = machine
+    let mut ignored_backedges = machine
         .ranked_scc
         .iter()
         .flat_map(|component| component.covered_cyclic_edges.iter().map(|row| row.edge))
-        .collect();
-    let mut block_order = machine_flow::deterministic_block_order(machine, &ranked_backedges);
-    let topological_count = block_order.len();
-    if topological_count != context.blocks.len() {
-        // Kahn's remainder includes both cyclic blocks and their downstream
-        // sites. Every normal return must participate in the exit intersection.
-        let scheduled_blocks = block_order.iter().copied().collect::<BTreeSet<_>>();
-        block_order.extend(
-            context
-                .blocks
-                .keys()
-                .copied()
-                .filter(|block| !scheduled_blocks.contains(block)),
-        );
+        .collect::<BTreeSet<_>>();
+    let iteration_entries = if machine.ranked_scc.is_none() {
+        let feedback = crate::control_graph::feedback_edges(machine);
+        ignored_backedges.extend(feedback.keys().copied());
+        feedback.values().copied().collect::<BTreeSet<_>>()
+    } else {
+        BTreeSet::new()
+    };
+    let block_order = machine_flow::deterministic_block_order(machine, &ignored_backedges);
+    if block_order.len() != context.blocks.len() {
+        return Err(ModuleError::ControlCycle(machine.entry));
     }
-    for (position, current) in block_order.into_iter().enumerate() {
+    for current in block_order {
         let block = context
             .blocks
             .get(&current)
             .expect("validated module contains every reached block");
-        let mut axioms = if position < topological_count {
-            machine_flow::take_guaranteed_incoming(&mut incoming, current)
-        } else {
-            // The admitted unranked slice has only machine-parameter scalar
-            // operands and no structural custody. Replay each residual block
-            // from no local assumptions: partial incoming facts, including
-            // facts from another residual block, are not cyclic invariants.
-            // Its own operations and return still establish their local facts.
+        let mut axioms = if iteration_entries.contains(&current) {
+            // Treat every arrival at a cut target as an arbitrary iteration.
+            // Facts from its first arrival are not invariants. Operations and
+            // guards after this reset establish current-iteration facts on the
+            // remaining acyclic paths, without assuming a backedge premise.
             incoming.remove(&current);
             Vec::new()
+        } else {
+            machine_flow::take_guaranteed_incoming(&mut incoming, current)
         };
         if crash_facts {
             axioms.retain(|proposition| {
@@ -371,7 +367,7 @@ fn reconstruct_machine_semantics_with_crash_facts(
             &mut outcome_exits,
             &mut operation_obligations,
             &mut crash_sites,
-            &ranked_backedges,
+            &ignored_backedges,
         );
     }
     Ok(ReconstructedMachineSemantics {

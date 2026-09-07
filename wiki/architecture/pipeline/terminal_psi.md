@@ -2332,23 +2332,27 @@ entrance only coordinates named `admission`, `catalogs`, and `emission`
 submodules; its typed producer is likewise a small coordinator over named
 `topology`, `guards`, `leaves`, and `assembly` submodules.
 
-General cycles still reject. Unranked cycles currently admit only machine-parameter
-scalar values, no block parameters or structural custody, and the supported
-Unit-effect operations. Ownership replay visits every reachable block and edge,
+Unranked cycles admit scalar computations and block parameters, immutable shared
+byte views, and the supported Unit-effect operations. Full-graph dominance and
+exact successor bindings apply to scalar values and view descriptors, including
+multi-entry cycles. Owned or mutable custody and wider operations remain fenced.
+Ownership replay visits every reachable block and edge,
 including exits downstream of a cycle. A first incoming frontier seeds each
 block; deterministic transfer and exact comparison of every later arrival
 establish the ownership fixed point. No cleanup, return, or crash-frontier check
 may disappear because an acyclic ordering has a cyclic remainder. This does not
-admit wider operations, loop-carried values, or a termination guarantee.
+establish a termination guarantee.
 
 Proof reconstruction likewise retains every normal return, including returns
-downstream of a cycle. Until cyclic proposition invariants are reconstructed,
-each block in the cyclic remainder starts with no incoming semantic axioms;
-its own operation and return facts still participate in the all-return
+downstream of a cycle. A deterministic DFS cuts ancestor edges only for proof
+scheduling; executable edges remain intact. Every cut target starts with no
+incoming semantic axioms. Operations and selected guards then establish facts
+on the remaining acyclic paths, and all normal returns participate in the exit
 intersection. A fact from the acyclic prefix or one loop iteration is not an
 invariant. An infinite component contributes no normal return and does not
-itself require a termination proof. Wider cyclic guard/ranking proofs remain
-unfinished; omitting an exit from a published `ensures` check is never a
+itself require a termination proof. General invariant and ranking reconstruction
+remain unfinished; guarded-crash path enumeration also remains restricted on
+cyclic graphs. Omitting an exit from a published `ensures` check is never a
 substitute for that work.
 
 The exact ranked unsigned-countdown representation remains the ranked execution
@@ -3731,7 +3735,7 @@ converted into synthetic machines. Nested ordinary and
 composed calls share scalar helper identities and proof obligations. Whole-root
 linear arguments retain their call transfer, state-entry claim aliases, and
 selected boundary settlement. Calls from composed leaves still require
-scalar-only targets without runtime entry requirements. Claim-free acyclic graphs
+scalar-only targets without runtime entry requirements. Claim-free unranked graphs
 with scalar parameters and shared byte views use general state traversal
 for both free and attached bodies, including branches, joins, and empty states.
 Qualification, owned-frontier, implicit-receiver, and closed-sum cases retain their
@@ -3740,8 +3744,8 @@ does not fall back to a shape matcher. Scalar declaration/assignment prefixes
 reuse the shared local-storage namespace. Branch-free scalar successor operands
 are evaluated only after their edge is selected, then passed simultaneously to
 the target state. Selected-edge subslices retain their exact operation-result
-descriptors through later acyclic states. Descriptor-selecting joins and loop
-ranking remain unfinished; see
+descriptors through later states and repeated loop iterations, including
+descriptor-selecting joins. Retaining source loop ranking remains unfinished; see
 [borrowed-byte writer composition](#borrowed-byte-writer-composition).
 
 Closed-sum continuations retain the structural-result boundary and its exact
@@ -6747,7 +6751,7 @@ caller substitution are not yet represented in Terminal. A contracted source
 Do not inject a body SSA value into the parameter-only contract scope or add
 an unrelated length parameter as a replacement for the view's actual extent.
 
-The shared Unit call catalog includes acyclic free and attached state graphs
+The shared Unit call catalog includes unranked free and attached state graphs
 with scalar parameters, immutable byte views, selected-edge subslices, and
 ordered Unit calls.
 State construction and emission traverse the authored roster rather than match
@@ -6775,10 +6779,17 @@ already available on the current emission path, including inside scalar edge
 arguments. A fresh observation must not displace the exact guard-bound value;
 branch-local observations do not become available on sibling paths.
 
-The writer still needs repeated-producer descriptor rebinding and its slice-ranked body admitted
-through that shared catalog. Acyclic selected-edge tails already use the existing
-`ByteSequenceSubslice` operation and its independent bounds checks; this does not
-establish repeated-producer execution or native descriptor realization. A
+Repeated execution of `ByteSequenceSubslice` replaces only its own unrestricted
+borrowed result descriptor after checking the source, bounds, and storage kind.
+Other aliases retain their previous windows over the same backing bytes; the
+operation does not copy the payload. A reentered source entry uses ordinary
+block parameters and a one-shot invocation block, so later arrivals do not
+reuse invocation arguments. Fuel suspension resumes without duplicating effects.
+
+The writer still needs its slice-ranked body admitted through that shared catalog
+with its ranking certificate retained. Both free and attached source bodies with
+an implementation witness remain fenced rather than silently becoming unranked.
+Native byte-view layout and operations are also unfinished. A
 separate multistate plan is insufficient until calls, structural/scalar transfers,
 byte-view operations, effect ordering, and ranking survive Terminal production
 and its independent consumers together. Empty/nonempty raw bytes, both newline

@@ -3,6 +3,8 @@
 use super::operations::{require_defined, validate_operation_operands};
 use super::*;
 
+mod unranked_cycles;
+
 pub(super) fn validate_control_flow(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -135,65 +137,63 @@ pub(super) fn validate_control_flow(
             }
         }
     }
-    if order.len() != blocks.len() {
-        if representation_backedges.is_empty()
-            && validate_unranked_effectful_unit_cycle(
-                module,
-                machine,
-                machines,
-                boundary_machines,
-                blocks,
-                value_types,
-                &globally_defined,
-            )
-            .is_ok()
-        {
-            return Ok(());
+    let cyclic = order.len() != blocks.len();
+    if cyclic {
+        if !representation_backedges.is_empty() || !unranked_cycles::eligible(module, machine) {
+            let block = indegree
+                .iter()
+                .find_map(|(block, count)| (*count != 0).then_some(*block))
+                .expect("a cyclic graph leaves positive indegree");
+            return Err(ModuleError::ControlCycle(block));
         }
-        let block = indegree
-            .iter()
-            .find_map(|(block, count)| (*count != 0).then_some(*block))
-            .expect("a cyclic graph leaves positive indegree");
-        return Err(ModuleError::ControlCycle(block));
+        // Every target and reachable block has been checked before the shared
+        // full-graph analysis. Validation below is independent of visit order.
+        order = blocks.keys().copied().collect();
     }
 
-    let mut dominators = BTreeMap::<BlockId, BTreeSet<BlockId>>::new();
-    for block in &order {
-        let incoming = predecessors
-            .get(block)
-            .expect("every block has predecessors");
-        let mut set = if *block == machine.entry {
-            BTreeSet::new()
-        } else {
-            let mut incoming = incoming.iter();
-            let first = incoming
-                .next()
-                .expect("reachable non-entry block has a predecessor");
-            let mut intersection = dominators
-                .get(first)
-                .expect("topological predecessor has dominators")
-                .clone();
-            for predecessor in incoming {
-                intersection = intersection
-                    .intersection(
-                        dominators
-                            .get(predecessor)
-                            .expect("topological predecessor has dominators"),
-                    )
-                    .copied()
-                    .collect();
-            }
-            intersection
-        };
-        set.insert(*block);
-        dominators.insert(*block, set);
-    }
+    let dominators = if cyclic {
+        crate::control_graph::dominators(machine)
+    } else {
+        let mut dominators = BTreeMap::<BlockId, BTreeSet<BlockId>>::new();
+        for block in &order {
+            let incoming = predecessors
+                .get(block)
+                .expect("every block has predecessors");
+            let mut set = if *block == machine.entry {
+                BTreeSet::new()
+            } else {
+                let mut incoming = incoming.iter();
+                let first = incoming
+                    .next()
+                    .expect("reachable non-entry block has a predecessor");
+                let mut intersection = dominators
+                    .get(first)
+                    .expect("topological predecessor has dominators")
+                    .clone();
+                for predecessor in incoming {
+                    intersection = intersection
+                        .intersection(
+                            dominators
+                                .get(predecessor)
+                                .expect("topological predecessor has dominators"),
+                        )
+                        .copied()
+                        .collect();
+                }
+                intersection
+            };
+            set.insert(*block);
+            dominators.insert(*block, set);
+        }
+
+        dominators
+    };
 
     for block_id in order {
         let block = blocks
             .get(&block_id)
             .copied()
-            .expect("topological order contains known blocks");
+            .expect("validation order contains known blocks");
         let block_dominators = dominators
             .get(&block_id)
             .expect("every ordered block has dominators");
@@ -415,145 +415,6 @@ pub(super) fn validate_control_flow(
                         ContractClauseKind::Crash,
                     )?;
                 }
-            }
-        }
-    }
-    Ok(())
-}
-
-/// Admit the first unranked cyclic execution slice. With no local definitions,
-/// block parameters, or structural custody, the cycle's scalar environment is
-/// the machine parameter telescope at every block. Unit effects are safe in
-/// this slice because they publish no cross-block value or ownership state;
-/// broader cycles still require the SCC and fixed-point analyses below it.
-fn validate_unranked_effectful_unit_cycle(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    machines: &BTreeMap<MachineId, &TerminalMachine>,
-    boundary_machines: &[BoundaryMachineDeclaration],
-    blocks: &BTreeMap<BlockId, &terminal_psi::Block>,
-    value_types: &BTreeMap<ValueId, ScalarType>,
-    globally_defined: &BTreeSet<ValueId>,
-) -> Result<(), ModuleError> {
-    if !machine.structural_parameters.is_empty()
-        || super::block_views::has_bindings(machine)
-        || blocks.values().any(|block| !block.parameters.is_empty())
-    {
-        return Err(ModuleError::ControlCycle(machine.entry));
-    }
-    for block in blocks.values() {
-        for operation in &block.operations {
-            let admissible = match &operation.kind {
-                OperationKind::PortWrite { .. } => true,
-                OperationKind::BoundaryCall {
-                    structural_arguments,
-                    completion_receipts,
-                    ..
-                } => structural_arguments.is_empty() && completion_receipts.is_empty(),
-                OperationKind::CallUnit {
-                    structural_arguments,
-                    claim_transfers,
-                    requirement_obligations,
-                    crash_continuations,
-                    ..
-                } => {
-                    structural_arguments.is_empty()
-                        && claim_transfers.is_empty()
-                        && requirement_obligations.is_empty()
-                        && crash_continuations.is_empty()
-                }
-                _ => false,
-            };
-            if !matches!(&operation.result, OperationResult::Unit) || !admissible {
-                return Err(ModuleError::ControlCycle(machine.entry));
-            }
-            validate_operation_operands(
-                module,
-                machine,
-                operation,
-                machines,
-                boundary_machines,
-                value_types,
-                globally_defined,
-            )?;
-        }
-        match &block.terminator {
-            Terminator::Jump {
-                edge,
-                target,
-                arguments,
-                ..
-            } => validate_successor_bindings(
-                *edge,
-                *target,
-                arguments,
-                blocks,
-                value_types,
-                globally_defined,
-            )?,
-            Terminator::Conditional {
-                condition,
-                when_true,
-                when_false,
-            } => {
-                require_defined(*condition, value_types, globally_defined)?;
-                if value_types[condition] != ScalarType::Boolean {
-                    return Err(ModuleError::ConditionalConditionTypeMismatch {
-                        block: block.id,
-                        condition: *condition,
-                        actual: value_types[condition],
-                    });
-                }
-                for successor in [when_true, when_false] {
-                    validate_successor_bindings(
-                        successor.edge,
-                        successor.target,
-                        &successor.arguments,
-                        blocks,
-                        value_types,
-                        globally_defined,
-                    )?;
-                }
-            }
-            Terminator::Return { value, .. } => {
-                let Some(result) = machine.result.scalar() else {
-                    return Err(ModuleError::ScalarReturnFromUnitMachine {
-                        machine: machine.id,
-                        block: block.id,
-                    });
-                };
-                require_defined(*value, value_types, globally_defined)?;
-                if value_types[value] != result.scalar_type {
-                    return Err(ModuleError::ReturnTypeMismatch {
-                        machine: machine.id,
-                        value: value_types[value],
-                        result: result.scalar_type,
-                    });
-                }
-            }
-            Terminator::ReturnUnit { .. } => {
-                if !matches!(machine.result, TerminalMachineResult::Unit) {
-                    return Err(ModuleError::UnitReturnFromScalarMachine {
-                        machine: machine.id,
-                        block: block.id,
-                    });
-                }
-            }
-            Terminator::Crash { site_guard, .. } => {
-                for predicate in site_guard {
-                    contracts::validate_contract_scope(
-                        predicate.proposition(),
-                        globally_defined,
-                        machine.contract.id,
-                        ContractClauseKind::Crash,
-                    )?;
-                }
-            }
-            Terminator::StructuralCase { .. }
-            | Terminator::ReturnUnitPartialAffine { .. }
-            | Terminator::ReturnUnitNominalAffine { .. }
-            | Terminator::ReturnStructural { .. } => {
-                return Err(ModuleError::ControlCycle(machine.entry));
             }
         }
     }

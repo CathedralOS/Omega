@@ -36,8 +36,13 @@ pub(super) fn validate(
     else {
         return unsupported("Unit graph edge has no named source target");
     };
+    let authored_target = if path.symbol == plan.machine {
+        plan.states[0].state
+    } else {
+        path.symbol
+    };
     if edge.statement_ordinal as usize != ordinal
-        || edge.target_state != path.symbol
+        || edge.target_state != authored_target
         || transition.exit != TransitionExit::Ordinary
         || transition.continuation.is_valid()
         || !edge.trivial_affine_discard_parameter_positions.is_empty()

@@ -1,6 +1,7 @@
 //! Exact source-bound construction of the current migration trust graph.
 use super::{
-    BYTE_BLOCK_BINDINGS_SOURCE, BYTE_EXTENT_RECONSTRUCTION_SOURCE, BYTE_SUBSLICE_VALIDATION_SOURCE,
+    BYTE_BLOCK_BINDINGS_SOURCE, BYTE_CYCLIC_ELIGIBILITY_SOURCE, CONTROL_GRAPH_SOURCE,
+    BYTE_EXTENT_RECONSTRUCTION_SOURCE, BYTE_SUBSLICE_VALIDATION_SOURCE,
     BYTE_VIEW_ARGUMENTS_SOURCE, BYTE_VIEW_DOMINANCE_SOURCE, BYTE_VIEW_FRONTIER_SOURCE,
     BYTE_VIEW_FRONTIER_TRAVERSAL_SOURCE, PROOF_ADMISSION_SUBTRACT_ORDER_SOURCE,
     TERMINAL_BYTE_EXTENT_SOURCE,
@@ -457,6 +458,8 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                     ("terminal-semantics/structural_effect/byte_extent.rs", TERMINAL_BYTE_EXTENT_SOURCE),
                     ("terminal-verifier/verification/reconstruction/operation_facts/byte_extent.rs", BYTE_EXTENT_RECONSTRUCTION_SOURCE),
                     ("terminal-verifier/validation/control_flow.rs", BYTE_VIEW_DOMINANCE_SOURCE),
+                    ("terminal-verifier/control_graph.rs", CONTROL_GRAPH_SOURCE),
+                    ("terminal-verifier/validation/control_flow/unranked_cycles.rs", BYTE_CYCLIC_ELIGIBILITY_SOURCE),
                     ("terminal-verifier/validation/block_views.rs", BYTE_BLOCK_BINDINGS_SOURCE),
                     ("terminal-verifier/validation/frontier.rs", BYTE_VIEW_FRONTIER_SOURCE),
                     ("terminal-verifier/validation/frontier/traversal.rs", BYTE_VIEW_FRONTIER_TRAVERSAL_SOURCE),

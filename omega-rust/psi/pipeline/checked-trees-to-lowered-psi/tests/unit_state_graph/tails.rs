@@ -39,6 +39,161 @@ fn selected_tail_views_preserve_bytes_head_values_and_caller_continuation() {
     );
 }
 
+#[test]
+fn repeated_tail_state_preserves_each_selected_head_and_caller_continuation() {
+    assert_eq!(
+        effects(&loop_source()),
+        vec![
+            (b"AB".to_vec(), 128),
+            (b"B".to_vec(), 65),
+            (Vec::new(), 66),
+            (Vec::new(), 90),
+            (b"last".to_vec(), 3),
+        ]
+    );
+}
+
+fn loop_source() -> String {
+    SOURCE
+        .replace(
+            "true -> final_tail(bytes[1..], bytes[0] as i32)",
+            "true -> tail(bytes[1..], bytes[0] as i32)",
+        )
+        .replace(
+            "state final_tail(bytes: &[u8], head: i32) { Output::write(bytes, head); }",
+            "",
+        )
+}
+
+#[test]
+fn cyclic_tail_operations_resume_once_per_iteration_from_serialized_proofs() {
+    use terminal_fuel::TerminalFuelMeter;
+    use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
+    let lowered =
+        checked_trees_to_lowered_psi::lower_machine(&checked(&loop_source()), "Root::enter")
+            .unwrap();
+    let semantic = encode_module(&lowered.semantic_module).unwrap();
+    let proof = encode_proof_bundle(&lowered.proof_bundle).unwrap();
+    let profile = AdmissionProfile::default();
+    let unlimited = interpret_terminal_artifact_measured(&semantic, &proof, &profile, &[]).unwrap();
+    let mut execution =
+        TerminalExecution::start_artifact(&semantic, &proof, &profile, &[]).unwrap();
+    let mut meter = TerminalFuelMeter::with_allowance(1);
+    let mut completed = false;
+    for _ in 0..=unlimited.usage().total_units() {
+        let status = execution.resume(&mut meter).unwrap();
+        assert!(unlimited.effects().starts_with(execution.effects()));
+        match status {
+            TerminalExecutionStatus::SponsorExhausted(_) => meter.replenish(1).unwrap(),
+            TerminalExecutionStatus::Complete(value) => {
+                assert_eq!(value, TerminalExecutionResult::Unit);
+                completed = true;
+                break;
+            }
+            TerminalExecutionStatus::Crashed(crash) => panic!("unexpected crash {crash:?}"),
+        }
+    }
+    assert!(completed);
+    assert_eq!(execution.effects(), unlimited.effects());
+    assert_eq!(meter.usage().total_units(), unlimited.usage().total_units());
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(execution.effects(), unlimited.effects());
+    assert_eq!(meter.usage().total_units(), unlimited.usage().total_units());
+}
+
+#[test]
+fn unguarded_cyclic_byte_operations_reject_at_source_checking() {
+    let source = loop_source().replace("transition bytes.len > 0 {", "transition true {");
+    let tokens = Lexer::new(&source).tokenize().unwrap();
+    let syntax = parse_syntax_trees(&tokens).unwrap();
+    let resolved = lower_syntax_trees(&syntax).unwrap();
+    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
+    let errors =
+        typed_trees_to_checked_trees::lower_typed_trees(typed).expect_err("bounds remain required");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("cannot prove index"))
+    );
+}
+
+#[test]
+fn replacing_the_loop_guard_cannot_reuse_the_original_bounds_certificate() {
+    use terminal_psi::OperationKind;
+    let lowered =
+        checked_trees_to_lowered_psi::lower_machine(&checked(&loop_source()), "Root::enter")
+            .unwrap();
+    let mut changed = lowered.semantic_module;
+    let guard = changed
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .filter(|operation| matches!(operation.kind, OperationKind::IntegerLessThan { .. }))
+        .last()
+        .expect("loop extent guard");
+    guard.kind = OperationKind::BooleanConstant { value: true };
+    terminal_verifier::validate_module(&changed).expect("the forged guard is still well-typed");
+    assert!(matches!(
+        terminal_verifier::verify_module(
+            &changed,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default()
+        ),
+        Err(terminal_verifier::VerificationError::RejectedEvidence { .. })
+    ));
+}
+
+#[test]
+fn a_ranked_writer_cannot_silently_become_an_unranked_loop() {
+    let source = loop_source().replace(
+        "machine relay(bytes: &[u8]) reaches Output {",
+        "machine relay(bytes: &[u8]) terminates by bytes -> Slice::Length; reaches Output {",
+    );
+    assert!(checked_trees_to_lowered_psi::lower_machine(&checked(&source), "Root::enter").is_err());
+    let attached = source
+        .replace("machine relay(", "data Writer {} machine Writer::relay(")
+        .replace("        relay(\"", "        Writer::relay(\"");
+    assert!(
+        checked_trees_to_lowered_psi::lower_machine(&checked(&attached), "Root::enter").is_err()
+    );
+}
+
+#[test]
+fn reentered_entry_binds_the_current_view_without_changing_invocation_parameters() {
+    let source = r#"
+        boundary trait Output { machine write(bytes: &[u8], marker: i32) reaches Output; }
+        machine relay(bytes: &[u8]) reaches Output {
+            transition bytes.len > 0 {
+                true -> emit(bytes[0] as i32, bytes[1..])
+                false -> done()
+            }
+            state emit(head: i32, bytes: &[u8]) {
+                Output::write(bytes, head);
+                transition { _ -> relay(bytes) }
+            }
+            state done() { }
+        }
+        data Root {}
+        machine Root::enter() reaches Output {
+            relay("\x80AB"); relay(""); relay("Z"); Output::write("last", 3i32);
+        }
+    "#;
+    assert_eq!(
+        effects(source),
+        vec![
+            (b"AB".to_vec(), 128),
+            (b"B".to_vec(), 65),
+            (Vec::new(), 66),
+            (Vec::new(), 90),
+            (b"last".to_vec(), 3),
+        ]
+    );
+}
+
 fn effects(source: &str) -> Vec<(Vec<u8>, i128)> {
     let checked = checked(source);
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
