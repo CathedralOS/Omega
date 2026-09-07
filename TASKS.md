@@ -238,13 +238,21 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   `validation/src/call_cycles/runtime_ranking/`.
   Computed-only paths lacking a unique current-parameter origin,
   non-bijective transfers involving rank inputs, and call components with
-  internal state arrivals, mixed ranged/unranged members, or slice-length,
+  internal state arrivals, computed endpoint transport through mixed
+  ranged/unranged members, or slice-length,
   bounded-distance, or custom views need
   exact arrival mappings and preserved premises for ranked subjects and pinned
   endpoints. Mutable premises need live write-frame evidence.
   Custom scalar views and slice-length ranges over projected storage need their
   produced-rank facts.
   These are implementation gaps, not grounds to weaken the range obligation.
+
+  Mixed scalar call components still need arithmetic endpoint-input transport
+  beyond exact parameter forwarding: an equivalent actual such as `capacity + 0`
+  must carry its endpoint identity with checked equality, not a source-name guess.
+  The existing mixed-component correspondence conserves direct parameter copies
+  across all incoming occurrences; extend that evidence without losing endpoint
+  pins through an unranged member or admitting a preserving cycle.
 
   Acceptance: named-state and call-component rank ranges accept proved
   constraints while changed endpoints and intervening writes invalidate their

@@ -213,13 +213,32 @@ fn unranged_increasing_calls_forward_clamped_zero_without_counting_plateau_as_de
 }
 
 #[test]
-fn unranged_increasing_calls_keep_selected_meaning_and_uniform_range_policy() {
+fn unranged_increasing_calls_keep_selected_meaning() {
     for declaration in [
         "operator + u64::add(left: u64, right: u64) -> u64;",
         "operator < u64::less(left: u64, right: u64) -> bool;",
     ] {
         reject(&format!("{declaration} {}", without_ranges(PAIR)));
     }
-    reject(&PAIR.replace(" in 0..=capacity", ""));
-    reject(&PAIR.replace(" in 0..=ceiling", ""));
+}
+
+#[test]
+fn mixed_increasing_call_ranges_keep_range_endpoints_and_view_limits_pinned() {
+    for omitted in [" in 0..=capacity", " in 0..=ceiling"] {
+        let source = PAIR.replace(omitted, "");
+        prove(&source);
+        reject(&source.replace(
+            "self.second(capacity, cursor, limit)",
+            "self.second(capacity + 1, cursor, limit)",
+        ));
+        reject(&source.replace(
+            "self.first(bound, position + 1, ceiling)",
+            "self.first(bound, position + 1, ceiling + 1)",
+        ));
+        reject(&source.replace(
+            "self.first(bound, position + 1, ceiling)",
+            "self.first(bound - 1, position, ceiling)",
+        ));
+        reject(&source.replace("position + 1", "position"));
+    }
 }

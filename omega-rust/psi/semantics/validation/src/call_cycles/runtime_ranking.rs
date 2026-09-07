@@ -17,8 +17,8 @@ use typed_trees::proof_only::ProofOnlyClassification;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
 use crate::contract_entailment::{
-    RankingRangeCallMember, RankingRangeCallProgress, prove_ranking_range_call,
-    prove_ranking_range_call_entry,
+    RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress,
+    mixed_call_endpoints_are_pinned, prove_ranking_range_call, prove_ranking_range_call_entry,
 };
 use comparison::Comparison;
 use projection::RankProjection;
@@ -84,10 +84,8 @@ pub(super) fn check_component(
     if !ranks.iter().all(|rank| rank.same_order(&ranks[0])) {
         return Err("members do not share the same ranking order");
     }
-    let ranged = ranks[0].range.is_valid();
-    if ranks.iter().any(|rank| rank.range.is_valid() != ranged) {
-        return Err("mixed ranged and unranged call members need shared range evidence");
-    }
+    let mixed_ranges = ranks.iter().any(|rank| rank.range.is_valid())
+        && ranks.iter().any(|rank| !rank.range.is_valid());
     for (rank, index) in ranks.iter().zip(component) {
         if rank.range.is_valid() {
             let machine = &program.machines()[*index];
@@ -104,6 +102,7 @@ pub(super) fn check_component(
         }
     }
     let frames = crate::calls::CallFrameResolver::new(program);
+    let mut range_edges = Vec::new();
     let mut weak_edges = vec![Vec::new(); component.len()];
     for (position, index) in component.iter().copied().enumerate() {
         let machine = &program.machines()[index];
@@ -195,6 +194,13 @@ pub(super) fn check_component(
                     else {
                         continue;
                     };
+                    if mixed_ranges {
+                        range_edges.push(RankingRangeCallEdge {
+                            source: position,
+                            destination: callee_position,
+                            arguments,
+                        });
+                    }
                     let parameters = program.state_parameters(entry);
                     if arguments.len()
                         != parameters
@@ -268,6 +274,22 @@ pub(super) fn check_component(
             .any(|target| !observed.contains(target))
         {
             return Err("an internal call occurrence lacks a classified tail edge");
+        }
+    }
+    if mixed_ranges {
+        let members = ranks
+            .iter()
+            .zip(component)
+            .map(|(rank, index)| RankingRangeCallMember {
+                machine: &program.machines()[*index],
+                subject: rank.subject,
+                range: rank.range,
+            })
+            .collect::<Vec<_>>();
+        if !mixed_call_endpoints_are_pinned(program, &members, &range_edges) {
+            return Err(
+                "dependent rank endpoints are not conserved through every mixed-component call",
+            );
         }
     }
     if weak_edges_are_acyclic(&weak_edges) {

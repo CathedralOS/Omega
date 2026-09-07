@@ -3,6 +3,9 @@
 
 use super::*;
 
+mod endpoint_pins;
+pub(crate) use endpoint_pins::{RankingRangeCallEdge, mixed_call_endpoints_are_pinned};
+
 pub(crate) struct RankingRangeCallMember<'program> {
     pub(crate) machine: &'program Machine,
     pub(crate) subject: ExpressionHandle,
@@ -62,6 +65,8 @@ pub(crate) fn prove_ranking_range_call_entry(
 /// judgment reads only caller entry hypotheses, never destination requirements,
 /// and proves nonincrease or strict descent with pinned view bounds. Authored
 /// ranges additionally require membership and equality of their endpoints.
+/// When only one side authors a range, the component owner must separately
+/// conserve its endpoint inputs through every unranged participant.
 pub(crate) fn prove_ranking_range_call(
     program: &TypedTrees,
     caller: RankingRangeCallMember<'_>,
@@ -88,9 +93,6 @@ pub(crate) fn prove_ranking_range_call(
     }
     let admit_source =
         |expression| meanings::builtin(program, caller.machine, source, expression, 0);
-    if caller.range.is_valid() != callee.range.is_valid() {
-        return None;
-    }
     // Both selected scalar views already produce natural ranks. An absent
     // optional range adds no endpoint obligations or synthetic bound.
     admit_member(program, &caller, source, source_measure)?;
@@ -189,18 +191,26 @@ pub(crate) fn prove_ranking_range_call(
     {
         return None;
     }
-    if let (Some((floor, ceiling, inclusive)), Some((next_floor, next_ceiling, next_inclusive))) =
+    if let Some((floor, ceiling, inclusive)) = &source_range
+        && !membership(&engine, source_measure, &rank, floor, ceiling, *inclusive)
+    {
+        return None;
+    }
+    if let Some((floor, ceiling, inclusive)) = &destination_range
+        && !membership(
+            &engine,
+            destination_measure,
+            &next_rank,
+            floor,
+            ceiling,
+            *inclusive,
+        )
+    {
+        return None;
+    }
+    if let (Some((floor, ceiling, _)), Some((next_floor, next_ceiling, _))) =
         (source_range, destination_range)
-        && (!membership(&engine, source_measure, &rank, &floor, &ceiling, inclusive)
-            || !membership(
-                &engine,
-                destination_measure,
-                &next_rank,
-                &next_floor,
-                &next_ceiling,
-                next_inclusive,
-            )
-            || !prove(next_floor.sub(&floor), 0)
+        && (!prove(next_floor.sub(&floor), 0)
             || !prove(floor.sub(&next_floor), 0)
             || !prove(next_ceiling.sub(&ceiling), 0)
             || !prove(ceiling.sub(&next_ceiling), 0))
