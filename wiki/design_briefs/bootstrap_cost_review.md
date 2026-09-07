@@ -4,6 +4,9 @@ Initial measurements use `59e73ffef81b550c0eac4946b0e40970dc90942b` on macOS arm
 follow-through revisions are identified below.
 This is engineering evidence, not an owner ruling or admitted proof artifact.
 The objective remains the [smallest human-auditable chain](bootstrap_minimization.md).
+The current P1 proposal and scope pause are consolidated in the
+[complete encoder plan](beta_encoder_plan.md); the measurements below remain
+evidence, not successive authorization to add more helpers.
 
 ## Findings and disposition
 
@@ -269,7 +272,8 @@ The complete transparent encoder needs three ordinary-definition phases:
    change to source semantics. Neither alternative is established by this probe.
 2. Consume the immediate source tail in one structurally decreasing scanner.
    Its state distinguishes trivia, comments, an unfinished token, expected item
-   or operand, emitted-byte count, output accumulator, and failure. Completed
+   or operand, emitted-byte count, and failure. The current candidate returns
+   output fragments separately rather than carrying output history. Completed
    tokens select only the closed mnemonic/operand table, `dw`, or an assertion.
    EOF must finish the last token and reject missing operands. Failure values
    remain explicit; no helper-returned cursor substitutes for structural decrease.
@@ -765,13 +769,14 @@ There are distinct engineering choices, not a language prohibition:
   be audited together. Alpha's `MEMSIZE` is already an implementation parameter;
   no such replacement realization has been implemented or validated here.
 
-**Next decision:** consolidate the complete admission-encoder design and one
-request/work/storage ledger, explicitly pricing the missing operations above.
-Same calculus plus a coherently larger profile is a plausible candidate, not a
-proven feasible route. Pause new helper families and provision changes until
-that single comparison supports continuing, simplifying, or deferring. Do not
-replace it with another no-op traversal or a succession of small passing probes.
-This is an engineering/scope review, not an owner-language blocker.
+**Current decision:** the [consolidated encoder plan](beta_encoder_plan.md)
+specifies a complete token-at-a-time algorithm and one ledger of its cost owners.
+A full numerical estimate remains unavailable without the actual equations and
+integrated recipe. Request user scope direction before that implementation unit;
+keep helper and provision changes paused. Same calculus plus a larger profile
+remains a candidate, not a demonstrated fit. Do not replace that decision with
+another no-op traversal or a succession of small passing probes. This is an
+engineering/scope review, not an owner-language blocker.
 
 Local continuation material remains outside the repository:
 `/tmp/omega-lexical-factoring.RD0U2V/compare.py` takes `prepare`, `positive`, or
