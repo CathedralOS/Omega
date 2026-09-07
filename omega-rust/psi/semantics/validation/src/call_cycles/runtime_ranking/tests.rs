@@ -2,6 +2,7 @@ use super::*;
 use source::SourceMap;
 use source_files_to_tokens::Lexer;
 
+mod increasing;
 mod meaning;
 mod ranges;
 

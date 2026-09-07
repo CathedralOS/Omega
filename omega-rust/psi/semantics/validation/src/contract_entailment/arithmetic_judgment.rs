@@ -189,6 +189,9 @@ impl Interval {
     }
 
     fn scale(&self, factor: &BigInt) -> Self {
+        if factor.is_zero() {
+            return Self::constant(BigInt::zero());
+        }
         let scaled_low = self.low.as_ref().map(|value| value.mul(factor));
         let scaled_high = self.high.as_ref().map(|value| value.mul(factor));
         if factor.is_negative() {
@@ -205,6 +208,18 @@ impl Interval {
     }
 
     fn multiply(&self, other: &Self) -> Self {
+        // Scalar multiplication retains a one-sided bound. In particular,
+        // the monomial accumulator's initial 1 must not erase [0, +infinity).
+        if let (Some(low), Some(high)) = (&self.low, &self.high)
+            && low == high
+        {
+            return other.scale(low);
+        }
+        if let (Some(low), Some(high)) = (&other.low, &other.high)
+            && low == high
+        {
+            return self.scale(low);
+        }
         // An unbounded end makes the product unbounded on the side it could
         // extend; with all four ends finite the corner products are exact.
         let (Some(self_low), Some(self_high), Some(other_low), Some(other_high)) =

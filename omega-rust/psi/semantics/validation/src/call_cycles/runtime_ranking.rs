@@ -93,13 +93,10 @@ pub(super) fn check_component(
             let Some(entry) = program.machine_states(machine).first() else {
                 return Err("a ranged member has no entry");
             };
-            if !crate::prove_ranking_range_entry(
-                program,
-                machine,
-                entry,
-                rank.range,
-                crate::RankingRangeMeasure::Single(rank.subject),
-            ) {
+            let Some(measure) = rank.range_measure() else {
+                return Err("a ranged member lacks its exact produced-rank projection");
+            };
+            if !crate::prove_ranking_range_entry(program, machine, entry, rank.range, measure) {
                 return Err("a member's initial rank range is unproven");
             }
         }

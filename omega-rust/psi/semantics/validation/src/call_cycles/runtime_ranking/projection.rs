@@ -12,6 +12,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceNode};
 #[derive(PartialEq, Eq)]
 pub(super) enum RankOrder {
     Natural(PrimitiveType),
+    IncreasingTo(PrimitiveType),
     Lexicographic {
         measure_index: usize,
         data: SymbolHandle,
@@ -25,21 +26,18 @@ pub(super) struct RankProjection {
     pub(super) argument_position: usize,
     pub(super) subject: ExpressionHandle,
     pub(super) range: ExpressionHandle,
+    view_bound: ExpressionHandle,
 }
 
 impl RankProjection {
     pub(super) fn resolve(program: &TypedTrees, machine: &Machine) -> Option<Self> {
         let witness = machine.termination_plan.implementation_witness.as_ref()?;
-        if !witness.view_arguments.is_empty() {
-            return None;
-        }
         // Never rediscover the subject by scanning rendered expressions.
         let custody = program.ranking_expression_custody_for(machine.symbol)?;
         let [subject] = custody.subjects.as_slice() else {
             return None;
         };
         if witness.subjects.len() != 1
-            || !custody.view_arguments.is_empty()
             || witness.rank_range.is_some() != custody.rank_range.is_some()
             || custody.rank_range.is_some_and(|range| !range.is_valid())
         {
@@ -65,9 +63,29 @@ impl RankProjection {
         if parameters.next().is_some() {
             return None;
         }
-        if witness.ranking_view == RankingViewId::NAT_DESCENDING
-            && Some(witness.view_path.as_str()) == witness.ranking_view.canonical_path()
+        if matches!(
+            witness.ranking_view,
+            RankingViewId::NAT_DESCENDING | RankingViewId::NAT_INCREASING_TO
+        ) && Some(witness.view_path.as_str()) == witness.ranking_view.canonical_path()
         {
+            let increasing = witness.ranking_view == RankingViewId::NAT_INCREASING_TO;
+            let view_bound = if increasing {
+                let [bound] = custody.view_arguments.as_slice() else {
+                    return None;
+                };
+                if witness.view_arguments.len() != 1
+                    || !bound.is_valid()
+                    || custody.rank_range.is_none()
+                {
+                    return None;
+                }
+                *bound
+            } else {
+                if !witness.view_arguments.is_empty() || !custody.view_arguments.is_empty() {
+                    return None;
+                }
+                ExpressionHandle::invalid()
+            };
             let mut reference = parameter.type_reference;
             while let TypeReferenceNode::Constrained { base_type, .. } =
                 program.type_reference_table.type_reference(reference)
@@ -82,14 +100,23 @@ impl RankProjection {
                 return None;
             }
             return Some(Self {
-                order: RankOrder::Natural(primitive),
+                order: if increasing {
+                    RankOrder::IncreasingTo(primitive)
+                } else {
+                    RankOrder::Natural(primitive)
+                },
                 parameter: parameter.symbol,
                 argument_position,
                 subject: *subject,
                 range: custody.rank_range.unwrap_or_default(),
+                view_bound,
             });
         }
-        if witness.ranking_view.is_valid() || custody.rank_range.is_some() {
+        if witness.ranking_view.is_valid()
+            || custody.rank_range.is_some()
+            || !witness.view_arguments.is_empty()
+            || !custody.view_arguments.is_empty()
+        {
             return None;
         }
         let TypeReferenceNode::Named { symbol: data, .. } = program
@@ -186,11 +213,25 @@ impl RankProjection {
             argument_position,
             subject: *subject,
             range: ExpressionHandle::invalid(),
+            view_bound: ExpressionHandle::invalid(),
         })
     }
 
     pub(super) fn same_order(&self, other: &Self) -> bool {
         self.order == other.order
+    }
+
+    pub(super) fn range_measure(&self) -> Option<crate::RankingRangeMeasure> {
+        match self.order {
+            RankOrder::Natural(_) => Some(crate::RankingRangeMeasure::Single(self.subject)),
+            RankOrder::IncreasingTo(_) if self.view_bound.is_valid() => {
+                Some(crate::RankingRangeMeasure::IncreasingTo {
+                    subject: self.subject,
+                    limit: self.view_bound,
+                })
+            }
+            _ => None,
+        }
     }
 
     pub(super) fn is_subject(&self, program: &TypedTrees, expression: ExpressionHandle) -> bool {
