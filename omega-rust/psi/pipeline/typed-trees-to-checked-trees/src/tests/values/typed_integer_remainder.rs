@@ -155,6 +155,39 @@ fn exact_const_quotients_determine_checked_array_bounds() {
 }
 
 #[test]
+fn const_requirements_reach_checking_with_exact_anonymous_meaning() {
+    for fact in [
+        "7 / 2 * 2 == 7",
+        "7 / 2 > 3",
+        "7u64 / 2 == 3",
+        "N == 7 / 2 * 2 - 5",
+    ] {
+        accepts(&format!(
+            "data Buffer<const N: u64> where {fact}, {{ values: [u8; N]; }}
+            machine run(value: &Buffer<2>) -> u8 {{ value.values[0] }}"
+        ));
+    }
+    let source = "data Buffer<const N: u64> where 7 / 2 == 3, { values: [u8; N]; }
+        machine run(value: &Buffer<2>) -> u8 { value.values[0] }";
+    let errors = check(source).expect_err("a false const requirement cannot be erased");
+    assert!(errors.contains("is false"), "{errors}");
+}
+
+#[test]
+fn template_deferral_does_not_admit_unsupported_concrete_field_facts() {
+    for source in [
+        "data Buffer<const N: u64> where count / 2 <= N, { count: u64; }
+         machine run(value: &Buffer<2>) -> u64 { value.count }",
+        "data Buffer where count / 2 <= 2, { count: u64; }
+         machine run(value: &Buffer) -> u64 { value.count }",
+    ] {
+        let errors = check(source)
+            .expect_err("concrete zero classification still rejects unsupported facts");
+        assert!(errors.contains("zero-foldable fragment"), "{errors}");
+    }
+}
+
+#[test]
 fn nested_anonymous_arithmetic_does_not_supply_a_remainder_operand_type() {
     for expression in ["(7 + 1) % 2", "(7 / 2) % 2", "(7 % 2) as i32"] {
         rejects_anonymous_remainder(&format!("machine run() -> i32 {{ {expression} }}"));

@@ -814,7 +814,13 @@ expression-only suppression restriction.
 > and domains retain exact anonymous intermediates before normalization chooses
 > the canonical integer argument. Normalization reports their fractional
 > origins through the current stderr warning channel; an integral final value
-> must still fit its declared const parameter. Caller result proofs can also
+> must still fit its declared const parameter. Closed builtin generic facts and
+> const-domain predicates compare anonymous rational values without integer
+> landing: `7 / 2 > 3` holds, while `7 / 2 == 3` is false. Typed or named integer
+> peers and integer domain membership require integral anonymous operands;
+> successful integer landing retains fractional-intermediate warnings. Facts
+> with potentially authored operators remain for typed declaration selection,
+> not builtin evaluation by spelling. Caller result proofs can also
 > transport a callee's builtin `result == immutable_parameter` guarantee from retained closed
 > fixed-integer operands, without replaying their source expressions. General runtime argument
 > snapshots, generic/evidence-adapted and boundary destination custody, aggregate

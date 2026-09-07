@@ -12,6 +12,15 @@ fn normalize(source: &str) -> Result<(SyntaxTrees, Vec<Diagnostic>), Vec<Diagnos
     normalize_generic_data_with_warnings(syntax)
 }
 
+#[test]
+fn anonymous_const_fact_cannot_discharge_a_truncated_equality() {
+    assert_rejected(
+        "data Buffer<const N: u64> where 7 / 2 == 3, { values: [u8; N]; }
+        data Main { value: Buffer<2>; }",
+        "is false",
+    );
+}
+
 fn instance<'syntax>(
     syntax: &'syntax SyntaxTrees,
     base: &str,

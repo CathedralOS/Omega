@@ -318,6 +318,7 @@ pub(in crate::generic_data) fn desugar_generic_data_instances(
                 .iter()
                 .enumerate()
             {
+                let fact_warning_start = warnings.len();
                 let const_result = match fact {
                     ProofFact::Expression(expression) => evaluate_const_fact_expression(
                         &snapshot,
@@ -325,6 +326,7 @@ pub(in crate::generic_data) fn desugar_generic_data_instances(
                         &const_values,
                         &const_parameter_values,
                         None,
+                        warnings,
                     )
                     .map(|value| match value {
                         Some(ConstFactValue::Boolean(value)) => Some(value),
@@ -336,6 +338,7 @@ pub(in crate::generic_data) fn desugar_generic_data_instances(
                         &const_values,
                         &const_parameter_values,
                         &const_parameter_type_names,
+                        warnings,
                     ),
                 }
                 .map_err(|reason| {
@@ -353,6 +356,7 @@ pub(in crate::generic_data) fn desugar_generic_data_instances(
                         instance.synthetic_name
                     ))]);
                 }
+                warnings.truncate(fact_warning_start);
                 let source = Handle::from_parts(
                     base_info
                         .where_facts

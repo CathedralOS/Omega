@@ -92,6 +92,11 @@ pub(crate) fn lower_data_definition(
                     // (admitted; its literals must PROVE the domain, and rung 3's
                     // access gate covers zeroed storage).
                     Some(_) => zero_gated = true,
+                    // A generic template has no concrete zero value yet.
+                    // Retain its obligation conservatively; normalization
+                    // discharges closed const facts on each instance, whose
+                    // remaining default-domain facts still pass this check.
+                    None if !type_parameters.is_empty() => zero_gated = true,
                     None => {
                         return Err(Diagnostic::error(format!(
                             "data `{}`: a default-domain `where` fact is outside the v1 \
