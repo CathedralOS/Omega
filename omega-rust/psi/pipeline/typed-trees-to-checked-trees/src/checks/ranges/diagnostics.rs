@@ -69,10 +69,17 @@ pub(super) fn known_length_range_bound_failure(
 
 pub(super) fn unknown_length_range_failure(
     program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     facts: &RangeFacts<'_>,
     collection: ExpressionHandle,
     range: &TableRangeExpression,
 ) -> SubsliceRangeFailure {
+    if !range.end_inclusive
+        && super::proofs::is_exact_collection_length(program, machine, state, collection, range.end)
+    {
+        return SubsliceRangeFailure::StartBound;
+    }
     let collection_label = program.expression_table.display_name(collection);
     match (range.start.is_valid(), range.end.is_valid()) {
         (true, false) => {

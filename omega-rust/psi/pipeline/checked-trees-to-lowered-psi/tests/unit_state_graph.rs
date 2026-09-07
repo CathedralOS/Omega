@@ -14,6 +14,9 @@ mod cases;
 #[path = "unit_state_graph/scalars.rs"]
 mod scalars;
 
+#[path = "unit_state_graph/tails.rs"]
+mod tails;
+
 const SOURCE: &str = r#"
     boundary trait Output { machine write(bytes: &[u8], marker: u8) reaches Output; }
     machine relay(bytes: &[u8], selected: bool, marker: u8) reaches Output {

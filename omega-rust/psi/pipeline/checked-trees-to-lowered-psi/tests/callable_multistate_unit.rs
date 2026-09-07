@@ -380,7 +380,8 @@ fn ordinary_caller_transfers_linear_claim_into_composed_callee() {
             else {
                 panic!("conditional");
             };
-            when_true.transfers[0].source_parameter_index = 1;
+            when_true.transfers[0].source =
+                checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 };
         } else {
             callee.states[1].entry_claims[0].claim_identity =
                 language_semantics::PermissionClaimIdentity::Unknown;

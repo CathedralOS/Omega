@@ -169,7 +169,7 @@ pub(super) fn build_structural_unit_control_machine(
                                 return None;
                             }
                             return Some(CheckedStructuralControlTransferPlan {
-                                source_parameter_index: u32::try_from(source_index).ok()?,
+                                source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: u32::try_from(source_index).ok()? },
                                 target_parameter_index: u32::try_from(target_parameter_index)
                                     .ok()?,
                             });
@@ -207,7 +207,7 @@ pub(super) fn build_structural_unit_control_machine(
                             return None;
                         }
                         Some(CheckedStructuralControlTransferPlan {
-                            source_parameter_index: u32::try_from(source_index).ok()?,
+                            source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: u32::try_from(source_index).ok()? },
                             target_parameter_index: u32::try_from(target_parameter_index).ok()?,
                         })
                     })
@@ -403,7 +403,7 @@ pub(super) fn build_structural_unit_control_machine(
                                         return None;
                                     }
                                     return Some(CheckedStructuralControlTransferPlan {
-                                        source_parameter_index: u32::try_from(source_index).ok()?,
+                                        source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: u32::try_from(source_index).ok()? },
                                         target_parameter_index: u32::try_from(
                                             target_parameter_index,
                                         )
@@ -443,7 +443,7 @@ pub(super) fn build_structural_unit_control_machine(
                                     return None;
                                 }
                                 Some(CheckedStructuralControlTransferPlan {
-                                    source_parameter_index: u32::try_from(source_index).ok()?,
+                                    source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: u32::try_from(source_index).ok()? },
                                     target_parameter_index: u32::try_from(target_parameter_index)
                                         .ok()?,
                                 })

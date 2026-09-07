@@ -72,8 +72,10 @@ pub(super) fn admit(
         };
         validate_parameter(leaf_parameter, &entry_parameter.type_identity)?;
         validate_claim(leaf_claim, plan.machine, leaf.state)?;
-        if transfer.source_parameter_index != 0
-            || transfer.target_parameter_index != 0
+        if !matches!(
+            transfer.source,
+            checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 }
+        ) || transfer.target_parameter_index != 0
             || !successor.scalar_arguments.is_empty()
             || !successor
                 .trivial_affine_discard_parameter_positions

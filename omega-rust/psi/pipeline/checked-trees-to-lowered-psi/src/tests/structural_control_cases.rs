@@ -258,7 +258,7 @@ fn install_structural_unit_control_fixture(checked: &mut CheckedTrees) {
                             statement_ordinal: 0,
                             target_state: leaf,
                             transfers: vec![checked_trees::CheckedStructuralControlTransferPlan {
-                                source_parameter_index: 1,
+                                source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 },
                                 target_parameter_index: 0,
                             }],
                             scalar_arguments: vec![
@@ -354,7 +354,7 @@ fn install_structural_unit_conditional_fixture(checked: &mut CheckedTrees) {
                                 target_state: true_leaf,
                                 transfers: vec![
                                     checked_trees::CheckedStructuralControlTransferPlan {
-                                        source_parameter_index: 0,
+                                        source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 },
                                         target_parameter_index: 0,
                                     },
                                 ],
@@ -373,7 +373,7 @@ fn install_structural_unit_conditional_fixture(checked: &mut CheckedTrees) {
                                 target_state: false_leaf,
                                 transfers: vec![
                                     checked_trees::CheckedStructuralControlTransferPlan {
-                                        source_parameter_index: 1,
+                                        source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 },
                                         target_parameter_index: 0,
                                     },
                                 ],
@@ -417,11 +417,17 @@ fn install_structural_unit_nonentry_conditional_fixture(checked: &mut CheckedTre
                 target_state: conditional_state,
                 transfers: vec![
                     checked_trees::CheckedStructuralControlTransferPlan {
-                        source_parameter_index: 0,
+                        source:
+                            checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+                                index: 0,
+                            },
                         target_parameter_index: 0,
                     },
                     checked_trees::CheckedStructuralControlTransferPlan {
-                        source_parameter_index: 1,
+                        source:
+                            checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+                                index: 1,
+                            },
                         target_parameter_index: 1,
                     },
                 ],
@@ -511,7 +517,9 @@ fn install_structural_unit_two_conditional_fixture(checked: &mut CheckedTrees) {
             statement_ordinal,
             target_state,
             transfers: vec![checked_trees::CheckedStructuralControlTransferPlan {
-                source_parameter_index: 0,
+                source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+                    index: 0,
+                },
                 target_parameter_index: 0,
             }],
             scalar_arguments: vec![checked_trees::CheckedStructuralScalarArgumentPlan {
@@ -575,7 +583,8 @@ fn install_structural_unit_join_fixture(checked: &mut CheckedTrees) {
     else {
         unreachable!()
     };
-    when_false.transfers[0].source_parameter_index = 0;
+    when_false.transfers[0].source =
+        checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 };
     when_false.scalar_arguments[0].source =
         checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 2 };
     when_false.trivial_affine_discard_parameter_positions = vec![1];
@@ -586,7 +595,9 @@ fn install_structural_unit_join_fixture(checked: &mut CheckedTrees) {
             statement_ordinal: 0,
             target_state: join,
             transfers: vec![checked_trees::CheckedStructuralControlTransferPlan {
-                source_parameter_index: 0,
+                source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+                    index: 0,
+                },
                 target_parameter_index: 0,
             }],
             scalar_arguments: vec![checked_trees::CheckedStructuralScalarArgumentPlan {
@@ -1135,7 +1146,8 @@ fn structural_unit_diamond_requires_one_exact_join_frontier() {
     else {
         unreachable!()
     };
-    when_false.transfers[0].source_parameter_index = 1;
+    when_false.transfers[0].source =
+        checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 };
     when_false.trivial_affine_discard_parameter_positions = vec![0];
     assert!(matches!(
         lower_machine(&checked, "Root::enter"),
@@ -1162,7 +1174,9 @@ fn structural_unit_diamond_requires_one_exact_join_frontier() {
         statement_ordinal: 0,
         target_state: entry,
         transfers: vec![checked_trees::CheckedStructuralControlTransferPlan {
-            source_parameter_index: 0,
+            source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+                index: 0,
+            },
             target_parameter_index: 0,
         }],
         scalar_arguments: Vec::new(),

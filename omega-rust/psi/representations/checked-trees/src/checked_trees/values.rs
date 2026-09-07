@@ -254,6 +254,14 @@ pub enum CheckedScalarExpressionRole {
     TransitionArgument {
         argument_ordinal: u32,
     },
+    /// Present exclusive byte-range endpoint at an authored transition argument
+    /// position. Omitted endpoints have no source binding or scalar fact.
+    TransitionSubsliceStart {
+        argument_ordinal: u32,
+    },
+    TransitionSubsliceEnd {
+        argument_ordinal: u32,
+    },
     /// False-arm continuation operands have distinct custody from the primary
     /// target even when their formal positions are identical.
     TransitionContinuationArgument {

@@ -46,8 +46,8 @@ pub(in crate::attached_unit) struct AdmittedGraph<'a> {
         Vec<(&'a CheckedBoundaryMachinePlan, String)>,
     pub(in crate::attached_unit::composed_control) internal_targets:
         Vec<(crate::attached_unit::bodies::UnitBody<'a>, String)>,
-    /// State-local view positions alias these immutable invocation parameters.
-    pub(super) view_roots: Vec<Vec<usize>>,
+    /// State-local views retain invocation or selected-edge descriptor identities.
+    pub(super) views: views::ViewBindings,
 }
 
 pub(in crate::attached_unit::composed_control) fn admit<'a>(
@@ -312,7 +312,7 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
             _ => return unsupported("Unit graph terminator disagrees with authored state"),
         }
     }
-    let view_roots = view_roots(plan)?;
+    let views = views::bindings(plan)?;
     let states = plan.states.iter().collect::<Vec<_>>();
     let (boundaries, internal_targets) =
         super::super::admission::retain_call_targets(checked, plan.machine, &states)?;
@@ -329,76 +329,6 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
     Ok(AdmittedGraph {
         boundaries,
         internal_targets,
-        view_roots,
+        views,
     })
-}
-
-fn view_roots(
-    plan: &CheckedComposedUnitControlMachinePlan,
-) -> Result<Vec<Vec<usize>>, LoweringError> {
-    let mut incoming = vec![0_usize; plan.states.len()];
-    for state in &plan.states {
-        for successor in successors(state) {
-            let target = plan
-                .states
-                .iter()
-                .position(|state| state.state == successor.target_state)
-                .ok_or(LoweringError::Unsupported("Unit graph edge has no target"))?;
-            incoming[target] += 1;
-        }
-    }
-    if incoming[0] != 0 || incoming[1..].contains(&0) {
-        return unsupported("Unit graph is cyclic or has unreachable states");
-    }
-    let mut roots = vec![None; plan.states.len()];
-    roots[0] = Some((0..plan.states[0].structural_parameters.len()).collect::<Vec<_>>());
-    let mut ready = vec![0];
-    let mut next = 0;
-    while let Some(source) = ready.get(next).copied() {
-        next += 1;
-        for successor in successors(&plan.states[source]) {
-            let target = plan
-                .states
-                .iter()
-                .position(|state| state.state == successor.target_state)
-                .ok_or(LoweringError::Unsupported("Unit graph target disappeared"))?;
-            let source_roots = roots[source]
-                .as_ref()
-                .ok_or(LoweringError::Unsupported("Unit graph view roots missing"))?;
-            let aliases = successor
-                .transfers
-                .iter()
-                .map(|transfer| {
-                    source_roots
-                        .get(transfer.source_parameter_index as usize)
-                        .copied()
-                        .ok_or(LoweringError::Unsupported(
-                            "Unit graph view transfer source missing",
-                        ))
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            if roots[target]
-                .as_ref()
-                .is_some_and(|previous| previous != &aliases)
-            {
-                return unsupported("Unit graph join needs structural descriptor rebinding");
-            }
-            roots[target] = Some(aliases);
-            incoming[target] -= 1;
-            if incoming[target] == 0 {
-                ready.push(target);
-            }
-        }
-    }
-    if next != plan.states.len() {
-        return unsupported("Unit graph cyclic safety is not retained");
-    }
-    roots
-        .into_iter()
-        .map(|roots| {
-            roots.ok_or(LoweringError::Unsupported(
-                "Unit graph state is unreachable",
-            ))
-        })
-        .collect()
 }

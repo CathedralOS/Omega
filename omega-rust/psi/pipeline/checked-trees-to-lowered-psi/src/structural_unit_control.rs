@@ -321,10 +321,15 @@ pub(super) fn lower_structural_unit_control_machine(
             let mut target = vec![None; target_arity];
             let mut used_sources = BTreeSet::new();
             for transfer in transfers {
-                let source_index =
-                    usize::try_from(transfer.source_parameter_index).map_err(|_| {
-                        LoweringError::Unsupported("structural Unit source parameter exceeds usize")
-                    })?;
+                let checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+                    index: source_parameter_index,
+                } = transfer.source
+                else {
+                    return unsupported("structural Unit transfer requires a whole parameter");
+                };
+                let source_index = usize::try_from(source_parameter_index).map_err(|_| {
+                    LoweringError::Unsupported("structural Unit source parameter exceeds usize")
+                })?;
                 let target_parameter_index = usize::try_from(transfer.target_parameter_index)
                     .map_err(|_| {
                         LoweringError::Unsupported("structural Unit target parameter exceeds usize")
@@ -988,7 +993,9 @@ fn validate_ranked_structural_transfers(
             .iter()
             .enumerate()
             .any(|(index, transfer)| {
-                usize::try_from(transfer.source_parameter_index).ok() != Some(index)
+                !matches!(transfer.source,
+                    checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: source_index }
+                        if usize::try_from(source_index).ok() == Some(index))
                     || usize::try_from(transfer.target_parameter_index).ok() != Some(index)
                     || source.structural_parameters.get(index)
                         != target.structural_parameters.get(index)

@@ -155,8 +155,9 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   in `typed-trees-to-checked-trees/src/flow/terminal_unit/` and
   `checked-trees-to-lowered-psi/src/attached_unit/`.
   Extend shared graph emission to the writer without splitting authored states
-  into synthetic machines. Derived tail views and slice-ranked cyclic execution
-  remain unsupported.
+  into synthetic machines. Slice-ranked cyclic execution remains unsupported;
+  the acyclic graph can retain selected-edge tails but cannot rebind descriptors
+  on loop iterations.
   The private writer calls its concrete provider's byte leaf directly; extending
   plain boundary-trait or `Service` forwarding is not a prerequisite.
   The callable plan must retain exact intrinsic settlement, view/scalar transfers,

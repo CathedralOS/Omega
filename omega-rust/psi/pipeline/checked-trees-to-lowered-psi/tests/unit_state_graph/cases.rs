@@ -254,8 +254,12 @@ fn checked_scalar_and_view_edges_reject_other_same_typed_source_parameters() {
             panic!("entry conditional");
         };
         if change_view {
-            assert_eq!(when_true.transfers[0].source_parameter_index, 0);
-            when_true.transfers[0].source_parameter_index = 1;
+            assert_eq!(
+                when_true.transfers[0].source,
+                checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 }
+            );
+            when_true.transfers[0].source =
+                checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 };
         } else {
             assert_eq!(
                 when_true.scalar_arguments[0].source,
@@ -288,8 +292,14 @@ fn distinct_incoming_view_roots_require_descriptor_rebinding() {
     else {
         panic!("entry conditional");
     };
-    assert_eq!(when_true.transfers[0].source_parameter_index, 0);
-    assert_eq!(when_false.transfers[0].source_parameter_index, 1);
+    assert_eq!(
+        when_true.transfers[0].source,
+        checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 }
+    );
+    assert_eq!(
+        when_false.transfers[0].source,
+        checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 }
+    );
     rejected(&checked, "descriptor rebinding");
 }
 
