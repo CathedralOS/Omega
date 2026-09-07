@@ -593,6 +593,17 @@ pub(super) fn emit_byte_length(
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
 ) -> ValueId {
+    // Immutable descriptor extent is unchanged on this emission path. Reuse
+    // its dominating observation so later bounds retain the selected guard's
+    // exact value identity; branch emitters scope this cache to their path.
+    if let Some(value) = operations
+        .byte_lengths
+        .iter()
+        .rev()
+        .find_map(|(place, value)| (*place == source).then_some(*value))
+    {
+        return value;
+    }
     let scalar_type =
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"));
     let value = emit_scalar_leaf(

@@ -2,7 +2,7 @@
 
 use super::*;
 
-mod byte_subslice;
+pub(super) mod byte_subslice;
 mod result_arguments;
 mod service_forward;
 

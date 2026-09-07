@@ -125,7 +125,8 @@ fn claim_bearing_composed_unit_rejects_plan_and_fact_corruption() {
     else {
         unreachable!()
     };
-    when_true.transfers[0].source_parameter_index = 1;
+    when_true.transfers[0].source =
+        checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 };
     rejects(&edge);
 
     let mut claim = baseline.clone();

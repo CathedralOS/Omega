@@ -53,11 +53,30 @@ pub(super) fn unknown_length_index_is_proven(
 
 pub(super) fn unknown_length_range_is_proven(
     program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     facts: &RangeFacts<'_>,
     collection: ExpressionHandle,
     range: &TableRangeExpression,
 ) -> bool {
     let collection_label = program.expression_table.display_name(collection);
+    if !range.end_inclusive {
+        let start_is_length =
+            is_exact_collection_length(program, machine, state, collection, range.start);
+        let end_is_length =
+            is_exact_collection_length(program, machine, state, collection, range.end);
+        if end_is_length {
+            // The exclusive end is this same place's current extent. The
+            // start still owes its own bound, including the nonempty-tail guard.
+            return !range.start.is_valid()
+                || start_is_length
+                || expression_integer_value(program, facts, range.start) == Some(0)
+                || range_bound_is_proven(program, facts, &collection_label, range.start);
+        }
+        if start_is_length && !range.end.is_valid() {
+            return true;
+        }
+    }
     match (range.start.is_valid(), range.end.is_valid()) {
         (true, false) => range_bound_is_proven(program, facts, &collection_label, range.start),
         (false, true) => range_end_within_unknown_length_is_proven(
@@ -92,6 +111,39 @@ pub(super) fn unknown_length_range_is_proven(
         }
         (false, false) => true,
     }
+}
+
+/// The current builtin extent of the exact place, never a same-spelled field,
+/// another descriptor, or a saved scalar observation from a previous snapshot.
+pub(super) fn is_exact_collection_length(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    collection: ExpressionHandle,
+    expression: ExpressionHandle,
+) -> bool {
+    let Some(receiver) =
+        validation::collection_length_receiver(program, machine, Some(state), expression)
+    else {
+        return false;
+    };
+    if !validation::place_has_builtin_coordinates(program, machine, Some(state), collection)
+        || !validation::place_has_builtin_coordinates(program, machine, Some(state), receiver)
+    {
+        return false;
+    }
+    let Some(collection_place) = crate::flow::canonical_place_from_expression(program, collection)
+    else {
+        return false;
+    };
+    let Some(receiver_place) = crate::flow::canonical_place_from_expression(program, receiver)
+    else {
+        return false;
+    };
+    collection_place == receiver_place
+        && program
+            .expression_table
+            .expressions_structurally_equal(collection, receiver)
 }
 
 fn range_bound_is_proven(

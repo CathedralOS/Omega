@@ -416,8 +416,21 @@ pub enum CheckedStructuralScalarArgumentSourcePlan {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CheckedStructuralControlTransferPlan {
-    pub source_parameter_index: u32,
+    pub source: CheckedStructuralControlTransferSourcePlan,
     pub target_parameter_index: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedStructuralControlTransferSourcePlan {
+    Parameter {
+        index: u32,
+    },
+    /// Exclusive borrowed-byte range at the enclosing transition. Endpoint
+    /// facts use its authored target argument position in the scalar plans.
+    ByteSequenceSubslice {
+        parameter_index: u32,
+        expression: typed_trees::expression::ExpressionHandle,
+    },
 }
 
 /// Complete checked input for the first scalar-returning structural cleanup

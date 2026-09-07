@@ -370,10 +370,11 @@ fn check_unknown_length_slice_index(
 ) -> bool {
     match program.expression_table.expression(index) {
         ExpressionNode::Range(range) => {
-            if unknown_length_range_is_proven(program, facts, collection, range) {
+            if unknown_length_range_is_proven(program, machine, state, facts, collection, range) {
                 return true;
             }
-            let failure = unknown_length_range_failure(program, facts, collection, range);
+            let failure =
+                unknown_length_range_failure(program, machine, state, facts, collection, range);
             diagnostics.push(Diagnostic::error(with_attribution(
                 format!(
                     "cannot prove subslice range {} `{}` is within unknown slice length",
@@ -420,7 +421,7 @@ fn check_known_length_range_index(
         // exactly that vocabulary (range bounds / index facts are recorded
         // independent of the collection's concrete extent), so fall back to it
         // before reporting a failure.
-        if unknown_length_range_is_proven(program, facts, collection, range) {
+        if unknown_length_range_is_proven(program, machine, state, facts, collection, range) {
             return true;
         }
         // Numeric index bounds also establish a runtime start, end, or tail

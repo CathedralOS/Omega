@@ -238,9 +238,25 @@ through that source closure. Inclusive ranges, mutable views, projections,
 custom range operators, and borrowed structural returns remain outside this
 source path; no unchecked descriptor operation substitutes for them.
 
-This closes an acyclic Terminal tail-to-helper execution path, not source
-state-edge lowering or slice-ranked loops. Those still need to retain and emit
-the source view operands and ranking evidence. Ranked-body execution must also
+An explicit exclusive endpoint may be the current builtin length of the exact
+collection. That identity discharges only its upper bound; a nonzero start still
+needs a bound, and inclusive ends cannot use equality with the extent. A saved
+length scalar, another collection's length, or a nominal field named `len` does
+not acquire that identity.
+
+Source state edges also retain exclusive ranges over whole immutable byte-view
+parameters in the shared acyclic Unit graph. The structural transfer keeps the
+full source expression; endpoint scalar facts use the state, transition statement,
+and authored target argument position, not a dense structural index. Lowering
+checks those coordinates and builtin range meaning, evaluates mixed scalar and
+view arguments in authored order, and emits conditional tails only after edge
+selection. Later states can observe and subslice the exact derived descriptor.
+Descriptor identities follow graph dependencies rather than state declaration
+order. A join can reuse one descriptor but cannot select between different ones.
+
+This closes acyclic call and state-edge tail execution, not slice-ranked loops.
+Those still need changing structural block bindings and ranking evidence.
+Ranked-body execution must also
 support rebinding borrowed descriptors when a producer executes again; the
 current executable countdown shape excludes subslice operations.
 Native lowering rejects the
@@ -3669,15 +3685,16 @@ composed calls share scalar helper identities and proof obligations. Whole-root
 linear arguments retain their call transfer, state-entry claim aliases, and
 selected boundary settlement. Calls from composed leaves still require
 scalar-only targets without runtime entry requirements. Claim-free acyclic graphs
-with scalar parameters and unchanged shared byte views use general state traversal
+with scalar parameters and shared byte views use general state traversal
 for both free and attached bodies, including branches, joins, and empty states.
 Qualification, owned-frontier, implicit-receiver, and closed-sum cases retain their
 specialized routes. Once the general route is selected, a failed source check
 does not fall back to a shape matcher. Scalar declaration/assignment prefixes
 reuse the shared local-storage namespace. Branch-free scalar successor operands
 are evaluated only after their edge is selected, then passed simultaneously to
-the target state. Changing borrowed descriptors and loop ranking remain
-unfinished; see
+the target state. Selected-edge subslices retain their exact operation-result
+descriptors through later acyclic states. Descriptor-selecting joins and loop
+ranking remain unfinished; see
 [borrowed-byte writer composition](#borrowed-byte-writer-composition).
 
 Closed-sum continuations retain the structural-result boundary and its exact
@@ -6665,7 +6682,8 @@ Do not inject a body SSA value into the parameter-only contract scope or add
 an unrelated length parameter as a replacement for the view's actual extent.
 
 The shared Unit call catalog includes acyclic free and attached state graphs
-with scalar parameters, unchanged immutable byte views, and ordered Unit calls.
+with scalar parameters, immutable byte views, selected-edge subslices, and
+ordered Unit calls.
 State construction and emission traverse the authored roster rather than match
 a particular number of states. Scalar successor bindings become simultaneous
 block arguments. Whole borrowed views retain their invocation identity through
@@ -6687,9 +6705,15 @@ selection, preserving guard facts for division and byte-head bounds proofs.
 Length observations refer to the actual borrowed view; a selected head read
 still needs proof of a nonempty view. Neither edge selection alone nor an
 unrelated extent supplies that proof.
+Repeated reads of an immutable descriptor's length reuse the observation
+already available on the current emission path, including inside scalar edge
+arguments. A fresh observation must not displace the exact guard-bound value;
+branch-local observations do not become available on sibling paths.
 
-The writer still needs derived tail descriptors on selected edges, descriptor
-rebinding, and its slice-ranked body admitted through that shared catalog. A
+The writer still needs descriptor rebinding and its slice-ranked body admitted
+through that shared catalog. Acyclic selected-edge tails already use the existing
+`ByteSequenceSubslice` operation and its independent bounds checks; this does not
+establish repeated-producer execution or native descriptor realization. A
 separate multistate plan is insufficient until calls, structural/scalar transfers,
 byte-view operations, effect ordering, and ranking survive Terminal production
 and its independent consumers together. Empty/nonempty raw bytes, both newline

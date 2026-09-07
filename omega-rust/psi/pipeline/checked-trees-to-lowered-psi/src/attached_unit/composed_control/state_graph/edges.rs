@@ -91,9 +91,16 @@ pub(super) fn validate(
         .zip(&edge.transfers)
         .enumerate()
     {
+        let source_index = match transfer.source {
+            checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => index,
+            checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
+                parameter_index,
+                ..
+            } => parameter_index,
+        };
         let source = state
             .structural_parameters
-            .get(transfer.source_parameter_index as usize)
+            .get(source_index as usize)
             .ok_or(LoweringError::Unsupported(
                 "Unit graph borrowed transfer source missing",
             ))?;
@@ -104,7 +111,27 @@ pub(super) fn validate(
         {
             return unsupported("Unit graph borrowed transfer type or order drifted");
         }
-        validate_argument(target.position, source.position)?;
+        match transfer.source {
+            checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { .. } => {
+                validate_argument(target.position, source.position)?;
+            }
+            checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
+                expression,
+                ..
+            } => {
+                if arguments.get(target.position as usize) != Some(&expression) {
+                    return unsupported("Unit graph subslice disagrees with its source argument");
+                }
+                subslices::validate(
+                    checked,
+                    state,
+                    edge.statement_ordinal,
+                    target.position,
+                    source.position,
+                    expression,
+                )?;
+            }
+        }
     }
     for (position, (target, transfer)) in target
         .scalar_parameters

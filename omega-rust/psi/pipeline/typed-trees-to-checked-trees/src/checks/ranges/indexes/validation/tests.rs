@@ -1,6 +1,7 @@
 use super::{BoundsCheckResult, RangeFacts, check_indexed_access};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableIndexedExpression};
 
+mod length_endpoints;
 mod lower_bounds;
 mod selected;
 

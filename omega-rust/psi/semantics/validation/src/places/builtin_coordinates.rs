@@ -9,7 +9,7 @@ use typed_trees::state::State;
 
 /// Recognize collection metadata through the receiver's structural type, not
 /// through a same-spelled nominal field or accessor.
-pub(crate) fn collection_length_receiver(
+pub fn collection_length_receiver(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
@@ -18,7 +18,10 @@ pub(crate) fn collection_length_receiver(
     let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
         return None;
     };
-    if member.member.as_str() != "len" || member.case_variant.is_some() {
+    if member.member.as_str() != "len"
+        || member.member_symbol.is_valid()
+        || member.case_variant.is_some()
+    {
         return None;
     }
     let receiver = declared_place_type_raw(program, machine, state, member.receiver)?;
@@ -29,6 +32,43 @@ pub(crate) fn collection_length_receiver(
             | typed_trees::types::TypeReferenceNode::FixedArray { .. }
     )
     .then_some(member.receiver)
+}
+
+/// Recognize exclusive builtin subslicing without granting bounds, source
+/// custody, or permission to use the resulting view.
+pub fn has_builtin_subslice_meaning(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+) -> bool {
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index) else {
+        return false;
+    };
+    if range.end_inclusive {
+        return false;
+    }
+    let operands = [
+        declared_place_type_raw(program, machine, state, indexed.collection),
+        declared_place_type_raw(program, machine, state, range.start),
+        declared_place_type_raw(program, machine, state, range.end),
+    ];
+    typed_trees::operator::resolve_indexed_spelling_for_operands(
+        program,
+        OperatorSpelling::Range,
+        &operands,
+    )
+    .is_empty()
+        && typed_trees::operator::has_builtin_spelled_expression_meaning(
+            program,
+            machine.symbol,
+            expression,
+            OperatorSpelling::Range,
+            &operands,
+        )
 }
 
 /// Check only the operation meaning of a place spine. Consumers separately

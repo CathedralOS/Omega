@@ -346,10 +346,61 @@ fn successor(
             .iter()
             .position(|parameter| parameter.symbol == symbol)
     };
+    let target_parameters = program.state_parameters(target);
     let transfers = target_structural
         .iter()
         .enumerate()
         .map(|(target_index, target)| {
+            let expression = *arguments.get(target.position as usize)?;
+            if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression)
+                && let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index)
+            {
+                let target_parameter = target_parameters.get(target.position as usize)?;
+                let (parameter_index, type_identity) = calls::byte_subslice::source(
+                    program, facts, machine, source, source_structural,
+                    target_parameter.type_reference, expression, ordinal as usize,
+                )?;
+                if type_identity != target.type_identity {
+                    return None;
+                }
+                let source_parameter = program.state_parameters(source).get(
+                    source_structural.get(parameter_index as usize)?.position as usize,
+                )?;
+                if !matches!(program.expression_table.expression(indexed.collection),
+                    ExpressionNode::Name(path) if path.symbol == source_parameter.symbol
+                        && path.head_symbol == source_parameter.symbol
+                        && program.expression_table.name_path_members(path.members).len() == 1)
+                {
+                    return None;
+                }
+                for (endpoint, role) in [
+                    (range.start, CheckedScalarExpressionRole::TransitionSubsliceStart {
+                        argument_ordinal: target.position,
+                    }),
+                    (range.end, CheckedScalarExpressionRole::TransitionSubsliceEnd {
+                        argument_ordinal: target.position,
+                    }),
+                ] {
+                    if !endpoint.is_valid() {
+                        continue;
+                    }
+                    let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
+                        source.symbol, ordinal, role,
+                    )?;
+                    if binding.expression != endpoint || binding.destination.is_valid()
+                        || value.primitive_type() != Some(PrimitiveType::U64)
+                    {
+                        return None;
+                    }
+                }
+                return Some(CheckedStructuralControlTransferPlan {
+                    source: checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
+                        parameter_index,
+                        expression,
+                    },
+                    target_parameter_index: u32::try_from(target_index).ok()?,
+                });
+            }
             let source_position = source_position(target.position)?;
             let source_index = source_structural
                 .iter()
@@ -359,12 +410,13 @@ fn successor(
                 return None;
             }
             Some(CheckedStructuralControlTransferPlan {
-                source_parameter_index: u32::try_from(source_index).ok()?,
+                source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+                    index: u32::try_from(source_index).ok()?,
+                },
                 target_parameter_index: u32::try_from(target_index).ok()?,
             })
         })
         .collect::<Option<Vec<_>>>()?;
-    let target_parameters = program.state_parameters(target);
     let scalar_arguments = target_scalar
         .iter()
         .enumerate()

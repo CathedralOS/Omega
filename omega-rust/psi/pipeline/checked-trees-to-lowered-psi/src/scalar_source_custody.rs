@@ -88,6 +88,55 @@ pub(super) fn locate(
     let absent = symbols::SymbolHandle::invalid();
     let selected = match (authored, role) {
         (
+            StatementNode::Transition(transition),
+            CheckedScalarExpressionRole::TransitionSubsliceStart { argument_ordinal }
+            | CheckedScalarExpressionRole::TransitionSubsliceEnd { argument_ordinal },
+        ) if transition.exit == TransitionExit::Ordinary && !transition.continuation.is_valid() => {
+            match program.statement_table.transition_target(transition.target) {
+                TransitionTargetNode::Named {
+                    path, arguments, ..
+                } => program
+                    .machine_states(machine)
+                    .iter()
+                    .find(|target| target.symbol == path.symbol)
+                    .and_then(|target| {
+                        let parameters = program.state_parameters(target);
+                        let arguments = program.statement_table.expression_handles(*arguments);
+                        if arguments.len() != parameters.len()
+                            || parameters.get(argument_ordinal as usize)?.is_self
+                        {
+                            return None;
+                        }
+                        let ExpressionNode::Indexed(indexed) = program
+                            .expression_table
+                            .expression(*arguments.get(argument_ordinal as usize)?)
+                        else {
+                            return None;
+                        };
+                        let ExpressionNode::Range(range) =
+                            program.expression_table.expression(indexed.index)
+                        else {
+                            return None;
+                        };
+                        if range.end_inclusive {
+                            return None;
+                        }
+                        let endpoint = if matches!(
+                            role,
+                            CheckedScalarExpressionRole::TransitionSubsliceStart { .. }
+                        ) {
+                            range.start
+                        } else {
+                            range.end
+                        };
+                        endpoint
+                            .is_valid()
+                            .then_some((endpoint, absent, PrimitiveType::U64))
+                    }),
+                _ => None,
+            }
+        }
+        (
             _,
             CheckedScalarExpressionRole::ByteSequenceSubsliceStart {
                 call_ordinal,

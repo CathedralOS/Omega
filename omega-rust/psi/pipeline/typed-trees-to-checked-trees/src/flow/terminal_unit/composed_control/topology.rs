@@ -321,7 +321,9 @@ pub(super) fn successor(
                 return None;
             }
             vec![CheckedStructuralControlTransferPlan {
-                source_parameter_index: 0,
+                source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+                    index: 0,
+                },
                 target_parameter_index: 0,
             }]
         }

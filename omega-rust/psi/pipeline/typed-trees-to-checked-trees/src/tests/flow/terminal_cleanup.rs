@@ -536,7 +536,10 @@ fn structural_unit_jump_composes_signatures_transfers_and_cleanup() {
         panic!("entry state should jump")
     };
     assert_eq!(transfers.len(), 1);
-    assert_eq!(transfers[0].source_parameter_index, 1);
+    assert_eq!(
+        transfers[0].source,
+        checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 }
+    );
     assert_eq!(transfers[0].target_parameter_index, 0);
     let checked_trees::CheckedStructuralUnitControlTerminatorPlan::Jump {
         scalar_arguments, ..
@@ -751,7 +754,9 @@ fn structural_unit_countdown_retains_implicit_mutable_receiver_custody() {
         assert_eq!(
             successor.transfers,
             [checked_trees::CheckedStructuralControlTransferPlan {
-                source_parameter_index: 0,
+                source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+                    index: 0
+                },
                 target_parameter_index: 0,
             }]
         );
@@ -814,7 +819,10 @@ fn structural_unit_conditional_composes_independent_transfer_cleanup_frontiers()
     };
     assert_eq!(*guard_scalar_parameter_index, 0);
     assert_eq!(when_true.statement_ordinal, 0);
-    assert_eq!(when_true.transfers[0].source_parameter_index, 0);
+    assert_eq!(
+        when_true.transfers[0].source,
+        checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 }
+    );
     assert_eq!(when_true.scalar_arguments.len(), 1);
     assert_eq!(when_true.scalar_arguments[0].argument_ordinal, 1);
     assert_eq!(
@@ -827,7 +835,10 @@ fn structural_unit_conditional_composes_independent_transfer_cleanup_frontiers()
     );
     assert_eq!(when_true.trivial_affine_discard_parameter_positions, [1]);
     assert_eq!(when_false.statement_ordinal, 1);
-    assert_eq!(when_false.transfers[0].source_parameter_index, 1);
+    assert_eq!(
+        when_false.transfers[0].source,
+        checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 1 }
+    );
     assert_eq!(when_false.scalar_arguments, when_true.scalar_arguments);
     assert_eq!(when_false.trivial_affine_discard_parameter_positions, [0]);
 

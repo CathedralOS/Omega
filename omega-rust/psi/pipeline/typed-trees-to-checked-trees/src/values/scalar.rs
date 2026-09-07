@@ -531,9 +531,92 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 .iter()
                                 .zip(target_parameters)
                             {
+                                let Ok(argument_ordinal) = u32::try_from(target_position) else {
+                                    continue;
+                                };
                                 let Some(target_type) = program
                                     .primitive_type_reference(target_parameter.type_reference)
                                 else {
+                                    if continuation {
+                                        continue;
+                                    }
+                                    let ExpressionNode::Indexed(indexed) =
+                                        program.expression_table.expression(*argument)
+                                    else {
+                                        continue;
+                                    };
+                                    let ExpressionNode::Range(range) =
+                                        program.expression_table.expression(indexed.index)
+                                    else {
+                                        continue;
+                                    };
+                                    if range.end_inclusive
+                                        || operators.expression_use(*argument).is_some_and(|selected| {
+                                            selected.spelling != language_core::OperatorSpelling::Range
+                                                || selected.selected_operator_symbol.is_valid()
+                                                || selected.candidate_count != 0
+                                                || !matches!(selected.status,
+                                                    CheckedOperatorResolutionStatus::Missing
+                                                        | CheckedOperatorResolutionStatus::BuiltinFallback)
+                                        })
+                                    {
+                                        continue;
+                                    }
+                                    for (endpoint, role) in [
+                                        (
+                                            range.start,
+                                            CheckedScalarExpressionRole::TransitionSubsliceStart {
+                                                argument_ordinal,
+                                            },
+                                        ),
+                                        (
+                                            range.end,
+                                            CheckedScalarExpressionRole::TransitionSubsliceEnd {
+                                                argument_ordinal,
+                                            },
+                                        ),
+                                    ] {
+                                        if !endpoint.is_valid() {
+                                            continue;
+                                        }
+                                        let Some(expression) = lower_return_expression(
+                                            program,
+                                            operators,
+                                            endpoint,
+                                            &scalar_parameters,
+                                            parameters,
+                                            &parameter_types,
+                                            &locals,
+                                            PrimitiveType::U64,
+                                            exact_integer_casts,
+                                        ) else {
+                                            continue;
+                                        };
+                                        source_bindings.append(CheckedScalarExpressionBindings {
+                                            destination: symbols::SymbolHandle::invalid(),
+                                            state: state.symbol,
+                                            statement_ordinal,
+                                            role,
+                                            expression: endpoint,
+                                            symbols: binding_symbols.insert_many(
+                                                scalar_parameters
+                                                    .iter()
+                                                    .map(|parameter| parameter.symbol)
+                                                    .chain(
+                                                        locals
+                                                            .iter()
+                                                            .filter(|local| !local.is_mutable)
+                                                            .map(|local| local.symbol),
+                                                    ),
+                                            ),
+                                        });
+                                        expressions.push(CheckedLocatedScalarExpression {
+                                            state: state.symbol,
+                                            statement_ordinal,
+                                            role,
+                                            expression,
+                                        });
+                                    }
                                     continue;
                                 };
                                 let Some(expression) = lower_return_expression(
@@ -547,9 +630,6 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                     target_type,
                                     exact_integer_casts,
                                 ) else {
-                                    continue;
-                                };
-                                let Ok(argument_ordinal) = u32::try_from(target_position) else {
                                     continue;
                                 };
                                 let role = if continuation {

@@ -15,6 +15,80 @@ pub(super) fn argument(
     call_ordinal: usize,
     argument_ordinal: usize,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
+    let (parameter_index, type_identity) = source(
+        program,
+        facts,
+        machine,
+        state,
+        parameters,
+        target,
+        expression,
+        statement_index,
+    )?;
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index) else {
+        return None;
+    };
+    let call_ordinal = u32::try_from(call_ordinal).ok()?;
+    let argument_ordinal = u32::try_from(argument_ordinal).ok()?;
+    let statement_ordinal = u32::try_from(statement_index).ok()?;
+    let endpoint = |expression, role| {
+        let (binding, endpoint) = facts.values.scalar_expressions.bound_expression_at(
+            state.symbol,
+            statement_ordinal,
+            role,
+        )?;
+        (binding.expression == expression
+            && !binding.destination.is_valid()
+            && endpoint.primitive_type() == Some(PrimitiveType::U64))
+        .then(|| endpoint.clone())
+    };
+    Some(CheckedUnitStructuralArgumentPlan {
+        source: CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+            parameter_index,
+            expression,
+            start: if range.start.is_valid() {
+                Some(endpoint(
+                    range.start,
+                    CheckedScalarExpressionRole::ByteSequenceSubsliceStart {
+                        call_ordinal,
+                        argument_ordinal,
+                    },
+                )?)
+            } else {
+                None
+            },
+            end: if range.end.is_valid() {
+                Some(endpoint(
+                    range.end,
+                    CheckedScalarExpressionRole::ByteSequenceSubsliceEnd {
+                        call_ordinal,
+                        argument_ordinal,
+                    },
+                )?)
+            } else {
+                None
+            },
+        },
+        path: Vec::new(),
+        type_identity,
+        access: CheckedStructuralAccess::SharedBorrow,
+    })
+}
+
+/// Shared call and state-edge admission for an exact builtin borrowed-byte range.
+pub(in crate::flow::terminal_unit) fn source(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    parameters: &[CheckedUnitStructuralParameterPlan],
+    target: TypeReferenceHandle,
+    expression: ExpressionHandle,
+    statement_index: usize,
+) -> Option<(u32, String)> {
     if !exact_borrowed_byte_view(program, target) {
         return None;
     }
@@ -77,68 +151,10 @@ pub(super) fn argument(
     {
         return None;
     }
-    let operands = [
-        Some(source_type),
-        validation::declared_place_type_raw(program, machine, Some(state), range.start),
-        validation::declared_place_type_raw(program, machine, Some(state), range.end),
-    ];
-    if !typed_trees::operator::resolve_indexed_spelling_for_operands(program, spelling, &operands)
-        .is_empty()
-        || !typed_trees::operator::has_builtin_spelled_expression_meaning(
-            program,
-            machine.symbol,
-            expression,
-            spelling,
-            &operands,
-        )
-    {
+    if !validation::has_builtin_subslice_meaning(program, machine, Some(state), expression) {
         return None;
     }
-    let call_ordinal = u32::try_from(call_ordinal).ok()?;
-    let argument_ordinal = u32::try_from(argument_ordinal).ok()?;
-    let statement_ordinal = u32::try_from(statement_index).ok()?;
-    let endpoint = |expression, role| {
-        let (binding, endpoint) = facts.values.scalar_expressions.bound_expression_at(
-            state.symbol,
-            statement_ordinal,
-            role,
-        )?;
-        (binding.expression == expression
-            && !binding.destination.is_valid()
-            && endpoint.primitive_type() == Some(PrimitiveType::U64))
-        .then(|| endpoint.clone())
-    };
-    Some(CheckedUnitStructuralArgumentPlan {
-        source: CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
-            parameter_index: u32::try_from(parameter_index).ok()?,
-            expression,
-            start: if range.start.is_valid() {
-                Some(endpoint(
-                    range.start,
-                    CheckedScalarExpressionRole::ByteSequenceSubsliceStart {
-                        call_ordinal,
-                        argument_ordinal,
-                    },
-                )?)
-            } else {
-                None
-            },
-            end: if range.end.is_valid() {
-                Some(endpoint(
-                    range.end,
-                    CheckedScalarExpressionRole::ByteSequenceSubsliceEnd {
-                        call_ordinal,
-                        argument_ordinal,
-                    },
-                )?)
-            } else {
-                None
-            },
-        },
-        path: Vec::new(),
-        type_identity,
-        access: CheckedStructuralAccess::SharedBorrow,
-    })
+    Some((u32::try_from(parameter_index).ok()?, type_identity))
 }
 
 fn exact_borrowed_byte_view(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {

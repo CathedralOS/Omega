@@ -45,7 +45,7 @@ fn composes_one_whole_root_linear_claim_through_both_boundary_leaves() {
         assert!(matches!(
             edge.transfers.as_slice(),
             [transfer]
-                if transfer.source_parameter_index == 0
+                if matches!(transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 })
                     && transfer.target_parameter_index == 0
         ));
         assert!(edge.scalar_arguments.is_empty());

@@ -11,6 +11,27 @@ pub(in crate::attached_unit::composed_control) fn emit(
     scalar_parameters: Vec<ValueDeclaration>,
     catalogs: &mut catalogs::ComposedCatalogs,
 ) -> Result<(TerminalMachine, Vec<LoweredSourceCallOccurrence>), LoweringError> {
+    let mut view_parameters = parameters.clone();
+    for derived in &admitted.views.derived {
+        let mut view = view_parameters
+            .get(derived.source_root)
+            .ok_or(LoweringError::Unsupported(
+                "Unit graph derived view has no source descriptor",
+            ))?
+            .clone();
+        view.place = place_id(allocate_dense(&mut catalogs.next_place)?);
+        view_parameters.push(view);
+    }
+    let mut structural_places = parameters
+        .iter()
+        .map(|parameter| StructuralPlaceDeclaration {
+            id: parameter.place,
+            kind: StructuralPlaceKind::Parameter {
+                position: parameter.position,
+                is_self: parameter.is_self,
+            },
+        })
+        .collect::<Vec<_>>();
     let mut state_ids = Vec::new();
     let mut state_values = vec![scalar_parameters.clone()];
     for (position, state) in plan.states.iter().enumerate() {
@@ -33,11 +54,11 @@ pub(in crate::attached_unit::composed_control) fn emit(
     let mut blocks = Vec::new();
     let mut occurrences = Vec::new();
     for (position, state) in plan.states.iter().enumerate() {
-        let state_parameters = admitted.view_roots[position]
+        let state_parameters = admitted.views.state_roots[position]
             .iter()
             .zip(&state.structural_parameters)
             .map(|(root, source)| {
-                let mut parameter = parameters[*root].clone();
+                let mut parameter = view_parameters[*root].clone();
                 parameter.position = source.position;
                 parameter
             })
@@ -133,15 +154,49 @@ pub(in crate::attached_unit::composed_control) fn emit(
                         "Unit graph target disappeared during emission",
                     ))?;
                 let stage = condition.is_some()
-                    && edge.scalar_arguments.iter().any(|argument| {
+                    && (edge.transfers.iter().any(|transfer| matches!(
+                        transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { .. }
+                    )) || edge.scalar_arguments.iter().any(|argument| {
                         matches!(
                             argument.source,
                             checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
                         )
-                    });
+                    }));
                 let operation_start = operations.len();
                 let mut arguments = Vec::new();
-                for transfer in &edge.scalar_arguments {
+                let target_state = &plan.states[target];
+                for argument_position in 0..target_state.structural_parameters.len()
+                    + target_state.scalar_parameters.len()
+                {
+                    if let Some((target_parameter, transfer)) = target_state
+                        .structural_parameters
+                        .iter()
+                        .zip(&edge.transfers)
+                        .find(|(parameter, _)| parameter.position as usize == argument_position)
+                    {
+                        if let checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { parameter_index, expression } = transfer.source {
+                            let derived = admitted.views.derived.iter().position(|derived| {
+                                derived.state == state.state && derived.statement_ordinal == edge.statement_ordinal
+                                    && derived.target_parameter_index == transfer.target_parameter_index
+                            }).ok_or(LoweringError::Unsupported("Unit graph subslice has no admitted descriptor"))?;
+                            let destination = view_parameters[parameters.len() + derived].place;
+                            let source = state_parameters.get(parameter_index as usize).ok_or(
+                                LoweringError::Unsupported("Unit graph subslice source descriptor disappeared"),
+                            )?;
+                            structural_places.push(subslices::emit(
+                                checked, state, edge.statement_ordinal, target_parameter.position, expression,
+                                source, destination, &bindings, &values, &mut next_value, &mut operations,
+                            )?);
+                        }
+                        continue;
+                    }
+                    let transfer = edge
+                        .scalar_arguments
+                        .iter()
+                        .find(|transfer| transfer.argument_ordinal as usize == argument_position)
+                        .ok_or(LoweringError::Unsupported(
+                            "Unit graph successor argument position missing",
+                        ))?;
                     let expression = match transfer.source {
                         checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
                             index,
@@ -259,6 +314,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
         catalogs.next_operation = operations.next_identity;
     }
     blocks.sort_by_key(|block| block.id);
+    structural_places.sort_by_key(|place| place.id);
     let attachment = plan
         .attachment_type_identity
         .as_ref()
@@ -268,16 +324,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
         id: terminal_machine,
         attachment,
         parameters: scalar_parameters,
-        structural_places: parameters
-            .iter()
-            .map(|parameter| StructuralPlaceDeclaration {
-                id: parameter.place,
-                kind: StructuralPlaceKind::Parameter {
-                    position: parameter.position,
-                    is_self: parameter.is_self,
-                },
-            })
-            .collect(),
+        structural_places,
         structural_parameters: parameters,
         entry_claims: Vec::new(),
         ranked_scc: None,
