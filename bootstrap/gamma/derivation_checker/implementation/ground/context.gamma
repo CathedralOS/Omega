@@ -1,0 +1,32 @@
+; One checking context retains formed theory and separate indexes in two pairs.
+(def ground_theory ((context Int)) Int
+  (first context))
+
+(def ground_owners ((context Int)) Int
+  (first (second context)))
+
+(def ground_witnesses ((context Int)) Int
+  (second (second context)))
+
+(def ground_rejection ((failure Int)) Int
+  (admission_rejected 8 (- (- 0 failure) 1)))
+
+(def ground_complete ((context Int) (proof_table Int)) Int
+  (pair 5 (pair (ground_theory context)
+    (pair (ground_owners context) (pair (ground_witnesses context) proof_table)))))
+
+(def grounded_theory ((payload Int)) Int
+  (first payload))
+
+(def grounded_owner_terms ((payload Int)) Int
+  (first (second payload)))
+
+(def grounded_witness_terms ((payload Int)) Int
+  (first (second (second payload))))
+
+(def grounded_proof_table ((payload Int)) Int
+  (second (second (second payload))))
+
+(def grounded_term_lookup ((payload Int) (identity Int)) Int
+  (ground_lookup (grounded_owner_terms payload)
+    (grounded_witness_terms payload) identity))

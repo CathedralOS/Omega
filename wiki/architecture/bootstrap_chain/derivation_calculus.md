@@ -6,9 +6,11 @@ This specifies an implementation direction for the missing ordinary-Gamma
 derivation checker. It is not an accepted checker, certificate, or new admission
 of the Gamma evaluator. The [inner format](../../../bootstrap/gamma/derivation_checker/FORMAT.md)
 assigns concrete wire fields; [executable theory formation](../../../bootstrap/gamma/derivation_checker/FORMATION.md)
-checks conservative definitions under a bounded component profile. Ground-term
-validation, explicit derivations, the complete checker soundness argument, and
-certificate measurements remain acceptance work.
+checks conservative definitions under a bounded component profile.
+[Ground checking](../../../bootstrap/gamma/derivation_checker/GROUND.md) validates
+closed applications and owner-root sorts with separate witness custody.
+Structural comparison/substitution, explicit derivations, the complete checker
+soundness argument, and certificate measurements remain acceptance work.
 
 ## First complete subject
 

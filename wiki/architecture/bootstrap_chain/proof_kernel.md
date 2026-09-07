@@ -38,7 +38,7 @@ Unknown rules, malformed terms, missing premises, cyclic derivations,
 wrong-subject evidence, and resource exhaustion cannot accept. Product proof
 ambitions do not enlarge this bootstrap tool automatically.
 
-The complete checker, ground-term indexes, and full executable profile are currently
+The complete checker and full executable profile are currently
 absent. The [concrete inner format](../../../bootstrap/gamma/derivation_checker/FORMAT.md)
 assigns theory, template, ground-term, and proof-row fields without adding an
 accepted artifact. The ordinary-Gamma
@@ -50,7 +50,11 @@ checks every physical record without admitting a theory or checking a proof.
 [Theory formation](../../../bootstrap/gamma/derivation_checker/FORMATION.md)
 then indexes and checks conservative definitions, including finite inhabitants,
 scoped sorted templates, complete cases, and structural self-decrease. Its
-`Formed` result is neither proof acceptance nor Beta subject authority. The
+`Formed` result is neither proof acceptance nor Beta subject authority.
+[Ground-term validation](../../../bootstrap/gamma/derivation_checker/GROUND.md)
+indexes owner and witness terms separately, checks their applications, and
+requires well-sorted owner-only root references. `Grounded` does not compare
+those roots for equality or check any proof row. The
 [ground equality implementation design](derivation_calculus.md)
 specifies the first complete encoding subject, conservative definitions, explicit
 proof checks, ownership, and implementation dependencies. It does not supply an

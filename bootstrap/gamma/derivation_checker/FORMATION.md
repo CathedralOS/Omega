@@ -136,6 +136,8 @@ within the selected Gamma arena of 40,265,318. Scalar field validation must not
 allocate a result tuple per visit. Balanced-tree recursion follows logarithmic
 index height; row, argument, constructor, and pass scans are tail calls.
 The complete proof checker must account for additional stages separately.
+The [ground-term stage](GROUND.md#work-allocation-and-depth) accounts for its
+indexes and checking state cumulatively with this formation ledger.
 
 For the cumulative ledger, let `T` be all template rows, `K` all clauses, and
 `M` the number of newly marked sorts. Index construction uses at most

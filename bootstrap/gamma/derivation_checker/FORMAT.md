@@ -4,9 +4,10 @@
 
 This is the concrete inner encoding, not an accepted checker or certificate.
 The [layout admission](LAYOUT.md) traverses physical fields and
-[theory formation](FORMATION.md) checks conservative definitions. Ground-term
-validation, explicit proof checking, the complete resource profile, and the
-whole-Beta certificate remain unfinished.
+[theory formation](FORMATION.md) checks conservative definitions.
+[Ground checking](GROUND.md) validates owner/witness term tables and root sorts.
+Structural comparison/substitution, explicit proof checking, the complete resource
+profile, and the whole-Beta certificate remain unfinished.
 
 ## Common physical representation
 
@@ -229,7 +230,8 @@ prefixes. Every published resource needs exact and adjacent controls with no
 acceptance on exhaustion. These are full-checker implementation requirements,
 not recorded semantic test results. The outer and layout gates establish only
 their respective physical-input contracts; the formation gate establishes the
-theory contract, not a ground equality proof.
+theory contract. The ground gate checks term validity and root sorts, not a
+ground equality proof.
 
 ### Hand-worked field-layout example
 
@@ -258,6 +260,6 @@ Each displayed integer is one encoded word; parentheses here expand with
 The clause and function payload lengths are 6 and 13 words. Section lengths
 are 100, 72, and 32 bytes, making a 228-byte outer request. The intended root is
 `identity(next(zero)) = next(zero)`; the one unfolding row substitutes owner
-term 2 for slot 0. The formation gate checks this theory but does not validate
-the unfolding row or accept the equality. It cannot substitute for the full
-Beta encoding certificate.
+term 2 for slot 0. The formation and ground gates check this theory and its
+ground terms but do not validate the unfolding row or accept the equality.
+They cannot substitute for the full Beta encoding certificate.
