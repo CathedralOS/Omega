@@ -1,6 +1,6 @@
 # Squalr: where decisions and state belong
 
-Inspected at `e6538c99b2960f35a44727d09acf5f58ef2284ab` in `Y:/Development/Friends-and-Family/Zac/Squalr`. Paths are relative to that checkout. These are implementation patterns, not benchmark results or requirements to reproduce its framework.
+Inspected at `e6538c99b2960f35a44727d09acf5f58ef2284ab` in the Squalr repository. Paths are relative to that checkout. These are implementation patterns, not benchmark results or requirements to reproduce its framework.
 
 ## Prepare shared decisions; borrow them in local plans
 

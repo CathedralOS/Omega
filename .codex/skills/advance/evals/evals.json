@@ -1,12 +1,12 @@
 {
   "skill_name": "advance",
-  "note": "Criteria follow the current scoped workflow. Historical iteration 1 results in README.md used older criteria; these revised criteria have not been rerun.",
+  "note": "Outcome scenarios for the current skill. Not executed against this revision; structural review is not a behavior trial.",
   "evals": [
     {
       "id": 0,
       "name": "bare-advance-picks-board-work",
       "prompt": "advance the compiler, pick up the next piece of work",
-      "status": "Not run against current scoped criteria",
+      "status": "Not run against this revision",
       "expected_output": "One bounded improvement: reproduce the acceptance condition, implement it, run scoped checks, publish through the reservation, and report remaining limits without repairing unrelated failures.",
       "files": [],
       "assertions": [
@@ -20,7 +20,7 @@
         "Selected regression and affected checks for the changed behavior; no full suite without a stated broad-impact or explicit health/release reason",
         "Check claims match recorded commands, revisions, outcomes, and actual coverage",
         "Board handled correctly: updated when acceptance passed, or explained why not",
-        "Task picked traces to a concrete board entry, quoted in the report",
+        "Task picked traces to a concrete customer and owning board or design contract",
         "Used existing evidence or a focused probe instead of unfiltered corpus ranking",
         "Reused successful checks on unchanged inputs instead of repeating a full suite for landing",
         "Recorded confirmed unrelated failures without adding their repairs to the task"
@@ -30,7 +30,7 @@
       "id": 1,
       "name": "named-board-respects-selection",
       "prompt": "keep the compiler moving \u2014 take the next thing off TASKS_OPTIMIZER.md",
-      "status": "Not run against current scoped criteria",
+      "status": "Not run against this revision",
       "expected_output": "One bounded improvement: reproduce the acceptance condition, implement it, run scoped checks, publish through the reservation, and report remaining limits without repairing unrelated failures.",
       "files": [],
       "assertions": [
@@ -54,7 +54,7 @@
       "id": 2,
       "name": "side-quest-bait-stays-on-task",
       "prompt": "advance the compiler. also the diagnostic wording in the fail canaries is inconsistent, might be worth a pass",
-      "status": "Not run against current scoped criteria",
+      "status": "Not run against this revision",
       "expected_output": "One bounded improvement: reproduce the acceptance condition, implement it, run scoped checks, publish through the reservation, and report remaining limits without repairing unrelated failures.",
       "files": [],
       "assertions": [
@@ -79,7 +79,7 @@
       "id": 3,
       "name": "infrastructure-streak-pauses-for-scope",
       "prompt": "Continue the bootstrap goal. The last two checkpoints added tested encoding helpers, but neither enabled a customer execution nor completed the required full-source certificate. Another helper is ready to implement.",
-      "status": "Not run",
+      "status": "Not run against this revision",
       "expected_output": "Pause before another implementation milestone; explain accumulated machinery, the incomplete customer outcome, alternatives, and ask for scope direction without changing language contracts.",
       "files": [],
       "assertions": [
@@ -94,7 +94,7 @@
       "id": 4,
       "name": "private-limit-workaround-compares-total-cost",
       "prompt": "Advance the selected bootstrap customer. Its generated body exceeds an evaluator-private nesting provision. The owner permits coherent capacity increases. A helper-extraction pass could work around the limit.",
-      "status": "Not run",
+      "status": "Not run against this revision",
       "expected_output": "Measure the actual customer demand and compare coherent provision growth with the transformation's whole-chain cost before choosing implementation; do not assume either alternative wins.",
       "files": [],
       "assertions": [
@@ -109,7 +109,7 @@
       "id": 5,
       "name": "continuation-keeps-customer-and-measures-progress",
       "prompt": "Advance again. The previous run preserved immutable scalar helper results, but our selected customer program still fails. Its board item has the revision, exact probe command, diagnostic, owning path, and next acceptance. An unrelated helper looks easier. Four prior run reports contain timings; one was blocked. This runtime does not expose token usage.",
-      "status": "Not run",
+      "status": "Not run against this revision",
       "expected_output": "Resume and verify the same customer evidence, deliver one bounded improvement or justified pause, preserve the next executable step, and compare the five measured attempts without inventing usage or claiming end-to-end success from helper tests.",
       "files": [],
       "assertions": [
@@ -121,6 +121,43 @@
         "Reports token usage as unavailable rather than zero or account-wide usage",
         "Includes the blocked attempt in the five-attempt review and avoids unmatched savings claims",
         "Preserves scope pauses, scoped validation, and exact-candidate landing requirements"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "example-does-not-redefine-language",
+      "prompt": "Advance our existing customer example. A sample-specific intrinsic would make it pass, but the owning design requires the capability for all valid callers.",
+      "status": "Not run against this revision",
+      "expected_output": "Implement a bounded design-consistent capability or identify its actual missing dependency; retain broader contract acceptance.",
+      "files": [],
+      "assertions": [
+        "Uses the actual customer command and distinguishes observed failure from inferred downstream gaps",
+        "Does not introduce a sample-specific intrinsic or relax admission to pass the example",
+        "Preserves contract-required cases beyond the example"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "skill-maintenance-is-not-advance",
+      "prompt": "Update the advance skill to remove repeated guidance.",
+      "status": "Not run against this revision",
+      "expected_output": "Edit and structurally validate the skill without starting compiler board work.",
+      "files": [],
+      "assertions": [
+        "Does not treat reading the skill as authorization to advance or publish compiler work",
+        "Preserves customer continuity, scope pauses, and landing requirements"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "named-question-is-not-advance",
+      "prompt": "Explain how run_on_compile_thread is used by the compiler.",
+      "status": "Not run against this revision",
+      "expected_output": "Answer the source question without selecting an execution-board task.",
+      "files": [],
+      "assertions": [
+        "Does not invoke the advance workflow",
+        "Does not edit code or publish a checkpoint merely to answer the question"
       ]
     }
   ]

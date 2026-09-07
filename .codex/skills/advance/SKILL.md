@@ -1,218 +1,128 @@
 ---
 name: advance
-description: Drive the Omega Rust reference compiler toward completion by working the execution boards (TASKS.md, TASKS_BOOTSTRAP.md, TASKS_OPTIMIZER.md) or obvious unspecified work in the same direction. Use when asked to advance, continue, drive, or make progress on the compiler, to work the boards, or to pick up the next task. Not for a specific named bug, a question about existing code, or a review.
+description: >-
+  Deliver one bounded Omega compiler improvement from the execution boards or
+  an existing customer example. Use for advance, continue the compiler, work the
+  boards, or pick the next compiler task. Not for a named bug fix, code question,
+  review, or repository-wide health check.
 ---
 
 # Advance the Omega compiler
 
-One invocation delivers one bounded compiler improvement, or an evidence-backed
-scope pause when the existing plan no longer justifies implementation. For an
-improvement: choose it, reproduce it, implement it, validate its affected
-behavior, and land it. Repository-wide health is a separate job. Follow
-`AGENTS.md` for ownership, commands, validation scope, board hygiene, and publication.
+One invocation delivers a bounded compiler improvement through publication, or
+an evidence-backed scope pause. Reconfirming a known blocker is verification-only,
+not a completed advance. Follow [AGENTS.md](../../../AGENTS.md) for repository
+ownership, validation, scope checkpoints, board hygiene, and publication.
 
-Reconfirming a known failure or refreshing its board revision is verification-only
-work, not a compiler improvement. Count it as an incomplete advance in the run
-report. Publish a board-only checkpoint only when it changes the next action or
-corrects materially stale evidence; a newer revision with the same diagnosis
-usually belongs in the conversation.
+## Choose the next customer outcome
 
-## Choose a useful slice
+Record the start time, starting checkout, and branch. Fetch main and inspect
+status and recent lane commits. If the starting checkout is clean and on main,
+fast-forward it with `git merge --ff-only origin/main` before reading its boards.
+Otherwise preserve it and read from an isolated worktree based on fetched main.
 
-Record the start time, starting checkout path, and branch. Fetch main and inspect
-status;
-when that checkout is clean and on main, run `git merge --ff-only origin/main`
-before reading its boards. Fetch alone does not update checked-out files.
-Otherwise preserve it and read the boards from an isolated worktree based on
-fetched `origin/main`. Inspect recent commits in the relevant lane. An unnamed
-invocation may choose from `TASKS.md`, `TASKS_BOOTSTRAP.md`, and
-`TASKS_OPTIMIZER.md`. Leave other sessions' work alone.
+For a continuation, retain the existing customer program or required proof
+obligation until acceptance passes, a real dependency blocks it, a scope checkpoint
+requires a pause, or the user changes priority. Do not duplicate another session's
+active change or switch to an easier unrelated helper. Without prior continuity,
+choose from `TASKS.md`, `TASKS_BOOTSTRAP.md`, or `TASKS_OPTIMIZER.md`; honor a named
+board. State the customer, missing dependencies, and bounded acceptance condition.
 
-For an unnamed continuation, resume the previous concrete customer program or
-required proof obligation from the conversation and its owning board item.
-Keep that customer across invocations until its acceptance passes, a real
-dependency blocks it, the scope checkpoint requires a pause, or the user changes
-priority. If another session owns the next change, do not duplicate it. When
-continuity is unavailable, choose from the boards and state the customer once.
-Do not switch lanes merely because another helper is easier to finish.
+Read the owning design and [completion contract](../../../wiki/releases/rust_compiler_completion_contract.md).
+For bootstrap work, also read [whole-chain minimization](../../../wiki/design_briefs/bootstrap_minimization.md).
+Apply [scope checkpoints](../../../AGENTS.md#scope-checkpoints) using recent
+milestones across invocations and delegated work. Required customer behavior and
+human-auditable proof closure justify work; a board item or passing helper alone
+does not. Compare simpler alternatives before adding machinery.
 
-### Work from a should-be-working example
+## Work from a should-be-working example
 
-Use examples to choose the next problem and verify progress. The language and
-architecture contracts govern the solution and its full acceptance criteria.
-An example exposes a missing capability; it does not define that capability's
-limits or justify sample-specific semantics, intrinsics, or compiler paths.
-Implement the smallest design-consistent capability needed by the example,
-without adding speculative generality. A passing example is a milestone, not
-proof that the capability or compiler is complete; retain the broader contract's
-required cases and evidence.
+Use the customer's actual command as the outer loop, including CLI, package
+preparation, publication, and execution where applicable. Trace expected output
+and exit status backward through the producer and consumers. Existing logs and
+one focused probe are enough to locate the first failure; do not run the entire
+corpus merely to rank work.
 
-When the route exposes an unsettled language or architecture choice, use the
-existing `OWNER_QUESTIONS.md` criteria before implementing that choice. When the
-design already answers it, continue implementation; difficulty or a cross-stage
-dependency alone is not a design question.
+The language and architecture govern the solution. An example exposes a missing
+capability without defining its limits or authorizing sample-specific semantics,
+intrinsics, relaxed checks, or compiler paths. Implement the smallest capability
+consistent with the design and retain its broader required cases and evidence.
 
-Use the customer's actual command as the outer loop, including the shipped CLI,
-package preparation, publication, and execution. A compiler-library test is a
-useful inner loop but may bypass those dependencies. Trace backward from the
-expected output and exit through the real producer/consumer route. Keep the
-route in the sample's existing README or owning design document, with the
-current first failure on its existing board item; do not add a parallel tracker.
+Witness the failure before editing. Read the generated phase artifacts described
+in AGENTS.md before instrumenting compiler code. Distinguish the observed boundary
+from downstream gaps inferred from source. A checked-tree milestone can be useful
+while native production remains blocked, but report that boundary accurately.
 
-Distinguish the first observed failure from downstream gaps found by reading
-code. Record which command reached which boundary and where it left artifacts.
-After each milestone, rerun the outer command when its inputs changed and report
-whether its failure moved. A passing helper with an unchanged customer failure
-is dependency progress, not a working example. Never simplify the customer's
-program or bypass checking merely to move the marker.
+Keep the outer command in the sample's README or owning design document and the
+current first failure in its existing board item. After a milestone, rerun the
+command when its inputs changed. A passing inner test with an unchanged customer
+failure is dependency progress, not a working example. Never simplify the
+customer's program merely to move the failure.
 
-Use existing failure logs and board evidence to rank useful work. Do not start
-an unfiltered corpus run just to choose a task. If evidence is stale, probe one
-representative fixture. Prefer a bounded improvement with observable acceptance
-over the largest blocker when that blocker needs a much broader implementation.
-
-Run the smallest relevant program or filtered test before editing. Confirm the
-actual failure and choose an acceptance condition that this iteration can meet.
-Reaching checked trees is a valid milestone when native production remains
-blocked; report that boundary accurately. If a probe passes, remove the stale
-board claim. Do not spend the session repeatedly scouting larger alternatives.
-
-## Work in isolation
-
-Before implementation, apply [scope checkpoints](../../../AGENTS.md#scope-checkpoints).
-Read recent milestones for the same customer, not just the current board line.
-State the customer, missing dependency, smallest useful outcome, and simpler
-alternative before adding machinery. Bootstrap work must also read
-[whole-chain minimization](../../../wiki/design_briefs/bootstrap_minimization.md).
-Do not turn an unavailable downstream compiler into speculative upstream
-generality, or treat private resource limits as immutable language laws.
-
-The infrastructure-only checkpoint spans invocations and delegated work. When
-it requires a pause, report evidence and ask for scope/prioritization direction;
-do not evade it by selecting another helper, adding tests, or calling the audit
-an owner-blocked language issue. Resume feature work only after that direction.
-At handoff, report customer progress and added/removed complexity, not just
-commit and test counts.
+## Implement and validate
 
 Use an isolated worktree under `<repository>/.codex/worktrees/<short-name>`.
-That directory is repository-local and ignored; do not place advance worktrees
-under a user-level Codex directory. Keep the name short. Generated linker
-paths can exceed MAX_PATH even when the repository path looks reasonable, so
-measure the failing path before changing compiler architecture or relocating
-the worktree.
+Keep its name short; if a generated Windows path fails, measure the actual path
+before relocating work or changing compiler architecture.
 
-A single bounded fix normally needs one agent. Delegate only when independent
-useful work can shorten the critical path enough to justify briefing, review,
-and integration; follow the delegation steps below. Avoid concurrent builds on
-the same host and duplicate full validation passes; check for existing runs and reuse valid
-results before launching another check.
+Trace the shared implementation and callers, preserving the Psi/Omega firewall
+and proof, custody, and trust checks. Prefer the existing representation and
+provider route. A single bounded change normally needs one agent; delegate only
+independent useful work that justifies its briefing and review cost.
 
-Trace the shared implementation and its callers, then make the smallest change
-that fixes the behavior. Preserve the Psi/Omega firewall and proof, custody, and
-trust checks. Do not add a new representation or provider mechanism when the
-existing path can carry the required behavior.
+Select checks from the affected behavior under
+[validation scope](../../../AGENTS.md#validation-scope). A bug fix needs a witnessed
+regression. Read the harness before filtering: fixture-path filters and nextest
+test-name filters select different things. Include affected crate and integration
+checks, plus architecture checks when their ownership or source-reader inputs
+change. Reuse successful results on unchanged inputs, including at landing.
+
+Attribute unexpected failures using a focused baseline comparison or dependency
+and source-reader evidence. Confirmed unrelated failures remain outside the repair
+scope; retain their command, revision, and attribution. New or unexplained affected
+failures block landing. A new worktree does not require a full baseline. Use
+[testing](../../../wiki/testing.md) for coverage and
+[test-cycle measurements](../../../wiki/testing_performance.md) for build diagnosis.
+Avoid concurrent host builds and duplicate checks.
 
 ## Delegate a bounded assignment
 
-Apply [AGENTS.md](../../../AGENTS.md#agent-delegation) for model routing and
-ownership. Refine the existing board item only where its scope, design rationale,
-dependencies, or acceptance are insufficient for assignment. Keep transient
-worker IDs and progress in the conversation, not on the execution boards.
+Read [agent delegation](../../../AGENTS.md#agent-delegation) for current model
+routing and assignment requirements. Keep that policy in AGENTS.md. Give the worker
+its exact worktree/revision and canonical skill path, objective, design anchors,
+edit ownership, dependencies, acceptance, and escalation conditions. Refine the
+owning board only when it lacks context needed for the assignment.
 
-Slice selection, cross-stage diagnosis, and deciding whether implementation can
-proceed require Astra judgment. Luna may execute settled edits or specified
-checks; an unexpected dependency returns to Astra with the failing command,
-revision, owning code, and unanswered implementation question. If that routing
-is unavailable, report the limitation and incomplete outcome; do not turn it
-into an owner decision or claim that no safe implementation exists.
+Use the actual agent tool and returned ID before reporting a worker as launched.
+If unavailable, continue locally where possible and report the limitation.
+Monitor through completion or a concrete blocker, respond to findings, and inspect
+the returned diff and evidence before integration. Worker IDs belong in the
+conversation, not execution boards.
 
-Give each worker a self-contained assignment with the context required by
-AGENTS.md, its worktree/revision, and whether it owns implementation, read-only
-verification, or investigation. Resolve dependencies before assigning dependent
-implementation; independent inspection can proceed while a build runs. If a
-worker cannot call for stronger reasoning itself, it returns concrete evidence
-to the coordinator for reassignment.
+Distinguish implementation completed, verification-only completed, diagnosed
+blocker, and work continuing. Evidence identifies revision, host, command, exit,
+and remaining dependencies. A prerequisite check does not establish the assigned
+acceptance; cross-emission does not establish target runtime behavior. Diagnosis
+is intermediate for an assigned fix: continue implementation when the design
+answers it, or hand off the exact missing dependency and next acceptance.
 
-Call the available spawn tool and retain its returned agent ID before announcing
-dispatch. If no callable tool is available, report that limitation and continue
-locally where possible; a proposed assignment or terminal command is not a
-launched worker. Monitor actual workers through completion or a concrete blocker,
-respond to findings, and reconcile overlapping changes before integration.
-
-Inspect each returned diff, command result, or artifact against its acceptance.
-Reports identify the revision, host, exact command and exit status, failures,
-remaining dependencies, and whether work continues. Label the outcome as
-implementation completed, verification-only completed, diagnosed blocker, or
-work continuing. Verification must cover the assigned objective: package format
-or prerequisite checks do not complete assigned workspace tests or establish a
-baseline. Cancelled runs are not failed validation. Cross-emission is not target
-runtime validation; execute on available real target hosts and name missing hosts.
-
-For an assigned fix, diagnosis is an intermediate result. Continue with the same
-worker or hand off its evidence when the existing design permits implementation.
-If a dependency makes the bounded fix impossible, report that precise boundary
-and the next acceptance condition under "When the slice cannot close" below.
-Keep duplicate findings on one owning board item, and use the existing owner
-question process only for unresolved owner-level decisions. The coordinator
-reports the inspected outcome and remaining work, not merely worker confidence.
-
-## Validate the change
-
-Use the scoped validation policy in `AGENTS.md`. Before running checks, name the
-behavior being established and select the relevant tests. Routine advancement
-does not require a fresh full baseline, even in a new worktree.
-
-- Reuse a regression where possible. For a bug fix, observe the relevant check
-  fail without the fix and pass with it; register new corpus fixtures so they
-  actually run. One meaningful red/green check is enough; do not duplicate it
-  at every layer merely to accumulate evidence.
-- Read the harness before filtering. `OMEGA_PASS_CANARY_FILTER` and
-  `OMEGA_FAIL_CANARY_FILTER` select fixture paths; nextest filters select Rust
-  test names. Use `--no-fail-fast` and report platform skips explicitly.
-- Run affected crate checks and relevant integration tests. Include architecture
-  checks when ownership, dependencies, representations, or their source-reading
-  rules are affected. Do not run workspace check in every edit loop.
-- Reuse successful checks on unchanged inputs. When a verified base exists,
-  inspect `tools/test_affected.py --base VERIFIED_COMMIT --plan` before running
-  it. A conservative all-library fallback is a selection limitation, not by
-  itself a reason to turn a narrow task into a full-baseline campaign. Review
-  the actual inputs and justify a manual scoped selection when appropriate.
-- Full corpus and full workspace runs belong to explicit health/release work
-  or changes whose impact cannot reasonably be bounded. State the reason before
-  starting one. Never launch them automatically for ranking or repeat them
-  simply because another commit arrived on main.
-
-A failure is evidence to attribute, not permission to expand the task. Use a
-focused baseline comparison or dependency/source-reader evidence. Fix failures
-caused by the change. Record confirmed unrelated failures with their command,
-revision, and evidence; they do not block this change and are not this task's
-repair queue. An unexplained failure in an affected path still blocks landing;
-preserve the checkpoint and report the uncertainty rather than claiming success.
-Do not repeatedly rerun a broad suite to attribute one failure.
-
-## Land the checkpoint
+## Land and restore the checkout
 
 Invoking advance authorizes committing and publishing the bounded improvement
-to main through `tools/landing.py`. Keep unrelated fixes out of the checkpoint.
-Update the owning board only for remaining execution state; remove completed
-acceptance conditions without adding a test-count or history log.
+through [the landing protocol](../../../tools/landing.md). Editing or evaluating
+this skill is not an invocation to advance the compiler.
 
-Before landing, rerun the selected customer probe when its inputs changed.
-If customer acceptance remains open, replace its next-step evidence in the
-owning board item with the tested revision, repository-relative command (with
-any required environment settings and host), observed diagnostic or result,
-owning implementation path, and next acceptance condition. Keep this compact;
-link existing design detail instead of copying it. A passing helper test does
-not establish customer acceptance. If the next probe was not run, say so rather
-than inventing the next failure. This is current resume state, not a run history.
+Prepare and validate before entering the queue. Follow the protocol for the local
+wait, claim, rebase, exact verified candidate, and release on an affected failure.
+Do not bypass reservations or hold a lease while doing further development.
 
-Prepare and validate before entering the landing queue. Use the local FIFO wait,
-claim the nonrenewable lease, and rebase onto its returned base. Inspect incoming
-changes and rerun only checks whose inputs or acceptance evidence changed. An
-unchanged candidate does not need a second full pass merely for publication.
-Publish the exact candidate whose applicable checks are established; never bypass
-reservation ownership or push directly to main. If more development or lengthy
-validation is needed, release the reservation and finish it outside the queue.
+Remove completed board acceptance without adding a changelog. If customer
+acceptance remains open, retain compact resume evidence on the owning item:
+tested revision, repository-relative command and environment/host, observed result,
+owning implementation path, and next acceptance. Label an unrun probe explicitly.
+A board-only checkpoint is useful only when it changes the next action or corrects
+materially stale evidence; an unchanged diagnosis at a newer revision is not an
+improvement.
 
 After publication, return to the recorded starting checkout and recheck its
 branch and status. If it is still clean and on main, fetch and run
@@ -231,11 +141,6 @@ Do not force removal or branch deletion. Preserve pre-existing worktrees, the
 starting checkout, and anything dirty, locked, unpublished, or still in use;
 report any retained temporary worktree and the reason. Verify the removed path
 is absent from `git worktree list` and the branch is gone before reporting cleanup.
-
-Report the resulting behavior, commit, checks actually run, remaining limitations,
-and any unrelated failures. Do not imply a scoped pass establishes whole-repository
-health. Stop after the bounded improvement lands; broader validation and unrelated
-repairs require a separate task.
 
 ## Measure the cycle
 
@@ -259,19 +164,22 @@ pauses; scheduling alone does not authorize a new lane or override a pause.
 
 ## When the slice cannot close
 
-Engineering difficulty is not an owner decision. Design questions belong in
-`OWNER_QUESTIONS.md` under its existing criteria. A dependency spanning several
-stages is work to decompose, not by itself a reason to stop. When the design
-already answers the question and no scope checkpoint requires a pause,
-identify and implement the smallest dependency
-slice with observable behavior or a named proof obligation as acceptance.
-Keep it tied to the same customer; scaffolding and relaxed admission guards
-alone do not qualify.
+When existing design answers the question, decompose cross-stage work into the
+smallest dependency that advances observable behavior or a named proof obligation
+for the same customer. Scaffolding and relaxed admission guards do not qualify.
+Engineering difficulty alone is not an owner decision.
 
-Before reporting that no bounded slice can close, name the concrete slice
-considered, the missing contract or unavailable dependency preventing it, and
-why existing mechanisms cannot deliver its acceptance. Distinguish a diagnosed
-blocker from a scope pause: the latter cites the applicable AGENTS.md checkpoint,
-explains why the plan no longer earns its cost, and asks for prioritization
-direction. Preserve useful work and the next acceptance condition. Do not turn
-one invocation into an open-ended sequence of new implementations and gate repairs.
+For a blocker, name the attempted slice, missing contract or unavailable dependency,
+why existing mechanisms cannot deliver acceptance, and the next executable step.
+For a scope pause, cite the applicable AGENTS.md checkpoint and ask for
+prioritization with concrete continue, simplify, or defer alternatives. Preserve
+useful work; do not evade the pause by changing helpers or manufacturing an owner
+question. Actual language/architecture decisions follow `OWNER_QUESTIONS.md` and
+the ratified decision process.
+
+Report customer behavior, added or removed complexity, commit/publication state,
+checks actually run, remaining dependencies, and unrelated failures. Include the
+cycle measurements above. Stop after this bounded improvement; do not turn it into
+an open-ended repair or full-health campaign.
+
+For skill maintenance, use the [evaluation guide](evals/README.md).

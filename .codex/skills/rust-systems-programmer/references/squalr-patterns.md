@@ -2,7 +2,7 @@
 
 Use this reference when selecting parallel work boundaries, result storage, or SIMD organization. These are source-backed examples, not benchmark results or a claim that every current implementation is optimal.
 
-The inspected checkout is `Y:/Development/Friends-and-Family/Zac/Squalr`, revision `e6538c99b2960f35a44727d09acf5f58ef2284ab`. Paths below are relative to that root. Search by symbol because line numbers drift. If the checkout is unavailable, use these explanations and the destination code; do not require this Windows path or invent current source observations. A caller-provided Squalr checkout can substitute after checking its revision.
+The inspected Squalr revision is `e6538c99b2960f35a44727d09acf5f58ef2284ab`. Paths below are relative to that root. Search by symbol because line numbers drift. If the checkout is unavailable, use these explanations and the destination code; do not require an external checkout or invent current source observations. A caller-provided Squalr checkout can substitute after checking its revision.
 
 ## Squalr scan pipeline
 
