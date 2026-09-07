@@ -212,10 +212,9 @@ fn build_state_plan(
             && matches!(
                 program.statement_table.transition_target(transition.target),
                 TransitionTargetNode::Named { path, .. }
-                    if program
-                        .machine_states(machine)
-                        .iter()
-                        .any(|target| target.symbol == path.symbol)
+                    if crate::checks::termination::named_transition_target_state_index(
+                        program, machine, path.symbol,
+                    ).is_some()
             )
     });
     if !has_structural_control {
@@ -238,13 +237,14 @@ fn build_state_plan(
         else {
             continue;
         };
-        if !program
-            .machine_states(machine)
-            .iter()
-            .any(|target| target.symbol == path.symbol)
-        {
+        let Some(target_index) = crate::checks::termination::named_transition_target_state_index(
+            program,
+            machine,
+            path.symbol,
+        ) else {
             continue;
-        }
+        };
+        let target = &program.machine_states(machine)[target_index];
 
         let mut transferred = BTreeSet::new();
         for event in moves.iter().filter(|event| {
@@ -294,7 +294,10 @@ fn build_state_plan(
             .collect::<Option<Vec<_>>>()?;
         edges.push(CheckedStructuralControlEdgeCleanupPlan {
             statement_ordinal: u32::try_from(statement_index).ok()?,
-            target_state: path.symbol,
+            // Entry back-edges name the machine in source; consumers join the
+            // cleanup to the normalized state, while move events above retain
+            // their authored call target identity.
+            target_state: target.symbol,
             trivial_affine_discard_parameter_positions,
         });
     }

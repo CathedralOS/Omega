@@ -316,9 +316,11 @@ fn successor(
         return None;
     };
     let states = program.machine_states(machine);
-    let target_index = states
-        .iter()
-        .position(|state| state.symbol == path.symbol)?;
+    let target_index = crate::checks::termination::named_transition_target_state_index(
+        program,
+        machine,
+        path.symbol,
+    )?;
     let source = &states[source_index];
     let target = &states[target_index];
     let arguments = program.statement_table.expression_handles(*arguments);

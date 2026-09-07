@@ -729,13 +729,14 @@ fn ranked_countdown_rejects_a_cycle_body_that_changes_structural_custody() {
 }
 
 #[test]
-fn ranked_countdown_rejects_uncovered_or_false_arithmetic() {
+fn ranked_countdown_rejects_false_arithmetic_without_inventing_a_missing_rank() {
     let module = ranked_countdown();
     let mut uncovered = module.clone();
     uncovered.machines[0].ranked_scc = None;
+    assert_eq!(validate_module_representation(&uncovered), Ok(()));
     assert!(matches!(
-        validate_module_representation(&uncovered),
-        Err(ModuleError::ControlCycle(_))
+        verify_module_for_native_ranked_countdown(&uncovered, &ProofBundle::default(), &AdmissionProfile::default()),
+        Err(VerificationError::Module(ModuleError::NonExecutableRankedScc(machine))) if machine == uncovered.entry
     ));
 
     let mut forwards_original = module.clone();
@@ -785,3 +786,9 @@ mod unranked_frontiers;
 
 #[path = "ranked_scc/unranked_return_facts.rs"]
 mod unranked_return_facts;
+
+#[path = "ranked_scc/unranked_bindings.rs"]
+mod unranked_bindings;
+
+#[path = "ranked_scc/unranked_views.rs"]
+mod unranked_views;

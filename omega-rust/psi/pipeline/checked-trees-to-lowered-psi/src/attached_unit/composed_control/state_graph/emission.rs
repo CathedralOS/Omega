@@ -21,12 +21,24 @@ pub(in crate::attached_unit::composed_control) fn emit(
             },
         })
         .collect::<Vec<_>>();
+    let entry_reentered = plan
+        .states
+        .iter()
+        .flat_map(successors)
+        .any(|successor| successor.target_state == plan.states[0].state);
+    // Invocation parameters are immutable. Reentering the authored entry
+    // therefore uses an ordinary parameterized block behind a one-shot jump.
+    let invocation_entry = if entry_reentered {
+        Some(block_id(allocate_dense(&mut catalogs.next_block)?))
+    } else {
+        None
+    };
     let mut state_ids = Vec::new();
-    let mut state_views = vec![parameters.clone()];
-    let mut state_values = vec![scalar_parameters.clone()];
+    let mut state_views = Vec::new();
+    let mut state_values = Vec::new();
     for (position, state) in plan.states.iter().enumerate() {
         state_ids.push(block_id(allocate_dense(&mut catalogs.next_block)?));
-        if position != 0 {
+        if position != 0 || entry_reentered {
             let block_parameters = lower_unit_parameters(
                 &state.structural_parameters,
                 &catalogs.type_ids,
@@ -55,9 +67,38 @@ pub(in crate::attached_unit::composed_control) fn emit(
                     })
                     .collect::<Result<Vec<_>, LoweringError>>()?,
             );
+        } else {
+            state_views.push(parameters.clone());
+            state_values.push(scalar_parameters.clone());
         }
     }
     let mut blocks = Vec::new();
+    if let Some(entry) = invocation_entry {
+        blocks.push(Block {
+            id: entry,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::Jump {
+                edge: edge_id(allocate_dense(&mut catalogs.next_edge)?),
+                target: state_ids[0],
+                arguments: scalar_parameters
+                    .iter()
+                    .map(|parameter| parameter.id)
+                    .collect(),
+                structural_arguments: parameters
+                    .iter()
+                    .map(|parameter| StructuralArgument {
+                        place: parameter.place,
+                        path: Vec::new(),
+                        access: StructuralAccess::SharedBorrow,
+                    })
+                    .collect(),
+                trivial_affine_discards: Vec::new(),
+                residual_affine_discards: Vec::new(),
+            },
+        });
+    }
     let mut occurrences = Vec::new();
     for (position, state) in plan.states.iter().enumerate() {
         let state_parameters = state_views[position]
@@ -81,7 +122,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
                 .collect(),
             entry: state_ids[position],
             current: state_ids[position],
-            parameters: if position == 0 {
+            parameters: if position == 0 && !entry_reentered {
                 Vec::new()
             } else {
                 state_values[position].clone()
@@ -328,7 +369,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
                 .to_vec(),
             terminator,
         });
-        if position != 0 {
+        if position != 0 || entry_reentered {
             // Argument evaluation can split the body; bindings belong to its source root.
             let root = evaluation
                 .blocks
@@ -373,7 +414,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
         content_entry_claims: Vec::new(),
         content_identity_reshuffles: Vec::new(),
         content_partition_compositions: Vec::new(),
-        entry: state_ids[0],
+        entry: invocation_entry.unwrap_or(state_ids[0]),
         blocks,
         contract: MachineContract {
             id: contract_id(terminal_machine.get()),

@@ -26,6 +26,37 @@ const PREFIX: &str = r#"
     }
 "#;
 
+#[test]
+fn an_initial_nonzero_argument_is_not_an_invariant_after_rebinding_to_zero() {
+    let source = r#"
+        boundary trait Output { machine write(marker: u64) reaches Output; }
+        machine relay(divisor: u64) reaches Output {
+            transition divisor > 0 {
+                true -> divide(divisor)
+                false -> done()
+            }
+            state divide(divisor: u64) {
+                let quotient: u64 = 1u64 / divisor;
+                Output::write(quotient);
+                transition { _ -> done() }
+            }
+            state done() { }
+        }
+        data Root {}
+        machine Root::enter() reaches Output { relay(1u64); }
+    "#;
+    checked_trees_to_lowered_psi::lower_machine(&checked(source), "Root::enter")
+        .expect("the acyclic first arrival preserves its selected nonzero fact");
+    let cyclic = source.replace(
+        "transition { _ -> done() }",
+        "transition { _ -> divide(0u64) }",
+    );
+    assert!(matches!(
+        checked_trees_to_lowered_psi::lower_machine(&checked(&cyclic), "Root::enter"),
+        Err(checked_trees_to_lowered_psi::LoweringError::OperationProofUnavailable(_))
+    ));
+}
+
 fn effects(checked: &checked_trees::CheckedTrees) -> Vec<(Vec<u8>, i128)> {
     let lowered = checked_trees_to_lowered_psi::lower_machine(checked, "Root::enter")
         .expect("state-local values and selected successor operands lower");

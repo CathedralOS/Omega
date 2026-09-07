@@ -572,8 +572,9 @@ fn sibling_block_view_is_not_available_in_operations_or_edges() {
 }
 
 #[test]
-fn block_view_bindings_do_not_admit_cycles() {
-    let mut changed = lowered(SOURCE).semantic_module;
+fn unranked_self_bindings_validate_without_claiming_finite_fuel() {
+    let lowered = lowered(SOURCE);
+    let mut changed = lowered.semantic_module;
     let machine = graph_mut(&mut changed);
     let finished = machine
         .blocks
@@ -604,5 +605,26 @@ fn block_view_bindings_do_not_admit_cycles() {
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),
     };
-    reject(&changed, ModuleError::ControlCycle(block));
+    let verified = terminal_verifier::verify_module(
+        &changed,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("an unchanged immutable view may be carried by a productive loop");
+    assert!(
+        matches!(terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, changed.entry),
+        Err(terminal_fixed_fuel::FixedFuelError::ControlCycle(actual)) if actual == block)
+    );
+    let mut execution = TerminalExecution::start_artifact(
+        &encode_module(&changed).unwrap(),
+        &encode_proof_bundle(&lowered.proof_bundle).unwrap(),
+        &AdmissionProfile::default(), &[],
+    ).unwrap();
+    let mut meter = TerminalFuelMeter::with_allowance(100);
+    assert!(matches!(execution.resume(&mut meter).unwrap(), TerminalExecutionStatus::SponsorExhausted(_)));
+    let prefix = execution.effects().to_vec();
+    assert_eq!(prefix.len(), 3, "only the first relay runs before its endless final state");
+    meter.replenish(100).unwrap();
+    assert!(matches!(execution.resume(&mut meter).unwrap(), TerminalExecutionStatus::SponsorExhausted(_)));
+    assert_eq!(execution.effects(), prefix);
 }

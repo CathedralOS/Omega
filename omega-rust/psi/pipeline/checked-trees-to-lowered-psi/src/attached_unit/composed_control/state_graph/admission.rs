@@ -77,6 +77,9 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
     {
         return unsupported("Unit graph requires a closed checked body");
     }
+    if machine.termination_plan.implementation_witness.is_some() {
+        return unsupported("Unit graph ranking certificate is not retained");
+    }
     super::super::admission::exact_attachment(checked, plan)?;
     let source_states = checked.machine_states(machine);
     if source_states.len() != plan.states.len() {

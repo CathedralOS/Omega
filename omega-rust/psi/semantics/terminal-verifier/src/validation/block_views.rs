@@ -131,7 +131,7 @@ pub(super) fn validate_successor(
     Ok(())
 }
 
-/// Existing bounded cyclic authorities have no descriptor fixed-point contract.
+/// Ranked countdown authorities still exclude descriptor successor bindings.
 pub(super) fn has_bindings(machine: &TerminalMachine) -> bool {
     machine.blocks.iter().any(|block| {
         !block.structural_parameters.is_empty()

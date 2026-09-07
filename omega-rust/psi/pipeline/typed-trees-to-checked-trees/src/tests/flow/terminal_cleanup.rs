@@ -46,6 +46,74 @@ fn machine_and_entry_state(
 }
 
 #[test]
+fn named_machine_back_edge_retains_entry_state_cleanup_and_shared_unit_plan() {
+    let checked = checked(
+        r#"
+        boundary trait Output { machine write(bytes: &[u8], marker: i32) reaches Output; }
+        machine relay(bytes: &[u8]) reaches Output {
+            transition bytes.len > 0 {
+                true -> emit(bytes[0] as i32, bytes[1..])
+                false -> done()
+            }
+            state emit(head: i32, bytes: &[u8]) {
+                Output::write(bytes, head);
+                transition { _ -> relay(bytes) }
+            }
+            state done() {}
+        }
+        "#,
+    );
+    let (machine, entry) = machine_and_entry_state(&checked, "relay");
+    assert_ne!(
+        machine, entry,
+        "source machine and entry state have distinct symbols"
+    );
+    let declaration = checked
+        .machines()
+        .iter()
+        .find(|candidate| candidate.symbol == machine)
+        .unwrap();
+    let emit = checked
+        .machine_states(declaration)
+        .iter()
+        .find(|state| state.name.as_str() == "emit")
+        .unwrap();
+    let cleanup = checked
+        .facts
+        .flow
+        .terminal_structural_control_cleanups
+        .for_edge(machine, emit.symbol, 1)
+        .expect("the named machine back-edge retains its own cleanup row after the call");
+    assert_eq!(cleanup.target_state, entry);
+    assert!(
+        cleanup
+            .trivial_affine_discard_parameter_positions
+            .is_empty()
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine)
+        .expect("the cleanup row closes the reentered shared Unit graph");
+    let emit_plan = plan
+        .states
+        .iter()
+        .find(|state| state.state == emit.symbol)
+        .unwrap();
+    let checked_trees::CheckedComposedUnitControlTerminatorPlan::Jump { successor } =
+        &emit_plan.terminator
+    else {
+        panic!("the emit state jumps back to entry");
+    };
+    assert_eq!(successor.target_state, entry);
+    assert_eq!(
+        crate::flow::build_checked_structural_control_cleanup_plans(&checked.typed, &checked.facts),
+        checked.facts.flow.terminal_structural_control_cleanups,
+    );
+}
+
+#[test]
 fn structural_conditional_edges_retain_independent_affine_parameter_cleanup() {
     let checked = checked(
         r#"
