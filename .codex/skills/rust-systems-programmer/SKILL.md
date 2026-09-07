@@ -5,165 +5,37 @@ description: Write and review Rust with explicit domain naming, type-focused mod
 
 # Rust Systems Programming
 
-Apply a readable, explicit systems-programming style derived from Squalr. Transfer the programming habits, not its crate names, scanner architecture, dependencies, or release workflow. This skill is self-contained and can be copied into another repository.
+Use this skill as an interface to Squalr's implementation patterns: choose where decisions happen, who owns working state, and what representation the next consumer can use directly. Transfer the relationships, not Squalr's crate layout or every implementation detail.
 
-When this skill is invoked by a repository path, use that exact file rather than a same-named global skill. In a delegated evaluation, identify the absolute skill path actually read so the coordinator can verify provenance.
+## Start from the destination
 
-## Establish the local contract
+Read its README, agent instructions, and current-task document when present. Trace the affected producer and consuming callers. Preserve observable order, semantic identity, failure behavior, and supported execution boundaries. Follow the destination's toolchain and existing APIs.
 
-Read the destination's README and applicable agent instructions first, then its current-task document if one exists. Inspect Cargo manifests, toolchain and formatter configuration, and neighboring implementations before editing. Trace the affected callers and implementations; reuse the existing domain types and shared execution path.
+Use this exact repository skill when invoked by path. A delegated evaluation should report the absolute path it read. Do not create a framework or refactor unrelated code just to demonstrate the skill.
 
-The conventions below guide new code. Explicit destination requirements take precedence. Preserve established public APIs and avoid unrelated renaming or restructuring just to apply this skill. Do not introduce a workspace, command bus, plugin system, nightly toolchain, or dependency merely because Squalr uses one.
+## Choose the relevant operation
 
-## Apply the pattern to the destination
+| What you are deciding | Pattern to consider | Read |
+| --- | --- | --- |
+| The same setup repeats across many work units | Prepare shared facts once; borrow them in a small local plan. | [Code structure](references/squalr-code-structure.md#prepare-shared-decisions-borrow-them-in-local-plans) |
+| A loop repeatedly branches on a fixed mode | Select the mode outside the loop; keep each loop's actual inputs explicit. | [Branch placement](references/squalr-code-structure.md#branch-once-around-the-loop) |
+| Runtime flexibility meets a small set of fast kernels | Runtime selection around bounded compile-time specialization. | [Dispatch](references/squalr-code-structure.md#select-dynamically-specialize-a-bounded-dimension) |
+| Adding threads or scratch state | Stateless algorithm; invocation/worker owns mutable state and output. | [Working state](references/squalr-code-structure.md#stateless-algorithm-invocation-owned-working-state), [execution constraints](references/storage-and-execution.md#put-threads-at-the-ownership-boundary) |
+| Results are copied, flattened, or expanded between stages | Preserve produced batches or spans when the next consumer can use them. | [Scan pipeline](references/squalr-scan-pipeline.md) |
+| SIMD, overlapping values, or tails | Distinguish candidate starts, payload coverage, and safe load bounds. | [Exact scan geometry](references/squalr-scan-pipeline.md#2-stored-byte-coverage-differs-from-candidate-progression) |
+| Names or source slices are repeatedly allocated | Retain source ownership, validate spelling/ranges, and inspect derived operations. | [Source storage](references/storage-and-execution.md#retain-source-storage-instead-of-copying-each-name) |
+| Moving a pattern into arena/handle-based code | Preserve durable identity and publication contracts. | [Omega examples](references/squalr-patterns.md) |
 
-Before proposing a storage or threading change, trace input ownership, work scheduling, output production, and the consuming callers. Establish the contract that survives the change: result order, identity/handles, error and cancellation behavior, and peak memory. Decide whether the storage is temporary scratch or a durable representation. Choose a compatible layout before changing code.
+Read the relevant reference, not every reference. A simple change may need none of these patterns. Source examples explain why a choice fits; they do not establish a speedup or make that choice universal.
 
-Where the destination uses durable arena handles or indexed storage, preserve its identity and publication rules; temporary worker buffers need not dictate the persistent layout. Paged storage alone does not make concurrent mutation safe. Inspect the actual mutation, initialization, and reclamation APIs before proposing concurrent publication. The linked reference includes an Omega example.
+## Shape the implementation
 
-For concrete examples, read [Squalr source patterns](references/squalr-patterns.md) when working on storage, parallelism, or SIMD. Follow the named producer and consumer symbols in the actual checkout when available. Examples describe tradeoffs, not mandatory dependencies or universal layouts.
+Identify which facts change per request, partition, and element. Prepare reusable facts at the outer lifetime; specialize local choices where their inputs become known; keep the inner operation narrow. Borrow immutable context, own mutable working state, and transfer useful output storage to the consumer.
 
-## Design storage and parallel execution together
+Use coherent domain names and responsibility-focused modules. Preserve precise input modes instead of growing an all-purpose context. Reuse existing abstractions; allow a little duplication when it keeps invariant decisions outside a hot loop. Recover from errors at the boundary that owns recovery. Apply the [coding conventions](references/rust-conventions.md) when writing or reviewing Rust.
 
-Choose data structures by how work is partitioned, written, and consumed. Allocation behavior, memory traffic, and serial work are architectural concerns, not cleanup after the algorithm is finished. Preserve layouts that let independent workers produce useful final storage directly.
+## Finish with evidence
 
-### Start with Squalr's coupled decisions
+For a proposed change, identify the avoided work and the contract that must survive. Inspect the whole path, including post-processing and inherited equality, hashing, formatting, or serialization. A smaller source diff or fewer allocations at one stage does not prove lower peak RAM or faster execution.
 
-For performance architecture work, read [the scan pipeline's deep patterns](references/squalr-scan-pipeline.md). Trace how one representation eliminates work in the next stage, then transfer the applicable relationship:
-
-- Preserve worker-produced spans through filtering and querying; compressing output is more useful when consumers never expand it wholesale.
-- Distinguish candidate stride from payload width. Overlapping values need trailing bytes without advancing the candidate cursor by that padding.
-- Let selective constraints shrink the next stage's input, and re-evaluate kernel eligibility on the surviving spans. Fragmentation changes both SIMD usefulness and task size.
-- Put parallelism around independently owned stateful encoders. Splitting inside a run introduces boundary ownership and stitching work; it needs an explicit benefit.
-- Serve ordered pages by merging cursors over existing streams. Advance whole runs when ordering permits, while preserving ties, deletion positions, and global identity.
-- Reuse temporal buffers and try the common bulk-I/O path first; retain page-level failure metadata for the fallback. Reduced vector length alone does not prove released RAM.
-
-These are connected design choices, not six mandatory optimizations. For a proposed transfer, identify the producer, consumer, preserved invariant, avoided work, and workload that could make it lose. Do not prescribe SIMD, nested vectors, or more threads from appearance alone.
-
-### Preserve the shape produced by parallel work
-
-A `Vec<Vec<ResultSpan>>` can be the right final representation: each independently processed region or partition owns its result spans. Workers build separate inner vectors without a shared append lock. Collecting those vectors preserves their allocations; flattening into a newly allocated vector moves every span and adds a consolidation phase to the critical path.
-
-Do not flatten, globally sort, or rebuild partitioned output merely to make the model look cleaner. Preserve required deterministic ordering: completion order is not source order, and removing a sort must preserve the caller-visible contract through another valid strategy. Consumers can traverse nested storage through iterators, or materialize only the requested page. A wrapper struct that retains the partitioned storage is fine; the cost comes from reorganizing the payload, not from naming its container.
-
-Squalr illustrates this at multiple levels: snapshots contain regions; region results contain per-type filter collections; each collection retains `Vec<Vec<SnapshotRegionFilter>>` produced by scan work. The reusable principle is independently owned batches of compact spans, not a mandatory two-level schema. Nested vectors have headers, capacity slack, and separate allocations; assess those costs against the avoided copies, contention, and consolidation. Change the layout when an actual consumer or measured workload justifies the total cost.
-
-### Put threads at the ownership boundary
-
-Parallelize substantial independent regions or batches, with each task reading its input and owning its output. Keep inner scalar/SIMD loops free of locks, per-element task scheduling, and shared result appends. Choose task granularity that amortizes scheduling while leaving enough independent work to balance workers.
-
-Reuse an existing executor when its stack size, blocking, thread-affinity, isolation, and failure contracts fit the work; otherwise preserve the required execution boundary. Trace work invoked inside each worker, including nested thread creation and configured stack sizes. Distinguish configured capacity, virtual reservation, and committed/resident memory; the configured size alone does not measure any of the latter. Account for nested parallel work, available cores, and memory bandwidth; more tasks do not automatically mean more throughput. Keep a sequential path for small workloads. Aggregate progress and counters at useful batch boundaries rather than contending on every result.
-
-Inspect the entire path after the parallel loop: merging, sorting, counting, serialization, and publication can become the serial bottleneck. Preserve partitions through subsequent stages where possible, and reduce only the metadata that actually needs aggregation.
-
-### Minimize allocations and repeated work
-
-Reuse input, output, and scratch buffers across repeated operations when ownership permits. Retain useful capacity, reserve from realistic size information, and avoid allocating an object per match. Balance reuse against retained RAM; do not reserve worst-case capacity for every worker without a reason.
-
-Store spans, ranges, or offsets when they represent many results compactly. Decode values and construct display objects on demand. Separate I/O from computation, write directly into the intended backing storage where practical, and avoid intermediate copies or repeated conversions. Keep repeatedly accessed bytes contiguous within each work unit. Choose a layout that serves the actual access pattern instead of imposing one universal container shape.
-
-### Retain source storage instead of copying each name
-
-For unchanged source text, aim for zero per-name text allocations: retain the input buffer once and use borrowed slices or source identities plus byte ranges. Use `&str` tied to the input owner's lifetime when the consumer can borrow. If values must move independently or outlive the source-map container, retain shared buffer ownership and a validated range. An `Arc` clone shares bytes but still costs reference-count traffic; a tiny retained slice can keep a large file alive. Do not spread lifetimes, shared ownership, or source text through phases whose contract calls for semantic handles.
-
-Trace every representation boundary. A source-backed parser can still allocate during lowering and again when building symbols. A source span proves provenance, not that the semantic spelling matches the source: canonical paths, generated names, and rewrites may retain an authored span. Reuse the slice only when its validated bytes equal the required spelling; keep owned storage when spelling differs. Check missing sources, bounds, and UTF-8 boundaries explicitly; an invalid-range accessor returning an empty string is not evidence of a valid empty slice.
-
-When a small value starts retaining a larger buffer, inspect derived equality, hashing, debug formatting, and serialization. These operations must observe the logical value and relevant provenance, not accidentally compare or print the whole backing allocation. Verify backing-storage identity, unchanged spelling/provenance, and owner replacement/drop behavior. Report exactly which copy disappeared; pointer-sharing tests do not establish end-to-end zero-copy, peak-RAM savings, or a speedup. See the [Omega ownership examples](references/squalr-patterns.md#omega-source-ownership-and-copy-boundaries).
-
-### Make SIMD part of the kernel design
-
-Use existing vector kernels for batch comparisons and other suitable hot operations. Organize contiguous input, alignment rules, comparison dispatch, and output encoding so SIMD does useful work without per-lane allocation or expensive repacking. Hoist invariant decisions out of the inner loop.
-
-Handle full vectors and tails explicitly, preserving bounds and scalar semantics. When common in the workload, process all-match and no-match masks as whole spans before examining individual lanes. Keep scalar/reference behavior for correctness comparisons, and select supported kernels at the appropriate dispatch boundary.
-
-Validate empty input, tails, alignment, overflow, and dense/sparse results. Measure end-to-end time, allocation volume, peak/retained memory, and scaling where relevant, including post-processing. Do not infer allocations per operation from a library API name; inspect the relevant implementation/version or measure allocations. First check whether the suspected overhead matters at the real batch size and work cost; a channel send per expensive compilation has a different cost balance from one send per scanned byte. Preserve demonstrated SIMD and threading gains; do not claim a speedup from a tidier representation or a faster isolated loop alone.
-
-## Name the domain, not the mechanics
-
-- Use coherent, specific names for variables, parameters, fields, closures, and functions. No `i`, `idx`, or bare `index`; use `region_index`, `sample_index`, or `command_index`.
-- Replace vague `data`, `temp`, and `flag` with what the value represents: `encoded_bytes`, `previous_sample`, `should_cancel`. Carry domain names through destructuring and match arms.
-- Distinguish addresses, offsets, byte counts, element counts, and capacities in names. Avoid exchanging them through ambiguous arguments.
-- Use `new` for construction, `get_<property>` for ordinary getters, `set_<property>` for mutation, and action names for work. Use predicates such as `is_empty`, `has_permission`, and `should_cancel`. Preserve a destination's established accessor style rather than creating competing APIs.
-- Use descriptive generic names such as `RefreshRegion` when they explain a role. Conventional type parameters are acceptable when their meaning is already clear.
-
-## Organize around responsibilities
-
-Prefer one principal public type per snake_case file: `BufferRegion` in `buffer_region.rs`, its independent error type in `buffer_region_error.rs`. Keep the type's inherent and trait implementations together. Move unrelated structs and services to their own files; small private implementation details need not become modules.
-
-Organize folders by domain, then operation. Use meaningful suffixes such as `_request`, `_response`, `_error`, and `_provider` where those roles actually exist. Keep `mod.rs` focused on declarations, visibility, and platform selection. Put behavior in named implementation files.
-
-Prefer explicit imports for project types; grouping related standard-library or external imports is fine. Follow local formatting, remove unused imports, and do not churn existing imports solely for style. Do not add empty `impl` blocks or pass-through helpers with no responsibility.
-
-## Keep policy above mechanisms
-
-Shared models describe the domain; computation operates on those models; platform adapters perform I/O; application services coordinate them; frontends translate user actions and display results. Fit these responsibilities into existing modules or crates rather than creating a crate for each layer.
-
-- Keep reusable computation usable with caller-owned inputs. A byte-processing function should not require a process handle, application singleton, or UI state merely to run.
-- Keep CLI, GUI, and transport handlers thin. Validation and behavior shared by multiple entry points belong in their common execution path.
-- Where commands already exist, use typed request and response models, explicit enum dispatch, and existing conversions. Keep serialization models separate from platform handles and executor state. Add derives only when required by their consumers.
-- Introduce traits at actual substitution boundaries, such as native backends or external I/O. Do not create an interface for every struct.
-- Select OS implementations at the module boundary with `cfg`; callers use the shared contract. Update every supported implementation when changing that contract, including explicit unsupported-operation handling. Keep platform dependencies target-scoped.
-
-## Make ownership and failure visible
-
-Borrow inputs when the operation does not retain them. Prefer `&[T]`, `&str`, and `&mut [T]` when only their contents matter. Return owned results when ownership transfers. Keep invariant-bearing state private; plain request/response records may expose fields.
-
-Use early returns, `let ... else`, and explicit `match` arms to keep success paths readable. Short iterator chains are useful; use a named intermediate or loop when a chain hides state changes or failure handling.
-
-Return `Result` for failure and `Option` for legitimate absence. Use the destination's error convention; prefer domain error variants with actionable context when callers must distinguish failures. Use `thiserror` if already available, otherwise use existing errors or standard error traits. Do not add `anyhow` or erase typed library errors just to shorten signatures.
-
-No `unwrap()`, `expect()`, `panic!()`, or `unreachable!()` in production error paths. Logging and returning is appropriate only at a boundary that owns recovery; never turn a failed operation into apparent success. Handle lock acquisition failures explicitly. Assertions and descriptive `expect` messages are appropriate in tests; debug assertions can document internal invariants, but cannot replace input validation.
-
-For external offsets, sizes, and counts, validate bounds and conversions before indexing, allocating, or doing pointer arithmetic. Use checked arithmetic when overflow is an error. Use saturation only when clamping is the intended domain behavior.
-
-## Keep synchronization and unsafe code local
-
-Choose ownership before synchronization. Use `Arc` only for shared ownership and a lock only for shared mutation; `Arc<RwLock<T>>` is an option, not a default wrapper. Reuse the project's channels and runtime. Use `OnceLock` for required one-time initialization when the supported Rust version permits it, not as a reason to introduce global state.
-
-Keep critical sections small. Release guards before blocking sends, callbacks, I/O, or awaiting when the operation can safely run outside the lock; preserve the operation's consistency requirements. Choose atomic ordering for the actual synchronization contract, not by copying a progress counter elsewhere.
-
-Wrap owned OS resources in RAII guards with `Drop` so early returns release them. Keep unsafe operations in narrow platform or kernel boundaries. Document the concrete safety argument: valid range, alignment, initialization, lifetime, and aliasing as applicable. Do not copy undocumented unsafe code merely because an existing implementation uses it.
-
-## Format and document for the reader
-
-Use the destination's rustfmt configuration. The source style uses vertical multi-parameter signatures and a 160-column limit; adopt these only when establishing a new formatter policy, not by silently changing an existing one. Leave toolchain and edition choices to the destination project.
-
-Write rustdoc for public contracts and non-obvious functions: units, ownership, errors, boundary semantics, and safety requirements. Comments explain intent or constraints and end with a period. Avoid narrating assignments or adding documentation that only repeats a name.
-
-For example, this pure operation keeps domain names, borrows its input, and makes invalid ranges explicit:
-
-```rust
-/// Borrows the requested byte range, returning None if the range overflows or exceeds the buffer.
-pub fn get_region_bytes(
-    buffer_bytes: &[u8],
-    region_offset: usize,
-    region_byte_count: usize,
-) -> Option<&[u8]> {
-    let region_end = region_offset.checked_add(region_byte_count)?;
-    buffer_bytes.get(region_offset..region_end)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::get_region_bytes;
-
-    #[test]
-    fn region_bytes_respects_bounds_and_overflow() {
-        let buffer_bytes = [10, 20, 30];
-        assert_eq!(get_region_bytes(&buffer_bytes, 1, 2), Some(&buffer_bytes[1..3]));
-        assert_eq!(get_region_bytes(&buffer_bytes, 3, 0), Some(&buffer_bytes[3..3]));
-        assert_eq!(get_region_bytes(&buffer_bytes, 2, 2), None);
-        assert_eq!(get_region_bytes(&buffer_bytes, usize::MAX, 2), None);
-    }
-}
-```
-
-## Verify the changed contract
-
-Test reusable logic near its implementation using `#[cfg(test)]`, and test command/adapter integration through the destination's existing test harness. Prefer deterministic input buffers or mocked I/O over live processes for library tests. Test frontend behavior when the change concerns that frontend; command tests alone do not establish UI behavior.
-
-Cover the changed success path and relevant failure or boundary cases. When changing scheduling or result collection, test deliberately reordered completions with explicit synchronization, preserving result identity/order, complete result delivery, and the existing error or panic propagation contract; do not rely on timing sleeps. For a bug fix, leave a regression test that fails on the original behavior. If a test cannot run, state the limitation and what would enable it; never substitute an empty passing test for evidence.
-
-Remove newly unused imports and dead helpers, run formatting and relevant tests/checks using the destination's toolchain, and inspect the diff. Report what was actually verified and any untested platform or runtime behavior. Follow the destination's rules for task notes and commits; this skill does not impose Squalr's session workflow on another repository.
-
-For performance reviews, separate observed source facts, inferred costs, and measured results. A documented tuning override is not a correctness bug merely because it bypasses a default cap; preserve its semantics and propose measurements before changing policy. Recommend the smallest contract-preserving change only when the evidence supports it; a justified no-change decision is valid. Give the source anchors, required regression check, and measurement that would decide between alternatives. Do not rewrite code or invent a speedup merely to demonstrate this skill. For implementation requests, carry justified changes through focused verification instead of stopping at a review.
+For implementation, carry the smallest justified change through formatting and focused regression checks. Test the changed ownership/order/boundary behavior; measure performance when making a performance claim. Report what changed, what was verified, and any remaining copy or bottleneck that limits the result. A justified no-change decision is valid; generic advice is not a substitute for an authorized implementation.
