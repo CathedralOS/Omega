@@ -1,0 +1,22 @@
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.first(6, 9, 8) }
+}
+
+machine Main::first(&mut self, limit: u64, cursor: u64, capacity: u64)
+requires limit <= capacity;
+terminates by cursor -> Nat::IncreasingTo(limit) in 0..=capacity;
+-> u64 {
+    transition { _ -> self.second(capacity, cursor, limit) }
+}
+
+machine Main::second(&mut self, ceiling: u64, position: u64, bound: u64)
+requires bound <= ceiling;
+terminates by position -> Nat::IncreasingTo(bound) in 0..=ceiling;
+-> u64 {
+    transition position < bound {
+        true -> self.first(bound, position + 1, ceiling)
+        false -> position
+    }
+}
