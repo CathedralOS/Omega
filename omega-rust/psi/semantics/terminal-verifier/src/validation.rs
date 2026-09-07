@@ -27,6 +27,7 @@ use crate::verification::{
 };
 
 mod affine_cleanup;
+mod byte_sequence_length;
 mod call_graph;
 mod conformance_applications;
 mod content;

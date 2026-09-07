@@ -570,6 +570,7 @@ pub(super) fn validate_operation_operands(
         | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
         | OperationKind::BooleanStructuralField { .. }
         | OperationKind::IntegerStructuralField { .. }
+        | OperationKind::ByteSequenceLength { .. }
         | OperationKind::BooleanNot { .. }
         | OperationKind::BooleanEqual { .. }
         | OperationKind::IntegerEqual { .. }

@@ -2,6 +2,55 @@
 
 use super::*;
 
+pub(super) fn whole_byte_view_length(
+    program: &TypedTrees,
+    parameters: &[StateParameter],
+    expression: ExpressionHandle,
+) -> Option<CheckedScalarExpression> {
+    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if member.member.as_str() != "len"
+        || member.member_symbol.is_valid()
+        || member.case_variant.is_some()
+    {
+        return None;
+    }
+    let place = crate::flow::canonical_place_from_expression(program, member.receiver)?;
+    if !place.segments.is_empty() {
+        return None;
+    }
+    let facts::PlaceRoot::Symbol(symbol) =
+        crate::flow::normalized_event_place_root(program, place.root)
+    else {
+        return None;
+    };
+    let parameter_position = parameters
+        .iter()
+        .position(|parameter| parameter.symbol == symbol)?;
+    let TypeReferenceNode::Reference {
+        referee,
+        access: language_core::ReferenceAccess::Shared,
+        ..
+    } = program
+        .type_reference_table
+        .type_reference(parameters[parameter_position].type_reference)
+    else {
+        return None;
+    };
+    let TypeReferenceNode::Slice { element_type } =
+        program.type_reference_table.type_reference(*referee)
+    else {
+        return None;
+    };
+    if program.primitive_type_reference(*element_type) != Some(PrimitiveType::U8) {
+        return None;
+    }
+    Some(CheckedScalarExpression::StructuralParameterByteLength {
+        parameter_position: u32::try_from(parameter_position).ok()?,
+    })
+}
+
 /// Empty spelling resolution is builtin only when the exact operand types
 /// independently carry the builtin index meaning.
 pub(super) fn indexed_read_is_builtin(

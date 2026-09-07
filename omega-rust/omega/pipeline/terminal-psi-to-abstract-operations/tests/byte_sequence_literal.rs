@@ -54,6 +54,35 @@ fn preserves_exact_non_utf8_literal_and_structural_source() {
     );
 }
 
+#[test]
+fn byte_sequence_length_has_an_explicit_native_realization_fence() {
+    let mut module = byte_sequence_module(vec![0, 0xff]);
+    module.machines[0].blocks[0].operations.insert(
+        1,
+        Operation {
+            id: operation_id(3),
+            result: OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                id: semantic_vocabulary::ValueId::new(1).unwrap(),
+                scalar_type: semantic_vocabulary::ScalarType::Integer(
+                    semantic_vocabulary::IntegerType::new(
+                        semantic_vocabulary::IntegerSign::Unsigned,
+                        64,
+                    )
+                    .unwrap(),
+                ),
+            }),
+            kind: OperationKind::ByteSequenceLength {
+                source: place_id(1),
+            },
+        },
+    );
+    let semantic = encode_module(&module).unwrap();
+    let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
+    assert!(
+        matches!(lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default()), Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::Lowering(terminal_psi_to_abstract_operations::LoweringError::UnsupportedByteSequenceLength(operation))) if operation == operation_id(3))
+    );
+}
+
 fn byte_sequence_module(bytes: Vec<u8>) -> TerminalModule {
     let structural_type = StructuralTypeId::new(1).unwrap();
     let literal = place_id(1);

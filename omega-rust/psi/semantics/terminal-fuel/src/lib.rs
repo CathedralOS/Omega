@@ -38,6 +38,7 @@ impl TerminalFuelSchedule {
         match kind {
             OperationKind::EstablishPayloadlessCase { .. }
             | OperationKind::EstablishByteSequenceLiteral { .. }
+            | OperationKind::ByteSequenceLength { .. }
             | OperationKind::EstablishTrivialAffineLocal { .. }
             | OperationKind::EstablishAffineScalarRecord { .. }
             | OperationKind::StoreDynamicDescriptor { .. }

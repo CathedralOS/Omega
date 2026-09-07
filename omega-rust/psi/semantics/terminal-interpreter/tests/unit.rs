@@ -52,6 +52,9 @@ mod boundary_borrows;
 #[path = "unit/byte_sequence_forwarding.rs"]
 mod byte_sequence_forwarding;
 
+#[path = "unit/byte_sequence_length.rs"]
+mod byte_sequence_length;
+
 #[path = "unit/result_residuals.rs"]
 mod result_residuals;
 

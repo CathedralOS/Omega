@@ -2360,6 +2360,11 @@ fn lower_scalar_expression(
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
+    if let Some(length) =
+        structural_fields::whole_byte_view_length(program, authored_parameters, expression)
+    {
+        return Some((length, ArithmeticDomain::Exact));
+    }
     if let Some(length) = exact_inline_literal_subslice_length(program, expression) {
         return Some((length, ArithmeticDomain::Exact));
     }
@@ -3248,44 +3253,7 @@ fn local_position(
 pub(crate) fn scalar_expression_type(
     expression: &CheckedScalarExpression,
 ) -> Option<PrimitiveType> {
-    match expression {
-        CheckedScalarExpression::Parameter { primitive_type, .. }
-        | CheckedScalarExpression::StorageRead { primitive_type, .. }
-        | CheckedScalarExpression::Local { primitive_type, .. }
-        | CheckedScalarExpression::StructuralParameterField { primitive_type, .. }
-        | CheckedScalarExpression::StructuralParameterIndexedRead { primitive_type, .. }
-        | CheckedScalarExpression::IntegerBinary { primitive_type, .. }
-        | CheckedScalarExpression::IntegerBitwiseNot { primitive_type, .. }
-        | CheckedScalarExpression::IntegerWiden { primitive_type, .. }
-        | CheckedScalarExpression::IntegerExactCast { primitive_type, .. }
-        | CheckedScalarExpression::IntegerTrappingCast { primitive_type, .. }
-        | CheckedScalarExpression::IntegerWrappingCast { primitive_type, .. } => {
-            Some(*primitive_type)
-        }
-        CheckedScalarExpression::IntegerLiteral { literal } => {
-            primitive_for_landed(literal.landing()?.landed_type)
-        }
-        CheckedScalarExpression::IeeeFloatLiteral { value } => Some(match value {
-            semantic_vocabulary::IeeeFloatValue::Binary32(_) => PrimitiveType::F32,
-            semantic_vocabulary::IeeeFloatValue::Binary64(_) => PrimitiveType::F64,
-        }),
-        CheckedScalarExpression::Boolean(_) => Some(PrimitiveType::Bool),
-    }
-}
-
-fn primitive_for_landed(landed: numerics::literals::LandedIntegerType) -> Option<PrimitiveType> {
-    use numerics::literals::LandedIntegerType;
-    Some(match landed {
-        LandedIntegerType::I8 => PrimitiveType::I8,
-        LandedIntegerType::I16 => PrimitiveType::I16,
-        LandedIntegerType::I32 => PrimitiveType::I32,
-        LandedIntegerType::I64 => PrimitiveType::I64,
-        LandedIntegerType::U8 => PrimitiveType::U8,
-        LandedIntegerType::U16 => PrimitiveType::U16,
-        LandedIntegerType::U32 => PrimitiveType::U32,
-        LandedIntegerType::U64 => PrimitiveType::U64,
-        LandedIntegerType::Addr => PrimitiveType::Addr,
-    })
+    expression.primitive_type()
 }
 
 fn is_integer(primitive: PrimitiveType) -> bool {

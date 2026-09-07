@@ -223,6 +223,10 @@ use lowered_psi::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum LoweredDirectExpression {
+    ByteSequenceLength {
+        source: PlaceId,
+        scalar_type: ScalarType,
+    },
     Parameter {
         position: usize,
         scalar_type: ScalarType,
@@ -265,6 +269,7 @@ impl LoweredDirectExpression {
     const fn scalar_type(&self) -> ScalarType {
         match self {
             Self::Parameter { scalar_type, .. }
+            | Self::ByteSequenceLength { scalar_type, .. }
             | Self::Local { scalar_type, .. }
             | Self::IntegerLiteral { scalar_type, .. }
             | Self::IntegerBinary { scalar_type, .. }

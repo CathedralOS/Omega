@@ -251,6 +251,11 @@ pub enum CheckedScalarExpressionRole {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedScalarExpression {
+    /// Exact u64 length of one whole immutable byte-view parameter in the
+    /// authored structural namespace, not a nominal field or scalar binding.
+    StructuralParameterByteLength {
+        parameter_position: u32,
+    },
     /// Read the current value of exact local storage at this computation's
     /// program point. Storage never occupies an immutable binding position.
     StorageRead {
@@ -324,6 +329,45 @@ pub enum CheckedScalarExpression {
         operand: Box<CheckedScalarExpression>,
     },
     Boolean(Box<CheckedBooleanExpression>),
+}
+
+impl CheckedScalarExpression {
+    /// The selected result carrier, independent of executable storage or
+    /// target realization. An integer literal must already have a landing.
+    pub fn primitive_type(&self) -> Option<typed_trees::types::PrimitiveType> {
+        use numerics::literals::LandedIntegerType;
+        use typed_trees::types::PrimitiveType;
+        match self {
+            Self::StructuralParameterByteLength { .. } => Some(PrimitiveType::U64),
+            Self::Parameter { primitive_type, .. }
+            | Self::StorageRead { primitive_type, .. }
+            | Self::Local { primitive_type, .. }
+            | Self::StructuralParameterField { primitive_type, .. }
+            | Self::StructuralParameterIndexedRead { primitive_type, .. }
+            | Self::IntegerBinary { primitive_type, .. }
+            | Self::IntegerBitwiseNot { primitive_type, .. }
+            | Self::IntegerWiden { primitive_type, .. }
+            | Self::IntegerExactCast { primitive_type, .. }
+            | Self::IntegerTrappingCast { primitive_type, .. }
+            | Self::IntegerWrappingCast { primitive_type, .. } => Some(*primitive_type),
+            Self::IntegerLiteral { literal } => Some(match literal.landing()?.landed_type {
+                LandedIntegerType::I8 => PrimitiveType::I8,
+                LandedIntegerType::I16 => PrimitiveType::I16,
+                LandedIntegerType::I32 => PrimitiveType::I32,
+                LandedIntegerType::I64 => PrimitiveType::I64,
+                LandedIntegerType::U8 => PrimitiveType::U8,
+                LandedIntegerType::U16 => PrimitiveType::U16,
+                LandedIntegerType::U32 => PrimitiveType::U32,
+                LandedIntegerType::U64 => PrimitiveType::U64,
+                LandedIntegerType::Addr => PrimitiveType::Addr,
+            }),
+            Self::IeeeFloatLiteral { value } => Some(match value {
+                semantic_vocabulary::IeeeFloatValue::Binary32(_) => PrimitiveType::F32,
+                semantic_vocabulary::IeeeFloatValue::Binary64(_) => PrimitiveType::F64,
+            }),
+            Self::Boolean(_) => Some(PrimitiveType::Bool),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

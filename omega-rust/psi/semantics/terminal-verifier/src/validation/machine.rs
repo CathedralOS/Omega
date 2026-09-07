@@ -286,6 +286,9 @@ pub(super) fn validate_machine(
                 result.scalar_type,
             )?;
             match operation.kind.clone() {
+                OperationKind::ByteSequenceLength { source } => {
+                    super::byte_sequence_length::validate(module, machine, operation, source)?;
+                }
                 OperationKind::CallUnit { .. }
                 | OperationKind::WriteOnlyPrimitiveStore { .. }
                 | OperationKind::StructuralScalarFieldStore { .. }

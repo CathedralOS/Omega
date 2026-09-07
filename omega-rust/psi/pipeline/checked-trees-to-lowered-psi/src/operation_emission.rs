@@ -569,6 +569,25 @@ fn emit_direct_call_operation(
     Ok(result)
 }
 
+fn emit_scalar_leaf(
+    kind: OperationKind,
+    scalar_type: ScalarType,
+    next_value_identity: &mut u64,
+    operations: &mut OperationBuffer,
+) -> ValueId {
+    let id = value_id(*next_value_identity);
+    *next_value_identity = next_value_identity
+        .checked_add(1)
+        .expect("generated value identity advances after a scalar leaf");
+    let operation = operations.allocate();
+    operations.push(Operation {
+        id: operation,
+        result: OperationResult::Scalar(ValueDeclaration { id, scalar_type }),
+        kind,
+    });
+    id
+}
+
 pub(super) fn emit_direct_expression(
     expression: &LoweredDirectExpression,
     parameters: &[ValueDeclaration],
@@ -578,38 +597,27 @@ pub(super) fn emit_direct_expression(
     match expression {
         LoweredDirectExpression::Parameter { position, .. }
         | LoweredDirectExpression::Local { position, .. } => parameters[*position].id,
-        LoweredDirectExpression::IntegerLiteral { value, scalar_type } => {
-            let id = value_id(*next_value_identity);
-            *next_value_identity = next_value_identity
-                .checked_add(1)
-                .expect("generated value identity advances after a literal");
-            let operation = operations.allocate();
-            operations.push(Operation {
-                id: operation,
-                result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
-                    id,
-                    scalar_type: *scalar_type,
-                }),
-                kind: OperationKind::IntegerConstant { value: *value },
-            });
-            id
-        }
-        LoweredDirectExpression::IeeeFloatLiteral { value } => {
-            let id = value_id(*next_value_identity);
-            *next_value_identity = next_value_identity
-                .checked_add(1)
-                .expect("generated value identity advances after an IEEE float literal");
-            let operation = operations.allocate();
-            operations.push(Operation {
-                id: operation,
-                result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
-                    id,
-                    scalar_type: ScalarType::IeeeFloat(value.format()),
-                }),
-                kind: OperationKind::IeeeFloatConstant { value: *value },
-            });
-            id
-        }
+        LoweredDirectExpression::IntegerLiteral { value, scalar_type } => emit_scalar_leaf(
+            OperationKind::IntegerConstant { value: *value },
+            *scalar_type,
+            next_value_identity,
+            operations,
+        ),
+        LoweredDirectExpression::ByteSequenceLength {
+            source,
+            scalar_type,
+        } => emit_scalar_leaf(
+            OperationKind::ByteSequenceLength { source: *source },
+            *scalar_type,
+            next_value_identity,
+            operations,
+        ),
+        LoweredDirectExpression::IeeeFloatLiteral { value } => emit_scalar_leaf(
+            OperationKind::IeeeFloatConstant { value: *value },
+            ScalarType::IeeeFloat(value.format()),
+            next_value_identity,
+            operations,
+        ),
         LoweredDirectExpression::IntegerBinary {
             kind,
             scalar_type,

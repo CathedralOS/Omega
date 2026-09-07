@@ -201,6 +201,7 @@ fn classify_operation(kind: &OperationKind) -> TerminalTraceV1OperationClassific
         | OperationKind::StructuralScalarFieldStore { .. }
         | OperationKind::EstablishPayloadlessCase { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
+        | OperationKind::ByteSequenceLength { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
         | OperationKind::EstablishAffineScalarRecord { .. }
         | OperationKind::StoreDynamicDescriptor { .. }

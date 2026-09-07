@@ -161,6 +161,11 @@ pub enum OperationKind {
         destination: PlaceId,
         bytes: Vec<u8>,
     },
+    /// Observe the exact byte count of one whole immutable borrowed view.
+    /// The result is unsigned 64-bit; the source place and its custody remain unchanged.
+    ByteSequenceLength {
+        source: PlaceId,
+    },
     /// Establish one whole, claim-free affine empty-record local. This is a
     /// semantic ownership event, not an ABI input or a target storage choice.
     EstablishTrivialAffineLocal {

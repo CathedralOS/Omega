@@ -167,9 +167,20 @@ Interpretation binds exact bytes to each invocation's parameter places and
 restores the caller's byte storage on return. Nested and repeated calls retain
 their own payloads, including empty sequences, independently of opaque host
 identities. An opaque incoming value without byte contents cannot execute a
-byte-consuming call. Projected views, owned byte storage, byte observation and
+byte-consuming call. Projected views, owned byte storage, element reads and
 subslicing operations, and native whole-byte-view argument layout remain
 outside this executable forwarding path.
+
+Vocabulary 81 adds `ByteSequenceLength { source }`: a total observation of one
+whole immutable byte view, producing its exact `u64` byte count. The source is
+an exact structural parameter or an earlier established literal, not a nominal
+field, opaque identity, or text-character count. Verification checks the view
+carrier, shared access, and result type; interpretation reads the invocation's
+actual bytes and charges one operation unit. This supplies no indexing proof.
+Source `.len` operands retain authored parameter positions until their explicit
+mapping to Terminal places, including inside arithmetic and nested scalar calls.
+Native lowering rejects the operation explicitly until byte-view descriptor
+realization is implemented; callable ranked state composition remains separate.
 
 Vocabulary 27 also closes the O0 provider-backed attachment specialization. The
 machine retains `attachment: Some(Main)`, its relevant `console` field retains
@@ -1062,7 +1073,7 @@ Validation rejoins the complete application, Unit callable interface, selected
 row or parameter slot, operation, access, and source. Fixed fuel and reference
 execution resolve the same rows without allocating a value ID or result home.
 Format 71/vocabulary 74 added a distinct owner-local selection argument source,
-retained by current format 77/vocabulary 80 alongside rebound descriptors and
+retained by current format 77/vocabulary 81 alongside rebound descriptors and
 inbound parameters. Direct-selection
 Unit and scalar forwarding therefore cross the helper without relabeling their
 custody. The scalar form retains its exact result through the ordinary caller,
@@ -5165,7 +5176,7 @@ and mutable-borrowed roots remain observable. It walks the complete relevant
 record/mixed-field, fixed-array-index, or sum-case payload path, and requires the selected leaf to
 declare the same IEEE format. Owner, root, path, relevance, leaf kind, and
 format substitution fail closed. Introduced in Terminal format 70 / vocabulary
-73 and retained by current format 77 / vocabulary 80, source tag 9 rejects
+73 and retained by current format 77 / vocabulary 81, source tag 9 rejects
 under legacy formats. Checked/source production now
 covers one nonempty field/case path below a direct structural parameter in the
 owning top-level machine contract. Checked custody retains exact owner symbol,
@@ -6254,8 +6265,8 @@ format-22/vocabulary-25 artifact. Git commit `a5cfd83cc` and its follow-ups
 retain the executable
 provenance; dead source is not carried as a parallel verifier.
 
-The reusable result now lives in production's closed 53-row inventory: 34
-scalar denotations plus nine structural/effect leaves form 43 leaf rows, while
+The reusable result now lives in production's closed 55-row inventory: 35
+scalar denotations plus ten structural/effect leaves form 45 leaf rows, while
 ten call-composition rows remain a separate algebra. Exact-unique lookup and
 mutation tests retain the schema discipline. Reusable low-rung byte,
 scalar/type/value, UTF-8, and structural-leaf grammar fragments remain gated,
@@ -6275,7 +6286,7 @@ ledger and therefore supplies no reconstruction assurance.
 
 `terminal-codec` owns one canonical encoding of the supported in-memory
 vocabulary. `PSITERM\0` bytes currently carry format marker 77 and vocabulary
-marker 80. They use fixed-width little-endian counts, stable nonzero identities,
+marker 81. They use fixed-width little-endian counts, stable nonzero identities,
 full-width integer payloads, and closed sum tags. The format favors auditability
 over density.
 

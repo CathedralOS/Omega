@@ -236,8 +236,7 @@ pub(super) fn validate_operation(
                 if binding.expression != *expression
                     || binding.destination.is_valid()
                     || selected != argument
-                    || lower_checked_scalar_expression(argument)?.scalar_type()
-                        != terminal_scalar_type(*primitive_type)?
+                    || argument.primitive_type() != Some(*primitive_type)
                 {
                     return unsupported("call scalar operand disagrees with its authored argument");
                 }

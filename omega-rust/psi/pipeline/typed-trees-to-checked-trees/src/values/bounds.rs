@@ -42,6 +42,9 @@ fn integer(
 ) -> Option<(PrimitiveType, IntegerRange)> {
     use CheckedScalarExpression as Expression;
     let (primitive, bounds) = match expression {
+        Expression::StructuralParameterByteLength { .. } => {
+            (PrimitiveType::U64, primitive_range(PrimitiveType::U64)?)
+        }
         Expression::Parameter {
             position,
             primitive_type,

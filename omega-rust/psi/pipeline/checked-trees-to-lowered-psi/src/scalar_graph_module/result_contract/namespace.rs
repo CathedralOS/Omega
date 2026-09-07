@@ -65,7 +65,8 @@ fn scalar(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
         CheckedScalarExpression::Parameter { .. }
         | CheckedScalarExpression::IntegerLiteral { .. }
         | CheckedScalarExpression::IeeeFloatLiteral { .. } => Ok(()),
-        CheckedScalarExpression::StructuralParameterField { .. } => {
+        CheckedScalarExpression::StructuralParameterField { .. }
+        | CheckedScalarExpression::StructuralParameterByteLength { .. } => {
             Err(LoweringError::Unsupported(
                 "closed scalar contract operand requires a scalar namespace",
             ))

@@ -10,6 +10,8 @@ mod tests;
 pub(super) struct ScalarBindings {
     immutable: Vec<Option<usize>>,
     storage: Vec<(symbols::SymbolHandle, ScalarType, usize)>,
+    /// Authored parameter positions stay separate from dense Terminal positions.
+    structural_parameters: Vec<(u32, StructuralParameterDeclaration)>,
 }
 
 impl ScalarBindings {
@@ -17,6 +19,7 @@ impl ScalarBindings {
         Self {
             immutable: (offset..offset + count).map(Some).collect(),
             storage: Vec::new(),
+            structural_parameters: Vec::new(),
         }
     }
 
@@ -24,7 +27,16 @@ impl ScalarBindings {
         Self {
             immutable: (0..parameters).map(Some).collect(),
             storage: Vec::new(),
+            structural_parameters: Vec::new(),
         }
+    }
+
+    pub(super) fn with_structural_parameters(
+        mut self,
+        parameters: &[(u32, StructuralParameterDeclaration)],
+    ) -> Self {
+        self.structural_parameters = parameters.to_vec();
+        self
     }
 
     pub(super) fn initialize_parameter(
@@ -143,6 +155,7 @@ impl ScalarBindings {
             }
             CheckedScalarExpression::Boolean(expression) => self.boolean(expression)?,
             CheckedScalarExpression::IntegerLiteral { .. }
+            | CheckedScalarExpression::StructuralParameterByteLength { .. }
             | CheckedScalarExpression::IeeeFloatLiteral { .. }
             | CheckedScalarExpression::StructuralParameterField { .. } => {}
         }
@@ -207,6 +220,9 @@ impl ScalarBindings {
     ) -> Result<LoweredDirectExpression, LoweringError> {
         let mut expression = expression.clone();
         self.scalar(&mut expression)?;
-        lower_checked_scalar_expression(&expression)
+        crate::scalar_graph_lowering::lower_checked_scalar_expression_with_parameters(
+            &expression,
+            &self.structural_parameters,
+        )
     }
 }

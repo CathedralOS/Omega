@@ -4,6 +4,7 @@ use super::*;
 use checked_trees::CheckedCallScalarArgument;
 
 pub(crate) struct Evaluation {
+    pub structural_parameters: Vec<(u32, StructuralParameterDeclaration)>,
     pub entry: BlockId,
     pub current: BlockId,
     pub parameters: Vec<ValueDeclaration>,
@@ -52,6 +53,7 @@ impl Evaluation {
     pub(crate) fn new(next_block: &mut u64) -> Result<Self, LoweringError> {
         let entry = block_id(allocate_dense(next_block)?);
         Ok(Self {
+            structural_parameters: Vec::new(),
             entry,
             current: entry,
             parameters: Vec::new(),
@@ -150,7 +152,8 @@ impl Evaluation {
         if source_value_count > values.len() {
             return unsupported("call argument source prefix exceeds its retained values");
         }
-        let source_bindings = crate::scalar_bindings::ScalarBindings::new(source_value_count);
+        let source_bindings = crate::scalar_bindings::ScalarBindings::new(source_value_count)
+            .with_structural_parameters(&self.structural_parameters);
         let (coordinate, arguments, boundary) = match operation {
             CheckedUnitEffectOperationPlan::CallUnit {
                 coordinate,
@@ -201,7 +204,7 @@ impl Evaluation {
             .iter()
             .map(|argument| match argument {
                 CheckedCallScalarArgument::Pure(expression) => {
-                    Ok(lower_checked_scalar_expression(expression)?.scalar_type())
+                    Ok(source_bindings.expression(expression)?.scalar_type())
                 }
                 CheckedCallScalarArgument::Computation(root) => {
                     let nodes = &checked.facts.values.scalar_computations.nodes;
@@ -214,10 +217,9 @@ impl Evaluation {
             .collect::<Result<Vec<_>, LoweringError>>()?;
         let needs_control = arguments.iter().any(|argument| match argument {
             CheckedCallScalarArgument::Computation(_) => true,
-            CheckedCallScalarArgument::Pure(expression) => {
-                lower_checked_scalar_expression(expression)
-                    .is_ok_and(|expression| direct_expression_contains_short_circuit(&expression))
-            }
+            CheckedCallScalarArgument::Pure(expression) => source_bindings
+                .expression(expression)
+                .is_ok_and(|expression| direct_expression_contains_short_circuit(&expression)),
         });
         if !needs_control {
             return arguments
