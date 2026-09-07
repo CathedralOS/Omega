@@ -52,9 +52,10 @@ they must not acquire customer-shaped semantic types or lifecycle protocols.
 
 - **DOCUMENTATION-CONSOLIDATION.** Execute the
   [four-move cleanup plan](wiki/work/documentation_cleanup.md), owned by repository
-  documentation. Start by separating Terminal Psi's public contract from local
-  implementation notes and deleting its displaced history and duplicate rules.
-  Consolidate into guide, specification, RFCs, and temporary work notes; keep
+  documentation. Continue through the remaining Terminal operation, verification,
+  and encoding reference, then the other large mixed documents. The
+  [documentation index](wiki/README.md) identifies the current subject owners.
+  Consolidate into guide, specification, proposals, and temporary work notes; keep
   implementation documentation beside code. The protected bootstrap decision
   record needs explicit owner authorization for its eventual authority transition;
   unrelated documentation cleanup is not blocked on it.
@@ -63,6 +64,10 @@ they must not acquire customer-shaped semantic types or lifecycle protocols.
   documents or completed-work diaries, honest implementation/formalization status,
   repaired links and affected source readers, and the plan's finish conditions
   satisfied. Remove this task and the temporary plan when complete.
+
+  Native integration details extracted during the cleanup remain in the
+  [Terminal realization note](wiki/work/terminal_realization.md); implement them
+  under their existing native/borrow/callback owners, not as documentation work.
 
 ## Immediate product closure
 

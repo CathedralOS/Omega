@@ -2,14 +2,15 @@
 
 Execution plan, not a new language specification. Owner: repository documentation;
 execution entry: [DOCUMENTATION-CONSOLIDATION](../../TASKS.md#documentation-consolidation).
-Delete this plan when the finish conditions below hold. This change establishes
-the plan only; the destination layout is not yet the repository's current layout.
+Delete this plan when the finish conditions below hold. The
+[documentation index](../README.md) names migrated subjects and the legacy
+references that still own the rest; directory creation is not completion.
 
 ## Required outcome
 
 A reader can find how to use Omega, what Omega guarantees, what is proposed,
 and what work remains without reconstructing a sequence of owner conversations.
-Each rule has one authoritative home. Guides explain it, RFCs propose changes,
+Each rule has one authoritative home. Guides explain it, proposals suggest changes,
 and work notes track implementation. None independently redefine it.
 
 This is consolidation and deletion, not a folder-renaming exercise. Preserve
@@ -26,7 +27,7 @@ adds no useful separation. Its four main areas will be:
 | --- | --- | --- |
 | `wiki/language_guide/` | Teaching, worked examples, practical use of the current language. | Compiler implementation diaries and competing normative rules. |
 | `wiki/spec/` | Current language and public toolchain contracts, organized by subject. | Proposals, release progress, and accidental Rust implementation restrictions. |
-| `wiki/rfcs/` | Concrete proposed changes and selected concise decision rationale. | A second current specification or a mandatory RFC for routine engineering. |
+| `wiki/proposals/` | Concrete proposed changes and selected concise decision rationale. | A second current specification or a mandatory proposal for routine engineering. |
 | `wiki/work/` | Active investigations, migration plans, and completion criteria. | Permanent authority or completed status reports. |
 
 Use one short `wiki/README.md` to explain these roles and provide entry links.
@@ -62,10 +63,10 @@ invariants at their lowest shared owner rather than duplicating them per crate.
   subject, with grammar and semantic rules together. Borrow that reading model,
   not its particular language organization or a requirement for one giant page.
 
-No new RFC service, repository, committee, meeting cadence, numbering registry,
+No new proposal service, repository, committee, meeting cadence, numbering registry,
 status database, or documentation build system is needed for this cleanup.
 
-## Small RFC lifecycle
+## Small proposal lifecycle
 
 Use a descriptive filename and a title. At the top, state whether the proposal
 is open or accepted and link the affected specification sections when they
@@ -76,7 +77,7 @@ evidence, not the reason a language design should exist.
 
 Acceptance updates the authoritative specification and affected guide passages
 in the same change. If implementation is missing, leave one owning execution
-task; do not describe an accepted design as implemented. Retain an accepted RFC
+task; do not describe an accepted design as implemented. Retain an accepted proposal
 only when its concise rationale remains useful, explicitly nonnormative and
 linked to the current rule. Remove its discussion transcript, version-by-version
 updates, and duplicate contract. A reader must never need it to determine the
@@ -84,9 +85,9 @@ current rule. Rejected or abandoned proposals normally leave the active tree;
 Git preserves them. Keep a rejected alternative only where a concrete recurring
 question justifies a short explanation.
 
-`OWNER_QUESTIONS.md` remains the small decision inbox, not another RFC archive.
+`OWNER_QUESTIONS.md` remains the small decision inbox, not another proposal archive.
 Link a substantive proposal there rather than duplicating it. Routine bug fixes,
-editorial repairs, and implementations of settled rules need no RFC.
+editorial repairs, and implementations of settled rules need no proposal.
 
 ## Four execution moves
 
@@ -127,7 +128,7 @@ Do not hide missing implementation or weaken the intended language to fit it.
 ### 3. Empty the mixed-purpose directories
 
 Finish draining `design_briefs/` and the oversized `architecture/` hierarchy:
-current contracts to the spec, live proposals to RFCs, implementation ownership
+current contracts to the spec, live proposals to `proposals/`, implementation ownership
 beside code, and genuinely unfinished plans to work notes. Delete completed
 plans and superseded alternatives rather than creating an archive directory.
 Retain only the short repository overview needed to navigate implementation.
@@ -144,7 +145,7 @@ The [bootstrap decision record](../architecture/bootstrap_chain/decisions.md)
 is explicitly protected by `AGENTS.md`. This plan does not authorize changing,
 moving, deleting, or superseding its entries. The desired final shape is current
 contracts in the spec, with historical rationale recoverable from Git or concise
-RFCs, not a live competing ledger. Obtain explicit owner authorization for that
+proposals, not a live competing ledger. Obtain explicit owner authorization for that
 record's authority transition before executing it. Track that bounded exception
 in this task; it does not block cleaning unrelated documents.
 
@@ -169,7 +170,7 @@ template rollout is required before the first substantive replacement.
 The cleanup is complete when:
 
 - The index exposes the four roles; each normative subject has one current home.
-- Guide, RFC, work, and local implementation docs do not compete with that home.
+- Guide, proposal, work, and local implementation docs do not compete with that home.
 - Legacy design/architecture/release dumping grounds have been drained, including
   the protected-record disposition after explicit owner authorization.
 - No completed migration or review-version diary remains on an active board or
@@ -181,7 +182,7 @@ The cleanup is complete when:
 - The result preserves intended contracts, distinguishes unimplemented from
   unspecified behavior, and makes no unsupported formal-verification claim.
 
-First executable step: replace Terminal Psi's mixed public-contract and
-implementation/history sections with their actual owners, deleting displaced
+Next executable step: consolidate the remaining Terminal operation, proof,
+observation, encoding, and fuel reference into subject owners, deleting displaced
 text and repairing its links in the same checkpoint. Do not start another
 planning pass before that replacement.

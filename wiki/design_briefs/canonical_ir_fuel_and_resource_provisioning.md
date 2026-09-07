@@ -2,8 +2,8 @@
 
 Status: canonical Psi architecture settled 2026-08-02. This brief states the
 current semantic contract; incomplete implementation work is tracked in
-`TASKS.md`. The representation cut is detailed in
-[`terminal_psi.md`](../architecture/pipeline/terminal_psi.md).
+`TASKS.md`. The representation cut is defined by the
+[Terminal product specification](../spec/terminal-psi/product.md).
 
 Terminal Psi is pre-release. Its producer, verifier, interpreter, and Omega
 consumers move as one vocabulary; stale artifacts reject. Git history, not this
@@ -28,92 +28,20 @@ Logical-work accounting has three distinct customers:
 General parametric work functions, arbitrary recurrence solving, and WCET are
 not prerequisites for those facilities.
 
-## Terminal Psi
+## Terminal Psi dependency
 
-Psi operates on Omega-branded source files and owns the complete target-neutral
-pipeline: parsing, resolution, typing, semantic checking, proof and obligation
-construction, expression lowering, and canonicalization. Its terminal product
-is the one canonical portable execution representation consumed by Omega.
-Omega begins with terminal Psi and owns provider installation, target
-realization, optimization, ABI lowering, native emission, and execution.
+The [Terminal product specification](../spec/terminal-psi/product.md) owns
+the semantic boundary, separate-consumer contract, optimization ordering,
+artifact admission, and independent program/proof/accounting identities.
+The [remaining vocabulary reference](../architecture/pipeline/terminal_psi.md)
+owns operation and proof details not yet consolidated into subject specifications.
+This resource contract consumes those rules rather than defining another cut.
 
-```text
-Omega files
-    -> Psi parse / resolve / type / check / lower / canonicalize
-    -> terminal Psi
-    -> Psi reference interpreter (oracle)
-       or Omega realization for a target
-```
-
-There is no Omega-to-Psi-to-Omega pipeline and no separate public source
-language called Psi. The names mark an implementation and trust boundary:
-Omega is the user-facing language and platform brand; Psi owns its checked
-portable semantics.
-
-Terminal Psi is distinct from mutable compiler optimization representations.
-The reference oracle executes it directly; native code is an acceleration
-lowered from the same module. Terminal artifacts are concrete and
-post-instantiation. Generic parsing, checking, and instantiation may occur in
-nonterminal Psi forms, but the interpreter, verifier, and Omega lowering do not
-need generic execution semantics.
-
-Psi semantics and accounting have independent identities:
-
-```text
-TerminalPsiIdentity {
-    vocabulary_marker;
-    program_fingerprint;
-}
-
-FuelScheduleIdentity {
-    schedule_marker;
-}
-```
-
-Changing the fuel schedule changes accounting, not program meaning. Cached
-semantic results therefore key on Psi semantics and program identity; cost
-records additionally key on the fuel schedule.
-
-### Semantic and proof boundary
-
-The detailed representation, operation-slice discipline, verifier split,
-canonical bytes, and artifact identities are specified once in
-[`terminal_psi.md`](../architecture/pipeline/terminal_psi.md). The constraints
-that matter to fuel and resource provisioning are:
-
-- terminal Psi is immutable, self-contained, concrete, and target-neutral;
-- every executable choice that changes behavior or generated obligations has a
-  closed static identity;
-- execution, propositions, evidence, fuel, diagnostics, and lowering refer to
-  the same stable values, places, operations, and edges;
-- author-declared hardware geometry remains semantic, while target-selected
-  layout, ABI classes, registers, storage regions, and instructions belong to
-  Omega; and
-- the reference interpreter and native lowering implement the normative
-  operation semantics; agreement between them is a test, not the definition.
-
-The artifact verifier reconstructs the complete obligation set from the
-semantic module and its fingerprinted contracts. The proof kernel checks
-evidence for that reconstructed set. A proof bundle cannot choose what must be
-proved, and an admission is valid only at a sealed site accepted by the active
-profile. Each accepted fact is re-decided by a total kernel judgment, proved by
-checked evidence, or explicitly admitted; unsupported entailment rejects.
-
-Semantic bytes, replaceable proof evidence, installation decisions, and debug
-maps have separate identities under one manifest. Proof improvement does not
-change program identity. Canonical decoding accepts only the current
-pre-release vocabulary, so producers and consumers change together and stale
-artifacts reject.
-
-The vocabulary grows only through complete vertical slices: encoding,
-execution, reconstructed obligations and authorized admissions, proof rule and
-soundness argument, interpretation, Omega lowering, and fuel identity. Scoped
-ordering operations remain distinct semantic events; proof evidence alone
-cannot create runtime ordering. Their participant and realization rules are
-specified in [`concurrency_atomics.md`](concurrency_atomics.md) and the hardware
-foundation briefs
-([freestanding](freestanding_boot_and_hardware_facts.md),
-[memory and devices](os_memory_and_hardware_foundation.md)).
+Scoped ordering operations remain distinct semantic events; proof evidence
+alone cannot create runtime ordering. Their participant and realization rules
+remain in [concurrency and atomics](concurrency_atomics.md) and the hardware
+foundation references ([freestanding](freestanding_boot_and_hardware_facts.md)
+and [memory and devices](os_memory_and_hardware_foundation.md)).
 
 ## Logical fuel
 
