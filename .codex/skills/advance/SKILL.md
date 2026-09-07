@@ -64,9 +64,12 @@ an owner-blocked language issue. Resume feature work only after that direction.
 At handoff, report customer progress and added/removed complexity, not just
 commit and test counts.
 
-Use an isolated worktree with a short path on Windows. Generated linker paths
-can exceed MAX_PATH even when the source path looks reasonable. Measure the
-failing path before blaming mbx or changing compiler architecture.
+Use an isolated worktree under `<repository>/.codex/worktrees/<short-name>`.
+That directory is repository-local and ignored; do not place advance worktrees
+under a user-level Codex directory. Keep the name short. Generated linker
+paths can exceed MAX_PATH even when the repository path looks reasonable, so
+measure the failing path before changing compiler architecture or relocating
+the worktree.
 
 A single bounded fix normally needs one agent. Delegate only when independent
 useful work can shorten the critical path enough to justify briefing, review,
