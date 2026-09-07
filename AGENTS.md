@@ -4,8 +4,18 @@ This is the canonical instruction file for every coding agent working in this
 repository. Agent-specific instruction files must point here rather than copy
 these rules.
 
-Repository skills are canonical in `.codex/skills/`. Read and edit skills there;
-`.claude/skills` links to that directory; do not maintain a second skill copy.
+Repository skills are canonical in `.agents/skills/`. Read and edit skills there;
+Pi and Codex discover that directory directly. Do not maintain a second copy.
+For Claude Code, create an ignored checkout-local link to the same directory:
+
+- Windows PowerShell: `New-Item -ItemType Directory -Force .claude`, then
+  `New-Item -ItemType Junction -Path .claude/skills -Target (Resolve-Path .agents/skills)`.
+- macOS shell: `mkdir -p .claude`, then `ln -s ../.agents/skills .claude/skills`.
+
+Create the link only when `.claude/skills` is absent; inspect an existing path
+before replacing it. Repeat in a new checkout if using Claude there. The Windows
+junction avoids administrator or Developer Mode requirements; it is local, not a
+tracked symlink that Git may check out as a plain text file.
 
 Omega is a proof-carrying systems language whose programs are data-oriented
 state machines. This repository holds the language, its Rust reference
@@ -312,7 +322,7 @@ may not parse, lower, manufacture semantic evidence, or decide trust.
 ## Repository conventions
 
 For Rust implementation, refactoring, and performance review, read the repository's
-[rust-systems-programmer skill](.codex/skills/rust-systems-programmer/SKILL.md).
+[rust-systems-programmer skill](.agents/skills/rust-systems-programmer/SKILL.md).
 Use that exact local copy rather than a same-named global skill; the repository
 contracts below and in README remain authoritative.
 
@@ -493,7 +503,7 @@ A diagnosis does not deliver an assigned fix: continue implementation when the
 existing design answers it, or identify the exact missing dependency or decision.
 Consolidate duplicate blockers in the owning board item and hand off concrete
 findings. Follow the dispatch and review steps in
-[advance](.codex/skills/advance/SKILL.md#delegate-a-bounded-assignment), alongside
+[advance](.agents/skills/advance/SKILL.md#delegate-a-bounded-assignment), alongside
 the existing isolation, validation, and landing rules.
 
 ### Commit naming

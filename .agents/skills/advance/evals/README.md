@@ -37,7 +37,7 @@ recursively clear an existing directory as setup. Trial worktrees stay within
 the trial checkout under `.codex/worktrees/`.
 
 Stage the entire skill directory, including references, at
-`.codex/skills/advance` in the trial clone. Record a committed base before the
+`.agents/skills/advance` in the trial clone. Record a committed base before the
 worker starts. For a no-skill arm, remove only that skill and tell the worker not
 to load it through aliases or global discovery. Preserve the same AGENTS.md and
 other skills. For before/after trials, use complete snapshots from the respective
