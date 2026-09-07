@@ -7,6 +7,7 @@ pub(crate) struct RankingRangeCallEdge<'program> {
     pub source: usize,
     pub destination: usize,
     pub arguments: &'program [ExpressionHandle],
+    pub guards: Vec<(ExpressionHandle, bool)>,
 }
 
 /// The caller supplies one strongly connected component and every intra-component
@@ -30,6 +31,12 @@ pub(crate) fn mixed_call_endpoints_are_pinned(
                         .collect::<Vec<_>>(),
                 )
             })
+            .collect::<Option<Vec<_>>>()?;
+        // Equality is independent of the shrinking endpoint candidates. Prepare
+        // each call's exact arithmetic once, not once per dependency or round.
+        let equalities = edges
+            .iter()
+            .map(|edge| argument_sources(program, members, edge))
             .collect::<Option<Vec<_>>>()?;
         for (origin, member) in members.iter().enumerate() {
             if !member.range.is_valid() {
@@ -71,20 +78,14 @@ pub(crate) fn mixed_call_endpoints_are_pinned(
                 // from manufacturing a second possible endpoint value.
                 loop {
                     let mut changed = false;
-                    for edge in edges {
-                        let source = parameters.get(edge.source)?;
-                        let destination = parameters.get(edge.destination)?;
-                        if edge.arguments.len() != destination.len() {
-                            return None;
-                        }
-                        for (ordinal, argument) in edge.arguments.iter().enumerate() {
+                    for (edge, equalities) in edges.iter().zip(&equalities) {
+                        for (ordinal, sources) in equalities.iter().enumerate() {
                             if !candidates[edge.destination][ordinal] {
                                 continue;
                             }
-                            let actual = direct_input(program, *argument, 0);
-                            let preserved = source.iter().enumerate().any(|(ordinal, formal)| {
-                                candidates[edge.source][ordinal] && actual == Some(formal.symbol)
-                            });
+                            let preserved = sources
+                                .iter()
+                                .any(|source| candidates[edge.source][*source]);
                             if !preserved {
                                 candidates[edge.destination][ordinal] = false;
                                 changed = true;
@@ -106,6 +107,81 @@ pub(crate) fn mixed_call_endpoints_are_pinned(
         Some(())
     };
     prove().is_some()
+}
+
+/// Each destination slot retains every caller input proved equal to its actual.
+/// No destination requirement or candidate correspondence is an arithmetic
+/// premise. The component owner independently preserves the caller's prefix.
+fn argument_sources(
+    program: &TypedTrees,
+    members: &[RankingRangeCallMember<'_>],
+    edge: &RankingRangeCallEdge<'_>,
+) -> Option<Vec<Vec<usize>>> {
+    let caller = members.get(edge.source)?;
+    let callee = members.get(edge.destination)?;
+    let (source, _) = scalar_entry(program, caller)?;
+    let (destination, _) = scalar_entry(program, callee)?;
+    let parameters = program
+        .state_parameters(destination)
+        .iter()
+        .filter(|parameter| !parameter.is_self);
+    if parameters.clone().count() != edge.arguments.len() {
+        return None;
+    }
+    let bindings = integer_bindings(program, source)?;
+    let mut engine = Engine::strict_with_symbol_bindings(program, caller.machine, &bindings);
+    if !engine.strict_symbol_bindings_are_valid() {
+        return None;
+    }
+    let mut comparisons =
+        entry_comparisons(program, caller.machine, source, &mut engine, &bindings)?;
+    for &(guard, holds) in &edge.guards {
+        meanings::builtin(program, caller.machine, source, guard, 0)?;
+        collect_guard(&mut engine, guard, holds, &mut comparisons, 0)?;
+    }
+    if !engine.install_hypotheses(comparisons) {
+        return None;
+    }
+    let source_values = program
+        .state_parameters(source)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .map(|parameter| {
+            let binding = bindings
+                .iter()
+                .find(|binding| binding.symbol == parameter.symbol)?;
+            Some(match &binding.value {
+                StrictArithmeticBindingValue::Atom { identity, .. } => {
+                    Polynomial::atom(identity.clone())
+                }
+                StrictArithmeticBindingValue::Integer(value) => Polynomial::constant(value.clone()),
+            })
+        })
+        .collect::<Vec<_>>();
+    parameters
+        .zip(edge.arguments)
+        .map(|(parameter, argument)| {
+            meanings::builtin(program, caller.machine, source, *argument, 0)?;
+            if exact_integer_parameter(program, parameter.type_reference).is_none() {
+                return Some(Vec::new());
+            }
+            // Normalize before vacuity: even an impossible arm cannot manufacture
+            // custody for a foreign symbol or an unsupported actual expression.
+            let actual = engine.normalize(*argument)?;
+            Some(
+                source_values
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(position, value)| {
+                        let value = value.as_ref()?;
+                        (engine.requires_unsatisfiable
+                            || comparison_proven(&engine, BinaryOperator::Equal, &actual, value))
+                        .then_some(position)
+                    })
+                    .collect(),
+            )
+        })
+        .collect()
 }
 
 fn direct_input(

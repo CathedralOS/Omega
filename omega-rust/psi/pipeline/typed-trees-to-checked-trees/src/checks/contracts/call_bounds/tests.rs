@@ -1,5 +1,20 @@
 mod mutable;
 
+#[test]
+fn named_call_anonymous_literal_uses_its_exact_formal_destination() {
+    let source = r#"
+        machine demand(value: u64, zero: u8) requires value >= 1 && zero == 0 {}
+        machine caller(input: u64) requires input >= 2 {
+            transition { _ -> demand(input, 0) }
+        }
+    "#;
+    checked(source).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+    assert_call_requirement_rejected(&source.replace("input, 0)", "input, 1)"));
+    for value in ["-1", "256"] {
+        assert!(checked(&source.replace("input, 0)", &format!("input, {value})"))).is_err());
+    }
+}
+
 fn checked(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()

@@ -137,6 +137,13 @@ fn prove(
             caller_parameters,
             *argument,
         ) != Some(primitive)
+            // A named tail-call literal may retain its anonymous source form.
+            // Its exact formal is the destination; reuse checked landing rather
+            // than requiring an unrelated literal-stamping pass to have run.
+            && !(arguments::is_unlanded_integer(program, *argument)
+                && validation::land_anonymous_integer_expression(
+                    program, *argument, primitive, |_| false,
+                ).is_some())
         {
             return None;
         }
