@@ -1,0 +1,19 @@
+; Five retained fields use four pairs. Scalar depth governs stack projection.
+(def comparison_pending ((key Int) (left Int) (right Int)
+  (remaining Int) (frames Int)) Int
+  (pair key (pair left (pair right (pair remaining frames)))))
+
+(def comparison_pending_key ((frame Int)) Int
+  (first frame))
+
+(def comparison_pending_left ((frame Int)) Int
+  (first (second frame)))
+
+(def comparison_pending_right ((frame Int)) Int
+  (first (second (second frame))))
+
+(def comparison_pending_remaining ((frame Int)) Int
+  (first (second (second (second frame)))))
+
+(def comparison_pending_rest ((frame Int)) Int
+  (second (second (second (second frame)))))

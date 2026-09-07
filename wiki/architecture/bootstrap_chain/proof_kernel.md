@@ -54,7 +54,11 @@ scoped sorted templates, complete cases, and structural self-decrease. Its
 [Ground-term validation](../../../bootstrap/gamma/derivation_checker/GROUND.md)
 indexes owner and witness terms separately, checks their applications, and
 requires well-sorted owner-only root references. `Grounded` does not compare
-those roots for equality or check any proof row. The
+those roots for equality or check any proof row.
+[Structural comparison](../../../bootstrap/gamma/derivation_checker/COMPARISON.md)
+compares validated term syntax with completed-pair memoization and cumulative
+session work. A structurally different result does not disprove theory equality;
+substitution and explicit derivation rules remain missing. The
 [ground equality implementation design](derivation_calculus.md)
 specifies the first complete encoding subject, conservative definitions, explicit
 proof checks, ownership, and implementation dependencies. It does not supply an

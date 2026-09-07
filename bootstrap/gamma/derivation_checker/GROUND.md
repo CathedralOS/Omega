@@ -83,6 +83,8 @@ with formation's actual ledger, the request uses at most
 arena of 40,265,318. Unreachable pairs still count. Later comparison, substitution,
 and proof stages need their own combined accounting before accepting proofs.
 The provisions remain adjustable implementation choices, not calculus laws.
+The [comparison session](COMPARISON.md#work-and-allocation-provision) adds its
+completed-pair memo and pending frames to this cumulative allocation ledger.
 
 ## Private grounded outcome
 

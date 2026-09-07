@@ -1,0 +1,11 @@
+; Leave one step, consume it in a successful visit, then refuse terminal resume.
+(def comparison_test_execute ((grounded Int)) Int
+  (let repeated Int (comparison_test_repeat (comparison_start grounded) 1 1 12289 16391 131071)
+    (if (eq (first repeated) 6)
+      (let different Int (compare_ground_terms (comparison_session (second repeated)) 1 2 12289 16391)
+        (let observed Int (comparison_test_observe different)
+          (if (eq (first different) 6)
+            (comparison_test_observe (compare_ground_terms
+              (comparison_session (second different)) 1 1 12289 16391))
+            0)))
+      (comparison_test_observe repeated))))

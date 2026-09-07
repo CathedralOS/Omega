@@ -1,0 +1,10 @@
+(def compare_ground_terms ((session Int) (left Int) (right Int)
+  (left_coordinate Int) (right_coordinate Int)) Int
+  (let context Int (comparison_context session)
+    (let grounded Int (comparison_grounded context)
+      (if (eq (grounded_term_lookup grounded left) 0)
+        (admission_rejected 9 left_coordinate)
+        (if (eq (grounded_term_lookup grounded right) 0)
+          (admission_rejected 9 right_coordinate)
+          (comparison_visit context left right 0 0
+            (comparison_memo session) (comparison_steps session) left_coordinate))))))

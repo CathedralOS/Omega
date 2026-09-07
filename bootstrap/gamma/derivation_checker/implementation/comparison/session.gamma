@@ -1,0 +1,44 @@
+; Context has three pairs; shared empty/present add two; each session has two.
+(def comparison_start ((grounded Int)) Int
+  (let count Int
+    (+ (formation_index_count (grounded_owner_terms grounded))
+      (formation_index_count (grounded_witness_terms grounded)))
+    (let empty Int (pair 0 0)
+      (let present Int (pair 1 0)
+        (pair (pair grounded (pair count (pair empty present))) (pair empty 0))))))
+
+(def comparison_context ((session Int)) Int
+  (first session))
+
+(def comparison_memo ((session Int)) Int
+  (first (second session)))
+
+(def comparison_steps ((session Int)) Int
+  (second (second session)))
+
+(def comparison_grounded ((context Int)) Int
+  (first context))
+
+(def comparison_count ((context Int)) Int
+  (first (second context)))
+
+(def comparison_empty ((context Int)) Int
+  (first (second (second context))))
+
+(def comparison_present ((context Int)) Int
+  (second (second (second context))))
+
+; Two result pairs and two replacement-session pairs; context/memo are shared.
+(def comparison_finish ((equal Int) (context Int) (memo Int) (used Int)) Int
+  (pair 6 (pair equal (pair context (pair memo used)))))
+
+(def comparison_equal ((payload Int)) Int
+  (first payload))
+
+(def comparison_session ((payload Int)) Int
+  (second payload))
+
+(def comparison_limit () Int 262144)
+
+(def comparison_exhausted ((coordinate Int) (used Int)) Int
+  (admission_incomplete 4 coordinate (comparison_limit) (+ used 1)))

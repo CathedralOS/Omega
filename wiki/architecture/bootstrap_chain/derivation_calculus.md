@@ -9,8 +9,10 @@ assigns concrete wire fields; [executable theory formation](../../../bootstrap/g
 checks conservative definitions under a bounded component profile.
 [Ground checking](../../../bootstrap/gamma/derivation_checker/GROUND.md) validates
 closed applications and owner-root sorts with separate witness custody.
-Structural comparison/substitution, explicit derivations, the complete checker
-soundness argument, and certificate measurements remain acceptance work.
+[Structural comparison](../../../bootstrap/gamma/derivation_checker/COMPARISON.md)
+uses completed-pair memoization and an explicit pending stack. Checked template
+substitution, explicit derivations, the complete checker soundness argument,
+and certificate measurements remain acceptance work.
 
 ## First complete subject
 
