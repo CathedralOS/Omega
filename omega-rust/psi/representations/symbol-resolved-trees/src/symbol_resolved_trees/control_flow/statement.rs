@@ -107,6 +107,8 @@ pub struct LocalDataStorage {
     pub initial_value: crate::expression::ExpressionHandle,
     /// `let mut` -- see the syntax-tree twin.
     pub is_mutable: bool,
+    /// No authored type annotation; typing must infer this generated binding.
+    pub type_is_inferred: bool,
 }
 
 impl Default for LocalDataStorage {
@@ -115,6 +117,7 @@ impl Default for LocalDataStorage {
             type_reference: crate::types::TypeReference::Unit,
             initial_value: crate::expression::ExpressionHandle::invalid(),
             is_mutable: false,
+            type_is_inferred: false,
         }
     }
 }
@@ -551,6 +554,7 @@ impl StatementTable {
                     type_reference,
                     initial_value,
                     is_mutable: local_data.is_mutable,
+                    type_is_inferred: local_data.type_is_inferred,
                 }))
             }
             Statement::Transition(transition) => {
@@ -783,6 +787,8 @@ pub struct TableLocalData {
     pub initial_value: crate::expression::ExpressionHandle,
     /// `let mut` -- see the syntax-tree twin.
     pub is_mutable: bool,
+    /// Retained inference origin, independent of the binding's name.
+    pub type_is_inferred: bool,
 }
 
 impl Default for TableLocalData {
@@ -793,6 +799,7 @@ impl Default for TableLocalData {
             type_reference: crate::types::TypeReferenceHandle::invalid(),
             initial_value: crate::expression::ExpressionHandle::invalid(),
             is_mutable: false,
+            type_is_inferred: false,
         }
     }
 }

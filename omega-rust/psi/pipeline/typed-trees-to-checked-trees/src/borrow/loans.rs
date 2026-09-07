@@ -161,6 +161,7 @@ fn assignment_borrow_loans(
         type_reference: target_type,
         initial_value: assignment.value,
         is_mutable: true,
+        type_is_inferred: false,
     };
 
     let mut loans = if is_reference_type(program, target_type) {

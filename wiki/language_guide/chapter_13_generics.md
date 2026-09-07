@@ -135,6 +135,8 @@ and contracts, including integers, booleans, fixed arrays, records, and cases.
 Integer values retain their declared width and arithmetic policy. Original
 and cloned instances use their own bindings; local shadowing does not rewrite
 a different declaration. Return-range and contract checks remain independent.
+Compiler-inferred call-result temporaries follow the exact selected instance's
+return type; authored local annotations remain independent store obligations.
 Inference also follows a concrete data instance's retained generic application.
 Explicit integer and Boolean literals and named canonical constants select the
 same tuples as equivalent inferred values. Named values and forwarded binders

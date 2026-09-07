@@ -23,6 +23,7 @@ use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceN
 
 mod const_arguments;
 mod const_values;
+mod result_locals;
 
 #[derive(Clone)]
 struct Candidate {
@@ -98,6 +99,9 @@ pub(crate) fn monomorphize_generic_machine_value_calls_with_nominal_uses(
     program: &mut TypedTrees,
     nominal_uses: &mut Vec<validation::ValidatedNominalMachineUse>,
 ) -> Result<(), Vec<Diagnostic>> {
+    // Provider clones may restore old inferred types even when this round
+    // discovers no further ordinary specialization.
+    result_locals::refresh(program);
     materialize_static_argument_types(program);
     let mut candidates = Vec::new();
     let mut callee_states = Vec::new();
@@ -769,9 +773,9 @@ fn collect_call_selections(
                                 call.target.as_str(),
                                 &call.machine_arguments,
                                 program.expression_table.expression_handles(call.arguments),
-                                local
-                                    .type_reference
-                                    .is_valid()
+                                // An inferred result type is not independent
+                                // destination evidence for its own call.
+                                (local.type_reference.is_valid() && !local.type_is_inferred)
                                     .then_some(local.type_reference),
                                 !program.machine_type_parameters(machine).is_empty(),
                             ) {

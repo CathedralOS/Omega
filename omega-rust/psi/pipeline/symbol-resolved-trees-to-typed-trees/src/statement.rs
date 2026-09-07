@@ -68,11 +68,18 @@ pub(crate) fn lower_statement_node(
                     .type_reference(local_data.type_reference),
                 resolved::types::TypeReferenceNode::Unit
             );
-            let type_reference = if declared_is_unit && local_data.initial_value.is_valid() {
+            // Resolution retains whether the binding had an annotation. A
+            // source-authored `()` is not an inference sentinel; destructured
+            // and proof-output bindings may have authored names but no type.
+            let type_reference = if declared_is_unit
+                && local_data.initial_value.is_valid()
+                && local_data.type_is_inferred
+            {
                 infer_hoist_temp_type(lowerer, attached_data, state, local_data.initial_value)?
             } else {
                 None
             };
+            let type_is_inferred = type_reference.is_some();
             let type_reference = match type_reference {
                 Some(type_reference) => type_reference,
                 None => lower_type_reference_handle_from_table(lowerer, local_data.type_reference)?,
@@ -89,6 +96,7 @@ pub(crate) fn lower_statement_node(
                         .transpose()?
                         .unwrap_or_else(typed::expression::ExpressionHandle::invalid),
                     is_mutable: local_data.is_mutable,
+                    type_is_inferred,
                 },
             ))
         }

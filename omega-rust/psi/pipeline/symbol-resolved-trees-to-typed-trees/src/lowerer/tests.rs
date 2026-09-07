@@ -19,6 +19,73 @@ use tokens_to_syntax_trees::{parse_syntax_trees, parse_syntax_trees_with_id};
 mod generated_invocations;
 
 #[test]
+fn retained_base_rejects_a_changed_local_inference_origin() {
+    let tokens = Lexer::new("machine main() -> u64 { let value: u64 = 7; value }")
+        .tokenize()
+        .expect("local origin tokens");
+    let syntax = parse_syntax_trees(&tokens).expect("local origin syntax");
+    let resolved = lower_syntax_trees(&syntax).expect("local origin resolution");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("local origin typing");
+    let mut changed = typed.clone();
+    let body = changed.machine_states(&changed.machines()[0])[0].statement_nodes;
+    let typed_trees::statement::StatementNode::LocalData(local) =
+        &mut changed.statement_table.statements_mut(body)[0]
+    else {
+        panic!("authored local");
+    };
+    assert!(!local.type_is_inferred);
+    local.type_is_inferred = true;
+    assert!(!retained_typed_base_is_exact_prefix(&typed, &changed));
+}
+
+#[test]
+fn inferred_types_do_not_depend_on_generated_binding_names() {
+    let source = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+        data Record { value: u64; }
+        machine produce() -> u64
+        ensures outgoing: ready()
+        { outgoing = ConcreteEvidence; 7 }
+        machine caller(record: &Record) -> u64 {
+            let { value as selected } = record;
+            let (runtime; outgoing: witness) = produce();
+            runtime
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("binding origin tokens");
+    let syntax = parse_syntax_trees(&tokens).expect("binding origin syntax");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve binding origins");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("infer unannotated binding types");
+    for name in ["selected", "runtime"] {
+        let local = typed
+            .machines()
+            .iter()
+            .flat_map(|machine| typed.machine_states(machine))
+            .flat_map(|state| typed.statement_table.statements(state.statement_nodes))
+            .find_map(|statement| match statement {
+                typed_trees::statement::StatementNode::LocalData(local)
+                    if local.name.as_str() == name =>
+                {
+                    Some(local)
+                }
+                _ => None,
+            })
+            .expect("authored binding without an annotation");
+        assert!(local.type_is_inferred, "{name} has an inferred type");
+        assert_eq!(
+            typed
+                .type_reference_table
+                .display_name(local.type_reference),
+            "u64"
+        );
+    }
+}
+
+#[test]
 fn proof_output_runtime_calls_copy_arguments_into_the_statement_arena() {
     use typed_trees::{expression::ExpressionNode, statement::StatementNode};
 

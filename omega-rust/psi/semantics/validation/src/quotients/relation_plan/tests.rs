@@ -8800,6 +8800,7 @@ fn immutable_alias_fallthrough_requires_an_exact_immutable_chain() {
             type_reference: quotient_type,
             initial_value: request,
             is_mutable: false,
+            type_is_inferred: false,
         },
         TableLocalData {
             symbol: second_symbol,
@@ -8807,6 +8808,7 @@ fn immutable_alias_fallthrough_requires_an_exact_immutable_chain() {
             type_reference: quotient_type,
             initial_value: first_name,
             is_mutable: false,
+            type_is_inferred: false,
         },
     ] {
         program
@@ -9181,6 +9183,7 @@ fn derived_immutable_alias_fallthrough_remains_non_executable() {
             type_reference: quotient_type,
             initial_value: request,
             is_mutable: false,
+            type_is_inferred: false,
         }),
     );
     program.statement_table.push_statement(

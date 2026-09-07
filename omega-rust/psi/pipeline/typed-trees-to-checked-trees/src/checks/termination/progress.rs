@@ -1078,6 +1078,7 @@ mod tests {
                     type_reference: pair_type,
                     initial_value: typed_trees::expression::ExpressionHandle::invalid(),
                     is_mutable: true,
+                    type_is_inferred: false,
                 },
             ),
         );
