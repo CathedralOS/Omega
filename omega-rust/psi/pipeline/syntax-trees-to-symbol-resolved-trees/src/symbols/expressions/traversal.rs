@@ -295,7 +295,8 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
         symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
             assign_name_symbol(
                 symbols,
-                machine.symbol,
+                machine,
+                parameters,
                 state_symbol,
                 expression_table,
                 &path,

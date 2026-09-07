@@ -266,22 +266,65 @@ pub(in crate::symbols) fn assign_membership_symbol(
 
 pub(in crate::symbols) fn assign_name_symbol(
     symbols: &SymbolTable,
-    machine_symbol: SymbolHandle,
+    machine: &MachineScope<'_>,
+    parameters: &[symbol_resolved_trees::signature::StateParameter],
     state_symbol: SymbolHandle,
     expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
     path: &symbol_resolved_trees::expression::TableNamePath,
     expression: symbol_resolved_trees::expression::ExpressionHandle,
 ) {
+    if !path.is_self_value
+        && let [member] = expression_table.name_path_members(path.members)
+        && let Some(binder) = machine.type_parameters.iter().find(|parameter| {
+            parameter.name.as_str() == member.as_str()
+                && matches!(
+                    parameter.kind,
+                    symbol_resolved_trees::data::TypeParameterKind::Const { .. }
+                )
+        })
+    {
+        // Const binders are values in every state of their machine. Only the
+        // current state's parameters and preceding locals can shadow them;
+        // a body local must not capture a signature contract or initializer.
+        let symbol = machine
+            .prior_statements
+            .iter()
+            .rev()
+            .find_map(|statement| match statement {
+                symbol_resolved_trees::statement::Statement::LocalData(local)
+                    if local.name.as_str() == member.as_str() =>
+                {
+                    Some(local.symbol)
+                }
+                _ => None,
+            })
+            .or_else(|| {
+                parameters
+                    .iter()
+                    .find(|parameter| parameter.name.as_str() == member.as_str())
+                    .map(|parameter| parameter.symbol)
+            })
+            .unwrap_or(binder.symbol);
+        expression_table.set_name_path_member_symbol_at_offset(path.member_symbols, 0, symbol);
+        if let symbol_resolved_trees::expression::ExpressionNode::Name(path) =
+            expression_table.expression_mut(expression)
+        {
+            path.head_symbol = symbol;
+            path.symbol = symbol;
+        }
+        return;
+    }
+
     let member_symbols = resolve_state_scoped_table_path_member_symbols(
         symbols,
-        machine_symbol,
+        machine.symbol,
         state_symbol,
         expression_table,
         path,
     );
     let (head_symbol, symbol) = resolve_state_scoped_table_path(
         symbols,
-        machine_symbol,
+        machine.symbol,
         state_symbol,
         expression_table,
         path,

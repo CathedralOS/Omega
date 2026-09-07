@@ -222,7 +222,7 @@ fn inline_const_generic_selectors_execute_distinct_inferred_extents() {
     {
         assert_seven(&format!("data Main {{}}
             machine Main::endpoint<const N: u64>(&self, witness: &[u8; N]) -> u64 [0..=3] {{
-                transition witness.len == 2 {{ true -> 2 false -> 3 }}
+                N
             }}
             machine Main::window(&self, items: &[i32; 4]) -> i32 {{
                 let pair: [u8; 2] = [0, 0];

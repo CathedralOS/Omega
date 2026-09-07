@@ -130,6 +130,15 @@ Working rules:
   target closure and enters the generic application's compatibility identity;
   target dependence is not a separate reason to reject it.
 
+Machine specialization materializes closed const value references in bodies
+and contracts, including integers, booleans, fixed arrays, records, and cases.
+Integer values retain their declared width and arithmetic policy. Original
+and cloned instances use their own bindings; local shadowing does not rewrite
+a different declaration. Return-range and contract checks remain independent.
+Inference also follows a concrete data instance's retained generic application.
+Explicit boolean and named-const machine arguments remain incomplete; they do
+not yet select the same tuples available through normalized generic witnesses.
+
 This does not introduce a target-native count or index type. Length APIs retain
 their explicit target-independent count carrier, while indexing accepts any
 eligible integer that proves `0 <= index < len`. A hypothetical
