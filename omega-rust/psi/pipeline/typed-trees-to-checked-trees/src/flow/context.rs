@@ -5,6 +5,7 @@ pub(super) struct FlowBuildContext<'plans> {
     pub(super) state_value_inputs: Vec<super::state_values::StateValues>,
     pub(super) built_state_value_inputs: Vec<SymbolHandle>,
     pub(super) state_value_inputs_changed_after_build: bool,
+    pub(super) new_state_field_input_height: usize,
     pub(super) state_mutation_summary_cache: StateMutationSummaryCache,
     pub(super) contexts: FlowContextFacts,
     pub(super) invalidations: FlowInvalidationFacts,
@@ -26,6 +27,7 @@ impl<'plans> FlowBuildContext<'plans> {
             state_value_inputs: Vec::new(),
             built_state_value_inputs: Vec::new(),
             state_value_inputs_changed_after_build: false,
+            new_state_field_input_height: 0,
             state_mutation_summary_cache: StateMutationSummaryCache::default(),
             contexts: FlowContextFacts::with_roots(
                 arena::Arena::with_capacity(semantic.contexts.len().saturating_mul(2)),

@@ -41,7 +41,7 @@ pub(crate) fn build_flow_facts_with_service_reaches(
     let mut inputs = Vec::new();
     // Each state becomes reachable once; each formal can acquire a constant
     // then lose it to unknown once. Include one pass to observe convergence.
-    let pass_limit = 1 + program
+    let mut pass_limit = 1 + program
         .machines()
         .iter()
         .map(|machine| {
@@ -52,7 +52,8 @@ pub(crate) fn build_flow_facts_with_service_reaches(
                 .sum::<usize>()
         })
         .sum::<usize>();
-    for pass in 0..pass_limit {
+    let mut pass = 0;
+    while pass < pass_limit {
         if pass != 0 {
             *semantic = baseline.clone();
         }
@@ -65,6 +66,9 @@ pub(crate) fn build_flow_facts_with_service_reaches(
                 );
             }
         }
+        // Each newly reached field contributes one literal and its finite
+        // predicate set. Subsequent joins only remove these cells.
+        pass_limit = pass_limit.saturating_add(ctx.new_state_field_input_height);
         // Inputs arriving before a state's entry was built are already in its
         // contexts. Only a change after that point requires rebuilding flow.
         if !ctx.state_value_inputs_changed_after_build {
@@ -73,6 +77,7 @@ pub(crate) fn build_flow_facts_with_service_reaches(
             return flow;
         }
         inputs = std::mem::take(&mut ctx.state_value_inputs);
+        pass += 1;
     }
     // No provisional input fact survives a nonconvergent graph.
     *semantic = baseline;

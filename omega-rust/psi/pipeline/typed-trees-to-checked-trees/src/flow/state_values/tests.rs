@@ -67,6 +67,7 @@ fn cross_owner_named_dispatch_is_an_unknown_incoming_edge() {
         &mut context,
         super::StateValues {
             state: finish.symbol,
+            fields: Vec::new(),
             values: vec![(parameter, super::literal(&program, literal).unwrap())],
         },
     );
