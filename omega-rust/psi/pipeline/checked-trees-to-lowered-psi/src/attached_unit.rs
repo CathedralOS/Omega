@@ -1386,19 +1386,36 @@ fn assemble_unit_closure(
                 affine_discards, ..
             } = operation
             {
-                let discards = affine_discards.iter().map(|discard| {
-                    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } = discard.source else {
+                let mut discards = Vec::new();
+                let mut residuals = Vec::new();
+                for discard in affine_discards {
+                    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal,
+                    } = discard.source
+                    else {
                         return unsupported("call continuation cleanup requires a result binding");
                     };
-                    let (place, discard_on_return) = structural_result_places.get(binding_ordinal as usize)
-                        .ok_or(LoweringError::Unsupported("call continuation result has not been produced"))?;
-                    if *discard_on_return || !discard.path.is_empty() {
+                    let (place, discard_on_return) = structural_result_places
+                        .get(binding_ordinal as usize)
+                        .ok_or(LoweringError::Unsupported(
+                            "call continuation result has not been produced",
+                        ))?;
+                    if *discard_on_return {
                         return unsupported("call continuation cleanup has conflicting custody");
                     }
-                    Ok(place.id)
-                }).collect::<Result<Vec<_>, LoweringError>>()?;
+                    if discard.path.is_empty() {
+                        discards.push(place.id);
+                    } else {
+                        residuals.push(terminal_psi::StructuralAffineDiscard {
+                            place: place.id,
+                            path: lower_structural_path(&discard.path),
+                            structural_type: lookup_type_id(&type_ids, &discard.type_identity)?,
+                        });
+                    }
+                }
                 evaluation.cleanup_continuation(
                     discards,
+                    residuals,
                     &mut scalar_result_values,
                     &mut next_value_identity,
                     &mut next_block,

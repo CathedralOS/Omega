@@ -6,6 +6,8 @@ use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentSource
 mod anonymous;
 mod residuals;
 
+pub(crate) use anonymous::validate_permissions as validate_anonymous_partial_permissions;
+
 pub(super) fn lower_partial_affine_unit_cleanup_machine(
     checked: &CheckedTrees,
     partial: &CheckedPartialAffineUnitCleanupMachinePlan,
@@ -306,7 +308,7 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
     Ok(source_mapped)
 }
 
-fn checked_partial_affine_residuals(
+pub(crate) fn checked_partial_affine_residuals(
     types: &[CheckedUnitStructuralTypePlan],
     source: &CheckedUnitStructuralArgumentSourcePlan,
     root_type: &str,

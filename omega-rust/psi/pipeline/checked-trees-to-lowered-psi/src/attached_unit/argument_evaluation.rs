@@ -17,6 +17,7 @@ impl Evaluation {
     pub(crate) fn cleanup_continuation(
         &mut self,
         discards: Vec<PlaceId>,
+        residuals: Vec<terminal_psi::StructuralAffineDiscard>,
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,
         next_block: &mut u64,
@@ -37,7 +38,7 @@ impl Evaluation {
                 edge: edge_id(allocate_dense(next_edge)?),
                 target: continuation,
                 arguments: values.iter().map(|value| value.id).collect(),
-                residual_affine_discards: Vec::new(),
+                residual_affine_discards: residuals,
                 trivial_affine_discards: discards,
             },
         });

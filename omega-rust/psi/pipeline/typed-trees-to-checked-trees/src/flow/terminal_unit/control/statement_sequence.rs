@@ -224,6 +224,35 @@ pub(super) fn build(
         if let Some((result, _)) = &mut structural_result {
             result.binding_ordinal = u32::try_from(structural_count).ok()?;
         }
+        // The existing sole-call partial-return route remains available to
+        // native consumers. Wider statement schedules use a dying continuation.
+        let partial_temporary = if program
+            .statement_table
+            .statements(state.statement_nodes)
+            .len()
+            > 1
+            && entry_claims.is_empty()
+        {
+            structural_results.last().and_then(|(result, root)| {
+                if result.statement_index != statement_index
+                    || !matches!(root, facts::PlaceRoot::Expression(_))
+                {
+                    return None;
+                }
+                let candidate = super::super::cleanup::anonymous::binding_at(
+                    program,
+                    facts,
+                    shapes,
+                    machine,
+                    state,
+                    index,
+                    result.binding_ordinal,
+                )?;
+                (candidate.0 == *result && candidate.1 == *root).then_some(candidate)
+            })
+        } else {
+            None
+        };
         let mut operation = build_call_operation(
             program,
             facts,
@@ -234,7 +263,7 @@ pub(super) fn build(
             affine_scalar_record_locals,
             entry_claims,
             call,
-            false,
+            partial_temporary.is_some(),
             result
                 .as_ref()
                 .map(|result| ExpectedCallValueResult::Scalar(result.primitive_type))
@@ -267,7 +296,20 @@ pub(super) fn build(
             Some(result) => bind_scalar_call_result(facts, operation, result, true)?,
             None => operation,
         });
-        append_call_cleanup(&mut operations, statement_index, &structural_results)?;
+        if let Some((result, root)) = partial_temporary {
+            super::super::cleanup::anonymous::append_continuation(
+                program,
+                facts,
+                shapes,
+                machine,
+                state,
+                &result,
+                root,
+                &mut operations,
+            )?;
+        } else {
+            append_call_cleanup(&mut operations, statement_index, &structural_results)?;
+        }
     }
     if operations.iter().any(|operation| {
         matches!(
@@ -394,11 +436,13 @@ fn consume_results(
         ..
     } = consumer
     {
-        for (binding_ordinal, access) in structural_arguments.iter().filter_map(|argument| {
-            argument
-                .source_structural_result_binding_ordinal()
-                .map(|ordinal| (ordinal, argument.access))
-        }) {
+        for (binding_ordinal, access, projected) in
+            structural_arguments.iter().filter_map(|argument| {
+                argument
+                    .source_structural_result_binding_ordinal()
+                    .map(|ordinal| (ordinal, argument.access, !argument.path.is_empty()))
+            })
+        {
             let mut producers = operations.iter_mut().filter(|operation| {
                 matches!(operation,
                 CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
@@ -426,6 +470,9 @@ fn consume_results(
                 return None;
             }
             match access {
+                // A projected transfer leaves its root owner alive until the
+                // exact complement is committed on the consumer continuation.
+                CheckedStructuralAccess::Owned if projected => {}
                 CheckedStructuralAccess::Owned => *discard_result_on_return = false,
                 CheckedStructuralAccess::SharedBorrow => {}
                 CheckedStructuralAccess::MutableBorrow

@@ -16,6 +16,9 @@ use terminal_psi::{OperationKind, OperationResult, StructuralPathSegment, Termin
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
+#[path = "partial_affine_result_source/continuations.rs"]
+mod continuations;
+
 const SOURCE: &str = r#"
     data Token { value: u64; }
     data Pair { left: Token; right: Token; }
@@ -45,6 +48,17 @@ fn anonymous_result_projection_retains_its_untransferred_remainder() {
             &[path(&["right"])],
             &[path(&["left"])],
         );
+    }
+}
+
+#[test]
+fn anonymous_result_projection_cleans_before_the_next_statement() {
+    for boundary in [false, true] {
+        let source = format!(
+            "{} machine Sink::done() {{}}",
+            anonymous_source(boundary, false, "Sink::take(result.right); Sink::done();")
+        );
+        continuations::assert_source(&source, boundary, &[vec![path(&["left"])]]);
     }
 }
 
@@ -113,6 +127,7 @@ fn anonymous_source(boundary: bool, nested: bool, body: &str) -> String {
 #[derive(Default)]
 struct Factory {
     calls: usize,
+    ticks: Vec<terminal_interpreter::TerminalScalarValue>,
 }
 
 impl TerminalEffectHandler for Factory {
@@ -123,6 +138,15 @@ impl TerminalEffectHandler for Factory {
         &mut self,
         effect: &TerminalEffect,
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        if let TerminalEffect::BoundaryCall {
+            arguments,
+            result: terminal_psi::BoundaryMachineResult::Unit,
+            ..
+        } = effect
+        {
+            self.ticks.extend(arguments.iter().copied());
+            return Ok(TerminalEffectResult::Unit);
+        }
         let TerminalEffect::BoundaryCall {
             arguments,
             structural_arguments,
@@ -136,7 +160,7 @@ impl TerminalEffectHandler for Factory {
         assert!(structural_arguments.is_empty());
         self.calls += 1;
         Ok(TerminalEffectResult::Structural(TerminalStructuralValue {
-            opaque_identity: 123,
+            opaque_identity: 122 + self.calls as u64,
             structural_type: result.structural_type,
             qualifications: result.qualifications.clone(),
             path: Vec::new(),
@@ -686,20 +710,7 @@ fn anonymous_result_permissions_rejoin_before_publication() {
 }
 
 #[test]
-fn anonymous_partial_results_do_not_bypass_continuation_or_live_root_limits() {
-    for boundary in [false, true] {
-        let source = anonymous_source(boundary, false, "Sink::take(result.right);");
-        let extra_statement = source
-            .replace("data Sink {}", "data Sink {} machine Sink::done() {}")
-            .replace(".right);", ".right); Sink::done();");
-        assert!(
-            terminal_production::produce_terminal_artifact(
-                &checked(&extra_statement),
-                "Root::enter"
-            )
-            .is_err()
-        );
-    }
+fn sole_call_partial_return_does_not_bypass_its_live_root_limit() {
     let live_input = anonymous_source(true, false, "Sink::take(result.right);")
         .replace("machine Root::enter()", "machine Root::enter(value: Pair)");
     assert!(
