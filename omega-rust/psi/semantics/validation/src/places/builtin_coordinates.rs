@@ -7,6 +7,30 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
+/// Recognize collection metadata through the receiver's structural type, not
+/// through a same-spelled nominal field or accessor.
+pub(crate) fn collection_length_receiver(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if member.member.as_str() != "len" || member.case_variant.is_some() {
+        return None;
+    }
+    let receiver = declared_place_type_raw(program, machine, state, member.receiver)?;
+    let receiver = super::unwrapped_type_reference(program, receiver)?;
+    matches!(
+        program.type_reference_table.type_reference(receiver),
+        typed_trees::types::TypeReferenceNode::Slice { .. }
+            | typed_trees::types::TypeReferenceNode::FixedArray { .. }
+    )
+    .then_some(member.receiver)
+}
+
 /// Check only the operation meaning of a place spine. Consumers separately
 /// establish declaration identity, reference origins, bounds, and authority.
 /// A dynamic builtin selector may pass without establishing a fixed index.

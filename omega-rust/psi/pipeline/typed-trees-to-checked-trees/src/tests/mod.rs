@@ -50,6 +50,8 @@ mod proof_embeddings;
 mod range_call_invalidation;
 mod range_entry_contracts;
 mod range_expression_dependencies;
+#[path = "ranges/guard_operator_meaning.rs"]
+mod range_guard_operator_meaning;
 mod range_index_dependencies;
 mod range_lower_bounds;
 mod range_short_circuit;

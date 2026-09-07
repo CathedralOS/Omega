@@ -43,7 +43,6 @@ mod interval;
 mod invariant_bounds;
 mod monotonic_update;
 mod ordered_values;
-pub(crate) use ordered_values::collection_length_receiver;
 mod total_specification;
 mod unsigned_representability;
 mod value_environment;

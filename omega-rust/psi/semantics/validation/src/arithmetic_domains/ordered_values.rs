@@ -4,6 +4,7 @@
 //! the complete argument tree of an eligible normal-return call.
 
 use super::*;
+use crate::places::collection_length_receiver;
 use symbols::SymbolHandle;
 use typed_trees::statement::StatementNode;
 
@@ -341,31 +342,6 @@ fn integer_meaning(
         primitive,
         analysis.domain.unwrap_or(ArithmeticDomain::Exact),
     ))
-}
-
-/// Recognize builtin metadata only after the receiver has an exact structural
-/// collection type. A same-spelled nominal record field/accessor is not this
-/// operation. The member need not own a field symbol: structural collections
-/// have no authored field declaration to serve as their length identity.
-pub(crate) fn collection_length_receiver(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: Option<&State>,
-    expression: ExpressionHandle,
-) -> Option<ExpressionHandle> {
-    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    if member.member.as_str() != "len" || member.case_variant.is_some() {
-        return None;
-    }
-    let receiver = declared_place_type_raw(program, machine, state, member.receiver)?;
-    let receiver = crate::places::unwrapped_type_reference(program, receiver)?;
-    matches!(
-        program.type_reference_table.type_reference(receiver),
-        TypeReferenceNode::Slice { .. } | TypeReferenceNode::FixedArray { .. }
-    )
-    .then_some(member.receiver)
 }
 
 pub(super) fn record(

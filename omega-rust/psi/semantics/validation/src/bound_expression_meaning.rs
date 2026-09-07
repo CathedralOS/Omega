@@ -177,7 +177,7 @@ fn operand_type_at_depth(
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<TypeReferenceHandle> {
-    if depth >= 128 {
+    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
         return None;
     }
     // This is type lookup, not an immutable-value proof: mutable parameters
@@ -195,10 +195,8 @@ fn operand_type_at_depth(
             crate::expression_types::named_value_type_reference(program, path)
         }
         ExpressionNode::Member(_)
-            if crate::arithmetic_domains::collection_length_receiver(
-                program, machine, state, expression,
-            )
-            .is_some() =>
+            if crate::places::collection_length_receiver(program, machine, state, expression)
+                .is_some() =>
         {
             builtin_type_reference(program, symbols::BuiltinTypeAtom::U64)
         }
@@ -215,44 +213,55 @@ fn operand_type_at_depth(
                 BinaryOperator::Modulo => OperatorSpelling::Modulo,
                 _ => return None,
             };
-            let anonymous_literal = |operand| {
-                matches!(
-                    program.expression_table.expression(operand),
-                    ExpressionNode::Integer(literal) if literal.landing().is_none()
-                )
+            let operands = [binary.left, binary.right];
+            let types = operands
+                .map(|operand| operand_type_at_depth(program, machine, state, operand, depth + 1));
+            let carrier = types.into_iter().flatten().next()?;
+            // Primitive lookup permits constraint shells but not references.
+            // Check that before the structural helper unwraps either shell.
+            program.primitive_type_reference(carrier)?;
+            let unwrapped = crate::places::unwrapped_type_reference(program, carrier)?;
+            let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
+                program.type_reference_table.type_reference(unwrapped)
+            else {
+                return None;
             };
-            let operands = [
-                operand_type_at_depth(program, machine, state, binary.left, depth + 1),
-                operand_type_at_depth(program, machine, state, binary.right, depth + 1),
-            ];
-            let carrier = match operands {
-                [Some(carrier), None] if anonymous_literal(binary.right) => carrier,
-                [None, Some(carrier)] if anonymous_literal(binary.left) => carrier,
-                _ => return None,
-            };
-            let primitive = program.primitive_type_reference(carrier)?;
             if !matches!(
-                primitive,
-                typed_trees::types::PrimitiveType::I8
-                    | typed_trees::types::PrimitiveType::I16
-                    | typed_trees::types::PrimitiveType::I32
-                    | typed_trees::types::PrimitiveType::I64
-                    | typed_trees::types::PrimitiveType::U8
-                    | typed_trees::types::PrimitiveType::U16
-                    | typed_trees::types::PrimitiveType::U32
-                    | typed_trees::types::PrimitiveType::U64
-            ) || !typed_trees::operator::has_builtin_spelled_expression_meaning(
-                program,
-                machine.symbol,
-                expression,
-                spelling,
-                &operands,
-            ) {
+                program.symbols.builtin_type_atom(*symbol),
+                Some(
+                    symbols::BuiltinTypeAtom::I8
+                        | symbols::BuiltinTypeAtom::I16
+                        | symbols::BuiltinTypeAtom::I32
+                        | symbols::BuiltinTypeAtom::I64
+                        | symbols::BuiltinTypeAtom::U8
+                        | symbols::BuiltinTypeAtom::U16
+                        | symbols::BuiltinTypeAtom::U32
+                        | symbols::BuiltinTypeAtom::U64
+                )
+            ) || !operands
+                .into_iter()
+                .zip(types)
+                .all(|(operand, reference)| match reference {
+                    Some(reference) => {
+                        program.normalized_type_identity(reference)
+                            == program.normalized_type_identity(carrier)
+                    }
+                    None => matches!(program.expression_table.expression(operand),
+                            ExpressionNode::Integer(literal) if literal.landing().is_none()),
+                })
+                || !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                    program,
+                    machine.symbol,
+                    expression,
+                    spelling,
+                    &types,
+                )
+            {
                 return None;
             }
-            // Anonymous literals adopt the typed operand's arithmetic carrier.
-            // Preserve its domain, but never infer a type for an unknown value
-            // or reinterpret a selected authored operation as builtin arithmetic.
+            // Recover a carrier only after checking this operation's meaning.
+            // Keep the known binding's semantic shell conservatively; no range
+            // or qualification proof is inferred for the computed value here.
             Some(carrier)
         }
         // In particular, do not let declared_place_type_raw erase a Borrow
@@ -269,8 +278,8 @@ fn builtin_type_reference(
     program: &TypedTrees,
     atom: symbols::BuiltinTypeAtom,
 ) -> Option<TypeReferenceHandle> {
-    // Builtin metadata and literals have a fixed source type, independently of their sibling
-    // expression. Reuse an actual reference to the exact compiler builtin atom;
+    // Builtin result types are independent of the sibling expression. Reuse an
+    // actual reference to the exact compiler builtin atom;
     // do not manufacture a handle or identify a same-spelled user declaration.
     let symbol = program
         .symbols
