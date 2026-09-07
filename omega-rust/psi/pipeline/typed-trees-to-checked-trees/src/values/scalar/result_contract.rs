@@ -89,6 +89,38 @@ pub(crate) fn lower_integer_contract_predicate(
                 [name] if name.as_str() == "result"))
         .then_some((scalar_count, entry.return_type))
     };
+    let subjects = [binary.left, binary.right].map(|expression| {
+        let (position, type_reference) = subject(expression)?;
+        let primitive_type = program.primitive_type_reference(type_reference)?;
+        Some((
+            CheckedScalarExpression::Parameter {
+                position,
+                primitive_type,
+            },
+            type_reference,
+        ))
+    });
+    lower_integer_contract_comparison(program, operators, machine, expression, subjects)
+}
+
+/// Subject readers retain their own namespace custody. Comparison selection,
+/// contextual literal landing, and same-carrier construction have one owner.
+pub(super) fn lower_integer_contract_comparison(
+    program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
+    machine: &typed_trees::machine::Machine,
+    expression: ExpressionHandle,
+    subjects: [Option<(CheckedScalarExpression, TypeReferenceHandle)>; 2],
+) -> Option<CheckedBooleanExpression> {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if operators.uses.iter().any(|(_, operator)| {
+        operator.expression == expression
+            && operator.status != CheckedOperatorResolutionStatus::BuiltinFallback
+    }) {
+        return None;
+    }
     use language_core::OperatorSpelling;
     let spelling = match binary.operator {
         BinaryOperator::Equal => OperatorSpelling::Equal,
@@ -99,9 +131,10 @@ pub(crate) fn lower_integer_contract_predicate(
         BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
         _ => return None,
     };
-    let subjects = [binary.left, binary.right].map(subject);
-    let operand_types = subjects.map(|subject| subject.map(|(_, type_reference)| type_reference));
-    // A named subject supplies contextual literal landing. Literal-only
+    let operand_types = subjects
+        .each_ref()
+        .map(|subject| subject.as_ref().map(|(_, type_reference)| *type_reference));
+    // An exactly typed subject supplies contextual literal landing. Literal-only
     // tautologies retain their existing closed-value representation instead.
     let contextual_type = operand_types.into_iter().flatten().next()?;
     let contextual_primitive = program.primitive_type_reference(contextual_type)?;
@@ -117,16 +150,14 @@ pub(crate) fn lower_integer_contract_predicate(
     ) {
         return None;
     }
-    let operand = |expression| {
-        if let Some((position, type_reference)) = subject(expression) {
+    let operand = |expression, subject: Option<(CheckedScalarExpression, TypeReferenceHandle)>| {
+        if let Some((value, type_reference)) = subject {
             let primitive_type = program.primitive_type_reference(type_reference)?;
-            if !is_integer(primitive_type) {
+            if !is_integer(primitive_type) || scalar_expression_type(&value) != Some(primitive_type)
+            {
                 return None;
             }
-            return Some(CheckedScalarExpression::Parameter {
-                position,
-                primitive_type,
-            });
+            return Some(value);
         }
         if !matches!(
             program.expression_table.expression(expression),
@@ -146,8 +177,9 @@ pub(crate) fn lower_integer_contract_predicate(
             &[],
         )
     };
-    let left = operand(binary.left)?;
-    let right = operand(binary.right)?;
+    let [left_subject, right_subject] = subjects;
+    let left = operand(binary.left, left_subject)?;
+    let right = operand(binary.right, right_subject)?;
     construct_integer_comparison(binary.operator, left, right)
 }
 

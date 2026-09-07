@@ -800,10 +800,10 @@ Owners include
   effects and state transfers. Acceptance: the delivered value is materialized
   once, reassignment changes subsequent reads, and a final guarantee about that
   mutable formal cannot prove equality with its earlier argument value.
-  Complete entry-requirement crash implication beyond plain Boolean field
-  paths and direct fixed-integer scalar comparisons: retain exact case-qualified,
+  Complete entry-requirement crash implication beyond Boolean and fixed-integer
+  predicates over direct scalar parameters and plain field paths: retain exact case-qualified,
   indexed, generic, and reference-valued intermediate structural identities,
-  and carry arithmetic-expression, structural-numeric, and float entry evidence
+  and carry arithmetic-expression and float entry evidence
   through their totality owners. Acceptance: those entry hypotheses cover an
   unconditional callee under the matching crash guard, and numeric coverage
   retains its checked totality evidence. The strict Boolean-formal entry reader
