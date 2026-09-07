@@ -1,0 +1,9 @@
+(def layout_term ((cursor Int) (end Int) (variables Int)) Int
+  (let tag_end Int (layout_group cursor end 1)
+    (if (lt tag_end 0) tag_end
+      (let tag Int (layout_word cursor)
+        (if (eq tag 0)
+          (if variables (layout_group tag_end end 1) (layout_failure cursor))
+          (if (if (eq tag 1) 1 (eq tag 2))
+            (layout_signature tag_end end)
+            (layout_failure cursor)))))))

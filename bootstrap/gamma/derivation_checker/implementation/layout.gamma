@@ -1,0 +1,11 @@
+(def admit_derivation_layout () Int
+  (let outer Int (admit_derivation_request)
+    (if (eq (first outer) 0)
+      (let frame Int (second outer)
+        (let scanned Int
+          (layout_sections (admission_theory_end frame)
+            (admission_proposition_end frame) (admission_certificate_end frame))
+          (if (lt scanned 0)
+            (admission_rejected 6 (- (- 0 scanned) 1))
+            (pair 3 frame))))
+      outer)))

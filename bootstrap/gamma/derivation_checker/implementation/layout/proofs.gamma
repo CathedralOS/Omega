@@ -1,0 +1,15 @@
+(def layout_proof ((cursor Int) (end Int)) Int
+  (let tag_end Int (layout_group cursor end 1)
+    (if (lt tag_end 0) tag_end
+      (let rule Int (layout_word cursor)
+        (if (if (lt rule 1) 1 (lt 5 rule))
+          (layout_failure cursor)
+          (let conclusions Int (layout_group tag_end end 2)
+            (if (lt conclusions 0) conclusions
+              (layout_proof_fields conclusions end rule))))))))
+
+(def layout_proof_fields ((cursor Int) (end Int) (rule Int)) Int
+  (if (eq rule 1) cursor
+    (if (eq rule 3) (layout_group cursor end 2)
+      (if (eq rule 4) (layout_vector cursor end)
+        (layout_group cursor end 1)))))
