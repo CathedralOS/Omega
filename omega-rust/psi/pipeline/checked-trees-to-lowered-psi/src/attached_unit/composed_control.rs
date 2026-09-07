@@ -12,8 +12,9 @@ mod nested_control;
 mod prefixed_control;
 mod routing;
 mod scalar_calls;
+mod state_graph;
 pub(crate) use crate::machine_dispatch::SourceMappedLowered;
-pub(super) use admission::admit_composed_unit_control as admit_callable;
+pub(super) use callable::admit as admit_callable;
 pub(crate) use catalogs::ComposedCatalogs;
 
 pub(crate) fn lower_composed_unit_control_machine(

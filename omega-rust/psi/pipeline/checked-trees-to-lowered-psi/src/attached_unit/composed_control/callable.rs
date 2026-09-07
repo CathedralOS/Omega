@@ -2,6 +2,33 @@
 
 use super::*;
 
+pub(in crate::attached_unit) enum CallableBody<'a> {
+    Composed(admission::AdmittedComposedUnit<'a>),
+    Graph(state_graph::AdmittedGraph<'a>),
+}
+
+impl<'a> CallableBody<'a> {
+    pub(in crate::attached_unit) fn boundaries(
+        &self,
+    ) -> &[(&'a CheckedBoundaryMachinePlan, String)] {
+        match self {
+            Self::Composed(body) => &body.boundaries,
+            Self::Graph(body) => &body.boundaries,
+        }
+    }
+}
+
+pub(in crate::attached_unit) fn admit<'a>(
+    checked: &'a CheckedTrees,
+    plan: &'a checked_trees::CheckedComposedUnitControlMachinePlan,
+) -> Result<CallableBody<'a>, LoweringError> {
+    if state_graph::has_shared_graph_custody(checked, plan) {
+        state_graph::admit(checked, plan).map(CallableBody::Graph)
+    } else {
+        admission::admit_composed_unit_control(checked, plan).map(CallableBody::Composed)
+    }
+}
+
 pub(in crate::attached_unit) struct SharedCatalog<'a> {
     pub structural_types: &'a [StructuralTypeDeclaration],
     pub type_ids: &'a [(String, StructuralTypeId)],
@@ -34,7 +61,7 @@ pub(in crate::attached_unit) struct EmissionCounters<'a> {
 pub(in crate::attached_unit) fn emit(
     checked: &CheckedTrees,
     plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
-    admitted: admission::AdmittedComposedUnit<'_>,
+    admitted: CallableBody<'_>,
     parameters: Vec<StructuralParameterDeclaration>,
     scalar_parameters: Vec<ValueDeclaration>,
     shared: SharedCatalog<'_>,
@@ -62,8 +89,11 @@ pub(in crate::attached_unit) fn emit(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    let internal_targets = admitted
-        .internal_targets
+    let source_targets = match &admitted {
+        CallableBody::Composed(body) => &body.internal_targets,
+        CallableBody::Graph(body) => &body.internal_targets,
+    };
+    let internal_targets = source_targets
         .iter()
         .map(|(body, _)| {
             let target = body.entry()?;
@@ -125,15 +155,27 @@ pub(in crate::attached_unit) fn emit(
         next_operation: *counters.operation,
         next_edge: *counters.edge,
     };
-    let (mut machine, occurrences) = emission::emit_callable_body(
-        checked,
-        plan,
-        admitted,
-        lookup_machine_id(shared.machine_ids, plan.machine)?,
-        scalar_parameters,
-        parameters,
-        &mut catalogs,
-    )?;
+    let identity = lookup_machine_id(shared.machine_ids, plan.machine)?;
+    let (mut machine, occurrences) = match admitted {
+        CallableBody::Composed(body) => emission::emit_callable_body(
+            checked,
+            plan,
+            body,
+            identity,
+            scalar_parameters,
+            parameters,
+            &mut catalogs,
+        )?,
+        CallableBody::Graph(body) => state_graph::emit(
+            checked,
+            plan,
+            body,
+            identity,
+            parameters,
+            scalar_parameters,
+            &mut catalogs,
+        )?,
+    };
     machine.contract.requires = shared
         .requirements
         .iter()

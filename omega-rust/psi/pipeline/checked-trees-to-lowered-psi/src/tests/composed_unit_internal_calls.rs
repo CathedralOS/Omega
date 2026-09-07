@@ -88,10 +88,11 @@ fn lowers_both_internal_unit_leaves_to_one_canonical_target() {
 fn internal_unit_leaf_rejects_target_plan_and_identity_corruption() {
     let baseline = checked_composed_internal_calls();
     let rejects = |checked: &CheckedTrees| {
-        assert!(matches!(
-            lower_machine(checked, "Root::enter"),
-            Err(LoweringError::Unsupported(_))
-        ));
+        let result = lower_machine(checked, "Root::enter");
+        assert!(
+            matches!(result, Err(LoweringError::Unsupported(_))),
+            "unexpected result: {result:?}"
+        );
     };
 
     let mut state = baseline.clone();
@@ -123,7 +124,12 @@ fn internal_unit_leaf_rejects_target_plan_and_identity_corruption() {
         .terminal_unit_effects
         .machines
         .retain(|plan| plan.machine != quiet);
-    rejects(&missing);
+    assert!(matches!(
+        lower_machine(&missing, "Root::enter"),
+        Err(LoweringError::InvalidUnitMachinePlan { machine, reason })
+            if machine == "Root::quiet"
+                && reason == "attached Unit closure is missing a checked transitive machine plan"
+    ));
 }
 
 #[test]

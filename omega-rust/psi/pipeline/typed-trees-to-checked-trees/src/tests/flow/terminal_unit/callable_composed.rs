@@ -106,14 +106,14 @@ fn callable_composed_targets_survive_direct_and_interleaved_transitive_calls() {
 
 #[test]
 fn missing_transitive_body_prunes_both_catalogs_to_a_joint_fixed_point() {
-    // A valid two-state source has neither an ordinary one-state body nor an
-    // admitted composed body. Merely knowing its source symbol cannot admit it.
+    // State-local construction is valid source but outside this graph body
+    // slice. Knowing the callee's source symbol cannot admit its missing body.
     let checked = checked(&CHAIN.replace(
         "machine Helper::quiet() {}",
         r#"
         machine Helper::quiet() {
             transition { _ -> done() }
-            state done() {}
+            state done() { let local: u8 = 1u8; Helper::unrelated(); }
         }
     "#,
     ));
@@ -138,7 +138,7 @@ fn missing_transitive_body_prunes_both_catalogs_to_a_joint_fixed_point() {
 fn unsupported_composed_leaf_prunes_upstream_without_relaxing_body_admission() {
     let checked = checked(&CHAIN.replace(
         "state yes() { Helper::quiet(); }",
-        "state yes() { Helper::quiet(); Helper::quiet(); }",
+        "state yes() { let local: u8 = 1u8; Helper::quiet(); }",
     ));
     let plans = &checked.facts.flow.terminal_unit_effects;
     for name in ["enter", "outer", "middle", "relay", "inner"] {
@@ -154,6 +154,87 @@ fn unsupported_composed_leaf_prunes_upstream_without_relaxing_body_admission() {
             plans.for_machine(machine_named(&checked, name)).is_some(),
             "{name}"
         );
+    }
+    assert_unique_catalogs(plans);
+}
+
+#[test]
+fn empty_two_state_body_remains_in_the_transitive_call_closure() {
+    let checked = checked(&CHAIN.replace(
+        "machine Helper::quiet() {}",
+        r#"
+        machine Helper::quiet() {
+            transition { _ -> done() }
+            state done() {}
+        }
+    "#,
+    ));
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    for name in ["enter", "relay", "unrelated"] {
+        assert!(
+            plans.for_machine(machine_named(&checked, name)).is_some(),
+            "{name}"
+        );
+    }
+    for name in ["outer", "middle", "inner", "quiet"] {
+        assert!(
+            plans
+                .composed_for_machine(machine_named(&checked, name))
+                .is_some(),
+            "{name}"
+        );
+    }
+    let quiet = plans
+        .composed_for_machine(machine_named(&checked, "quiet"))
+        .unwrap();
+    let [entry, done] = quiet.states.as_slice() else {
+        panic!("quiet retains both authored states");
+    };
+    assert!(entry.operations.is_empty());
+    assert!(done.operations.is_empty());
+    assert!(matches!(
+        &entry.terminator,
+        checked_trees::CheckedComposedUnitControlTerminatorPlan::Jump { successor }
+            if successor.target_state == done.state
+    ));
+    assert!(matches!(
+        done.terminator,
+        checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+    ));
+    assert_unique_catalogs(plans);
+}
+
+#[test]
+fn multiple_calls_in_a_leaf_preserve_the_transitive_call_closure() {
+    let checked = checked(&CHAIN.replace(
+        "state yes() { Helper::quiet(); }",
+        "state yes() { Helper::quiet(); Helper::quiet(); }",
+    ));
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    for name in ["enter", "relay", "quiet", "unrelated"] {
+        assert!(
+            plans.for_machine(machine_named(&checked, name)).is_some(),
+            "{name}"
+        );
+    }
+    for name in ["outer", "middle", "inner"] {
+        assert!(
+            plans
+                .composed_for_machine(machine_named(&checked, name))
+                .is_some(),
+            "{name}"
+        );
+    }
+    let inner = plans
+        .composed_for_machine(machine_named(&checked, "inner"))
+        .unwrap();
+    let quiet = machine_named(&checked, "quiet");
+    assert_eq!(inner.states.len(), 3);
+    assert_eq!(inner.states[1].operations.len(), 2);
+    for (ordinal, operation) in inner.states[1].operations.iter().enumerate() {
+        assert!(matches!(operation,
+            CheckedUnitEffectOperationPlan::CallUnit { coordinate, target_machine, .. }
+                if *target_machine == quiet && coordinate.statement_index as usize == ordinal));
     }
     assert_unique_catalogs(plans);
 }

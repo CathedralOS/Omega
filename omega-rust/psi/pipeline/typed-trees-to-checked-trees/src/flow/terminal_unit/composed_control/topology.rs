@@ -195,7 +195,7 @@ pub(super) fn admit<'a>(
     })
 }
 
-fn exact_false_fallback(
+pub(in crate::flow::terminal_unit) fn exact_false_fallback(
     program: &TypedTrees,
     when_true: &typed_trees::statement::TableTransition,
     when_false: &typed_trees::statement::TableTransition,
