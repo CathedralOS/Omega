@@ -1,16 +1,16 @@
 data Main {}
 
 machine Main::main() -> u32 {
-    transition { _ -> self.walk(5) }
+    transition { _ -> self.walk(5, 1) }
 }
 
-machine Main::walk(remaining: u32 [0..=5])
+machine Main::walk(remaining: u32 [0..=5], step: u32 [1..=1])
 terminates by remaining in 0..=5;
 -> u32 {
-    transition { _ -> iterate(remaining, remaining) }
-    state iterate(pending: u32 [0..=5], copy: u32 [0..=5]) {
+    transition { _ -> iterate(remaining, remaining, step) }
+    state iterate(pending: u32 [0..=5], copy: u32 [0..=5], step: u32 [1..=1]) {
         transition pending > 0 && copy > 0 {
-            true -> iterate(pending - 1, copy - 1)
+            true -> iterate(pending - step, copy - step, step)
             false -> pending
         }
     }
