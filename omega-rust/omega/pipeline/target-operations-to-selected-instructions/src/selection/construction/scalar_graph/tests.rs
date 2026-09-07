@@ -78,6 +78,7 @@ fn fixture(target: target::NativeTarget, count: usize) -> LegalizedScalarFunctio
     }
     LegalizedScalarFunction {
         structural: None,
+        ranked: None,
         machine: MachineId::new(1).unwrap(),
         attachment: Some(StructuralTypeId::new(1).unwrap()),
         provenance: target_operations::TerminalPsiProvenance {

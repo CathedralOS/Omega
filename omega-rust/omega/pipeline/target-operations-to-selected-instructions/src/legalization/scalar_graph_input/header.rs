@@ -40,7 +40,8 @@ pub(super) fn function_abi(
     let result = match &abstracted.result {
         AbstractFunctionResult::Unit => None,
         AbstractFunctionResult::Scalar(result)
-            if integer_type(result.scalar_type).is_some() && target.attachment.is_none() =>
+            if integer_type(result.scalar_type).is_some_and(|integer| integer.bits() == 64)
+                && target.attachment.is_none() =>
         {
             Some(ValueShape::integer(8, 8))
         }

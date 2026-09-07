@@ -58,6 +58,7 @@ terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 sha2 = "0.10.9"
 
 [dev-dependencies]
+image-emission = { path = "../../backend/images/image-emission", features = ["test-support"] }
 machine-emission = { path = "../../backend/machine-emission", features = ["test-support"] }
 isa-aarch64 = { path = "../../backend/instruction_set_architectures/isa-aarch64" }
 provider-planning = { path = "../../build/provider-planning" }

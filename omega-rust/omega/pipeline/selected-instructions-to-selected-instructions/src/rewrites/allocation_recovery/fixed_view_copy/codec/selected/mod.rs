@@ -7,6 +7,7 @@ mod function;
 mod instruction;
 mod payload;
 mod provenance;
+mod ranked;
 mod register;
 mod scalar;
 mod structural;

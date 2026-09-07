@@ -3,7 +3,7 @@ use selected_instructions::MachineAlternativeFamily;
 use sha2::{Digest, Sha256};
 use target::{Architecture, ObjectFormat};
 
-const TEXT_SECTION_SCHEMA: &[u8] = b"omega.terminal.relocation-free-text-section.v3";
+const TEXT_SECTION_SCHEMA: &[u8] = b"omega.terminal.relocation-free-text-section.v4";
 
 pub fn relocation_free_text_section_identity(
     section: &RelocationFreeTextSectionPlacement,
@@ -105,6 +105,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::MaterializeI64 => 1,
         MachineAlternativeFamily::CopyI64 => 2,
         MachineAlternativeFamily::ZeroExtendU8 => 15,
+        MachineAlternativeFamily::ZeroExtendU32 => 20,
         MachineAlternativeFamily::ExactAddI64 => 3,
         MachineAlternativeFamily::ExactAddI64Immediate => 4,
         MachineAlternativeFamily::ExactSubtractI64 => 5,

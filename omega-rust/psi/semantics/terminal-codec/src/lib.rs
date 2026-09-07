@@ -198,6 +198,21 @@ pub fn decode_crash_route_buckets(
     Ok(routes)
 }
 
+/// Decode a complete canonical proposition ordering key.
+pub fn decode_canonical_proposition(
+    bytes: &[u8],
+) -> Result<semantic_vocabulary::Proposition, CodecError> {
+    let mut reader = Reader::new(bytes);
+    let proposition = decode_proposition(&mut reader, 0)?;
+    if reader.remaining() != 0 {
+        return Err(CodecError::TrailingBytes(reader.remaining()));
+    }
+    if canonical_proposition_order_key(&proposition)? != bytes {
+        return Err(CodecError::NonCanonicalEncoding);
+    }
+    Ok(proposition)
+}
+
 pub fn semantic_fingerprint(module: &TerminalModule) -> Result<SemanticFingerprint, CodecError> {
     let bytes = encode_module(module)?;
     Ok(fingerprint_bytes(&bytes))

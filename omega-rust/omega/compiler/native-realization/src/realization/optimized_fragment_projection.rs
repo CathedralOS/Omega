@@ -21,11 +21,12 @@ pub(super) fn emit_optimized_fragments(
     ),
     Vec<Diagnostic>,
 > {
-    let source = stage_fragment_object(physical)?;
+    let source = std::sync::Arc::new(stage_fragment_object(physical)?);
     let object =
-        image_emission::build_function_fragment_object_artifact(&source).map_err(|error| {
-            super::diagnostics::realization_error("fragment object publication", error)
-        })?;
+        image_emission::build_function_fragment_object_artifact(std::sync::Arc::clone(&source))
+            .map_err(|error| {
+                super::diagnostics::realization_error("fragment object publication", error)
+            })?;
     let scope = match request.boundary_application_coverage {
         Some(coverage) => {
             native_artifact::NativePhysicalEvidenceScope::from_validated_fragment_publication(

@@ -5,7 +5,7 @@ use semantic_vocabulary::MachineId;
 use super::{plan, with_stale_version};
 
 #[test]
-fn successor_transfer_vocabulary_requires_the_v15_envelope() {
+fn successor_transfer_vocabulary_requires_the_current_envelope() {
     use crate::FixedViewCopyDecodeError;
     let mut transferred = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     std::sync::Arc::make_mut(&mut transferred.transformed).functions[0] =
@@ -99,7 +99,7 @@ fn artifact_round_trips_both_policies_and_full_transformed_custody() {
 }
 
 #[test]
-fn artifact_v15_retains_segment_home_evidence_and_rejects_older_authority() {
+fn artifact_current_retains_segment_home_evidence_and_rejects_older_authority() {
     let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     plan.source_evidence = crate::FixedViewCopySourceEvidence::FixedPrecoloredSegmentHomesV1 {
         fixed_intervals: crate::FixedPrecoloredIntervalPlanIdentity::from_bytes([21; 32]),
@@ -109,7 +109,7 @@ fn artifact_v15_retains_segment_home_evidence_and_rejects_older_authority() {
         segment_homes: crate::FixedPrecoloredSegmentHomePlanIdentity::from_bytes([23; 32]),
     };
     let encoded = plan.encode();
-    assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 15);
+    assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 16);
     assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), plan);
     for encoded in [with_stale_version(&plan, 10), with_stale_version(&plan, 11)] {
         let version = u32::from_le_bytes(encoded[8..12].try_into().unwrap());
@@ -153,7 +153,7 @@ fn artifact_rejects_pre_predicate_identity_version() {
 }
 
 #[test]
-fn artifact_v15_round_trips_u64_less_than_terminator_vocabulary() {
+fn artifact_current_round_trips_u64_less_than_terminator_vocabulary() {
     let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     let terminator = plan.transformed.functions[0].blocks[0].terminator.clone();
     let SelectedTerminator::ConditionalBranch {
@@ -176,7 +176,7 @@ fn artifact_v15_round_trips_u64_less_than_terminator_vocabulary() {
 }
 
 #[test]
-fn artifact_v15_round_trips_scalar_call_callee_vocabulary() {
+fn artifact_current_round_trips_scalar_call_callee_vocabulary() {
     let mut plan = plan(FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1);
     let callee = MachineId::new(901).unwrap();
     std::sync::Arc::make_mut(&mut plan.transformed).functions[0].blocks[0].instructions[0].kind =
@@ -186,7 +186,7 @@ fn artifact_v15_round_trips_scalar_call_callee_vocabulary() {
 }
 
 #[test]
-fn artifact_v15_round_trips_signed_less_than_terminator_vocabulary() {
+fn artifact_current_round_trips_signed_less_than_terminator_vocabulary() {
     let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     let terminator = plan.transformed.functions[0].blocks[0].terminator.clone();
     let SelectedTerminator::ConditionalBranch {

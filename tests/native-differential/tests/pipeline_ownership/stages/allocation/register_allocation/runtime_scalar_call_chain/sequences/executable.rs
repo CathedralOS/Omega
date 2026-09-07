@@ -46,11 +46,12 @@ fn ordered_scalar_calls_reach_native_publication() {
                 }],
             ] {
                 let selections = OptimizationSelections::new(choices).unwrap();
-                let source = staged(target, sequence, &selections);
-                let object = image_emission::build_function_fragment_object_artifact(&source)
-                    .unwrap_or_else(|error| {
-                        panic!("{target:?}, {sequence:?}, {selections:?}: {error:?}")
-                    });
+                let source = std::sync::Arc::new(staged(target, sequence, &selections));
+                let object =
+                    image_emission::build_function_fragment_object_artifact(source.clone())
+                        .unwrap_or_else(|error| {
+                            panic!("{target:?}, {sequence:?}, {selections:?}: {error:?}")
+                        });
                 image_emission::validate_function_fragment_object_artifact(&source, &object)
                     .unwrap();
                 assert_eq!(object.text_bytes(), source.source().text_section().bytes);
@@ -109,11 +110,14 @@ fn ordered_scalar_calls_reach_native_publication() {
 fn fragment_publication_scope_rejects_a_different_program_or_object() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let selections = OptimizationSelections::default();
-        let mut source = staged(target, Sequence::InterleavedCallees, &selections);
-        let object = image_emission::build_function_fragment_object_artifact(&source).unwrap();
-        let different_source = staged(target, Sequence::Single, &selections);
+        let mut source =
+            std::sync::Arc::new(staged(target, Sequence::InterleavedCallees, &selections));
+        let object =
+            image_emission::build_function_fragment_object_artifact(source.clone()).unwrap();
+        let different_source = std::sync::Arc::new(staged(target, Sequence::Single, &selections));
         let different =
-            image_emission::build_function_fragment_object_artifact(&different_source).unwrap();
+            image_emission::build_function_fragment_object_artifact(different_source.clone())
+                .unwrap();
         assert!(
             image_emission::validate_function_fragment_object_artifact(&source, &different)
                 .is_err()
@@ -153,7 +157,10 @@ fn fragment_publication_scope_rejects_a_different_program_or_object() {
         let mut detached = plan.clone();
         detached.functions[0].operations.clear();
         assert!(scope(&detached, &object).is_err());
-        source.corrupt_custody_source_text_section_manifest_for_test();
-        assert!(image_emission::build_function_fragment_object_artifact(&source).is_err());
+        drop(object);
+        std::sync::Arc::get_mut(&mut source)
+            .expect("no retained object after drop")
+            .corrupt_custody_source_text_section_manifest_for_test();
+        assert!(image_emission::build_function_fragment_object_artifact(source.clone()).is_err());
     }
 }

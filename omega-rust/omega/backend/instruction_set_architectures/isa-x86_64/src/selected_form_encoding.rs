@@ -456,6 +456,9 @@ fn family_and_operand_count(
         }
         SelectedInstructionKind::CopyI64 => (MachineAlternativeFamily::CopyI64, 2, 0..=0),
         SelectedInstructionKind::ZeroExtendU8 => (MachineAlternativeFamily::ZeroExtendU8, 2, 0..=0),
+        SelectedInstructionKind::ZeroExtendU32 => {
+            (MachineAlternativeFamily::ZeroExtendU32, 2, 0..=0)
+        }
         SelectedInstructionKind::ExactAddI64 { .. } => {
             (MachineAlternativeFamily::ExactAddI64, 3, 0..=0)
         }
@@ -648,6 +651,13 @@ fn encode_unchecked(
                 0xc0 | ((registers[1] & 7) << 3) | (registers[0] & 7),
             ]);
         }
+        SelectedInstructionKind::ZeroExtendU32 => {
+            bytes.extend([
+                0x40 | ((registers[0] >> 3) << 2) | (registers[1] >> 3),
+                0x89,
+                0xc0 | ((registers[0] & 7) << 3) | (registers[1] & 7),
+            ]);
+        }
         SelectedInstructionKind::CopyI64 => {
             append_register_binary(&mut bytes, 0x89, registers[0], registers[1]);
         }
@@ -712,6 +722,10 @@ fn encode_unchecked(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DecodedInstruction {
     ZeroExtendU8 {
+        source: u8,
+        destination: u8,
+    },
+    ZeroExtendU32 {
         source: u8,
         destination: u8,
     },
@@ -783,6 +797,18 @@ fn decode_one(
                 destination: ((modrm >> 3) & 7) | (((rex >> 2) & 1) << 3),
             },
             4,
+        ));
+    }
+    if let [rex, 0x89, modrm, ..] = bytes
+        && rex & !0x05 == 0x40
+        && modrm & 0xc0 == 0xc0
+    {
+        return Ok((
+            DecodedInstruction::ZeroExtendU32 {
+                source: ((modrm >> 3) & 7) | (((rex >> 2) & 1) << 3),
+                destination: (modrm & 7) | ((rex & 1) << 3),
+            },
+            3,
         ));
     }
     if bytes.first() == Some(&0xc3) {
@@ -935,6 +961,13 @@ fn validate_decoded(
                     destination: registers[1],
                 }]
         }
+        SelectedInstructionKind::ZeroExtendU32 => {
+            decoded
+                == [DecodedInstruction::ZeroExtendU32 {
+                    source: registers[0],
+                    destination: registers[1],
+                }]
+        }
         SelectedInstructionKind::CopyI64 => {
             decoded
                 == [DecodedInstruction::Move {
@@ -1048,9 +1081,9 @@ fn footprint(
 ) -> X86_64SelectedFormFootprint {
     let (reads, writes, writes_rflags) = match kind {
         SelectedInstructionKind::MaterializeI64 { .. } => (vec![], vec![operands[0]], false),
-        SelectedInstructionKind::CopyI64 | SelectedInstructionKind::ZeroExtendU8 => {
-            (vec![operands[0]], vec![operands[1]], false)
-        }
+        SelectedInstructionKind::CopyI64
+        | SelectedInstructionKind::ZeroExtendU8
+        | SelectedInstructionKind::ZeroExtendU32 => (vec![operands[0]], vec![operands[1]], false),
         SelectedInstructionKind::CompareI64Zero => (vec![operands[0]], vec![], true),
         SelectedInstructionKind::CompareI64 => (vec![operands[0], operands[1]], vec![], true),
         SelectedInstructionKind::ExactAddI64 { .. } => {
@@ -1134,6 +1167,7 @@ fn footprint(
                 SelectedInstructionKind::MaterializeI64 { .. } => vec![],
                 SelectedInstructionKind::CopyI64
                 | SelectedInstructionKind::ZeroExtendU8
+                | SelectedInstructionKind::ZeroExtendU32
                 | SelectedInstructionKind::CompareI64Zero
                 | SelectedInstructionKind::ExactAddI64Immediate { .. }
                 | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![0],
@@ -1149,6 +1183,7 @@ fn footprint(
                 SelectedInstructionKind::MaterializeI64 { .. } => vec![0],
                 SelectedInstructionKind::CopyI64
                 | SelectedInstructionKind::ZeroExtendU8
+                | SelectedInstructionKind::ZeroExtendU32
                 | SelectedInstructionKind::ExactAddI64Immediate { .. }
                 | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![1],
                 SelectedInstructionKind::ExactAddI64 { .. }
@@ -1251,6 +1286,78 @@ mod tests {
                     .is_err()
                 );
                 for byte in 0..4 {
+                    let mut changed = encoded.bytes().to_vec();
+                    changed[byte] ^= 1;
+                    assert!(
+                        validate_x86_64_selected_form_encoding(
+                            &physical, kind, key, &operands, &changed
+                        )
+                        .is_err()
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn zero_extend_u32_binds_width_registers_and_is_not_a_copy() {
+        let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        for source in ["rax", "rcx", "rsi", "rdi", "r8", "r15"] {
+            for destination in ["rax", "rcx", "rsi", "rdi", "r8", "r15"] {
+                let operands = [
+                    physical.model().view_named(source).unwrap().id,
+                    physical.model().view_named(destination).unwrap().id,
+                ];
+                let kind = SelectedInstructionKind::ZeroExtendU32;
+                let key = alternative(MachineAlternativeFamily::ZeroExtendU32, 0);
+                let encoded = encode_x86_64_selected_form(&physical, kind, key, &operands).unwrap();
+                assert_eq!(encoded.bytes().len(), 3);
+                // A 32-bit MOV writes the full parent register with zero upper bits.
+                assert_eq!(encoded.bytes()[0] & 0xf8, 0x40);
+                assert_eq!(encoded.bytes()[1], 0x89);
+                validate_x86_64_selected_form_encoding(
+                    &physical,
+                    kind,
+                    key,
+                    &operands,
+                    encoded.bytes(),
+                )
+                .unwrap();
+                let narrow = encode_x86_64_selected_form(
+                    &physical,
+                    SelectedInstructionKind::ZeroExtendU8,
+                    alternative(MachineAlternativeFamily::ZeroExtendU8, 0),
+                    &operands,
+                )
+                .unwrap();
+                assert!(
+                    validate_x86_64_selected_form_encoding(
+                        &physical,
+                        kind,
+                        key,
+                        &operands,
+                        narrow.bytes()
+                    )
+                    .is_err()
+                );
+                let copy = encode_x86_64_selected_form(
+                    &physical,
+                    SelectedInstructionKind::CopyI64,
+                    alternative(MachineAlternativeFamily::CopyI64, 0),
+                    &operands,
+                )
+                .unwrap();
+                assert!(
+                    validate_x86_64_selected_form_encoding(
+                        &physical,
+                        kind,
+                        key,
+                        &operands,
+                        copy.bytes()
+                    )
+                    .is_err()
+                );
+                for byte in 0..3 {
                     let mut changed = encoded.bytes().to_vec();
                     changed[byte] ^= 1;
                     assert!(

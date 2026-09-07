@@ -8,7 +8,6 @@ mod frame_protocol;
 mod machine_effects;
 mod post_handoff_writer;
 mod preservation_storage;
-mod ranked_u32_countdown;
 mod register_model;
 mod selected_form_encoding;
 pub use floating_control::{
@@ -29,7 +28,6 @@ pub use post_handoff_writer::{
 pub use preservation_storage::{
     Aarch64PreservationStorageCatalogError, aarch64_preservation_storage_catalog,
 };
-pub use ranked_u32_countdown::*;
 pub use register_model::aarch64_aapcs64_register_call_keys;
 pub use register_model::aarch64_darwin_register_call_keys;
 pub use register_model::{

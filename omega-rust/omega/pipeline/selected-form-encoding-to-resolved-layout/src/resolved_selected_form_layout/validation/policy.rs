@@ -45,16 +45,11 @@ pub(super) fn derive(
 }
 
 fn is_admitted_canonical_shape(function: &SelectedFunction) -> bool {
-    is_single_entry(function)
-        || (matches!(function.blocks.len(), 3 | 4)
-            && matches!(
-                function.blocks.first().map(|block| &block.terminator),
-                Some(
-                    SelectedTerminator::ConditionalBranch { .. }
-                        | SelectedTerminator::ConditionalBranchU64LessThan { .. }
-                        | SelectedTerminator::ConditionalBranchI64LessThan { .. }
-                )
-            ))
+    !function.blocks.is_empty()
+        && function
+            .blocks
+            .iter()
+            .any(|block| block.id == function.entry_block)
 }
 
 fn is_single_entry(function: &SelectedFunction) -> bool {

@@ -31,16 +31,30 @@ fn deferred_program() -> SelectedFormEncoding {
 }
 
 #[test]
-fn current_encoding_binds_the_version_11_frame_address_schema() {
+fn current_encoding_binds_the_version_12_ordinary_instruction_schema() {
     let mut program = deferred_program();
-    // Independently assembled SHA-256 of the version-11 187-byte canonical
-    // sequence: roots, deferred branch, absent address/frame, and exact counts.
-    // Version 10's removed structural roster is not a current wire shape.
+    // V12 adds the distinct U32 normalization family. This deferred-branch
+    // fixture's payload is unchanged; its schema domain must still change.
+    // Assemble the canonical bytes independently of the production encoder.
+    use sha2::{Digest, Sha256};
+    let mut canonical = b"omega.terminal.layout-independent-selected-form-encoding.v12".to_vec();
+    canonical.extend_from_slice(&[1; 32]); // Selected identity.
+    canonical.extend_from_slice(&[2; 32]); // Physical identity.
+    canonical.push(0); // No post-allocation rewrite custody.
+    canonical.extend_from_slice(&1_u64.to_le_bytes()); // One row.
+    canonical.extend_from_slice(&7_u32.to_le_bytes()); // Instruction.
+    canonical.push(6); // ConditionalBranchNonZero family.
+    canonical.extend_from_slice(&0_u32.to_le_bytes()); // Alternative variant.
+    canonical.extend_from_slice(&[0, 0, 1, 0, 0]); // No address, retained, deferred, reason, no frame.
+    for count in [0_u64, 1, 0, 0, 0] {
+        canonical.extend_from_slice(&count.to_le_bytes());
+    }
+    assert_eq!(canonical.len(), 187);
     let expected = [
-        0xa5, 0xcf, 0x7f, 0x7b, 0xc3, 0x10, 0xf4, 0x82, 0x2b, 0x5e, 0x75, 0x6a, 0x38, 0x01, 0x85,
-        0xe4, 0x47, 0x0d, 0x22, 0xae, 0xb3, 0x1e, 0x7a, 0x40, 0xae, 0xaf, 0x45, 0xff, 0x39, 0xec,
-        0x89, 0x9a,
+        100, 40, 74, 0, 202, 249, 16, 226, 94, 47, 235, 228, 109, 33, 80, 207, 54, 146, 1, 243,
+        211, 120, 8, 148, 190, 25, 56, 104, 86, 169, 254, 3,
     ];
+    assert_eq!(<[u8; 32]>::from(Sha256::digest(&canonical)), expected);
     assert_eq!(program.recomputed_identity().bytes(), expected);
     program.identity = program.recomputed_identity();
     assert_eq!(program.recomputed_identity(), program.identity());

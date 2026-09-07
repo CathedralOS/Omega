@@ -31,7 +31,7 @@ impl ResolvedSelectedFormLayoutIdentity {
     }
 }
 
-const LAYOUT_SCHEMA: &[u8] = b"omega.terminal.resolved-selected-form-layout.v10";
+const LAYOUT_SCHEMA: &[u8] = b"omega.terminal.resolved-selected-form-layout.v11";
 
 pub fn resolved_machine_layout_identity(
     selected: selected_instructions::SelectedInstructionPlanIdentity,
@@ -166,6 +166,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         Family::MaterializeI64 => 1,
         Family::CopyI64 => 2,
         Family::ZeroExtendU8 => 15,
+        Family::ZeroExtendU32 => 20,
         Family::ExactAddI64 => 3,
         Family::ExactAddI64Immediate => 4,
         Family::ExactSubtractI64 => 5,

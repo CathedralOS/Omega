@@ -7,6 +7,8 @@ name = "abstract-operations"
 version = "0.1.0"
 dependencies = [
  "semantic-vocabulary",
+ "sha2",
+ "terminal-codec",
  "terminal-psi",
 ]
 
@@ -2134,13 +2136,17 @@ dependencies = [
  "optimization-core",
  "optimization-unit",
  "optimization-unit-semantics",
+ "proof-admission",
  "register-environment",
  "register-model",
  "selected-instructions",
  "semantic-vocabulary",
  "target",
  "target-operations",
+ "terminal-codec",
+ "terminal-fixed-fuel",
  "terminal-psi",
+ "terminal-verifier",
 ]
 
 [[package]]

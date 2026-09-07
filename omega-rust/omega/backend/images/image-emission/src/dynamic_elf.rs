@@ -523,7 +523,7 @@ fn derive_output(
     artifact: &ObjectArtifact,
     admitted: &ValidatedElfDynamicExecutable,
 ) -> Result<EmittedImageOutput, Diagnostic> {
-    super::ranked_u32_countdown::replay_ranked_u32_countdown_final_image(artifact)?;
+    super::function_fragments::replay::validate(artifact)?;
     let target = artifact.target();
     if target != admitted.image().target
         || target.object_format != ObjectFormat::Elf

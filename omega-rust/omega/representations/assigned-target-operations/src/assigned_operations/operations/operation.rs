@@ -6,7 +6,6 @@ use crate::AssignedBooleanExpression;
 use crate::AssignedConditionalBooleanArm;
 use crate::AssignedConditionalIntegerArm;
 use crate::AssignedIntegerExpression;
-use crate::AssignedRankedU32Countdown;
 use crate::AssignedScalarLocation;
 use crate::AssignedUnitBody;
 use crate::ExpressionFrame;
@@ -66,7 +65,6 @@ pub enum AssignedDynamicParameterCallMechanism {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AssignedOperation {
-    RankedU32Countdown(AssignedRankedU32Countdown),
     UnitBody(AssignedUnitBody),
     ReturnStructuralScalarCall {
         psi_edge: EdgeId,

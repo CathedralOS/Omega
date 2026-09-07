@@ -103,6 +103,9 @@ files without fixing those dependencies does not complete the move.
 Start at `omega-rust/omega/compiler/native-realization/src/realization/physical_stage.rs`:
 `NativePhysicalStageResult::Assigned | Optimized` still selects competing
 assignment/emission implementations.
+The remaining assigned families include callbacks and unsupported scalar/structural
+ABI and body forms. Ranked countdowns already use the common graph, including
+empty selections; do not restore their deleted assigned or ISA-template route.
 
 Define the destination's current program and stage contracts first. Implement
 them directly, replacing either existing route where necessary. Empty selection

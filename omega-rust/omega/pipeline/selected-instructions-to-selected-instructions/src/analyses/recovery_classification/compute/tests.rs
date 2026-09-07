@@ -90,6 +90,7 @@ fn fixture() -> (
     };
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     let selected = SelectedFunction {
+        ranked: None,
         machine,
         attachment: None,
         provenance: Default::default(),

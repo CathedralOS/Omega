@@ -2,7 +2,7 @@
 
 mod output;
 
-pub(crate) use output::{NativeTargetStageEvidence, NativeTargetStageResult};
+pub(crate) use output::NativeTargetStageResult;
 
 use crate::realization::diagnostics::realization_error;
 use crate::realization::model::{NativeRealizationAuthority, NativeRealizationCoreRequest};
@@ -38,19 +38,18 @@ pub(crate) fn lower_realization_target_stage(
                 ));
             }
             let target =
-                abstract_operations_to_target_operations::lower_ranked_to_target_operations(
-                    &ranked,
-                    request.target,
+                abstract_operations_to_target_operations::lower_validated_ranked_to_target_operations(
+                    abstract_identity, &ranked, request.target,
                 )
                 .map_err(|error| realization_error("ranked target lowering", error))?;
-            Ok(NativeTargetStageResult::ranked(target))
+            Ok(NativeTargetStageResult::new(target))
         }
         NativeRealizationAuthority::Ordinary => {
             let target = abstract_operations_to_target_operations::lower_validated_abstract_to_target_operations(
                 program, request.target, settlements, provider_installation,
                 request.ieee_float_fma, request.native_callbacks,
             ).map_err(|error| realization_error("target lowering", error))?;
-            Ok(NativeTargetStageResult::ordinary(target))
+            Ok(NativeTargetStageResult::new(target))
         }
     }
 }

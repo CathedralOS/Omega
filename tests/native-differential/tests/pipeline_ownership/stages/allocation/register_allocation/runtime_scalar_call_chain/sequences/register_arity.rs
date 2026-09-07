@@ -115,8 +115,10 @@ fn register_call_arity_reaches_image_and_installation_with_empty_and_selected_ph
                 let framed = stage_function_fragment_frame_application(emitted).unwrap();
                 let text = stage_optimized_fixed_frame_text_section(framed).unwrap();
                 let source = stage_optimized_relocation_free_object_container(text).unwrap();
+                let source = std::sync::Arc::new(source);
                 let object =
-                    image_emission::build_function_fragment_object_artifact(&source).unwrap();
+                    image_emission::build_function_fragment_object_artifact(source.clone())
+                        .unwrap();
                 image_emission::validate_function_fragment_object_artifact(&source, &object)
                     .unwrap();
                 assert_eq!(object.entry_function().unit_call_stacks.len(), 1);

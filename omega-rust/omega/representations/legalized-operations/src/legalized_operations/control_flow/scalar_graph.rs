@@ -17,6 +17,8 @@ pub struct LegalizedScalarFunction {
     pub call_plan: CallPlan,
     pub parameters: Vec<LegalizedScalarParameter>,
     pub structural: Option<crate::LegalizedStructuralContract>,
+    /// Replayable rank, fixed-fuel and ownership custody; execution is in `blocks`.
+    pub ranked: Option<abstract_operations::RankedU32CountdownCustody>,
     pub entry_block: BlockId,
     pub blocks: Vec<LegalizedScalarBlock>,
 }

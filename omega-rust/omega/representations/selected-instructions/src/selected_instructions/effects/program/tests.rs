@@ -213,7 +213,7 @@ fn codec_round_trips_complete_effect_content() {
 }
 
 #[test]
-fn jump_effects_require_the_v12_wire_vocabulary() {
+fn jump_effects_require_the_current_wire_vocabulary() {
     let mut source = plan();
     let instruction = &mut source.functions[0].blocks[0].instructions[0];
     instruction.kind = SelectedInstructionKind::Jump;
@@ -222,7 +222,7 @@ fn jump_effects_require_the_v12_wire_vocabulary() {
         MachineEncodedControlEffect::UnconditionalRelativeBranchV1;
     source.identity = pre_allocation_machine_effect_identity(&source);
     let mut bytes = source.encode();
-    assert_eq!(&bytes[8..12], &12_u32.to_le_bytes());
+    assert_eq!(&bytes[8..12], &13_u32.to_le_bytes());
     assert_eq!(
         PreAllocationMachineEffectPlan::decode(&bytes).unwrap(),
         source
@@ -260,7 +260,31 @@ fn codec_zero_extension_round_trips_and_rejects_all_prior_versions() {
         PreAllocationMachineEffectPlan::decode(&encoded).unwrap(),
         source
     );
-    for version in 0_u32..12 {
+    for version in 0_u32..13 {
+        let mut stale = encoded.clone();
+        stale[8..12].copy_from_slice(&version.to_le_bytes());
+        assert_eq!(
+            PreAllocationMachineEffectPlan::decode(&stale),
+            Err(PreAllocationMachineEffectDecodeError::UnsupportedVersion(
+                version
+            ))
+        );
+    }
+}
+
+#[test]
+fn codec_u32_zero_extension_round_trips_and_rejects_all_prior_versions() {
+    let mut source = plan();
+    let instruction = &mut source.functions[0].blocks[0].instructions[0];
+    instruction.kind = SelectedInstructionKind::ZeroExtendU32;
+    instruction.alternatives[0].key.family = MachineAlternativeFamily::ZeroExtendU32;
+    source.identity = pre_allocation_machine_effect_identity(&source);
+    let encoded = source.encode();
+    assert_eq!(
+        PreAllocationMachineEffectPlan::decode(&encoded).unwrap(),
+        source
+    );
+    for version in 0_u32..13 {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(

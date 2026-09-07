@@ -73,8 +73,6 @@ use unit::{emit_aarch64_unit_call, emit_unit_body, emit_x86_64_unit_call};
 mod x86_fma;
 pub use x86_fma::{EmittedX86ScalarFmaFragment, emit_feature_required_x86_scalar_fma};
 
-mod ranked_countdown;
-
 mod dynamic_parameter;
 mod forwarded_dynamic_parameter;
 
@@ -403,9 +401,6 @@ fn emit_function(
             functions,
         );
     }
-    if let AssignedOperation::RankedU32Countdown(countdown) = &function.operation {
-        return ranked_countdown::emit(function, countdown, psi, target);
-    }
     let architecture = target.architecture;
     let mut internal_calls = Vec::new();
     let mut foreign_calls = Vec::new();
@@ -441,9 +436,6 @@ fn emit_function(
     let mut scalar_stack_eligible = false;
     let mut scalar_control_flow = ScalarControlFlowEvidence::Linear;
     let bytes = match &function.operation {
-        AssignedOperation::RankedU32Countdown(_) => {
-            unreachable!("ranked countdowns are emitted by the early carrier path")
-        }
         AssignedOperation::ScalarReturnWithCleanup { .. } => {
             unreachable!("scalar cleanup returns are emitted by the early carrier path")
         }
@@ -1484,7 +1476,6 @@ fn append_aarch64_instructions(bytes: &mut Vec<u8>, instructions: Vec<u32>) {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EmissionError {
-    InvalidRankedCountdown(MachineId),
     UnitOperationAfterReturn,
     UnitFunctionHasNoReturn,
     UnitCallStackAreaNotEncodable,

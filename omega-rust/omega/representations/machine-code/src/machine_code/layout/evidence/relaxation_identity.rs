@@ -17,7 +17,7 @@ use super::{
     X86BranchRelaxationIdentity, X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,
 };
 
-const RELAXATION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation.v3";
+const RELAXATION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation.v4";
 const REVISION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation-revision.v3";
 
 #[derive(Clone, Copy)]
@@ -170,6 +170,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::MaterializeI64 => 1,
         MachineAlternativeFamily::CopyI64 => 2,
         MachineAlternativeFamily::ZeroExtendU8 => 15,
+        MachineAlternativeFamily::ZeroExtendU32 => 20,
         MachineAlternativeFamily::ExactAddI64 => 3,
         MachineAlternativeFamily::ExactAddI64Immediate => 4,
         MachineAlternativeFamily::ExactSubtractI64 => 5,

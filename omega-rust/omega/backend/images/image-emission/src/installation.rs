@@ -101,7 +101,7 @@ use structural_scalar_codec::{
 use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joins;
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 84;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 85;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -2028,7 +2028,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
         let ranked_body_is_exclusive = !function.ranked_u32_countdown
             || (record.functions.len() == 1
                 && function.attachment.is_some()
-                && function.unit_stack.is_none()
+                && function.unit_stack.is_some()
                 && function.scalar_stack.is_none()
                 && function.unit_call_stacks.is_empty()
                 && function.scalar_call_stacks.is_empty()

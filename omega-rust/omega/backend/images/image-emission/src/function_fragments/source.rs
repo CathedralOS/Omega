@@ -101,6 +101,25 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
             .find(|row| row.machine == fragment.machine)
             .ok_or(Error::Mismatch("missing selected function"))?;
         let structural = selected.structural.as_ref();
+        let ranked = match &targeted.operation {
+            target_operations::TargetOperation::RankedU32Countdown(ranked) => Some(ranked),
+            _ => None,
+        };
+        if selected.ranked.as_ref() != ranked.map(|ranked| &ranked.custody) {
+            return Err(Error::Mismatch(
+                "ranked selected custody differs from current target",
+            ));
+        }
+        if ranked.is_some()
+            && (!selected.calls.is_empty()
+                || !selected.memory_accesses.is_empty()
+                || !selected.outgoing_arguments.is_empty()
+                || !selected.boundary_settlements.is_empty())
+        {
+            return Err(Error::Mismatch(
+                "ranked unused referents acquired executable accesses",
+            ));
+        }
         if abstracted.attachment != fragment.attachment
             || targeted.provenance != fragment.provenance
             || targeted.mixed_structural_scalar_abi.is_some()
@@ -116,7 +135,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 "shared function has unsupported ABI or boundary effects",
             ));
         }
-        if unit && !abstracted.parameters.is_empty() {
+        if unit && !abstracted.parameters.is_empty() && ranked.is_none() {
             let body = unit_scalar_body(targeted).ok_or(Error::Mismatch(
                 "parameterized Unit function has no retained scalar ABI",
             ))?;
@@ -170,7 +189,10 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 }
                 | AbstractOperation::ReturnUnit {
                     cleanup_actions, ..
-                } => cleanup_actions.is_empty(),
+                } => match ranked {
+                    Some(ranked) => cleanup_actions == &ranked.cleanup_actions,
+                    None => cleanup_actions.is_empty(),
+                },
                 AbstractOperation::IntegerEqual { .. }
                 | AbstractOperation::IntegerLessThan { .. }
                 | AbstractOperation::IntegerLessOrEqual { .. }
@@ -200,6 +222,22 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         }
     }
     Ok(())
+}
+
+/// Copy retained ranked metadata; admission remains with the complete source replay.
+pub(super) fn ranked_record(
+    function: &target_operations::TargetFunction,
+) -> Option<machine_code::RankedU32CountdownMachineCodeRecord> {
+    let target_operations::TargetOperation::RankedU32Countdown(ranked) = &function.operation else {
+        return None;
+    };
+    Some(machine_code::RankedU32CountdownMachineCodeRecord {
+        custody: ranked.custody.clone(),
+        call_plan: ranked.call_plan.clone(),
+        structural_types: ranked.structural_types.clone(),
+        structural_parameters: ranked.structural_parameters.clone(),
+        cleanup_actions: ranked.cleanup_actions.clone(),
+    })
 }
 
 /// Borrow already validated target ABI facts; this does not construct an ABI plan.

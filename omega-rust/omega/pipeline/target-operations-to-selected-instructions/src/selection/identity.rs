@@ -46,7 +46,7 @@ pub(super) fn receipt(
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v20\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v21\0".as_slice();
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
@@ -187,6 +187,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::ReturnI64 => 3,
         SelectedInstructionKind::CopyI64 => 4,
         SelectedInstructionKind::ZeroExtendU8 => 15,
+        SelectedInstructionKind::ZeroExtendU32 => 20,
         SelectedInstructionKind::ExactAddI64 { .. } => 5,
         SelectedInstructionKind::ExactAddI64Immediate { .. } => 6,
         SelectedInstructionKind::ExactSubtractI64 { .. } => 7,
@@ -257,6 +258,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         | SelectedInstructionKind::CompareI64
         | SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::ZeroExtendU8
+        | SelectedInstructionKind::ZeroExtendU32
         | SelectedInstructionKind::ConditionalBranchNonZero
         | SelectedInstructionKind::ConditionalBranchU64LessThan
         | SelectedInstructionKind::ConditionalBranchI64LessThan

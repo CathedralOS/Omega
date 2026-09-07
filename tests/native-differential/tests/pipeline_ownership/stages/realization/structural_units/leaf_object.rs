@@ -71,7 +71,8 @@ fn structural_extent_unit_leaf_reaches_canonical_object_artifact() {
         object.object().text_section.byte_count
     );
     assert_eq!(object.object().relocation_record_count, 0);
-    let published = image_emission::build_function_fragment_object_artifact(&object)
+    let object = std::sync::Arc::new(object);
+    let published = image_emission::build_function_fragment_object_artifact(object.clone())
         .expect("the shared structural leaf must publish without invented stack homes");
     image_emission::validate_function_fragment_object_artifact(&object, &published)
         .expect("structural object publication must independently replay");
@@ -90,6 +91,10 @@ fn structural_extent_unit_leaf_reaches_canonical_object_artifact() {
     image_emission::validate_installation_record(&decoded, &image)
         .expect("structural ABI installation replay");
 
+    drop(image);
+    drop(published);
+    let object = std::sync::Arc::try_unwrap(object)
+        .expect("completed image publication releases the original staged object");
     let artifact =
         stage_validated_optimized_object_artifact(canonical_artifact(&semantic, &proof), object)
             .expect("the leaf object must retain the exact canonical semantic/proof join");

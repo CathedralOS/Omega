@@ -15,13 +15,20 @@ use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType, Value
 use target_operations::{TargetFunction, TargetOperation, TargetOperationPlan};
 mod boolean;
 mod control;
+mod custody;
+pub(super) use custody::validate_unit_custody;
 mod header;
+mod ranked;
+pub(super) use ranked::structural_contract;
 mod nodes;
 mod target;
 use header::function_abi;
 pub(super) use nodes::instruction;
 use target::validate_target;
 
+pub(super) fn u32_type() -> IntegerType {
+    IntegerType::new(IntegerSign::Unsigned, 32).expect("U32")
+}
 pub(super) fn u8_type() -> IntegerType {
     IntegerType::new(IntegerSign::Unsigned, 8).expect("U8")
 }
@@ -57,7 +64,12 @@ pub(super) fn match_input(
     unit: &PsiOptimizationUnit,
 ) -> Result<CallPlan, LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
-    let call_plan = function_abi(native.target, target, abstracted, optimized)?;
+    let ranked = matches!(target.operation, TargetOperation::RankedU32Countdown(_));
+    let call_plan = if ranked {
+        ranked::validate(target, abstracted, optimized, native, plan, unit)?
+    } else {
+        function_abi(native.target, target, abstracted, optimized)?
+    };
     if optimized.blocks.is_empty()
         || optimized.entry != abstracted.entry
         || abstracted.block_entries.len() != optimized.blocks.len()
@@ -96,7 +108,7 @@ pub(super) fn match_input(
         {
             return Err(invalid);
         }
-        nodes::validate(block, optimized)?;
+        nodes::validate(block, optimized, ranked)?;
     }
     let entry = optimized
         .blocks
@@ -116,7 +128,7 @@ pub(super) fn match_input(
                 .iter()
                 .flat_map(|block| &block.nodes)
                 .any(|node| node.uses.iter().any(|used| used.value == parameter.value))
-                && !(Some(placement.shape) == scalar_shape(parameter.scalar_type)
+                && !(Some(placement.shape) == (if ranked && parameter.scalar_type == ScalarType::Integer(u32_type()) { Some(ValueShape::integer(4, 4)) } else { scalar_shape(parameter.scalar_type) })
                     && matches!(placement.locations.as_slice(), [ValueLocation::Register {value_byte_offset:0,byte_size,..}] if *byte_size == placement.shape.byte_size))
         })
     {
@@ -153,10 +165,12 @@ pub(super) fn match_input(
             }
         }
     }
-    if !acyclic(optimized) {
+    if !ranked && !acyclic(optimized) {
         return Err(invalid);
     }
-    validate_target(target, abstracted, optimized, native, plan, unit)?;
+    if !ranked {
+        validate_target(target, abstracted, optimized, native, plan, unit)?;
+    }
     Ok(call_plan)
 }
 pub(super) fn callee_plan(
@@ -207,7 +221,9 @@ pub(super) fn i64_type() -> IntegerType {
 }
 pub(super) fn integer_type(scalar: ScalarType) -> Option<IntegerType> {
     match scalar {
-        ScalarType::Integer(integer) if integer == u64_type() || integer == i64_type() => {
+        ScalarType::Integer(integer)
+            if integer == u64_type() || integer == i64_type() || integer == u32_type() =>
+        {
             Some(integer)
         }
         _ => None,

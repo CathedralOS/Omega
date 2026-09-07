@@ -161,7 +161,9 @@ pub(super) fn populate(
 ) -> Result<(), Error> {
     let selected = selected(source, function.machine)?;
     let fragment = fragment(source, function.machine)?;
-    if let Some(contract) = &selected.structural {
+    if let Some(contract) = &selected.structural
+        && selected.ranked.is_none()
+    {
         for parameter in &contract.parameters {
             let target = &parameter.target;
             function.unit_parameters.push(UnitParameterRecord {

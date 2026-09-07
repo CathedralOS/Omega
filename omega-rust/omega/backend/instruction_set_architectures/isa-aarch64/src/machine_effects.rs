@@ -185,7 +185,9 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         MachineSemanticKind::CompareI64Zero => (vec![0], vec![]),
         MachineSemanticKind::CompareI64 => (vec![0, 1], vec![]),
         MachineSemanticKind::MaterializeI64 => (vec![], vec![0]),
-        MachineSemanticKind::CopyI64 | MachineSemanticKind::ZeroExtendU8 => (vec![0], vec![1]),
+        MachineSemanticKind::CopyI64
+        | MachineSemanticKind::ZeroExtendU8
+        | MachineSemanticKind::ZeroExtendU32 => (vec![0], vec![1]),
         MachineSemanticKind::ExactAddI64 | MachineSemanticKind::ExactSubtractI64 => {
             (vec![0, 1], vec![2])
         }

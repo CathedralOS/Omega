@@ -1,6 +1,6 @@
 //! Reconstruct the exact preheader, guard, decrement, backedge, and exit graph.
 
-use machine_code::RankedU32CountdownMachineCodeRecord;
+use abstract_operations::RankedU32CountdownCustody;
 use semantic_vocabulary::IntegerValue;
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralAccess, TerminalMachine,
@@ -9,9 +9,9 @@ use terminal_psi::{
 
 pub(super) fn replay_ranked_graph_matches(
     machine: &TerminalMachine,
-    record: &RankedU32CountdownMachineCodeRecord,
+    custody: &RankedU32CountdownCustody,
 ) -> bool {
-    let graph = record.custody.graph;
+    let graph = custody.graph;
     let Some(ranked) = machine.ranked_scc.as_ref() else {
         return false;
     };

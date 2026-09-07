@@ -39,6 +39,7 @@ pub enum MachineSemanticKind {
     CallI64,
     Jump,
     ZeroExtendU8,
+    ZeroExtendU32,
     Load64,
     Store64,
     FrameAddress,
@@ -46,7 +47,7 @@ pub enum MachineSemanticKind {
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 20] = [
+    pub const ALL: [Self; 21] = [
         Self::CompareI64Zero,
         Self::MaterializeI64,
         Self::CopyI64,
@@ -63,6 +64,7 @@ impl MachineSemanticKind {
         Self::CallI64,
         Self::Jump,
         Self::ZeroExtendU8,
+        Self::ZeroExtendU32,
         Self::Load64,
         Self::Store64,
         Self::FrameAddress,
@@ -88,6 +90,7 @@ pub enum MachineAlternativeFamily {
     CallI64,
     Jump,
     ZeroExtendU8,
+    ZeroExtendU32,
     Load64,
     Store64,
     FrameAddress,
@@ -113,6 +116,7 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::CallI64 => Self::CallI64,
             MachineSemanticKind::Jump => Self::Jump,
             MachineSemanticKind::ZeroExtendU8 => Self::ZeroExtendU8,
+            MachineSemanticKind::ZeroExtendU32 => Self::ZeroExtendU32,
             MachineSemanticKind::Load64 => Self::Load64,
             MachineSemanticKind::Store64 => Self::Store64,
             MachineSemanticKind::FrameAddress => Self::FrameAddress,

@@ -21,12 +21,7 @@ pub(crate) fn lower_realization_optimization_stage(
     let (authority, input) = input.into_parts();
     if !request.optimization_selections.is_empty() {
         match &authority {
-            NativeRealizationAuthority::RankedU32Countdown(_) => {
-                return Err(realization_error(
-                    "optimized ranked-native authority",
-                    "the selected optimizer route does not yet retain ranked-countdown native authority; no ordinary optimized route was substituted",
-                ));
-            }
+            NativeRealizationAuthority::RankedU32Countdown(_) => {}
             NativeRealizationAuthority::Ordinary => {
                 if !request.native_callbacks.is_empty() || !request.callback_thunks.is_empty() {
                     return Err(realization_error(
@@ -57,7 +52,7 @@ pub(crate) fn lower_realization_optimization_stage(
     {
         return Err(realization_error(
             "ranked abstract optimization identity",
-            "empty selection changed the ranked native abstract-operation plan",
+            "optimization changed the exact admitted ranked abstract-operation plan",
         ));
     }
     Ok(NativeOptimizationStageResult { program, authority })

@@ -6,7 +6,8 @@ pub(super) fn validate_replay_custody(
     unit: &PsiOptimizationUnit,
     proposed: &LegalizedOperationPlan,
 ) -> Result<(), LegalizationError> {
-    if optimization_unit_semantics::validate_psi_optimization_unit(unit).is_err()
+    if crate::legalization::scalar_graph_input::validate_unit_custody(target, abstract_plan, unit)
+        .is_err()
         || optimization_unit::recompute_psi_optimization_unit_identity(unit) != unit.identity
         || target.psi != abstract_plan.psi
         || target.psi != unit.psi

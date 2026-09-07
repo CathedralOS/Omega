@@ -41,12 +41,15 @@ fn artifact_rejects_corruption_truncation_trailing_and_closed_tags() {
         FixedViewCopyPlan::decode(&wrong_magic),
         Err(FixedViewCopyDecodeError::WrongMagic)
     );
-    let mut wrong_version = encoded.clone();
-    wrong_version[8..12].copy_from_slice(&16_u32.to_le_bytes());
-    assert_eq!(
-        FixedViewCopyPlan::decode(&wrong_version),
-        Err(FixedViewCopyDecodeError::UnsupportedVersion(16))
-    );
+    let current_version = u32::from_le_bytes(encoded[8..12].try_into().unwrap());
+    for version in [current_version - 1, current_version.checked_add(1).unwrap()] {
+        let mut wrong_version = encoded.clone();
+        wrong_version[8..12].copy_from_slice(&version.to_le_bytes());
+        assert_eq!(
+            FixedViewCopyPlan::decode(&wrong_version),
+            Err(FixedViewCopyDecodeError::UnsupportedVersion(version))
+        );
+    }
     let mut policy_tag = encoded.clone();
     let policy_offset = 8 + 4 + 32 + (5 * 32);
     policy_tag[policy_offset] = 99;
@@ -118,7 +121,7 @@ fn stale_artifact_version_rejects_before_payload_or_authentication() {
 }
 
 #[test]
-fn artifact_v15_rejection_precedence_is_trailing_payload_semantic_then_outer() {
+fn artifact_current_rejection_precedence_is_trailing_payload_semantic_then_outer() {
     let encoded = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1).encode();
     let transformed_offset = transformed_identity_offset(&encoded);
     let payload_digest_offset = selected_payload_offset(&encoded);
@@ -153,7 +156,7 @@ fn artifact_v15_rejection_precedence_is_trailing_payload_semantic_then_outer() {
 #[test]
 fn every_previous_wire_generation_rejects_before_payload_decoding() {
     let encoded = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1).encode();
-    for version in 0..15_u32 {
+    for version in 0..16_u32 {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(

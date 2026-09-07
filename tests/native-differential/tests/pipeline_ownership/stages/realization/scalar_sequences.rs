@@ -127,8 +127,10 @@ fn exact_scalar_sequences_reach_shared_native_publication() {
                             .into()
                     };
                 let source = stage_optimized_relocation_free_object_container(text).unwrap();
-                let object = image_emission::build_function_fragment_object_artifact(&source)
-                    .expect("shared scalar sequence object");
+                let source = std::sync::Arc::new(source);
+                let object =
+                    image_emission::build_function_fragment_object_artifact(source.clone())
+                        .expect("shared scalar sequence object");
                 image_emission::validate_function_fragment_object_artifact(&source, &object)
                     .unwrap();
                 let image = image_emission::emit_executable_image(&object, 3).unwrap();

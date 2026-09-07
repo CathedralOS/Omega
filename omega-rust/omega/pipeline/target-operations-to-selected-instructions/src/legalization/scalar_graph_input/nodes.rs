@@ -36,7 +36,10 @@ pub(in crate::legalization) fn instruction(
             result,
             scalar_type,
             ..
-        } if *scalar_type == u64_type() || *scalar_type == u8_type() => {
+        } if *scalar_type == u64_type()
+            || *scalar_type == u8_type()
+            || *scalar_type == u32_type() =>
+        {
             Some((*psi_operation, *result))
         }
         AbstractOperation::IntegerEqual {
@@ -70,7 +73,7 @@ pub(in crate::legalization) fn instruction(
 fn valid_literal(scalar: ScalarType, value: semantic_vocabulary::IntegerValue) -> bool {
     matches!((scalar,value),
         (ScalarType::Integer(integer),semantic_vocabulary::IntegerValue::Unsigned(value))
-            if (integer == u64_type() && value <= u128::from(u64::MAX)) || (integer == u8_type() && value <= u128::from(u8::MAX)))
+            if (integer == u64_type() && value <= u128::from(u64::MAX)) || (integer == u8_type() && value <= u128::from(u8::MAX)) || (integer == u32_type() && value <= u128::from(u32::MAX)))
         || matches!((scalar,value),
             (ScalarType::Integer(integer),semantic_vocabulary::IntegerValue::Signed(value))
                 if integer == i64_type() && i64::try_from(value).is_ok())
@@ -78,6 +81,7 @@ fn valid_literal(scalar: ScalarType, value: semantic_vocabulary::IntegerValue) -
 pub(super) fn validate(
     block: &OptimizationBlock,
     optimized: &PsiOptimizationFunction,
+    ranked: bool,
 ) -> Result<(), LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
     super::boolean::validate(block, optimized)?;
@@ -159,5 +163,5 @@ pub(super) fn validate(
             return Err(invalid);
         }
     }
-    super::control::validate(terminator, body, optimized)
+    super::control::validate(terminator, body, optimized, ranked)
 }

@@ -8,10 +8,16 @@ pub(in crate::function_fragments) fn validate_function(
     let invalid = || Error::Mismatch("structural object differs from current ABI or call evidence");
     let selected = selected(source, function.machine)?;
     let fragment = fragment(source, function.machine)?;
-    let parameters = selected
-        .structural
-        .as_ref()
-        .map_or(&[][..], |contract| contract.parameters.as_slice());
+    // Ranked referents are retained semantic ownership, not materialized homes.
+    // Complete source admission rejects executable accesses to those referents.
+    let parameters = if selected.ranked.is_some() {
+        &[][..]
+    } else {
+        selected
+            .structural
+            .as_ref()
+            .map_or(&[][..], |contract| contract.parameters.as_slice())
+    };
     if function.unit_parameters.len() != parameters.len()
         || function.unit_parameter_homes.len() != parameters.len()
         || function.internal_unit_calls.len()
