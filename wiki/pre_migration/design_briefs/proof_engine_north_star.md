@@ -7,7 +7,7 @@ Status: **settled architectural direction; implementation is staged.** The
 language guide governs landed source semantics, the terminal-Psi and proof-
 kernel pages govern the artifact boundary, and `TASKS.md` owns remaining work.
 This brief states the endpoint those increments converge toward. The
-[contract-first mathematical proof direction](mathematical_proofs.md) governs
+[contract-first mathematical proof direction](../../spec/proofs/contracts.md) governs
 the source model: ordinary proof machines and trait bundles, general logic in
 contracts, and explicitly selectable axioms. Its implementation remains open.
 
@@ -216,7 +216,7 @@ whole foundation.
 
 `PROOF-CONTRACT-MIGRATION` in [TASKS.md](../../../TASKS.md) owns source replacement,
 core examples, and evidence preservation through Terminal Psi and replay.
-The proof cases in [Mathematical Proofs](mathematical_proofs.md#migration-acceptance)
+The [migration acceptance cases](../../../TASKS.md)
 must demonstrate witness composition, higher-order reasoning, nonconstructive
 existence, axiom policy, and quotient laws. Optional naming syntax is not a
 dependency of that work. Explicit relevance and effectful-computation work

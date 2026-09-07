@@ -145,7 +145,7 @@ on an earlier field requires explicit transport for a later field whose
 logical type no longer coincides. Erasure does not discharge that obligation.
 
 These contracts precede full evidence-bearing quotients; see
-[Mathematical Proofs](mathematical_proofs.md) and
+[Mathematical Proofs](../../spec/proofs/contracts.md) and
 [Law-Bearing Relations, Evidence, And Quotients](law_bearing_relations_and_quotients.md).
 
 ## 3. (A) The limited systems fragment

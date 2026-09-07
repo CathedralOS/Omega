@@ -3,7 +3,7 @@
 The canonical review schema is version 130 and row schema version 88. This file
 records the closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance. Proof-interface sections follow the
-[contract/bundle direction](../../../../../wiki/pre_migration/design_briefs/mathematical_proofs.md)
+[contract/bundle direction](../../../../../wiki/spec/proofs/contracts.md)
 and require encoding migration; they are not a claim that replacement proof
 rows already exist in version 130. The source/codec changes and exact-version
 rejection controls belong to `PROOF-CONTRACT-MIGRATION`.

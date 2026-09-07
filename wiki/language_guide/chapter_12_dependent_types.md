@@ -481,7 +481,7 @@ and predicates, nested quantification, and noncomputable values. The first-order
 systems restrictions above do not constrain that mathematical language.
 Universes, equality, and foundation compatibility need explicit design; the
 current specialized checker is not a complete implementation. See
-[Mathematical Proofs](../pre_migration/design_briefs/mathematical_proofs.md) and the
+[Mathematical Proofs](../spec/proofs/contracts.md) and the
 [proof-engine direction](../pre_migration/design_briefs/proof_engine_north_star.md).
 
 ## Relationship To Other Chapters

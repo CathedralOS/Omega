@@ -1718,7 +1718,7 @@ Current ownership is:
   runtime argument, storage, or call, and evidence attached to an executable
   call remains linked to that exact operation. Outcome facts become available
   only after the matching case is established. The migration acceptance lives in
-  [Mathematical Proofs](../../../design_briefs/mathematical_proofs.md).
+  [Mathematical Proofs](../../../../spec/proofs/contracts.md).
   The separate contract-free dynamic scalar lane
   admits one attached Unit caller, one exact closed conformance row, one
   borrowed field source, and an exact `bool` or `i32` result. It retains either

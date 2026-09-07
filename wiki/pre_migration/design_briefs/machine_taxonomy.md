@@ -37,7 +37,7 @@ conclusions. Mathematical operations, witnesses, and laws are organized through
 traits and named conformances. A condition is not an operation or a decision
 procedure. General mathematical function/predicate abstraction and logical
 binders remain required without becoming new executable machine supply modes.
-The [mathematical proof direction](mathematical_proofs.md) governs that work.
+The [mathematical proof direction](../../spec/proofs/contracts.md) governs that work.
 
 ## The substitutable contract
 

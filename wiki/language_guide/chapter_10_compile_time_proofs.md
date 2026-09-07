@@ -35,7 +35,7 @@ must prove the composed modulus's law. Merely calling a bundle
 The source forms for general mathematical predicates, logical binders, and
 noncomputable values remain design work. Do not replace them with a Boolean
 decider or require every mathematical function to be an executable declaration.
-The [mathematical proof contract](../pre_migration/design_briefs/mathematical_proofs.md)
+The [mathematical proof contract](../spec/proofs/contracts.md)
 defines the required capability and migration controls; the current Rust
 implementation does not yet implement the whole replacement.
 

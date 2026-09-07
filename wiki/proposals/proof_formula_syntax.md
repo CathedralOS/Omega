@@ -1,10 +1,7 @@
 # Candidate: Named proof-formula syntax
 
-> **Needs porting.** This document has not been consolidated or vetted for the
-> current documentation structure. See the [migration index](../README.md).
-
 Status: unproven ergonomic augmentation, not accepted syntax or an implementation
-prerequisite. The governing direction is [Mathematical Proofs](mathematical_proofs.md).
+prerequisite. Affected subject: [mathematical proof contracts](../spec/proofs/contracts.md).
 
 ## The question
 
@@ -57,4 +54,4 @@ has a complete replacement.
 
 This is not an execution-board feature request. Revisit only when a worked proof
 demonstrates the ergonomic gap; migration of the current implementation is tracked
-separately in `PROOF-CONTRACT-MIGRATION` in [TASKS.md](../../../TASKS.md).
+separately in `PROOF-CONTRACT-MIGRATION` in [TASKS.md](../../TASKS.md).

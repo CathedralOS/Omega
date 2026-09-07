@@ -6,6 +6,7 @@
 [Documentation index](../../../README.md) | [Pipeline](pipeline.md)
 
 The [portable-product contract](../../../spec/terminal-psi/product.md),
+[mathematical proof contracts](../../../spec/proofs/contracts.md),
 [boundary-call and realization contract](../../../spec/terminal-psi/boundary_calls.md),
 the [immutable byte-view vocabulary](../../../spec/terminal-psi/byte_views.md), and
 [observations](../../../spec/terminal-psi/observations.md),
@@ -83,35 +84,6 @@ executable requests remain blanket-rejected, while two-argument lift, adapted,
 literal, permuted, repeated, generic, private, and broader forms plus the full
 package-review migration remain open.
 
-Normalized logical expressions retain exact binders, subjects, substitutions,
-and dependencies. Presentation names do not define truth or authorize proof
-reuse. Ordinary trait/conformance bundles retain their complete mathematical
-interface separately from the statement and its derivation provenance.
-
-The contract/bundle migration must carry exact witness identity through
-forwarding and repeated projection. Different witnesses proving the same
-statement do not become one value. Closed conformance selection retains its
-complete telescope, trait application, and normalized row map; no expected
-shape, display name, or visible-fact search selects a missing implementation.
-
-Guarantees remain path-sensitive. Every ordinary exit must establish its
-applicable conclusions. Caller import requires the matching result case and
-the exact argument/result substitution. Validity is the intersection of
-referenced occurrence and bundle scopes; intersecting writes invalidate
-borrowed or revisioned facts. A bundle cannot make a conditional fact available
-unconditionally.
-
-Proof-only data adds no runtime storage, call, or fuel. Evidence accompanying
-an executable call must remain bound to that exact operation and callee, result
-shape, and specialization, not a second inferred invocation. Independent replay
-rejects missing laws, orphan witnesses, changed substitutions, stale scopes,
-or runtime links that do not match. Transitive assumptions remain separate
-from the proved statement and subject to the receiving policy.
-
-These are the target preservation requirements, not a claim that the current
-codec implements the replacement. `PROOF-CONTRACT-MIGRATION` in
-[TASKS.md](../../../../TASKS.md) owns the source, representation, codec, and replay
-migration under the [mathematical proof contract](../../design_briefs/mathematical_proofs.md).
 
 Omega task activation applies the same authority split after checking.
 `TaskRuntime::{start,try_start}` retains its compact specialization value only
@@ -122,34 +94,6 @@ machine-contract commitment. The task runtime receipt binding carries both
 values but derives invocation identity from the strong commitment alone, so
 compact equality never authorizes a different specialization.
 
-Trait requirement calls retain the public callable contract separately from
-the selected private realization. Replaying the closed conformance must join
-that exact public requirement, owner-scoped application, realization identity,
-and ordinary call. A private strengthening cannot become a public guarantee.
-Evidence must not select a different executable lowering family or replace
-independent validation of the call and its result.
-
-Relation applications retain their independently bound left and right carrier
-index packs; no global carrier-parameter role is serialized. Selected
-constructor lifts, dependency-ordered field relations, and every required
-proposition-transport proof enter the semantic rows that justified a lifted
-operation. Callable argument telescopes use positional identity, with source
-parameter names confined to debug metadata.
-
-An erased Type binding remains in typed semantic and proof rows with its
-multiplicity, validity scope, conservation obligations, and provenance. A Prop
-binding is copyable and retains its validity scope and provenance without a
-usage-count obligation. Neither has an executable storage place or cleanup
-action. Runtime layout and operation encoding consume the erased-stripped form,
-while semantic fingerprints retain the binding and its type.
-
-Unit structural declarations apply the same rule directly: every field row
-retains authored relevance, and an erased row carries its exact normalized type
-identity as an opaque semantic type rather than forcing proof data into the
-executable structural-type graph. The codec and verifier reject mismatched
-relevance/type rows. Omega skips erased rows before ABI classification, so the
-terminal artifact preserves semantic identity without assigning proof evidence
-an offset or transfer.
 
 An entry claim may name its complete structural parameter or a typed path below
 it. Record segments use the field's exact canonical identity: `#<id>` for an

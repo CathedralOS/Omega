@@ -436,7 +436,7 @@ Owners include
   substitutions, or sites reject.
 
 - **PROOF-CONTRACT-MIGRATION.** Migrate the proof surface to
-  [ordinary machine contracts and trait bundles](wiki/pre_migration/design_briefs/mathematical_proofs.md#contract-first-mathematical-proofs).
+  [ordinary machine contracts and trait bundles](wiki/spec/proofs/contracts.md#machines-and-bundles).
   Owners: Psi syntax/resolution/typing, contract proof semantics, Terminal
   evidence/codec/replay, and core mathematical traits. First specify the missing
   logical binders, arbitrary mathematical function/predicate parameters, and
@@ -453,10 +453,21 @@ Owners include
   selected-witness and trait-named-witness work; do not widen those old surfaces
   independently. Retain useful checking rules, not mandatory wrapper syntax.
 
-  Acceptance: the brief's five proof cases and false twins pass through source,
-  Terminal serialization, and independent replay; denying a required axiom
-  rejects and runtime extraction of noncomputable evidence rejects. Migrate core
-  relations, quotients, samples, and tests, remove obsolete parser/carrier/codec
+  Acceptance: actual proof scripts and false twins pass through source,
+  Terminal serialization, and independent replay for all five cases:
+
+  1. Composition of two witness/law bundles preserves exact substitutions and
+     distinct witnesses.
+  2. A higher-order theorem quantifies over arbitrary mathematical predicates or
+     functions, not an enumeration of executable declarations.
+  3. Nonconstructive existence uses an explicit axiom and cannot supply an
+     executable witness without constructive implementation.
+  4. Accepting and denying policies distinguish the same theorem, with exact
+     transitive assumptions surviving import, erasure, serialization, and replay.
+  5. A Cauchy/quotient proof preserves representative independence and explicit
+     law selection.
+
+  Migrate core relations, quotients, samples, and tests, remove obsolete parser/carrier/codec
   routes, and reject retired spellings. Candidate naming syntax is not a
   prerequisite. Do not claim full mathematical coverage from these controls.
 
