@@ -100,3 +100,19 @@ inject body SSA values into parameter-only contracts or replace the view extent
 with an unrelated length parameter. Native byte-view realization, natural-ranked
 fixed bounds, general structural helper calls, and source-to-Psi correspondence
 remain separate work; a Console-specific intrinsic would bypass this adapter.
+
+## FloatMeaning correspondence
+
+The [proof-value contract](../../../../wiki/spec/terminal-psi/mathematical_values.md)
+defines Terminal's source classes. Source emission has a narrower implemented
+frontier: direct top-level scalar parameters, the owning scalar result, and one
+nonempty field/case path under a direct structural parameter have checked
+artifact-relative correspondence. Fixed indexes, nested-state contracts, locals,
+computed structural sources, and expression-to-Terminal operation/call mapping
+still need producer work.
+
+Direct-result reflexivity checks the authored expression, checked
+equality/projection, owner, format, and sealed operation before erasing the
+proof-only clause. It does not establish general callee or nested-result support.
+Missing correspondence is an integration gap, not permission to invent a source
+identity or a new meaning for the proof-value carrier.

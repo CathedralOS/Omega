@@ -2,10 +2,12 @@
 
 This is the current portable-product contract, independent of the implementation
 language. The [remaining vocabulary reference](../../pre_migration/architecture/pipeline/terminal_psi.md)
-still owns operation and verification details not yet consolidated here.
+still carries operation-specific details not yet consolidated here.
 [Boundary calls](boundary_calls.md), [byte views](byte_views.md), and
-[observations](observations.md) have their
-own subject references. Implementation coverage is not implied by a specified
+[observations](observations.md), and [verification](verification.md) have their
+own references. [Mathematical proof values](mathematical_values.md) and
+[integer certificates](integer_certificates.md) define their proof vocabulary.
+Implementation coverage is not implied by a specified
 contract; unfinished integration belongs on the [execution board](../../../TASKS.md).
 
 ## Semantic boundary

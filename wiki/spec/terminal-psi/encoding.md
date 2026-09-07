@@ -2,10 +2,12 @@
 
 [Portable product](product.md) | [Observations](observations.md)
 
-This is the canonical encoding contract. Individual operation/proof payload
-definitions remain in the [vocabulary reference](../../pre_migration/architecture/pipeline/terminal_psi.md)
-until consolidated. This is not a claim that prose alone supplies a complete
-byte-level decoder specification.
+This is the canonical encoding contract, not yet a complete byte-level decoder
+specification. Operation payload details remain in the
+[vocabulary reference](../../pre_migration/architecture/pipeline/terminal_psi.md).
+[Proof values](mathematical_values.md) and [certificate rules](integer_certificates.md)
+define semantics; complete per-operation and proof-node physical tables still
+need consolidation. The implementation's codec is not a substitute for those tables.
 
 ## Canonical form
 

@@ -15,7 +15,8 @@ and its ownership boundaries.
 - [Pipeline Architecture](pipeline/pipeline.md): semantic spine, durable stages, and the normalized questions every stage should answer.
 - [Terminal Psi product](../../spec/terminal-psi/product.md): the portable boundary
   and separate-consumer contract. The [remaining vocabulary reference](pipeline/terminal_psi.md)
-  owns operation and verification details still awaiting consolidation.
+  carries operation-specific details awaiting consolidation;
+  [verification](../../spec/terminal-psi/verification.md) has a specification owner.
 - [Codegen Representation Cleanup](codegen_representation_cleanup.md): standing plan to remove re-declared representations and annotation-only stages so the backend obeys the Architecture Rule below.
 - [Whole-Program Assumptions](whole_program_assumptions.md): tracked inventory of where the backend assumes whole-program compilation, against the eventual separately-compiled-component story.
 - [Semantic Taxonomy Representation](semantic_taxonomy_representation.md):

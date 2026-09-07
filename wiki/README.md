@@ -18,7 +18,10 @@ beside code; completed work belongs in Git, not current reference material.
   [boundary calls](spec/terminal-psi/boundary_calls.md),
   [byte views](spec/terminal-psi/byte_views.md),
   [observations](spec/terminal-psi/observations.md), and
-  [encoding](spec/terminal-psi/encoding.md).
+  [encoding](spec/terminal-psi/encoding.md),
+  [verification](spec/terminal-psi/verification.md),
+  [mathematical proof values](spec/terminal-psi/mathematical_values.md), and
+  [integer certificates](spec/terminal-psi/integer_certificates.md).
 - Resources: [logical work](spec/resources/logical_work.md) and
   [storage](spec/resources/storage.md).
 
