@@ -1,0 +1,25 @@
+; Row kinds: constructor 0, function 1, clause 2, template 3, ground 4, proof 5.
+; Nested table calls follow only this fixed grammar, never term references.
+(def layout_table ((cursor Int) (end Int) (kind Int)) Int
+  (let start Int (layout_group cursor end 1)
+    (if (lt start 0) start
+      (let count Int (layout_word cursor)
+        (if (lt (/ (- end start) 4) count)
+          (layout_failure cursor)
+          (layout_rows start end kind count))))))
+
+(def layout_rows ((cursor Int) (end Int) (kind Int) (remaining Int)) Int
+  (if (eq remaining 0) cursor
+    (let row_end Int (layout_record_end cursor end)
+      (if (lt row_end 0) row_end
+        (let fields_end Int (layout_fields (+ cursor 4) row_end kind)
+          (let checked Int (layout_exact fields_end row_end)
+            (if (lt checked 0) checked
+              (layout_rows checked end kind (- remaining 1)))))))))
+
+(def layout_fields ((cursor Int) (end Int) (kind Int)) Int
+  (if (eq kind 0) (layout_signature cursor end)
+    (if (eq kind 1) (layout_function cursor end)
+      (if (eq kind 2) (layout_clause cursor end)
+        (if (eq kind 5) (layout_proof cursor end)
+          (layout_term cursor end (eq kind 3)))))))

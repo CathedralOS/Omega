@@ -2,9 +2,10 @@
 
 [Envelope](REQUEST.md) | [Calculus and full subject](../../../wiki/architecture/bootstrap_chain/derivation_calculus.md)
 
-This is the concrete inner encoding to implement, not an executable checker or
-an accepted certificate. Only outer request admission currently runs. The
-complete checker resource profile and whole-Beta certificate remain unfinished.
+This is the concrete inner encoding, not an accepted checker or certificate.
+The [layout admission](LAYOUT.md) traverses physical fields; semantic indexing,
+formation, the complete resource profile, and the whole-Beta certificate remain
+unfinished.
 
 ## Common physical representation
 
@@ -224,8 +225,9 @@ tags in ground tables; deep source spines; and separately encoded shared DAGs.
 Proof controls cover every rule's positive and corrupt premises, unmatched
 clauses, substituted environments, wrong final roots, and failures after valid
 prefixes. Every published resource needs exact and adjacent controls with no
-acceptance on exhaustion. These are implementation requirements, not recorded
-test results; only the outer admission gate exists today.
+acceptance on exhaustion. These are full-checker implementation requirements,
+not recorded semantic test results. The outer and layout gates establish only
+their respective physical-input contracts.
 
 ### Hand-worked field-layout example
 

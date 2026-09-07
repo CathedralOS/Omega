@@ -38,13 +38,15 @@ Unknown rules, malformed terms, missing premises, cyclic derivations,
 wrong-subject evidence, and resource exhaustion cannot accept. Product proof
 ambitions do not enlarge this bootstrap tool automatically.
 
-The complete checker, inner decoders, and full executable profile are currently
+The complete checker, semantic indexes, and full executable profile are currently
 absent. The [concrete inner format](../../../bootstrap/gamma/derivation_checker/FORMAT.md)
 assigns theory, template, ground-term, and proof-row fields without adding an
 accepted artifact. The ordinary-Gamma
 [outer request admission](../../../bootstrap/gamma/derivation_checker/REQUEST.md)
 retains separate exact theory, proposition, and certificate spans; a framed
-result is neither theory validation nor proof acceptance. The
+result is neither theory validation nor proof acceptance. A separate
+[inner layout traversal](../../../bootstrap/gamma/derivation_checker/LAYOUT.md)
+checks every physical record without admitting a theory or checking a proof. The
 [ground equality implementation design](derivation_calculus.md)
 specifies the first complete encoding subject, conservative definitions, explicit
 proof checks, ownership, and implementation dependencies. It does not supply an

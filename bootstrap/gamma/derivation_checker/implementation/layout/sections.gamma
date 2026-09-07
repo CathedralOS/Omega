@@ -1,0 +1,31 @@
+(def layout_sections ((theory_end Int) (proposition_end Int)
+  (certificate_end Int)) Int
+  (let theory Int (layout_section 24 theory_end 0 826823751)
+    (if (lt theory 0) theory
+      (let proposition Int
+        (layout_section theory_end proposition_end 1 827478087)
+        (if (lt proposition 0) proposition
+          (layout_section proposition_end certificate_end 2 826622791))))))
+
+(def layout_section ((start Int) (end Int) (kind Int) (packed Int)) Int
+  (let payload Int (layout_header start end packed)
+    (if (lt payload 0) payload
+      (layout_exact
+        (if (eq kind 0) (layout_theory payload end)
+          (if (eq kind 1) (layout_proposition payload end)
+            (layout_certificate payload end))) end))))
+
+(def layout_theory ((cursor Int) (end Int)) Int
+  (let sorts Int (layout_group cursor end 1)
+    (if (lt sorts 0) sorts
+      (let constructors Int (layout_table sorts end 0)
+        (if (lt constructors 0) constructors
+          (layout_table constructors end 1))))))
+
+(def layout_proposition ((cursor Int) (end Int)) Int
+  (let terms Int (layout_table cursor end 4)
+    (if (lt terms 0) terms (layout_group terms end 2))))
+
+(def layout_certificate ((cursor Int) (end Int)) Int
+  (let terms Int (layout_table cursor end 4)
+    (if (lt terms 0) terms (layout_table terms end 5))))

@@ -1,0 +1,50 @@
+; All callers retain containing extents; section admission checks high bits once.
+(def layout_failure ((coordinate Int)) Int
+  (- 0 (+ coordinate 1)))
+
+(def layout_word ((cursor Int)) Int
+  (admission_length cursor))
+
+(def layout_group ((cursor Int) (end Int) (words Int)) Int
+  (if (lt (/ (- end cursor) 4) words)
+    (layout_failure end)
+    (+ cursor (* words 4))))
+
+(def layout_exact ((cursor Int) (end Int)) Int
+  (if (lt cursor 0) cursor
+    (if (eq cursor end) end (layout_failure cursor))))
+
+; A count field owns any impossible vector/table extent coordinate.
+(def layout_vector ((cursor Int) (end Int)) Int
+  (let start Int (layout_group cursor end 1)
+    (if (lt start 0) start
+      (let count Int (layout_word cursor)
+        (if (lt (/ (- end start) 4) count)
+          (layout_failure cursor)
+          (+ start (* count 4)))))))
+
+(def layout_record_end ((cursor Int) (end Int)) Int
+  (layout_vector cursor end))
+
+(def layout_magic_bytes ((cursor Int) (remaining Int) (packed Int)) Int
+  (if (eq remaining 0) cursor
+    (if (eq (read cursor) (% packed 256))
+      (layout_magic_bytes (+ cursor 1) (- remaining 1) (/ packed 256))
+      (layout_failure cursor))))
+
+(def layout_high_words ((cursor Int) (end Int)) Int
+  (if (eq cursor end) end
+    (if (lt (read (+ cursor 3)) 128)
+      (layout_high_words (+ cursor 4) end)
+      (layout_failure (+ cursor 3)))))
+
+(def layout_header ((start Int) (end Int) (packed Int)) Int
+  (if (lt (- end start) 4)
+    (layout_failure end)
+    (let payload Int (layout_magic_bytes start 4 packed)
+      (if (lt payload 0) payload
+        (let remainder Int (% (- end payload) 4)
+          (if (eq remainder 0)
+            (let scanned Int (layout_high_words payload end)
+              (if (lt scanned 0) scanned payload))
+            (layout_failure (- end remainder))))))))

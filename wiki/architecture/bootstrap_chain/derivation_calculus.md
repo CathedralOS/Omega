@@ -5,7 +5,7 @@
 This specifies an implementation direction for the missing ordinary-Gamma
 derivation checker. It is not an accepted checker, certificate, or new admission
 of the Gamma evaluator. The [inner format](../../../bootstrap/gamma/derivation_checker/FORMAT.md)
-assigns concrete wire fields; its decoders, executable formation checks,
+assigns concrete wire fields; semantic indexes, executable formation checks,
 the soundness argument, and certificate measurements remain acceptance work.
 
 ## First complete subject
