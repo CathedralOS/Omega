@@ -1,5 +1,7 @@
 # Rust coding and verification conventions
 
+Apply these preferences within [Omega conventions](../../../../README.md#readonly-coding-conventions) and [AGENTS.md](../../../../AGENTS.md); those contracts take precedence.
+
 ## Name the domain, not the mechanics
 
 - Use coherent, specific names for variables, parameters, fields, closures, and functions. No `i`, `idx`, or bare `index`; use `region_index`, `sample_index`, or `command_index`.
@@ -32,7 +34,7 @@ Borrow inputs when the operation does not retain them. Prefer `&[T]`, `&str`, an
 
 Use early returns, `let ... else`, and explicit `match` arms to keep success paths readable. Short iterator chains are useful; use a named intermediate or loop when a chain hides state changes or failure handling.
 
-Return `Result` for failure and `Option` for legitimate absence. Use the destination's error convention; prefer domain error variants with actionable context when callers must distinguish failures. Use `thiserror` if already available, otherwise use existing errors or standard error traits. Do not add `anyhow` or erase typed library errors just to shorten signatures.
+Return `Result` for failure. Use `Option` for legitimate absence where the domain needs it; Omega handles already encode absence as zero, so do not wrap them just to indicate a missing value. Use the destination's error convention; prefer domain error variants with actionable context when callers must distinguish failures. Use `thiserror` if already available, otherwise use existing errors or standard error traits. Do not add `anyhow` or erase typed library errors just to shorten signatures.
 
 No `unwrap()`, `expect()`, `panic!()`, or `unreachable!()` in production error paths. Logging and returning is appropriate only at a boundary that owns recovery; never turn a failed operation into apparent success. Handle lock acquisition failures explicitly. Assertions and descriptive `expect` messages are appropriate in tests; debug assertions can document internal invariants, but cannot replace input validation.
 
@@ -48,7 +50,7 @@ Wrap owned OS resources in RAII guards with `Drop` so early returns release them
 
 ## Format and document for the reader
 
-Use the destination's rustfmt configuration. The source style uses vertical multi-parameter signatures and a 160-column limit; adopt these only when establishing a new formatter policy, not by silently changing an existing one. Leave toolchain and edition choices to the destination project.
+Use Omega's rustfmt configuration and pinned toolchain; source-study formatting does not establish repository policy.
 
 Write rustdoc for public contracts and non-obvious functions: units, ownership, errors, boundary semantics, and safety requirements. Comments explain intent or constraints and end with a period. Avoid narrating assignments or adding documentation that only repeats a name.
 

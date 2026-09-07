@@ -1,6 +1,6 @@
 # Squalr: representations that remove downstream work
 
-Inspected revision: `e6538c99b2960f35a44727d09acf5f58ef2284ab`, at `Y:/Development/Friends-and-Family/Zac/Squalr`. Paths below are relative to that repository. These are source observations and transfer criteria, not measured performance claims. Use symbol names to find moved code.
+Inspected revision: `e6538c99b2960f35a44727d09acf5f58ef2284ab`, in the Squalr repository. Paths below are relative to that repository. These are source observations and transfer criteria, not measured performance claims. Use symbol names to find moved code.
 
 ## 1. A run is both compressed output and the next scan's input
 

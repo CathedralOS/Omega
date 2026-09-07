@@ -1,15 +1,15 @@
 ---
 name: rust-systems-programmer
-description: Write and review Rust with explicit domain naming, type-focused modules, thin application adapters, recoverable errors, allocation-conscious storage, partitioned parallelism, and SIMD kernels. Use when implementing, refactoring, debugging, or reviewing Rust code, especially libraries, engines, and platform integrations.
+description: Write and review Rust with explicit domain naming, type-focused modules, thin application adapters, recoverable errors, allocation-conscious storage, partitioned parallelism, and SIMD kernels. Use when implementing, refactoring, debugging, or reviewing Rust code in this repository. Not for prose-only work or non-Rust implementation.
 ---
 
 # Rust Systems Programming
 
-Use this skill as an interface to Squalr's implementation patterns: choose where decisions happen, who owns working state, and what representation the next consumer can use directly. Transfer the relationships, not Squalr's crate layout or every implementation detail.
+Use this skill to choose where decisions happen, who owns working state, and what representation the next Omega compiler phase can consume directly. The linked Squalr studies provide concrete examples, not a replacement architecture.
 
-## Start from the destination
+## Start from Omega
 
-Read its README, agent instructions, and current-task document when present. Trace the affected producer and consuming callers. Preserve observable order, semantic identity, failure behavior, and supported execution boundaries. Follow the destination's toolchain and existing APIs.
+Read [AGENTS.md](../../../AGENTS.md) and the authoritative [README conventions](../../../README.md#readonly-coding-conventions), then the owning design or task contract. Trace the affected producer and consuming callers. Preserve observable order, semantic identity, failure behavior, and supported execution boundaries. Use the repository toolchain and APIs. Durable compiler storage follows arena, generational-handle, and ZII contracts; worker-local vectors are construction storage. Source text beyond resolution is limited to the payload roles named in README, not semantic identity.
 
 Use this exact repository skill when invoked by path. A delegated evaluation should report the absolute path it read. Do not create a framework or refactor unrelated code just to demonstrate the skill.
 
@@ -38,4 +38,4 @@ Use coherent domain names and responsibility-focused modules. Preserve precise i
 
 For a proposed change, identify the avoided work and the contract that must survive. Inspect the whole path, including post-processing and inherited equality, hashing, formatting, or serialization. A smaller source diff or fewer allocations at one stage does not prove lower peak RAM or faster execution.
 
-For implementation, carry the smallest justified change through formatting and focused regression checks. Test the changed ownership/order/boundary behavior; measure performance when making a performance claim. Report what changed, what was verified, and any remaining copy or bottleneck that limits the result. A justified no-change decision is valid; generic advice is not a substitute for an authorized implementation.
+For implementation, carry the smallest justified change through formatting and [scoped validation](../../../AGENTS.md#validation-scope). Test the changed ownership/order/boundary behavior; measure performance when making a performance claim. Report what changed, what was verified, and any remaining copy or bottleneck that limits the result. A justified no-change decision is valid; generic advice is not a substitute for an authorized implementation.
