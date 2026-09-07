@@ -1,0 +1,21 @@
+; Right root1 starts empty,2 consumes the limit,3 consumes one unit first.
+(def substitution_test_execute ((grounded Int)) Int
+  (let selector Int (substitution_test_right grounded)
+    (let amount Int (substitution_test_amount (substitution_test_left grounded))
+      (if (eq selector 1)
+        (substitution_test_observe (comparison_reserve (comparison_start grounded) amount 907))
+        (let prior Int (comparison_reserve (comparison_start grounded)
+          (if (eq selector 2) 262144 1) 905)
+          (if (eq (first prior) 6)
+            (substitution_test_observe (comparison_reserve
+              (comparison_session (second prior)) amount 907))
+            (substitution_test_observe prior)))))))
+
+(def substitution_test_amount ((selector Int)) Int
+  (if (eq selector 1) 0
+    (if (eq selector 2) -1
+      (if (eq selector 3) 2147483648
+        (if (eq selector 4) 2147483647
+          (if (eq selector 5) 262144
+            (if (eq selector 6) 262145
+              (if (eq selector 7) 1 -9223372036854775808))))))))

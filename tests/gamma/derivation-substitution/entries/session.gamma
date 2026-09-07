@@ -1,0 +1,19 @@
+; Unfold identity(zero), structurally compare it, then change its environment.
+(def substitution_test_execute ((grounded Int)) Int
+  (let result Int (substitution_test_unfold (comparison_start grounded) 2 1 1)
+    (let observed Int (substitution_test_observe result)
+      (if (eq (first result) 6)
+        (substitution_test_structural (comparison_session (second result))) 0))))
+
+(def substitution_test_structural ((session Int)) Int
+  (let result Int (compare_ground_terms session 2 1 911 912)
+    (let observed Int (substitution_test_observe result)
+      (if (eq (first result) 6)
+        (substitution_test_changed_binding (comparison_session (second result))) 0))))
+
+(def substitution_test_changed_binding ((session Int)) Int
+  (let result Int (substitution_test_unfold session 4 1 1)
+    (let observed Int (substitution_test_observe result)
+      (if (eq (first result) 6)
+        (substitution_test_observe (substitution_test_unfold
+          (comparison_session (second result)) 4 3 1)) 0))))

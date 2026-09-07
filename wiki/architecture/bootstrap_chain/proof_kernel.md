@@ -58,7 +58,10 @@ those roots for equality or check any proof row.
 [Structural comparison](../../../bootstrap/gamma/derivation_checker/COMPARISON.md)
 compares validated term syntax with completed-pair memoization and cumulative
 session work. A structurally different result does not disprove theory equality;
-substitution and explicit derivation rules remain missing. The
+[checked substitution](../../../bootstrap/gamma/derivation_checker/SUBSTITUTION.md)
+validates a stated unfolding without evaluating functions or polluting structural
+memoization. Explicit derivation coordination and final-root checking remain
+missing. The
 [ground equality implementation design](derivation_calculus.md)
 specifies the first complete encoding subject, conservative definitions, explicit
 proof checks, ownership, and implementation dependencies. It does not supply an

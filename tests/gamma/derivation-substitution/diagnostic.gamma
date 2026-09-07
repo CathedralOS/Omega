@@ -1,0 +1,34 @@
+; Explicit test coordination only; unfolding is not a proof-accepting entry.
+(def $application () Int 1)
+(def main () Int
+  (let grounded Int (check_derivation_ground)
+    (let observed Int
+      (if (eq (first grounded) 5)
+        (substitution_test_execute (second grounded))
+        (substitution_test_observe grounded))
+      (pair 0 1))))
+
+(def substitution_test_observe ((result Int)) Int
+  (let tag Int (write (first result))
+    (let payload Int (second result)
+      (if (eq tag 6)
+        (let equal Int (substitution_test_word (comparison_equal payload) 8)
+          (substitution_test_word (comparison_steps (comparison_session payload)) 8))
+        (let code Int (substitution_test_word (admission_failure_code payload) 8)
+          (let coordinate Int (substitution_test_word (admission_failure_coordinate payload) 8)
+            (let limit Int (substitution_test_word (admission_failure_limit payload) 8)
+              (substitution_test_word (admission_failure_requested payload) 8))))))))
+
+(def substitution_test_word ((value Int) (remaining Int)) Int
+  (if (eq remaining 0) 0
+    (let byte Int (write (% value 256))
+      (substitution_test_word (/ value 256) (- remaining 1)))))
+
+(def substitution_test_left ((grounded Int)) Int
+  (layout_word (- (admission_proposition_end (formed_frame (grounded_theory grounded))) 8)))
+
+(def substitution_test_right ((grounded Int)) Int
+  (layout_word (- (admission_proposition_end (formed_frame (grounded_theory grounded))) 4)))
+
+(def substitution_test_unfold ((session Int) (left Int) (right Int) (clause Int)) Int
+  (compare_unfolded_terms session left right clause 901 902 903))

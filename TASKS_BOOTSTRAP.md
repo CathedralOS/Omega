@@ -40,7 +40,8 @@ Epsilon evaluator.
   deployment policy, or source-to-obligation inference. Follow the
   [ground equality implementation design](wiki/architecture/bootstrap_chain/derivation_calculus.md):
   compose [ground comparisons](bootstrap/gamma/derivation_checker/COMPARISON.md)
-  with checked template substitution, explicit equality rules, and final-root
+  and [checked substitution](bootstrap/gamma/derivation_checker/SUBSTITUTION.md)
+  into explicit equality rules and final-root
   enforcement under the
   [inner encoding](bootstrap/gamma/derivation_checker/FORMAT.md). Specify the
   complete result/resource profile, threading one cumulative comparison session

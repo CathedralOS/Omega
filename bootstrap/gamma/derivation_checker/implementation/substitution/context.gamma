@@ -1,0 +1,43 @@
+; Four invocation-context pairs, paid by the nonempty template-index reservation.
+(def substitution_context ((comparison Int) (templates Int) (left Int)
+  (function Int) (matched Int)) Int
+  (pair comparison (pair templates (pair left (pair function matched)))))
+
+(def substitution_comparison ((context Int)) Int
+  (first context))
+
+(def substitution_templates ((context Int)) Int
+  (first (second context)))
+
+(def substitution_left ((context Int)) Int
+  (first (second (second context))))
+
+(def substitution_function ((context Int)) Int
+  (first (second (second (second context)))))
+
+(def substitution_matched ((context Int)) Int
+  (second (second (second (second context)))))
+
+; Formation excludes the selected parent and every other unbound variable slot.
+(def substitution_binding ((context Int) (slot Int)) Int
+  (let arity Int (formation_arity (substitution_function context))
+    (if (lt slot arity)
+      (layout_word (+ (+ (substitution_left context) 16) (* slot 4)))
+      (layout_word (+ (+ (substitution_matched context) 16) (* (- slot arity) 4))))))
+
+(def substitution_key ((context Int) (template Int) (right Int)) Int
+  (+ (* (- template 1) (comparison_count (substitution_comparison context)))
+    (- right 1)))
+
+(def substitution_extent ((context Int)) Int
+  (* (formation_index_count (substitution_templates context))
+    (comparison_count (substitution_comparison context))))
+
+; The generic tagged-tree insertion has at most 39 levels for this local range.
+(def substitution_memo_insert ((context Int) (memo Int) (key Int)) Int
+  (comparison_memo_insert memo 0 (substitution_extent context) key
+    (substitution_comparison context)))
+
+(def substitution_finish ((equal Int) (session Int)) Int
+  (comparison_finish equal (comparison_context session)
+    (comparison_memo session) (comparison_steps session)))

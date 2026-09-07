@@ -1,0 +1,23 @@
+(def substitution_resume ((context Int) (depth Int) (frames Int)
+  (memo Int) (session Int) (coordinate Int)) Int
+  (let reserved Int (comparison_reserve session 1 coordinate)
+    (if (eq (first reserved) 6)
+      (substitution_resume_charged context depth frames memo
+        (comparison_session (second reserved)) coordinate)
+      reserved)))
+
+(def substitution_resume_charged ((context Int) (depth Int) (frames Int)
+  (memo Int) (session Int) (coordinate Int)) Int
+  (if (eq depth 0)
+    (substitution_finish 1 session)
+    (let remaining Int (comparison_pending_remaining frames)
+      (if (eq remaining 0)
+        (substitution_resume context (- depth 1) (comparison_pending_rest frames)
+          (substitution_memo_insert context memo (comparison_pending_key frames))
+          session coordinate)
+        (let left Int (comparison_pending_left frames)
+          (let right Int (comparison_pending_right frames)
+            (substitution_visit context (layout_word left) (layout_word right) depth
+              (comparison_pending (comparison_pending_key frames)
+                (+ left 4) (+ right 4) (- remaining 1) (comparison_pending_rest frames))
+              memo session coordinate)))))))

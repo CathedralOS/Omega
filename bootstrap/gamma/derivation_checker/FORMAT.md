@@ -7,7 +7,8 @@ The [layout admission](LAYOUT.md) traverses physical fields and
 [theory formation](FORMATION.md) checks conservative definitions.
 [Ground checking](GROUND.md) validates owner/witness term tables and root sorts.
 [Structural comparison](COMPARISON.md) compares validated term syntax with
-session-scoped memoization. Checked template substitution, explicit proof checking,
+session-scoped memoization. [Checked substitution](SUBSTITUTION.md) compares a
+stated clause body under syntax-derived bindings. Explicit proof coordination,
 the complete resource profile, and the whole-Beta certificate remain unfinished.
 
 ## Common physical representation
@@ -235,6 +236,8 @@ theory contract. The ground gate checks term validity and root sorts, not a
 ground equality proof. The comparison gate distinguishes structural agreement
 from theory equality and checks cumulative session exhaustion; it does not
 discharge a supplied proof row.
+The substitution gate checks one stated unfolding and its cumulative work;
+it does not validate the proof table or enforce the final root.
 
 ### Hand-worked field-layout example
 
@@ -265,4 +268,5 @@ are 100, 72, and 32 bytes, making a 228-byte outer request. The intended root is
 `identity(next(zero)) = next(zero)`; the one unfolding row substitutes owner
 term 2 for slot 0. The formation and ground gates check this theory and its
 ground terms but do not validate the unfolding row or accept the equality.
-They cannot substitute for the full Beta encoding certificate.
+The substitution gate checks this unfolding in isolation. These component
+checks cannot substitute for the full Beta encoding certificate.

@@ -1,0 +1,33 @@
+(def substitution_visit ((context Int) (template Int) (right Int) (depth Int)
+  (frames Int) (memo Int) (session Int) (coordinate Int)) Int
+  (let reserved Int (comparison_reserve session 1 coordinate)
+    (if (eq (first reserved) 6)
+      (substitution_visit_charged context template right depth frames memo
+        (comparison_session (second reserved)) coordinate)
+      reserved)))
+
+(def substitution_visit_charged ((context Int) (template Int) (right Int) (depth Int)
+  (frames Int) (memo Int) (session Int) (coordinate Int)) Int
+  (let key Int (substitution_key context template right)
+    (if (comparison_memo_contains memo 0 (substitution_extent context) key)
+      (substitution_resume context depth frames memo session coordinate)
+      (let record Int (formation_index_lookup (substitution_templates context) template)
+        (if (eq (layout_word (+ record 4)) 0)
+          (substitution_variable context record right key depth frames memo session coordinate)
+          (substitution_heads context record
+            (grounded_term_lookup (comparison_grounded (substitution_comparison context)) right)
+            key depth frames memo session coordinate))))))
+
+; Ground comparison cannot recurse into substitution; continue in tail position.
+(def substitution_variable ((context Int) (record Int) (right Int) (key Int)
+  (depth Int) (frames Int) (memo Int) (session Int) (coordinate Int)) Int
+  (let compared Int
+    (compare_ground_terms session (substitution_binding context (layout_word (+ record 8)))
+      right coordinate coordinate)
+    (if (eq (first compared) 6)
+      (if (comparison_equal (second compared))
+        (substitution_resume context depth frames
+          (substitution_memo_insert context memo key)
+          (comparison_session (second compared)) coordinate)
+        compared)
+      compared)))

@@ -1,0 +1,38 @@
+(def substitution_select ((session Int) (left Int) (right Int) (ordinal Int)
+  (coordinate Int) (clause_coordinate Int)) Int
+  (let grounded Int (comparison_grounded (comparison_context session))
+    (let function Int
+      (formation_index_lookup (formed_functions (grounded_theory grounded))
+        (layout_word (+ left 8)))
+      (let table Int (formation_clause_count_field function)
+        (if (if (lt ordinal 1) 1 (lt (layout_word table) ordinal))
+          (admission_rejected 10 clause_coordinate)
+          (let reserved Int (comparison_reserve session ordinal clause_coordinate)
+            (if (eq (first reserved) 6)
+              (substitution_selected (comparison_session (second reserved)) left right
+                function (substitution_clause (+ table 4) ordinal)
+                coordinate clause_coordinate)
+              reserved)))))))
+
+; The whole scalar-only walk is prepaid by the checked local clause ordinal.
+(def substitution_clause ((cursor Int) (remaining Int)) Int
+  (if (eq remaining 1) cursor
+    (substitution_clause (formation_record_next cursor) (- remaining 1))))
+
+(def substitution_selected ((session Int) (left Int) (right Int) (function Int)
+  (clause Int) (coordinate Int) (clause_coordinate Int)) Int
+  (let matched Int (substitution_match session left function clause)
+    (if (lt matched 0)
+      (admission_rejected 10 clause_coordinate)
+      (substitution_provision session left right function clause matched coordinate))))
+
+; Zero is mode 0; mode 1 returns the matched record, or -1 for a case mismatch.
+(def substitution_match ((session Int) (left Int) (function Int) (clause Int)) Int
+  (if (eq (formation_mode function) 0) 0
+    (let argument Int
+      (layout_word (+ (+ left 16) (* (formation_selected function) 4)))
+      (let matched Int
+        (grounded_term_lookup (comparison_grounded (comparison_context session)) argument)
+        (if (eq (layout_word (+ matched 4)) 1)
+          (if (eq (layout_word (+ matched 8)) (layout_word (+ clause 4))) matched -1)
+          -1)))))

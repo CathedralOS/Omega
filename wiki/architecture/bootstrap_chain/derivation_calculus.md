@@ -10,9 +10,11 @@ checks conservative definitions under a bounded component profile.
 [Ground checking](../../../bootstrap/gamma/derivation_checker/GROUND.md) validates
 closed applications and owner-root sorts with separate witness custody.
 [Structural comparison](../../../bootstrap/gamma/derivation_checker/COMPARISON.md)
-uses completed-pair memoization and an explicit pending stack. Checked template
-substitution, explicit derivations, the complete checker soundness argument,
-and certificate measurements remain acceptance work.
+uses completed-pair memoization and an explicit pending stack.
+[Checked template substitution](../../../bootstrap/gamma/derivation_checker/SUBSTITUTION.md)
+checks stated unfolding with separate binding-scoped memoization and shared work.
+Explicit derivation coordination, the complete checker soundness argument, and
+certificate measurements remain acceptance work.
 
 ## First complete subject
 
@@ -161,7 +163,8 @@ checker.gamma       coordinate formation, derivation checking, and root checking
 representation/     sorted symbols, templates, terms, and equalities
 admission/          framed input and bounded row/extent decoding
 formation/          constructor sorts and conservative definitions
-comparison/         structural equality and checked substitution
+comparison/         structural equality and cumulative work
+substitution/       checked clause matching and template traversal
 derivation/         closed rule dispatch and individual checks
 boundary/           exact observations and failure publication
 ```
