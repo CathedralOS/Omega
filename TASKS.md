@@ -144,7 +144,7 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   verification, and lets this CLI route reach native production. The inner sample
   harness bypasses this policy route; independent writer work remains actionable.
 
-  The downstream native `cli_mvp` probe at code checkpoint `c0412fe31b` remains red.
+  The downstream native `cli_mvp` probe at code checkpoint `62bcd835a5` remains red.
   On macOS ARM64, `CARGO_INCREMENTAL=0 OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
   samples_with_documented_exit_run_correctly --no-fail-fast` exits 100 before
