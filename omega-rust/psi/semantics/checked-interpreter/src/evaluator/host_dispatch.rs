@@ -25,14 +25,22 @@ impl<'program> Evaluator<'program> {
         frame: &Frame,
     ) -> EvalResult<Option<Value>> {
         let filesystem_operation = self.exact_filesystem_host_operation(call.target_symbol)?;
-        if filesystem_operation.is_none() && !self.is_boundary_call(call, frame) {
+        let intrinsic_method = if filesystem_operation.is_none() {
+            self.exact_console_intrinsic_host_method(call.target_symbol)
+        } else {
+            None
+        };
+        if filesystem_operation.is_none()
+            && intrinsic_method.is_none()
+            && !self.is_boundary_call(call, frame)
+        {
             return Ok(None);
         }
         // Any driven host-boundary call marks the run: the build-time
         // evaluation entry uses this as a DYNAMIC purity backstop (the static
         // effect surface does not fold host-authority audit facts in yet).
         self.host_boundary_touched = true;
-        let target = call.target.as_str();
+        let target = intrinsic_method.unwrap_or(call.target.as_str());
 
         // Filesystem authority is selected only by the exact canonical
         // toolchain requirement symbol. The trusted requirement leaf routes
@@ -187,6 +195,208 @@ impl<'program> Evaluator<'program> {
                 Ok(Some(Value::Int(self.virtual_ticks)))
             }
             other => unsupported(format!("host boundary call `{other}` not yet supported")),
+        }
+    }
+
+    /// Rejoin a concrete Console leaf to its satisfied requirement before
+    /// selecting host behavior. Other external realizations retain their own
+    /// execution path, even when their method spelling matches a host method.
+    fn exact_console_intrinsic_host_method(
+        &self,
+        target_symbol: SymbolHandle,
+    ) -> Option<&'static str> {
+        let (requirement_symbol, provider_symbol) =
+            validation::exact_compiler_intrinsic_boundary_requirement(self.program, target_symbol)?;
+        let realization = self.program.machines().iter().find(|machine| {
+            machine.attached_data_symbol == provider_symbol
+                && machine.attached_data.as_ref().map(|name| name.as_str())
+                    == Some("ConsoleNativeProvider")
+                && self
+                    .program
+                    .machine_states(machine)
+                    .iter()
+                    .any(|state| state.symbol == target_symbol)
+        })?;
+        let requirement = self
+            .program
+            .traits()
+            .iter()
+            .filter(|definition| definition.is_boundary && definition.name.as_str() == "Console")
+            .flat_map(|definition| self.program.trait_machine_signatures(definition))
+            .find(|requirement| requirement.symbol == requirement_symbol)?;
+        match (realization.name.as_str(), requirement.name.as_str()) {
+            ("ConsoleNativeProvider::write_byte", "write_byte") => Some("write_byte"),
+            ("ConsoleNativeProvider::exit_process", "exit_process") => Some("exit_process"),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use source_files_to_tokens::Lexer;
+    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+    use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+    use tokens_to_syntax_trees::parse_syntax_trees;
+    use typed_trees_to_checked_trees::lower_typed_trees;
+
+    fn checked(source: &str) -> CheckedTrees {
+        let tokens = Lexer::new(source).tokenize().expect("host-call tokens");
+        let syntax = parse_syntax_trees(&tokens).expect("host-call syntax");
+        let resolved = lower_syntax_trees(&syntax).expect("host-call symbols");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("host-call types");
+        lower_typed_trees(typed).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
+    }
+
+    #[test]
+    fn direct_console_byte_intrinsics_write_bytes_and_retain_host_backstops() {
+        for declaration in [
+            "boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+                satisfies Console::write_byte;",
+            "machine ConsoleNativeProvider::write_byte(byte: i32)
+                satisfies Console::write_byte via Binding::CompilerIntrinsic;",
+        ] {
+            let checked = checked(&format!(
+                "pub boundary trait Console {{
+                    machine write_byte(byte: i32) reaches Console;
+                }}
+                pub data ConsoleNativeProvider {{}}
+                {declaration}
+                machine main() reaches Console {{
+                    ConsoleNativeProvider::write_byte(70);
+                    ConsoleNativeProvider::write_byte(128);
+                    ConsoleNativeProvider::write_byte(10);
+                }}"
+            ));
+            let mut evaluator = Evaluator::new_checked(&checked, &[]);
+            assert!(evaluator.run_entry("main").is_ok(), "{declaration}");
+            assert_eq!(evaluator.stdout, [b'F', 0x80, b'\n'], "{declaration}");
+            assert!(evaluator.host_boundary_touched, "{declaration}");
+            assert!(evaluator.non_fs_host_boundary_touched, "{declaration}");
+        }
+    }
+
+    #[test]
+    fn direct_console_exit_intrinsic_stops_before_the_next_byte() {
+        for supply in ["boundary", "external"] {
+            let declaration = if supply == "boundary" {
+                "boundary machine ConsoleNativeProvider::exit_process(code: i32)
+                    satisfies Console::exit_process;"
+            } else {
+                "machine ConsoleNativeProvider::exit_process(code: i32)
+                    satisfies Console::exit_process via Binding::CompilerIntrinsic;"
+            };
+            let checked = checked(&format!(
+                "pub boundary trait Console {{
+                    machine exit_process(code: i32) reaches Console;
+                    machine write_byte(byte: i32) reaches Console;
+                }}
+                pub data ConsoleNativeProvider {{}}
+                {declaration}
+                boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+                    satisfies Console::write_byte;
+                machine main() reaches Console {{
+                    ConsoleNativeProvider::exit_process(70);
+                    ConsoleNativeProvider::write_byte(88);
+                }}"
+            ));
+            let mut evaluator = Evaluator::new_checked(&checked, &[]);
+            assert!(
+                matches!(evaluator.run_entry("main"), Err(Halt::Exit(70))),
+                "{supply}",
+            );
+            assert!(evaluator.stdout.is_empty(), "{supply}");
+            assert!(evaluator.host_boundary_touched, "{supply}");
+            assert!(evaluator.non_fs_host_boundary_touched, "{supply}");
+        }
+    }
+
+    #[test]
+    fn concrete_lookalikes_do_not_gain_console_host_authority() {
+        for (label, primitive, declaration, target) in [
+            (
+                "wrong signature",
+                "i64",
+                "boundary machine ConsoleNativeProvider::write_byte(byte: i64)
+                    satisfies Console::write_byte;",
+                "ConsoleNativeProvider::write_byte",
+            ),
+            (
+                "wrong provider name",
+                "i32",
+                "boundary machine OtherProvider::write_byte(byte: i32)
+                    satisfies Console::write_byte;",
+                "OtherProvider::write_byte",
+            ),
+            (
+                "custom intrinsic provider",
+                "i32",
+                "machine OtherProvider::write_byte(byte: i32)
+                    satisfies Console::write_byte via Binding::CompilerIntrinsic;",
+                "OtherProvider::write_byte",
+            ),
+            (
+                "custom intrinsic method",
+                "i32",
+                "machine ConsoleNativeProvider::custom_write(byte: i32)
+                    satisfies Console::write_byte via Binding::CompilerIntrinsic;",
+                "ConsoleNativeProvider::custom_write",
+            ),
+            (
+                "DllImport",
+                "i32",
+                "machine ConsoleNativeProvider::write_byte(byte: i32)
+                    satisfies Console::write_byte
+                    via Binding::DllImport(\"console\", \"write_byte\");",
+                "ConsoleNativeProvider::write_byte",
+            ),
+            (
+                "no satisfies edge",
+                "i32",
+                "boundary machine ConsoleNativeProvider::write_byte(byte: i32);",
+                "ConsoleNativeProvider::write_byte",
+            ),
+            (
+                "ordinary authored body",
+                "i32",
+                "machine ConsoleNativeProvider::write_byte(byte: i32)
+                    satisfies Console::write_byte {}",
+                "ConsoleNativeProvider::write_byte",
+            ),
+        ] {
+            let checked = checked(&format!(
+                "pub boundary trait Console {{
+                    machine write_byte(byte: {primitive}) reaches Console;
+                }}
+                pub data ConsoleNativeProvider {{}}
+                pub data OtherProvider {{}}
+                {declaration}
+                machine main() reaches Console {{ {target}(70); }}"
+            ));
+            let mut evaluator = Evaluator::new_checked(&checked, &[]);
+            let realization = checked
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == target)
+                .expect("concrete test realization");
+            let state = checked
+                .machine_states(realization)
+                .first()
+                .expect("concrete test realization state");
+            assert_eq!(
+                evaluator.exact_console_intrinsic_host_method(state.symbol),
+                None,
+                "{label}",
+            );
+            // External fallback behavior is separate from host admission.
+            let result = evaluator.run_entry("main");
+            if label == "ordinary authored body" {
+                assert!(result.is_ok(), "ordinary checked body must still execute");
+            }
+            assert!(evaluator.stdout.is_empty(), "{label}");
+            assert!(!evaluator.host_boundary_touched, "{label}");
+            assert!(!evaluator.non_fs_host_boundary_touched, "{label}");
         }
     }
 }

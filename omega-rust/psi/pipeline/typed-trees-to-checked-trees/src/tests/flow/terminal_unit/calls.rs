@@ -1623,6 +1623,79 @@ fn selected_console_exit_intrinsic_projects_the_exact_boundary_requirement() {
 }
 
 #[test]
+fn selected_console_write_byte_intrinsic_projects_the_exact_boundary_requirement() {
+    let checked = checked(
+        r#"
+        pub boundary trait Console {
+            machine write_byte(byte: i32)
+            reaches Console;
+        }
+
+        pub data ConsoleNativeProvider {}
+        boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+            satisfies Console::write_byte;
+
+        data Root {}
+        machine Root::enter()
+        reaches Console
+        {
+            ConsoleNativeProvider::write_byte(37);
+        }
+        "#,
+    );
+
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let requirement_symbol = checked
+        .typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Console")
+        .and_then(|definition| {
+            checked
+                .typed
+                .trait_machine_signatures(definition)
+                .iter()
+                .find(|requirement| requirement.name.as_str() == "write_byte")
+        })
+        .map(|requirement| requirement.symbol)
+        .expect("exact Console write_byte requirement symbol");
+    let requirement = plans
+        .boundary_machines
+        .iter()
+        .find(|boundary| boundary.machine == requirement_symbol)
+        .expect("exact Console write_byte requirement");
+    assert!(requirement.structural_parameters.is_empty());
+    assert_eq!(requirement.scalar_parameters.len(), 1);
+    assert_eq!(
+        requirement.scalar_parameters[0].primitive_type,
+        PrimitiveType::I32,
+    );
+    let root = plans
+        .for_machine(machine_named(&checked, "Root::enter"))
+        .expect("selected bodyless byte intrinsic must retain its caller plan");
+    assert!(matches!(
+        root.operations.as_slice(),
+        [
+            CheckedUnitEffectOperationPlan::BoundaryCall {
+                target_machine,
+                scalar_arguments,
+                structural_arguments,
+                ..
+            },
+            CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+        ] if *target_machine == requirement_symbol
+            && scalar_arguments.len() == 1
+            && structural_arguments.is_empty()
+    ));
+    assert!(
+        plans
+            .for_machine(machine_named(&checked, "ConsoleNativeProvider::write_byte"))
+            .is_none(),
+        "the bodyless byte intrinsic must not acquire a manufactured checked body"
+    );
+}
+
+#[test]
 fn other_external_mechanisms_signatures_and_names_do_not_rejoin_as_intrinsic_boundaries() {
     for (label, source) in [
         (
