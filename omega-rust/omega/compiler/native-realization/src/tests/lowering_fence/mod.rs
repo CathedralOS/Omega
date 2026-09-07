@@ -6,6 +6,7 @@ mod boolean_literal_result;
 mod boolean_parameters;
 mod fixed_integer_matrix;
 mod ieee_float;
+mod indexed_receivers;
 mod parameter_integer;
 mod primitive;
 mod scalar_permutation;

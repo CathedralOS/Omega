@@ -256,27 +256,23 @@ pub(super) fn exact_write_only_projection(
     destination: &machine_code::UnitParameterRecord,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> bool {
-    let Some(first_index) = argument
+    if !argument
         .path
         .iter()
-        .position(|segment| matches!(segment, terminal_psi::StructuralPathSegment::FixedIndex(_)))
-    else {
+        .any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::FixedIndex(_)))
+    {
         return false;
-    };
+    }
     if argument.access != terminal_psi::StructuralAccess::WriteOnlyBorrow
-        || source.access != terminal_psi::StructuralAccess::WriteOnlyBorrow
+        || !matches!(source.access, terminal_psi::StructuralAccess::MutableBorrow | terminal_psi::StructuralAccess::WriteOnlyBorrow)
         || destination.access != terminal_psi::StructuralAccess::WriteOnlyBorrow
         || source.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
         || destination.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
         || argument.fixed_array_length.is_some()
         || argument.element_stride.is_some()
-        || !argument.path[..first_index].iter().all(|segment| {
-            matches!(segment,
-                terminal_psi::StructuralPathSegment::Field(identity) if !identity.is_empty())
+        || argument.path.iter().any(|segment| {
+            matches!(segment, terminal_psi::StructuralPathSegment::Field(identity) if identity.is_empty())
         })
-        || !argument.path[first_index..]
-            .iter()
-            .all(|segment| matches!(segment, terminal_psi::StructuralPathSegment::FixedIndex(_)))
     {
         return false;
     }
@@ -295,15 +291,16 @@ pub(super) fn exact_write_only_projection(
     ) else {
         return false;
     };
-    let leaf_is_primitive = structural_types.iter().any(|declaration| {
+    let leaf_is_material = structural_types.iter().any(|declaration| {
         declaration.id == leaf_type
             && matches!(
                 declaration.shape,
                 terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
+                    | terminal_psi::StructuralTypeShape::Record { .. }
             )
     });
     let expected_shape = ValueShape::borrowed_reference(leaf_shape.byte_size, leaf_shape.alignment);
-    leaf_is_primitive
+    leaf_is_material
         && argument.place == source.place
         && argument.root_structural_type == source.structural_type
         && argument.structural_type == leaf_type
