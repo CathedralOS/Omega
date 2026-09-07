@@ -53,9 +53,10 @@ pub(super) use composed_control::lower_composed_unit_control_machine;
 #[cfg(test)]
 pub(super) use parameters::lower_contract_service_ceiling;
 pub(super) use parameters::{
-    checked_scalar_source_parameters, lower_installation_machine_service_ceiling,
-    lower_published_service_ceiling, lower_structural_arguments, lower_structural_path,
-    lower_unit_parameters, validate_transfer_shape,
+    checked_scalar_source_parameters, literal_argument_places,
+    lower_installation_machine_service_ceiling, lower_published_service_ceiling,
+    lower_structural_arguments, lower_structural_path, lower_unit_parameters,
+    validate_transfer_shape,
 };
 pub(super) use provider_attachments::lower_provider_attachment_places;
 use provider_attachments::validate_provider_attachment_requirements;
@@ -1251,22 +1252,15 @@ fn assemble_unit_closure(
                 | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
                     structural_arguments,
                     ..
+                }
+                | CheckedUnitEffectOperationPlan::CallUnit {
+                    structural_arguments,
+                    ..
                 } => literal_arguments.extend(
                     structural_arguments
                         .iter()
                         .filter(|argument| argument.byte_sequence_literal().is_some()),
                 ),
-                CheckedUnitEffectOperationPlan::CallUnit {
-                    structural_arguments,
-                    ..
-                } if structural_arguments
-                    .iter()
-                    .any(|argument| argument.byte_sequence_literal().is_some()) =>
-                {
-                    return unsupported(
-                        "byte-sequence literals may target only bodyless boundaries",
-                    );
-                }
                 _ => {}
             }
         }
@@ -1600,13 +1594,18 @@ fn assemble_unit_closure(
                             .map(|claim| claim.parameter_index)
                             .collect::<Vec<_>>(),
                     )?;
+                    let call_literal_places = literal_argument_places(
+                        structural_arguments,
+                        &literal_places,
+                        &mut next_literal_argument,
+                    )?;
                     let terminal_arguments = lower_structural_arguments(
                         structural_arguments,
                         parameters,
                         &local_places,
                         &affine_scalar_record_places,
                         &structural_result_places,
-                        &[],
+                        &call_literal_places,
                     )?;
                     let target_parameters = lowered_machine_parameters
                         .iter()
@@ -1685,14 +1684,20 @@ fn assemble_unit_closure(
                                 parameter.place,
                                 (
                                     argument.place,
-                                    structural_crash_route_argument_prefix(
-                                        argument,
-                                        parameters,
-                                        &local_places,
-                                        &affine_scalar_record_places,
-                                        &structural_result_places,
-                                        &structural_types,
-                                    )?,
+                                    if call_literal_places.contains(&argument.place) {
+                                        // Transfer validation already required the exact whole
+                                        // immutable literal. Its canonical path has no segments.
+                                        Vec::new()
+                                    } else {
+                                        structural_crash_route_argument_prefix(
+                                            argument,
+                                            parameters,
+                                            &local_places,
+                                            &affine_scalar_record_places,
+                                            &structural_result_places,
+                                            &structural_types,
+                                        )?
+                                    },
                                 ),
                             ))
                         })
@@ -2434,24 +2439,11 @@ fn assemble_unit_closure(
                     .iter()
                     .map(|value| value.id)
                     .collect();
-                    let literal_count = structural_arguments
-                        .iter()
-                        .filter(|argument| argument.byte_sequence_literal().is_some())
-                        .count();
-                    let literal_end = next_literal_argument.checked_add(literal_count).ok_or(
-                        LoweringError::Unsupported(
-                            "byte-sequence literal argument count overflows usize",
-                        ),
+                    let call_literal_places = literal_argument_places(
+                        structural_arguments,
+                        &literal_places,
+                        &mut next_literal_argument,
                     )?;
-                    let call_literal_places = literal_places
-                        .get(next_literal_argument..literal_end)
-                        .ok_or(LoweringError::Unsupported(
-                            "byte-sequence literal argument place is absent",
-                        ))?
-                        .iter()
-                        .map(|place| place.id)
-                        .collect::<Vec<_>>();
-                    next_literal_argument = literal_end;
                     OperationKind::BoundaryCall {
                         boundary: *boundary,
                         arguments,
@@ -2560,24 +2552,11 @@ fn assemble_unit_closure(
                     .iter()
                     .map(|value| value.id)
                     .collect();
-                    let literal_count = structural_arguments
-                        .iter()
-                        .filter(|argument| argument.byte_sequence_literal().is_some())
-                        .count();
-                    let literal_end = next_literal_argument.checked_add(literal_count).ok_or(
-                        LoweringError::Unsupported(
-                            "byte-sequence literal argument count overflows usize",
-                        ),
+                    let call_literal_places = literal_argument_places(
+                        structural_arguments,
+                        &literal_places,
+                        &mut next_literal_argument,
                     )?;
-                    let call_literal_places = literal_places
-                        .get(next_literal_argument..literal_end)
-                        .ok_or(LoweringError::Unsupported(
-                            "byte-sequence literal argument place is absent",
-                        ))?
-                        .iter()
-                        .map(|place| place.id)
-                        .collect::<Vec<_>>();
-                    next_literal_argument = literal_end;
                     let kind = OperationKind::BoundaryCall {
                         boundary: *boundary,
                         arguments,
@@ -2745,24 +2724,11 @@ fn assemble_unit_closure(
                     .iter()
                     .map(|value| value.id)
                     .collect();
-                    let literal_count = structural_arguments
-                        .iter()
-                        .filter(|argument| argument.byte_sequence_literal().is_some())
-                        .count();
-                    let literal_end = next_literal_argument.checked_add(literal_count).ok_or(
-                        LoweringError::Unsupported(
-                            "byte-sequence literal argument count overflows usize",
-                        ),
+                    let call_literal_places = literal_argument_places(
+                        structural_arguments,
+                        &literal_places,
+                        &mut next_literal_argument,
                     )?;
-                    let call_literal_places = literal_places
-                        .get(next_literal_argument..literal_end)
-                        .ok_or(LoweringError::Unsupported(
-                            "byte-sequence literal argument place is absent",
-                        ))?
-                        .iter()
-                        .map(|place| place.id)
-                        .collect::<Vec<_>>();
-                    next_literal_argument = literal_end;
                     let kind = OperationKind::BoundaryCall {
                         boundary: *boundary,
                         arguments,

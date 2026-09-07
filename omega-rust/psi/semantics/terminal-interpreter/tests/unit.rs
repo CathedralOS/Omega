@@ -49,6 +49,9 @@ mod affine_identity_calls;
 #[path = "unit/boundary_borrows.rs"]
 mod boundary_borrows;
 
+#[path = "unit/byte_sequence_forwarding.rs"]
+mod byte_sequence_forwarding;
+
 #[path = "unit/result_residuals.rs"]
 mod result_residuals;
 

@@ -743,21 +743,10 @@ pub(super) fn build_call_operation(
             } else {
                 base_type_identity(program, parameter.type_reference, &[])?
             };
-            if byte_sequence == Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
-                && let ExpressionNode::String(bytes) =
-                    program.expression_table.expression(*argument)
+            if let Some(literal) =
+                byte_sequence_literal_argument(program, parameter.type_reference, *argument)
             {
-                structural_arguments.push(CheckedUnitStructuralArgumentPlan {
-                    source: CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral {
-                        bytes: bytes.to_vec(),
-                    },
-                    path: Vec::new(),
-                    type_identity: target_identity,
-                    access: structural_access_for_type_reference(
-                        program,
-                        parameter.type_reference,
-                    )?,
-                });
+                structural_arguments.push(literal);
                 continue;
             }
 
@@ -1424,12 +1413,6 @@ pub(super) fn ordinary_projected_call_is_supported(
     arguments: &[CheckedUnitStructuralArgumentPlan],
     allow_field_path_projection: bool,
 ) -> bool {
-    if arguments
-        .iter()
-        .any(|argument| argument.byte_sequence_literal().is_some())
-    {
-        return false;
-    }
     if arguments.iter().all(|argument| argument.path.is_empty()) {
         return true;
     }
@@ -1794,6 +1777,31 @@ pub(super) fn crash_expression_mentions_parameter_outside_member_path(
     }
 }
 
+fn byte_sequence_literal_argument(
+    program: &TypedTrees,
+    parameter_type: TypeReferenceHandle,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<CheckedUnitStructuralArgumentPlan> {
+    if byte_sequence_carrier(program, parameter_type, &[])?
+        != checked_trees::CheckedByteSequenceCarrier::BorrowedView
+        || structural_access_for_type_reference(program, parameter_type)?
+            != CheckedStructuralAccess::SharedBorrow
+    {
+        return None;
+    }
+    let ExpressionNode::String(bytes) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    Some(CheckedUnitStructuralArgumentPlan {
+        source: CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral {
+            bytes: bytes.to_vec(),
+        },
+        path: Vec::new(),
+        type_identity: byte_sequence_type_identity(program, parameter_type, &[], &[])?,
+        access: CheckedStructuralAccess::SharedBorrow,
+    })
+}
+
 pub(super) fn structural_call_arguments(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -1865,6 +1873,14 @@ pub(super) fn structural_call_arguments(
         } else {
             let expression = *explicit_arguments.get(explicit_index)?;
             explicit_index += 1;
+            if target_machine.supply_mode == MachineSupplyMode::CheckedBody
+                && is_unit(program, target_state.return_type)
+                && let Some(literal) =
+                    byte_sequence_literal_argument(program, target.type_reference, expression)
+            {
+                output.push(literal);
+                continue;
+            }
             crate::flow::canonical_place_from_expression_in_state(
                 program,
                 caller_state.symbol,
