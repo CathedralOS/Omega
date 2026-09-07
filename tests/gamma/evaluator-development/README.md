@@ -70,10 +70,23 @@ sorted pointer index by exact name. The index occupies
 `0x04280000..0x04300000` inside the function partition, under the selected
 65,536-row preflight. The 19 lookup/census controls pin row payloads and
 failure ownership independently of this implementation. The complete gate
-runs 76 evaluator invocations, including the augmentation and capacity pairs.
+runs 82 evaluator invocations, including the augmentation and capacity pairs.
 `OMEGA_GAMMA_FUNCTION_UPPER_SECONDS` optionally changes only the upper-census
 host watchdog (default 20 seconds, positive integer); a timeout is not a
 language judgment.
+
+`environment_rows.py` supplies six physical-environment controls. Each non-tail
+activation retains 512 parameters; 256 such activations reach exactly 131,072
+rows. The parameterless `main` plus those activations use the existing 256 call
+contexts and 257 frames. One additional deepest-body `let` must refuse before
+its store, without making another call. Controls also cross the former
+65,536-row limit. The first parameter drives recursion and the last retains a
+pair whose fields are checked at maximum depth. Names have distinct lengths to
+avoid a quadratic full-width static signature, without special evaluator paths.
+Scalar and application variants check successful publication and suppression of
+an already buffered prefix on exhaustion, with statuses 3 and 250 respectively.
+The [Delta resource gate](../../delta/resource-boundary/README.md#generated-validation-environments)
+separately exercises the actual wide generated signature that exposed the gap.
 
 ## Limitations
 

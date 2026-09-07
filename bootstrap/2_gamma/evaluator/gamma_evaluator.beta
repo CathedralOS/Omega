@@ -26,7 +26,7 @@
         imm r92 0x100000
         imm r93 0x1100000
         imm r94 0x4000000
-        imm r95 0x1300000
+        imm r95 0x1100000
         imm r96 0x1500000
         imm r97 0x1d00000
         imm ra0 0x10000000
@@ -505,7 +505,7 @@
         mov r9 ra2
         call 0x8f9 ; -> find_environment:
         jnz r0 0x19e6 ; -> invalid:
-        imm r1 0x10000
+        imm r1 0x20000
         jeq r89 r1 0x1dab ; -> stack_failure:
         imm r0 0x20
         mul r0 r89

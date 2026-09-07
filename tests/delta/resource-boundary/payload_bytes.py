@@ -38,7 +38,8 @@ def accepted_fixtures():
     return (
         ("exact payload extent publishes the complete receipt", source(15897),
          174136, "59c34931c6cfc0ba7b02483b5422857a3b7ccc4a3ec4749e9fca1fa631f565ed",
-         16777212, "d20cd2be86566d9d5dd78410eb0ef9fb691fef795546f56de9394313e1514f21"),
+         16777212, "d20cd2be86566d9d5dd78410eb0ef9fb691fef795546f56de9394313e1514f21",
+         b"", b""),
     )
 
 

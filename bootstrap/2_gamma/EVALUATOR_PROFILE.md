@@ -58,7 +58,7 @@ The current evaluator uses these Alpha memory regions:
 
 ```text
 0x00100000..0x01100000   request bytes
-0x01300000..0x01500000   lexical environment rows
+0x01100000..0x01500000   lexical environment rows
 0x01500000..0x01d00000   temporary value stack
 0x01e00000..0x01f00000   function activation rows
 0x01f00000..0x02000000   nested-call context rows
@@ -71,8 +71,9 @@ The selected AlphaBootstrapV4 realization provides 1.75 GiB of memory. The Alpha
 tape occupies low memory and the hidden Alpha call stack still grows down
 from `0x10000000`. Pairs grow upward from that boundary, without overlapping
 the stack or moving the output buffer. The function partition occupies part of
-the former pair region; the old function partition at
-`0x01200000..0x01300000` is unused. Every evaluator-owned extent is preflighted
+the former pair region. The environment uses the space between the exclusive
+request end and the value stack, including the former function partition at
+`0x01200000..0x01300000`. Every evaluator-owned extent is preflighted
 before use; the hidden Alpha stack is discharged by the containment argument
 below.
 
@@ -87,7 +88,7 @@ only an extent beyond the end is refused.
 | --- | --- | ---: |
 | complete request | bytes at `0x00100000` | 16,777,216 bytes |
 | function census | five-word rows, with an explicit logical cap | 65,536 functions |
-| active lexical environment | four-word `(name span, value, kind)` rows | 65,536 bindings |
+| active lexical environment | four-word `(name span, value, kind)` rows | 131,072 bindings |
 | temporary values and arguments | two-word `(value, kind)` entries | 524,288 values |
 | nested expression lists | evaluator recursion, prechecked during census | 255 lists |
 | nested call contexts | three-word rows, slot zero reserved | 256 contexts |
@@ -123,6 +124,20 @@ capacity admits Delta-generated helpers beyond the former 4,096-function
 ceiling without changing source representation or introducing an AST.
 Sorted-index insertion still has quadratic worst-case pointer movement for
 reverse-ordered names; the enlarged capacity does not remove that cost.
+
+Environment row 131,071 starts at `0x014fffe0`; its final word starts at
+`0x014ffff8` and ends exactly at the value-stack boundary. Request insertion
+stops before `0x01100000`, including its non-storing EOF probe. The additional
+rows use previously unused memory without increasing Alpha RAM or moving any
+other live region. Static validation resets this environment for every function
+and visits unreachable bodies; runtime non-tail calls retain caller rows,
+whereas tail calls replace the current activation.
+
+The [Delta generated-environment control](../../tests/delta/resource-boundary/README.md#generated-validation-environments)
+requires this headroom: 65,534 authored parameters plus three checked-arithmetic
+bindings exceeded the former 65,536-row provision even though Delta admitted
+the source. This fixes that measured admission gap, not all generated-Gamma
+admission or runtime exhaustion. Environment name lookup remains linear.
 
 The 256-context cap is stronger than the physical function-frame arena: `main`
 owns one frame and each live non-tail context can own one more, so at most 257
@@ -168,18 +183,18 @@ The selected implementation is
 current SHA-256 identities are:
 
 ```text
-Beta source  29d0a5e7d8960d456bf6905b776a984d0e371d1e4cd260a6b6a81b7e086fc1de
-Alpha tape   90cb720c980e859588179cdef59ed615ecd1bb053b09601b01964dc0a05571fc
+Beta source  16388aafda52c1db3d8a416e97d885341ac7000d2e8d92b62953daf7937f36ef
+Alpha tape   e157391249afa316d8bc9daece8d9934c365d0980ff9181781dcd366bd76d91b
 ```
 
 Proper-tail execution, static validation of unreachable bodies, exact resource
 outcomes, bounded output, profile-owned arithmetic traps, and provenance-tagged
 immutable-pair allocation are implemented. Buffered scalar transformation and
 generic application publication share this one selected evaluator. The gate
-pins exact source
-and tape identities plus exact/adjacent function, syntax-depth, and call-context
-boundaries; the fixed identity makes the remaining arithmetic extent arguments
-above reviewable against one immutable subject rather than a host model.
+pins exact source and tape identities plus exact/adjacent function, environment,
+syntax-depth, and call-context boundaries; the fixed identity makes the remaining
+arithmetic extent arguments above reviewable against one immutable subject
+rather than a host model.
 
 The separate [heap-boundary gate](../../tests/gamma/heap-boundary/README.md)
 executes ordinary Gamma allocation loops at the exact whole-node maximum and
