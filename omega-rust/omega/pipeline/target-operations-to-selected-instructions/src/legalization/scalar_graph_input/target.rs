@@ -1,8 +1,11 @@
+//! Target trees witness source values along each checked edge; they never supply executable rows.
 use super::*;
+use semantic_vocabulary::BlockId;
 use target_operations::{
-    ScalarParameterLocation, TargetIntegerExpression as Expression, TargetScalarExpression,
-    TargetUnitOperation,
+    ScalarParameterLocation, TargetBooleanExpression as Boolean, TargetIntegerControl as Control,
+    TargetIntegerExpression as Expression, TargetScalarExpression, TargetUnitOperation,
 };
+mod expressions;
 mod unit;
 pub(super) fn validate_target(
     target: &TargetFunction,
@@ -13,141 +16,229 @@ pub(super) fn validate_target(
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
-    let block = &optimized.blocks[0];
-    let (returned, body) = block.nodes.split_last().ok_or(invalid.clone())?;
-    let operations = body
+    let operations = optimized
+        .blocks
         .iter()
-        .map(|node| instruction(node).map(|value| value.0))
-        .collect::<Option<Vec<_>>>()
-        .ok_or(invalid.clone())?;
-    let edge = match returned.operation {
-        AbstractOperation::Return { psi_edge, .. }
-        | AbstractOperation::ReturnUnit { psi_edge, .. } => psi_edge,
-        _ => return Err(invalid),
-    };
-    if target.provenance.operations != operations || target.provenance.edges != [edge] {
+        .flat_map(|block| &block.nodes)
+        .filter_map(|node| instruction(node).map(|row| row.0))
+        .collect::<Vec<_>>();
+    let mut edges = optimized
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .flat_map(|node| match &node.operation {
+            AbstractOperation::Return { psi_edge, .. }
+            | AbstractOperation::ReturnUnit { psi_edge, .. }
+            | AbstractOperation::Jump { psi_edge, .. } => vec![*psi_edge],
+            AbstractOperation::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => vec![when_true.psi_edge, when_false.psi_edge],
+            _ => vec![],
+        })
+        .collect::<Vec<_>>();
+    let mut target_edges = target.provenance.edges.clone();
+    edges.sort();
+    target_edges.sort();
+    if target.provenance.operations != operations || target_edges != edges {
         return Err(invalid);
     }
-    if let TargetOperation::UnitBody(target_body) = &target.operation {
-        return unit::validate(target_body, abstracted, optimized, native, plan, unit);
+    if let TargetOperation::UnitBody(body) = &target.operation {
+        if optimized.blocks.len() != 1 {
+            return Err(invalid);
+        }
+        return unit::validate(body, abstracted, optimized, native, plan, unit);
     }
-    let AbstractOperation::Return { value, .. } = returned.operation else {
-        return Err(invalid);
-    };
-    let matches = match &target.operation {
+    let (scalar_type, control) = match &target.operation {
         TargetOperation::ReturnIntegerImmediate {
             psi_edge,
             source_value,
             scalar_type,
-            value: literal,
-        } => {
-            *psi_edge == edge
-                && *source_value == value
-                && *scalar_type == u64_type()
-                && expression(
-                    &Expression::Immediate {
-                        source_value: *source_value,
-                        value: *literal,
-                    },
-                    value,
-                    target,
-                    body,
-                    native,
-                    plan,
-                    unit,
-                )
-        }
+            value,
+        } => (
+            *scalar_type,
+            Control::Return {
+                psi_return_edge: *psi_edge,
+                source_value: *source_value,
+                expression: Expression::Immediate {
+                    source_value: *source_value,
+                    value: *value,
+                },
+            },
+        ),
         TargetOperation::ReturnIntegerParameter {
             psi_edge,
             source_value,
             scalar_type,
             parameter_index,
             location,
-        } => {
-            *psi_edge == edge
-                && *source_value == value
-                && *scalar_type == u64_type()
-                && expression(
-                    &Expression::Parameter {
-                        source_value: *source_value,
-                        parameter_index: *parameter_index,
-                        location: *location,
-                    },
-                    value,
-                    target,
-                    body,
-                    native,
-                    plan,
-                    unit,
-                )
-        }
+        } => (
+            *scalar_type,
+            Control::Return {
+                psi_return_edge: *psi_edge,
+                source_value: *source_value,
+                expression: Expression::Parameter {
+                    source_value: *source_value,
+                    parameter_index: *parameter_index,
+                    location: *location,
+                },
+            },
+        ),
         TargetOperation::ReturnIntegerExpression {
             psi_edge,
             source_value,
             scalar_type,
-            expression: expr,
-        } => {
-            *psi_edge == edge
-                && *source_value == value
-                && *scalar_type == u64_type()
-                && expression(expr, value, target, body, native, plan, unit)
-        }
-        _ => false,
+            expression,
+        } => (
+            *scalar_type,
+            Control::Return {
+                psi_return_edge: *psi_edge,
+                source_value: *source_value,
+                expression: expression.clone(),
+            },
+        ),
+        TargetOperation::ReturnIntegerExpressionConditionalControl {
+            condition_source,
+            condition,
+            scalar_type,
+            when_true,
+            when_false,
+        } => (
+            *scalar_type,
+            Control::ConditionalExpression {
+                condition_source: *condition_source,
+                condition: condition.clone(),
+                when_true: when_true.clone(),
+                when_false: when_false.clone(),
+            },
+        ),
+        _ => return Err(invalid),
     };
-    if !matches {
+    if !matches!(abstracted.result,AbstractFunctionResult::Scalar(result) if result.scalar_type == ScalarType::Integer(scalar_type))
+    {
+        return Err(invalid);
+    }
+    let checker = Checker {
+        function: target,
+        optimized,
+        native,
+        plan,
+        unit,
+    };
+    if !checker.control(optimized.entry, &control, &[], &[]) {
         return Err(invalid);
     }
     Ok(())
 }
-#[allow(clippy::too_many_arguments)]
-fn expression(
-    expression: &Expression,
-    value: ValueId,
-    function: &TargetFunction,
-    body: &[OptimizationNode],
-    native: &TargetOperationPlan,
-    plan: &AbstractOperationPlan,
-    unit: &PsiOptimizationUnit,
-) -> bool {
-    match expression {
-        Expression::Immediate {source_value,value:literal} => *source_value == value && body.iter().any(|node|
-            matches!(&node.operation,AbstractOperation::IntegerConstant {result,value:actual,..} if *result==value && actual==literal)),
-        Expression::Parameter {source_value,parameter_index,location} => {
-            let Some(parameter) = function.fixed_integer_scalar_abi.as_ref().and_then(|abi|abi.parameters.get(*parameter_index)) else {return false;};
-            *source_value==value && parameter.value==value && location_matches(*location,&parameter.placement)
-        },
-        Expression::Call {psi_operation,source_value,callee,arguments,requirement_obligations,crash_continuations} => {
-            let Some(node)=body.iter().find(|node|matches!(&node.operation,AbstractOperation::Call {psi_operation:actual,..} if actual==psi_operation)) else {return false;};
-            let AbstractOperation::Call {result,callee:actual,arguments:sources,requirement_obligations:requirements,crash_continuations:crashes,..}=&node.operation else {return false;};
-            let Ok(call_plan)=callee_plan(*callee,native,plan,unit) else {return false;};
-            if *source_value!=value || *result!=value || actual!=callee || requirement_obligations!=requirements || crash_continuations!=crashes
-                || arguments.len()!=sources.len() || arguments.len()!=call_plan.parameters.len() {return false;}
-            arguments.iter().zip(sources).zip(&call_plan.parameters).all(|((argument,source),placement)| {
-                let TargetScalarExpression::Integer {scalar_type,expression:child}=&argument.expression else {return false;};
-                argument.scalar_type==ScalarType::Integer(u64_type()) && *scalar_type==u64_type()
-                    && location_matches(argument.location,placement)
-                    && self::expression(child,*source,function,body,native,plan,unit)
-            })
-        },
-
-        Expression::ExactAdd {psi_operation,obligation,left,right}
-        | Expression::ExactSubtract {psi_operation,obligation,left,right} => {
-            let Some(node) = body.iter().find(|node| matches!(&node.operation,
-                AbstractOperation::ExactIntegerAdd {psi_operation: operation,..}
-                | AbstractOperation::ExactIntegerSubtract {psi_operation: operation,..} if operation == psi_operation)) else {return false;};
-            let (result, source_obligation, source_left, source_right) = match (&node.operation, expression) {
-                (AbstractOperation::ExactIntegerAdd {result,obligation,left,right,..}, Expression::ExactAdd {..})
-                | (AbstractOperation::ExactIntegerSubtract {result,obligation,left,right,..}, Expression::ExactSubtract {..}) => (*result,*obligation,*left,*right),
-                _ => return false,
-            };
-            result == value && source_obligation == *obligation
-                && self::expression(left,source_left,function,body,native,plan,unit)
-                && self::expression(right,source_right,function,body,native,plan,unit)
-        },
-        _=>false,
+struct Checker<'a> {
+    function: &'a TargetFunction,
+    optimized: &'a PsiOptimizationFunction,
+    native: &'a TargetOperationPlan,
+    plan: &'a AbstractOperationPlan,
+    unit: &'a PsiOptimizationUnit,
+}
+impl Checker<'_> {
+    fn control(
+        &self,
+        block: BlockId,
+        control: &Control,
+        aliases: &[(ValueId, ValueId)],
+        path: &[BlockId],
+    ) -> bool {
+        if path.contains(&block) {
+            return false;
+        }
+        let Some(source) = self
+            .optimized
+            .blocks
+            .iter()
+            .find(|candidate| candidate.id == block)
+        else {
+            return false;
+        };
+        let Some(terminator) = source.nodes.last() else {
+            return false;
+        };
+        let mut path = path.to_vec();
+        path.push(block);
+        match (&terminator.operation, control) {
+            (
+                AbstractOperation::Jump {
+                    target, bindings, ..
+                },
+                _,
+            ) => {
+                let bindings = bind(aliases, bindings);
+                self.control(*target, control, &bindings, &path)
+            }
+            (
+                AbstractOperation::Return {
+                    psi_edge, value, ..
+                },
+                Control::Return {
+                    psi_return_edge,
+                    source_value,
+                    expression,
+                },
+            ) => {
+                psi_edge == psi_return_edge
+                    && value == source_value
+                    && self.expression(expression, *value, aliases)
+            }
+            (
+                AbstractOperation::Conditional {
+                    condition,
+                    when_true,
+                    when_false,
+                },
+                Control::ConditionalExpression {
+                    condition_source,
+                    condition: expression,
+                    when_true: true_arm,
+                    when_false: false_arm,
+                },
+            ) => {
+                condition == condition_source
+                    && self.boolean(expression, *condition, aliases)
+                    && when_true.psi_edge == true_arm.psi_edge
+                    && when_false.psi_edge == false_arm.psi_edge
+                    && self.control(
+                        when_true.target,
+                        &true_arm.control,
+                        &bind(aliases, &when_true.bindings),
+                        &path,
+                    )
+                    && self.control(
+                        when_false.target,
+                        &false_arm.control,
+                        &bind(aliases, &when_false.bindings),
+                        &path,
+                    )
+            }
+            _ => false,
+        }
     }
 }
+fn resolve(value: ValueId, aliases: &[(ValueId, ValueId)]) -> ValueId {
+    aliases
+        .iter()
+        .rev()
+        .find(|(parameter, _)| *parameter == value)
+        .map_or(value, |(_, source)| *source)
+}
+fn bind(
+    aliases: &[(ValueId, ValueId)],
+    bindings: &[abstract_operations::ValueBinding],
+) -> Vec<(ValueId, ValueId)> {
+    let mut result = aliases.to_vec();
+    result.extend(
+        bindings
+            .iter()
+            .map(|binding| (binding.parameter, resolve(binding.argument, aliases))),
+    );
+    result
+}
 fn location_matches(location: ScalarParameterLocation, placement: &ValuePlacement) -> bool {
-    matches!(placement.locations.as_slice(),[ValueLocation::Register {register,value_byte_offset:0,byte_size:8}]
-        if location==ScalarParameterLocation::Register(*register))
+    matches!(placement.locations.as_slice(),[ValueLocation::Register {register,value_byte_offset:0,byte_size:8}] if location == ScalarParameterLocation::Register(*register))
 }

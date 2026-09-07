@@ -1,5 +1,6 @@
 use super::*;
 
+mod scalar_control;
 mod u64_equal_zero_parameter;
 mod u64_not_equal_zero_parameter;
 
@@ -8,6 +9,13 @@ fn assert_identity_drift(
     corrupted: &LegalizedOperationPlan,
 ) {
     assert_ne!(legalized_operation_plan_identity(corrupted), original);
+}
+
+fn scalar_return_mut(function: &mut LegalizedScalarFunction) -> &mut LegalizedScalarReturn {
+    let LegalizedScalarTerminator::Return(returned) = &mut function.blocks[0].terminator else {
+        panic!("return fixture")
+    };
+    returned
 }
 
 #[test]
@@ -38,13 +46,13 @@ fn scalar_graph_identity_binds_ordered_source_and_abi_custody() {
             5 => function.blocks[0].instructions[4].result = id(999),
             6 => function.blocks[0].instructions[3].fuel[0].units += 1,
             7 => function.blocks[0].instructions[3].effect.output += 1,
-            8 => function.blocks[0].terminator.edge = id(999),
-            9 => function.blocks[0].terminator.ownership.clear(),
+            8 => scalar_return_mut(function).edge = id(999),
+            9 => scalar_return_mut(function).ownership.clear(),
             10 => function.call_plan.shadow_bytes += 8,
             11 => function.entry_block = id(999),
             12 => function.blocks[0].id = id(999),
             13 => {
-                function.blocks[0].terminator.value = LegalizedScalarReturnValue::Value {
+                scalar_return_mut(function).value = LegalizedScalarReturnValue::Value {
                     value: id(114),
                     scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
                 }
@@ -56,8 +64,8 @@ fn scalar_graph_identity_binds_ordered_source_and_abi_custody() {
             15 => call_mut(function, 0).result_placement.locations.clear(),
             16 => call_mut(function, 0).requirement_obligations.push(id(999)),
             17 => call_mut(function, 0).arguments[0].source = id(999),
-            18 => function.blocks[0].terminator.fuel[0].units += 1,
-            19 => function.blocks[0].terminator.effect.input += 1,
+            18 => scalar_return_mut(function).fuel[0].units += 1,
+            19 => scalar_return_mut(function).effect.input += 1,
             20 => function.blocks[0].instructions.pop().map(|_| ()).unwrap(),
             _ => function.provenance.operations.reverse(),
         }
@@ -290,14 +298,15 @@ fn call_aware_unit_roster_cannot_alias_value_less_unit_roster() {
         entry_block: function.entry_block,
         blocks: vec![LegalizedScalarBlock {
             id: function.entry_block,
+            parameters: vec![],
             instructions: Vec::new(),
-            terminator: LegalizedScalarReturn {
+            terminator: LegalizedScalarTerminator::Return(LegalizedScalarReturn {
                 edge: function.return_edge,
                 value: LegalizedScalarReturnValue::Unit,
                 fuel: function.return_fuel.clone(),
                 effect: function.return_effect,
                 ownership: function.return_ownership.clone(),
-            },
+            }),
         }],
     });
     assert_ne!(

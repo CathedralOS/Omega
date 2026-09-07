@@ -3,6 +3,26 @@ use crate::tests::*;
 
 use super::fixture::staged_homes;
 
+pub(super) fn planned_frame_count(fragments: &StagedOptimizedFunctionFragmentEmission) -> usize {
+    let plan = fragments
+        .source()
+        .frame_layout()
+        .expect("calling fixture requires frame plans")
+        .plan();
+    assert!(plan.functions.iter().any(|function| function.contains_call));
+    assert!(
+        plan.functions
+            .iter()
+            .filter(|function| function.contains_call)
+            .all(|function| function.frame_size_bytes != 0)
+    );
+    // Noncalling callees may need saved-register frames on one ISA but not another.
+    plan.functions
+        .iter()
+        .filter(|function| function.frame_size_bytes != 0)
+        .count()
+}
+
 fn staged_fixed_frame_text(
     target: NativeTarget,
 ) -> (
@@ -22,8 +42,9 @@ fn staged_fixed_frame_text(
         FunctionFragmentReplayInputs::FixedFrame(Box::new(realization)).into(),
     )
     .unwrap();
+    let expected_frames = planned_frame_count(&fragments);
     let applied = stage_function_fragment_frame_application(fragments).unwrap();
-    assert_eq!(applied.receipt().framed_function_count(), 1);
+    assert_eq!(applied.receipt().framed_function_count(), expected_frames);
     let application = applied.receipt().identity();
     (
         stage_optimized_fixed_frame_text_section(applied).unwrap(),

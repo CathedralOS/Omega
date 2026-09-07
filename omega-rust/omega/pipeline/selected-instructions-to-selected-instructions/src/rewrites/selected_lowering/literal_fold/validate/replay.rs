@@ -352,6 +352,37 @@ fn redensify(
                 removed_register,
             )?;
         }
+        let successors = match &mut block.terminator {
+            SelectedTerminator::Jump { successor, .. } => vec![successor],
+            SelectedTerminator::ConditionalBranch {
+                when_nonzero,
+                when_zero,
+                ..
+            } => vec![when_nonzero, when_zero],
+            SelectedTerminator::ConditionalBranchU64LessThan {
+                when_less,
+                when_not_less,
+                ..
+            }
+            | SelectedTerminator::ConditionalBranchI64LessThan {
+                when_less,
+                when_not_less,
+                ..
+            } => vec![when_less, when_not_less],
+            SelectedTerminator::Return { .. } => Vec::new(),
+        };
+        for successor in successors {
+            for binding in &mut successor.bindings {
+                if let selected_instructions::SelectedValueTransport::Registers {
+                    argument,
+                    parameter,
+                } = &mut binding.transport
+                {
+                    *argument = lower_register(function_index, *argument, removed_register)?;
+                    *parameter = lower_register(function_index, *parameter, removed_register)?;
+                }
+            }
+        }
         match &mut block.terminator {
             SelectedTerminator::ConditionalBranch { instruction, .. }
             | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }

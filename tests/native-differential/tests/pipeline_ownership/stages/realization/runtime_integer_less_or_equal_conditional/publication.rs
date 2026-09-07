@@ -28,8 +28,10 @@ fn runtime_u64_parameter_less_or_equal_reaches_object_and_callable_on_both_isas(
         match target.architecture {
             target::Architecture::X86_64 => {
                 assert!(
-                    text.windows(3).any(|bytes| bytes == [0x48, 0x39, 0xfe]),
-                    "x86 object must contain reversed `cmp rsi, rdi`"
+                    text.windows(3).any(|bytes| bytes[0] & 0xf8 == 0x48
+                        && bytes[1] == 0x39
+                        && bytes[2] & 0xc0 == 0xc0),
+                    "x86 object must contain a register CMP; selected replay checks reversed operands"
                 );
                 assert!(
                     text.windows(2).any(|bytes| bytes[0] == 0x72),
@@ -39,8 +41,11 @@ fn runtime_u64_parameter_less_or_equal_reaches_object_and_callable_on_both_isas(
             target::Architecture::Aarch64 => {
                 assert!(
                     text.windows(4)
-                        .any(|bytes| bytes == [0x3f, 0x00, 0x00, 0xeb]),
-                    "AArch64 object must contain reversed `cmp x1, x0`"
+                        .any(
+                            |bytes| u32::from_le_bytes(bytes.try_into().unwrap()) & 0xffe0_fc1f
+                                == 0xeb00_001f
+                        ),
+                    "AArch64 object must contain a register CMP; selected replay checks reversed operands"
                 );
                 assert!(
                     text.windows(4).any(|bytes| {

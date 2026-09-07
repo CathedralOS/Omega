@@ -1,7 +1,7 @@
 //! Independent rejection for signed inclusive-order and successor corruption.
 
 use crate::tests::*;
-use legalized_operations::LegalizedCondition;
+use legalized_operations::{LegalizedScalarComparison, LegalizedScalarInstructionKind};
 
 use super::fixture::staged_signed_integer_less_or_equal_conditional;
 
@@ -20,8 +20,8 @@ fn signed_inclusive_family_rejects_unsigned_strict_and_operand_substitution() {
         };
 
         let mut swapped = original.clone();
-        let LegalizedCondition::I64LessOrEqualParametersV1 { left, right, .. } =
-            &mut swapped.functions[0].conditional_mut().condition
+        let LegalizedScalarInstructionKind::Compare { left, right, .. } =
+            &mut swapped.scalar_functions[0].blocks[0].instructions[0].kind
         else {
             panic!("fixture must retain authored signed inclusive order")
         };
@@ -31,42 +31,28 @@ fn signed_inclusive_family_rejects_unsigned_strict_and_operand_substitution() {
             Err(LegalizationError::NonCanonicalLegalizedPlan)
         );
 
-        let LegalizedCondition::I64LessOrEqualParametersV1 {
-            operation,
-            result_definition_site,
-            fuel,
-            left,
-            right,
-        } = original.functions[0].conditional().condition.clone()
+        let mut strict = original.clone();
+        let LegalizedScalarInstructionKind::Compare { predicate, .. } =
+            &mut strict.scalar_functions[0].blocks[0].instructions[0].kind
         else {
             unreachable!()
         };
-        let mut strict = original.clone();
-        strict.functions[0].conditional_mut().condition =
-            LegalizedCondition::I64LessThanParametersV1 {
-                operation,
-                result_definition_site,
-                fuel: fuel.clone(),
-                left: left.clone(),
-                right: right.clone(),
-            };
+        *predicate = LegalizedScalarComparison::LessThan;
         assert_eq!(
             validate(strict),
             Err(LegalizationError::NonCanonicalLegalizedPlan)
         );
 
         let mut unsigned = original.clone();
-        unsigned.functions[0].conditional_mut().condition =
-            LegalizedCondition::IntegerLessOrEqualParametersV1 {
-                operation,
-                result_definition_site,
-                fuel,
-                left,
-                right,
-            };
+        let LegalizedScalarInstructionKind::Compare { operand_type, .. } =
+            &mut unsigned.scalar_functions[0].blocks[0].instructions[0].kind
+        else {
+            unreachable!()
+        };
+        *operand_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
         assert_eq!(
             validate(unsigned),
-            Err(LegalizationError::UnsupportedCondition { function: 0 })
+            Err(LegalizationError::NonCanonicalLegalizedPlan)
         );
     }
 }
@@ -77,15 +63,16 @@ fn signed_predicate_compare_order_and_successor_corruption_fail_closed() {
         let staged = staged_signed_integer_less_or_equal_conditional(target);
 
         let mut operand_swap = staged.selected().plan().clone();
-        operand_swap.functions[0].blocks[0].instructions[0]
+        operand_swap.functions[0].blocks[0]
+            .instructions
+            .iter_mut()
+            .find(|instruction| instruction.kind == SelectedInstructionKind::CompareI64)
+            .unwrap()
             .operands
             .swap(0, 1);
         assert!(matches!(
             validate_raw_selection(&staged, operand_swap),
-            Err(SelectedInstructionError::InstructionProjectionMismatch {
-                function: 0,
-                instruction: 0
-            })
+            Err(SelectedInstructionError::FunctionProjectionMismatch { function: 0 })
         ));
 
         let mut successor_swap = staged.selected().plan().clone();
@@ -100,10 +87,7 @@ fn signed_predicate_compare_order_and_successor_corruption_fail_closed() {
         std::mem::swap(when_less, when_not_less);
         assert!(matches!(
             validate_raw_selection(&staged, successor_swap),
-            Err(SelectedInstructionError::SuccessorProjectionMismatch {
-                function: 0,
-                block: 0
-            })
+            Err(SelectedInstructionError::SourceCustodyMismatch)
         ));
     }
 }

@@ -1,182 +1,33 @@
-//! Version admission, legacy identity replay, and authenticated payload decoding.
-
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
-
-use super::super::identity::fixed_view_copy_identity_v3_legacy;
-use super::envelope::{
-    v5_identity, v6_identity, v7_identity, v8_identity, v9_identity, v10_identity, v11_identity,
-    v12_identity,
-};
-use super::primitives::Cursor;
+//! Current-version admission precedes payload interpretation and authentication.
 use super::{
-    FixedViewCopyDecodeError, FixedViewCopyPlan, LEGACY_V4_VERSION, LEGACY_V5_VERSION,
-    LEGACY_V6_VERSION, LEGACY_V7_VERSION, LEGACY_V8_VERSION, LEGACY_V9_VERSION, LEGACY_V10_VERSION,
-    LEGACY_V11_VERSION, MAGIC, VERSION, content,
+    FixedViewCopyDecodeError, FixedViewCopyPlan, MAGIC, VERSION, content, envelope::v13_identity,
+    primitives::Cursor,
 };
-
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 pub(super) fn decode(encoded: &[u8]) -> Result<FixedViewCopyPlan, FixedViewCopyDecodeError> {
     let mut cursor = Cursor::new(encoded);
     if cursor.take(MAGIC.len())? != MAGIC {
         return Err(FixedViewCopyDecodeError::WrongMagic);
     }
     let version = cursor.u32()?;
-    if !matches!(
-        version,
-        LEGACY_V4_VERSION
-            | LEGACY_V5_VERSION
-            | LEGACY_V6_VERSION
-            | LEGACY_V7_VERSION
-            | LEGACY_V8_VERSION
-            | LEGACY_V9_VERSION
-            | LEGACY_V10_VERSION
-            | LEGACY_V11_VERSION
-            | VERSION
-    ) {
+    if version != VERSION {
         return Err(FixedViewCopyDecodeError::UnsupportedVersion(version));
     }
     let identity: [u8; 32] = cursor.array()?;
     let content_offset = cursor.offset;
-    let decoded = match version {
-        LEGACY_V4_VERSION => content::decode_v4(&mut cursor)?,
-        LEGACY_V5_VERSION => content::decode_v5(&mut cursor)?,
-        LEGACY_V6_VERSION | LEGACY_V7_VERSION | LEGACY_V8_VERSION | LEGACY_V9_VERSION
-        | LEGACY_V10_VERSION => content::decode_v6(&mut cursor)?,
-        LEGACY_V11_VERSION | VERSION => content::decode_v7(&mut cursor)?,
-        _ => unreachable!("version admission is exhaustive"),
-    };
+    let decoded = content::decode_v7(&mut cursor)?;
     if cursor.remaining() != 0 {
         return Err(FixedViewCopyDecodeError::TrailingBytes);
     }
-    if version < VERSION {
-        reject_legacy_transfer_vocabulary(&decoded.plan.transformed)?;
-    }
-    if matches!(
-        version,
-        LEGACY_V6_VERSION
-            | LEGACY_V7_VERSION
-            | LEGACY_V8_VERSION
-            | LEGACY_V9_VERSION
-            | LEGACY_V10_VERSION
-            | LEGACY_V11_VERSION
-            | VERSION
-    ) && !decoded.transformed_payload_matches
-    {
+    if !decoded.transformed_payload_matches {
         return Err(FixedViewCopyDecodeError::TransformedPayloadMismatch);
     }
-    let transformed = match version {
-        LEGACY_V4_VERSION | LEGACY_V5_VERSION => {
-            target_operations_to_selected_instructions::selected_instruction_plan_identity_v11_legacy(
-                &decoded.plan.transformed,
-            )
-        }
-        LEGACY_V6_VERSION => {
-            target_operations_to_selected_instructions::selected_instruction_plan_identity_v13_legacy(
-                &decoded.plan.transformed,
-            )
-        }
-        LEGACY_V7_VERSION => {
-            target_operations_to_selected_instructions::selected_instruction_plan_identity_v14_legacy(
-                &decoded.plan.transformed,
-            )
-        }
-        LEGACY_V8_VERSION => {
-            target_operations_to_selected_instructions::selected_instruction_plan_identity_v15_legacy(
-                &decoded.plan.transformed,
-            )
-        }
-        LEGACY_V9_VERSION => {
-            target_operations_to_selected_instructions::selected_instruction_plan_identity_v16_legacy(
-                &decoded.plan.transformed,
-            )
-        }
-        LEGACY_V10_VERSION | LEGACY_V11_VERSION | VERSION => {
-            selected_instruction_plan_identity(&decoded.plan.transformed)
-        }
-        _ => unreachable!("version admission is exhaustive"),
-    };
-    if transformed != decoded.expected_transformed {
+    if selected_instruction_plan_identity(&decoded.plan.transformed) != decoded.expected_transformed
+    {
         return Err(FixedViewCopyDecodeError::TransformedIdentityMismatch);
     }
-    let actual_identity = match version {
-        LEGACY_V4_VERSION => fixed_view_copy_identity_v3_legacy(&decoded.plan).bytes(),
-        LEGACY_V5_VERSION => v5_identity(&decoded.plan, &encoded[content_offset..]),
-        LEGACY_V6_VERSION => v6_identity(&decoded.plan, &encoded[content_offset..]),
-        LEGACY_V7_VERSION => v7_identity(&decoded.plan, &encoded[content_offset..]),
-        LEGACY_V8_VERSION => v8_identity(&decoded.plan, &encoded[content_offset..]),
-        LEGACY_V9_VERSION => v9_identity(&decoded.plan, &encoded[content_offset..]),
-        LEGACY_V10_VERSION => v10_identity(&decoded.plan, &encoded[content_offset..]),
-        LEGACY_V11_VERSION => v11_identity(&decoded.plan, &encoded[content_offset..]),
-        VERSION => v12_identity(&decoded.plan, &encoded[content_offset..]),
-        _ => unreachable!("version admission is exhaustive"),
-    };
-    if actual_identity != identity {
+    if v13_identity(&decoded.plan, &encoded[content_offset..]) != identity {
         return Err(FixedViewCopyDecodeError::IdentityMismatch);
     }
-    if version < LEGACY_V10_VERSION && contains_i64_less_than(&decoded.plan.transformed) {
-        return Err(FixedViewCopyDecodeError::UnknownInstructionKind(13));
-    }
     Ok(decoded.plan)
-}
-
-fn contains_i64_less_than(plan: &selected_instructions::SelectedInstructionPlan) -> bool {
-    plan.functions
-        .iter()
-        .flat_map(|function| &function.blocks)
-        .any(|block| {
-            block.instructions.iter().any(|instruction| {
-                matches!(
-                    instruction.kind,
-                    selected_instructions::SelectedInstructionKind::ConditionalBranchI64LessThan
-                )
-            }) || matches!(
-                block.terminator,
-                selected_instructions::SelectedTerminator::ConditionalBranchI64LessThan { .. }
-            )
-        })
-}
-
-fn reject_legacy_transfer_vocabulary(
-    plan: &selected_instructions::SelectedInstructionPlan,
-) -> Result<(), FixedViewCopyDecodeError> {
-    use selected_instructions::{
-        SelectedInstructionKind, SelectedTerminator, VirtualRegisterOrigin,
-    };
-    if plan
-        .structural_unit_functions
-        .iter()
-        .any(|function| function.terminator.instruction.kind == SelectedInstructionKind::Jump)
-    {
-        return Err(FixedViewCopyDecodeError::UnknownInstructionKind(14));
-    }
-    for function in &plan.functions {
-        if function.virtual_registers.iter().any(|register| {
-            matches!(
-                register.origin,
-                VirtualRegisterOrigin::BlockParameter { .. }
-            )
-        }) {
-            return Err(FixedViewCopyDecodeError::UnknownRegisterOrigin(3));
-        }
-        for block in &function.blocks {
-            if matches!(block.terminator, SelectedTerminator::Jump { .. }) {
-                return Err(FixedViewCopyDecodeError::UnknownTerminator(4));
-            }
-            let terminator = match &block.terminator {
-                SelectedTerminator::ConditionalBranch { instruction, .. }
-                | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-                | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-                | SelectedTerminator::Jump { instruction, .. }
-                | SelectedTerminator::Return { instruction, .. } => instruction,
-            };
-            if block
-                .instructions
-                .iter()
-                .chain(std::iter::once(terminator))
-                .any(|instruction| instruction.kind == SelectedInstructionKind::Jump)
-            {
-                return Err(FixedViewCopyDecodeError::UnknownInstructionKind(14));
-            }
-        }
-    }
-    Ok(())
 }

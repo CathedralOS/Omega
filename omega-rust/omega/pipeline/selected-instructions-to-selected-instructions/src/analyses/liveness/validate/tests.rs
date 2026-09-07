@@ -21,7 +21,17 @@ fn successor_parameter_replay_rejects_stale_argument_flow_and_missing_bindings()
     else {
         unreachable!()
     };
-    successor.bindings[0].argument = semantic_vocabulary::ValueId::new(2).unwrap();
+    successor.bindings[0].semantic.argument = semantic_vocabulary::ValueId::new(2).unwrap();
+    assert!(replay_function(0, &selected).is_err());
+    let selected_instructions::SelectedTerminator::Jump { successor, .. } =
+        &mut selected.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    successor.bindings[0].transport = selected_instructions::SelectedValueTransport::Registers {
+        argument: VirtualRegisterId(1),
+        parameter: VirtualRegisterId(2),
+    };
     let changed = replay_function(0, &selected).unwrap();
     assert_ne!(changed, expected);
     assert!(validate_function(0, &expected, &changed).is_err());
@@ -33,6 +43,36 @@ fn successor_parameter_replay_rejects_stale_argument_flow_and_missing_bindings()
     successor.bindings.clear();
     assert!(replay_function(0, &selected).is_err());
     assert!(crate::analyses::liveness::compute::compute_function(0, &selected).is_err());
+}
+
+#[test]
+fn replay_retains_the_explicit_duplicate_copy_transport() {
+    let mut selected = crate::analyses::liveness::tests::successor_parameter_function();
+    let mut copy = selected.virtual_registers[0].clone();
+    copy.id = VirtualRegisterId(3);
+    selected.virtual_registers.push(copy);
+    let selected_instructions::SelectedTerminator::Jump { successor, .. } =
+        &mut selected.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    successor.bindings[0].transport = selected_instructions::SelectedValueTransport::Registers {
+        argument: VirtualRegisterId(3),
+        parameter: VirtualRegisterId(2),
+    };
+    let replayed = replay_function(0, &selected).unwrap();
+    assert_eq!(replayed.blocks[0].virtual_live_out, [VirtualRegisterId(3)]);
+    assert_eq!(
+        replayed,
+        crate::analyses::liveness::compute::compute_function(0, &selected).unwrap()
+    );
+    let selected_instructions::SelectedTerminator::Jump { successor, .. } =
+        &mut selected.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    successor.source_target = BlockId::new(99).unwrap();
+    assert!(replay_function(0, &selected).is_err());
 }
 
 fn structural_liveness(machine: MachineId) -> crate::FunctionLiveness {

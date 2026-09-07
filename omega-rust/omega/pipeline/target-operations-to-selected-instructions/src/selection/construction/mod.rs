@@ -7,7 +7,6 @@ mod integer_sequence;
 mod projected_structural_call_return;
 mod scalar;
 mod scalar_graph;
-mod shared_return;
 mod structural_unit;
 
 use crate::selection::constraints::require_key_rows;
@@ -26,9 +25,6 @@ pub(super) fn build_plan(
         .iter()
         .enumerate()
         .map(|(index, source)| match source {
-            legalized_operations::LegalizedFunction::SharedReturnConditional(source) => {
-                shared_return::build(index, source, constraints, physical, catalog)
-            }
             legalized_operations::LegalizedFunction::Conditional(source) => {
                 scalar::build(index, source, constraints, physical, catalog)
             }

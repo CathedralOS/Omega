@@ -9,7 +9,6 @@ mod ordinary_roster;
 mod projected_structural_call_return;
 mod roots;
 pub(super) mod scalar_graph;
-mod shared_return;
 mod structural_unit;
 mod virtual_registers;
 

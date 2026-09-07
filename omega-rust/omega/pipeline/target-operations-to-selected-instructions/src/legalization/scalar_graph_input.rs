@@ -8,11 +8,12 @@ use calling_conventions::{
     evaluate_call_plan,
 };
 use optimization_unit::{
-    OptimizationBlock, OptimizationNode, PsiOptimizationFunction, PsiOptimizationUnit,
-    PsiProvenance, ValueDefinition, ValueDefinitionSite,
+    OptimizationNode, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
+    ValueDefinitionSite,
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType, ValueId};
 use target_operations::{TargetFunction, TargetOperation, TargetOperationPlan};
+mod control;
 mod header;
 mod nodes;
 mod target;
@@ -20,14 +21,6 @@ use header::function_abi;
 pub(super) use nodes::instruction;
 use target::validate_target;
 
-pub(super) struct Input<'a> {
-    pub target: &'a TargetFunction,
-    pub optimized: &'a PsiOptimizationFunction,
-    pub block: &'a OptimizationBlock,
-    pub body: &'a [OptimizationNode],
-    pub returned: &'a OptimizationNode,
-    pub call_plan: CallPlan,
-}
 pub(super) fn u64_type() -> IntegerType {
     IntegerType::new(IntegerSign::Unsigned, 64).expect("U64")
 }
@@ -42,49 +35,73 @@ pub(super) fn register(placement: &ValuePlacement) -> bool {
             }]
         )
 }
-pub(super) fn match_input<'a>(
-    target: &'a TargetFunction,
-    abstracted: &'a AbstractFunction,
-    optimized: &'a PsiOptimizationFunction,
+pub(super) fn match_input(
+    target: &TargetFunction,
+    abstracted: &AbstractFunction,
+    optimized: &PsiOptimizationFunction,
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
-) -> Result<Input<'a>, LegalizationError> {
+) -> Result<CallPlan, LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
     let call_plan = function_abi(native.target, target, abstracted, optimized)?;
-    let [entry] = abstracted.block_entries.as_slice() else {
-        return Err(invalid);
-    };
-    let [block] = optimized.blocks.as_slice() else {
-        return Err(invalid);
-    };
-    let Some((returned, body)) = block.nodes.split_last() else {
-        return Err(invalid);
-    };
-    if entry.block != abstracted.entry
-        || optimized.entry != entry.block
-        || block.id != entry.block
-        || entry.operation_offset != 0
-        || !entry.parameters.is_empty()
-        || !block.parameters.is_empty()
-        || abstracted.operations
-            != block
-                .nodes
-                .iter()
-                .map(|node| node.operation.clone())
-                .collect::<Vec<_>>()
+    if optimized.blocks.is_empty()
+        || optimized.entry != abstracted.entry
+        || abstracted.block_entries.len() != optimized.blocks.len()
+        || abstracted.block_entries[0].operation_offset != 0
     {
         return Err(invalid);
     }
-    nodes::validate(block, body, returned, abstracted, optimized)?;
+    for (position, (entry, block)) in abstracted
+        .block_entries
+        .iter()
+        .zip(&optimized.blocks)
+        .enumerate()
+    {
+        let end = abstracted
+            .block_entries
+            .get(position + 1)
+            .map_or(abstracted.operations.len(), |next| next.operation_offset);
+        let operations = abstracted
+            .operations
+            .get(entry.operation_offset..end)
+            .ok_or(invalid.clone())?;
+        if entry.block != block.id
+            || entry.parameters.len() != block.parameters.len()
+            || entry
+                .parameters
+                .iter()
+                .zip(&block.parameters)
+                .any(|(declared, actual)| {
+                    declared.value != actual.value || declared.scalar_type != actual.scalar_type
+                })
+            || operations.len() != block.nodes.len()
+            || operations
+                .iter()
+                .zip(&block.nodes)
+                .any(|(left, right)| left != &right.operation)
+        {
+            return Err(invalid);
+        }
+        nodes::validate(block, optimized)?;
+    }
+    let entry = optimized
+        .blocks
+        .iter()
+        .find(|block| block.id == optimized.entry)
+        .ok_or(invalid.clone())?;
+    if !entry.parameters.is_empty() {
+        return Err(invalid);
+    }
     if optimized
         .parameters
         .iter()
         .zip(&call_plan.parameters)
         .any(|(parameter, placement)| {
-            block
-                .nodes
+            optimized
+                .blocks
                 .iter()
+                .flat_map(|block| &block.nodes)
                 .any(|node| node.uses.iter().any(|used| used.value == parameter.value))
                 && !register(placement)
         })
@@ -93,7 +110,7 @@ pub(super) fn match_input<'a>(
     }
     // Ordered source calls execute even when their result is not returned.
     // Target expression trees witness referenced values, not execution order.
-    for node in body {
+    for node in optimized.blocks.iter().flat_map(|block| &block.nodes) {
         if let AbstractOperation::ExactIntegerAdd {
             psi_operation,
             obligation,
@@ -122,15 +139,11 @@ pub(super) fn match_input<'a>(
             }
         }
     }
+    if !acyclic(optimized) {
+        return Err(invalid);
+    }
     validate_target(target, abstracted, optimized, native, plan, unit)?;
-    Ok(Input {
-        target,
-        optimized,
-        block,
-        body,
-        returned,
-        call_plan,
-    })
+    Ok(call_plan)
 }
 pub(super) fn callee_plan(
     callee: MachineId,
@@ -161,7 +174,11 @@ pub(super) fn callee_plan(
         return Err(LegalizationError::SourceCustodyMismatch);
     };
     if target.attachment.is_some()
-        || !matches!(abstracted.result, AbstractFunctionResult::Scalar(_))
+        || !matches!(abstracted.result, AbstractFunctionResult::Scalar(result) if result.scalar_type == ScalarType::Integer(u64_type()))
+        || abstracted
+            .parameters
+            .iter()
+            .any(|parameter| parameter.scalar_type != ScalarType::Integer(u64_type()))
     {
         return Err(LegalizationError::SourceCustodyMismatch);
     }
@@ -170,4 +187,51 @@ pub(super) fn callee_plan(
         return Err(LegalizationError::SourceCustodyMismatch);
     }
     Ok(call_plan)
+}
+pub(super) fn i64_type() -> IntegerType {
+    IntegerType::new(IntegerSign::Signed, 64).expect("I64")
+}
+pub(super) fn integer_type(scalar: ScalarType) -> Option<IntegerType> {
+    match scalar {
+        ScalarType::Integer(integer) if integer == u64_type() || integer == i64_type() => {
+            Some(integer)
+        }
+        _ => None,
+    }
+}
+pub(super) fn value_type(function: &PsiOptimizationFunction, value: ValueId) -> Option<ScalarType> {
+    function
+        .parameters
+        .iter()
+        .chain(function.blocks.iter().flat_map(|block| {
+            block
+                .parameters
+                .iter()
+                .chain(block.nodes.iter().flat_map(|node| &node.definitions))
+        }))
+        .find(|definition| definition.value == value)
+        .map(|definition| definition.scalar_type)
+}
+fn acyclic(function: &PsiOptimizationFunction) -> bool {
+    let mut completed = Vec::new();
+    loop {
+        let before = completed.len();
+        for block in &function.blocks {
+            if !completed.contains(&block.id)
+                && block
+                    .nodes
+                    .iter()
+                    .flat_map(|node| &node.successors)
+                    .all(|edge| completed.contains(&edge.target))
+            {
+                completed.push(block.id);
+            }
+        }
+        if completed.len() == function.blocks.len() {
+            return true;
+        }
+        if before == completed.len() {
+            return false;
+        }
+    }
 }

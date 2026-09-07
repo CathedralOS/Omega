@@ -1,12 +1,12 @@
 //! Independent rejection for inclusive-order custody and selected inversion corruption.
 
 use crate::tests::*;
-use legalized_operations::LegalizedCondition;
+use legalized_operations::{LegalizedScalarComparison, LegalizedScalarInstructionKind};
 
 use super::fixture::staged_integer_less_or_equal_conditional;
 
 #[test]
-fn reflexive_less_or_equal_is_outside_the_two_distinct_parameter_family() {
+fn reflexive_less_or_equal_uses_one_semantic_parameter_in_the_ordinary_graph() {
     let mut machine = conditional_u64_integer_less_or_equal_parameters_machine(19_500, [7, 9]);
     let OperationKind::IntegerLessOrEqual { left, right } =
         &mut machine.blocks[0].operations[0].kind
@@ -32,12 +32,24 @@ fn reflexive_less_or_equal_is_outside_the_two_distinct_parameter_family() {
         )
         .unwrap();
         let target = lower_optimized_to_target_operations(optimized, target).unwrap();
-        assert!(matches!(
-            stage_optimized_instruction_selection(target),
-            Err(OptimizedSelectionPipelineError::Legalization(
-                LegalizationError::UnsupportedCondition { function: 0 }
-            ))
-        ));
+        let staged = stage_optimized_instruction_selection(target).unwrap();
+        validate_legalized_operations(
+            staged.optimized_target().target_operations(),
+            staged.optimized_target().optimized().plan(),
+            staged.optimized_target().optimized().unit(),
+            staged.legalized().plan().clone(),
+        )
+        .unwrap();
+        validate_raw_selection(&staged, staged.selected().plan().clone()).unwrap();
+        let comparison = staged.selected().plan().functions[0].blocks[0]
+            .instructions
+            .iter()
+            .find(|instruction| instruction.kind == SelectedInstructionKind::CompareI64)
+            .unwrap();
+        assert_eq!(
+            comparison.operands[0].virtual_register,
+            comparison.operands[1].virtual_register
+        );
     }
 }
 
@@ -56,8 +68,8 @@ fn inclusive_order_substitution_and_swap_corruption_fail_closed() {
         };
 
         let mut swapped = original.clone();
-        let LegalizedCondition::IntegerLessOrEqualParametersV1 { left, right, .. } =
-            &mut swapped.functions[0].conditional_mut().condition
+        let LegalizedScalarInstructionKind::Compare { left, right, .. } =
+            &mut swapped.scalar_functions[0].blocks[0].instructions[0].kind
         else {
             panic!("fixture must retain authored inclusive order")
         };
@@ -69,32 +81,15 @@ fn inclusive_order_substitution_and_swap_corruption_fail_closed() {
 
         for substitute in [0, 1] {
             let mut substituted = original.clone();
-            let LegalizedCondition::IntegerLessOrEqualParametersV1 {
-                operation,
-                result_definition_site,
-                fuel,
-                left,
-                right,
-            } = substituted.functions[0].conditional().condition.clone()
+            let LegalizedScalarInstructionKind::Compare { predicate, .. } =
+                &mut substituted.scalar_functions[0].blocks[0].instructions[0].kind
             else {
                 unreachable!()
             };
-            substituted.functions[0].conditional_mut().condition = if substitute == 0 {
-                LegalizedCondition::IntegerEqualParametersV1 {
-                    operation,
-                    result_definition_site,
-                    fuel,
-                    left,
-                    right,
-                }
+            *predicate = if substitute == 0 {
+                LegalizedScalarComparison::Equal
             } else {
-                LegalizedCondition::IntegerLessThanParametersV1 {
-                    operation,
-                    result_definition_site,
-                    fuel,
-                    left,
-                    right,
-                }
+                LegalizedScalarComparison::LessThan
             };
             assert_eq!(
                 validate(substituted),
@@ -110,15 +105,16 @@ fn reversed_compare_and_successor_corruption_fail_closed() {
         let staged = staged_integer_less_or_equal_conditional(target);
 
         let mut operand_swap = staged.selected().plan().clone();
-        operand_swap.functions[0].blocks[0].instructions[0]
+        operand_swap.functions[0].blocks[0]
+            .instructions
+            .iter_mut()
+            .find(|instruction| instruction.kind == SelectedInstructionKind::CompareI64)
+            .unwrap()
             .operands
             .swap(0, 1);
         assert!(matches!(
             validate_raw_selection(&staged, operand_swap),
-            Err(SelectedInstructionError::InstructionProjectionMismatch {
-                function: 0,
-                instruction: 0
-            })
+            Err(SelectedInstructionError::FunctionProjectionMismatch { function: 0 })
         ));
 
         let mut successor_swap = staged.selected().plan().clone();
@@ -133,10 +129,7 @@ fn reversed_compare_and_successor_corruption_fail_closed() {
         std::mem::swap(when_less, when_not_less);
         assert!(matches!(
             validate_raw_selection(&staged, successor_swap),
-            Err(SelectedInstructionError::SuccessorProjectionMismatch {
-                function: 0,
-                block: 0
-            })
+            Err(SelectedInstructionError::SourceCustodyMismatch)
         ));
     }
 }

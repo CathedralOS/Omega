@@ -164,8 +164,9 @@ fn ordered_scalar_calls_reach_shared_object_publication_with_empty_and_selected_
                     })
                     .collect::<Vec<_>>();
                 assert_eq!(actual_calls, expected_calls);
+                let expected_frames = super::publication::planned_frame_count(&emitted);
                 let applied = stage_function_fragment_frame_application(emitted).unwrap();
-                assert_eq!(applied.receipt().framed_function_count(), 1);
+                assert_eq!(applied.receipt().framed_function_count(), expected_frames);
                 let text = stage_optimized_fixed_frame_text_section(applied).unwrap();
                 assert_eq!(
                     text.text_section().resolved_internal_machine_calls.len(),

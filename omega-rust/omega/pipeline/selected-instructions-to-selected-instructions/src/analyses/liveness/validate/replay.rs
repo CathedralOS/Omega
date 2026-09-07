@@ -8,6 +8,7 @@ pub(super) fn replay_function(
     function: &SelectedFunction,
 ) -> Result<FunctionLiveness, LivenessError> {
     reject_v1_unsupported(function_index, function)?;
+    super::super::edge_values::validate_transports(function_index, function)?;
     let block_ids = function
         .blocks
         .iter()

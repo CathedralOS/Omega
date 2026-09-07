@@ -40,7 +40,10 @@ pub use calls::structural_unit::{
 pub use constraints::{
     SelectedConstraintKeys, SelectedFixedInputConstraint, SelectedSelectionConstraints,
 };
-pub use control_flow::{SelectedBlock, SelectedFunction, SelectedSuccessor, SelectedTerminator};
+pub use control_flow::{
+    SelectedBlock, SelectedFunction, SelectedSuccessor, SelectedTerminator, SelectedValueBinding,
+    SelectedValueTransport,
+};
 pub use effects::{
     BlockMachineEffects, FunctionMachineEffects, InstructionMachineEffects, MachineAlternative,
     MachineAlternativeApplicability, MachineAlternativeFamily, MachineAlternativeKey,

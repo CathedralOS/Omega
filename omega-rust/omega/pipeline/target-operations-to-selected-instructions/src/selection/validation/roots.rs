@@ -48,12 +48,7 @@ pub(super) fn validate_initial_roots(
         .functions
         .iter()
         .map(|source| {
-            let source = match source {
-                legalized_operations::LegalizedFunction::Conditional(source) => source,
-                legalized_operations::LegalizedFunction::SharedReturnConditional(source) => {
-                    return source.abi.parameters.len();
-                }
-            };
+            let legalized_operations::LegalizedFunction::Conditional(source) = source;
             let condition_inputs = match &source.condition {
                 LegalizedCondition::DirectParameter { .. } => 1,
                 LegalizedCondition::U64EqualZeroParameterV1 { .. }

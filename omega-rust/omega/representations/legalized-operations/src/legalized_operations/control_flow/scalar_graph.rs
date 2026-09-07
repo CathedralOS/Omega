@@ -1,8 +1,9 @@
-//! Ordinary scalar instructions and explicit return roles, independent of caller topology.
+//! Ordinary scalar instructions, block parameters and explicit control edges.
+use abstract_operations::ValueBinding;
 use calling_conventions::{CallPlan, ValuePlacement};
 use optimization_unit::{EffectLink, FuelSettlement, OwnershipEvent, ValueDefinitionSite};
 use semantic_vocabulary::{
-    BlockId, EdgeId, IntegerType, IntegerValue, MachineId, ObligationId, OperationId,
+    BlockId, EdgeId, IntegerType, IntegerValue, MachineId, ObligationId, OperationId, ScalarType,
     StructuralTypeId, ValueId,
 };
 use target_operations::TerminalPsiProvenance;
@@ -20,16 +21,24 @@ pub struct LegalizedScalarFunction {
 }
 
 impl LegalizedScalarFunction {
-    /// Whether a retained instruction or return reads this value.
+    /// Whether a retained instruction, terminator or outgoing edge reads this value.
     pub fn references_value(&self, value: ValueId) -> bool {
         self.blocks.iter().any(|block| {
-            block.instructions.iter().any(|instruction| match &instruction.kind {
-                LegalizedScalarInstructionKind::Constant(_) => false,
-                LegalizedScalarInstructionKind::Call(call) =>
-                    call.arguments.iter().any(|argument| argument.source == value),
-                LegalizedScalarInstructionKind::ExactBinary { left, right, .. } =>
-                    *left == value || *right == value,
-            }) || matches!(block.terminator.value, LegalizedScalarReturnValue::Value { value: returned, .. } if returned == value)
+            block
+                .instructions
+                .iter()
+                .any(|instruction| match &instruction.kind {
+                    LegalizedScalarInstructionKind::Constant(_) => false,
+                    LegalizedScalarInstructionKind::Call(call) => call
+                        .arguments
+                        .iter()
+                        .any(|argument| argument.source == value),
+                    LegalizedScalarInstructionKind::ExactBinary { left, right, .. }
+                    | LegalizedScalarInstructionKind::Compare { left, right, .. } => {
+                        *left == value || *right == value
+                    }
+                })
+                || block.terminator.references_value(value)
         })
     }
 }
@@ -45,15 +54,16 @@ pub struct LegalizedScalarParameter {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedScalarBlock {
     pub id: BlockId,
+    pub parameters: Vec<optimization_unit::ValueDefinition>,
     pub instructions: Vec<LegalizedScalarInstruction>,
-    pub terminator: LegalizedScalarReturn,
+    pub terminator: LegalizedScalarTerminator,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedScalarInstruction {
     pub operation: OperationId,
     pub result: ValueId,
-    pub scalar_type: IntegerType,
+    pub scalar_type: ScalarType,
     pub definition_site: ValueDefinitionSite,
     pub kind: LegalizedScalarInstructionKind,
     pub fuel: Vec<FuelSettlement>,
@@ -72,6 +82,67 @@ pub enum LegalizedScalarInstructionKind {
         obligation: ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
+    Compare {
+        predicate: LegalizedScalarComparison,
+        operand_type: IntegerType,
+        left: ValueId,
+        right: ValueId,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LegalizedScalarComparison {
+    Equal,
+    LessThan,
+    LessOrEqual,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LegalizedScalarSuccessor {
+    pub edge: EdgeId,
+    pub target: BlockId,
+    pub bindings: Vec<ValueBinding>,
+    pub fuel: Vec<FuelSettlement>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LegalizedScalarTerminator {
+    Return(LegalizedScalarReturn),
+    Jump {
+        successor: LegalizedScalarSuccessor,
+        effect: EffectLink,
+        ownership: Vec<OwnershipEvent>,
+    },
+    Conditional {
+        condition: ValueId,
+        when_true: LegalizedScalarSuccessor,
+        when_false: LegalizedScalarSuccessor,
+        effect: EffectLink,
+        ownership: Vec<OwnershipEvent>,
+    },
+}
+
+impl LegalizedScalarTerminator {
+    /// Reads on the outgoing edges count even when the destination drops the value.
+    pub fn references_value(&self, value: ValueId) -> bool {
+        let binds = |successor: &LegalizedScalarSuccessor| {
+            successor
+                .bindings
+                .iter()
+                .any(|binding| binding.argument == value)
+        };
+        match self {
+            Self::Return(returned) => matches!(returned.value,
+                LegalizedScalarReturnValue::Value { value: returned, .. } if returned == value),
+            Self::Jump { successor, .. } => binds(successor),
+            Self::Conditional {
+                condition,
+                when_true,
+                when_false,
+                ..
+            } => *condition == value || binds(when_true) || binds(when_false),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -17,6 +17,7 @@ pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdenti
     )
 }
 
+#[cfg(test)]
 pub(crate) fn fixed_view_copy_identity_v6_legacy(
     plan: &FixedViewCopyPlan,
 ) -> FixedViewCopyIdentity {
@@ -28,6 +29,7 @@ pub(crate) fn fixed_view_copy_identity_v6_legacy(
     )
 }
 
+#[cfg(test)]
 pub(crate) fn fixed_view_copy_identity_v5_selected_v16_legacy(
     plan: &FixedViewCopyPlan,
 ) -> FixedViewCopyIdentity {
@@ -41,6 +43,7 @@ pub(crate) fn fixed_view_copy_identity_v5_selected_v16_legacy(
     )
 }
 
+#[cfg(test)]
 pub(crate) fn fixed_view_copy_identity_v3_legacy(
     plan: &FixedViewCopyPlan,
 ) -> FixedViewCopyIdentity {
@@ -54,6 +57,7 @@ pub(crate) fn fixed_view_copy_identity_v3_legacy(
     )
 }
 
+#[cfg(test)]
 pub(crate) fn fixed_view_copy_identity_v4_legacy(
     plan: &FixedViewCopyPlan,
 ) -> FixedViewCopyIdentity {
@@ -67,6 +71,7 @@ pub(crate) fn fixed_view_copy_identity_v4_legacy(
     )
 }
 
+#[cfg(test)]
 pub(crate) fn fixed_view_copy_identity_v4_selected_v14_legacy(
     plan: &FixedViewCopyPlan,
 ) -> FixedViewCopyIdentity {
@@ -80,6 +85,7 @@ pub(crate) fn fixed_view_copy_identity_v4_selected_v14_legacy(
     )
 }
 
+#[cfg(test)]
 pub(crate) fn fixed_view_copy_identity_v5_selected_v15_legacy(
     plan: &FixedViewCopyPlan,
 ) -> FixedViewCopyIdentity {

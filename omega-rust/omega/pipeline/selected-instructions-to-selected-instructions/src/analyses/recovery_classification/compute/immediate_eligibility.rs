@@ -40,7 +40,8 @@ pub(super) fn classify(
             ..
         } => (instruction, source_value),
     };
-    if range.fragments.len() != 1
+    if crate::analyses::liveness::edge_values::has_edge_use(selected, victim.id)
+        || range.fragments.len() != 1
         || range.fragments[0].block != choice.block
         || !range.edge_connectors.is_empty()
     {

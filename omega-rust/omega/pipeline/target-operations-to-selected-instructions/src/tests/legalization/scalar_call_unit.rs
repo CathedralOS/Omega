@@ -158,9 +158,22 @@ fn exact_u64_equality_three_call_chain_is_produced_and_replayed() {
     let (abstract_plan, target, unit) = scalar_call_unit_fixture();
     let legalized = legalize_target_operations(&target, &abstract_plan, &unit)
         .expect("exact attached-Unit scalar call chain legalizes");
-    assert_eq!(legalized.plan().scalar_functions.len(), 1);
-    assert_eq!(legalized.plan().functions.len(), 1);
+    assert_eq!(legalized.plan().scalar_functions.len(), 2);
+    assert!(legalized.plan().functions.is_empty());
     assert_eq!(legalized.receipt().function_count(), 2);
+    let callee = &legalized.plan().scalar_functions[1];
+    assert_eq!(callee.machine, abstract_plan.functions[1].machine);
+    assert_eq!(callee.provenance, target.functions[1].provenance);
+    assert_eq!(callee.blocks.len(), 3);
+    assert!(matches!(
+        callee.blocks[0].instructions[0].kind,
+        legalized_operations::LegalizedScalarInstructionKind::Compare {
+            predicate: legalized_operations::LegalizedScalarComparison::Equal,
+            ..
+        }
+    ));
+    validate_legalized_operations(&target, &abstract_plan, &unit, legalized.plan().clone())
+        .expect("caller and equality callee replay through the same graph");
     let function = &legalized.plan().scalar_functions[0];
     let calls = function.blocks[0]
         .instructions

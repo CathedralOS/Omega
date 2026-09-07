@@ -104,7 +104,8 @@ fn target_owned_unresolved_call_templates_survive_layout_on_both_isas() {
         assert_eq!(
             encoding.counts(),
             SelectedFormEncodingCounts {
-                ordinary_encoded: 17,
+                // Two durable entry copies and one return copy per callee arm.
+                ordinary_encoded: 21,
                 ordinary_deferred_control: 1,
                 ordinary_encoded_call_templates: 3,
                 ordinary_deferred_internal_control: 3,
@@ -471,6 +472,7 @@ fn target_owned_unresolved_call_templates_survive_layout_on_both_isas() {
             .iter()
             .map(|row| row.byte_count)
             .sum::<u64>();
+        let expected_frames = super::publication::planned_frame_count(&fragments);
         let applied = stage_function_fragment_frame_application(fragments).unwrap();
         validate_function_fragment_frame_application(&applied).unwrap();
         assert!(
@@ -482,7 +484,7 @@ fn target_owned_unresolved_call_templates_survive_layout_on_both_isas() {
                 .sum::<u64>()
                 > source_bytes
         );
-        assert_eq!(applied.receipt().framed_function_count(), 1);
+        assert_eq!(applied.receipt().framed_function_count(), expected_frames);
         let frame_application = applied.receipt().identity();
         let mut text = stage_optimized_fixed_frame_text_section(applied).unwrap();
         crate::tests::text_placement_checks::fixed(&text);

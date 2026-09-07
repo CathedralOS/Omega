@@ -54,7 +54,7 @@ pub(super) fn receipt(
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v17\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v18\0".as_slice();
     selected_instruction_plan_identity_with_schema(
         plan,
         domain,
@@ -447,9 +447,20 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
     bytes.extend_from_slice(&successor.source_target.get().to_le_bytes());
     encode_len(bytes, successor.bindings.len());
     for binding in &successor.bindings {
-        bytes.extend_from_slice(&binding.parameter.get().to_le_bytes());
-        bytes.extend_from_slice(&binding.argument.get().to_le_bytes());
-        encode_scalar_type(bytes, binding.scalar_type);
+        bytes.extend_from_slice(&binding.semantic.parameter.get().to_le_bytes());
+        bytes.extend_from_slice(&binding.semantic.argument.get().to_le_bytes());
+        encode_scalar_type(bytes, binding.semantic.scalar_type);
+        match binding.transport {
+            selected_instructions::SelectedValueTransport::Unused => bytes.push(0),
+            selected_instructions::SelectedValueTransport::Registers {
+                argument,
+                parameter,
+            } => {
+                bytes.push(1);
+                bytes.extend_from_slice(&argument.0.to_le_bytes());
+                bytes.extend_from_slice(&parameter.0.to_le_bytes());
+            }
+        }
     }
     encode_fuel(bytes, &successor.fuel);
 }

@@ -136,6 +136,7 @@ pub(crate) fn compute_function(
     function: &SelectedFunction,
 ) -> Result<FunctionLiveness, LivenessError> {
     reject_unsupported_constraints(function_index, function)?;
+    super::edge_values::validate_transports(function_index, function)?;
     let mut virtual_entry = function
         .blocks
         .iter()

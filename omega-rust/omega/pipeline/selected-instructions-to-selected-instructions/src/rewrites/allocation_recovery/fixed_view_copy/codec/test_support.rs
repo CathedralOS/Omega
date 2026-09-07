@@ -1,4 +1,4 @@
-//! Legacy artifact encoders used only to pin decode compatibility.
+//! Retired envelope fixtures used only to pin version rejection; never production admission.
 
 use crate::FixedViewCopyPlan;
 

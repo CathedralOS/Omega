@@ -282,7 +282,12 @@ fn scalar_leaf_legalization_rejects_changed_literal_abi_and_return_register() {
                 *value = IntegerValue::Unsigned(9);
             }
             1 => {
-                graph.blocks[0].terminator.value = LegalizedScalarReturnValue::Value {
+                let legalized_operations::LegalizedScalarTerminator::Return(returned) =
+                    &mut graph.blocks[0].terminator
+                else {
+                    panic!("scalar return");
+                };
+                returned.value = LegalizedScalarReturnValue::Value {
                     value: ValueId::new(99).unwrap(),
                     scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
                 }

@@ -111,25 +111,20 @@ fn scalar_conditional_fragments_reach_native_object_publication() {
             }
             let mut baseline_bytes = 0;
             for selections in choices {
-                let plan = publish(&semantic, &proof, target, &selections);
-                let function = &plan.functions[0];
-                let machine_code::ScalarControlFlowEvidence::Acyclic { blocks } =
-                    &function.scalar_stack.as_ref().unwrap().control_flow
-                else {
-                    panic!("actual branch custody");
-                };
-                let machine_code::ScalarControlTerminatorEvidence::Conditional(branch) =
-                    &blocks[0].terminator
-                else {
-                    panic!("conditional entry");
-                };
+                let (published, mut emitted) = publish(&semantic, &proof, target, &selections);
+                let function = &emitted.fragments().functions[0];
+                let terminal = function.blocks[0].instructions.last().unwrap();
+                assert!(matches!(
+                    terminal.control,
+                    machine_code::FunctionFragmentControlProvenance::ConditionalBranch { .. }
+                ));
                 assert_eq!(function.provenance.edges.len(), 4);
-                let bytes = function.bytes.len();
+                let bytes = published.text_bytes().len();
                 if selections.is_empty() {
                     baseline_bytes = bytes;
                 }
                 if selections.contains(Optimization::X86RelaxConditionalBranchesToRel8V1) {
-                    assert_eq!(branch.branch_byte_count, 2);
+                    assert_eq!(terminal.bytes.len(), 2);
                     assert!(
                         bytes < baseline_bytes,
                         "selected relaxation must change real branch bytes"
@@ -141,25 +136,22 @@ fn scalar_conditional_fragments_reach_native_object_publication() {
                         "selected zero materialization must rewrite a real arm"
                     );
                 }
-                // Object construction independently decodes both paths. A
-                // plausible but redirected branch record cannot pass replay.
-                let mut corrupted = plan.clone();
-                let machine_code::ScalarControlFlowEvidence::Acyclic { blocks } = &mut corrupted
-                    .functions[0]
-                    .scalar_stack
-                    .as_mut()
-                    .unwrap()
-                    .control_flow
+                // Independent fragment replay rejects a plausible redirected
+                // branch against the retained selected/layout evidence.
+                let terminal = emitted.fragments_mut().functions[0].blocks[0]
+                    .instructions
+                    .last_mut()
+                    .unwrap();
+                let machine_code::FunctionFragmentBranchEvidence::Conditional(branch) =
+                    terminal.branch.as_deref_mut().unwrap()
                 else {
                     unreachable!()
                 };
-                let machine_code::ScalarControlTerminatorEvidence::Conditional(branch) =
-                    &mut blocks[0].terminator
-                else {
-                    unreachable!()
-                };
-                branch.taken_offset = branch.fallthrough_offset;
-                assert!(image_emission::build_object_artifact(&corrupted).is_err());
+                branch.when_taken_offset = branch.when_fallthrough_offset;
+                assert!(
+                    machine_emission::validate_optimized_function_fragment_emission(&emitted)
+                        .is_err()
+                );
             }
         }
     }
@@ -170,7 +162,10 @@ fn publish(
     proof: &[u8],
     target: target::NativeTarget,
     selections: &OptimizationSelections,
-) -> machine_code::MachineCodePlan {
+) -> (
+    image_emission::ObjectArtifact,
+    machine_emission::StagedOptimizedFunctionFragmentEmission,
+) {
     let build = || {
         let input = terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
             semantic,
@@ -245,23 +240,15 @@ fn publish(
             native_artifact::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
         ));
     }
-    // Keep the previous native-record controls as a differential reference;
-    // production now consumes the object directly, not this reconstruction.
+    // Retain the current fragment stage for corruption controls. The published
+    // object above is validated through image and installation replay; no
+    // legacy machine-plan reconstruction participates in this test.
     let emitted = machine_emission::stage_optimized_function_fragment_emission(
         build().0.into_function_fragment_emission_source(),
     )
     .unwrap();
-    let legacy = machine_emission::publish_function_fragments(emitted)
-        .unwrap()
-        .into_plan();
-    let reference = image_emission::build_object_artifact(&legacy)
-        .unwrap_or_else(|error| panic!("{target:?} {selections:?}: object {error:?}"));
-    assert_eq!(published.text_bytes(), reference.text_bytes());
-    assert_eq!(
-        image_emission::derive_stack_demand(&published, published.entry()).unwrap(),
-        image_emission::derive_stack_demand(&reference, reference.entry()).unwrap()
-    );
-    legacy
+    machine_emission::validate_optimized_function_fragment_emission(&emitted).unwrap();
+    (published, emitted)
 }
 
 #[test]
@@ -297,57 +284,58 @@ fn source_common_return_conditionals_use_the_shared_native_pipeline() {
                 .unwrap(),
             ];
             for selection in selections {
-                let plan = publish(
+                let (_, mut emitted) = publish(
                     artifact.semantic_bytes(),
                     artifact.proof_bytes(),
                     target,
                     &selection,
                 );
-                let function = &plan.functions[0];
-                let machine_code::ScalarControlFlowEvidence::Acyclic { blocks } =
-                    &function.scalar_stack.as_ref().unwrap().control_flow
-                else {
-                    panic!("common graph");
-                };
-                assert_eq!(blocks.len(), 4);
+                let function = &emitted.fragments().functions[0];
+                assert_eq!(function.blocks.len(), 4);
                 assert_eq!(function.provenance.edges.len(), 5);
                 assert_eq!(
-                    blocks
+                    function
+                        .blocks
                         .iter()
                         .filter(|block| matches!(
-                            block.terminator,
-                            machine_code::ScalarControlTerminatorEvidence::Return { .. }
+                            block.instructions.last().unwrap().control,
+                            machine_code::FunctionFragmentControlProvenance::Return { .. }
                         ))
                         .count(),
                     1
                 );
                 assert_eq!(
-                    blocks
+                    function
+                        .blocks
                         .iter()
                         .filter(|block| matches!(
-                            block.terminator,
-                            machine_code::ScalarControlTerminatorEvidence::Jump { .. }
+                            block.instructions.last().unwrap().control,
+                            machine_code::FunctionFragmentControlProvenance::Jump { .. }
                         ))
                         .count(),
                     2
                 );
-                let mut stale = plan.clone();
-                let machine_code::ScalarControlFlowEvidence::Acyclic { blocks } = &mut stale
-                    .functions[0]
-                    .scalar_stack
-                    .as_mut()
-                    .unwrap()
-                    .control_flow
+                let terminal = emitted.fragments_mut().functions[0]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|block| &mut block.instructions)
+                    .find(|instruction| {
+                        matches!(
+                            instruction.control,
+                            machine_code::FunctionFragmentControlProvenance::Jump { .. }
+                        )
+                    })
+                    .unwrap();
+                let machine_code::FunctionFragmentBranchEvidence::Jump(branch) =
+                    terminal.branch.as_deref_mut().unwrap()
                 else {
                     unreachable!()
                 };
-                let machine_code::ScalarControlTerminatorEvidence::Jump { target_offset, .. } =
-                    &mut blocks[1].terminator
-                else {
-                    panic!("jump arm")
-                };
-                *target_offset = 0;
-                assert!(image_emission::build_object_artifact(&stale).is_err());
+                branch.target_offset = 0;
+                assert!(
+                    machine_emission::validate_optimized_function_fragment_emission(&emitted)
+                        .is_err()
+                );
             }
         }
     }

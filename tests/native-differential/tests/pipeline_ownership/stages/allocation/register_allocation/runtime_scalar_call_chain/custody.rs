@@ -170,11 +170,16 @@ fn exact_target_legal_and_selected_call_chain_survives_on_both_isas() {
         assert_eq!(calls[1].1.arguments[1].source, right);
         assert_eq!(calls[2].1.arguments[0].source, first_result);
         assert_eq!(calls[2].1.arguments[1].source, second_result);
+        let legalized_operations::LegalizedScalarTerminator::Return(returned) =
+            &legal_caller.blocks[0].terminator
+        else {
+            panic!("the scalar call fixture must retain its Unit return");
+        };
         assert_eq!(
-            legal_caller.blocks[0].terminator.edge,
+            returned.edge,
             EdgeId::new(SCALAR_CALL_UNIT_RETURN_EDGE).unwrap()
         );
-        assert_eq!(legal_caller.blocks[0].terminator.fuel.len(), 1);
+        assert_eq!(returned.fuel.len(), 1);
 
         let selected = staged.selected().plan();
         let selected_caller = selected

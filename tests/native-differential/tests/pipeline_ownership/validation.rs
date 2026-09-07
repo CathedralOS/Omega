@@ -305,11 +305,16 @@ fn selected_content_identity_binds_every_retained_field_class() {
     else {
         unreachable!()
     };
-    when_nonzero.bindings.push(ValueBinding {
-        parameter: ValueId::new(8_015).unwrap(),
-        argument: ValueId::new(8_016).unwrap(),
-        scalar_type: ScalarType::Boolean,
-    });
+    when_nonzero
+        .bindings
+        .push(selected_instructions::SelectedValueBinding {
+            semantic: ValueBinding {
+                parameter: ValueId::new(8_015).unwrap(),
+                argument: ValueId::new(8_016).unwrap(),
+                scalar_type: ScalarType::Boolean,
+            },
+            transport: selected_instructions::SelectedValueTransport::Unused,
+        });
     mutations.push(changed);
     let mut changed = original.clone();
     let SelectedTerminator::ConditionalBranch { when_nonzero, .. } =

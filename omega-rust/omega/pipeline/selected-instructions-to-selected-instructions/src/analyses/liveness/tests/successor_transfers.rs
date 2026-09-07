@@ -38,10 +38,16 @@ pub(crate) fn successor_parameter_function() -> SelectedFunction {
             psi_edge: EdgeId::new(1).unwrap(),
             block: SelectedBlockId(1),
             source_target: BlockId::new(2).unwrap(),
-            bindings: vec![abstract_operations::ValueBinding {
-                parameter: value(3),
-                argument: value(1),
-                scalar_type,
+            bindings: vec![selected_instructions::SelectedValueBinding {
+                semantic: abstract_operations::ValueBinding {
+                    parameter: value(3),
+                    argument: value(1),
+                    scalar_type,
+                },
+                transport: selected_instructions::SelectedValueTransport::Registers {
+                    argument: VirtualRegisterId(0),
+                    parameter: VirtualRegisterId(2),
+                },
             }],
             fuel: Vec::new(),
         },
@@ -99,8 +105,56 @@ fn successor_parameter_liveness_substitutes_the_actual_edge_argument() {
     let SelectedTerminator::Jump { successor, .. } = &mut selected.blocks[0].terminator else {
         unreachable!()
     };
-    successor.bindings[0].argument = semantic_vocabulary::ValueId::new(2).unwrap();
+    successor.bindings[0].semantic.argument = semantic_vocabulary::ValueId::new(2).unwrap();
+    successor.bindings[0].transport = selected_instructions::SelectedValueTransport::Registers {
+        argument: VirtualRegisterId(1),
+        parameter: VirtualRegisterId(2),
+    };
     let changed = compute_function(0, &selected).unwrap();
     assert_eq!(changed.blocks[0].virtual_live_out, [VirtualRegisterId(1)]);
     assert_ne!(live, changed);
+}
+
+#[test]
+fn successor_transport_distinguishes_duplicate_semantic_copies() {
+    let mut function = successor_parameter_function();
+    let mut copied = function.virtual_registers[0].clone();
+    copied.id = VirtualRegisterId(3);
+    function.virtual_registers.push(copied);
+    let SelectedTerminator::Jump { successor, .. } = &mut function.blocks[0].terminator else {
+        unreachable!()
+    };
+    successor.bindings[0].transport = selected_instructions::SelectedValueTransport::Registers {
+        argument: VirtualRegisterId(3),
+        parameter: VirtualRegisterId(2),
+    };
+    let live = compute_function(0, &function).unwrap();
+    assert_eq!(live.blocks[0].virtual_live_out, [VirtualRegisterId(3)]);
+}
+
+#[test]
+fn successor_transport_rejects_absent_wrong_and_unused_register_pairs() {
+    use selected_instructions::SelectedValueTransport;
+    for transport in [
+        SelectedValueTransport::Unused,
+        SelectedValueTransport::Registers {
+            argument: VirtualRegisterId(99),
+            parameter: VirtualRegisterId(2),
+        },
+        SelectedValueTransport::Registers {
+            argument: VirtualRegisterId(1),
+            parameter: VirtualRegisterId(2),
+        },
+        SelectedValueTransport::Registers {
+            argument: VirtualRegisterId(0),
+            parameter: VirtualRegisterId(1),
+        },
+    ] {
+        let mut function = successor_parameter_function();
+        let SelectedTerminator::Jump { successor, .. } = &mut function.blocks[0].terminator else {
+            unreachable!()
+        };
+        successor.bindings[0].transport = transport;
+        assert!(compute_function(0, &function).is_err());
+    }
 }

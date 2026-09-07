@@ -2,6 +2,8 @@
 
 use crate::tests::*;
 
+mod control_flow;
+
 fn artifact(value: u64) -> (Vec<u8>, Vec<u8>) {
     let mut entry = conditional_u64_integer_equal_parameters_machine(28_000, [1, 0]);
     let mut middle = conditional_u64_integer_equal_parameters_machine(28_100, [1, 0]);

@@ -107,17 +107,6 @@ pub(super) fn replay_remaining(
                 return Err(Error::NonCanonicalLegalizedPlan);
             }
             match legalized {
-                legalized_operations::LegalizedFunction::SharedReturnConditional(legalized) => {
-                    super::shared_return::validate(
-                        index,
-                        target.target,
-                        target_function,
-                        abstracted,
-                        optimized,
-                        legalized,
-                    )?;
-                    0
-                }
                 legalized_operations::LegalizedFunction::Conditional(legalized) => replay_function(
                     index,
                     target.target.architecture,

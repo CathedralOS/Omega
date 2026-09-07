@@ -65,18 +65,6 @@ pub(super) fn derive_remaining(
                     unit,
                     matched,
                 )?);
-        } else if kind == super::publication_input::OrdinaryInputKind::SharedReturn {
-            rosters.functions.push(
-                legalized_operations::LegalizedFunction::SharedReturnConditional(
-                    super::shared_return::derive(
-                        index,
-                        target.target,
-                        target_function,
-                        abstracted,
-                        optimized,
-                    )?,
-                ),
-            );
         } else {
             rosters
                 .functions

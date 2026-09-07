@@ -47,7 +47,14 @@ pub(super) fn true_successor(source: &SourceFunction) -> SelectedSuccessor {
         psi_edge: source.branch_true_edge,
         block: SelectedBlockId(1),
         source_target: source.true_block,
-        bindings: source.branch_true_bindings.clone(),
+        bindings: source
+            .branch_true_bindings
+            .iter()
+            .map(|semantic| selected_instructions::SelectedValueBinding {
+                semantic: *semantic,
+                transport: selected_instructions::SelectedValueTransport::Unused,
+            })
+            .collect(),
         fuel: source.branch_true_fuel.clone(),
     }
 }
@@ -57,7 +64,14 @@ pub(super) fn false_successor(source: &SourceFunction) -> SelectedSuccessor {
         psi_edge: source.branch_false_edge,
         block: SelectedBlockId(2),
         source_target: source.false_block,
-        bindings: source.branch_false_bindings.clone(),
+        bindings: source
+            .branch_false_bindings
+            .iter()
+            .map(|semantic| selected_instructions::SelectedValueBinding {
+                semantic: *semantic,
+                transport: selected_instructions::SelectedValueTransport::Unused,
+            })
+            .collect(),
         fuel: source.branch_false_fuel.clone(),
     }
 }

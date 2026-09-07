@@ -1,12 +1,12 @@
 //! Independent rejection for ordered-condition and selected-successor corruption.
 
 use crate::tests::*;
-use legalized_operations::LegalizedCondition;
+use legalized_operations::{LegalizedScalarComparison, LegalizedScalarInstructionKind};
 
 use super::fixture::staged_integer_less_than_conditional;
 
 #[test]
-fn reflexive_less_than_is_outside_the_two_distinct_parameter_family() {
+fn reflexive_less_than_uses_one_semantic_parameter_in_the_ordinary_graph() {
     let mut machine = conditional_u64_integer_less_than_parameters_machine(19_300, [7, 9]);
     let OperationKind::IntegerLessThan { left, right } = &mut machine.blocks[0].operations[0].kind
     else {
@@ -31,12 +31,24 @@ fn reflexive_less_than_is_outside_the_two_distinct_parameter_family() {
         )
         .unwrap();
         let target = lower_optimized_to_target_operations(optimized, target).unwrap();
-        assert!(matches!(
-            stage_optimized_instruction_selection(target),
-            Err(OptimizedSelectionPipelineError::Legalization(
-                LegalizationError::UnsupportedCondition { function: 0 }
-            ))
-        ));
+        let staged = stage_optimized_instruction_selection(target).unwrap();
+        validate_legalized_operations(
+            staged.optimized_target().target_operations(),
+            staged.optimized_target().optimized().plan(),
+            staged.optimized_target().optimized().unit(),
+            staged.legalized().plan().clone(),
+        )
+        .unwrap();
+        validate_raw_selection(&staged, staged.selected().plan().clone()).unwrap();
+        let comparison = staged.selected().plan().functions[0].blocks[0]
+            .instructions
+            .iter()
+            .find(|instruction| instruction.kind == SelectedInstructionKind::CompareI64)
+            .unwrap();
+        assert_eq!(
+            comparison.operands[0].virtual_register,
+            comparison.operands[1].virtual_register
+        );
     }
 }
 
@@ -55,8 +67,8 @@ fn ordered_less_than_custody_and_successor_corruption_fail_closed() {
         };
 
         let mut swapped = original.clone();
-        let LegalizedCondition::IntegerLessThanParametersV1 { left, right, .. } =
-            &mut swapped.functions[0].conditional_mut().condition
+        let LegalizedScalarInstructionKind::Compare { left, right, .. } =
+            &mut swapped.scalar_functions[0].blocks[0].instructions[0].kind
         else {
             panic!("fixture must retain ordered less-than custody")
         };
@@ -67,28 +79,12 @@ fn ordered_less_than_custody_and_successor_corruption_fail_closed() {
         );
 
         let mut equality_substitution = original.clone();
-        let LegalizedCondition::IntegerLessThanParametersV1 {
-            operation,
-            result_definition_site,
-            fuel,
-            left,
-            right,
-        } = equality_substitution.functions[0]
-            .conditional()
-            .condition
-            .clone()
+        let LegalizedScalarInstructionKind::Compare { predicate, .. } =
+            &mut equality_substitution.scalar_functions[0].blocks[0].instructions[0].kind
         else {
             unreachable!()
         };
-        equality_substitution.functions[0]
-            .conditional_mut()
-            .condition = LegalizedCondition::IntegerEqualParametersV1 {
-            operation,
-            result_definition_site,
-            fuel,
-            left,
-            right,
-        };
+        *predicate = LegalizedScalarComparison::Equal;
         assert_eq!(
             validate(equality_substitution),
             Err(LegalizationError::NonCanonicalLegalizedPlan)
@@ -106,10 +102,7 @@ fn ordered_less_than_custody_and_successor_corruption_fail_closed() {
         std::mem::swap(when_less, when_not_less);
         assert!(matches!(
             validate_raw_selection(&staged, selected),
-            Err(SelectedInstructionError::SuccessorProjectionMismatch {
-                function: 0,
-                block: 0
-            })
+            Err(SelectedInstructionError::SourceCustodyMismatch)
         ));
     }
 }

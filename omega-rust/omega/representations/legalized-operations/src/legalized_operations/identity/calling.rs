@@ -1,4 +1,4 @@
-use super::scalar::{encode_integer_type, encode_register};
+use super::scalar::encode_register;
 use super::shared::*;
 
 pub(super) fn encode_call_plan(bytes: &mut Vec<u8>, plan: &CallPlan) {
@@ -157,16 +157,4 @@ pub(super) fn encode_eightbyte_class(bytes: &mut Vec<u8>, class: SystemVEightbyt
         SystemVEightbyteClass::Integer => 1,
         SystemVEightbyteClass::Sse => 2,
     });
-}
-pub(super) fn encode_abi(
-    bytes: &mut Vec<u8>,
-    abi: &target_operations::FixedIntegerScalarFunctionAbi,
-) {
-    encode_call_plan(bytes, &abi.call_plan);
-    encode_len(bytes, abi.parameters.len());
-    for value in abi.parameters.iter().chain([&abi.result]) {
-        bytes.extend_from_slice(&value.value.get().to_le_bytes());
-        encode_integer_type(bytes, value.scalar_type);
-        encode_placement(bytes, &value.placement);
-    }
 }
