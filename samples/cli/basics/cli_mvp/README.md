@@ -61,6 +61,11 @@ This is a policy boundary before accepted native production. The compiler-librar
 sample test bypasses it and stops later at the missing Terminal writer body.
 Neither result establishes native execution.
 
+The missing-policy diagnostic includes exact conflict identities and source
+locations. On Windows, std contributes `FilesystemHost` authority and four
+external Console leaves: `read_line`, `read_byte`, `write_byte`, and
+`exit_process`. These are review findings, not accepted permissions.
+
 The native package-acceptance workflow is under
 [owner review](../../../../OWNER_QUESTIONS.md#q1--package-acceptance-at-native-build):
 the current implementation requires a second candidate-bound file even when
