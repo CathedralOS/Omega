@@ -86,11 +86,23 @@ pub(super) fn lower_unit_body(
         .collect::<Result<BTreeMap<ValueId, KnownUnitInteger>, LoweringError>>()?;
     let mut nonreturning_boundary = false;
 
-    for operation in &function.operations {
+    for (operation_index, operation) in function.operations.iter().enumerate() {
         if returned {
             return Err(LoweringError::OperationAfterReturn(function.machine));
         }
         match operation {
+            AbstractOperation::Jump { .. } if super::continuation::has_shape(function) => {
+                super::continuation::lower(
+                    operation_index,
+                    operation,
+                    function,
+                    parameters,
+                    &mut operations,
+                    structural_types,
+                    functions,
+                    &mut provenance,
+                )?
+            }
             AbstractOperation::DynamicDescriptorParameter { .. } => {}
             AbstractOperation::StoreDynamicDescriptor { .. } => lower_stored_descriptor(
                 operation,

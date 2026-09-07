@@ -55,6 +55,7 @@ mod structural_condition_read;
 mod structural_return;
 mod unit_affine_cleanup;
 mod unit_call_custody;
+mod unit_continuations;
 mod unit_dynamic_descriptor_join;
 mod unit_scalar_call_custody;
 mod unit_stack;
@@ -322,6 +323,7 @@ pub struct ObjectFunction {
         Vec<machine_code::ScalarStructuralScalarFieldStoreRecord>,
     pub unit_parameters: Vec<machine_code::UnitParameterRecord>,
     pub unit_parameter_homes: Vec<machine_code::UnitParameterHomeRecord>,
+    pub unit_continuations: Vec<machine_code::UnitContinuationRecord>,
     pub unit_affine_cleanup: Option<machine_code::UnitAffineCleanupRecord>,
     pub scalar_affine_cleanup: Option<machine_code::UnitAffineCleanupRecord>,
     /// Three byte-validated scalar cleanup records in canonical physical/DFS
@@ -1292,6 +1294,32 @@ fn build_object_artifact_with_x86_feature_profile(
         } else {
             function.unit_affine_cleanup.as_ref()
         };
+        let continuation_discards = unit_continuations::validate_function(function)?;
+        if !function.unit_continuations.is_empty()
+            && unit_call_custody::result_home::parameter_storage_end(plan.target, parameter_homes)
+                .is_none_or(|end| {
+                    validated_function_stack.as_ref().is_none_or(|stack| {
+                        end > stack.frame_bytes
+                            || (function
+                                .internal_unit_calls
+                                .iter()
+                                .all(|call| call.structural_result.is_none())
+                                && !unit_call_custody::result_home::exact_frame(
+                                    plan.target,
+                                    end,
+                                    stack.frame_bytes,
+                                    function
+                                        .unit_stack
+                                        .and_then(|stack| stack.aarch64_return_link)
+                                        .map(|link| link.frame_byte_offset),
+                                ))
+                    })
+                })
+        {
+            return Err(ObjectError::InvalidUnitAffineCleanupEvidence(
+                function.machine,
+            ));
+        }
         let fully_consumed_affine_parameter = exact_fully_consumed_affine_parameter(
             parameter_homes,
             &function.internal_unit_calls,
@@ -1358,7 +1386,35 @@ fn build_object_artifact_with_x86_feature_profile(
             }
             let affine_cleanup =
                 cleanup_for_owner(&function.scalar_control_affine_cleanups, custody.owner)
+                    .or_else(|| {
+                        unit_continuations::cleanup_for_call(
+                            &function.unit_continuations,
+                            custody.operation_ordinal,
+                        )
+                    })
                     .or(default_affine_cleanup);
+            if !function.unit_continuations.is_empty()
+                && custody
+                    .arguments
+                    .iter()
+                    .any(|argument| !argument.path.is_empty())
+                && machine_functions.get(&custody.target).is_none_or(|callee| {
+                    callee.scalar_abi.is_some()
+                        || default_affine_cleanup.is_none_or(|cleanup| {
+                            !unit_continuations::exact_projected_callee(
+                                custody,
+                                &callee.unit_parameters,
+                                callee.unit_affine_cleanup.as_ref(),
+                                cleanup,
+                                &callee.semantic_code_attribution,
+                            )
+                        })
+                })
+            {
+                return Err(ObjectError::InvalidInternalUnitCallEvidence(
+                    function.machine,
+                ));
+            }
             validate_internal_unit_call_custody(
                 plan.target,
                 function,
@@ -1384,7 +1440,11 @@ fn build_object_artifact_with_x86_feature_profile(
                 target_structural_return,
                 custody,
                 affine_cleanup,
-                fully_consumed_affine_parameter,
+                fully_consumed_affine_parameter
+                    || custody
+                        .arguments
+                        .iter()
+                        .any(|argument| continuation_discards.contains(&argument.place)),
             )?;
         }
         validate_unit_affine_scalar_records(function)?;
@@ -1445,6 +1505,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 false,
                 fully_consumed_affine_parameter,
                 partially_consumed_affine_parameter,
+                &continuation_discards,
             )?,
             (None, None) => {}
             _ => {
@@ -1473,6 +1534,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 true,
                 false,
                 false,
+                &[],
             )?;
         }
         if !function.scalar_control_affine_cleanups.is_empty() {
@@ -1508,6 +1570,7 @@ fn build_object_artifact_with_x86_feature_profile(
                     true,
                     false,
                     false,
+                    &[],
                 )?;
             }
         }
@@ -2259,6 +2322,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 .clone(),
             unit_parameters: function.unit_parameters.clone(),
             unit_parameter_homes: function.unit_parameter_homes.clone(),
+            unit_continuations: function.unit_continuations.clone(),
             unit_affine_cleanup: function.unit_affine_cleanup.clone(),
             scalar_affine_cleanup: function.scalar_affine_cleanup.clone(),
             scalar_control_affine_cleanups: function.scalar_control_affine_cleanups.clone(),

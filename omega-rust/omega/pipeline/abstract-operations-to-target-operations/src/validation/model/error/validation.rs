@@ -8,6 +8,9 @@ use crate::validation::StructuralCallReturnProjectedQualificationValidationError
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractToTargetTranslationValidationError {
+    UnitContinuationMismatch {
+        machine: MachineId,
+    },
     UnsupportedPartialAffineContinuation {
         machine: MachineId,
         edge: semantic_vocabulary::EdgeId,

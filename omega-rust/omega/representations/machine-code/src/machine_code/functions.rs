@@ -11,10 +11,11 @@ use crate::{
     RankedU32CountdownMachineCodeRecord, ScalarControlAffineCleanupRecord, ScalarStackEvidence,
     ScalarStructuralScalarFieldStoreRecord, SemanticCodeAttribution, StoredDynamicCallRecord,
     StructuralCallScalarReturnEvidence, StructuralReturnRecord, UnitAffineCleanupRecord,
-    UnitAffineScalarRecordEstablishmentRecord, UnitIntegerConstantRecord, UnitParameterHomeRecord,
-    UnitParameterRecord, UnitScalarFunctionAbiRecord, UnitScalarHomeRecord, UnitStackEvidence,
-    UnitStructuralScalarFieldStoreRecord, UnitWriteOnlyPrimitiveStoreRecord,
-    X86FloatingControlRecord, X86ScalarFmaFragment, X86ScalarFmaOccurrenceRecord,
+    UnitAffineScalarRecordEstablishmentRecord, UnitContinuationRecord, UnitIntegerConstantRecord,
+    UnitParameterHomeRecord, UnitParameterRecord, UnitScalarFunctionAbiRecord,
+    UnitScalarHomeRecord, UnitStackEvidence, UnitStructuralScalarFieldStoreRecord,
+    UnitWriteOnlyPrimitiveStoreRecord, X86FloatingControlRecord, X86ScalarFmaFragment,
+    X86ScalarFmaOccurrenceRecord,
 };
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 use target_operations::TerminalPsiProvenance;
@@ -153,6 +154,8 @@ pub struct MachineCodeFunction {
     /// Exact zero-code affine-local establishment and Unit-return cleanup
     /// custody for the bounded one-state Unit slice.
     pub unit_affine_cleanup: Option<UnitAffineCleanupRecord>,
+    /// Ordered adjacent fallthrough cleanup boundaries, separate from return.
+    pub unit_continuations: Vec<UnitContinuationRecord>,
     /// Structural custody consumed by a scalar return after its result has
     /// been materialized. The record deliberately reuses the exact cleanup
     /// vocabulary while remaining distinct from a Unit body.

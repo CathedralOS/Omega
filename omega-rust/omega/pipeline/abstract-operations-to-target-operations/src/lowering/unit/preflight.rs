@@ -5,6 +5,9 @@ use super::super::shared::*;
 pub(super) fn validate_unit_function_shape(
     function: &AbstractFunction,
 ) -> Result<(), LoweringError> {
+    if super::continuation::has_shape(function) {
+        return Ok(());
+    }
     if !function.parameters.is_empty() && !has_bounded_scalar_parameter_shape(function) {
         return Err(LoweringError::UnitFunctionHasScalarParameters(
             function.machine,

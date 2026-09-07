@@ -31,6 +31,7 @@ pub(super) fn function_is_exact(record: &InstallationRecord, function: &Installe
         || function.unit_parameter_homes.len() != 2
         || function.unit_body
         || function.unit_affine_cleanup.is_some()
+        || !function.unit_continuations.is_empty()
         || function.scalar_affine_cleanup.is_some()
         || !function.scalar_control_affine_cleanups.is_empty()
         || function.ranked_u32_countdown

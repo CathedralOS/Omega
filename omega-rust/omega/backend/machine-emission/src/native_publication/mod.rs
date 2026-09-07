@@ -335,6 +335,7 @@ fn leaf_function(
         scalar_structural_scalar_field_stores: Vec::new(),
         unit_affine_cleanup,
         scalar_affine_cleanup: None,
+        unit_continuations: Vec::new(),
         scalar_control_affine_cleanups: Vec::new(),
         scalar_structural_parameters: Vec::new(),
         scalar_structural_parameter_homes: Vec::new(),

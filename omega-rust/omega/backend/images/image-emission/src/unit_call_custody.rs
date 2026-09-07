@@ -726,7 +726,16 @@ pub(super) fn validate_internal_unit_call_custody(
         parameter_homes,
         internal_unit_calls,
         affine_cleanup,
-    );
+    )
+    .or_else(|| {
+        let disposed = crate::unit_continuations::completed_roots(
+            parameter_homes,
+            internal_unit_calls,
+            &function.unit_continuations,
+            function.unit_affine_cleanup.as_ref(),
+        )?;
+        crate::unit_continuations::result_for_call(internal_unit_calls, &disposed, custody)
+    });
     if custody
         .structural_result
         .as_ref()
@@ -743,6 +752,16 @@ pub(super) fn validate_internal_unit_call_custody(
                 .all(|argument| argument.place == result.operation_result.place)
         }) {
         None
+    } else if !function.unit_continuations.is_empty() {
+        let [argument] = custody.arguments.as_slice() else {
+            return Err(invalid());
+        };
+        Some(
+            parameter_homes
+                .iter()
+                .find(|home| home.place == argument.place)
+                .ok_or_else(invalid)?,
+        )
     } else {
         let [home] = parameter_homes else {
             return Err(invalid());
@@ -1188,6 +1207,7 @@ fn validate_mixed_argument_bytes_and_order(
             || !result_home::exact_storage(
                 target,
                 custody,
+                &function.internal_unit_calls,
                 function_stack.frame_bytes,
                 &function.unit_parameter_homes,
                 &function.unit_scalar_homes,

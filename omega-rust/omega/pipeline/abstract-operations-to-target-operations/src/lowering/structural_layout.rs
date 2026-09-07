@@ -1,8 +1,8 @@
-mod residual_cleanup;
-
 use super::shared::*;
 
-pub(super) use residual_cleanup::{expected_maximal_residual_subtrees, is_partial_cleanup_path};
+pub(super) use crate::affine_cleanup_partition::{
+    expected_maximal_residual_subtrees, is_partial_cleanup_path,
+};
 
 /// Existing copy metadata describes the root array, not the final index in a
 /// nested path. Record-root projections have no root array metadata.

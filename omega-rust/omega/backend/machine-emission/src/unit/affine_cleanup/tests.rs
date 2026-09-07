@@ -200,6 +200,136 @@ fn accepts(body: &AssignedUnitBody, functions: &[AssignedFunction], target: Nati
     .is_ok()
 }
 
+fn continuation_fixture(target: NativeTarget) -> (AssignedUnitBody, Vec<AssignedFunction>) {
+    let (mut body, functions) = five(target);
+    let AssignedUnitOperation::Return {
+        psi_edge,
+        cleanup_actions,
+    } = body.operations.pop().unwrap()
+    else {
+        unreachable!()
+    };
+    body.operations.push(AssignedUnitOperation::Continue {
+        psi_edge,
+        source_block: semantic_vocabulary::BlockId::new(70_001).unwrap(),
+        target_block: semantic_vocabulary::BlockId::new(70_002).unwrap(),
+        cleanup_actions,
+    });
+    body.operations.push(AssignedUnitOperation::Return {
+        psi_edge: EdgeId::new(70_003).unwrap(),
+        cleanup_actions: Vec::new(),
+    });
+    (body, functions)
+}
+
+#[test]
+fn continuation_cleanup_retains_zero_code_edge_before_real_return() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let (body, functions) = continuation_fixture(target);
+        let emitted = super::super::emit_unit_body(
+            &body,
+            Some(MachineId::new(1).unwrap()),
+            None,
+            target,
+            &functions,
+            &[],
+        )
+        .unwrap();
+        let (legacy_body, legacy_functions) = five(target);
+        assert!(accepts(&legacy_body, &legacy_functions, target));
+        let legacy = super::super::emit_unit_body(
+            &legacy_body,
+            Some(MachineId::new(1).unwrap()),
+            None,
+            target,
+            &legacy_functions,
+            &[],
+        )
+        .unwrap();
+        assert_eq!(
+            emitted.bytes, legacy.bytes,
+            "no-code continuation retains the existing final-return machine bytes"
+        );
+        let [continuation] = emitted.continuations.as_slice() else {
+            panic!("one real continuation");
+        };
+        assert_eq!(continuation.operation_ordinal, 1);
+        assert_eq!(continuation.successor_operation_ordinal, 2);
+        assert_eq!(continuation.cleanup.byte_count, 0);
+        assert_eq!(continuation.cleanup.actions.len(), 4);
+        assert!(continuation.cleanup.locals.is_empty());
+        let returned = emitted.affine_cleanup.as_ref().unwrap();
+        assert_ne!(returned.psi_edge, continuation.cleanup.psi_edge);
+        assert!(returned.actions.is_empty());
+        assert!(returned.byte_count > 0);
+        assert_eq!(returned.code_offset, continuation.cleanup.code_offset);
+        assert!(emitted.semantic_code_attribution.iter().any(|row| row.site
+            == machine_code::SemanticCodeSite::Edge(continuation.cleanup.psi_edge)
+            && row.operation_ordinal == continuation.operation_ordinal
+            && row.code_offset == continuation.cleanup.code_offset
+            && row.byte_count == 0));
+    }
+}
+
+#[test]
+fn continuation_cleanup_rejects_forged_edge_residuals_and_retired_uses() {
+    let target = NativeTarget::linux_x64();
+    for mutation in 0..6 {
+        let (mut body, functions) = continuation_fixture(target);
+        let AssignedUnitOperation::Continue {
+            source_block,
+            target_block,
+            cleanup_actions,
+            ..
+        } = &mut body.operations[1]
+        else {
+            unreachable!()
+        };
+        match mutation {
+            0 => *target_block = *source_block,
+            1 => cleanup_actions.clear(),
+            2 => cleanup_actions.reverse(),
+            3 => cleanup_actions.push(cleanup_actions[0].clone()),
+            4 => {
+                let mut repeated = body.operations[0].clone();
+                let AssignedUnitOperation::Call { psi_operation, .. } = &mut repeated else {
+                    unreachable!()
+                };
+                *psi_operation = OperationId::new(70_004).unwrap();
+                body.operations.insert(2, repeated);
+            }
+            5 => {
+                let delayed = std::mem::take(cleanup_actions);
+                let AssignedUnitOperation::Return {
+                    cleanup_actions, ..
+                } = &mut body.operations[2]
+                else {
+                    unreachable!()
+                };
+                *cleanup_actions = delayed;
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            super::super::emit_unit_body(
+                &body,
+                Some(MachineId::new(1).unwrap()),
+                None,
+                target,
+                &functions,
+                &[]
+            )
+            .is_err(),
+            "mutation={mutation}"
+        );
+    }
+}
+
 fn structural_field(value: u32, name: &str, nested: u32) -> StructuralFieldDeclaration {
     StructuralFieldDeclaration {
         id: StructuralFieldId::new(u64::from(value)).unwrap(),

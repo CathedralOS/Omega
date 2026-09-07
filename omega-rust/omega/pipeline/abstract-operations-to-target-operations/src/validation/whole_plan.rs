@@ -33,7 +33,29 @@ pub fn validate_abstract_to_target_translation_with_ieee_float_fma_settlements(
 ) -> Result<AbstractToTargetTranslationValidationReceipt, AbstractToTargetTranslationValidationError>
 {
     validate_plan_identity(source, expected_target, target)?;
-    for function in &source.functions {
+    for (function, target_function) in source.functions.iter().zip(&target.functions) {
+        let has_continuations = matches!(&target_function.operation, TargetOperation::UnitBody(body)
+            if body.operations.iter().any(|operation| matches!(operation, target_operations::TargetUnitOperation::Continue { .. })));
+        let source_unit_jumps = matches!(&target_function.operation, TargetOperation::UnitBody(_))
+            && function
+                .operations
+                .iter()
+                .any(|operation| matches!(operation, AbstractOperation::Jump { .. }));
+        if has_continuations
+            || source_unit_jumps
+            || super::unit_continuations::is_candidate(function)
+        {
+            super::unit_continuations::validate(
+                function,
+                target_function,
+                &source.structural_types,
+            )
+            .ok_or(
+                AbstractToTargetTranslationValidationError::UnitContinuationMismatch {
+                    machine: function.machine,
+                },
+            )?;
+        }
         for operation in &function.operations {
             if let AbstractOperation::Jump {
                 psi_edge,
@@ -41,6 +63,7 @@ pub fn validate_abstract_to_target_translation_with_ieee_float_fma_settlements(
                 ..
             } = operation
                 && !residual_affine_discards.is_empty()
+                && !has_continuations
             {
                 return Err(AbstractToTargetTranslationValidationError::UnsupportedPartialAffineContinuation { machine: function.machine, edge: *psi_edge });
             }

@@ -139,8 +139,11 @@ fn matches_site(operation: &AbstractOperation, site: SemanticCodeSite) -> bool {
         AbstractOperation::Jump {
             psi_edge,
             trivial_affine_discards,
+            residual_affine_discards,
             ..
-        } if trivial_affine_discards.is_empty() => site == SemanticCodeSite::Edge(*psi_edge),
+        } if trivial_affine_discards.is_empty() && residual_affine_discards.is_empty() => {
+            site == SemanticCodeSite::Edge(*psi_edge)
+        }
         AbstractOperation::Return {
             psi_edge,
             cleanup_actions,

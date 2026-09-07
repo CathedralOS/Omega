@@ -8,7 +8,7 @@ use machine_code::{
     BoundaryResultRecord, BoundarySettlementRecord, InternalUnitCallRecord, MachineCodeFunction,
     SemanticCodeAttribution, SemanticCodeSite, UnitAffineCleanupRecord, UnitParameterHomeRecord,
 };
-use semantic_vocabulary::{MachineId, StructuralTypeId};
+use semantic_vocabulary::{MachineId, PlaceId, StructuralTypeId};
 use target_operations::{CallSiteOwner, TerminalPsiProvenance};
 
 use super::{ObjectError, exact_partial_cleanup_partition};
@@ -104,6 +104,7 @@ pub(super) fn validate_unit_affine_cleanup(
     allow_mixed_nominal_roots: bool,
     fully_consumed_affine_parameter: bool,
     partially_consumed_affine_parameter: bool,
+    continuation_discards: &[PlaceId],
 ) -> Result<(), ObjectError> {
     let invalid = || ObjectError::InvalidUnitAffineCleanupEvidence(machine);
     if !exact_construction_prefix(cleanup) {
@@ -140,6 +141,7 @@ pub(super) fn validate_unit_affine_cleanup(
                 && home.access == terminal_psi::StructuralAccess::Owned
                 && !transferred_roots.contains(&home.place)
                 && !fully_consumed_affine_parameter
+                && !continuation_discards.contains(&home.place)
         })
         .map(|home| home.place)
         .collect::<Vec<_>>();
@@ -171,6 +173,7 @@ pub(super) fn validate_unit_affine_cleanup(
         .into_iter()
         .map(|(_, place)| place)
         .filter(|place| !inspected_roots.contains(place))
+        .filter(|place| !continuation_discards.contains(place))
         .collect::<Vec<_>>();
     let local_operations = cleanup
         .locals

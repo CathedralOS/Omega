@@ -75,11 +75,14 @@ pub(super) fn validate_cleanup(
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     cleanup: &[TerminalAffineCleanupAction],
 ) -> Option<()> {
-    let ([authored_parameter], [parameter], [producer, consumers @ ..]) = (
-        function.structural_parameters.as_slice(),
-        parameters,
-        operations,
-    ) else {
+    if !super::continuation::has_shape(function)
+        && (function.structural_parameters.len() != 1
+            || parameters.len() != 1
+            || function.structural_parameters[0].position != 0)
+    {
+        return None;
+    }
+    let [producer, consumers @ ..] = operations else {
         return None;
     };
     let TargetUnitOperation::StructuralResultCall {
@@ -98,6 +101,13 @@ pub(super) fn validate_cleanup(
     let [input] = arguments.as_slice() else {
         return None;
     };
+    let parameter = parameters
+        .iter()
+        .find(|parameter| parameter.place == input.place)?;
+    let authored_parameter = function
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == input.place)?;
     let (home, placement) = source(operations, result.place)?;
     if consumers.is_empty()
         || !function.parameters.is_empty()
@@ -105,7 +115,6 @@ pub(super) fn validate_cleanup(
         || !function.published_service_ceiling.is_empty()
         || authored_parameter.place != parameter.place
         || authored_parameter.structural_type != parameter.structural_type
-        || authored_parameter.position != 0
         || authored_parameter.is_self
         || authored_parameter.access != StructuralAccess::Owned
         || authored_parameter.multiplicity != StructuralMultiplicity::Affine
@@ -130,25 +139,84 @@ pub(super) fn validate_cleanup(
     {
         return None;
     }
-    let mut shapes = BTreeMap::new();
-    let mut active = BTreeSet::new();
-    let root_shape = structural_shape(
+    validate_consumers(
+        result.place,
         result.structural_type,
+        placement,
+        home.layout.shape(),
+        consumers,
         structural_types,
-        &mut shapes,
-        &mut active,
+        functions,
+        cleanup,
     )
-    .ok()?;
-    if home.layout.shape() != root_shape {
+}
+
+pub(super) fn validate_parameter_cleanup(
+    function: &AbstractFunction,
+    parameters: &[TargetStructuralParameter],
+    operations: &[TargetUnitOperation],
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    functions: &BTreeMap<MachineId, &AbstractFunction>,
+    cleanup: &[TerminalAffineCleanupAction],
+) -> Option<()> {
+    let TargetUnitOperation::Call { arguments, .. } = operations.first()? else {
+        return None;
+    };
+    let [argument] = arguments.as_slice() else {
+        return None;
+    };
+    let parameter = parameters
+        .iter()
+        .find(|parameter| parameter.place == argument.place)?;
+    let authored = function
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == argument.place)?;
+    if !function.parameters.is_empty()
+        || !function.entry_claims.is_empty()
+        || !function.published_service_ceiling.is_empty()
+        || authored.is_self
+        || authored.access != StructuralAccess::Owned
+        || authored.multiplicity != StructuralMultiplicity::Affine
+        || !authored.qualifications.is_empty()
+        || !authored.projected_qualifications.is_empty()
+        || authored.structural_type != parameter.structural_type
+    {
         return None;
     }
-    let metadata = root_array_projection_metadata(
-        result.structural_type,
+    validate_consumers(
+        parameter.place,
+        parameter.structural_type,
+        &parameter.placement,
+        parameter.shape,
+        operations,
         structural_types,
-        &mut shapes,
-        &mut active,
+        functions,
+        cleanup,
     )
-    .ok()?;
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_consumers(
+    root: PlaceId,
+    root_type: StructuralTypeId,
+    placement: &ValuePlacement,
+    supplied_shape: ValueShape,
+    consumers: &[TargetUnitOperation],
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    functions: &BTreeMap<MachineId, &AbstractFunction>,
+    cleanup: &[TerminalAffineCleanupAction],
+) -> Option<()> {
+    let mut shapes = BTreeMap::new();
+    let mut active = BTreeSet::new();
+    let root_shape =
+        structural_shape(root_type, structural_types, &mut shapes, &mut active).ok()?;
+    if supplied_shape != root_shape || consumers.is_empty() {
+        return None;
+    }
+    let metadata =
+        root_array_projection_metadata(root_type, structural_types, &mut shapes, &mut active)
+            .ok()?;
     let mut moved = Vec::new();
     for operation in consumers {
         let TargetUnitOperation::Call {
@@ -171,7 +239,7 @@ pub(super) fn validate_cleanup(
             return None;
         };
         let (projected_type, shape, offset) = resolve_structural_projection_path(
-            result.structural_type,
+            root_type,
             &argument.path,
             structural_types,
             &mut shapes,
@@ -193,10 +261,10 @@ pub(super) fn validate_cleanup(
             || !claim_transfers.is_empty()
             || !requirement_obligations.is_empty()
             || !crash_continuations.is_empty()
-            || argument.place != result.place
+            || argument.place != root
             || argument.path.is_empty()
             || argument.access != StructuralAccess::Owned
-            || argument.root_structural_type != result.structural_type
+            || argument.root_structural_type != root_type
             || argument.structural_type != projected_type
             || argument.shape != shape
             || argument.source != *placement
@@ -210,14 +278,10 @@ pub(super) fn validate_cleanup(
         }
         moved.push((argument.path.clone(), projected_type));
     }
-    let expected = expected_maximal_residual_subtrees(
-        result.structural_type,
-        &moved,
-        structural_types,
-        cleanup.len(),
-    )?;
+    let expected =
+        expected_maximal_residual_subtrees(root_type, &moved, structural_types, cleanup.len())?;
     (expected.len() == cleanup.len() && cleanup.iter().zip(expected).all(|(action, (path, structural_type))| {
         matches!(action, TerminalAffineCleanupAction::DiscardResidual(discard)
-            if discard.place == result.place && discard.path == path && discard.structural_type == structural_type)
+            if discard.place == root && discard.path == path && discard.structural_type == structural_type)
     })).then_some(())
 }

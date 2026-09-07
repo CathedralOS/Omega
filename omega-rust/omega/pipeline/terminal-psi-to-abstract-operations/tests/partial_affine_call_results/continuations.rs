@@ -151,11 +151,20 @@ fn source_continuations_retain_distinct_result_owners_and_ordered_residuals() {
                         target::NativeTarget::linux_x64(),
                         target::NativeTarget::linux_arm64(),
                     ] {
-                        assert!(
-                            matches!(abstract_operations_to_target_operations::lower_to_target_operations(verified.input().plan(), target),
-                            Err(abstract_operations_to_target_operations::LoweringError::UnsupportedPartialAffineContinuation { machine, edge })
-                                if machine == caller.machine && edge == cleanup_edges[0].0)
-                        );
+                        let native =
+                            abstract_operations_to_target_operations::lower_to_target_operations(
+                                verified.input().plan(),
+                                target,
+                            );
+                        if fields == "left: Token; right: Token;" {
+                            native
+                                .expect("direct-register results retain both native continuations");
+                        } else {
+                            assert!(
+                                native.is_err(),
+                                "wider structural results retain their ABI fence"
+                            );
+                        }
                     }
                 }
             }

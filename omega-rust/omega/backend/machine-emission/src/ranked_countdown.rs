@@ -126,6 +126,7 @@ pub(super) fn emit(
         unit_write_only_primitive_stores: Vec::new(),
         scalar_structural_scalar_field_stores: Vec::new(),
         unit_affine_cleanup: None,
+        unit_continuations: Vec::new(),
         scalar_affine_cleanup: None,
         scalar_control_affine_cleanups: Vec::new(),
         scalar_structural_parameters: Vec::new(),

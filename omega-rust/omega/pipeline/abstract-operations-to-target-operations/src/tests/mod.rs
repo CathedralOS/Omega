@@ -7,6 +7,7 @@ mod native_boundaries;
 mod native_callback_arguments;
 mod parameter_translation_fixture;
 mod prelude;
+mod projected_result_cleanup;
 mod projected_result_qualifications;
 mod ranked_countdown;
 mod scalar;

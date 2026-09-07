@@ -7,7 +7,7 @@ use terminal_psi::{
     StructuralTypeShape,
 };
 
-pub(in crate::lowering) fn expected_maximal_residual_subtrees(
+pub(crate) fn expected_maximal_residual_subtrees(
     root_type: StructuralTypeId,
     moved: &[(Vec<StructuralPathSegment>, StructuralTypeId)],
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
@@ -39,7 +39,7 @@ pub(in crate::lowering) fn expected_maximal_residual_subtrees(
     Some(residuals)
 }
 
-pub(in crate::lowering) fn is_partial_cleanup_path(path: &[StructuralPathSegment]) -> bool {
+pub(crate) fn is_partial_cleanup_path(path: &[StructuralPathSegment]) -> bool {
     !path.is_empty()
         && path.iter().all(|segment| match segment {
             StructuralPathSegment::Field(identity) => !identity.is_empty(),

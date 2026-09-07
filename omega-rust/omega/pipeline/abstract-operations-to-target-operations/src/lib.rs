@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 //! Optimizer module role: crate map. Enter `lowering/mod.rs`, then descend by result family and semantic responsibility.
+mod affine_cleanup_partition;
 mod lowering;
 mod model;
 mod optimized;

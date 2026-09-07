@@ -3,6 +3,15 @@
 use super::{Command, NEXT_SCRATCH_DIRECTORY, Ordering, ScratchDirectory, SystemTime};
 
 pub(super) fn execute(image: &image_emission::ExecutableImage, entry_offset: usize, wide: bool) {
+    execute_parameters(image, entry_offset, wide, false);
+}
+
+pub(super) fn execute_parameters(
+    image: &image_emission::ExecutableImage,
+    entry_offset: usize,
+    wide: bool,
+    repeated: bool,
+) {
     let second_field = if wide { "uint64_t second;" } else { "" };
     let second_value = if wide { ", ~values[index]" } else { "" };
     execute_payload(
@@ -10,6 +19,7 @@ pub(super) fn execute(image: &image_emission::ExecutableImage, entry_offset: usi
         entry_offset,
         &format!("typedef struct {{ uint64_t first; {second_field} }} Payload;"),
         &format!("Payload value = {{ values[index]{second_value} }};"),
+        repeated,
     );
 }
 
@@ -25,6 +35,7 @@ pub(super) fn execute_byte_array(
         &format!(
             "Payload value = {{0}}; for (unsigned byte = 0; byte < {count}; ++byte) {{ value.bytes[byte] = (uint8_t)(values[index] >> ((byte % 8) * 8)); }}"
         ),
+        false,
     );
 }
 
@@ -33,6 +44,7 @@ fn execute_payload(
     entry_offset: usize,
     definition: &str,
     initializer: &str,
+    repeated: bool,
 ) {
     let output = image.output();
     assert_eq!(output.final_image_imports, 0);
@@ -56,15 +68,23 @@ fn execute_payload(
     if !cfg!(target_os = "macos") {
         assembly.push_str(".section .note.GNU-stack,\"\",@progbits\n");
     }
+    let (parameters, invocation) = if repeated {
+        (
+            "Payload, Payload",
+            "Payload second = value; for (unsigned byte = 0; byte < sizeof(second); ++byte) { ((unsigned char *)&second)[byte] ^= 0xa5; } entry(value, second);",
+        )
+    } else {
+        ("Payload", "entry(value);")
+    };
     let driver = format!(
         "#include <stdint.h>\n\
          {definition}\n\
-         extern void entry(Payload);\n\
+         extern void entry({parameters});\n\
          int main(void) {{\n\
              const uint64_t values[] = {{ 0, UINT64_MAX, UINT64_C(0x5eedcafedeadbeef) }};\n\
              for (unsigned index = 0; index < 3; ++index) {{\n\
                  {initializer}\n\
-                 entry(value);\n\
+                 {invocation}\n\
              }}\n\
              return 0;\n\
          }}\n"

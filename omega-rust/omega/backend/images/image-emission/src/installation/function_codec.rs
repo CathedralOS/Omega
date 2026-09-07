@@ -100,6 +100,10 @@ pub(super) fn encode_functions(
             bytes,
             &function.scalar_structural_scalar_field_stores,
         )?;
+        super::unit_continuation_codec::encode_unit_continuations(
+            bytes,
+            &function.unit_continuations,
+        )?;
         match &function.unit_affine_cleanup {
             Some(cleanup) => {
                 bytes.push(1);
@@ -235,6 +239,7 @@ pub(super) fn decode_functions(
             unit_structural_scalar_field_stores,
             unit_write_only_primitive_stores,
             scalar_structural_scalar_field_stores,
+            unit_continuations: super::unit_continuation_codec::decode_unit_continuations(reader)?,
             unit_affine_cleanup: match reader.u8()? {
                 0 => {
                     if reader.take(3)? != [0; 3] {

@@ -1,7 +1,7 @@
 //! Affine cleanup actions and preservation around their emitted suffixes.
 
 use crate::{Aarch64ReturnLinkEvidence, StackAdjustmentPair};
-use semantic_vocabulary::{EdgeId, OperationId};
+use semantic_vocabulary::{BlockId, EdgeId, OperationId};
 use terminal_psi::{
     StructuralPlaceDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
 };
@@ -21,6 +21,17 @@ pub struct UnitAffineCleanupRecord {
     pub actions: Vec<TerminalAffineCleanupAction>,
     pub code_offset: usize,
     pub byte_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnitContinuationRecord {
+    pub operation_ordinal: usize,
+    pub successor_operation_ordinal: usize,
+    pub source_block: BlockId,
+    pub target_block: BlockId,
+    /// Exact zero-byte cleanup boundary before the successor's first operation.
+    /// Final return cleanup remains a separate record.
+    pub cleanup: UnitAffineCleanupRecord,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

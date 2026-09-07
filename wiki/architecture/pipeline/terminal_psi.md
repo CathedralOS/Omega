@@ -1702,9 +1702,13 @@ retained Terminal edge-entry/exit snapshots independently bind that transaction.
 Unrelated roots remain live and empty complements cannot hide another dying
 root. Canonical Omega unit identity includes both operation and derived-edge
 rows. Control-flow fusion, threading, and merging reject edges whose residual
-cleanup they cannot preserve. Native target lowering and independent translation
-validation still reject nonempty residual jumps; scalar graph legalization and
-native publication cannot silently erase them either.
+cleanup they cannot preserve. Native Unit lowering carries acyclic adjacent
+fallthrough jumps as explicit continuation operations. Each retains the real
+edge, source and target blocks, and ordered residual schedule. Assignment and
+emission replay the live parameter/result roots and exact complement before
+retiring that root; unrelated roots remain live. Scalar bindings, boundary-result
+projections, and cyclic cleanup remain outside this native route. Scalar graph
+legalization and native publication cannot silently erase those residuals.
 
 Checked-source production carries this result-root schedule for one leading
 immutable local initialized by a whole-value ordinary call or structural boundary
@@ -1740,7 +1744,10 @@ retains its checked continuation entry, while its Terminal jump needs no discard
 rows. Named partial results still use the separate partial-return plan. Multiple
 producers or effects within one consumer's argument list, non-Unit consumers,
 and mixed dying-root cleanup remain outside this source route. Native lowering
-of nonempty residual jumps remains explicitly unsupported.
+supports ordinary direct-register result producers on acyclic Unit fallthrough
+continuations, including successive producers and intervening zero-argument
+Unit calls. Scalar parameters/bindings and projected boundary results remain
+outside this native continuation route.
 
 Lowering and Terminal verification independently reconstruct that complement
 from the types and moves, rejecting overlaps, missing or extra residuals, and
@@ -1799,6 +1806,16 @@ tagged sum. Assignment, object validation, and installation replay retain the re
 independently reconstruct the store bytes and intervals, reject overlapping
 homes, and reconstruct the residual or empty complement. The single-final-call
 anonymous source form uses these same result homes and projected copies.
+The acyclic Unit continuation route reuses that storage across multiple owned
+parameters and successive producers. Cleanup has a separate zero-byte
+continuation record even when its complement is empty; the final return record
+contains only owners still live there. Object and installed-artifact replay
+reconstruct the call/edge sequence, projected layouts, and exact residual
+partition, binding each boundary to its real operation ordinal and code offset.
+Continuation block endpoints remain retained emission metadata: downstream
+replay checks their adjacent acyclic chain but does not infer an independent
+authored block map from machine bytes. Canonical installation retains the
+continuation list separately from final-return cleanup.
 Boundary-result native projection, claims, nominal
 destruction, and partial construction remain outside
 this native slice.

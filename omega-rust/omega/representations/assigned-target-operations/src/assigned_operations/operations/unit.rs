@@ -7,6 +7,7 @@ pub use crate::assigned_operations::storage::scalar_call::{
 use calling_conventions::CallPlan;
 use calling_conventions::ValuePlacement;
 use calling_conventions::ValueShape;
+use semantic_vocabulary::BlockId;
 use semantic_vocabulary::BoundaryMachineId;
 use semantic_vocabulary::EdgeId;
 use semantic_vocabulary::IeeeFloatFormat;
@@ -523,6 +524,13 @@ pub enum AssignedUnitOperation {
         byte_sequence_arguments: Vec<BoundaryByteSequenceArgument>,
         completion_claim_sources: Vec<CompletionClaimSource>,
         completion_receipts: Vec<CompletionReceipt>,
+    },
+    /// An adjacent fallthrough edge retains cleanup at the actual continuation.
+    Continue {
+        psi_edge: EdgeId,
+        source_block: BlockId,
+        target_block: BlockId,
+        cleanup_actions: Vec<TerminalAffineCleanupAction>,
     },
     Return {
         psi_edge: EdgeId,

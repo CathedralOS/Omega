@@ -33,6 +33,7 @@ pub(super) fn lower_function(
             } if !residual_affine_discards.is_empty() => Some(*psi_edge),
             _ => None,
         })
+        && !super::unit::continuation::has_shape(function)
     {
         return Err(LoweringError::UnsupportedPartialAffineContinuation {
             machine: function.machine,

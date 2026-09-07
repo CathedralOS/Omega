@@ -4,11 +4,13 @@
 //! order, and delegates each operation to the exhaustive router. Scalar calls
 //! and normalized foreign calls descend into separate custody owners.
 
+mod continuation;
 mod dynamic;
 mod dynamic_argument;
 mod foreign_call;
 mod installed_provider;
 mod operation;
+mod partial_cleanup;
 mod scalar_call;
 mod scalar_transport;
 mod structural_homes;
@@ -27,6 +29,7 @@ pub(super) fn assign(
     let TargetOperation::UnitBody(body) = operation else {
         unreachable!("Unit assignment receives a Unit body");
     };
+    continuation::validate(body, function)?;
     let mut assigned_scalar_homes = BTreeMap::new();
     let mut assigned_structural_homes = BTreeMap::new();
     let mut next_frame_home = scalar_call::unit_scalar_home_start(body, target)?;

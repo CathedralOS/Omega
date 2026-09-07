@@ -215,7 +215,7 @@ pub(super) fn lower_structural_result_call(
     if needs_home
         && (scalar.is_some()
             || !super::projected_result::has_store_fragments(result_placement)
-            || !operations.is_empty())
+            || (!operations.is_empty() && !super::continuation::has_shape(function)))
     {
         return Err(LoweringError::UnsupportedOperationInUnitFunction(
             function.machine,
