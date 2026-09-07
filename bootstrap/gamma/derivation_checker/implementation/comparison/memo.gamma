@@ -1,0 +1,32 @@
+(def comparison_key ((context Int) (left Int) (right Int)) Int
+  (+ (* (- left 1) (comparison_count context)) (- right 1)))
+
+(def comparison_memo_extent ((context Int)) Int
+  (* (comparison_count context) (comparison_count context)))
+
+(def comparison_memo_contains ((tree Int) (low Int) (high Int) (key Int)) Int
+  (if (eq (first tree) 0) 0
+    (if (eq (- high low) 1) 1
+      (let middle Int (+ low (/ (- high low) 2))
+        (if (lt key middle)
+          (comparison_memo_contains (first (second tree)) low middle key)
+          (comparison_memo_contains (second (second tree)) middle high key))))))
+
+(def comparison_memo_left ((tree Int) (empty Int)) Int
+  (if (eq (first tree) 0) empty (first (second tree))))
+
+(def comparison_memo_right ((tree Int) (empty Int)) Int
+  (if (eq (first tree) 0) empty (second (second tree))))
+
+; At most 38 internal levels, two pairs per level, no recursive result carrier.
+(def comparison_memo_insert ((tree Int) (low Int) (high Int) (key Int)
+  (context Int)) Int
+  (if (eq (- high low) 1) (comparison_present context)
+    (let middle Int (+ low (/ (- high low) 2))
+      (let left Int (comparison_memo_left tree (comparison_empty context))
+        (let right Int (comparison_memo_right tree (comparison_empty context))
+          (if (lt key middle)
+            (pair 1 (pair
+              (comparison_memo_insert left low middle key context) right))
+            (pair 1 (pair left
+              (comparison_memo_insert right middle high key context)))))))))

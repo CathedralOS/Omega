@@ -1,0 +1,61 @@
+; One session per admitted request; these observations are not proof verdicts.
+(def $application () Int 1)
+(def main () Int
+  (let grounded Int (check_derivation_ground)
+    (let observed Int
+      (if (eq (first grounded) 5)
+        (comparison_test_execute (second grounded))
+        (comparison_test_observe grounded))
+      (pair 0 1))))
+
+(def comparison_test_observe ((result Int)) Int
+  (let tag Int (write (first result))
+    (let payload Int (second result)
+      (if (eq tag 6)
+        (let equal Int (comparison_test_word (comparison_equal payload) 8)
+          (comparison_test_word (comparison_steps (comparison_session payload)) 8))
+        (let code Int (comparison_test_word (admission_failure_code payload) 8)
+          (let coordinate Int (comparison_test_word (admission_failure_coordinate payload) 8)
+            (let limit Int (comparison_test_word (admission_failure_limit payload) 8)
+              (comparison_test_word (admission_failure_requested payload) 8))))))))
+
+(def comparison_test_word ((value Int) (remaining Int)) Int
+  (if (eq remaining 0) 0
+    (let byte Int (write (% value 256))
+      (comparison_test_word (/ value 256) (- remaining 1)))))
+
+(def comparison_test_left_coordinate ((grounded Int)) Int
+  (- (admission_proposition_end (formed_frame (grounded_theory grounded))) 8))
+
+(def comparison_test_right_coordinate ((grounded Int)) Int
+  (+ (comparison_test_left_coordinate grounded) 4))
+
+(def comparison_test_count ((grounded Int)) Int
+  (+ (formation_index_count (grounded_owner_terms grounded))
+    (formation_index_count (grounded_witness_terms grounded))))
+
+(def comparison_test_repeat ((session Int) (left Int) (right Int)
+  (left_coordinate Int) (right_coordinate Int) (remaining Int)) Int
+  (let result Int (compare_ground_terms session left right left_coordinate right_coordinate)
+    (if (if (eq (first result) 6) (lt 1 remaining) 0)
+      (comparison_test_repeat (comparison_session (second result)) left right
+        left_coordinate right_coordinate (- remaining 1))
+      result)))
+
+(def comparison_test_sequence ((session Int) (left Int) (right Int)
+  (left_coordinate Int) (right_coordinate Int)) Int
+  (let first_result Int (compare_ground_terms session left right left_coordinate right_coordinate)
+    (let first_observed Int (comparison_test_observe first_result)
+      (if (eq (first first_result) 6)
+        (comparison_test_sequence_again (comparison_session (second first_result))
+          left right left_coordinate right_coordinate)
+        0))))
+
+(def comparison_test_sequence_again ((session Int) (left Int) (right Int)
+  (left_coordinate Int) (right_coordinate Int)) Int
+  (let repeated Int (compare_ground_terms session left right left_coordinate right_coordinate)
+    (let repeated_observed Int (comparison_test_observe repeated)
+      (if (eq (first repeated) 6)
+        (comparison_test_observe (compare_ground_terms (comparison_session (second repeated))
+          right left right_coordinate left_coordinate))
+        0))))

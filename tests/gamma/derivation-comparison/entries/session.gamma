@@ -1,0 +1,6 @@
+(def comparison_test_execute ((grounded Int)) Int
+  (let left_coordinate Int (comparison_test_left_coordinate grounded)
+    (let right_coordinate Int (comparison_test_right_coordinate grounded)
+      (comparison_test_sequence (comparison_start grounded)
+        (layout_word left_coordinate) (layout_word right_coordinate)
+        left_coordinate right_coordinate))))

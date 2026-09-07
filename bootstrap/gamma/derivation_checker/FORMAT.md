@@ -6,8 +6,9 @@ This is the concrete inner encoding, not an accepted checker or certificate.
 The [layout admission](LAYOUT.md) traverses physical fields and
 [theory formation](FORMATION.md) checks conservative definitions.
 [Ground checking](GROUND.md) validates owner/witness term tables and root sorts.
-Structural comparison/substitution, explicit proof checking, the complete resource
-profile, and the whole-Beta certificate remain unfinished.
+[Structural comparison](COMPARISON.md) compares validated term syntax with
+session-scoped memoization. Checked template substitution, explicit proof checking,
+the complete resource profile, and the whole-Beta certificate remain unfinished.
 
 ## Common physical representation
 
@@ -231,7 +232,9 @@ acceptance on exhaustion. These are full-checker implementation requirements,
 not recorded semantic test results. The outer and layout gates establish only
 their respective physical-input contracts; the formation gate establishes the
 theory contract. The ground gate checks term validity and root sorts, not a
-ground equality proof.
+ground equality proof. The comparison gate distinguishes structural agreement
+from theory equality and checks cumulative session exhaustion; it does not
+discharge a supplied proof row.
 
 ### Hand-worked field-layout example
 

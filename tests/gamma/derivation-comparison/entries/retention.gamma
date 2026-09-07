@@ -1,0 +1,22 @@
+; Compare (6,7), completed child (3,4), failed parent again, reversed child.
+(def comparison_test_execute ((grounded Int)) Int
+  (let result Int (compare_ground_terms (comparison_start grounded) 6 7 801 809)
+    (let observed Int (comparison_test_observe result)
+      (if (eq (first result) 6)
+        (comparison_test_retained_child (comparison_session (second result)))
+        0))))
+
+(def comparison_test_retained_child ((session Int)) Int
+  (let result Int (compare_ground_terms session 3 4 811 819)
+    (let observed Int (comparison_test_observe result)
+      (if (eq (first result) 6)
+        (comparison_test_failed_parent (comparison_session (second result)))
+        0))))
+
+(def comparison_test_failed_parent ((session Int)) Int
+  (let result Int (compare_ground_terms session 6 7 821 829)
+    (let observed Int (comparison_test_observe result)
+      (if (eq (first result) 6)
+        (comparison_test_observe (compare_ground_terms
+          (comparison_session (second result)) 4 3 831 839))
+        0))))

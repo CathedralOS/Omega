@@ -1,0 +1,13 @@
+; Checked root identities select test operands: 1 -> 0, 2 -> N+1, 3 -> 1.
+; Every invocation ends at its first rejection; no failed session is resumed.
+(def comparison_test_execute ((grounded Int)) Int
+  (let count Int (comparison_test_count grounded)
+    (let left Int (comparison_test_invalid_operand
+      (layout_word (comparison_test_left_coordinate grounded)) count)
+      (let right Int (comparison_test_invalid_operand
+        (layout_word (comparison_test_right_coordinate grounded)) count)
+        (comparison_test_observe (compare_ground_terms (comparison_start grounded)
+          left right 701 709))))))
+
+(def comparison_test_invalid_operand ((selector Int) (count Int)) Int
+  (if (eq selector 1) 0 (if (eq selector 2) (+ count 1) 1)))

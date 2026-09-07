@@ -1,0 +1,7 @@
+; Exhaustion after a child visit cannot complete or memoize its pending parent.
+(def comparison_test_execute ((grounded Int)) Int
+  (let repeated Int (comparison_test_repeat (comparison_start grounded) 1 1 20481 24583 131071)
+    (if (eq (first repeated) 6)
+      (comparison_test_observe (compare_ground_terms
+        (comparison_session (second repeated)) 2 3 20481 24583))
+      (comparison_test_observe repeated))))

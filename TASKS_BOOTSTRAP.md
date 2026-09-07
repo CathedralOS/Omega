@@ -39,11 +39,12 @@ Epsilon evaluator.
   reconstructed proposition and performs no proof search, artifact discovery,
   deployment policy, or source-to-obligation inference. Follow the
   [ground equality implementation design](wiki/architecture/bootstrap_chain/derivation_calculus.md):
-  extend [sorted ground terms](bootstrap/gamma/derivation_checker/GROUND.md) with
-  structural comparison/substitution, explicit equality rules, and exact-root
-  checking under the
+  compose [ground comparisons](bootstrap/gamma/derivation_checker/COMPARISON.md)
+  with checked template substitution, explicit equality rules, and final-root
+  enforcement under the
   [inner encoding](bootstrap/gamma/derivation_checker/FORMAT.md). Specify the
-  complete result/resource profile, then author the complete Beta definition
+  complete result/resource profile, threading one cumulative comparison session
+  through the request, then author the complete Beta definition
   package and owner-fixed encoding proposition. The first certificate must cover the
   entire selected Gamma evaluator's Beta source and persisted Alpha tape;
   rule-unit tests or assembler agreement cannot replace it. Acceptance: that
