@@ -4,13 +4,14 @@ Run `sh tests/delta/normalization/run.sh` from the repository root. It uses the
 complete canonical compiler and a separate private diagnostic prefix over the
 same source closure, both pinned in `compiler.tsv`.
 
-Sixteen authored programs check normalized execution under
+Eighteen authored programs check normalized execution under
 `ConformanceBytesV1`. Each canonical compilation must succeed twice with
 identical bytes. Its generated Gamma must parse and execute with the selected
 evaluator, preserving `41 00 80 FF`, except the repeated-reference control,
 which returns that payload twice, and the selected authored-trap control,
-which must halt 249 with empty stdout. Every invocation retains a 30-second
-watchdog.
+which must halt 249 with empty stdout. Every invocation has a 120-second
+test watchdog. The exact-depth arithmetic control exceeded the former
+30-second allowance; this host allowance is not a language or evaluator limit.
 
 Coverage includes exact expression-list height 255 and adjacent 256, unused
 deep bodies, 300 lets, nested checked arithmetic, deep arithmetic guards,
@@ -24,6 +25,11 @@ Two 600-level controls require later extraction to capture an earlier helper's
 fresh parameter correctly. Repeated free references must use exactly one
 parameter per helper. A same-spelling binder inside an outer let's initializer
 retains its independent scope across extraction.
+Two controls reach the admitted Delta expression depth of 1,024: repeated
+captures must remain singular, and 1,023 nested checked additions must produce
+1,024 before returning the unchanged binary input. These exercise successful
+compilation and execution, complementing the frontend's adjacent-depth refusal
+controls rather than replacing them.
 
 The fitting height-255 program pins its entire 3,729-byte canonical receipt by
 SHA256. That receipt was measured with the preceding 111,464-byte compiler

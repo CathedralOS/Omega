@@ -138,7 +138,7 @@ prerequisite to every lower-rung milestone.
   Gamma emission. The current Epsilon source plus a diagnostic entry already
   compiles; further optimization needs measured customer or conformance pressure,
   not a standing mandate to improve general transformation costs.
-  Resume evidence against `b1c5c3b32d` plus the evaluator identity pinned in
+  Resume evidence against `904f62f3d0` plus the evaluator identity pinned in
   [its profile](bootstrap/2_gamma/EVALUATOR_PROFILE.md), macOS arm64:
   `sh tests/delta/generated-function-census/run.sh --normalization` compiles
   five authored functions with 65,536 extracted helpers to the unchanged
@@ -152,11 +152,17 @@ prerequisite to every lower-rung milestone.
   Follow the [selected producer's resource ownership](bootstrap/3_delta/compiler/implementation/boundary/README.md#resource-ownership-in-the-selected-producer):
   Alpha local-slot/label/fixup resources have zero use here, and match coverage
   is bounded by admitted constructors. Do not implement fictitious tables or
-  chase arbitrary corrupt private pairs. The next acceptance is source-to-receipt
-  conformance: establish body-height and validation-environment bounds,
-  including normalization-helper captures, then fix any witnessed
-  producer or return a truthful owned refusal. Runtime exhaustion remains a
-  separate observation obligation, not a static promise of unlimited execution.
+  chase arbitrary corrupt private pairs. The
+  [normalization audit](bootstrap/3_delta/compiler/implementation/normalization/README.md)
+  gives source-level height and static-environment arguments, including helper
+  captures; `sh tests/delta/normalization/run.sh` exercises successful compilation
+  and execution at source depth 1,024. These are not checked edge certificates.
+  Next acceptance: bound reachable emission-byte summary arithmetic from admitted
+  source through lowering, capture, and serialization, then resolve any witnessed
+  producer/refusal disagreement. Do not infer byte-count safety from the height
+  bound or add corruption guards without a reachable producer case. Runtime
+  exhaustion remains a separate observation obligation, not a static promise
+  of unlimited execution.
   Acceptance: Delta conformance and malformed-source gates pass, the exact
   Epsilon evaluator closure compiles through the selected route, and its
   available entries execute with measured resources and unchanged semantics.
