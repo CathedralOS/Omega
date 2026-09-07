@@ -5,6 +5,8 @@ use proof_admission::{PrimitiveJudgment, ProofNode, ProofRule, check_predicate_d
 use semantic_vocabulary::{Proposition, PropositionContext, StructuralPlaceKind};
 use terminal_psi::{CrashRouteBucket, CrashRouteGuard, TerminalMachine};
 
+mod integer_order;
+
 const MAXIMUM_SEARCH_STEPS: usize = 4096;
 const MAXIMUM_PROOF_DEPTH: usize = 64;
 
@@ -107,9 +109,14 @@ fn prove(
                     ProofRule::Assumption { index }
                 },
             };
-            if let Some(proof) =
-                common_consequence(goal, premise, requirements.len(), remaining, depth + 1)
-            {
+            if let Some(proof) = common_consequence(
+                goal,
+                premise,
+                requirements.len(),
+                !semantic,
+                remaining,
+                depth + 1,
+            ) {
                 return Some(proof);
             }
         }
@@ -150,6 +157,7 @@ fn common_consequence(
     goal: &Proposition,
     premise: ProofNode,
     assumption_count: usize,
+    invocation_entry: bool,
     remaining: &mut usize,
     depth: usize,
 ) -> Option<ProofNode> {
@@ -169,6 +177,32 @@ fn common_consequence(
             },
         });
     }
+    if invocation_entry && let Some(proof) = integer_order::from_premise(goal, &premise) {
+        return Some(proof);
+    }
+    // A branch may prove a published union by proving one of its alternatives.
+    // This happens inside its local assumption scope; eliminating the source
+    // disjunction below still requires a certificate for every source branch.
+    if let Proposition::Disjunction(children) = goal {
+        for (index, child) in children.iter().enumerate() {
+            if let Some(proof) = common_consequence(
+                child,
+                premise.clone(),
+                assumption_count,
+                invocation_entry,
+                remaining,
+                depth + 1,
+            ) {
+                return Some(ProofNode {
+                    conclusion: goal.clone(),
+                    rule: ProofRule::DisjunctionIntroduction {
+                        disjunct: Box::new(proof),
+                        index,
+                    },
+                });
+            }
+        }
+    }
     match &premise.conclusion {
         Proposition::Conjunction(children) => {
             for (conjunct, child) in children.iter().enumerate() {
@@ -179,9 +213,14 @@ fn common_consequence(
                         conjunct,
                     },
                 };
-                if let Some(proof) =
-                    common_consequence(goal, child, assumption_count, remaining, depth + 1)
-                {
+                if let Some(proof) = common_consequence(
+                    goal,
+                    child,
+                    assumption_count,
+                    invocation_entry,
+                    remaining,
+                    depth + 1,
+                ) {
                     return Some(proof);
                 }
             }
@@ -199,6 +238,7 @@ fn common_consequence(
                         },
                     },
                     assumption_count + 1,
+                    invocation_entry,
                     remaining,
                     depth + 1,
                 )?);
@@ -390,6 +430,7 @@ mod tests {
                     &goal,
                     premise.clone(),
                     requirements.len(),
+                    !semantic,
                     &mut remaining,
                     0
                 )
@@ -397,8 +438,15 @@ mod tests {
             );
             assert_eq!(remaining, 0);
             let mut remaining = MAXIMUM_SEARCH_STEPS;
-            let proof =
-                common_consequence(&goal, premise, requirements.len(), &mut remaining, 0).unwrap();
+            let proof = common_consequence(
+                &goal,
+                premise,
+                requirements.len(),
+                !semantic,
+                &mut remaining,
+                0,
+            )
+            .unwrap();
             check_certificate(&context, &goal, &requirements, &axioms, &proof).unwrap();
         }
         let leaking_cases = Proposition::Disjunction(vec![

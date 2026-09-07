@@ -1,4 +1,4 @@
-//! Exact Boolean invocation snapshots, including receiver-local plain fields.
+//! Exact invocation predicates over Boolean fields and total integer comparisons.
 
 use checked_trees::{
     CheckedBooleanExpression, CheckedOperatorFacts, CheckedStructuralPredicatePathSegment,
@@ -30,8 +30,8 @@ pub(crate) fn lower_machine_entry_crash_contract_expression(
         remaining: 4096,
     }
     .boolean(expression, 0)?;
-    // All operands were already checked as exact Bool leaves. This separate
-    // selected-meaning owner prevents authored equality from becoming logic.
+    // All operands were checked in the exact entry namespace. This separate
+    // selected-meaning owner prevents authored operations from becoming logic.
     validation::has_builtin_bound_expression_meaning(
         program,
         machine,
@@ -129,8 +129,29 @@ impl<'program> Reader<'program> {
                         | BinaryOperator::Or
                         | BinaryOperator::Equal
                         | BinaryOperator::NotEqual
+                        | BinaryOperator::Less
+                        | BinaryOperator::LessOrEqual
+                        | BinaryOperator::Greater
+                        | BinaryOperator::GreaterOrEqual
                 ) && super::operator_is_builtin(self.operators, expression) =>
             {
+                if matches!(
+                    binary.operator,
+                    BinaryOperator::Less
+                        | BinaryOperator::LessOrEqual
+                        | BinaryOperator::Greater
+                        | BinaryOperator::GreaterOrEqual
+                ) || (matches!(
+                    binary.operator,
+                    BinaryOperator::Equal | BinaryOperator::NotEqual
+                ) && self.has_integer_operand([binary.left, binary.right], depth + 1)?)
+                {
+                    return self.integer_comparison(
+                        expression,
+                        [binary.left, binary.right],
+                        depth + 1,
+                    );
+                }
                 let left = Box::new(self.boolean(binary.left, depth + 1)?);
                 let right = Box::new(self.boolean(binary.right, depth + 1)?);
                 Some(match binary.operator {
@@ -148,6 +169,81 @@ impl<'program> Reader<'program> {
             }
             _ => None,
         }
+    }
+
+    fn has_integer_operand(
+        &mut self,
+        operands: [ExpressionHandle; 2],
+        depth: usize,
+    ) -> Option<bool> {
+        for operand in operands {
+            self.charge(depth)?;
+            if !self.program.expression_table.expression_is_valid(operand) {
+                return None;
+            }
+            match self.program.expression_table.expression(operand) {
+                ExpressionNode::Integer(_) => return Some(true),
+                ExpressionNode::Name(_) => {
+                    let position = self.parameter(operand, false)?;
+                    if self
+                        .primitive(self.parameters[position].type_reference, depth + 1)?
+                        .is_some_and(|(_, atom)| fixed_integer_atom(atom))
+                    {
+                        return Some(true);
+                    }
+                }
+                _ => {}
+            }
+        }
+        Some(false)
+    }
+
+    fn integer_comparison(
+        &mut self,
+        expression: ExpressionHandle,
+        operands: [ExpressionHandle; 2],
+        depth: usize,
+    ) -> Option<CheckedBooleanExpression> {
+        // The established numeric owner counts the entire scalar telescope,
+        // including unread formals. Validate every consulted type chain before
+        // calling its recursive primitive lookup; dummy/stale types and cycles
+        // cannot change the dense entry operand positions.
+        for parameter in self.parameters {
+            if self.program.symbols.name(parameter.symbol) != parameter.name.as_str() {
+                return None;
+            }
+            self.primitive(parameter.type_reference, depth + 1)?;
+        }
+        for operand in operands {
+            self.charge(depth)?;
+            if !self.program.expression_table.expression_is_valid(operand) {
+                return None;
+            }
+            match self.program.expression_table.expression(operand) {
+                ExpressionNode::Name(_) => {
+                    let position = self.parameter(operand, false)?;
+                    let (_, atom) =
+                        self.primitive(self.parameters[position].type_reference, depth + 1)??;
+                    if !fixed_integer_atom(atom) {
+                        return None;
+                    }
+                }
+                ExpressionNode::Integer(_) => {}
+                // This slice establishes no totality for arithmetic, calls,
+                // casts, fields, result values, or current body storage.
+                _ => return None,
+            }
+        }
+        // Literal landing, same-carrier checks, and selected operator meaning
+        // stay with the existing numeric contract owner. Trapping-qualified
+        // inputs are legal: the comparison itself is a total operation.
+        super::super::lower_integer_contract_predicate(
+            self.program,
+            self.operators,
+            self.machine,
+            expression,
+            false,
+        )
     }
 
     fn parameter(&self, expression: ExpressionHandle, allow_self: bool) -> Option<usize> {
@@ -376,4 +472,18 @@ impl<'program> Reader<'program> {
             depth += 1;
         }
     }
+}
+
+fn fixed_integer_atom(atom: BuiltinTypeAtom) -> bool {
+    matches!(
+        atom,
+        BuiltinTypeAtom::I8
+            | BuiltinTypeAtom::I16
+            | BuiltinTypeAtom::I32
+            | BuiltinTypeAtom::I64
+            | BuiltinTypeAtom::U8
+            | BuiltinTypeAtom::U16
+            | BuiltinTypeAtom::U32
+            | BuiltinTypeAtom::U64
+    )
 }

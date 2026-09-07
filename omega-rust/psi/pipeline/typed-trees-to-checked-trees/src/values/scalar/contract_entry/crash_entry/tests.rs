@@ -373,3 +373,305 @@ fn structural_entry_expression_and_type_walks_are_bounded() {
     assert!(reader.charge(64).is_none());
     assert!(reader.charge(0).is_none());
 }
+
+fn numeric(signature: &str, predicate: &str) -> TypedTrees {
+    typed(&format!(
+        "data Record {{ enabled: bool; }} machine value({signature}) -> bool\nrequires {predicate}\n{{ true }}"
+    ))
+}
+
+#[test]
+fn integer_entry_comparisons_reuse_total_landing_and_boolean_composition() {
+    for primitive in ["i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64"] {
+        for predicate in [
+            "input > 0",
+            "0 <= input",
+            "input == other",
+            "input != other",
+            "flag && input < other",
+            "!(input >= other) || flag",
+            "(input == other) == true",
+        ] {
+            let program = numeric(
+                &format!("input: {primitive}, other: {primitive}, flag: bool"),
+                predicate,
+            );
+            assert!(read(&program).is_some(), "{primitive}: {predicate}");
+            assert!(
+                super::super::lower_machine_entry_scalar_contract_expression(
+                    &program,
+                    &CheckedOperatorFacts::default(),
+                    &program.machines()[0],
+                    requirement(&program),
+                    &[],
+                )
+                .is_none(),
+                "numeric support must not widen the separate Boolean-only fallback"
+            );
+        }
+    }
+    for policy in ["", " in Wrapping", " in Saturating", " in Trapping"] {
+        let program = numeric(&format!("mut input: i32{policy}"), "input > 0");
+        assert!(read(&program).is_some(), "total comparison {policy}");
+    }
+}
+
+#[test]
+fn integer_entry_comparisons_keep_mixed_authored_and_dense_positions() {
+    use checked_trees::CheckedScalarExpression;
+    use typed_trees::types::PrimitiveType;
+
+    let program = numeric(
+        "flag: bool, record: &Record, left: i32, mut right: i32",
+        "left < right",
+    );
+    let Some(CheckedBooleanExpression::IntegerComparison { left, right, .. }) = read(&program)
+    else {
+        panic!("direct integer comparison");
+    };
+    assert_eq!(
+        *left,
+        CheckedScalarExpression::Parameter {
+            position: 1,
+            primitive_type: PrimitiveType::I32
+        }
+    );
+    assert_eq!(
+        *right,
+        CheckedScalarExpression::Parameter {
+            position: 2,
+            primitive_type: PrimitiveType::I32
+        }
+    );
+    let program = numeric(
+        "flag: bool, record: &Record, input: i32",
+        "record.enabled && input > 0",
+    );
+    assert!(matches!(
+        read(&program),
+        Some(CheckedBooleanExpression::And { .. })
+    ));
+}
+
+#[test]
+fn integer_entry_comparisons_reject_unsupported_terms_and_bad_landings() {
+    for (signature, predicate) in [
+        ("input: i32", "input + 1 > 0"),
+        ("input: i32 in Trapping", "input + 1 > 0"),
+        ("input: i32 in Trapping", "input / 0 > 0"),
+        ("input: i32", "(input as i64) > 0"),
+        ("input: u8", "input > 256"),
+        ("input: i32, other: u32", "input > other"),
+        ("input: f64", "input > 0"),
+    ] {
+        assert!(
+            read(&numeric(signature, predicate)).is_none(),
+            "{signature}: {predicate}"
+        );
+    }
+    let program = typed(
+        "machine value(input: i32) -> bool requires input > cost() { true } machine cost() -> i32 { 1 }",
+    );
+    assert!(read(&program).is_none());
+    let program = typed(
+        "data Record { number: i32; } machine value(input: &Record) -> bool requires input.number > 0 { true }",
+    );
+    assert!(read(&program).is_none());
+}
+
+#[test]
+fn integer_entry_comparisons_require_exact_live_operand_and_formal_identity() {
+    let program = numeric("input: i32, other: i32", "input > 0");
+    let root = requirement(&program);
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(root) else {
+        panic!("comparison");
+    };
+    let operand = binary.left;
+    let parameters = program.machine_states(&program.machines()[0])[0].parameters;
+    let original = program.tables.state_parameters.span_or_empty(parameters)[0].symbol;
+    let other = program.tables.state_parameters.span_or_empty(parameters)[1].symbol;
+    for wrong in [
+        SymbolHandle::invalid(),
+        other,
+        SymbolHandle::from_parts(original.arena_index(), original.generation() + 1),
+    ] {
+        let mut invalid = program.clone();
+        let ExpressionNode::Name(name) = invalid.expression_table.expression_mut(operand) else {
+            panic!("entry operand");
+        };
+        name.symbol = wrong;
+        name.head_symbol = wrong;
+        assert!(read(&invalid).is_none());
+    }
+    let mut invalid = program.clone();
+    let ExpressionNode::Name(name) = invalid.expression_table.expression_mut(operand) else {
+        panic!("entry operand");
+    };
+    name.head_symbol = other;
+    assert!(read(&invalid).is_none());
+    for wrong in [
+        ExpressionHandle::invalid(),
+        root,
+        ExpressionHandle::from_parts(operand.arena_index(), operand.generation() + 1),
+    ] {
+        let mut invalid = program.clone();
+        let ExpressionNode::Binary(binary) = invalid.expression_table.expression_mut(root) else {
+            panic!("comparison");
+        };
+        binary.left = wrong;
+        assert!(read(&invalid).is_none());
+    }
+    let mut invalid = program.clone();
+    invalid
+        .tables
+        .state_parameters
+        .span_mut_or_empty(parameters)[0]
+        .name = "renamed".into();
+    assert!(read(&invalid).is_none());
+    let mut invalid = program.clone();
+    let ExpressionNode::Name(name) = invalid.expression_table.expression_mut(operand) else {
+        panic!("entry operand");
+    };
+    name.symbol = SymbolHandle::invalid();
+    name.head_symbol = SymbolHandle::invalid();
+    let members = name.members;
+    invalid
+        .expression_table
+        .set_name_path_member_at_offset(members, 0, "result".into());
+    assert!(
+        read(&invalid).is_none(),
+        "no result slot in an invocation requirement"
+    );
+
+    let mut invalid =
+        typed("machine value(input: i32) -> bool requires input > 0 { let local: i32 = 1; true }");
+    let state = &invalid.machine_states(&invalid.machines()[0])[0];
+    let local = invalid
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            typed_trees::statement::StatementNode::LocalData(local) => Some(local.symbol),
+            _ => None,
+        })
+        .expect("body local symbol");
+    let root = requirement(&invalid);
+    let ExpressionNode::Binary(binary) = invalid.expression_table.expression(root) else {
+        panic!("comparison");
+    };
+    let operand = binary.left;
+    let ExpressionNode::Name(name) = invalid.expression_table.expression_mut(operand) else {
+        panic!("entry operand");
+    };
+    name.symbol = local;
+    name.head_symbol = local;
+    let members = name.members;
+    invalid
+        .expression_table
+        .set_name_path_member_at_offset(members, 0, "local".into());
+    assert!(
+        read(&invalid).is_none(),
+        "body locals are not invocation operands"
+    );
+}
+
+#[test]
+fn integer_entry_comparisons_reject_false_builtin_types_and_unread_type_cycles() {
+    let program = numeric("unread: u32, input: i32", "input > 0");
+    let parameters = program.machine_states(&program.machines()[0])[0].parameters;
+    let references = program
+        .tables
+        .state_parameters
+        .span_or_empty(parameters)
+        .iter()
+        .map(|parameter| parameter.type_reference)
+        .collect::<Vec<_>>();
+    let TypeReferenceNode::Named {
+        symbol: wrong_atom, ..
+    } = program.type_reference_table.type_reference(references[0])
+    else {
+        panic!("u32 type");
+    };
+    for symbol in [
+        SymbolHandle::invalid(),
+        *wrong_atom,
+        program.data_definitions()[0].symbol,
+    ] {
+        let mut invalid = program.clone();
+        let fake = invalid
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol,
+                name: "i32".into(),
+            });
+        invalid
+            .tables
+            .state_parameters
+            .span_mut_or_empty(parameters)[1]
+            .type_reference = fake;
+        assert!(read(&invalid).is_none());
+    }
+    for position in [0, 1] {
+        for mutation in 0..4 {
+            let mut invalid = program.clone();
+            let reference = references[position];
+            let replacement = match mutation {
+                0 => TypeReferenceHandle::invalid(),
+                1 => TypeReferenceHandle::from_parts(
+                    reference.arena_index(),
+                    reference.generation() + 1,
+                ),
+                2 => {
+                    let cycle =
+                        invalid
+                            .type_reference_table
+                            .insert(TypeReferenceNode::Constrained {
+                                base_type: reference,
+                                constraints: Default::default(),
+                            });
+                    invalid.type_reference_table.substitute_node(
+                        cycle,
+                        TypeReferenceNode::Constrained {
+                            base_type: cycle,
+                            constraints: Default::default(),
+                        },
+                    );
+                    cycle
+                }
+                3 => {
+                    let mut deep = reference;
+                    for _ in 0..65 {
+                        deep =
+                            invalid
+                                .type_reference_table
+                                .insert(TypeReferenceNode::Constrained {
+                                    base_type: deep,
+                                    constraints: Default::default(),
+                                });
+                    }
+                    deep
+                }
+                _ => unreachable!(),
+            };
+            invalid
+                .tables
+                .state_parameters
+                .span_mut_or_empty(parameters)[position]
+                .type_reference = replacement;
+            assert!(
+                read(&invalid).is_none(),
+                "parameter {position}, type mutation {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
+fn integer_entry_comparisons_keep_authored_operator_meaning() {
+    for (primitive, admitted) in [("i32", false), ("f64", true)] {
+        let program = typed(&format!(
+            "boundary operator > {primitive}::custom(left: {primitive}, right: {primitive}) -> bool; machine value(input: i32) -> bool requires input > 0 {{ true }}"
+        ));
+        assert_eq!(read(&program).is_some(), admitted, "{primitive} operator");
+    }
+}

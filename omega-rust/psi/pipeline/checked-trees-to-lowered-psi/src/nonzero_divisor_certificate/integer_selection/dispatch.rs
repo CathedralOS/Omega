@@ -14,6 +14,8 @@ use super::super::integer_evidence::cited_facts;
 use super::{bound, direct_add, multiply};
 
 mod strict;
+#[cfg(test)]
+mod tests;
 
 pub(super) fn prove_atomic(
     context: &PropositionContext,
@@ -27,13 +29,25 @@ pub(super) fn prove_atomic(
             conclusion: Proposition::Truth,
             rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
         })),
-        Proposition::LessOrEqual(_, _) => Some(bound::prove(
-            context,
-            goal,
-            assumptions,
-            semantic_axioms,
-            definitions,
-        )),
+        Proposition::LessOrEqual(left, right) => Some(
+            bound::prove(context, goal, assumptions, semantic_axioms, definitions).or_else(|| {
+                // The strict producer can reconstruct both exact SSA endpoints
+                // from prior literal equalities. Reuse that checked route and
+                // weaken its conclusion, rather than adding another evaluator
+                // or replacing the original non-strict call requirement.
+                let relation = strict::prove(
+                    &Proposition::LessThan(left.clone(), right.clone()),
+                    assumptions,
+                    semantic_axioms,
+                )?;
+                Some(ProofNode {
+                    conclusion: goal.clone(),
+                    rule: ProofRule::IntegerOrderWeakening {
+                        relation: Box::new(relation),
+                    },
+                })
+            }),
+        ),
         Proposition::LessThan(_, _) => Some(strict::prove(goal, assumptions, semantic_axioms)),
         Proposition::IntegerMathEqual(_, _)
         | Proposition::IntegerMathLessThan(_, _)
