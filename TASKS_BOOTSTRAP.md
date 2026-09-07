@@ -78,23 +78,24 @@ prerequisite to every lower-rung milestone.
   Do not adopt the per-byte Word counter or raise work just enough for the
   identity-fold diagnostic. Continue the bounded
   [connected-component experiment](wiki/design_briefs/bootstrap_cost_review.md#next-experiment-connected-components-not-a-partial-beta-dialect)
-  with a source-owned census of the exact full subject's local transitions,
-  history-bearing transitions, and collection keys. Count reuse opportunities
-  for both recipes, including repeated bytes within one unchanged comment
-  history; do not give only the factored recipe memoization. Combine observed
-  key frequencies with explicit proof/collection costs before choosing passes
-  or a coherent larger work/input/allocation provision. Do not promote another
-  permanent helper family without this comparison, call the diagnostic
+  using the full-subject census to compare the existing balanced-Source route
+  against a coherent larger work/input/allocation provision. Include actual
+  state-dependent fold reuse, collection, ASCII/count, root, and missing encoder
+  costs; neither a no-op fold nor local-key counts select a complete route.
+  Do not build a full certificate with the current linked-list scan recipe
+  under 8 MiB: its traversal records alone exceed that extent. Do not promote
+  another permanent helper family without this comparison, call the diagnostic
   `encode_Beta`, or map unimplemented valid Beta cases to Reject.
   Acceptance needs a full-subject estimate with state-sharing assumptions and
   total definition/proof cost, not just a checked small sequence. Keep direct
   counting versus the shape intermediary in that whole-route comparison.
-  Resume evidence against `802320b216` on macOS arm64: both temporary connected
-  roots check, but factoring costs more on the literal despite checked reuse.
-  Raw-source, assertion-value, output, and reused-history mutations reject.
+  Resume evidence against `1b493b1b9d` on macOS arm64: the exact full source's
+  Gamma-produced lexical census exposes reuse for both recipes; the audited
+  linked-list traversal size floor rules out memoization alone at current input
+  provision. This census is an observation, not a checked source proposition.
   Exact identities, costs, and diagnostic invocation are in the cost review;
-  this scratch experiment is not a retained repository entrypoint. Full-source
-  reuse has not been measured; do not adopt the factoring on the small result.
+  this scratch experiment is not a retained repository entrypoint. Factoring
+  regresses on the checked literal; its full-certificate cost remains unmeasured.
   The actual `encode_Beta(S, limits) = Success(T)` probe also has not run and has no
   repository command yet: complete definitions, owner-root reconstruction, and
   the source-owned producer remain missing.
