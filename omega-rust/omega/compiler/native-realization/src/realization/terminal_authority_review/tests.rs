@@ -177,10 +177,10 @@ fn installed_candidate(
         provider_identity: provider.to_owned(),
         candidate_identity: candidate_identity.to_owned(),
         candidate: MachineId::new(u64::from(machine)).unwrap(),
-        signature: terminal_psi::ProviderUnitSignature {
+        signature: terminal_psi::ProviderSignature {
             parameters: Vec::new(),
         },
-        refinement: terminal_psi::ProviderUnitRefinement {
+        refinement: terminal_psi::ProviderRefinement {
             positional_parameters: Vec::new(),
             required_domains: Vec::new(),
             realized_service_ceiling: Vec::new(),

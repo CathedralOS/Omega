@@ -17,8 +17,8 @@ use target_operations::{
 };
 use target_operations_to_assigned_target_operations::assign_registers;
 use terminal_psi::{
-    ProviderCandidateConformance, ProviderUnitRefinement, ProviderUnitSignature,
-    SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker,
+    ProviderCandidateConformance, ProviderRefinement, ProviderSignature, SemanticFingerprint,
+    TerminalPsiIdentity, VocabularyMarker,
 };
 
 fn fixture(target: NativeTarget) -> TargetOperationPlan {
@@ -57,10 +57,10 @@ fn fixture(target: NativeTarget) -> TargetOperationPlan {
         provider_identity: "PingProvider".into(),
         candidate_identity: "PingProvider::ping_value".into(),
         candidate,
-        signature: ProviderUnitSignature {
+        signature: ProviderSignature {
             parameters: Vec::new(),
         },
-        refinement: ProviderUnitRefinement {
+        refinement: ProviderRefinement {
             positional_parameters: Vec::new(),
             required_domains: Vec::new(),
             realized_service_ceiling: Vec::new(),

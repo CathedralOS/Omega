@@ -114,10 +114,10 @@ pub(crate) fn provider_service_unit() -> PsiOptimizationUnit {
             provider_identity: "validation::service-provider".into(),
             candidate_identity: "validation::service-provider-candidate".into(),
             candidate: callee,
-            signature: terminal_psi::ProviderUnitSignature {
+            signature: terminal_psi::ProviderSignature {
                 parameters: Vec::new(),
             },
-            refinement: terminal_psi::ProviderUnitRefinement {
+            refinement: terminal_psi::ProviderRefinement {
                 positional_parameters: Vec::new(),
                 required_domains: Vec::new(),
                 realized_service_ceiling: ceiling,

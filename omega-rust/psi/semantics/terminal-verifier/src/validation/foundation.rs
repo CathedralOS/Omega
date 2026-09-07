@@ -1,6 +1,8 @@
 use super::structural_qualification_rosters::validate_projected_qualification_roster;
 use super::*;
 
+mod provider_result;
+
 pub(crate) fn structural_leaf_type<'module>(
     module: &'module TerminalModule,
     machine: &TerminalMachine,
@@ -492,8 +494,7 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                 .all(|(boundary, candidate)| *boundary == candidate.scalar_type);
         if attachment.identity.is_empty()
             || !scalar_signature_matches
-            || !boundary.result.is_unit()
-            || candidate.result != TerminalMachineResult::Unit
+            || !provider_result::matches(boundary, candidate)
             || row.signature.parameters != boundary_signature
             || row.signature.parameters != candidate_signature
             || row.refinement.positional_parameters != expected_positions

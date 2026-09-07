@@ -5,8 +5,8 @@
 //! outside the codec.
 
 use terminal_psi::{
-    ProviderCandidateConformance, ProviderParameterRefinement, ProviderSignatureParameter,
-    ProviderUnitRefinement, ProviderUnitSignature, StructuralDomainRequirement,
+    ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
+    ProviderSignature, ProviderSignatureParameter, StructuralDomainRequirement,
     StructuralMultiplicity,
 };
 
@@ -117,8 +117,8 @@ pub(super) fn decode_provider_candidate(
         provider_identity,
         candidate_identity,
         candidate,
-        signature: ProviderUnitSignature { parameters },
-        refinement: ProviderUnitRefinement {
+        signature: ProviderSignature { parameters },
+        refinement: ProviderRefinement {
             positional_parameters,
             required_domains,
             realized_service_ceiling: decode_ids(reader, "ServiceId")?,
@@ -168,10 +168,10 @@ mod record_tests {
             provider_identity: "provider".into(),
             candidate_identity: "candidate".into(),
             candidate: semantic_vocabulary::MachineId::new(2).unwrap(),
-            signature: ProviderUnitSignature {
+            signature: ProviderSignature {
                 parameters: Vec::new(),
             },
-            refinement: ProviderUnitRefinement {
+            refinement: ProviderRefinement {
                 positional_parameters: Vec::new(),
                 required_domains: Vec::new(),
                 realized_service_ceiling: Vec::new(),

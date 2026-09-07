@@ -2,8 +2,8 @@
 
 use semantic_vocabulary::{BoundaryMachineId, MachineId, ServiceId, StructuralTypeId};
 use terminal_psi::{
-    ProviderCandidateConformance, ProviderParameterRefinement, ProviderSignatureParameter,
-    ProviderUnitRefinement, ProviderUnitSignature, StructuralDomainRequirement,
+    ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
+    ProviderSignature, ProviderSignatureParameter, StructuralDomainRequirement,
 };
 
 use crate::FixedViewCopyDecodeError;
@@ -110,8 +110,8 @@ pub(super) fn decode(
         provider_identity,
         candidate_identity,
         candidate,
-        signature: ProviderUnitSignature { parameters },
-        refinement: ProviderUnitRefinement {
+        signature: ProviderSignature { parameters },
+        refinement: ProviderRefinement {
             positional_parameters,
             required_domains,
             realized_service_ceiling: decode_ids(cursor, ServiceId::new)?,

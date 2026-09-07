@@ -356,7 +356,7 @@ fn provider_artifact() -> (
 ) {
     use terminal_psi::{
         BoundaryMachineDeclaration, ProviderCandidateConformance, ProviderParameterRefinement,
-        ProviderSignatureParameter, ProviderUnitRefinement, ProviderUnitSignature,
+        ProviderRefinement, ProviderSignature, ProviderSignatureParameter,
     };
     let (semantic, proof) = structural_extent_call_unit_artifact();
     let mut module = terminal_codec::decode_module(&semantic).unwrap();
@@ -393,7 +393,7 @@ fn provider_artifact() -> (
             provider_identity: "StructuralProvider".into(),
             candidate_identity: "StructuralProvider::accept".into(),
             candidate: module.machines[1].id,
-            signature: ProviderUnitSignature {
+            signature: ProviderSignature {
                 parameters: parameters
                     .iter()
                     .map(|parameter| ProviderSignatureParameter {
@@ -407,7 +407,7 @@ fn provider_artifact() -> (
                     })
                     .collect(),
             },
-            refinement: ProviderUnitRefinement {
+            refinement: ProviderRefinement {
                 positional_parameters: (0..2)
                     .map(|index| ProviderParameterRefinement {
                         boundary_index: index,

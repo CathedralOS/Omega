@@ -93,10 +93,10 @@ mod tests {
                 provider_identity: "provider".into(),
                 candidate_identity: "candidate".into(),
                 candidate: semantic_vocabulary::MachineId::new(4).unwrap(),
-                signature: terminal_psi::ProviderUnitSignature {
+                signature: terminal_psi::ProviderSignature {
                     parameters: Vec::new(),
                 },
-                refinement: terminal_psi::ProviderUnitRefinement {
+                refinement: terminal_psi::ProviderRefinement {
                     positional_parameters: Vec::new(),
                     required_domains: Vec::new(),
                     realized_service_ceiling: Vec::new(),

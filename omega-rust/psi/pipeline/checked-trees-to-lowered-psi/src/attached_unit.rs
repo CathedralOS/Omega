@@ -3283,7 +3283,7 @@ fn assemble_unit_closure(
                 provider_identity: candidate.provider_identity.clone(),
                 candidate_identity: candidate.candidate_identity.clone(),
                 candidate: terminal_candidate,
-                signature: ProviderUnitSignature {
+                signature: ProviderSignature {
                     parameters: parameters
                         .iter()
                         .map(|parameter| ProviderSignatureParameter {
@@ -3297,7 +3297,7 @@ fn assemble_unit_closure(
                         })
                         .collect(),
                 },
-                refinement: ProviderUnitRefinement {
+                refinement: ProviderRefinement {
                     positional_parameters: (0..parameters.len())
                         .map(|index| {
                             let index = u32::try_from(index).map_err(|_| {

@@ -1892,10 +1892,20 @@ impl TerminalExecution {
                         )?;
                         validate_boundary_requirements(boundary_declaration, &arguments)?;
                         if self.provider_candidates.contains(&boundary) {
-                            if !matches!(operation.result, terminal_psi::OperationResult::Unit)
-                                || !scalar_argument_ids.is_empty()
-                                || !boundary_declaration.scalar_parameters.is_empty()
-                            {
+                            let supported_result = match &operation.result {
+                                terminal_psi::OperationResult::Unit => {
+                                    scalar_argument_ids.is_empty()
+                                        && boundary_declaration.scalar_parameters.is_empty()
+                                }
+                                terminal_psi::OperationResult::Structural(result) => {
+                                    result.multiplicity == StructuralMultiplicity::Affine
+                                        && result.qualifications.is_empty()
+                                        && result.projected_qualifications.is_empty()
+                                        && result.claims.is_empty()
+                                }
+                                terminal_psi::OperationResult::Scalar(_) => false,
+                            };
+                            if !supported_result {
                                 return Err(TerminalInterpretError::VerifiedOperationMalformed);
                             }
                             let callee_id =
@@ -1909,14 +1919,29 @@ impl TerminalExecution {
                                     argument_index: receipt.argument_index,
                                 })
                                 .collect::<Vec<_>>();
-                            self.begin_unit_call(
-                                callee_id,
-                                &[],
-                                &structural_arguments,
-                                &arguments,
-                                &claim_transfers,
-                                BTreeMap::new(),
-                            )?;
+                            match &operation.result {
+                                terminal_psi::OperationResult::Unit => self.begin_unit_call(
+                                    callee_id,
+                                    &[],
+                                    &structural_arguments,
+                                    &arguments,
+                                    &claim_transfers,
+                                    BTreeMap::new(),
+                                )?,
+                                terminal_psi::OperationResult::Structural(result) => {
+                                    self.begin_structural_result_call(
+                                        callee_id,
+                                        result.clone(),
+                                        &scalar_arguments,
+                                        &structural_arguments,
+                                        &claim_transfers,
+                                        Vec::new(),
+                                    )?;
+                                }
+                                terminal_psi::OperationResult::Scalar(_) => {
+                                    unreachable!("scalar provider results were rejected above")
+                                }
+                            }
                             continue;
                         }
                         self.preflight_boundary_result(&operation.result)?;

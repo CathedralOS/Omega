@@ -14,8 +14,8 @@ use target_operations::{
     TerminalPsiProvenance, UnitScalarAbiValue,
 };
 use terminal_psi::{
-    ProviderCandidateConformance, ProviderUnitRefinement, ProviderUnitSignature,
-    SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker,
+    ProviderCandidateConformance, ProviderRefinement, ProviderSignature, SemanticFingerprint,
+    TerminalPsiIdentity, VocabularyMarker,
 };
 
 const CALLER_RAW: u64 = 970;
@@ -58,10 +58,10 @@ fn emitted_plan(target: NativeTarget) -> machine_code::MachineCodePlan {
         provider_identity: "PingProvider".into(),
         candidate_identity: "PingProvider::ping_value".into(),
         candidate,
-        signature: ProviderUnitSignature {
+        signature: ProviderSignature {
             parameters: Vec::new(),
         },
-        refinement: ProviderUnitRefinement {
+        refinement: ProviderRefinement {
             positional_parameters: Vec::new(),
             required_domains: Vec::new(),
             realized_service_ceiling: Vec::new(),

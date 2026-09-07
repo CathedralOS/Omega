@@ -8,9 +8,9 @@ use semantic_vocabulary::{
 use terminal_codec::{encode_module, encode_proof_bundle};
 use terminal_psi::{
     Block, BoundaryMachineDeclaration, MachineContract, Operation, OperationKind, OperationResult,
-    ProviderCandidateConformance, ProviderUnitRefinement, ProviderUnitSignature,
-    ServiceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, VocabularyMarker,
+    ProviderCandidateConformance, ProviderRefinement, ProviderSignature, ServiceDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator, VocabularyMarker,
 };
 use terminal_psi_to_abstract_operations::SelectedProviderAdapter;
 use terminal_verifier::ProofBundle;
@@ -153,10 +153,10 @@ fn candidate(
         provider_identity: provider_identity.into(),
         candidate_identity: candidate_identity.into(),
         candidate,
-        signature: ProviderUnitSignature {
+        signature: ProviderSignature {
             parameters: Vec::new(),
         },
-        refinement: ProviderUnitRefinement {
+        refinement: ProviderRefinement {
             positional_parameters: Vec::new(),
             required_domains: Vec::new(),
             realized_service_ceiling: vec![service],

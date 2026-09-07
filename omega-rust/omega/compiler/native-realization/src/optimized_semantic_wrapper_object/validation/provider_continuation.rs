@@ -156,7 +156,7 @@ pub fn validate_installed_program_storage_continuation_evidence(
 
 fn structural_signature_matches(
     function: &selected_instructions::SelectedStructuralUnitFunction,
-    signature: &terminal_psi::ProviderUnitSignature,
+    signature: &terminal_psi::ProviderSignature,
 ) -> bool {
     function.abi.parameters.len() == signature.parameters.len()
         && function

@@ -1,6 +1,9 @@
 use super::*;
 use semantic_vocabulary::StructuralPlaceKind;
 
+#[path = "result_residuals/installed_provider.rs"]
+mod installed_provider;
+
 fn field(name: &str) -> StructuralPathSegment {
     StructuralPathSegment::Field(name.into())
 }

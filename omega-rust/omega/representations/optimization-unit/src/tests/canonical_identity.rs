@@ -16,7 +16,7 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{
     BoundaryMachineDeclaration, ByteSequenceCarrier, CrashCause, CrashRouteBucket, CrashRouteGuard,
-    EntryClaim, ProviderCandidateConformance, ProviderUnitRefinement, ProviderUnitSignature,
+    EntryClaim, ProviderCandidateConformance, ProviderRefinement, ProviderSignature,
     SemanticFingerprint, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
@@ -291,10 +291,10 @@ fn canonical_identity_binds_every_retained_field_class() {
         provider_identity: "identity-test-provider".into(),
         candidate_identity: "identity-test-candidate".into(),
         candidate: machine,
-        signature: ProviderUnitSignature {
+        signature: ProviderSignature {
             parameters: Vec::new(),
         },
-        refinement: ProviderUnitRefinement {
+        refinement: ProviderRefinement {
             positional_parameters: Vec::new(),
             required_domains: Vec::new(),
             realized_service_ceiling: vec![id(108, ServiceId::new)],

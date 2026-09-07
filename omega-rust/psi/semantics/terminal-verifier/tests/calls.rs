@@ -16,17 +16,20 @@ use terminal_psi::{
     OutcomeSpecificCallEvidenceValidity, OutcomeSpecificCallResultSubstitution,
     OutcomeSpecificEnsure, OutcomeSpecificEvidence, OutcomeSpecificGuard,
     PropositionApplicationIdentity, PropositionDeclaration, PropositionEvidence,
-    ProviderCandidateConformance, ProviderUnitRefinement, ProviderUnitSignature,
-    ServiceDeclaration, StructuralCaseDeclaration, StructuralMultiplicity,
-    StructuralOperationResult, StructuralPlaceDeclaration, StructuralResultDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
-    TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    ProviderCandidateConformance, ProviderRefinement, ProviderSignature, ServiceDeclaration,
+    StructuralCaseDeclaration, StructuralMultiplicity, StructuralOperationResult,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+    ValueDeclaration, VocabularyMarker,
 };
 use terminal_verifier::{
     EvidenceProducerProvenance, ModuleError, ObligationEvidence, ProofBundle,
     ReconstructedTerminalObligationOwner, VerificationError, reconstruct_operation_obligations,
     reconstruct_terminal_obligations, validate_module, verify_module,
 };
+
+#[path = "calls/provider_results.rs"]
+mod provider_results;
 
 #[test]
 fn scalar_call_reconstructs_requirements_and_imports_verified_guarantees() {
@@ -872,10 +875,10 @@ fn provider_candidate_module() -> TerminalModule {
             provider_identity: "test::Provider::observe".into(),
             candidate_identity: "test::provider_candidate".into(),
             candidate: machine_id(2),
-            signature: ProviderUnitSignature {
+            signature: ProviderSignature {
                 parameters: Vec::new(),
             },
-            refinement: ProviderUnitRefinement {
+            refinement: ProviderRefinement {
                 positional_parameters: Vec::new(),
                 required_domains: Vec::new(),
                 realized_service_ceiling: Vec::new(),
