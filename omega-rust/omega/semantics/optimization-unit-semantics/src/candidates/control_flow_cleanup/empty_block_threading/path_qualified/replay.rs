@@ -33,11 +33,13 @@ pub(super) fn validate(
         target,
         bindings: outgoing_bindings,
         trivial_affine_discards: outgoing_discards,
+        residual_affine_discards: outgoing_residuals,
     } = &empty_node.operation
     else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };
     if !outgoing_discards.is_empty()
+        || !outgoing_residuals.is_empty()
         || *outgoing_edge != patch.outgoing_edge
         || *target != patch.target
     {
@@ -63,7 +65,9 @@ pub(super) fn validate(
                 .iter()
                 .filter(|edge| edge.target == patch.empty.block)
             {
-                if !edge.trivial_affine_discards.is_empty() {
+                if !edge.trivial_affine_discards.is_empty()
+                    || !edge.residual_affine_discards.is_empty()
+                {
                     return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
                 }
                 let composed = reconstruct_linear_thread_bindings(

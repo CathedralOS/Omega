@@ -22,6 +22,23 @@ pub(super) fn lower_function(
     ieee_float_fma: &BTreeMap<OperationId, target_operations::TargetX86ScalarFmaSettlement>,
     native_callbacks: &BTreeMap<OperationId, target_operations::TargetNativeCallbackArgument>,
 ) -> Result<TargetFunction, LoweringError> {
+    if let Some(edge) = function
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            AbstractOperation::Jump {
+                psi_edge,
+                residual_affine_discards,
+                ..
+            } if !residual_affine_discards.is_empty() => Some(*psi_edge),
+            _ => None,
+        })
+    {
+        return Err(LoweringError::UnsupportedPartialAffineContinuation {
+            machine: function.machine,
+            edge,
+        });
+    }
     if !native_boundaries::has_installed_scalar_call(function, installed_calls)
         && let Some(lowered) =
             lower_linux_exit_group_i32(function, target, boundary_machines, settlements)?

@@ -1,5 +1,8 @@
 //! Authored result projections retain exact cleanup through Omega admission.
 
+#[path = "partial_affine_call_results/continuations.rs"]
+mod continuations;
+
 use abstract_operations::AbstractOperation;
 use optimization_unit_semantics::validate_psi_optimization_unit;
 use proof_admission::AdmissionProfile;
@@ -44,7 +47,7 @@ fn anonymous_call_result_cleanup_retains_expression_owned_residuals() {
 }
 
 #[test]
-fn omega_rejects_verified_partial_result_continuation_cleanup() {
+fn omega_retains_verified_partial_result_continuation_cleanup() {
     let source = "data Token { value: u64; }
         data Pair { left: Token; right: Token; }
         data Sink {}
@@ -120,15 +123,15 @@ fn omega_rejects_verified_partial_result_continuation_cleanup() {
         .expect("partial continuation is valid target-neutral Terminal Psi");
     let semantic = encode_module(module).unwrap();
     let proof = encode_proof_bundle(&terminal.proof_bundle).unwrap();
-    assert!(matches!(
-        lower_artifact_sections_for_optimization(&semantic, &proof, &AdmissionProfile::default()),
-        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::Lowering(
-            terminal_psi_to_abstract_operations::LoweringError::UnsupportedPartialAffineContinuation {
-                machine,
-                edge: rejected_edge,
-            }
-        )) if machine == entry && rejected_edge == edge
-    ));
+    let input =
+        lower_artifact_sections_for_optimization(&semantic, &proof, &AdmissionProfile::default())
+            .expect("Omega retains the verified partial continuation");
+    let verified = build_verified_psi_optimization_unit(
+        input,
+        terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+    )
+    .expect("current Omega ownership validates the continuation");
+    validate_psi_optimization_unit(verified.unit()).unwrap();
 }
 
 fn check_authored_call_result_cleanup(boundary: bool, attached: bool, anonymous: bool) {

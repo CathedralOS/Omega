@@ -84,6 +84,7 @@ impl PsiOptimizationRule for LinearEmptyBlockThreadRule {
                     target,
                     bindings: outgoing_bindings,
                     trivial_affine_discards: outgoing_discards,
+                    residual_affine_discards: outgoing_residuals,
                 } = &empty.nodes[0].operation
                 else {
                     continue;
@@ -115,12 +116,15 @@ impl PsiOptimizationRule for LinearEmptyBlockThreadRule {
                     target: predecessor_target,
                     bindings: incoming_bindings,
                     trivial_affine_discards: incoming_discards,
+                    residual_affine_discards: incoming_residuals,
                 } = &predecessor_node.operation
                 else {
                     continue;
                 };
                 if !incoming_discards.is_empty()
+                    || !incoming_residuals.is_empty()
                     || !outgoing_discards.is_empty()
+                    || !outgoing_residuals.is_empty()
                     || *predecessor_target != empty.id
                     || empty.parameters.iter().any(|parameter| {
                         use_definitions.uses.iter().any(|(machine, use_site)| {

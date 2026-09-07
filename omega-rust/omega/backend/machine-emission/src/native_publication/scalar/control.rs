@@ -112,12 +112,14 @@ pub(super) fn project(
                     target,
                     bindings,
                     trivial_affine_discards,
+                    residual_affine_discards,
                 },
                 Some(Branch::Jump(branch)),
             ) if successor.psi_edge == *psi_edge
                 && successor.source_target == *target
                 && successor.bindings == *bindings
-                && trivial_affine_discards.is_empty() =>
+                && trivial_affine_discards.is_empty()
+                && residual_affine_discards.is_empty() =>
             {
                 let target_offset = physical_target(fragment, successor.block)?;
                 if branch.source_block != block.block

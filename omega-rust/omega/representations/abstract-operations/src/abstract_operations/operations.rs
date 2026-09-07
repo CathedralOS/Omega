@@ -492,6 +492,8 @@ pub enum AbstractOperation {
         /// discards still participate in ownership semantics and therefore
         /// cannot be reconstructed from the target block alone.
         trivial_affine_discards: Vec<PlaceId>,
+        /// Exact ordered complement of the partially transferred owner.
+        residual_affine_discards: Vec<terminal_psi::StructuralAffineDiscard>,
     },
     Conditional {
         condition: ValueId,

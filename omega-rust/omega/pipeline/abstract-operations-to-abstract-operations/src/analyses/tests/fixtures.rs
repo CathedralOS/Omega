@@ -52,6 +52,7 @@ pub(super) fn operation(raw: u64, terminator: Terminator) -> O {
             target: id(target, BlockId::new),
             bindings: Vec::new(),
             trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
         },
         Terminator::Branch(when_true, when_false) => O::Conditional {
             condition: id(raw * 10 + 2, ValueId::new),
@@ -182,6 +183,7 @@ pub(super) fn block_parameter_constant_unit(
             target: id(2, BlockId::new),
             bindings: Vec::new(),
             trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
             provenance: vec![PsiProvenance::Edge(true_edge)],
             fuel: vec![optimization_unit::FuelSettlement {
                 site: PsiProvenance::Edge(true_edge),
@@ -193,6 +195,7 @@ pub(super) fn block_parameter_constant_unit(
             target: id(3, BlockId::new),
             bindings: Vec::new(),
             trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
             provenance: vec![PsiProvenance::Edge(false_edge)],
             fuel: vec![optimization_unit::FuelSettlement {
                 site: PsiProvenance::Edge(false_edge),
@@ -217,6 +220,7 @@ pub(super) fn block_parameter_constant_unit(
             target: id(4, BlockId::new),
             bindings: vec![binding],
             trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
             provenance: vec![PsiProvenance::Edge(edge)],
             fuel: vec![optimization_unit::FuelSettlement {
                 site: PsiProvenance::Edge(edge),

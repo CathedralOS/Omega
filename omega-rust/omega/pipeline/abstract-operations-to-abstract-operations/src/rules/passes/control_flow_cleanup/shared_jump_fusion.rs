@@ -96,6 +96,7 @@ impl PsiOptimizationRule for SharedJumpFusionRule {
                     target: target_id,
                     bindings,
                     trivial_affine_discards,
+                    residual_affine_discards,
                 } = &predecessor_node.operation
                 else {
                     continue;
@@ -115,6 +116,7 @@ impl PsiOptimizationRule for SharedJumpFusionRule {
                     continue;
                 };
                 if !trivial_affine_discards.is_empty()
+                    || !residual_affine_discards.is_empty()
                     || target.id == function.entry
                     || !terminal.successors.is_empty()
                     || !matches!(terminal.provenance.first(), Some(PsiProvenance::Edge(_)))

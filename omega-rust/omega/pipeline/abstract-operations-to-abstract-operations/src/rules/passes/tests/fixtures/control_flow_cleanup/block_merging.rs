@@ -75,6 +75,7 @@ pub(crate) fn adjacent_conditional_merge_unit() -> PsiOptimizationUnit {
                             scalar_type: ScalarType::Boolean,
                         }],
                         trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: Vec::new(),
                     },
                     AbstractOperation::Conditional {
                         condition: forwarded,
@@ -162,6 +163,7 @@ pub(crate) fn non_adjacent_merge_unit(target_before_predecessor: bool) -> PsiOpt
             target: descendant,
             bindings: Vec::new(),
             trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
         },
     ];
     let sibling_operation = AbstractOperation::Return {
@@ -186,6 +188,7 @@ pub(crate) fn non_adjacent_merge_unit(target_before_predecessor: bool) -> PsiOpt
                 scalar_type: ScalarType::Boolean,
             }],
             trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
         },
     ];
 

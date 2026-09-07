@@ -14,6 +14,11 @@ pub(super) fn validate_retained_ownership_authority(
         .iter()
         .map(|fact| ((fact.machine, fact.site), &fact.snapshot))
         .collect::<BTreeMap<_, _>>();
+    let structural_types = unit
+        .structural_types
+        .iter()
+        .map(|declaration| (declaration.id, declaration))
+        .collect::<BTreeMap<_, _>>();
 
     for function in &unit.functions {
         for block in &function.blocks {
@@ -56,7 +61,19 @@ pub(super) fn validate_retained_ownership_authority(
                             // nonempty inherited cleanup work.
                             &[]
                         };
-                        if !valid_edge_affine_transition(function, entry, exit, discards) {
+                        let residuals = if source_index == 0 {
+                            edge.residual_affine_discards.as_slice()
+                        } else {
+                            &[]
+                        };
+                        if !valid_edge_partial_affine_transition(
+                            function,
+                            &structural_types,
+                            entry,
+                            exit,
+                            discards,
+                            residuals,
+                        ) {
                             return Err(
                                 OptimizationUnitValidationError::StructuralEdgeAffineDiscardsMismatch {
                                     machine: function.machine,
@@ -105,13 +122,72 @@ pub(super) fn validate_retained_ownership_authority(
     Ok(())
 }
 
+fn valid_edge_partial_affine_transition(
+    function: &PsiOptimizationFunction,
+    structural_types: &BTreeMap<
+        semantic_vocabulary::StructuralTypeId,
+        &terminal_psi::StructuralTypeDeclaration,
+    >,
+    entry: &OwnershipFrontierSnapshot,
+    exit: &OwnershipFrontierSnapshot,
+    discards: &[PlaceId],
+    residuals: &[terminal_psi::StructuralAffineDiscard],
+) -> bool {
+    let Some(first) = residuals.first() else {
+        return valid_edge_affine_transition(function, entry, exit, discards);
+    };
+    let root = first.place;
+    let Some(custody) = entry
+        .partial_custody
+        .iter()
+        .find(|custody| custody.place == root)
+    else {
+        return false;
+    };
+    let moved = custody.moved_paths.iter().cloned().collect::<BTreeSet<_>>();
+    if !discards.is_empty()
+        || moved.len() != custody.moved_paths.len()
+        || entry.claims != exit.claims
+        || entry.claims.iter().any(|claim| claim.input == Some(root))
+        || function
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == root)
+        || !entry.owned_places.iter().any(|owned| {
+            owned.place == root
+                && owned.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+        })
+        || !crate::current_ownership::valid_partial_continuation_complement(
+            function,
+            structural_types,
+            root,
+            &moved,
+            residuals,
+        )
+    {
+        return false;
+    }
+    let mut expected = entry.clone();
+    expected.owned_places.retain(|owned| owned.place != root);
+    expected
+        .partial_custody
+        .retain(|custody| custody.place != root);
+    expected == *exit
+}
+
 pub(crate) fn valid_edge_affine_transition(
     function: &PsiOptimizationFunction,
     entry: &OwnershipFrontierSnapshot,
     exit: &OwnershipFrontierSnapshot,
     discards: &[PlaceId],
 ) -> bool {
-    if entry.claims != exit.claims || entry.partial_custody != exit.partial_custody {
+    if entry.claims != exit.claims
+        || entry.partial_custody != exit.partial_custody
+        || entry
+            .partial_custody
+            .iter()
+            .any(|custody| discards.contains(&custody.place))
+    {
         return false;
     }
     let live = entry

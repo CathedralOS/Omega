@@ -53,6 +53,8 @@ pub struct OptimizationEdge {
     pub bindings: Vec<ValueBinding>,
     /// Exact ordered affine discard work executed on this edge.
     pub trivial_affine_discards: Vec<PlaceId>,
+    /// Ordered partial-owner cleanup performed before successor entry.
+    pub residual_affine_discards: Vec<terminal_psi::StructuralAffineDiscard>,
     /// Ordered source custody charged only when this exact CFG edge is taken.
     /// The edge's own Psi identity is first; independently validated rewrites
     /// may append inherited edge sources that execute on the same path.

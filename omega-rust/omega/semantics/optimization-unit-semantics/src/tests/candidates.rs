@@ -430,6 +430,7 @@ fn corruption_classes_fail_independently() {
         target: id(77, BlockId::new),
         bindings: Vec::new(),
         trivial_affine_discards: Vec::new(),
+        residual_affine_discards: Vec::new(),
     };
     cfg.functions[0].blocks[0].nodes[1].successors =
         expected_edges(&cfg.functions[0].blocks[0].nodes[1].operation);
@@ -481,6 +482,7 @@ fn corruption_classes_fail_independently() {
         target: block,
         bindings: Vec::new(),
         trivial_affine_discards: Vec::new(),
+        residual_affine_discards: Vec::new(),
     };
     let node = &mut cycle.functions[0].blocks[0].nodes[1];
     node.operation = operation;

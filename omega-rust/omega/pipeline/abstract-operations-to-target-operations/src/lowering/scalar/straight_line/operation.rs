@@ -239,8 +239,15 @@ pub(super) fn lower_operation(
             psi_edge,
             bindings,
             trivial_affine_discards,
+            residual_affine_discards,
             ..
         } => {
+            if !residual_affine_discards.is_empty() {
+                return Err(LoweringError::UnsupportedPartialAffineContinuation {
+                    machine: function.machine,
+                    edge: *psi_edge,
+                });
+            }
             // This ownership-only edge work is deliberately erased after
             // Terminal verification (and optimizer admission when
             // selected); it has no target instruction.

@@ -86,6 +86,7 @@ fn expanded(
             target: block(3),
             bindings,
             trivial_affine_discards: vec![],
+            residual_affine_discards: Vec::new(),
         },
     ]);
     let target =

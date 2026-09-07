@@ -1695,9 +1695,16 @@ parameters. Exhausted fuel leaves every residual live; the next successor effect
 observes none of the disposed root's custody. A fully transferred root needs no
 residual row. Empty-residual jumps keep their existing tag-1 encoding byte for
 byte; nonempty residuals use tag 10 with the same jump semantics. An empty tag-10
-payload is noncanonical. Omega's entrance rejects nonempty residual jumps until
-native continuation cleanup is implemented; it cannot silently lower them to
-root-only cleanup.
+payload is noncanonical. Omega's abstract jump and derived control-flow edge
+retain the ordered residual rows. Current ownership replay reconstructs the
+complement from the actual block's projected transfers and live owner, while
+retained Terminal edge-entry/exit snapshots independently bind that transaction.
+Unrelated roots remain live and empty complements cannot hide another dying
+root. Canonical Omega unit identity includes both operation and derived-edge
+rows. Control-flow fusion, threading, and merging reject edges whose residual
+cleanup they cannot preserve. Native target lowering and independent translation
+validation still reject nonempty residual jumps; scalar graph legalization and
+native publication cannot silently erase them either.
 
 Checked-source production carries this result-root schedule for one leading
 immutable local initialized by a whole-value ordinary call or structural boundary

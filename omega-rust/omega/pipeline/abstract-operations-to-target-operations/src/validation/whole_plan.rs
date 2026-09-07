@@ -33,6 +33,19 @@ pub fn validate_abstract_to_target_translation_with_ieee_float_fma_settlements(
 ) -> Result<AbstractToTargetTranslationValidationReceipt, AbstractToTargetTranslationValidationError>
 {
     validate_plan_identity(source, expected_target, target)?;
+    for function in &source.functions {
+        for operation in &function.operations {
+            if let AbstractOperation::Jump {
+                psi_edge,
+                residual_affine_discards,
+                ..
+            } = operation
+                && !residual_affine_discards.is_empty()
+            {
+                return Err(AbstractToTargetTranslationValidationError::UnsupportedPartialAffineContinuation { machine: function.machine, edge: *psi_edge });
+            }
+        }
+    }
     validate_fma_settlement_roster(source, ieee_float_fma)?;
     let structural_call_return = catalog::validate_plan(source, target)?;
 

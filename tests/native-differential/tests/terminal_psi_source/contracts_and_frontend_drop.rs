@@ -222,6 +222,7 @@ fn checked_source_survives_frontend_drop_as_verified_psi() {
                             scalar_type: ScalarType::Integer(i32_type),
                         }],
                         trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: Vec::new(),
                     },
                     AbstractOperation::IntegerConstant {
                         psi_operation: OperationId::new(2).expect("operation"),

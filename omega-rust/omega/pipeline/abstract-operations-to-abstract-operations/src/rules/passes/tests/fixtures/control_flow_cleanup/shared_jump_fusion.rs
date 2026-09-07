@@ -80,12 +80,14 @@ pub(crate) fn shared_terminal_unit() -> PsiOptimizationUnit {
                         target,
                         bindings: Vec::new(),
                         trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: Vec::new(),
                     },
                     AbstractOperation::Jump {
                         psi_edge: id(934, EdgeId::new),
                         target,
                         bindings: Vec::new(),
                         trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: Vec::new(),
                     },
                     AbstractOperation::ReturnUnit {
                         psi_edge: id(936, EdgeId::new),

@@ -2230,6 +2230,7 @@ name = "terminal-psi-to-abstract-operations"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
+ "abstract-operations-to-target-operations",
  "checked-trees-to-lowered-psi",
  "installation-evidence",
  "optimization-unit",
@@ -2239,6 +2240,7 @@ dependencies = [
  "source-files-to-tokens",
  "symbol-resolved-trees-to-typed-trees",
  "syntax-trees-to-symbol-resolved-trees",
+ "target",
  "terminal-codec",
  "terminal-fixed-fuel",
  "terminal-fuel",

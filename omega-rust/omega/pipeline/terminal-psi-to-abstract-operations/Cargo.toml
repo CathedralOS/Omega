@@ -21,6 +21,8 @@ terminal-interpreter = { path = "../../../psi/semantics/terminal-interpreter" }
 terminal-verifier = { path = "../../../psi/semantics/terminal-verifier" }
 
 [dev-dependencies]
+abstract-operations-to-target-operations = { path = "../abstract-operations-to-target-operations" }
+target = { path = "../../representations/target" }
 optimization-unit-semantics = { path = "../../semantics/optimization-unit-semantics" }
 checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/checked-trees-to-lowered-psi" }
 source-files-to-tokens = { path = "../../../psi/pipeline/source-files-to-tokens" }

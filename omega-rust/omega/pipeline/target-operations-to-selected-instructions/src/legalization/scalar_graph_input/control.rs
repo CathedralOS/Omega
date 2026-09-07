@@ -36,9 +36,10 @@ pub(super) fn validate(
                 target,
                 bindings,
                 trivial_affine_discards,
+                residual_affine_discards,
             },
             _,
-        ) if trivial_affine_discards.is_empty() => {
+        ) if trivial_affine_discards.is_empty() && residual_affine_discards.is_empty() => {
             let [edge] = node.successors.as_slice() else {
                 return Err(invalid);
             };
@@ -100,6 +101,7 @@ fn branch_edges(node: &OptimizationNode) -> Result<(), LegalizationError> {
         || !node.fuel.is_empty()
         || node.successors.iter().any(|edge| {
             !edge.trivial_affine_discards.is_empty()
+                || !edge.residual_affine_discards.is_empty()
                 || edge.provenance != [PsiProvenance::Edge(edge.psi_edge)]
                 || edge.fuel.is_empty()
                 || edge
