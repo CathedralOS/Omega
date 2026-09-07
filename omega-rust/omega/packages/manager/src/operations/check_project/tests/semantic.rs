@@ -45,7 +45,7 @@ data Main { console: Service<Console> in Bound; }
 machine Main::main(&mut self) { self.console.exit_process(70); }
 "#,
     );
-    let (entry, closure) = project.prepare("application/entry.omg").into_review_parts();
+    let (entry, closure, _) = project.prepare("application/entry.omg").into_review_parts();
     let checked = compile_resolved_package_candidate_for_check(
         &closure.for_exact_target(TARGET),
         &project.0.join("checked"),

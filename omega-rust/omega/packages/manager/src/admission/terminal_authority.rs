@@ -31,13 +31,14 @@ impl std::fmt::Display for AcceptedTerminalAuthorityPermissionPolicyError {
 
 impl std::error::Error for AcceptedTerminalAuthorityPermissionPolicyError {}
 
-/// Project only exact permission obligations that survived fresh root-policy
-/// replay into the package's canonical accepted-permission set.
+/// Project only exact permission obligations that survived fresh project-policy
+/// comparison into the package's canonical accepted-permission set.
 ///
 /// Semantic-binding candidates, package names, broad risk summaries, and raw
 /// root decisions are deliberately unavailable to this projection. The
 /// accepted evidence gate has already proved that every blocking permission
-/// row is bijective with and accepted by the replayed root policy.
+/// row is bijective with fresh obligations from the same compiler reviews whose
+/// complete policy was compared with the project's recorded acceptance.
 pub fn accepted_terminal_authority_permission_policy(
     evidence: &AcceptedOrdinaryClosureEvidence,
 ) -> Result<TerminalAuthorityPermissionPolicy, AcceptedTerminalAuthorityPermissionPolicyError> {

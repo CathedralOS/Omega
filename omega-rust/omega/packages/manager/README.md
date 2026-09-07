@@ -105,32 +105,43 @@ rejected before authored build execution. Package runtime capability decisions
 do not grant additional build or resolver authority. Accepted project files are
 not modified by this operation.
 
-Its package-aware native operation consumes a `PreparedLocalProject`, selects
-one exact target child, compiles the final production review, reconstructs its
-current initial conflict set, and recovers a caller-selected root-policy record
-only against that set. Accepted evidence then enters the manager-owned retained
-native route with a distinct receiving permission policy. Preparation retains
-the source closure needed for this handoff but neither discovers policy nor
-infers permissions. A root-policy file is required exactly when the fresh
-review has blocking rows.
+Its package-aware native operation consumes a `PreparedLocalProject` carrying
+the source closure and accepted `omega.lock` section for one exact target.
+It compiles the final production review and compares its complete normalized
+policy with that accepted baseline. Matching requirements need no second
+approval file. Missing acceptance or decision-requiring changes direct the user
+to ordinary `omega update` review; native compilation never writes acceptance.
+Source-only changes remain available in the comparison and ordinary package
+inspection. Accepted evidence enters the native route with a distinct receiving
+permission policy.
+
+The CLI update/resume regression reaches the independent native publication
+gate; executable publication remains blocked by the missing function-validation
+evidence producer under [`TARGET-MATRICES`](../../../../TASKS_OPTIMIZER.md#verification-and-rollout).
+Retained native
+artifact validation is not a claim of successful publication.
+
 `declarations` reads the statically checked package declarations in
 `build.omg`; Omega has no second package manifest. `resolution` binds those
 declarations to immutable sources and reconciles one exact closure. `review`
 turns that closure into compiler-issued facts and root-owned decisions. Its
 `reconstruction/root_policy.rs` gate rederives fresh obligations and conflicts
 from the same closure, requires exact conflict bijections for open accepted
-claims, dangerous authorities, and external executable supplies, then accepts
-blocking rows only through their exact candidate-bound root policy. Contract-
-entailment obligations remain unadmittable while open; canonically recorded,
+claims, dangerous authorities, external executable supplies, and Terminal
+permissions. Those rows and the normalized policy comparison come from the same
+fresh compiler reviews; initial conflicts witness that correspondence, not a
+second approval decision. Contract-entailment obligations remain unadmittable
+while open; canonically recorded,
 locally rechecked assumption discharges compose separately across the complete
 closure with their original package owners. The result remains review and
 policy state.
-`admission` owns the stronger consumer-side
-boundary: it rechecks live source custody and the complete reconstruction and
-policy replay before producing in-memory accepted ordinary evidence. That
-evidence retains exact compiler-consumed semantic bindings scoped to their
-consuming package, while every resulting blocker still requires fresh root
-policy. It still has no codec, `omega.lock` mutation route, or transaction
+
+`admission` rechecks live source custody, obligation reconstruction, and accepted
+policy before producing in-memory evidence. That evidence retains exact
+compiler-consumed semantic bindings scoped to their
+consuming package. Changed requirements need ordinary project review; stale
+source evidence, unproved contracts, and receiving-policy denial still reject.
+It has no codec, `omega.lock` mutation route, or transaction
 authority. Its promotion layer is current implementation, not a requirement to
 add `PackageInstance` certification before implementing install/update.
 

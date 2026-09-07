@@ -1,3 +1,6 @@
+#[path = "support/accepted_policy.rs"]
+mod accepted_policy_fixture;
+
 use package_evidence::ledger::OrdinaryPackageObligationStatus;
 use package_evidence::record::{
     PackageReviewCallableSupply, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
@@ -16,10 +19,12 @@ use package_manager::resolution::source::ResolvePackageSourceError;
 use package_manager::review::{
     CanonicalPackageReconstructionQuestion, CanonicalPackageReconstructionQuestionLimits,
     FreshPackageRootPolicyError, LocallyComposedPackageObligationResults,
-    ReviewOnlyCapabilityConflictLimits, ReviewOnlyRootPolicyDisposition,
-    bind_fresh_package_root_policy, compare_review_only_initial_capabilities,
+    PackagePolicyChangeLimits, PackagePolicyDecision, PackagePolicyDecisionError,
+    PackagePolicyDecisionSubject, ReviewOnlyCapabilityConflictLimits,
+    ReviewOnlyRootPolicyDisposition, bind_fresh_package_root_policy,
+    compare_package_policy_changes, compare_review_only_initial_capabilities,
     compile_resolved_package_candidate_reviews, compile_resolved_package_reviews,
-    resolve_review_only_root_policy_decisions,
+    resolve_package_policy_decisions,
 };
 use package_source::{
     ExternalSourceContext, LocalSourceLimits, SourceLineage, SourceRelativePath,
@@ -152,8 +157,9 @@ fn all_fresh_association_paths_reject_reviews_for_another_requested_target() {
         &target, &reviews, limits,
     )
     .expect("question for the reviewed target");
-    accept_ordinary_closure_evidence(&target, &reviews, limits, conflict_limits, None)
-        .expect("matching source-only review needs no synthetic policy");
+    let policy = accepted_policy_fixture::accepted_policy(&target, &reviews);
+    accept_ordinary_closure_evidence(&target, &reviews, limits, conflict_limits, Some(&policy))
+        .expect("matching source-only review reuses project acceptance");
 
     let other_target = closure.for_exact_target(target::TargetProfile::LinuxX64);
     assert!(
@@ -175,13 +181,25 @@ fn all_fresh_association_paths_reject_reviews_for_another_requested_target() {
         "composition must retain the caller's exact requested target"
     );
     assert!(
-        bind_fresh_package_root_policy(&other_target, &reviews, limits, conflict_limits, None)
-            .is_err(),
+        bind_fresh_package_root_policy(
+            &other_target,
+            &reviews,
+            limits,
+            conflict_limits,
+            Some(&policy)
+        )
+        .is_err(),
         "root-policy binding cannot pair a different requested target"
     );
     assert!(
-        accept_ordinary_closure_evidence(&other_target, &reviews, limits, conflict_limits, None)
-            .is_err(),
+        accept_ordinary_closure_evidence(
+            &other_target,
+            &reviews,
+            limits,
+            conflict_limits,
+            Some(&policy)
+        )
+        .is_err(),
         "in-memory acceptance cannot promote cross-target review"
     );
 
@@ -203,6 +221,10 @@ fn all_fresh_association_paths_reject_reviews_for_another_requested_target() {
 #[test]
 fn all_fresh_association_paths_reject_stale_review_for_same_named_source() {
     let (temporary, original_closure, reviews) = claim_free_review_fixture("stale-review");
+    let policy = accepted_policy_fixture::accepted_policy(
+        &original_closure.for_exact_target(target::TargetProfile::WindowsX64),
+        &reviews,
+    );
     let root = temporary.join("root");
     std::fs::write(root.join("main.omg"), "pub machine value() -> u64 { 2 }\n")
         .expect("change implementation without changing package name or public signature");
@@ -228,16 +250,27 @@ fn all_fresh_association_paths_reject_stale_review_for_same_named_source() {
         .is_err()
     );
     assert!(
-        bind_fresh_package_root_policy(&target, &reviews, limits, conflict_limits, None).is_err()
+        bind_fresh_package_root_policy(&target, &reviews, limits, conflict_limits, Some(&policy))
+            .is_err()
     );
     assert!(
-        accept_ordinary_closure_evidence(&target, &reviews, limits, conflict_limits, None).is_err()
+        accept_ordinary_closure_evidence(&target, &reviews, limits, conflict_limits, Some(&policy))
+            .is_err()
     );
 
     let fresh_reviews = compile_resolved_package_reviews(&target, &temporary.join("changed-build"))
         .expect("compile the changed source at its own immutable resolution");
-    accept_ordinary_closure_evidence(&target, &fresh_reviews, limits, conflict_limits, None)
-        .expect("fresh source review remains acceptable without native emission");
+    let evidence = accept_ordinary_closure_evidence(
+        &target,
+        &fresh_reviews,
+        limits,
+        conflict_limits,
+        Some(&policy),
+    )
+    .expect("changed implementation reuses unchanged accepted requirements");
+    assert!(!evidence.policy_changes().requires_decision());
+    assert!(evidence.policy_changes().source_subject_changed());
+    assert!(evidence.policy_changes().audit_recommended());
     remove_temporary_tree(&temporary);
 }
 
@@ -328,31 +361,11 @@ fn canonical_question_round_trips_and_freshly_reconstructs_complete_closure() {
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("derive graph-workbench fresh conflicts");
-    let accepted_decisions = conflicts
-        .packages()
-        .iter()
-        .flat_map(|package| {
-            package
-                .conflicts()
-                .iter()
-                .filter(|conflict| conflict.is_blocking())
-                .map(|conflict| {
-                    package
-                        .root_policy_decision(
-                            conflict,
-                            ReviewOnlyRootPolicyDisposition::AcceptCandidateChange,
-                        )
-                        .expect("bind graph-workbench blocking row")
-                })
-        })
-        .collect::<Vec<_>>();
-    assert!(
-        !accepted_decisions.is_empty(),
-        "fixture exercises additional non-claim blockers"
+    assert!(!conflicts.is_empty(), "fixture retains structural blockers");
+    let accepted_policy = accepted_policy_fixture::accepted_policy(
+        &closure.for_exact_target(target::TargetProfile::WindowsX64),
+        &reviews,
     );
-    let accepted_policy =
-        resolve_review_only_root_policy_decisions(&conflicts, &accepted_decisions)
-            .expect("resolve every graph-workbench blocker");
     let accepted = bind_fresh_package_root_policy(
         &closure.for_exact_target(target::TargetProfile::WindowsX64),
         &reviews,
@@ -361,7 +374,8 @@ fn canonical_question_round_trips_and_freshly_reconstructs_complete_closure() {
         Some(&accepted_policy),
     )
     .expect("every exact graph-workbench blocker is accepted");
-    assert_eq!(accepted.root_policy(), Some(&accepted_policy));
+    assert_eq!(accepted.conflicts(), &conflicts);
+    assert!(!accepted.policy_changes().requires_decision());
     assert_eq!(
         accepted.obligations().question(),
         &question,
@@ -385,7 +399,7 @@ fn canonical_question_round_trips_and_freshly_reconstructs_complete_closure() {
         ACCEPTED_ORDINARY_EVIDENCE_SCHEMA_VERSION
     );
     assert_eq!(evidence.packages().len(), closure.graph().packages().len());
-    assert_eq!(evidence.root_policy(), Some(&accepted_policy));
+    assert_eq!(evidence.policy_changes(), accepted.policy_changes());
     let file_journal = evidence
         .packages()
         .iter()
@@ -406,7 +420,7 @@ fn canonical_question_round_trips_and_freshly_reconstructs_complete_closure() {
 }
 
 #[test]
-fn fresh_closure_without_blockers_needs_no_synthetic_root_policy() {
+fn fresh_closure_without_blockers_requires_and_reuses_project_acceptance() {
     let temporary = temporary_root("no-root-policy");
     let root = temporary.join("root");
     std::fs::create_dir_all(&root).expect("create claim-free root");
@@ -428,15 +442,41 @@ machine build(builder: &mut Build) {
         &temporary.join("build"),
     )
     .expect("compile claim-free package");
+
+    assert!(matches!(
+        bind_fresh_package_root_policy(
+            &closure.for_exact_target(target::TargetProfile::WindowsX64), &reviews,
+            CanonicalPackageReconstructionQuestionLimits::default(),
+            ReviewOnlyCapabilityConflictLimits::default(), None,
+        ),
+        Err(FreshPackageRootPolicyError::ReviewRequired(changes))
+            if changes.baseline_source_subject().is_none() && !changes.requires_decision()
+    ));
+    assert!(matches!(
+        accept_ordinary_closure_evidence(
+            &closure.for_exact_target(target::TargetProfile::WindowsX64),
+            &reviews,
+            CanonicalPackageReconstructionQuestionLimits::default(),
+            ReviewOnlyCapabilityConflictLimits::default(),
+            None,
+        ),
+        Err(AcceptedOrdinaryEvidenceError::RootPolicy(
+            FreshPackageRootPolicyError::ReviewRequired(_)
+        ))
+    ));
+    let policy = accepted_policy_fixture::accepted_policy(
+        &closure.for_exact_target(target::TargetProfile::WindowsX64),
+        &reviews,
+    );
     let accepted = bind_fresh_package_root_policy(
         &closure.for_exact_target(target::TargetProfile::WindowsX64),
         &reviews,
         CanonicalPackageReconstructionQuestionLimits::default(),
         ReviewOnlyCapabilityConflictLimits::default(),
-        None,
+        Some(&policy),
     )
-    .expect("claim-free closure needs no synthetic root policy");
-    assert!(accepted.root_policy().is_none());
+    .expect("claim-free closure reuses project acceptance");
+    assert!(!accepted.policy_changes().requires_decision());
     assert!(accepted.conflicts().is_empty());
     assert!(
         accepted
@@ -457,10 +497,10 @@ machine build(builder: &mut Build) {
         &reviews,
         CanonicalPackageReconstructionQuestionLimits::default(),
         ReviewOnlyCapabilityConflictLimits::default(),
-        None,
+        Some(&policy),
     )
-    .expect("blocker-free closure produces accepted evidence without policy");
-    assert!(evidence.root_policy().is_none());
+    .expect("blocker-free closure reuses accepted project policy");
+    assert_eq!(evidence.policy_changes(), accepted.policy_changes());
     assert_eq!(evidence.packages().len(), 1);
     let empty_permission_policy = accepted_terminal_authority_permission_policy(&evidence)
         .expect("blocker-free accepted evidence projects deny-by-absence permission policy");
@@ -499,6 +539,10 @@ machine build(builder: &mut Build) {
         &temporary.join("build"),
     )
     .expect("compile custody-canary review");
+    let policy = accepted_policy_fixture::accepted_policy(
+        &closure.for_exact_target(target::TargetProfile::WindowsX64),
+        &reviews,
+    );
     let selected_root = closure.graph().root().clone();
     let snapshot_main = closure
         .source_root(&selected_root)
@@ -524,7 +568,7 @@ machine build(builder: &mut Build) {
             &reviews,
             CanonicalPackageReconstructionQuestionLimits::default(),
             ReviewOnlyCapabilityConflictLimits::default(),
-            None,
+            Some(&policy),
         ),
         Err(AcceptedOrdinaryEvidenceError::SourceCustody { package, .. })
             if package == selected_root
@@ -642,41 +686,41 @@ machine build(builder: &mut Build) {
             None,
         ),
         Err(AcceptedOrdinaryEvidenceError::RootPolicy(
-            FreshPackageRootPolicyError::MissingRootPolicy
+            FreshPackageRootPolicyError::ReviewRequired(_)
         ))
     ));
 
-    let rejected_decision = claim_package
-        .root_policy_decision(
-            claim_conflict,
-            ReviewOnlyRootPolicyDisposition::RejectCandidateChange,
-        )
-        .expect("bind rejection to exact accepted claim");
-    let rejected_policy =
-        resolve_review_only_root_policy_decisions(&conflicts, &[rejected_decision])
-            .expect("complete rejecting policy");
+    assert!(claim_conflict.is_blocking());
+    let changes = compare_package_policy_changes(
+        None,
+        &reviews,
+        &closure.for_exact_target(target::TargetProfile::WindowsX64),
+        PackagePolicyChangeLimits::default(),
+    )
+    .expect("compare fresh claim policy");
+    let decisions = changes
+        .packages()
+        .iter()
+        .flat_map(|package| package.rows())
+        .filter(|row| row.requires_decision())
+        .map(|row| PackagePolicyDecision {
+            subject: PackagePolicyDecisionSubject::Row(row.fingerprint().digest()),
+            disposition: ReviewOnlyRootPolicyDisposition::RejectCandidateChange,
+        })
+        .collect::<Vec<_>>();
+    assert!(!decisions.is_empty());
+    let rejected =
+        resolve_package_policy_decisions(&changes, changes.fingerprint().digest(), &decisions)
+            .expect("complete ordinary rejection");
+    assert!(!rejected.all_required_changes_accepted());
     assert!(matches!(
-        accept_ordinary_closure_evidence(
-            &closure.for_exact_target(target::TargetProfile::WindowsX64),
-            &reviews,
-            CanonicalPackageReconstructionQuestionLimits::default(),
-            ReviewOnlyCapabilityConflictLimits::default(),
-            Some(&rejected_policy),
-        ),
-        Err(AcceptedOrdinaryEvidenceError::RootPolicy(
-            FreshPackageRootPolicyError::RejectedBlockingConflict
-        ))
+        resolve_package_policy_decisions(&changes, changes.fingerprint().digest(), &[]),
+        Err(PackagePolicyDecisionError::MissingDecision(_))
     ));
-
-    let accepted_decision = claim_package
-        .root_policy_decision(
-            claim_conflict,
-            ReviewOnlyRootPolicyDisposition::AcceptCandidateChange,
-        )
-        .expect("bind acceptance to exact accepted claim");
-    let accepted_policy =
-        resolve_review_only_root_policy_decisions(&conflicts, &[accepted_decision])
-            .expect("complete accepting policy");
+    let accepted_policy = accepted_policy_fixture::accepted_policy(
+        &closure.for_exact_target(target::TargetProfile::WindowsX64),
+        &reviews,
+    );
     let accepted = bind_fresh_package_root_policy(
         &closure.for_exact_target(target::TargetProfile::WindowsX64),
         &reviews,
@@ -685,7 +729,7 @@ machine build(builder: &mut Build) {
         Some(&accepted_policy),
     )
     .expect("exact fresh policy admits the open claim in memory");
-    assert_eq!(accepted.root_policy(), Some(&accepted_policy));
+    assert!(!accepted.policy_changes().requires_decision());
     let accepted_claims = accepted
         .obligations()
         .root_open_accepted_claims()
@@ -694,6 +738,37 @@ machine build(builder: &mut Build) {
         panic!("one accepted dependency claim")
     };
     assert_eq!(owner.name().as_str(), "claim-dependency");
+
+    std::fs::write(
+        dependency.join("main.omg"),
+        "boundary machine trusted_zero() -> u64\nensures result == 0;\n// source-only change\n",
+    )
+    .expect("change claim source without changing its contract");
+    let source_only_closure = resolve_external_closure(&root, temporary.join("source-only-cache"));
+    let source_only_reviews = compile_resolved_package_reviews(
+        &source_only_closure.for_exact_target(target::TargetProfile::WindowsX64),
+        &temporary.join("source-only-build"),
+    )
+    .expect("compile source-only claim change");
+    let reused = accept_ordinary_closure_evidence(
+        &source_only_closure.for_exact_target(target::TargetProfile::WindowsX64),
+        &source_only_reviews,
+        CanonicalPackageReconstructionQuestionLimits::default(),
+        ReviewOnlyCapabilityConflictLimits::default(),
+        Some(&accepted_policy),
+    )
+    .expect("unchanged claim requirements reuse project acceptance");
+    assert!(!reused.policy_changes().requires_decision());
+    assert!(reused.policy_changes().source_subject_changed());
+    assert!(reused.policy_changes().audit_recommended());
+    assert_eq!(
+        reused
+            .acceptance()
+            .obligations()
+            .root_open_accepted_claims()
+            .len(),
+        1
+    );
 
     std::fs::write(
         dependency.join("main.omg"),
@@ -708,17 +783,47 @@ ensures result == 1;
         &temporary.join("changed-build"),
     )
     .expect("compile changed claim closure");
+    let error = accept_ordinary_closure_evidence(
+        &changed_closure.for_exact_target(target::TargetProfile::WindowsX64),
+        &changed_reviews,
+        CanonicalPackageReconstructionQuestionLimits::default(),
+        ReviewOnlyCapabilityConflictLimits::default(),
+        Some(&accepted_policy),
+    )
+    .expect_err("changed claim contract must require ordinary review");
+    let message = error.to_string();
+    let AcceptedOrdinaryEvidenceError::RootPolicy(FreshPackageRootPolicyError::ReviewRequired(
+        changed,
+    )) = error
+    else {
+        panic!("changed claim must return modern policy findings")
+    };
+    assert!(changed.requires_decision());
+    assert!(
+        changed
+            .packages()
+            .iter()
+            .any(|package| package.rows().iter().any(|row| {
+                row.kind() == package_evidence::record::PackagePolicyRowKind::Callable
+                    && row.change() == package_manager::review::PackagePolicyChangeKind::Changed
+                    && row.requires_decision()
+                    && row
+                        .baseline()
+                        .zip(row.candidate())
+                        .is_some_and(|(baseline, candidate)| {
+                            baseline.key_bytes() == candidate.key_bytes()
+                                && baseline.canonical_bytes() != candidate.canonical_bytes()
+                        })
+            }))
+    );
+    let rendered =
+        package_manager::review::render_package_policy_review(&changed, 16 * 1024 * 1024)
+            .expect("bounded modern review");
+    assert!(message.contains("run omega update"));
+    assert!(message.ends_with(&rendered));
     assert!(matches!(
-        accept_ordinary_closure_evidence(
-            &changed_closure.for_exact_target(target::TargetProfile::WindowsX64),
-            &changed_reviews,
-            CanonicalPackageReconstructionQuestionLimits::default(),
-            ReviewOnlyCapabilityConflictLimits::default(),
-            Some(&accepted_policy),
-        ),
-        Err(AcceptedOrdinaryEvidenceError::RootPolicy(
-            FreshPackageRootPolicyError::InvalidRootPolicy(_)
-        ))
+        resolve_package_policy_decisions(&changed, changes.fingerprint().digest(), &decisions),
+        Err(PackagePolicyDecisionError::WrongComparison)
     ));
 
     remove_temporary_tree(&temporary);
@@ -821,6 +926,15 @@ machine build(builder: &mut Build) {
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("derive exact fresh external-supply conflicts");
+    assert!(
+        conflicts
+            .packages()
+            .iter()
+            .any(|package| package.conflicts().iter().any(|conflict| {
+                conflict.kind() == PackageReviewCanonicalRowKind::ExternalExecutableSupply
+                    && conflict.is_blocking()
+            }))
+    );
     assert!(matches!(
         bind_fresh_package_root_policy(
             &closure.for_exact_target(target::TargetProfile::WindowsX64),
@@ -829,30 +943,13 @@ machine build(builder: &mut Build) {
             ReviewOnlyCapabilityConflictLimits::default(),
             None,
         ),
-        Err(FreshPackageRootPolicyError::MissingRootPolicy)
+        Err(FreshPackageRootPolicyError::ReviewRequired(_))
     ));
 
-    let accepted_decisions = conflicts
-        .packages()
-        .iter()
-        .flat_map(|package| {
-            package
-                .conflicts()
-                .iter()
-                .filter(|conflict| conflict.is_blocking())
-                .map(|conflict| {
-                    package
-                        .root_policy_decision(
-                            conflict,
-                            ReviewOnlyRootPolicyDisposition::AcceptCandidateChange,
-                        )
-                        .expect("bind exact fresh external-supply blocker")
-                })
-        })
-        .collect::<Vec<_>>();
-    let accepted_policy =
-        resolve_review_only_root_policy_decisions(&conflicts, &accepted_decisions)
-            .expect("resolve complete external-supply policy");
+    let accepted_policy = accepted_policy_fixture::accepted_policy(
+        &closure.for_exact_target(target::TargetProfile::WindowsX64),
+        &reviews,
+    );
     let accepted = bind_fresh_package_root_policy(
         &closure.for_exact_target(target::TargetProfile::WindowsX64),
         &reviews,
@@ -861,7 +958,7 @@ machine build(builder: &mut Build) {
         Some(&accepted_policy),
     )
     .expect("exact fresh policy admits the external supply in memory");
-    assert_eq!(accepted.root_policy(), Some(&accepted_policy));
+    assert!(!accepted.policy_changes().requires_decision());
     assert_eq!(
         accepted
             .obligations()
@@ -988,27 +1085,10 @@ machine build(builder: &mut Build) {
             PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation
         ))
     ));
-    let accepted_decisions = conflicts
-        .packages()
-        .iter()
-        .flat_map(|package| {
-            package
-                .conflicts()
-                .iter()
-                .filter(|conflict| conflict.is_blocking())
-                .map(|conflict| {
-                    package
-                        .root_policy_decision(
-                            conflict,
-                            ReviewOnlyRootPolicyDisposition::AcceptCandidateChange,
-                        )
-                        .expect("bind exact fresh contract-entailment blocker")
-                })
-        })
-        .collect::<Vec<_>>();
-    let accepted_policy =
-        resolve_review_only_root_policy_decisions(&conflicts, &accepted_decisions)
-            .expect("resolve complete contract-entailment policy");
+    let accepted_policy = accepted_policy_fixture::accepted_policy(
+        &closure.for_exact_target(target::TargetProfile::WindowsX64),
+        &reviews,
+    );
     assert!(matches!(
         bind_fresh_package_root_policy(
             &closure.for_exact_target(target::TargetProfile::WindowsX64),
@@ -1155,27 +1235,8 @@ machine build(builder: &mut Build) {
                 && conflict.risk() == PackageReviewCanonicalRowRisk::Blocking
         })
     }));
-    let accepted_decisions = conflicts
-        .packages()
-        .iter()
-        .flat_map(|package| {
-            package
-                .conflicts()
-                .iter()
-                .filter(|conflict| conflict.is_blocking())
-                .map(|conflict| {
-                    package
-                        .root_policy_decision(
-                            conflict,
-                            ReviewOnlyRootPolicyDisposition::AcceptCandidateChange,
-                        )
-                        .expect("bind exact fresh contract blocker")
-                })
-        })
-        .collect::<Vec<_>>();
     let accepted_policy =
-        resolve_review_only_root_policy_decisions(&conflicts, &accepted_decisions)
-            .expect("resolve complete contract policy");
+        accepted_policy_fixture::accepted_policy(&closure.for_exact_target(target), &reviews);
     accept_ordinary_closure_evidence(
         &closure.for_exact_target(target),
         &reviews,

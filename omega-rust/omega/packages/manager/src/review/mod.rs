@@ -54,8 +54,7 @@ pub use compare::{
 pub use decision::{
     PackagePolicyDecision, PackagePolicyDecisionError, PackagePolicyDecisionSubject,
     PackagePolicyResolution, PackagePolicyReviewError, ReviewOnlyRootPolicyDecision,
-    ReviewOnlyRootPolicyDirectory, ReviewOnlyRootPolicyDisposition, ReviewOnlyRootPolicyFileError,
-    ReviewOnlyRootPolicyName, ReviewOnlyRootPolicyNameError, ReviewOnlyRootPolicyRecordError,
+    ReviewOnlyRootPolicyDisposition, ReviewOnlyRootPolicyRecordError,
     ReviewOnlyRootPolicyRecordLimits, ReviewOnlyRootPolicyResolution,
     ReviewOnlyRootPolicyResolutionCommitment, ReviewOnlyRootPolicyResolutionError,
     recover_package_policy_review, recover_review_only_root_policy_resolution,

@@ -1146,7 +1146,6 @@ name = "omega"
 version = "0.1.0"
 dependencies = [
  "artifacts",
- "cap-std",
  "checked-interpreter",
  "checked-trees-to-lowered-psi",
  "compiler",

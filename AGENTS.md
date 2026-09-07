@@ -137,7 +137,7 @@ mbx run -p omega -- --check samples/cli/basics/cli_mvp/main.omg
 Full surface (`omega-rust/omega/src/command.rs`):
 
 ```text
-omega [--check] [--offline] [--accept-admissions] [--output-only] [--package-root-policy <file>]
+omega [--check] [--offline] [--accept-admissions] [--output-only]
       [--build-dir <dir>] [--target <name>] [--disable-optimization <ExactName>]... <root.omg>
 omega run [--both] [--keep] [--target <name>] <root.omg>
 omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>

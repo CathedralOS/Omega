@@ -54,35 +54,32 @@ local-project package review route. Keep its result separate from the outer comm
 
 ## Trace the actual route
 
-Earlier Windows and macOS outer CLI probes completed fresh checked package review,
-then stopped with
-`fresh package review has blocking rows but no explicit --package-root-policy`.
-This is a policy boundary before accepted native production. The compiler-library
-sample test bypasses it and now stops later at structural operand validation
-in Terminal production, as detailed below. Recent macOS outer probes have not reached
-that policy boundary within the measured runtime window.
-Neither result establishes native execution.
+The outer CLI checks current package requirements against the project's accepted
+`omega.lock` policy. Missing acceptance or changed requirements stop before
+native production with ordinary `omega update` guidance and compiler-rendered
+findings. The [single package-acceptance rule](../../../../wiki/pre_migration/design_briefs/build_and_package_model.md#single-package-acceptance)
+means an unchanged accepted policy needs no second native approval file.
+Recent macOS outer probes have not reached package admission within their measured
+runtime window; the preliminary-validation performance task remains open.
 
-The missing-policy diagnostic includes exact conflict identities and source
-locations. On Windows, std contributes `FilesystemHost` authority and four
-external Console leaves: `read_line`, `read_byte`, `write_byte`, and
-`exit_process`. These are review findings, not accepted permissions.
+On Windows, std contributes `FilesystemHost` authority and four external Console
+leaves: `read_line`, `read_byte`, `write_byte`, and `exit_process`. These are review
+findings, not implicit grants. Do not supply blanket acceptance merely to advance
+the example. Native proof, provider, and receiving-permission checks remain
+independent requirements.
 
-The settled [single package-acceptance rule](../../../../wiki/pre_migration/design_briefs/build_and_package_model.md#single-package-acceptance)
-removes the duplicate approval workflow. Implementation is still pending: the
-current native route requires a second candidate-bound file even when ordinary
-package review already accepted unchanged policy. Std has no implicit authority;
-do not supply blanket acceptance merely to advance the example. Native proof,
-provider, and receiving
-permission checks remain independent requirements. The next assignment and
-tested revision remain on the execution board.
+The compiler-library sample test bypasses project acceptance and stops later at
+structural-argument path validation in Terminal production. Neither package
+acceptance nor that failing probe establishes native execution. Current commands,
+tested revisions, and the next implementation step remain on the execution board.
 
 Use `omega audit packages --project samples/cli/basics/cli_mvp
 --target macos_arm64 --details` to inspect the current macOS package findings;
 select `windows_x86_64` for the Windows closure. This displays ordinary package
-findings; it does not generate the separate native policy record. Its
-`requires-review false` result is not evidence that the native file requirement
-has been satisfied.
+findings without changing acceptance. Use `omega update --project
+samples/cli/basics/cli_mvp --target macos_arm64` to start ordinary review; edit any
+required decisions and use `omega update --resume --project
+samples/cli/basics/cli_mvp` to finish it. An audit report alone never accepts a package.
 
 The existing focused review probe is
 `mbx nextest run -p package-manager --test standard_library_package_resolution --no-fail-fast -E 'test(=real_standard_library_has_a_complete_ordinary_review_entry)'`.

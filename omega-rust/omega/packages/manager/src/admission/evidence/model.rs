@@ -1,6 +1,6 @@
 use crate::declarations::PackageKey;
 use crate::review::{
-    FreshPackageRootPolicyAcceptance, FreshPackageRootPolicyError, ReviewOnlyRootPolicyResolution,
+    FreshPackageRootPolicyAcceptance, FreshPackageRootPolicyError, PackagePolicyChangeSet,
 };
 use build_evaluation::{BuildEvaluationUsage, BuildObservationSummary};
 use package_compilation::{
@@ -81,8 +81,8 @@ impl AcceptedOrdinaryPackageEvidence {
     }
 
     /// Exact consumer semantic roles used to derive this package evidence.
-    /// The root policy still owns acceptance of every blocking result exposed
-    /// by those roles.
+    /// The project's accepted normalized policy still governs requirements
+    /// exposed by those roles.
     pub fn semantic_bindings(&self) -> &[AcceptedSemanticBinding] {
         &self.semantic_bindings
     }
@@ -108,9 +108,9 @@ impl AcceptedOrdinaryPackageEvidence {
 /// closure.
 ///
 /// The only public construction path reruns source custody, obligation
-/// reconstruction, transitive composition, conflict derivation, and root
-/// policy replay. This value has no codec, lock mutation route, audit receipt,
-/// or `PackageInstance` constructor.
+/// reconstruction, transitive composition, conflict derivation, and project-policy
+/// comparison. This value has no codec, lock mutation route, audit receipt, or
+/// `PackageInstance` constructor.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AcceptedOrdinaryClosureEvidence {
     pub(super) schema: AcceptedOrdinaryEvidenceSchemaIdentity,
@@ -131,8 +131,8 @@ impl AcceptedOrdinaryClosureEvidence {
         &self.acceptance
     }
 
-    pub const fn root_policy(&self) -> Option<&ReviewOnlyRootPolicyResolution> {
-        self.acceptance.root_policy()
+    pub const fn policy_changes(&self) -> &PackagePolicyChangeSet {
+        self.acceptance.policy_changes()
     }
 }
 
@@ -166,7 +166,7 @@ impl std::fmt::Display for AcceptedOrdinaryEvidenceError {
             Self::RootPolicy(error) => {
                 write!(
                     formatter,
-                    "accepted ordinary evidence replay failed: {error}"
+                    "accepted ordinary evidence policy check failed: {error}"
                 )
             }
             Self::MissingReview(package) => write!(

@@ -19,7 +19,7 @@ fn prepare_snapshot(project: &Project, build: &[u8], name: &str) -> ResolvedSour
     let prepared = prepare_local_project(&project.root.join("main.omg"))
         .expect("prepare a valid Omega package")
         .expect("build.omg selects package preparation");
-    let (entry, closure) = prepared.into_review_parts();
+    let (entry, closure, _) = prepared.into_review_parts();
     let root = closure.graph().root();
     let snapshot = closure.source_root(root).unwrap();
     assert_ne!(snapshot, project.root);
@@ -36,7 +36,7 @@ fn proposed_lock(project: &Project) -> String {
     use crate::operations::review_package_change;
     use crate::review::resolve_package_policy_decisions;
     fs::write(project.root.join("build.omg"), PROPOSED_BUILD).unwrap();
-    let (_, closure) = prepare_local_project(&project.root.join("main.omg"))
+    let (_, closure, _) = prepare_local_project(&project.root.join("main.omg"))
         .unwrap()
         .unwrap()
         .into_review_parts();

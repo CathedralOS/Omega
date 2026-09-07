@@ -86,7 +86,7 @@ pub fn check_prepared_local_project(
         artifact_policy,
         accepted_trust_admissions,
     } = request;
-    let (entry_path, source_closure) = prepared.into_review_parts();
+    let (entry_path, source_closure, _) = prepared.into_review_parts();
     let checked = compile_resolved_package_candidate_for_check(
         &source_closure.for_exact_target(target_profile),
         &build_dir,

@@ -1,3 +1,6 @@
+#[path = "support/accepted_policy.rs"]
+mod accepted_policy_fixture;
+
 use effects::{
     ServiceTerminalAuthorityPermission, TerminalAuthorityClass, TerminalAuthorityDisposition,
 };
@@ -22,12 +25,11 @@ use package_manager::resolution::package_compilation_inputs;
 use package_manager::review::{
     CanonicalPackageReconstructionQuestionLimits, CompileResolvedPackageReviewsError,
     ConsumerScopedSemanticBindingReviewInput, FreshPackageRootPolicyError,
-    ReviewOnlyCapabilityConflictLimits, ReviewOnlyRootPolicyDisposition,
-    bind_fresh_package_root_policy, compare_review_only_initial_capabilities,
+    ReviewOnlyCapabilityConflictLimits, bind_fresh_package_root_policy,
+    compare_review_only_initial_capabilities,
     compile_resolved_package_candidate_for_production_with_semantic_bindings,
     compile_resolved_package_candidate_reviews, compile_resolved_package_reviews,
     compile_resolved_package_reviews_with_semantic_bindings,
-    resolve_review_only_root_policy_decisions,
 };
 use package_source::{
     ExternalSourceContext, LocalSourceLimits, SourceLineage, SourceResolverStorage,
@@ -293,28 +295,28 @@ invokes console;
             conflict_limits,
             None,
         ),
-        Err(FreshPackageRootPolicyError::MissingRootPolicy)
+        Err(FreshPackageRootPolicyError::ReviewRequired(_))
     ));
-    let decisions = conflicts
-        .packages()
-        .iter()
-        .flat_map(|package| {
-            package
-                .conflicts()
-                .iter()
-                .filter(|conflict| conflict.is_blocking())
-                .map(|conflict| {
-                    package
-                        .root_policy_decision(
-                            conflict,
-                            ReviewOnlyRootPolicyDisposition::AcceptCandidateChange,
-                        )
-                        .expect("bind exact fresh conflict decision")
-                })
-        })
-        .collect::<Vec<_>>();
-    let root_policy = resolve_review_only_root_policy_decisions(&conflicts, &decisions)
-        .expect("accept every exact blocking row");
+    let root_policy = accepted_policy_fixture::accepted_policy(
+        &closure.for_exact_target(target::TargetProfile::LinuxX64),
+        reviews,
+    );
+    let unpermitted_policy = accepted_policy_fixture::accepted_policy(
+        &closure.for_exact_target(target::TargetProfile::LinuxX64),
+        &preliminary,
+    );
+    assert!(matches!(
+        bind_fresh_package_root_policy(
+            &closure.for_exact_target(target::TargetProfile::LinuxX64), reviews,
+            CanonicalPackageReconstructionQuestionLimits::default(), conflict_limits,
+            Some(&unpermitted_policy),
+        ),
+        Err(FreshPackageRootPolicyError::ReviewRequired(changes))
+            if changes.packages().iter().any(|package| package.rows().iter().any(|row| {
+                row.kind() == package_evidence::record::PackagePolicyRowKind::TerminalPermission
+                    && row.requires_decision()
+            }))
+    ));
     let evidence = accept_ordinary_closure_evidence(
         &closure.for_exact_target(target::TargetProfile::LinuxX64),
         reviews,
@@ -383,6 +385,73 @@ invokes console;
         accepted_permission.permitted().classes(),
         &[TerminalAuthorityClass::ProcessTermination]
     );
+
+    let mut source_only_main =
+        fs::read_to_string(application.join("main.omg")).expect("read application source");
+    source_only_main.push_str("\n// source-only change preserves supplied permissions\n");
+    write_file(application.join("main.omg"), &source_only_main);
+    let source_only_storage =
+        SourceResolverStorage::for_hardened_base(temporary.0.join("source-only-resolved"))
+            .expect("source-only resolver storage");
+    let source_only_closure = resolve_external_local_project_closure_with_storage(
+        &application,
+        ExternalSourceContext::derive(b"consumer-scoped-console-binding"),
+        &source_only_storage,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve source-only permission change");
+    let source_only_candidate =
+        compile_resolved_package_candidate_for_production_with_semantic_bindings(
+            &source_only_closure.for_exact_target(target::TargetProfile::LinuxX64),
+            &temporary.0.join("source-only-review"),
+            std::slice::from_ref(&binding_input),
+        )
+        .expect("reconstruct permissions after source-only change");
+    let source_only_reviews = source_only_candidate.reviews();
+    for original in reviews.reviews() {
+        let current = source_only_reviews
+            .review(original.key())
+            .expect("same package owner");
+        assert_eq!(
+            current.policy().terminal_permissions(),
+            original.policy().terminal_permissions()
+        );
+    }
+    let reused = accept_ordinary_closure_evidence(
+        &source_only_closure.for_exact_target(target::TargetProfile::LinuxX64),
+        source_only_reviews,
+        CanonicalPackageReconstructionQuestionLimits::default(),
+        conflict_limits,
+        Some(&root_policy),
+    )
+    .expect("source-only change reuses accepted permission contracts");
+    assert!(!reused.policy_changes().requires_decision());
+    assert!(reused.policy_changes().source_subject_changed());
+    assert!(reused.policy_changes().audit_recommended());
+    let reused_permissions = accepted_terminal_authority_permission_policy(&reused)
+        .expect("project fresh accepted permissions");
+    assert_eq!(reused_permissions.rows(), accepted_permission_policy.rows());
+    assert_eq!(
+        reused_permissions.identity(),
+        accepted_permission_policy.identity()
+    );
+    let denied =
+        realize_accepted_reviewed_package_candidate_with_source_evaluated_imports_and_policy(
+            source_only_candidate,
+            &reused,
+            &proof_admission::AdmissionProfile::default(),
+            &optimization_core::PostTerminalOptimizationSelections::default(),
+            native_realization::current_terminal_authority_policy(),
+            native_realization::current_terminal_authority_permission_policy(),
+            &[],
+        )
+        .expect_err("reused project acceptance cannot override receiving-policy denial");
+    assert!(denied.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("receiving terminal-authority policy omits the accepted permission")
+    }));
 
     let root_path = closure
         .custody(&root_key)

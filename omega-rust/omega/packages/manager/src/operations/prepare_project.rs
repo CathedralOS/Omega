@@ -1,7 +1,7 @@
 //! Prepare one local `build.omg` project for package-aware compilation.
 
 use super::{PackageFileTransaction, PackagePublicationError, PackagePublicationLimits};
-use crate::lock::{PackageLock, PackageLockRecoveryLimits};
+use crate::lock::{PackageLock, PackageLockRecoveryLimits, PackageLockTarget};
 use crate::resolution::graph::{
     CanonicalSourceClosureSubjectLimits, GitResolutionOptions, PackageRootSourceRequest,
     PackageSourceClosureLimits, ResolveExternalLocalPackageClosureError,
@@ -32,6 +32,7 @@ pub struct PreparedLocalProject {
     entry_path: PathBuf,
     package_inputs: PackageCompilationInputs,
     source_closure: ResolvedPackageSourceClosure,
+    accepted_target: Option<PackageLockTarget>,
 }
 
 impl PreparedLocalProject {
@@ -40,8 +41,14 @@ impl PreparedLocalProject {
         (self.entry_path, self.package_inputs)
     }
 
-    pub(super) fn into_review_parts(self) -> (PathBuf, ResolvedPackageSourceClosure) {
-        (self.entry_path, self.source_closure)
+    pub(super) fn into_review_parts(
+        self,
+    ) -> (
+        PathBuf,
+        ResolvedPackageSourceClosure,
+        Option<PackageLockTarget>,
+    ) {
+        (self.entry_path, self.source_closure, self.accepted_target)
     }
 }
 
@@ -222,9 +229,8 @@ fn prepare_with_options_and_storage(
         })
         .transpose()?;
     let accepted_target = accepted
-        .as_ref()
         .map(|lock| {
-            lock.target(target).ok_or_else(|| {
+            lock.into_target(target).ok_or_else(|| {
                 PrepareLocalProjectError::Locked(format!(
                     "no accepted section for exact target {}",
                     target.target_name(),
@@ -251,7 +257,7 @@ fn prepare_with_options_and_storage(
     })?;
     let storage =
         open_storage(&canonical_project_root).map_err(PrepareLocalProjectError::Storage)?;
-    let closure = if let Some(accepted) = accepted_target {
+    let closure = if let Some(accepted) = accepted_target.as_ref() {
         resolve_locked_local_project_closure_with_storage(
             accepted.source(),
             &PackageRootSourceRequest::ExternalLocal {
@@ -308,6 +314,7 @@ fn prepare_with_options_and_storage(
         entry_path: prepared_entry,
         package_inputs,
         source_closure: closure,
+        accepted_target,
     }))
 }
 

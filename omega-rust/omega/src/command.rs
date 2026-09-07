@@ -149,16 +149,7 @@ fn dispatch() {
     };
     let report = match prepared_project {
         Some(prepared) if !arguments.check_only => {
-            let policy = arguments
-                .package_root_policy
-                .as_deref()
-                .map(open_package_root_policy)
-                .transpose()
-                .unwrap_or_else(|error| {
-                    eprintln!("{error}");
-                    std::process::exit(1);
-                });
-            let mut request = package_manager::operations::PreparedLocalProjectNativeRequest::new(
+            let request = package_manager::operations::PreparedLocalProjectNativeRequest::new(
                 prepared,
                 &build_dir,
                 target_profile,
@@ -166,11 +157,6 @@ fn dispatch() {
             .with_artifact_policy(artifact_policy)
             .with_accepted_trust_admissions(accepted_admissions)
             .with_optimization_rollback(arguments.optimization_rollback);
-            if let Some((directory, name)) = policy.as_ref() {
-                request = request.with_root_policy(
-                    package_manager::operations::LocalProjectRootPolicy::new(directory, name),
-                );
-            }
             package_manager::operations::compile_prepared_local_project_for_native(request)
                 .unwrap_or_else(|error| {
                     eprintln!("{error}");
@@ -178,12 +164,6 @@ fn dispatch() {
                 })
         }
         Some(prepared) => {
-            if arguments.package_root_policy.is_some() {
-                eprintln!(
-                    "--package-root-policy requires native production from a build.omg project"
-                );
-                std::process::exit(1);
-            }
             if !arguments.optimization_rollback.is_empty() {
                 let names = arguments
                     .optimization_rollback
@@ -211,12 +191,6 @@ fn dispatch() {
             )
         }
         None => {
-            if arguments.package_root_policy.is_some() {
-                eprintln!(
-                    "--package-root-policy requires native production from a build.omg project"
-                );
-                std::process::exit(1);
-            }
             let request = CompileRequest::new(options)
                 .with_requested_product(requested_product)
                 .with_artifact_policy(artifact_policy)
@@ -284,56 +258,19 @@ fn dispatch() {
     }
 }
 
-fn open_package_root_policy(
-    path: &std::path::Path,
-) -> Result<
-    (
-        package_manager::review::ReviewOnlyRootPolicyDirectory,
-        package_manager::review::ReviewOnlyRootPolicyName,
-    ),
-    String,
-> {
-    let name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| "--package-root-policy requires a UTF-8 direct-child filename".to_owned())?;
-    let name = package_manager::review::ReviewOnlyRootPolicyName::parse(name)
-        .map_err(|error| error.to_string())?;
-    let directory_path = path
-        .parent()
-        .filter(|parent| !parent.as_os_str().is_empty())
-        .unwrap_or_else(|| std::path::Path::new("."));
-    let directory =
-        cap_std::fs::Dir::open_ambient_dir(directory_path, cap_std::ambient_authority()).map_err(
-            |error| {
-                format!(
-                    "cannot open explicit package root-policy directory {}: {error}",
-                    directory_path.display()
-                )
-            },
-        )?;
-    let directory = package_manager::review::ReviewOnlyRootPolicyDirectory::from_capability(
-        directory,
-        directory_path,
-    )
-    .map_err(|error| error.to_string())?;
-    Ok((directory, name))
-}
-
 struct CliArguments {
     accept_admissions: bool,
     build_dir: Option<PathBuf>,
     check_only: bool,
     offline: bool,
     output_only: bool,
-    package_root_policy: Option<PathBuf>,
     root_path: PathBuf,
     target_name: Option<String>,
     optimization_rollback: OptimizationRollback,
 }
 
 fn usage() -> &'static str {
-    "usage: omega [--check] [--offline] [--accept-admissions] [--output-only] [--package-root-policy <file>] [--build-dir <dir>] [--target <name>] [--disable-optimization <ExactName>]... <root.omg>\n       omega run [--both] [--keep] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline]\n       omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline]\n       omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline]\n       omega install|update --resume [--project <dir>] [--offline]\n       omega install|update --discard-review [--project <dir>] [--offline]\n       omega refresh-samples [samples-dir]\n--offline disables package source network acquisition for this invocation.\nrun and inspect-terminal do not support --offline."
+    "usage: omega [--check] [--offline] [--accept-admissions] [--output-only] [--build-dir <dir>] [--target <name>] [--disable-optimization <ExactName>]... <root.omg>\n       omega run [--both] [--keep] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline]\n       omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline]\n       omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline]\n       omega install|update --resume [--project <dir>] [--offline]\n       omega install|update --discard-review [--project <dir>] [--offline]\n       omega refresh-samples [samples-dir]\n--offline disables package source network acquisition for this invocation.\nrun and inspect-terminal do not support --offline."
 }
 
 fn parse_arguments(
@@ -345,7 +282,6 @@ fn parse_arguments(
     let mut disabled_optimizations = Vec::new();
     let mut offline = false;
     let mut output_only = false;
-    let mut package_root_policy = None;
     let mut root_path = None;
     let mut target_name = None;
 
@@ -370,14 +306,6 @@ fn parse_arguments(
 
         if argument == "--output-only" {
             output_only = true;
-            continue;
-        }
-
-        if argument == "--package-root-policy" {
-            package_root_policy = compile_option_value(&mut arguments).map(PathBuf::from);
-            if package_root_policy.is_none() {
-                return Err("--package-root-policy requires a file".into());
-            }
             continue;
         }
 
@@ -438,7 +366,6 @@ fn parse_arguments(
         check_only,
         offline,
         output_only,
-        package_root_policy,
         root_path: root_path.ok_or_else(|| "missing root Omega source path".to_owned())?,
         target_name,
         optimization_rollback,

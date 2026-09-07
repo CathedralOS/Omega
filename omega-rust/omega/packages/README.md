@@ -67,7 +67,9 @@ replace the package lock.
 sources, and reports the retained checked root without another build execution.
 
 Native compilation uses a separate manager admission and compiler handoff
-path. Its proof, reachability, ABI, and artifact checks are not an additional
+path, reusing the project's accepted lock policy after fresh checking. Missing
+or changed acceptance uses ordinary install/update review, not a second native
+approval file. Its proof, reachability, ABI, and artifact checks are not an additional
 install/update certification requirement. Invalid or unsupported source still
 rejects during candidate checking.
 

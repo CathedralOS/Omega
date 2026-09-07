@@ -15,7 +15,6 @@ lowered-psi = { path = "../psi/representations/lowered-psi" }
 lowered-psi-to-lowered-psi = { path = "../psi/pipeline/lowered-psi-to-lowered-psi" }
 lowered-psi-to-terminal-psi = { path = "../psi/pipeline/lowered-psi-to-terminal-psi" }
 terminal-production = { path = "../psi/compiler/terminal-production" }
-cap-std = "4.0.3"
 compiler = { path = "compiler/compiler" }
 artifacts = { path = "tooling/artifacts" }
 package-manager = { path = "packages/manager" }

@@ -10,8 +10,6 @@ pub(super) struct ExactCompilerRowScenario {
     pub(super) accepted_claim_baseline_cache: PathBuf,
     pub(super) accepted_claim_candidate_cache: PathBuf,
     pub(super) build_root: PathBuf,
-    pub(super) policy_root: PathBuf,
-    pub(super) policy_outside: PathBuf,
     pub(super) baseline_sources: ResolvedPackageSourceClosure,
     pub(super) candidate_sources: ResolvedPackageSourceClosure,
     pub(super) baseline_reviews: package_manager::review::CompilerIssuedPackageReviewSet,
@@ -30,8 +28,6 @@ impl ExactCompilerRowScenario {
         let accepted_claim_baseline_cache = temp_root("accepted-claim-baseline-cache");
         let accepted_claim_candidate_cache = temp_root("accepted-claim-candidate-cache");
         let build_root = temp_root("build");
-        let policy_root = temp_root("capability-conflict-root-policy");
-        let policy_outside = temp_root("capability-conflict-root-policy-outside");
         let context = ExternalSourceContext::derive(b"capability-conflict-test-lock");
         write_package(
             &live,
@@ -111,8 +107,6 @@ pub proposition settled();
             accepted_claim_baseline_cache,
             accepted_claim_candidate_cache,
             build_root,
-            policy_root,
-            policy_outside,
             baseline_sources,
             candidate_sources,
             baseline_reviews,
@@ -134,8 +128,6 @@ impl Drop for ExactCompilerRowScenario {
             &self.accepted_claim_baseline_cache,
             &self.accepted_claim_candidate_cache,
             &self.build_root,
-            &self.policy_root,
-            &self.policy_outside,
         ] {
             let _ = std::fs::remove_dir_all(path);
         }
