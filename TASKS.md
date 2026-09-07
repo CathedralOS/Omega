@@ -551,7 +551,7 @@ Owners include
   of the shared physical reference ABI.
 
 - **STRUCTURAL-BORROW-IDENTITY.** Enforce the settled
-  [structural borrow identity contract](wiki/pre_migration/design_briefs/core_multiplicity_and_linearity.md#structural-borrow-identity-at-native-calls)
+  [structural borrow identity contract](wiki/spec/terminal-psi/structural_access.md)
   through structural-signature construction, call argument preparation, and
   native validation/replay. All borrowed access modes use one classifier and
   the existing `BorrowedReference` tag; only owned inputs use value-shape ABI
@@ -560,8 +560,8 @@ Owners include
   visible writes, forwarded references, legal synchronized shared observations,
   write-only non-reading, and register/stack pointer passing work on both Linux
   targets. Independently formed or substituted access/shape/placement pairs
-  reject; replace the hand-built mutable/direct-copy fixture with a reference
-  case or a rejection control. Do not claim copy equivalence merely because a
+  reject; direct-home controls must use owned semantics or test rejection of
+  borrowed copies. Do not claim copy equivalence merely because a
   following callee sees the staged write.
 
 - **BORROW-PROOF-CONVERGENCE.** Make ordinary borrow checking proof-producing

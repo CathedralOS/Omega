@@ -22,7 +22,7 @@ fields only with explicit range checks.
 
 ## Structural parameter access and reference identity
 
-The [structural borrow identity ruling](core_multiplicity_and_linearity.md#structural-borrow-identity-at-native-calls)
+The [structural borrow identity contract](../../spec/terminal-psi/structural_access.md)
 separates referent layout from parameter passing. `Owned` retains shape-selected
 value ABI treatment; shared, mutable, and write-only borrows use the existing
 `ValueClass::BorrowedReference` contract to preserve original storage. An owned

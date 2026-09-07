@@ -18,6 +18,7 @@ beside code; completed work belongs in Git, not current reference material.
   [calls and outcomes](spec/terminal-psi/calls_and_outcomes.md),
   [boundary calls](spec/terminal-psi/boundary_calls.md),
   [byte views](spec/terminal-psi/byte_views.md),
+  [structural access and stores](spec/terminal-psi/structural_access.md),
   [observations](spec/terminal-psi/observations.md), and
   [encoding](spec/terminal-psi/encoding.md),
   [verification](spec/terminal-psi/verification.md),

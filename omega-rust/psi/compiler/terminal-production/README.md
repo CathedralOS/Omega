@@ -117,6 +117,37 @@ proof-only clause. It does not establish general callee or nested-result support
 Missing correspondence is an integration gap, not permission to invent a source
 identity or a new meaning for the proof-value carrier.
 
+## Structural access and stores
+
+The [access contract](../../../../wiki/spec/terminal-psi/structural_access.md)
+owns reference identity and non-observing writes. Current source support is
+bounded: claim-free unrestricted field-path subloans, literal-indexed material
+record receivers, and plain-record or whole-primitive scalar replacement.
+Mutable-to-write-only attenuation preserves root access and independently
+records the callee's weaker access. Shared projections preserve unrestricted
+multiplicity and cannot originate from write-only roots.
+
+Projection replay rejoins every field/index, array bound, type, and source
+application. Dynamic/range projections, retained receiver aliases, deeper shared
+array paths, and general reference-bearing or constrained data need separate
+producer support. A stored pointer cannot be read merely to locate a write-only
+receiver. Dynamic write summaries remain conservatively collection-wide.
+
+Whole-root stores accept exactly typed literals and bounded fixed-integer/Boolean
+scalar sources. Ordinary or selected fixed-integer call results retain their
+checked call identity and durable result, including provider-plan correspondence
+for selected calls. Plain-record stores share path/type reconstruction with
+dynamic realizations; attached Unit bodies admit bounded single-store forms,
+including one literal record-array index. General arithmetic locals, delayed
+results, runtime IEEE sources, multi-write bodies, and richer indexed/aggregate
+forms must not inherit admission from these cases.
+
+Keep semantic scalar and structural ordinals distinct while preserving authored
+argument order. Receiver `Self` resolves through the attachment and uses the
+receiver write-frame root. Entry-bridge storage is a separate native obligation.
+Artifact interpretation of broader store sequences is not evidence that source
+production or native realization supports them.
+
 ## Structural results and suspension
 
 The [call/outcome contract](../../../../wiki/spec/terminal-psi/calls_and_outcomes.md)

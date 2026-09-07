@@ -117,7 +117,7 @@ concurrency rules; where synchronized mutation is permitted, a shared reference
 must keep observing the original location. Mutable and write-only calls likewise
 write the caller's actual referent. Their common physical reference ABI does not
 make their access permissions interchangeable. Owned arguments retain ordinary
-value ABI selection. See the [native structural borrow identity contract](../pre_migration/design_briefs/core_multiplicity_and_linearity.md#structural-borrow-identity-at-native-calls).
+value ABI selection. See the [native structural borrow identity contract](../spec/terminal-psi/structural_access.md).
 
 ## Mutable Borrows
 
