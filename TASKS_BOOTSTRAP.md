@@ -78,22 +78,23 @@ prerequisite to every lower-rung milestone.
   Do not adopt the per-byte Word counter or raise work just enough for the
   identity-fold diagnostic. Continue the bounded
   [connected-component experiment](wiki/design_briefs/bootstrap_cost_review.md#next-experiment-connected-components-not-a-partial-beta-dialect)
-  by comparing local lexical state separated from completed-token history
-  against the checked 24-byte root. Require identical tokens, a checked local
-  transition reused under two different histories, and counted definition,
-  collection, and proof overhead; factoring alone does not establish full fit.
-  Then measure actual full-subject reuse before choosing fused/separate passes
+  with a source-owned census of the exact full subject's local transitions,
+  history-bearing transitions, and collection keys. Count reuse opportunities
+  for both recipes, including repeated bytes within one unchanged comment
+  history; do not give only the factored recipe memoization. Combine observed
+  key frequencies with explicit proof/collection costs before choosing passes
   or a coherent larger work/input/allocation provision. Do not promote another
   permanent helper family without this comparison, call the diagnostic
   `encode_Beta`, or map unimplemented valid Beta cases to Reject.
   Acceptance needs a full-subject estimate with state-sharing assumptions and
   total definition/proof cost, not just a checked small sequence. Keep direct
   counting versus the shape intermediary in that whole-route comparison.
-  Resume evidence against `0973539871` on macOS arm64: the temporary connected
-  root checks; raw-source, assertion-value, and output mutations reject.
+  Resume evidence against `802320b216` on macOS arm64: both temporary connected
+  roots check, but factoring costs more on the literal despite checked reuse.
+  Raw-source, assertion-value, output, and reused-history mutations reject.
   Exact identities, costs, and diagnostic invocation are in the cost review;
-  this scratch experiment is not a retained repository entrypoint. Its token
-  transitions carry completed history, limiting reuse of otherwise equal steps.
+  this scratch experiment is not a retained repository entrypoint. Full-source
+  reuse has not been measured; do not adopt the factoring on the small result.
   The actual `encode_Beta(S, limits) = Success(T)` probe also has not run and has no
   repository command yet: complete definitions, owner-root reconstruction, and
   the source-owned producer remain missing.
