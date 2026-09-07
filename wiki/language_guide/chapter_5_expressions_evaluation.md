@@ -817,13 +817,17 @@ expression-only suppression restriction.
 > wrap an out-of-range initial value. Successful integral
 > landings report the fractional-intermediate warning through the current
 > validation diagnostic route, retaining a fractional decimal leaf's source
-> span when it is the first fractional intermediate. Closed builtin integer
-> const arguments for data and domains retain exact anonymous intermediates
-> before normalization chooses the canonical integer argument. Normalization reports their fractional
-> origins through the current stderr warning channel; an integral final value
+> span when it is the first fractional intermediate. Closed builtin integer,
+> decimal, and mixed const arguments for data and domains retain exact anonymous
+> intermediates before normalization chooses the canonical integer argument.
+> Decimal argument spelling stays source-shaped until that semantic evaluation;
+> an explicitly typed float is not an anonymous integer const value.
+> Normalization reports fractional origins through the current stderr warning
+> channel; an integral final value
 > must still fit its declared const parameter. Closed builtin generic facts and
-> const-domain predicates compare anonymous rational values without integer
-> landing: `7 / 2 > 3` holds, while `7 / 2 == 3` is false. Typed or named integer
+> const-domain predicates compare anonymous rational values, including decimal
+> and mixed literal trees, without integer landing: `7 / 2 > 3` holds, while
+> `7 / 2 == 3` is false. Typed or named integer
 > peers and integer domain membership require integral anonymous operands;
 > successful integer landing retains fractional-intermediate warnings. Facts
 > with potentially authored operators remain for typed declaration selection,
@@ -843,7 +847,6 @@ expression-only suppression restriction.
 > fixed-integer operands, without replaying their source expressions. General runtime argument
 > snapshots, generic/evidence-adapted and boundary destination custody, aggregate
 > elements, remaining mutable parameter carriers and Unit-body storage, numeric policies,
-> mixed integer/decimal generic constant expressions,
 > remaining float destinations,
 > remaining authored-operator/const-proof consumers, and ordinary warning
 > suppression/report transport remain on [the execution board](../../TASKS.md).

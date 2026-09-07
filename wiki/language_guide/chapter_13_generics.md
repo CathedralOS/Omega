@@ -121,6 +121,10 @@ Working rules:
 - Const parameters may appear in array lengths, value constraints, and proof
   obligations.
 - The compiler must prove const constraints at each instantiation.
+- Anonymous decimal spelling does not make a const argument floating-point.
+  Under [exact anonymous landing](chapter_5_expressions_evaluation.md#exact-anonymous-division-and-landing),
+  `FixedBuffer<u8, 0.1 * 70>` has integer length 7; `FixedBuffer<u8, 7.5>`
+  rejects because its exact value is not integral.
 - A canonical target-semantic observation may supply a const argument under the
   same rules as any other constant. Its application remains symbolic before
   target closure and enters the generic application's compatibility identity;

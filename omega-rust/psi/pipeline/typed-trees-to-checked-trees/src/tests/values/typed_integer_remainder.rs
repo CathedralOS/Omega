@@ -139,7 +139,14 @@ fn a_const_generic_argument_cannot_erase_anonymous_remainder_before_checking() {
 
 #[test]
 fn exact_const_quotients_determine_checked_array_bounds() {
-    for (argument, last_element) in [("7 / 2 * 2", 6), ("7u64 / 2 * 2", 5)] {
+    for (argument, last_element) in [
+        ("7 / 2 * 2", 6),
+        ("7 / 2.0 * 2", 6),
+        ("0.1 * 70", 6),
+        ("7.0", 6),
+        ("7u64 / 2 * 2", 5),
+        ("7u64 / 2.0 * 2", 5),
+    ] {
         let source = format!(
             "data Buffer<const N: u64> {{ values: [u8; N]; }}
             machine run(value: &Buffer<{argument}>) -> u8 {{ value.values[{last_element}] }}"
@@ -159,18 +166,95 @@ fn const_requirements_reach_checking_with_exact_anonymous_meaning() {
     for fact in [
         "7 / 2 * 2 == 7",
         "7 / 2 > 3",
+        "7 / 2.0 * 2 == 7",
+        "7 / 2.0 > 3",
+        "0.1 * 70 == 7",
         "7u64 / 2 == 3",
+        "7u64 / 2.0 == 3",
         "N == 7 / 2 * 2 - 5",
+        "N == 7 / 2.0 * 2 - 5",
+        "N == 0.1 * 70 - 5",
+        "N == 2.0",
+        "2.0 == N",
     ] {
         accepts(&format!(
             "data Buffer<const N: u64> where {fact}, {{ values: [u8; N]; }}
             machine run(value: &Buffer<2>) -> u8 {{ value.values[0] }}"
         ));
     }
-    let source = "data Buffer<const N: u64> where 7 / 2 == 3, { values: [u8; N]; }
-        machine run(value: &Buffer<2>) -> u8 { value.values[0] }";
-    let errors = check(source).expect_err("a false const requirement cannot be erased");
-    assert!(errors.contains("is false"), "{errors}");
+    for fact in ["7 / 2 == 3", "7 / 2.0 == 3", "0.1 * 70 == 6"] {
+        let source = format!(
+            "data Buffer<const N: u64> where {fact}, {{ values: [u8; N]; }}
+            machine run(value: &Buffer<2>) -> u8 {{ value.values[0] }}"
+        );
+        let errors = check(&source).expect_err("a false const requirement cannot be erased");
+        assert!(errors.contains("is false"), "{source}: {errors}");
+    }
+}
+
+#[test]
+fn fractional_decimal_const_arguments_cannot_land_as_integers() {
+    for argument in ["7 / 2.0", "7.5", "0.1 * 71", "7u64 / 2.5"] {
+        let source = format!(
+            "data Buffer<const N: u64> {{ values: [u8; N]; }}
+            machine run(value: &Buffer<{argument}>) -> u8 {{ value.values[0] }}"
+        );
+        let errors = check(&source).expect_err("fractional integer const landings must reject");
+        assert!(
+            errors.contains("exact anonymous value") && errors.contains("integer"),
+            "{source}: {errors}"
+        );
+    }
+}
+
+#[test]
+fn integer_const_fact_peers_require_integral_anonymous_decimals() {
+    for fact in ["N < 7 / 2.0", "7 / 2.0 > N", "N < 2.5", "2.5 > N"] {
+        let source = format!(
+            "data Buffer<const N: u64> where {fact}, {{ values: [u8; N]; }}
+            machine run(value: &Buffer<2>) -> u8 {{ value.values[0] }}"
+        );
+        // Each comparison would be true over rationals, but N requires its
+        // anonymous peer to land as an integer before the comparison.
+        let errors = check(&source).expect_err("a named integer peer cannot admit a fraction");
+        assert!(
+            errors.contains("exact anonymous value") && errors.contains("integer"),
+            "{source}: {errors}"
+        );
+    }
+}
+
+#[test]
+fn anonymous_decimal_zero_divisors_reject_in_const_arguments_and_facts() {
+    for expression in ["1 / 0.0", "7.0 / (2 - 2.0)", "(1.0 / 0) * 0"] {
+        for source in [
+            format!(
+                "data Buffer<const N: u64> {{ values: [u8; N]; }}
+                machine run(value: &Buffer<{expression}>) {{}}"
+            ),
+            format!(
+                "data Buffer<const N: u64> where ({expression}) == 0, {{ values: [u8; N]; }}
+                machine run(value: &Buffer<2>) {{}}"
+            ),
+        ] {
+            let errors = check(&source).expect_err("anonymous division by zero has no const value");
+            assert!(errors.contains("division by zero"), "{source}: {errors}");
+        }
+    }
+}
+
+#[test]
+fn typed_float_const_arguments_cannot_implicitly_land_as_integers() {
+    for argument in ["7.0f32", "7.0f64", "7.0f64 / 2 * 2", "7 / 2.0f64 * 2"] {
+        let source = format!(
+            "data Buffer<const N: u64> {{ values: [u8; N]; }}
+            machine run(value: &Buffer<{argument}>) -> u8 {{ value.values[0] }}"
+        );
+        assert!(
+            check(&source).is_err(),
+            "a typed float requires an explicit integer conversion: {source}"
+        );
+    }
 }
 
 #[test]

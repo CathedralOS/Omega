@@ -41,6 +41,12 @@ fn division_and_remainder_const_arguments_retain_operations_before_semantic_admi
         "7 + 8 / 2",
         "(7 / 2) * 2",
         "(7u64 / 2) * 2",
+        "7.0",
+        "7.0f64",
+        "0.1 + 0.9",
+        "7 / 2.0 * 2",
+        "7.0 / 2 * 2",
+        "(7.0 / 2) * 2",
     ] {
         for domain in [false, true] {
             let field_type = if domain {
