@@ -108,13 +108,14 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   with `attached Unit closure is missing a checked transitive machine plan`.
   The ordinary Unit planner in
   `typed-trees-to-checked-trees/src/flow/terminal_unit/control.rs` requires one
-  authored state. Next retain ordered operations across the sample's actual
-  cyclic states using the existing composed-control representation, including
-  field arithmetic, text initialization, and runtime-indexed byte stores.
-  Preserve exact transfers and termination evidence; do not synthesize separate
-  one-state machines. Acceptance remains native execution with the documented
-  exit/output and unchanged checked text facts; the console dependencies below
-  are also required.
+  authored state, and the composed-control routes admit specific acyclic
+  shapes. Producer widening alone cannot close this: general cyclic validation
+  and execution remain missing under `GENERAL-CYCLIC-EXECUTION` below.
+  Retain the actual state graph, field arithmetic, text initialization, and
+  runtime-indexed byte stores; do not synthesize separate one-state machines.
+  Main's unranked cycles do not need an invented termination witness.
+  Acceptance remains native execution with the documented exit/output and
+  unchanged checked text facts; the console dependencies below are also required.
 
   Resume the native `cli_mvp` customer at code checkpoint `d4988c6605`.
   On macOS ARM64, `CARGO_INCREMENTAL=0 OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
@@ -312,6 +313,45 @@ Owners include
   checked API/capability results and opaque executable supply cannot establish
   those claims. Physical optimization replay belongs to
   `TRANSLATION-VALIDATION` in `TASKS_OPTIMIZER.md`.
+
+- **GENERAL-CYCLIC-EXECUTION.** Implement the
+  [settled cyclic control contract](wiki/architecture/pipeline/terminal_psi.md)
+  and [separate safety/progress rules](wiki/design_briefs/termination_ranking_and_progress.md)
+  for the actual effectful state graphs used by `print_squares` and the
+  Console writer. Reuse blocks, `Jump`, `Conditional`, successor arguments,
+  and ordinary operations. No new loop opcode, fabricated per-state machine,
+  private countdown, or second interpreter is needed.
+
+  `terminal-verifier/src/validation/control_flow.rs` and `frontier.rs` currently
+  require a topological order after removing only the exact countdown's
+  backedge; general cycles fail even representation validation. Derive SCCs
+  and scalar dominance from the full graph, reconstruct the exact ownership
+  fixed point, and validate every incoming scalar/structural transfer. Keep
+  cycle safety independent from optional termination certificates and finite
+  fuel. Existing countdown-only admission in `validation.rs` cannot authorize
+  effectful cyclic callers or callees by relaxing its shape guard alone.
+
+  Share state-body construction and lowering across ordinary/composed Unit
+  plans in `typed-trees-to-checked-trees/src/flow/terminal_unit/` and
+  `checked-trees-to-lowered-psi/src/attached_unit/`; replace graph-shape routing
+  as the shared path closes, rather than adding another recognized topology.
+  First executable acceptance: source-produced cyclic Terminal code with a
+  persistent mutable receiver, computed guards, ordered field writes and an
+  ordinary effectful call; verify observable iteration/call order, caller-visible
+  writes, and test-fuel suspension/resumption. Reject stale successor bindings,
+  inconsistent ownership, and missing/reordered effects. An unranked machine
+  may execute without a termination or finite-fuel claim.
+
+  Native completion must replace the straight-line/adjacent-fallthrough limits
+  in `abstract-operations-to-target-operations/src/lowering/unit/`, preserve
+  real edges through subsequent lowering and replay, and compose caller/callee
+  resource evidence without borrowing the exact countdown's theorem from
+  `terminal-psi-to-abstract-operations/src/artifact/ranked_native.rs`.
+  Full acceptance is the unchanged `print_squares` native exit/output oracle
+  on the hosted matrix. Its field/byte operations and the Console writer's
+  borrowed-view operations and slice-decrease proof remain separate required
+  dependencies under `SAMPLE-CORPUS`; interpreted loop support alone does not
+  complete either customer.
 
 - **CRASH-CONTRACT.** Complete invocation-specific crash obligations through
   nested structural paths, calls, cycles, and imported effects. Crash is an
