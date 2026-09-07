@@ -1,21 +1,12 @@
 use super::*;
 
-fn assert_no_subject(program: &checked_trees::CheckedTrees) {
-    let plan = program
-        .facts
-        .termination
-        .for_machine(symbol_of_checked(program, "replace"))
-        .unwrap();
-    assert_eq!(plan.checked_summary, TerminationGuarantee::NoGuarantee);
-}
-
 #[test]
 fn replacing_an_input_reference_slot_or_carrier_retires_the_old_relation() {
     for operation in [
         "carrier.context = &replacement;",
         "carrier = Carrier { context: &replacement };",
     ] {
-        let program = check_source(&fixture_source(
+        let source = fixture_source(
             "",
             &format!(
                 "let saved: Carrier = carrier;
@@ -24,8 +15,8 @@ fn replacing_an_input_reference_slot_or_carrier_retires_the_old_relation() {
              transition {{ _ -> wait_context(borrowed) }}"
             ),
             "",
-        ));
-        assert_no_subject(&program);
+        );
+        assert_unproved_tail_requirement(&source);
     }
 }
 

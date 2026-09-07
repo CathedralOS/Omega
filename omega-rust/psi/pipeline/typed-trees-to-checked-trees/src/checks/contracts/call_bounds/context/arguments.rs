@@ -57,8 +57,27 @@ fn meaning(
                 BinaryOperator::Multiply => OperatorSpelling::Multiply,
                 _ => return None,
             };
-            let left = meaning(program, facts, owner, parameters, binary.left)?;
-            let right = meaning(program, facts, owner, parameters, binary.right)?;
+            let left = meaning(program, facts, owner, parameters, binary.left);
+            let right = meaning(program, facts, owner, parameters, binary.right);
+            // Anonymous integer literals take the other operand's carrier;
+            // failed normalization of an arbitrary expression never does.
+            let anonymous = |primitive| Meaning {
+                primitive,
+                domain: ArithmeticDomain::Exact,
+                type_reference: None,
+            };
+            let (left, right) = match (left, right) {
+                (Some(left), Some(right)) => (left, right),
+                (Some(left), None) if is_unlanded_integer(program, binary.right) => {
+                    let right = anonymous(left.primitive);
+                    (left, right)
+                }
+                (None, Some(right)) if is_unlanded_integer(program, binary.left) => {
+                    let left = anonymous(right.primitive);
+                    (left, right)
+                }
+                _ => return None,
+            };
             if left.primitive != right.primitive
                 || left.domain != ArithmeticDomain::Exact
                 || right.domain != ArithmeticDomain::Exact
@@ -91,4 +110,10 @@ fn meaning(
         }
         _ => None,
     }
+}
+
+pub(super) fn is_unlanded_integer(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+    program.expression_table.expression_is_valid(expression)
+        && matches!(program.expression_table.expression(expression),
+            ExpressionNode::Integer(literal) if literal.landing().is_none())
 }

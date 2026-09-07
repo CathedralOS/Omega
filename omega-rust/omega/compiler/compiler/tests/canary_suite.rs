@@ -727,6 +727,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
 ];
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
+    "termination/cross_machine_tail_requires",
     "arithmetic/fractional_integer_landing",
     "arithmetic/fractional_integer_argument",
     "arithmetic/fractional_integer_operand",

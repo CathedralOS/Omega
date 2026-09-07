@@ -72,7 +72,17 @@ fn prove(
                 && source.machine_arguments.is_empty()
                 && source.evidence_arguments.is_empty()
         }
-        crate::CallSite::TransitionNamed { .. } => false,
+        crate::CallSite::TransitionNamed {
+            path,
+            evidence_arguments,
+            ..
+        } => {
+            path.symbol == call.target_symbol
+                && (path.head_symbol == path.symbol
+                    || path.head_symbol == caller.machine_symbol
+                    || is_data_namespace(program, path.head_symbol))
+                && evidence_arguments.is_empty()
+        }
     };
     if !ordinary_call {
         return None;
@@ -84,14 +94,16 @@ fn prove(
     let caller_state =
         crate::find_state_in_machine(program, caller.machine_symbol, caller.state_symbol)?;
     let callee = program.machines().iter().find(|machine| {
-        program
-            .machine_states(machine)
-            .first()
-            .is_some_and(|state| state.symbol == call.target_symbol)
+        machine.symbol == call.target_symbol
+            || program
+                .machine_states(machine)
+                .first()
+                .is_some_and(|state| state.symbol == call.target_symbol)
     })?;
     let parameters = program.state_parameters(program.machine_states(callee).first()?);
     let arguments = crate::call_site_argument_expressions(program, &site);
-    if parameters.iter().any(|parameter| parameter.is_self) || parameters.len() != arguments.len() {
+    let explicit_parameters = parameters.iter().filter(|parameter| !parameter.is_self);
+    if explicit_parameters.clone().count() != arguments.len() {
         return None;
     }
     let caller_parameters = program.state_parameters(caller_state);
@@ -103,7 +115,7 @@ fn prove(
         })
         .collect::<Vec<_>>();
     let mut argument_bindings = Vec::new();
-    for (parameter, argument) in parameters.iter().zip(arguments) {
+    for (parameter, argument) in explicit_parameters.zip(arguments) {
         let Some(primitive) = program.primitive_type_reference(parameter.type_reference) else {
             continue;
         };
@@ -163,6 +175,8 @@ fn prove(
                 } => expression,
                 _ => return None,
             };
+            let expression =
+                positive_comparison_expression(program, facts, caller.machine_symbol, expression)?;
             comparison_is_supported(
                 program,
                 facts,
@@ -183,6 +197,51 @@ fn prove(
             &argument_bindings,
         ) == StrictArithmeticImplicationJudgment::Proven,
     )
+}
+
+// Boolean-pattern transition guards retain `comparison == true`. Peel only
+// positively asserted builtin wrappers; a false arm supplies no positive fact.
+fn positive_comparison_expression(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    owner: SymbolHandle,
+    mut expression: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    for _ in 0..64 {
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+            return Some(expression);
+        };
+        let spelling = match binary.operator {
+            BinaryOperator::Equal => OperatorSpelling::Equal,
+            BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
+            _ => return Some(expression),
+        };
+        let wrapper = [(binary.left, binary.right), (binary.right, binary.left)]
+            .into_iter()
+            .find_map(
+                |(operand, literal)| match program.expression_table.expression(literal) {
+                    ExpressionNode::Boolean(value) => Some((operand, *value)),
+                    _ => None,
+                },
+            );
+        let Some((operand, value)) = wrapper else {
+            return Some(expression);
+        };
+        if value != (binary.operator == BinaryOperator::Equal)
+            || !super::super::prover::has_builtin_operators(program, &facts.operators, expression)
+            || !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                program,
+                owner,
+                expression,
+                spelling,
+                &[None, None],
+            )
+        {
+            return None;
+        }
+        expression = operand;
+    }
+    None
 }
 
 fn is_data_namespace(program: &TypedTrees, symbol: SymbolHandle) -> bool {
@@ -270,6 +329,11 @@ fn comparison_is_supported(
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return false;
     };
+    if binary.operator == BinaryOperator::And {
+        return super::super::prover::has_builtin_operators(program, &facts.operators, expression)
+            && comparison_is_supported(program, facts, owner, parameters, binary.left)
+            && comparison_is_supported(program, facts, owner, parameters, binary.right);
+    }
     let spelling = match binary.operator {
         BinaryOperator::Equal => OperatorSpelling::Equal,
         BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
@@ -279,20 +343,22 @@ fn comparison_is_supported(
         BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
         _ => return false,
     };
-    let operand = |expression| -> Option<(PrimitiveType, Option<TypeReferenceHandle>)> {
+    let operand = |expression| -> Option<(Option<PrimitiveType>, Option<TypeReferenceHandle>)> {
+        if arguments::is_unlanded_integer(program, expression) {
+            return Some((None, None));
+        }
         if let ExpressionNode::Integer(literal) = program.expression_table.expression(expression) {
             let primitive = crate::values::scalar_expression_type(
                 &checked_trees::CheckedScalarExpression::IntegerLiteral {
                     literal: literal.clone(),
                 },
             )?;
-            return fixed_integer(primitive).then_some((primitive, None));
+            return fixed_integer(primitive).then_some((Some(primitive), None));
         }
-        let parameter = direct_parameter(program, parameters, expression)?;
-        Some((
-            fixed_parameter_type(program, parameter)?,
-            Some(parameter.type_reference),
-        ))
+        let primitive = arguments::primitive_type(program, facts, owner, parameters, expression)?;
+        let type_reference = direct_parameter(program, parameters, expression)
+            .map(|parameter| parameter.type_reference);
+        Some((Some(primitive), type_reference))
     };
     let Some((left, left_reference)) = operand(binary.left) else {
         return false;
@@ -300,7 +366,7 @@ fn comparison_is_supported(
     let Some((right, right_reference)) = operand(binary.right) else {
         return false;
     };
-    left == right
+    (left == right || left.is_none() || right.is_none())
         && super::super::prover::has_builtin_operators(program, &facts.operators, expression)
         && typed_trees::operator::has_builtin_spelled_expression_meaning(
             program,

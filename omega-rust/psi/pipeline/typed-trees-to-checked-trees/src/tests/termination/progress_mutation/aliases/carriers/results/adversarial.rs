@@ -14,7 +14,7 @@ fn assert_no_subject(program: &checked_trees::CheckedTrees, operation: &str) {
 }
 
 fn assert_incoming_carrier_has_no_subject(operation: &str) {
-    let program = fixture_with_body(
+    let source = fixture_source(
         "let original: Carrier = Carrier { context: &context, other: &replacement };
          let returned: Carrier = forward(original);
          let borrowed: &Context = returned.context;
@@ -34,7 +34,7 @@ fn assert_incoming_carrier_has_no_subject(operation: &str) {
              }}"
         ),
     );
-    assert_no_subject(&program, operation);
+    assert_unproved_tail_requirement(&source);
 }
 
 #[test]
@@ -61,7 +61,7 @@ fn an_incoming_mutable_ancestor_receiver_retires_shared_result_identity() {
 
 #[test]
 fn a_terminal_unused_operand_cannot_expose_a_shared_parameter_binding() {
-    let program = fixture_with_body(
+    let source = fixture_source(
         "let returned: Carrier = forward(context);
          let borrowed: &Context = returned.context;
          transition { _ -> wait_context(borrowed) }",
@@ -75,7 +75,7 @@ fn a_terminal_unused_operand_cannot_expose_a_shared_parameter_binding() {
     );
     // The unused scalar operand has an empty write frame, but exposes the
     // binding that anchors the other field's returned-reference relation.
-    assert_no_subject(&program, "terminal sibling exposes the shared parameter");
+    assert_unproved_tail_requirement(&source);
 }
 
 #[test]

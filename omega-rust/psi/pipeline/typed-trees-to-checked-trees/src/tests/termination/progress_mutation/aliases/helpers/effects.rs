@@ -124,7 +124,7 @@ fn a_shared_helper_local_copy_keeps_its_subject_when_the_original_binding_change
 
 #[test]
 fn a_shared_parameter_exposed_inside_a_helper_has_no_exact_returned_subject() {
-    let program = fixture_with_body(
+    let source = fixture_source(
         "let returned: &Context = forward(context);
          transition { _ -> wait_context(returned) }",
         true,
@@ -137,12 +137,12 @@ fn a_shared_parameter_exposed_inside_a_helper_has_no_exact_returned_subject() {
     );
     // An empty frame cannot exempt exclusive exposure of a shared binding
     // from the helper's non-rebinding requirement.
-    assert_no_checked_guarantee(&program);
+    assert_unproved_tail_requirement(&source);
 }
 
 #[test]
 fn a_shared_local_exposed_inside_a_helper_has_no_exact_returned_subject() {
-    let program = fixture_with_body(
+    let source = fixture_source(
         "let returned: &Context = forward(context);
          transition { _ -> wait_context(returned) }",
         true,
@@ -154,13 +154,13 @@ fn a_shared_local_exposed_inside_a_helper_has_no_exact_returned_subject() {
              borrowed
          }",
     );
-    assert_no_checked_guarantee(&program);
+    assert_unproved_tail_requirement(&source);
 }
 
 #[test]
 fn an_unused_helper_argument_cannot_hide_shared_binding_exposure() {
     for selected in ["borrowed", "returned"] {
-        let program = fixture_with_body(
+        let source = fixture_source(
             &format!(
                 "let mut borrowed: &Context = &context;
                  let returned: &Context = forward(replacement, &mut borrowed);
@@ -177,6 +177,6 @@ fn an_unused_helper_argument_cannot_hide_shared_binding_exposure() {
         );
         // Proving the selected argument's origin does not admit exposure in
         // an unused sibling argument, even when the helper writes nothing.
-        assert_no_checked_guarantee(&program);
+        assert_unproved_tail_requirement(&source);
     }
 }

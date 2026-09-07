@@ -1,7 +1,7 @@
 use super::*;
 
 fn assert_readonly_carrier_has_no_subject(operation: &str) {
-    let program = fixture_with_body(
+    let source = fixture_source(
         &format!(
             "let mut carrier: Carrier = Carrier {{ context: &context }};
              {operation}
@@ -20,16 +20,7 @@ fn assert_readonly_carrier_has_no_subject(operation: &str) {
              binding: &'binding mut Context
          ) -> &'selected Context { selected }",
     );
-    let plan = program
-        .facts
-        .termination
-        .for_machine(symbol_of_checked(&program, "replace"))
-        .unwrap();
-    assert_eq!(
-        plan.checked_summary,
-        TerminationGuarantee::NoGuarantee,
-        "a frozen reference origin cannot survive carrier replacement or exposure: {operation}"
-    );
+    assert_unproved_tail_requirement(&source);
 }
 
 #[test]

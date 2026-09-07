@@ -9,6 +9,72 @@ mod expression_stack;
 mod type_constraints;
 
 #[test]
+fn tail_targets_preserve_other_receiver_calls_without_reclassifying_state_coordinates() {
+    for (target, named) in [
+        ("next", true),
+        ("self.next", true),
+        ("Main::next", true),
+        ("other.next", false),
+        ("self.child.next", false),
+        ("other.child.next", false),
+    ] {
+        let source = format!(
+            "machine Main::next(&self, input: u64) -> u64 {{ transition {{ _ -> {target}(input; proof) }} }}"
+        );
+        let tokens = Lexer::new(&source).tokenize().unwrap();
+        let parsed = parse_syntax_trees(&tokens).unwrap();
+        let machine = parsed
+            .root_items()
+            .find_map(|item| match item {
+                syntax_trees::item::Item::Machine(machine) => Some(machine),
+                _ => None,
+            })
+            .unwrap();
+        let state = parsed
+            .items
+            .state(parsed.items.state_handles(machine.states)[0]);
+        let StatementNode::Transition(transition) = parsed
+            .statements
+            .statement(parsed.items.statements(state.statements)[0])
+        else {
+            panic!("expected transition: {target}");
+        };
+        let target_node = parsed.statements.transition_target(transition.target);
+        if named {
+            let syntax_trees::statement::TransitionTargetNode::Named {
+                evidence_arguments, ..
+            } = target_node
+            else {
+                panic!("state/namespace target changed: {target}");
+            };
+            assert_eq!(evidence_arguments[0].as_str(), "proof");
+        } else {
+            let syntax_trees::statement::TransitionTargetNode::Value(expression) = target_node
+            else {
+                panic!("receiver call became a state transfer: {target}");
+            };
+            let ExpressionNode::Call(call) = parsed.expressions.expression(*expression) else {
+                panic!("receiver call lost: {target}");
+            };
+            assert!(call.receiver.is_valid());
+            assert_eq!(call.target.as_str(), "next");
+            assert_eq!(call.arguments.count(), 1);
+            assert_eq!(call.evidence_arguments[0].as_str(), "proof");
+            if target == "other.next" {
+                let ExpressionNode::Name(receiver) = parsed.expressions.expression(call.receiver)
+                else {
+                    panic!("direct receiver identity lost");
+                };
+                assert_eq!(
+                    parsed.expressions.identifier_path_members(*receiver)[0].as_str(),
+                    "other"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn opposite_boolean_subject_arms_test_the_subject_once() {
     for first in [true, false] {
         let source = format!(

@@ -304,7 +304,9 @@ fn projected_entry_into_an_identity_loop_retains_the_finite_subject() {
                 true -> step(node.next, remaining - 1)
                 false -> 0
             }}
-            state step(node: &Node, remaining: u64) -> u64 {{
+            state step(node: &Node, remaining: u64) -> u64
+            requires node.scheduler in WeakFair
+            {{
                 transition remaining > 0 {{
                     true -> step(node, remaining - 1)
                     false -> wait_node(node)

@@ -57,7 +57,7 @@ fn a_stored_helper_result_cannot_restore_a_subject_after_overlapping_effects() {
 
 #[test]
 fn a_readonly_aggregate_helper_needs_result_identity_not_an_empty_write_frame() {
-    let program = fixture_with_body(
+    let source = fixture_source(
         "let carrier: Carrier = wrap(context);
          let borrowed: &Context = carrier.context;
          transition { _ -> wait_context(borrowed) }",
@@ -72,10 +72,5 @@ fn a_readonly_aggregate_helper_needs_result_identity_not_an_empty_write_frame() 
              Carrier { context: chosen }
          }",
     );
-    let plan = program
-        .facts
-        .termination
-        .for_machine(symbol_of_checked(&program, "replace"))
-        .unwrap();
-    assert_eq!(plan.checked_summary, TerminationGuarantee::NoGuarantee);
+    assert_unproved_tail_requirement(&source);
 }

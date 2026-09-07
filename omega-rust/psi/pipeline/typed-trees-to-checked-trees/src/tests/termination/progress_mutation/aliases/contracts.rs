@@ -38,6 +38,61 @@ fn an_alias_requires_an_existing_fact_for_its_actual_referent() {
 }
 
 #[test]
+fn a_saved_unqualified_alias_value_does_not_inherit_a_later_slot_qualification() {
+    let source = fixture_source(
+        "let borrowed: &Context = &context;
+         let saved: SchedulerHandle = borrowed.scheduler;
+         context.scheduler = replacement.scheduler;
+         context.scheduler = saved;
+         transition { _ -> wait_context(context) }",
+        false,
+        false,
+        "",
+    );
+    assert_unproved_tail_requirement(&source);
+}
+
+#[test]
+fn rebinding_a_qualified_fact_alias_cannot_qualify_another_referent() {
+    let source = fixture_source(
+        "let mut writable: &mut Context = &mut context;
+         _ = overwrite(writable, replacement);
+         writable = &mut unknown;
+         let borrowed: &Context = &unknown;
+         transition { _ -> wait_context(borrowed) }",
+        false,
+        false,
+        "machine overwrite(destination: &mut Context, source: &Context) -> u64
+         requires source.scheduler in WeakFair
+         ensures destination.scheduler in WeakFair
+         { destination.scheduler = source.scheduler; 0 }",
+    )
+    .replace(
+        "replacement: &Context) -> u64",
+        "replacement: &Context, unknown: &mut Context) -> u64",
+    );
+    assert_unproved_tail_requirement(&source);
+}
+
+#[test]
+fn a_referent_store_retires_a_qualification_recorded_on_another_alias() {
+    let source = fixture_source(
+        "let writable: &mut Context = &mut context;
+         _ = overwrite(writable, replacement);
+         context.scheduler = SchedulerHandle {};
+         let borrowed: &Context = &context;
+         transition { _ -> wait_context(borrowed) }",
+        false,
+        false,
+        "machine overwrite(destination: &mut Context, source: &Context) -> u64
+         requires source.scheduler in WeakFair
+         ensures destination.scheduler in WeakFair
+         { destination.scheduler = source.scheduler; 0 }",
+    );
+    assert_unproved_tail_requirement(&source);
+}
+
+#[test]
 fn rebinding_a_shared_alias_cannot_keep_its_old_referents_fact() {
     let body = "let mut borrowed: &Context = &context;
         borrowed = &replacement;
