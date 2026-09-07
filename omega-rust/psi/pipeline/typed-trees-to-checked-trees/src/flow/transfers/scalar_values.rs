@@ -95,8 +95,8 @@ pub(super) fn capture_statement(
     )
 }
 
-// Evaluate selected immutable scalar locals followed by one return. Calls,
-// mutable storage and boundary implementations need their own effect evidence.
+// Evaluate selected scalar locals and local stores followed by one return.
+// Calls, nonlocal writes and boundary implementations need their own evidence.
 fn capture_call(
     program: &typed_trees::TypedTrees,
     semantic: &FactPlan,
@@ -144,7 +144,7 @@ fn capture_call(
     {
         return None;
     }
-    let mut values = arguments
+    let values = arguments
         .iter()
         .map(|argument| {
             match program.expression_table.expression(*argument) {
@@ -188,16 +188,58 @@ fn capture_call(
         .iter()
         .map(|parameter| parameter.symbol)
         .collect();
+    let mut values = CallValues {
+        bindings: values,
+        storage: Vec::new(),
+    };
+    let mut immutable_local_count = 0_u32;
     for (statement_index, statement) in statements.iter().enumerate() {
         let statement_ordinal = u32::try_from(statement_index).ok()?;
         let (source, destination, role) = match statement {
-            StatementNode::LocalData(local) if !local.is_mutable => (
-                local.initial_value,
-                local.symbol,
-                CheckedScalarExpressionRole::LocalInitializer {
-                    binding_ordinal: statement_ordinal,
-                },
-            ),
+            StatementNode::LocalData(local) => {
+                if !local.symbol.is_valid()
+                    || symbols.contains(&local.symbol)
+                    || values
+                        .storage
+                        .iter()
+                        .any(|(symbol, _)| *symbol == local.symbol)
+                    || program
+                        .primitive_type_reference(local.type_reference)
+                        .is_none()
+                {
+                    return None;
+                }
+                (
+                    local.initial_value,
+                    local.symbol,
+                    if local.is_mutable {
+                        CheckedScalarExpressionRole::StorageInitializer
+                    } else {
+                        CheckedScalarExpressionRole::LocalInitializer {
+                            binding_ordinal: immutable_local_count,
+                        }
+                    },
+                )
+            }
+            StatementNode::Assignment(assignment) => {
+                let ExpressionNode::Name(path) =
+                    program.expression_table.expression(assignment.target)
+                else {
+                    return None;
+                };
+                if !values
+                    .storage
+                    .iter()
+                    .any(|(symbol, _)| *symbol == path.symbol)
+                {
+                    return None;
+                }
+                (
+                    assignment.value,
+                    path.symbol,
+                    CheckedScalarExpressionRole::AssignmentValue,
+                )
+            }
             StatementNode::Expression(result) if statement_index + 1 == statements.len() => (
                 *result,
                 SymbolHandle::invalid(),
@@ -227,14 +269,48 @@ fn capture_call(
         if expressions.next().is_some() {
             return None;
         }
-        let value = crate::values::evaluate_checked_scalar(expression, &mut |position| {
-            values.get(position).cloned()
-        })?;
-        if role == CheckedScalarExpressionRole::Return {
-            return Some(value);
+        // Read the complete RHS against the old storage, then commit the write.
+        // Immutable locals retain their captured values across later assignments.
+        let value = crate::values::evaluate_checked_scalar(expression, &mut values)?;
+        match role {
+            CheckedScalarExpressionRole::Return => return Some(value),
+            CheckedScalarExpressionRole::LocalInitializer { .. } => {
+                symbols.push(destination);
+                values.bindings.push(value);
+                immutable_local_count = immutable_local_count.checked_add(1)?;
+            }
+            CheckedScalarExpressionRole::StorageInitializer => {
+                values.storage.push((destination, value));
+            }
+            CheckedScalarExpressionRole::AssignmentValue => {
+                let (_, current) = values
+                    .storage
+                    .iter_mut()
+                    .find(|(symbol, _)| *symbol == destination)?;
+                *current = value;
+            }
+            _ => return None,
         }
-        symbols.push(destination);
-        values.push(value);
     }
     None
+}
+
+/// Call-local scratch: immutable bindings use their selected ordinal namespace;
+/// mutable locals use exact storage symbols and cannot alias caller storage.
+struct CallValues {
+    bindings: Vec<ScalarValue>,
+    storage: Vec<(SymbolHandle, ScalarValue)>,
+}
+
+impl crate::values::ScalarValueSource for CallValues {
+    fn binding(&mut self, position: usize) -> Option<ScalarValue> {
+        self.bindings.get(position).cloned()
+    }
+
+    fn storage(&mut self, symbol: SymbolHandle) -> Option<ScalarValue> {
+        self.storage
+            .iter()
+            .find(|(candidate, _)| *candidate == symbol)
+            .map(|(_, value)| value.clone())
+    }
 }

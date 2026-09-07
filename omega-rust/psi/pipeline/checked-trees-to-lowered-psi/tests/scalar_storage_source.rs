@@ -61,6 +61,69 @@ fn scalar_storage_initialization_update_and_saved_values_execute_after_serializa
 }
 
 #[test]
+fn local_storage_call_snapshot_agrees_with_canonical_execution() {
+    let source = r#"
+        machine halve(input: u8) -> u8
+        requires 65u8 == 65u8
+        ensures 65u8 == 65u8
+        {
+            let mut current: u8 = input;
+            current = current / 2;
+            let saved: u8 = current;
+            current = 200;
+            saved
+        }
+        machine value() -> u8
+        requires 65u8 == 65u8
+        ensures 65u8 == 65u8
+        {
+            let byte: u8 = halve(130);
+            byte
+        }
+    "#;
+    let checked = checked(source);
+    let caller = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "value")
+        .unwrap();
+    let state = &checked.machine_states(caller)[0];
+    let point = facts::ProgramPoint::Statement {
+        machine_symbol: caller.symbol,
+        state_symbol: state.symbol,
+        statement_index: 0,
+    };
+    let snapshots = checked
+        .facts
+        .semantic
+        .facts
+        .iter()
+        .filter_map(|(_, fact)| {
+            if fact.point != point {
+                return None;
+            }
+            let facts::FactPayload::AssignedScalarValue { value } = fact.payload else {
+                return None;
+            };
+            Some(checked.facts.semantic.scalar_values.get(value))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        snapshots,
+        vec![&facts::ScalarValue::Integer(
+            numerics::bignum::BigInt::from_u64(65)
+        )]
+    );
+    assert_eq!(
+        execute(source),
+        TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
+            scalar_type: IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+            value: IntegerValue::Unsigned(65),
+        })
+    );
+}
+
+#[test]
 fn boolean_storage_updates_keep_prior_immutable_values() {
     let source = "machine value() -> bool\nrequires true == true\nensures true == true\n{ let mut flag: bool = false; let saved: bool = flag; flag = !flag; flag && !saved }";
     assert_eq!(
