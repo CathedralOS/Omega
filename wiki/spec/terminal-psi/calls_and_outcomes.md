@@ -67,6 +67,20 @@ A shared read does not turn the owned result into a returned reference.
 Projected results require retained storage, loans, claim transfers, and exact
 residual cleanup. Admitting a result signature alone establishes none of those.
 
+## Scalar evaluation and convergence
+
+Scalar values and structural places retain separate namespaces with complete
+authored argument-position correspondence. Initializers execute in source order;
+their values must dominate every use. Short-circuit expressions evaluate only
+the selected operands. A convergence parameter represents the selected result,
+not permission to execute both branches or change structural ownership.
+
+Every normal-return path performs its complete required cleanup, whether lowering
+duplicates that cleanup on leaves or shares a tail. Sharing must preserve result
+and referent identity, effects, proof premises, and cleanup order. Each preceding
+exact arithmetic operation remains independently justified; a safe final result
+does not establish safe intermediates.
+
 ## Normal cleanup
 
 The [ownership contract](ownership.md) defines claim paths, partial moves,

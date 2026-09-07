@@ -66,6 +66,9 @@ reconstructed obligations and authorized admissions, proof rules and their
 soundness argument, interpretation, lowering requirements, and fuel identity.
 An incomplete consumer rejects unsupported forms; a metadata-only producer
 does not establish complete executable support.
+Obligation-affecting policies are closed operation variants, not ordinary values
+that must be constant-folded to discover the question. Additional sound proof
+lemmas do not change operation or program identity.
 
 ## Build-owned companion
 
