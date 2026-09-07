@@ -103,7 +103,8 @@ def main():
     print(
         f"Beta encoding theory: two identical emissions, three empty-output producer refusals, "
         f"{observations} exact checker diagnostics; 1024 lexical truths, 256 joins, "
-        f"512 splits, 256 composed roundtrips, 13 word emissions; no artifact admission",
+        f"512 splits, 256 composed roundtrips, 13 word emissions, "
+        f"512 byte counter helper equations, 19 checked word successors; no artifact admission",
         flush=True,
     )
 

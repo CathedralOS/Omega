@@ -2,9 +2,9 @@
 
 [theory/theory.gamma](theory/theory.gamma) emits the source-owned portion of
 the transparent Beta definitions: byte classification, nibble conversion,
-fixed-width words, and their little-endian byte lists. It does not emit an
-assembler, complete encoding theory, owner-root reconstruction, or whole-source
-certificate.
+fixed-width words, their little-endian byte lists, and checked counter increment.
+It does not emit an assembler, complete encoding theory, owner-root
+reconstruction, or whole-source certificate.
 
 The [implementation design](../../../wiki/architecture/bootstrap_chain/derivation_calculus.md)
 fixes the acceptance target: the entire selected Gamma evaluator's raw Beta
@@ -19,8 +19,11 @@ Beta theory authoritative.
 The current [source closure](theory/theory.gamma.sources) is ordinary
 Gamma, executed by the selected Beta-authored Gamma evaluator. The entrance
 orders vocabulary and function definitions; `vocabulary.gamma` owns sorts and
-constructors, `definitions.gamma` sequences the lexical, nibble, and word
-definitions, and their subordinate files own the individual equations.
+constructors, `definitions.gamma` sequences the lexical, nibble, word, and
+counter definitions, and their subordinate files own the individual equations.
+`definitions/counters.gamma` orders byte helpers, result selection, carry
+stages, and the public successor; `definitions/counters/` owns those pieces
+and their fixed template writers.
 `encoding/` writes administrative fields.
 The checker receives Gamma-emitted package bytes, not host-generated
 definitions. No new checker primitive is introduced.
@@ -43,6 +46,7 @@ bytes to these exact constructors independently of the certificate producer.
 | HexResult | 4 | NoHex 275; Hex 276 takes one Nibble. |
 | Word | 5 | Word 277 takes exactly eight Bytes, least significant first. |
 | ByteList | 6 | Nil 278; Cons 279 takes one Byte and one ByteList. |
+| WordResult | 7 | Overflow 280; WordValue 281 takes one Word. |
 
 Every constructor term is finite. Word has exactly the unsigned 64-bit value
 domain: eight independent Byte positions, with no shorter, wider, or sign-tagged
@@ -98,6 +102,36 @@ to replace the join arguments, the two defining steps for the join, and their
 explicit transitive composition. Likewise `word_bytes` preserves any defined
 applications inside its Word argument rather than normalizing them implicitly.
 
+## Checked counters
+
+The encoder needs exact source and output lengths for capacity checks and
+address assertions. `word_successor` returns `WordValue(w + 1)` for every Word
+below `2^64 - 1`, and `Overflow` at that maximum. This is unsigned arithmetic
+over the fixed eight-byte representation, not Gamma's signed comparison or
+wrapping integer arithmetic. Crossing the highest signed bit remains a success.
+
+| Function identity | Signature | Defining behavior |
+| --- | --- | --- |
+| 25 `byte_increment` | `Byte -> Byte` | Complete byte table; 255 becomes zero internally. |
+| 26 `byte_is_max` | `Byte -> Bool` | True only at 255. |
+| 27 `choose_word_result` | `(Bool, WordResult false, WordResult true) -> WordResult` | Return the selected argument without evaluating either branch. |
+| 28..35 | `(Byte b0, ..., Byte b7) -> WordResult` | Carry stages for positions 7 down to 0, respectively. |
+| 36 `word_successor` | `Word -> WordResult` | Decompose all eight bytes and begin carry propagation at position zero. |
+
+A carry stage checks whether its byte is maximal. If not, it increments that
+byte, preserves every other position, and returns WordValue. Otherwise it passes
+zero in that position to the earlier, higher-position helper. Carry beyond
+position seven returns Overflow. The eight fixed stages need no recursive word
+spine; all function dependencies point backward. Only the private byte helper
+wraps: the public result never silently wraps a maximal Word to zero.
+
+Explicit derivations must rewrite the Boolean condition before selecting a
+branch, then unfold the selected continuation. Unchosen branches need no
+normalization. Overflow here is an ordinary value in the Beta theory, distinct
+from the generic checker's resource refusal: neither asserts that an exhausted
+checker has proved a result. Checked increment does not yet supply word
+comparison, complete limit enforcement, or source/token traversal.
+
 ## Encoding and execution boundary
 
 `beta_encoding_theory()` writes one complete `GTH1` section and returns scalar
@@ -107,27 +141,30 @@ before emission and returns Gamma's marked application result to publish bytes
 without an extra scalar terminator. The exact closure and that entry are pinned
 by the [theory gate](../../../tests/gamma/beta-encoding-theory/README.md).
 
-The section has six sorts, 279 constructors, and 24 functions. The vocabulary
-and outer fields occupy 3,408 bytes; lexical functions occupy 33,200; sixteen
+The section has seven sorts, 281 constructors, and 36 functions. The vocabulary
+and outer fields occupy 3,436 bytes; lexical functions occupy 33,200; sixteen
 fixed-high helpers occupy 8,640; the public join occupies 800; the split functions
-occupy 16,440; and word serialization occupies 348. Thus the exact section is
-62,836 bytes. All administrative fields fit u31; none supplies semantic integer
-constants or operations. [PROFILE.md](PROFILE.md) records the current source
+occupy 16,440; and word serialization occupies 348. Counter byte helpers occupy
+16,440 bytes, result selection 92, carry stages 2,896, and the public successor
+188. Thus the exact section is 82,480 bytes. All administrative fields fit u31;
+none supplies semantic integer constants or operations. [PROFILE.md](PROFILE.md)
+records the current source
 bounds and scoped measurements, separate from full-certificate acceptance.
 
 Generic formation checks every declaration and every clause, including unused
 rows; explicit derivations check classifications, nibble operations and their
-composition, and word serialization against independent literal expectations.
-Exact package identity and those
-checks complement source audit, but do not discharge the full Beta root.
+composition, word serialization, and checked increment against independent
+literal expectations. Exact package identity and those checks complement source
+audit, but do not discharge the full Beta root.
 
 ## Remaining encoder dependency
 
-Extend the same artifact-specific ownership with checked word/counter arithmetic,
+Extend the same artifact-specific ownership with word comparison and the
+remaining checked arithmetic needed for hexadecimal parsing,
 token and operand state, the complete mnemonic table, address assertions,
 failure values, and exact source/output limits and exhaustion. Structural
-recursion must consume an
-unchanged immediate source tail, using earlier total helpers for state changes.
+recursion must consume an unchanged immediate source tail, using earlier total
+helpers for state changes.
 Then independently reconstruct the complete owner root and produce its explicit
 certificate through the selected source-owned chain. Do not rename this partial
 portion into a complete encoder or let producer-supplied definitions choose the

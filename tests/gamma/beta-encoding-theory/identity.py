@@ -10,6 +10,7 @@ def fixed_identity():
     constructors = [record(1, 0)] * 256 + [record(2, 0)] * 2
     constructors += [record(3, 0)] * 16 + [record(4, 0), record(4, 1, 3)]
     constructors += [record(5, 8, *([1] * 8)), record(6, 0), record(6, 2, 1, 6)]
+    constructors += [record(7, 0), record(7, 1, 5)]
     functions = []
     for admitted in BOOLEAN_TABLES:
         functions.append(function((1,), [clause((record(1, 257 + int(byte in admitted), 0),), byte + 1, 1) for byte in range(256)], mode=1, result=2))
@@ -27,5 +28,22 @@ def fixed_identity():
     templates = [record(0, slot) for slot in range(1, 9)] + [record(1, 278, 0)]
     templates.extend(record(1, 279, 2, 8 - position, 9 + position) for position in range(8))
     functions.append(function((5,), (clause(templates, 277, 17),), mode=1, result=6))
-    package = theory(constructors, functions, sorts=6)
+    functions.append(function((1,), [clause((record(1, (byte + 1) % 256 + 1, 0),), byte + 1, 1) for byte in range(256)], mode=1))
+    functions.append(function((1,), [clause((record(1, 257 + int(byte == 255), 0),), byte + 1, 1) for byte in range(256)], mode=1, result=2))
+    functions.append(function((2, 7, 7), [clause((record(0, slot),), 256 + slot, 1) for slot in (1, 2)], mode=1, result=7))
+    for position in reversed(range(8)):
+        templates = [record(0, slot) for slot in range(8)]
+        templates += [record(2, 26, 1, position + 1), record(2, 25, 1, position + 1)]
+        children = list(range(1, 9))
+        children[position] = 10
+        templates += [record(1, 277, 8, *children), record(1, 281, 1, 11)]
+        if position == 7:
+            templates += [record(1, 280, 0), record(2, 27, 3, 9, 12, 13)]
+        else:
+            children[position] = 13
+            templates += [record(1, 1, 0), record(2, 34 - position, 8, *children), record(2, 27, 3, 9, 12, 14)]
+        functions.append(function((1,) * 8, (clause(templates, body=len(templates)),), result=7))
+    templates = [record(0, slot) for slot in range(1, 9)] + [record(2, 35, 8, *range(1, 9))]
+    functions.append(function((5,), (clause(templates, 277, 9),), mode=1, result=7))
+    package = theory(constructors, functions, sorts=7)
     return len(package), hashlib.sha256(package).hexdigest()

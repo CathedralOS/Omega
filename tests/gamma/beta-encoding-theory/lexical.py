@@ -102,10 +102,11 @@ def cases(definitions):
 
     # Fixed physical layout: header12 + 275 nullary constructors*12 + Hex16
     # + Word44 + Nil12 + Cons20
-    # + function_count4 + first function header28 + clause0's template symbol20.
+    # + Overflow12 + WordValue16 + function_count4 + first function header28
+    # + clause0's template symbol20.
     # Flip source_byte(0) from False to True. This theory still forms, so the
     # unchanged row must reject its equation; no package digest is a proof rule.
-    symbol_offset = 12 + 275 * 12 + 16 + 44 + 12 + 20 + 4 + 28 + 20
+    symbol_offset = 12 + 275 * 12 + 16 + 44 + 12 + 20 + 12 + 16 + 4 + 28 + 20
     if definitions[symbol_offset:symbol_offset + 4] != struct.pack("<I", FALSE):
         raise SystemExit("Beta lexical theory: fixed mutation field changed")
     altered = changed_word(definitions, symbol_offset, TRUE)

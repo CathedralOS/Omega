@@ -130,7 +130,8 @@ this first finite-instance implementation.
 
 The [source-owned Beta theory](../../../bootstrap/gamma/beta_encoding/README.md)
 provides finite Byte/Nibble constructors, total lexical classifiers and nibble
-conversion, fixed-width Word constructors, and little-endian byte lists.
+conversion, fixed-width Word constructors, little-endian byte lists, and checked
+counter increment with an explicit overflow result.
 It is not the complete encoder or owner-root reconstruction described below.
 
 The error-valued encoder must cover the full

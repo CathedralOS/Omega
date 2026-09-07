@@ -1,0 +1,11 @@
+; Function 36: word_successor(Word)->WordResult. Its single Word case binds
+; the eight immediate Byte fields as slots 1..8 and calls carry position zero.
+; Carry propagates through all eight bytes; the highest carry yields Overflow.
+(def beta_counter_successor_definition () Int
+  (let length Int (beta_theory_word 46)
+    (let signature Int (beta_theory_fields3 7 1 5)
+      (let mode Int (beta_theory_fields3 1 0 1)
+        (let clause Int (beta_theory_fields3 39 277 9)
+          (let variables Int (beta_counter_variables 1 8)
+            (let carry Int (beta_counter_word_template 2 35 -1 0)
+              (beta_theory_word 9))))))))
