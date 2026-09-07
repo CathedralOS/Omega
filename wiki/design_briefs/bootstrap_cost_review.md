@@ -541,24 +541,26 @@ case, including cases not reached by the 24-byte example. A root named
 Beta definition package. Mapping other valid instructions to Reject, or
 supplying only the reached transitions, would prove a different relation.
 
-Use one temporary, explicitly diagnostic component root instead. It must connect
-all 24 raw bytes to their complete token sequence, decode the actual register
-and word operands, account for the comment and separators, establish the
-address assertion at output offset ten, and compose the eleven output bytes
-with exact EOF. Include checked textual-ASCII and source-capacity facts in the
-same request. Implemented component definitions must be total; identify the
-remaining instruction dispatch, malformed-input, output-limit, and final
-error-valued encoder obligations rather than representing them as completed.
-The root is not an admitted encoding judgment, and host-authored literal rows
-are diagnostic witnesses, not the required source-owned production producer.
+The temporary diagnostic root now connects the 24 raw bytes
+`imm r0 0x1 ; x\n0xa:\nret\n` to complete tokenization through EOF, register and
+word decoding, comment/separator handling, the address assertion against the
+checked ten-byte output-prefix count, and eleven constructed output bytes.
+Checked textual-ASCII, exact source count 24, and the `0x4000000` source bound
+belong to that same root. Successful parse/count constructors appear alongside
+their projections, so a default projection cannot conceal component failure.
+Implemented component definitions are total and checked even for unreached cases.
+Instruction opcodes are literals in this diagnostic: dispatch, output-limit
+enforcement, and complete error-valued encoder finalization remain unproved.
+It is not an admitted encoding judgment; host-authored literal rows are
+diagnostic witnesses, not the required source-owned production producer.
 
 The existing transparent definitions cover lexical classification, nibble conversion, Word
-serialization, successor, and comparison. Whole-token recognition, hexadecimal
-accumulation, and actual token/operand transitions are missing. Keep the complete
-route first-order: token helpers precede byte-step helpers; an ordered Source
-fold threads lexical/operand/output state through unchanged immediate children;
-EOF finalization follows it. No parser framework or helper-returned cursor is
-needed to justify recursive progress.
+serialization, successor, and comparison. The scratch experiment adds total
+token recognition, hexadecimal accumulation, and token/operand transitions;
+these are not promoted to the production package. It reuses the existing
+unlanded HEXWORD implementation rather than creating another parser. Its
+first-order definitions use immediate list children for recursive progress;
+no parser framework, trusted cursor, or checker rule was introduced.
 
 Compare separate passes with a concrete fused candidate returning
 `Summary(byte_count, first_invalid_byte, parser_state)`. A Leaf checks its byte
@@ -581,9 +583,67 @@ inputs were run through the selected admitted Beta compiler using
 - Appending `;` and DEL to that mismatched-assertion input returns status nine
   with empty stdout, exercising envelope rejection before the earlier assertion.
 
-All three have empty stderr. These observations corroborate the literal
-customer and failure order, not the Gamma component root, which has not run.
+All three have empty stderr. These compiler observations corroborate the
+literal customer and failure order; they are distinct from the Gamma proof.
 The materialized diagnostic compiler is not retained.
+
+Against base `097353987159faefae43292a695a9ddd160fc732`, the ordinary-Gamma
+component proof checks on macOS arm64 with unchanged 655,360-work, 8-MiB request,
+and 16-MiB outer source-frame limits:
+
+| Connected request | Bytes | Ground terms | Proof rows | Checked work | Seconds |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| All ten component fields | 207,208 | 912 | 1,624 | 24,489 | 11.962 |
+
+The emitted theory is 148,240 bytes (55,100 more than the existing package),
+SHA-256 `5fe4bc413bf6187b8a9950f2051751443ab43296eef118ccc8feb44135877e20`.
+Its composed Gamma producer is 56,547 bytes, SHA-256
+`dc15d0bc1b9098ebd870b0d774bad44e3aacc87d427701462a91a1fcad1b6506`.
+The unchanged 63,504-byte checker diagnostic has SHA-256
+`8c91eefacbbd4517fa58e83da2fc96e35adb005bed6fc0f2296858ceb46537ce`.
+Theory formation plus a one-row control checks in 5.629 seconds; emission takes
+1.431 seconds. The unminimized theory retains all prior 57 functions.
+
+Changing owned raw comment bytes, a connected assertion value, or claimed output
+rejects with code 12 at coordinates 207,564, 193,212, and 207,348 respectively
+(12.267, 10.094, and 11.946 seconds). All processes return zero with empty stderr;
+checker rejection is an owned result, not a host failure. Five reused HEXWORD
+controls also match their expected observations against this theory: one digit,
+maximum Word, seventeen zeroes, an invalid trailing digit, and a false parsed
+value. No allocation peak, full-source encoding, or Windows execution is claimed.
+
+Three cumulative prefixes use the same 912-term table; they are not independent
+component benchmarks:
+
+| Root through field | Request bytes | Proof rows | Checked work |
+| --- | ---: | ---: | ---: |
+| Raw ASCII | 173,540 | 134 | 2,609 |
+| Source capacity | 179,068 | 380 | 5,137 |
+| Tokenization | 190,580 | 879 | 14,384 |
+
+Tokenization adds 9,247 work in this ordered recipe. Scaling the complete small
+request by `46484/24` gives about 47.43 million work, **only a sample-mix scenario,
+neither measured demand nor a bound**. Fixed formation/root costs, repeated-token
+and arithmetic facts, actual token lengths, and omitted encoder obligations
+prevent this extrapolation from selecting a provision.
+
+The visible sharing problem is that every byte transition takes the full
+completed-token history. Otherwise equal local steps become different closed
+propositions. Next compare a transition over only comment mode and pending
+bytes, returning updated local state and any completed token, with collection
+owned separately. Recheck the same literal token sequence and demonstrate one
+closed transition reused under two different histories. Count extra definitions,
+collection proofs, and root composition: the scanner as a whole still depends
+on history. Then measure actual full-subject reuse with a source-owned census;
+do not assume this factoring or fusion makes the complete certificate fit.
+
+The reproducible local scratch is retained outside the repository at
+`/tmp/omega-components-probe.zy22J8`: `python3 -B` with `proof.py` checks the root,
+and with `mutations.py` checks the three mutations. It imports unchanged literal
+recipes from the pre-existing `/private/tmp/omega-beta-hexword.qiJde0` worktree.
+These local paths are continuation material, not portable repository commands
+or accepted artifacts; preserve them until the bounded comparison resolves
+retention. No permanent helper or runtime provision changed at this checkpoint.
 
 A larger provision also needs more than a checker constant. Applying the
 existing conservative ledger `7,864,346 + 48*work + 128` to the separate
@@ -607,10 +667,8 @@ lower-allocation implementation, and a coherently reviewed native allocation
 change if a complete proof estimate warrants it. Do not infer that a new
 allocator, rule, or language is necessary from this conservative calculation.
 
-Acceptance for this experiment is connected checked component evidence, a
-Gamma-level mutation control on that connection (changed raw coverage,
-assertion endpoint, or claimed output must not check), and a
-full-subject estimate with stated state-sharing assumptions, definition cost,
+Connected component and mutation acceptance now passes. Remaining acceptance
+is a full-subject estimate with stated state-sharing assumptions, definition cost,
 request bytes, work, allocation provision, and remaining uncertainty. A small
 pass alone cannot select a production route. If no plausible complete route
 emerges, apply the scope pause before expanding into permanent helper families.

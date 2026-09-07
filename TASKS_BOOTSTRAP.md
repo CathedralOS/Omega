@@ -76,23 +76,24 @@ prerequisite to every lower-rung milestone.
   `bootstrap/2_gamma/beta_encoding/`: the measured capacity and normalized
   forward-fold recipes cannot fit together unchanged under the current budget.
   Do not adopt the per-byte Word counter or raise work just enough for the
-  identity-fold diagnostic. Run the bounded
+  identity-fold diagnostic. Continue the bounded
   [connected-component experiment](wiki/design_briefs/bootstrap_cost_review.md#next-experiment-connected-components-not-a-partial-beta-dialect)
-  over the 24-byte literal sequence, including operands, trivia, assertions,
-  exact endpoints, textual-ASCII validation, and source capacity in one request.
-  This diagnostic root may use total component definitions while complete Beta
-  definitions remain missing; it must not masquerade as `encode_Beta` or map
-  unimplemented valid Beta cases to Reject. Compare fused traversal against
-  separate passes under a coherent larger work/input/allocation provision
-  before another permanent helper family.
+  by comparing local lexical state separated from completed-token history
+  against the checked 24-byte root. Require identical tokens, a checked local
+  transition reused under two different histories, and counted definition,
+  collection, and proof overhead; factoring alone does not establish full fit.
+  Then measure actual full-subject reuse before choosing fused/separate passes
+  or a coherent larger work/input/allocation provision. Do not promote another
+  permanent helper family without this comparison, call the diagnostic
+  `encode_Beta`, or map unimplemented valid Beta cases to Reject.
   Acceptance needs a full-subject estimate with state-sharing assumptions and
   total definition/proof cost, not just a checked small sequence. Keep direct
   counting versus the shape intermediary in that whole-route comparison.
-  Resume evidence at `fee9ab5aca` on macOS arm64: the admitted Beta compiler
-  materialized by `tools/bootstrap/beta/artifact_env.sh` produces the literal's
-  exact eleven bytes and rejects its assertion/late-DEL controls. These are
-  compiler observations, not Gamma proofs. The component probe has not run;
-  the full identity-fold resource refusal remains detailed in the cost review.
+  Resume evidence against `0973539871` on macOS arm64: the temporary connected
+  root checks; raw-source, assertion-value, and output mutations reject.
+  Exact identities, costs, and diagnostic invocation are in the cost review;
+  this scratch experiment is not a retained repository entrypoint. Its token
+  transitions carry completed history, limiting reuse of otherwise equal steps.
   The actual `encode_Beta(S, limits) = Success(T)` probe also has not run and has no
   repository command yet: complete definitions, owner-root reconstruction, and
   the source-owned producer remain missing.
