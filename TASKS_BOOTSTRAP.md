@@ -1,8 +1,13 @@
 # Bootstrap tasks
 
-This queue implements the selected trust-minimizing chain. Git history retains
-the retired Alpha/Beta/Gamma/Delta/Epsilon baseline and completed experiments;
-they are not tasks and have no compatibility requirement.
+Build the smallest **human-auditable proof chain to self-hosted Omega**.
+Runnable compilers and checked edge evidence are both required; neither replaces
+the other. Minimize the total human audit burden of semantics, admitted seeds,
+implementations, checker rules, certificates, profiles, and permanent tooling.
+The governing contracts are [bootstrap minimization](wiki/design_briefs/bootstrap_minimization.md)
+and the [derivation checker](wiki/architecture/bootstrap_chain/proof_kernel.md).
+
+The currently selected construction route is:
 
 ```text
 audited Alpha VM + admitted Beta compiler tape
@@ -11,149 +16,145 @@ audited Alpha VM + admitted Beta compiler tape
   -> Delta-authored Epsilon evaluator
   -> interpreted Epsilon-authored Omega compiler D
   -> Omega-written product compiler C for alpha_bootstrap
+  -> C rebuilds itself
 ```
 
-Alpha's opcode semantics are unchanged. Beta is the trusted imperative
-tape-assembly language.
-Gamma is the small typed scalar/effect functional language evaluated directly
-by Beta. Delta is the richer typed functional language needed to write the
-Epsilon evaluator.
+The Gamma checker sits beside these edges; it is not another language rung.
+Its implementation is a means to explicit, independently rooted proofs, not
+a general-purpose proof-system project or an end in itself.
 
-## Rules
+## Selection and stopping rules
 
-- A language exists only to deliver the next rung and named small checkers.
-- Host scripts may invoke, stamp, compare, and report. They do not parse,
-  lower, manufacture semantic evidence, or decide trust.
-- Missing artifacts stay missing; no retired compiler or native route stands
-  in for an open edge.
-- Intermediate self-hosting, general-purpose completeness, compatibility, and
-  hypothetical reuse are not acceptance conditions.
-- Every retained feature must cite a current evaluator, compiler, checker, or
-  edge-verification customer.
-- Apply the [scope checkpoints](AGENTS.md#scope-checkpoints) and
-  [whole-chain retention test](wiki/design_briefs/bootstrap_minimization.md)
-  before expanding a rung. Helper completion alone is not chain progress.
+- Apply [scope checkpoints](AGENTS.md#scope-checkpoints) before each milestone.
+  Challenge the task's premise against the final audit goal, not just its tests.
+  A concrete compiler customer or named proof obligation is necessary but does
+  not alone establish that the proposed mechanism is the simplest solution.
+- Count progress in execution, human auditability, and measured proof feasibility.
+  Helper/test counts, smaller files, and preserving current limits are not goals.
+  Compare simpler implementations and coherent private-capacity changes before
+  adding workarounds; preserve required semantics and fail-closed behavior.
+- No intermediate self-hosting, hypothetical reuse, permanent compatibility
+  layers, host semantic stages, or customer-specific acceptance shortcuts.
+  Host tools may invoke, stamp, compare, and report, never manufacture authority.
+- Keep topology/source ownership green with
+  `sh tools/bootstrap/check-chain-hygiene.sh`; this is validation, not an
+  evergreen feature task. Remove completed tasks rather than logging milestones.
+- Question questionable checker/encoding designs as well as compiler designs.
+  Report evidence and alternatives before extending a faulty premise. Changes
+  to ratified language/trust contracts follow [owner escalation](AGENTS.md#workflow);
+  engineering review does not authorize silently weakening the proof claim.
 
-## Scheduling and current dependencies
+## Dependencies
 
-The sections below group obligations; they are not a serial instruction to
-finish every checker helper before advancing evaluator execution. P1 is proof
-closure, not a prerequisite for developing the selected runnable Delta/Epsilon
-route under its existing disclosed trust status. No such development counts as
-an admitted edge or substitutes for the required certificate.
+P1–P5 group obligations, not a mandatory serial schedule. Proof work can advance
+against existing exact artifacts before Omega is complete. Runnable lower-rung
+development can also proceed under disclosed trust assumptions; it does not
+close a proof edge. Do not redirect all effort to execution merely because the
+checker has a longer acceptance path.
 
-End-to-end self-host acceptance depends on settled exercised Omega behavior,
-the [Rust product completion contract](wiki/releases/rust_compiler_completion_contract.md),
-the `OMEGA-PRODUCT-COMPILER-SOURCE` work in [TASKS.md](TASKS.md), and complete D.
-Rust is a development comparator, not a canonical bootstrap stage. Lower-rung
-work can proceed for existing customer slices without pretending C is ready.
-Optimization quality is separate from semantic completion; require a particular
-optimization only when measured customer feasibility depends on it.
+Full self-hosting remains dependent on settled exercised Omega behavior, the
+[Rust product completion contract](wiki/releases/rust_compiler_completion_contract.md),
+complete D, and `OMEGA-PRODUCT-COMPILER-SOURCE` in [TASKS.md](TASKS.md).
+Rust remains a comparator, not bootstrap authority. Optimization matters where
+measured execution or audit feasibility requires it, not as an unbounded
+prerequisite to every lower-rung milestone.
 
-## Next checkpoint - justify the remaining machinery
+## Next decision - whole-chain complexity
 
-- **BOOTSTRAP-COMPLEXITY-REVIEW.** Before another P1/P2/P3 infrastructure
-  milestone, apply the retention test to the current customer path. Owners:
-  `bootstrap/delta/compiler/implementation/normalization/` and
-  `checking/names/`, `bootstrap/gamma/{evaluator,derivation_checker,beta_encoding}/`,
-  and the retired concatenative inventories in the Gamma/Delta READMEs.
-  Compare retaining the 255-depth workaround with a coherently enlarged Gamma
-  profile using the actual Epsilon lowering demand; distinguish required
-  frontend semantics from storage optimizations and file fragmentation.
-  For P1, identify the remaining full-source encoder, owner-root reconstruction,
-  and source-owned certificate producer, with a bounded cost/feasibility probe
-  before extending another arithmetic/helper family. A partial proof is only
-  a measurement, never certificate acceptance. Inspect legacy consumers before
-  proposing deletion. Acceptance: present measured keep/simplify/defer/remove
-  recommendations, exact dependencies and validation costs, and one bounded
-  next customer milestone for user direction. Do not build an alternative
-  language, remove required validation, or change the trusted boundary as part
-  of this review; actual contract changes follow `OWNER_QUESTIONS.md`.
+- **BOOTSTRAP-COMPLEXITY-REVIEW.** Before further infrastructure expansion,
+  review the current compiler/checker route against the human audit objective.
+  Owners: `bootstrap/delta/compiler/implementation/{normalization,checking/names}/`,
+  `bootstrap/gamma/{evaluator,derivation_checker,beta_encoding}/`, and the
+  retained concatenative inventories in the Gamma/Delta READMEs.
+  Measure actual Epsilon lowering demand before choosing the 255-depth
+  workaround or a larger coherent Gamma profile. Compare source, invariants,
+  proof obligations, storage, and validation costs, not line counts alone.
+  For the checker, map the complete Beta encoder, independent owner root, and
+  source-owned certificate producer still required; use a bounded feasibility
+  probe to test the design's full-subject cost before another helper family.
+  Identify legacy consumers before proposing deletion.
+  Acceptance: evidence-backed keep/simplify/defer/remove recommendations and a
+  bounded next execution, audit-reduction, or proof milestone for user direction.
+  Do not build an alternative language or delete unreviewed machinery here.
 
-## P1 - Gamma checker
+## P1 - Gamma checker and first complete encoding proof
 
-- **GAMMA-DERIVATION-CHECKER.** Implement the smallest proof checker required
-  by concrete compiler-edge certificates as an ordinary Gamma program run by
-  the Beta evaluator. It validates an explicit derivation for an independently
-  reconstructed proposition and performs no proof search, artifact discovery,
-  deployment policy, or source-to-obligation inference. Follow the
-  [ground equality implementation design](wiki/architecture/bootstrap_chain/derivation_calculus.md):
-  extend the [source-owned Beta theory](bootstrap/gamma/beta_encoding/README.md)
-  into the complete Beta definition package and owner-fixed encoding proposition
-  for the [generic checker](bootstrap/gamma/derivation_checker/CHECKING.md), then
-  produce the untrusted certificate through the selected source-owned chain.
-  Retain the exact checker entry and artifact-specific result/resource profile
-  under the [inner encoding](bootstrap/gamma/derivation_checker/FORMAT.md).
-  The first certificate must cover the
-  entire selected Gamma evaluator's Beta source and persisted Alpha tape;
-  rule-unit tests or assembler agreement cannot replace it. Acceptance: that
-  full certificate passes with measured storage, size, depth, and time; malformed,
-  cyclic, missing-premise, wrong-subject, wrong-rule, and resource-exhausted
-  certificates cannot accept within the published Gamma bounds.
+- **GAMMA-DERIVATION-CHECKER.** Close the first artifact-specific proof using
+  the ordinary-Gamma [checker](bootstrap/gamma/derivation_checker/CHECKING.md)
+  and [Beta definitions](bootstrap/gamma/beta_encoding/README.md), following the
+  [ground equality design](wiki/architecture/bootstrap_chain/derivation_calculus.md).
+  Remaining work: complete error-valued Beta encoding definitions, independently
+  reconstruct the owner-fixed proposition, and produce the untrusted explicit
+  certificate through the selected source-owned route.
+  The exact subject is the entire selected Gamma evaluator's raw Beta source
+  and persisted Alpha tape. Encoding equality does not prove the evaluator
+  implements Gamma; retain that trust assumption explicitly.
+  Each retained checker rule and encoding helper must have a demonstrated role
+  in this certificate. No proof search, producer-selected root, trusted assembler
+  primitive, or general-purpose extension.
+  Acceptance: the full certificate checks under the exact
+  [result/resource profile](bootstrap/gamma/derivation_checker/FORMAT.md), with
+  measured bytes, storage, depth, and time and a reviewable account of the
+  definitions and trusted assumptions. Malformed, cyclic, missing-premise,
+  wrong-subject, wrong-rule, and exhausted requests cannot accept.
+  Rule tests, partial proofs, and assembler agreement do not close this task.
 
 ## P2 - Gamma to Delta
 
-- **DELTA-COMPILER.** Complete
-  the Gamma source closure entered at
-  `bootstrap/delta/compiler/delta_compiler.gamma` against the full Delta contract,
-  including nominal types, exhaustiveness, checked arithmetic, proper-tail
-  lowering, sealed profiles, deterministic failure selection, and canonical
-  Gamma emission. DCREQ framing and `ConformanceBytesV1` are executable;
-  finish the remaining canonical DCOUT resource and internal failures
-  without Delta-specific Gamma primitives. Direct Epsilon-to-Alpha profile ID 2
-  is retired.
-  The current Epsilon evaluator source plus a diagnostic entry
-  compiles through the selected lower route;
-  additional transformation optimization needs measured pressure from that
-  customer or a required conformance boundary. Compare coherent private-profile
-  growth before adding another optimization or limit workaround; retain general
-  source semantics and never add a customer-specific shortcut. Separate remaining
-  DCOUT conformance from execution progress through the Epsilon evaluator.
-  Acceptance: conformance and malformed-source suites pass, the complete
-  Epsilon evaluator compiles, exact receipts execute D, and no host or retired
-  compiler participates. The final execution clause depends on P3 and complete
-  D in P4; missing downstream implementation is not a reason to keep adding
-  Delta mechanisms after its own applicable conformance and customer checks pass.
+- **DELTA-COMPILER.** Finish the Gamma closure rooted at
+  `bootstrap/delta/compiler/delta_compiler.gamma` against the
+  [Delta contract](bootstrap/delta/LANGUAGE.md), especially remaining canonical
+  DCOUT resource and internal failures. Preserve full ordinary source semantics,
+  checked arithmetic, exhaustive matching, proper-tail lowering, and canonical
+  Gamma emission. The current Epsilon source plus a diagnostic entry already
+  compiles; further optimization needs measured customer or conformance pressure,
+  not a standing mandate to improve general transformation costs.
+  Acceptance: Delta conformance and malformed-source gates pass, the exact
+  Epsilon evaluator closure compiles through the selected route, and its
+  available entries execute with measured resources and unchanged semantics.
+  Complete D execution belongs to P3/P4; its absence does not justify extra
+  Delta mechanisms after these obligations close.
 
 ## P3 - Delta to Epsilon
 
-- **EPSILON-EVALUATOR.** Complete the Delta source closure selected by
-  `bootstrap/epsilon/compiler/epsilon_compiler.delta.sources` against
-  `bootstrap/epsilon/LANGUAGE.md`, deleting inherited structures with no current
-  customer. Finish checking, fixed-storage realization, deterministic
-  diagnostics, execution, the evaluator entry, and exact composition with D.
-  Acceptance: exact Epsilon-written Omega D executes under the selected lower
-  chain and its behavior refines `RunEpsilon` without an Epsilon-owned Alpha
-  backend.
+- **EPSILON-EVALUATOR.** Complete the closure selected by
+  `bootstrap/epsilon/compiler/epsilon_compiler.delta.sources` against the
+  [Epsilon contract](bootstrap/epsilon/LANGUAGE.md): remaining checking,
+  fixed-storage realization, deterministic outcomes, execution, and evaluator
+  entry. Justify retained features by the Epsilon-written D source.
+  Use concrete existing D slices for intermediate acceptance; do not invent
+  speculative language facilities while D is incomplete.
+  Final acceptance depends on complete D: that exact source executes through
+  the selected lower chain and refines `RunEpsilon`, with no Epsilon-owned
+  Alpha backend or hidden host implementation.
 
-## P4 - Epsilon to Omega
+## P4 - Epsilon to Omega and self-hosting
 
-- **OMEGA-D.** Complete the Epsilon source closure selected by
+- **OMEGA-D.** Complete the Epsilon closure selected by
   `bootstrap/omega/omega_compiler.epsilon.sources` as the first full Omega
-  compiler. Conservative and slow interpreted execution is acceptable;
-  Epsilon features are justified only by this source. Acceptance: interpreted D
-  compiles the exact Omega C closure for its ordinary `alpha_bootstrap` target
-  and produces `omega0_compiler_bytecode.tape`.
+  compiler. Work against settled product semantics and actual C requirements;
+  conservative, slow interpreted execution is acceptable when feasible.
+  Acceptance: interpreted D compiles the exact Omega C closure for its ordinary
+  `alpha_bootstrap` target and produces `omega0_compiler_bytecode.tape`.
+  Depends on P3 and the product-source work in `TASKS.md`.
 
-- **OMEGA-C.** Compile the exact Omega-written product closure rooted at
-  `source/omega/{build.omg,main.omg}` with interpreted D for
-  `alpha_bootstrap`, then with `omega0`. This is the only meaningful self-host
-  edge. Acceptance: `D -> C/omega0 -> C/omega` is deterministic, `omega`
-  recompiles C under the same source and target profile, product suites pass,
-  and the transitive manifest contains no Rust comparator or retired rung.
+- **OMEGA-C.** Once the product source and D are ready, compile the exact
+  Omega-written closure rooted at `source/omega/{build.omg,main.omg}` with D,
+  then with `omega0`. This is the sole self-host edge.
+  Acceptance: `D -> C/omega0 -> C/omega` is deterministic, `omega` recompiles
+  C under the same source/target profile, and shared product suites pass.
 
-## P5 - Chain closure
+## P5 - Audited chain closure
 
-- **CHAIN-MANIFEST.** Retain, for every edge, the exact source closure, tape,
-  language/Alpha semantics versions, observation/resource profiles,
-  reconstructed obligations, certificates, and disclosed admissions.
+- **CHAIN-MANIFEST.** In shared `tools/bootstrap/` orchestration and edge-owned
+  records, bind each exact source closure, artifact, semantics version,
+  observation/resource profile, independently reconstructed obligation,
+  certificate, and disclosed admission. Acceptance: a reviewer can follow
+  every dependency back to the audited root without treating a digest,
+  successful execution, or producer assertion as a proof.
 
-- **CHAIN-HYGIENE.** Keep `tools/bootstrap/check-chain-hygiene.sh` green. It
-  rejects retired owners, obsolete assembler identities, intermediate
-  self-hosting, unimplemented tapes, and source suffixes outside the selected
-  immediate-predecessor map.
-
-- **OFFLINE-REBUILD.** Reconstruct and check the complete chain on a blank
-  supported host from one audited Alpha seed and repository-owned bytes. Host
-  Python, Rust, networking, and package managers may assist diagnostics but are
-  never semantic stages.
+- **OFFLINE-REBUILD.** Close `tests/bootstrap/` reconstruction across all
+  completed edges. Acceptance: a blank supported host reconstructs and checks
+  the entire chain from the audited Alpha seed and repository-owned bytes;
+  Rust, Python, networking, and package managers are never semantic stages.
+  The manifest contains no retired rung or undisclosed authority substitute.

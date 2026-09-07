@@ -421,9 +421,15 @@ coordinates publishing across machines; it does not assign work ownership.
 Before each advancement milestone, name the exact customer, the behavior or
 required evidence it will deliver, and the downstream dependencies still missing.
 Read the owning minimization/design contract; a board item or passing helper
-test is not by itself a reason to retain machinery. For bootstrap work, apply
+test is not by itself a reason to retain machinery. Test the premise itself:
+does this obligation serve the long-term goal, is the stated dependency real,
+and is the proposed implementation necessary? Do not merely optimize the way
+an unjustified task is executed. For bootstrap work, apply
 [whole-chain minimization](wiki/design_briefs/bootstrap_minimization.md), counting
-source, profiles, proofs, tests, and host plumbing together.
+source, profiles, proofs, tests, and host plumbing together. Human-auditable
+proof closure is a first-class customer alongside execution; the checker design
+must earn its complexity too. Neither a runnable chain without required evidence
+nor an expanding proof framework without a concrete edge satisfies that goal.
 
 Before adding a subsystem, a new helper layer, or a workaround for a resource
 limit, compare the simpler alternatives in commentary: deletion/deferment,
@@ -435,7 +441,8 @@ or change the trusted boundary to make an alternative appear cheaper.
 At checkpoint handoff, state what now works for that customer, what complexity
 was added or removed, and whether the remaining plan still makes sense. After
 two consecutive milestones that only add supporting machinery without advancing
-customer execution or closing a required evidence claim, pause implementation
+customer behavior, reducing human audit burden, or establishing measured
+feasibility/completion of a named proof obligation, pause implementation
 before a third: summarize the accumulated cost and propose continuing,
 simplifying, or deferring for the user's direction. Successful helper tests do
 not reset this checkpoint. Apply the same pause immediately when the required
