@@ -420,10 +420,8 @@ pub(super) fn lower_structural_type_plans(
         .into_iter()
         .map(|plan| {
             let shape = match &plan.shape {
-                CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => {
-                    return unsupported(
-                        "primitive scalar roots are valid only in attached Unit write-only lowering",
-                    );
+                CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive) => {
+                    StructuralTypeShape::PrimitiveScalar(terminal_scalar_type(*primitive)?)
                 }
                 CheckedUnitStructuralTypeShape::ByteSequence(carrier) => {
                     StructuralTypeShape::ByteSequence(terminal_byte_sequence_carrier(*carrier))
