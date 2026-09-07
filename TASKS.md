@@ -117,7 +117,7 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   Acceptance remains native execution with the documented exit/output and
   unchanged checked text facts; the console dependencies below are also required.
 
-  Resume the native `cli_mvp` customer at code checkpoint `ebef4e5c5d`.
+  Resume the native `cli_mvp` customer at code checkpoint `bff9923b70`.
   On macOS ARM64, `CARGO_INCREMENTAL=0 OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
   samples_with_documented_exit_run_correctly --no-fail-fast` exits 100 before
@@ -127,6 +127,12 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   [borrowed-byte writer closure](wiki/architecture/pipeline/terminal_psi.md#borrowed-byte-writer-composition)
   in `typed-trees-to-checked-trees/src/flow/terminal_unit/` and
   `checked-trees-to-lowered-psi/src/attached_unit/`, then its Terminal consumers.
+  First retain whole-view indexed operands: `values/scalar/structural_fields.rs`
+  in the checked producer rejects empty projection paths in
+  `structural_parameter_place`, so `bytes[0]` has no scalar plan. Preserve the
+  separate nonempty-path requirement for nominal fields. Executable reads must
+  bind their bounds certificate to a dominating length observation of the exact
+  same immutable view; an arbitrary `u64` or a sibling branch's length is not evidence.
   The callable multistate plan must retain provider/view/scalar transfers,
   length observations at the selected state edges, and slice-decrease evidence;
   native whole-byte-view layout and length realization are also still missing.
