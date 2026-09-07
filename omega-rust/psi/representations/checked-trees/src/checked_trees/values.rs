@@ -274,8 +274,9 @@ pub enum CheckedScalarExpression {
         primitive_type: typed_trees::types::PrimitiveType,
     },
     /// Nonempty path to a relevant primitive field below one structural entry
-    /// parameter. This form is retained only for structural crash predicates;
-    /// ordinary scalar execution plans reject it.
+    /// parameter in its authored namespace. Structural predicates and current
+    /// program-point value snapshots retain this form; ordinary scalar native
+    /// execution plans still reject it.
     StructuralParameterField {
         parameter_position: u32,
         path: Vec<CheckedStructuralPredicatePathSegment>,
@@ -305,6 +306,13 @@ pub enum CheckedScalarExpression {
         primitive_type: typed_trees::types::PrimitiveType,
         operand: Box<CheckedScalarExpression>,
         range: CheckedIntegerRange,
+    },
+    /// A selected trapping conversion, not a proof of exactness or termination.
+    /// Known representable inputs may supply a conditional normal-return fact;
+    /// runtime consumers must retain the policy or reject this form.
+    IntegerTrappingCast {
+        primitive_type: typed_trees::types::PrimitiveType,
+        operand: Box<CheckedScalarExpression>,
     },
     Boolean(Box<CheckedBooleanExpression>),
 }

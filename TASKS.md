@@ -101,19 +101,14 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   through collections also need `NOMINAL-FIELD-FLOW` below; their default-domain field
   obligations must be proved, not bypassed to restore sample acceptance.
 
-  `text_samples_compile_from_authored_program_entry_bindings` is red for
-  `caesar_cipher` and `format_number` alone. Both build a `[u8; N] in Utf8`
-  carrier out of raw `u8` element stores (`self.out[self.i] = self.ch as u8`,
-  `self.buffer[0] = self.tens_byte`), so
-  `typed-trees-to-checked-trees/src/checks/contracts/nominal_inputs.rs`
-  rejects every later transition with `cannot prove default-domain field
-  requirement ... requires [u8; N]::Utf8`. They are the indexed text writers
-  `NOMINAL-FIELD-FLOW` already owns. Its whole-buffer half is live: a per-byte
-  carrier class now survives an indexed store of a proved in-class byte. What
-  still rejects in both is the replacement byte: `format_number` stores a
-  `narrow_i32_to_u8_trapping` result and `caesar_cipher` a wrapping add over an
-  element read, and neither shape proves a class. Close them there, not through
-  a weakened field declaration. The `stdin_*` and `gui` cohorts pass.
+  The text cohort still needs projected byte-array arguments to satisfy
+  `write_line(text: &[u8])` in `caesar_cipher` and `text_padding`; validation
+  currently reports the member-access argument as incompatible. `fletcher_checksum`
+  additionally retains a local slice loan across a mutable receiver call and
+  needs the exact argument-loan origin and lifetime joined there. Own these in
+  call typing/loan transport rather than weakening the sample declarations.
+  `caesar_cipher`'s replacement-byte class and loop transport remain part of
+  `NOMINAL-FIELD-FLOW` below.
 
   `samples_with_documented_exit_run_correctly` is separately red for all 136
   documented-exit samples; before the borrowed-self retry below, 86 failed
@@ -568,17 +563,16 @@ Owners include
   at calls, transitions, and returns. Do not encode universal coverage as an
   unresolved index or assume arbitrary incoming storage is zero-initialized.
   Indexed text writers still need numeric conversion result evidence for
-  callees with nested calls or nonlocal storage and unsupported
-  cast policies beyond the selected local scalar snapshots consumed by
-  `typed-trees-to-checked-trees/src/flow/transfers/byte_sequences.rs`. `format_number`'s
-  `narrow_i32_to_u8_trapping` result and `print_squares`'s
-  `narrow_u32_to_u8_wrapping` result publish no result range, and the checker
-  derives none from their `trap_if` calls, so neither byte proves a class.
+  unknown inputs, effectful nested arguments, nonlocal storage, and remaining
+  cast policies beyond selected normal-return scalar snapshots consumed by
+  `typed-trees-to-checked-trees/src/flow/transfers/byte_sequences.rs`.
+  `print_squares`'s `narrow_u32_to_u8_wrapping` result publishes no result range
+  and its remaining conversion policy supplies no selected byte-class fact.
   `print_squares` and `caesar_cipher` additionally need the class to survive
   loop state edges. An ASCII byte can corrupt an arbitrary Utf8 buffer, so Utf8
   membership alone can never justify the preservation rule. Acceptance:
   `text_samples_compile_from_authored_program_entry_bindings` is green for
-  `format_number` and `caesar_cipher`.
+  `caesar_cipher`.
 
 - **CML4.** Complete `EdgeCleanupPlan` after outgoing materialization and
   transfer commitment, including structural sums, nested projections, cycles,

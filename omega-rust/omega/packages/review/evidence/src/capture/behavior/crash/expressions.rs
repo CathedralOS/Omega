@@ -11,10 +11,10 @@ use crate::record::{
 
 pub(in crate::capture::behavior) fn project_boolean_expression(
     expression: &checked_trees::CheckedBooleanExpression,
-) -> PackageReviewBooleanExpression {
+) -> Option<PackageReviewBooleanExpression> {
     use checked_trees::CheckedBooleanExpression;
 
-    match expression {
+    Some(match expression {
         CheckedBooleanExpression::StorageRead { .. } => {
             unreachable!("checked structural crash requirements cannot read local storage")
         }
@@ -37,17 +37,17 @@ pub(in crate::capture::behavior) fn project_boolean_expression(
             path: project_structural_path(path),
         },
         CheckedBooleanExpression::Not(operand) => {
-            PackageReviewBooleanExpression::Not(Box::new(project_boolean_expression(operand)))
+            PackageReviewBooleanExpression::Not(Box::new(project_boolean_expression(operand)?))
         }
         CheckedBooleanExpression::Equal { left, right } => PackageReviewBooleanExpression::Equal {
-            left: Box::new(project_boolean_expression(left)),
-            right: Box::new(project_boolean_expression(right)),
+            left: Box::new(project_boolean_expression(left)?),
+            right: Box::new(project_boolean_expression(right)?),
         },
         CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
             PackageReviewBooleanExpression::IntegerComparison {
                 kind: project_integer_comparison_kind(*kind),
-                left: Box::new(project_scalar_expression(left)),
-                right: Box::new(project_scalar_expression(right)),
+                left: Box::new(project_scalar_expression(left)?),
+                right: Box::new(project_scalar_expression(right)?),
             }
         }
         CheckedBooleanExpression::IeeeFloatComparison {
@@ -88,22 +88,23 @@ pub(in crate::capture::behavior) fn project_boolean_expression(
             }
         }
         CheckedBooleanExpression::And { left, right } => PackageReviewBooleanExpression::And {
-            left: Box::new(project_boolean_expression(left)),
-            right: Box::new(project_boolean_expression(right)),
+            left: Box::new(project_boolean_expression(left)?),
+            right: Box::new(project_boolean_expression(right)?),
         },
         CheckedBooleanExpression::Or { left, right } => PackageReviewBooleanExpression::Or {
-            left: Box::new(project_boolean_expression(left)),
-            right: Box::new(project_boolean_expression(right)),
+            left: Box::new(project_boolean_expression(left)?),
+            right: Box::new(project_boolean_expression(right)?),
         },
-    }
+    })
 }
 
 fn project_scalar_expression(
     expression: &checked_trees::CheckedScalarExpression,
-) -> PackageReviewScalarExpression {
+) -> Option<PackageReviewScalarExpression> {
     use checked_trees::CheckedScalarExpression;
 
-    match expression {
+    Some(match expression {
+        CheckedScalarExpression::IntegerTrappingCast { .. } => return None,
         CheckedScalarExpression::StorageRead { .. } => {
             unreachable!("checked structural crash requirements cannot read local storage")
         }
@@ -152,22 +153,22 @@ fn project_scalar_expression(
         } => PackageReviewScalarExpression::IntegerBinary {
             kind: project_integer_binary_kind(*kind),
             primitive_type: project_primitive_type(*primitive_type),
-            left: Box::new(project_scalar_expression(left)),
-            right: Box::new(project_scalar_expression(right)),
+            left: Box::new(project_scalar_expression(left)?),
+            right: Box::new(project_scalar_expression(right)?),
         },
         CheckedScalarExpression::IntegerBitwiseNot {
             primitive_type,
             operand,
         } => PackageReviewScalarExpression::IntegerBitwiseNot {
             primitive_type: project_primitive_type(*primitive_type),
-            operand: Box::new(project_scalar_expression(operand)),
+            operand: Box::new(project_scalar_expression(operand)?),
         },
         CheckedScalarExpression::IntegerWiden {
             primitive_type,
             operand,
         } => PackageReviewScalarExpression::IntegerWiden {
             primitive_type: project_primitive_type(*primitive_type),
-            operand: Box::new(project_scalar_expression(operand)),
+            operand: Box::new(project_scalar_expression(operand)?),
         },
         CheckedScalarExpression::IntegerExactCast {
             primitive_type,
@@ -175,16 +176,16 @@ fn project_scalar_expression(
             range,
         } => PackageReviewScalarExpression::IntegerExactCast {
             primitive_type: project_primitive_type(*primitive_type),
-            operand: Box::new(project_scalar_expression(operand)),
+            operand: Box::new(project_scalar_expression(operand)?),
             range: PackageReviewIntegerRange {
                 minimum: range.minimum.to_string(),
                 maximum: range.maximum.to_string(),
             },
         },
-        CheckedScalarExpression::Boolean(expression) => {
-            PackageReviewScalarExpression::Boolean(Box::new(project_boolean_expression(expression)))
-        }
-    }
+        CheckedScalarExpression::Boolean(expression) => PackageReviewScalarExpression::Boolean(
+            Box::new(project_boolean_expression(expression)?),
+        ),
+    })
 }
 
 fn project_structural_field(

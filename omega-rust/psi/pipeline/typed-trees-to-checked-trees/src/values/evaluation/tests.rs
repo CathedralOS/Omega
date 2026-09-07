@@ -32,6 +32,49 @@ fn expected(value: i64) -> Option<ScalarValue> {
 }
 
 #[test]
+fn structural_reads_require_a_separate_authority_and_admitted_payload() {
+    use checked_trees::CheckedStructuralPredicatePathSegment;
+    let path = vec![CheckedStructuralPredicatePathSegment::Field("byte".into())];
+    let read = CheckedScalarExpression::StructuralParameterField {
+        parameter_position: 2,
+        path: path.clone(),
+        primitive_type: PrimitiveType::U8,
+    };
+    assert_eq!(evaluate(&read, &mut |_| expected(65)), None);
+    struct Fields(Option<ScalarValue>);
+    impl ScalarValueSource for Fields {
+        fn binding(&mut self, _: usize) -> Option<ScalarValue> {
+            expected(65)
+        }
+        fn structural_field(
+            &mut self,
+            position: u32,
+            path: &[CheckedStructuralPredicatePathSegment],
+        ) -> Option<ScalarValue> {
+            (position == 2 && path == [CheckedStructuralPredicatePathSegment::Field("byte".into())])
+                .then(|| self.0.clone())
+                .flatten()
+        }
+    }
+    for (payload, admitted) in [
+        (expected(65), expected(65)),
+        (expected(-1), None),
+        (expected(256), None),
+        (Some(ScalarValue::Boolean(true)), None),
+        (Some(ScalarValue::Unknown), None),
+        (None, None),
+    ] {
+        assert_eq!(evaluate(&read, &mut Fields(payload)), admitted);
+    }
+    let wrong_root = CheckedScalarExpression::StructuralParameterField {
+        parameter_position: 0,
+        path,
+        primitive_type: PrimitiveType::U8,
+    };
+    assert_eq!(evaluate(&wrong_root, &mut Fields(expected(65))), None);
+}
+
+#[test]
 fn storage_reads_require_exact_current_symbol_values_and_selected_carriers() {
     let symbol = symbols::SymbolHandle::from_arena_index(1);
     let stale = symbols::SymbolHandle::from_parts(symbol.arena_index(), symbol.generation() + 1);
@@ -247,6 +290,35 @@ fn integer_casts_require_admitted_values_and_the_recorded_range() {
             accepted.then(|| ScalarValue::Integer(BigInt::from_i64(value)))
         );
     }
+}
+
+#[test]
+fn trapping_casts_retain_only_representable_normal_return_values() {
+    for (value, accepted) in [
+        (50, true),
+        (53, true),
+        (0, true),
+        (255, true),
+        (256, false),
+        (-1, false),
+    ] {
+        let cast = CheckedScalarExpression::IntegerTrappingCast {
+            primitive_type: PrimitiveType::U8,
+            operand: Box::new(literal(value, LandedIntegerType::I16)),
+        };
+        assert_eq!(
+            evaluate(&cast, &mut |_| None),
+            accepted.then(|| ScalarValue::Integer(BigInt::from_i64(value)))
+        );
+    }
+    let cast = CheckedScalarExpression::IntegerTrappingCast {
+        primitive_type: PrimitiveType::U8,
+        operand: Box::new(CheckedScalarExpression::Parameter {
+            position: 0,
+            primitive_type: PrimitiveType::U64,
+        }),
+    };
+    assert_eq!(evaluate(&cast, &mut |_| None), None);
 }
 
 #[test]

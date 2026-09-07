@@ -393,7 +393,8 @@ fn substitute_checked_scalar_expression(
         }
         CheckedScalarExpression::Local { .. }
         | CheckedScalarExpression::StorageRead { .. }
-        | CheckedScalarExpression::StructuralParameterField { .. } => return None,
+        | CheckedScalarExpression::StructuralParameterField { .. }
+        | CheckedScalarExpression::IntegerTrappingCast { .. } => return None,
         CheckedScalarExpression::IntegerLiteral { literal } => {
             CheckedScalarExpression::IntegerLiteral {
                 literal: literal.clone(),

@@ -48,6 +48,7 @@ pub(crate) fn retain_nested_structural_call_arguments(
                         call_ordinal,
                         &site,
                         &parameters,
+                        program.state_parameters(state),
                         &parameter_types,
                         &locals,
                         exact_integer_casts,

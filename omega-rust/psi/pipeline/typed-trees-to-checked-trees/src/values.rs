@@ -12,7 +12,7 @@ mod expression;
 mod snapshots;
 pub(crate) use evaluation::evaluate as evaluate_checked_scalar;
 pub(crate) use evaluation::{BoundScalarValues, ScalarValueSource};
-pub(crate) use snapshots::{literal_at_place, scalar_value_at_place};
+pub(crate) use snapshots::{PlaceScalarValues, literal_at_place, scalar_value_at_place};
 mod scalar;
 mod statement;
 mod transition;
@@ -53,7 +53,8 @@ pub(crate) use scalar::{
     lower_machine_entry_boolean_expression, lower_machine_entry_scalar_contract_expression,
     lower_machine_parameter_boolean_expression, lower_state_scalar_expression,
     lower_unit_scalar_argument, nested_structural_call_return_type,
-    retain_nested_structural_call_arguments, scalar_expression_type,
+    resolve_structural_parameter_path, retain_nested_structural_call_arguments,
+    scalar_expression_type,
 };
 
 pub(crate) fn build_value_facts(

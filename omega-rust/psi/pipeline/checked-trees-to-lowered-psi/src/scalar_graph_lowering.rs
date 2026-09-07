@@ -889,6 +889,9 @@ pub(super) fn lower_checked_scalar_expression(
             scalar_type: terminal_scalar_type(*primitive_type)?,
             operand: Box::new(lower_checked_scalar_expression(operand)?),
         }),
+        CheckedScalarExpression::IntegerTrappingCast { .. } => {
+            unsupported("checked trapping conversion requires runtime policy realization")
+        }
         CheckedScalarExpression::IntegerExactCast {
             primitive_type,
             operand,

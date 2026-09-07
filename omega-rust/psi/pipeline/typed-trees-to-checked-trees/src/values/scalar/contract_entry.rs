@@ -210,7 +210,8 @@ impl EntryOperands<'_> {
                     primitive_type: *primitive_type,
                 };
             }
-            CheckedScalarExpression::Local { .. } => return None,
+            CheckedScalarExpression::Local { .. }
+            | CheckedScalarExpression::IntegerTrappingCast { .. } => return None,
             CheckedScalarExpression::IntegerBinary { left, right, .. } => {
                 self.scalar(left)?;
                 self.scalar(right)?;

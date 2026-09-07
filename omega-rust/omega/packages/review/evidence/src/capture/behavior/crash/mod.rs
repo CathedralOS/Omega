@@ -84,14 +84,20 @@ pub(crate) fn project_crash(
     Ok(PackageReviewCrash {
         interface,
         published,
-        structural_runtime_requirements: plan.structural_runtime_requirements().map(
-            |requirements| {
+        structural_runtime_requirements: plan
+            .structural_runtime_requirements()
+            .map(|requirements| {
                 requirements
                     .iter()
                     .map(project_boolean_expression)
-                    .collect()
-            },
-        ),
+                    .collect::<Option<Vec<_>>>()
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "package crash review cannot project a trapping scalar conversion",
+                        )]
+                    })
+            })
+            .transpose()?,
         checked_sites,
         checked_calls,
     })

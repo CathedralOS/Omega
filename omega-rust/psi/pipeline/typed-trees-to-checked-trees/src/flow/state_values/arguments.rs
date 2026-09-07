@@ -94,10 +94,11 @@ pub(in crate::flow) fn capture_argument(
         }
         return crate::values::evaluate_checked_scalar(
             &expression.expression,
-            &mut crate::values::BoundScalarValues {
+            &mut crate::values::PlaceScalarValues {
+                program,
+                parameters: program.state_parameters(state),
                 symbols: plans.binding_symbols.span_or_empty(binding.symbols),
-                value_at_symbol: |symbol| {
-                    let place = canonical_place_from_symbol(symbol)?;
+                value_at_place: |place: &CanonicalPlace| {
                     crate::values::scalar_value_at_place(
                         program,
                         semantic,
@@ -107,7 +108,7 @@ pub(in crate::flow) fn capture_argument(
                             .span_or_empty(contexts)
                             .iter()
                             .map(|reference| semantic.contexts.get(reference.context)),
-                        &place,
+                        place,
                     )
                 },
             },

@@ -8,6 +8,7 @@ mod scalar_values;
 
 pub(super) fn propagate_statement_transfers(
     program: &typed_trees::TypedTrees,
+    borrow: &BorrowFacts,
     semantic: &mut FactPlan,
     ctx: &mut FlowBuildContext,
     machine_symbol: SymbolHandle,
@@ -291,6 +292,7 @@ pub(super) fn propagate_statement_transfers(
 
     let scalar_value = scalar_values::capture_statement(
         program,
+        borrow,
         semantic,
         ctx,
         state_symbol,

@@ -54,6 +54,7 @@ impl Builder<'_, '_> {
             self.operators,
             expression,
             self.parameters,
+            self.authored_parameters,
             self.parameter_types,
             self.locals,
             self.exact_integer_casts,
@@ -147,6 +148,7 @@ impl Builder<'_, '_> {
                     value,
                     CheckedScalarExpression::IntegerWiden { .. }
                         | CheckedScalarExpression::IntegerExactCast { .. }
+                        | CheckedScalarExpression::IntegerTrappingCast { .. }
                 ) {
                     let source_type = scalar_expression_type(&operand.value)?;
                     let (template, _) = construct_integer_cast(

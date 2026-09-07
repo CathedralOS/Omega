@@ -19,6 +19,9 @@ use typed_trees::{
 
 mod call_arguments;
 mod computations;
+mod structural_fields;
+pub(crate) use structural_fields::resolve_structural_parameter_path;
+use structural_fields::structural_parameter_field_path;
 mod contract_entry;
 mod result_contract;
 pub(crate) use call_arguments::{
@@ -94,6 +97,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                     call,
                                 },
                                 &scalar_parameters,
+                                parameters,
                                 &parameter_types,
                                 &locals,
                                 exact_integer_casts,
@@ -136,6 +140,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                     binding_ordinal,
                                     local.initial_value,
                                     &scalar_parameters,
+                                    parameters,
                                     &parameter_types,
                                     &locals,
                                     exact_integer_casts,
@@ -154,6 +159,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 operators,
                                 local.initial_value,
                                 &scalar_parameters,
+                                parameters,
                                 &parameter_types,
                                 &locals,
                                 primitive_type,
@@ -234,6 +240,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                     call,
                                 },
                                 &scalar_parameters,
+                                parameters,
                                 &parameter_types,
                                 &locals,
                                 exact_integer_casts,
@@ -256,6 +263,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 operators,
                                 *expression,
                                 &scalar_parameters,
+                                parameters,
                                 &parameter_types,
                                 &locals,
                                 result_type,
@@ -311,6 +319,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                             operators,
                             assignment.value,
                             &scalar_parameters,
+                            parameters,
                             &parameter_types,
                             &locals,
                             target_type,
@@ -358,6 +367,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                             0,
                             &crate::CallSite::Statement(call),
                             &scalar_parameters,
+                            parameters,
                             &parameter_types,
                             &locals,
                             exact_integer_casts,
@@ -380,6 +390,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 operators,
                                 authored_guard,
                                 &scalar_parameters,
+                                parameters,
                                 &parameter_types,
                                 &locals,
                                 exact_integer_casts,
@@ -432,6 +443,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                     operators,
                                     *expression,
                                     &scalar_parameters,
+                                    parameters,
                                     &parameter_types,
                                     &locals,
                                     result_type,
@@ -501,6 +513,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                     operators,
                                     *argument,
                                     &scalar_parameters,
+                                    parameters,
                                     &parameter_types,
                                     &locals,
                                     target_type,
@@ -682,6 +695,7 @@ fn lower_boundary_call_arguments(
     call_ordinal: usize,
     call_site: &crate::CallSite<'_>,
     parameters: &[StateParameter],
+    authored_parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
@@ -728,6 +742,7 @@ fn lower_boundary_call_arguments(
             operators,
             argument,
             parameters,
+            authored_parameters,
             parameter_types,
             locals,
             expected_type,
@@ -768,6 +783,7 @@ fn lower_direct_call_binding_arguments(
     binding_ordinal: u32,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
+    authored_parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
@@ -818,6 +834,7 @@ fn lower_direct_call_binding_arguments(
                         operators,
                         *argument,
                         parameters,
+                        authored_parameters,
                         parameter_types,
                         locals,
                         expected_type,
@@ -842,95 +859,6 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
 ) -> Option<CheckedBooleanExpression> {
     let entry = program.machine_states(machine).first()?;
     let parameters = program.state_parameters(entry);
-    fn structural_parameter_field_path(
-        program: &TypedTrees,
-        parameters: &[StateParameter],
-        expression: ExpressionHandle,
-        fields: &mut Vec<CheckedStructuralPredicatePathSegment>,
-    ) -> Option<u32> {
-        match program.expression_table.expression(expression) {
-            ExpressionNode::Name(name) => {
-                let name_symbol = name.symbol.is_valid().then_some(name.symbol).or_else(|| {
-                    program
-                        .expression_table
-                        .name_path_member_symbols(name.member_symbols)
-                        .iter()
-                        .copied()
-                        .find(|symbol| symbol.is_valid())
-                });
-                let name_text = program
-                    .expression_table
-                    .name_path_members(name.members)
-                    .last();
-                parameters
-                    .iter()
-                    .position(|parameter| {
-                        name_symbol.is_some_and(|symbol| parameter.symbol == symbol)
-                            || name_text.is_some_and(|name| parameter.name == *name)
-                    })
-                    .and_then(|position| u32::try_from(position).ok())
-            }
-            ExpressionNode::Member(member) => {
-                let parameter =
-                    structural_parameter_field_path(program, parameters, member.receiver, fields)?;
-                let field_identity = |field: &typed_trees::data::DataField| {
-                    field
-                        .identity
-                        .map(|identity| format!("#{identity}"))
-                        .unwrap_or_else(|| field.name.as_str().to_owned())
-                };
-                if let Some(case_name) = &member.case_variant {
-                    let (case, field) = program.data_definitions().iter().find_map(|data| {
-                        program.data_members(data).iter().find_map(|candidate| {
-                            let typed_trees::data::DataMember::Variant(variant) = candidate else {
-                                return None;
-                            };
-                            if variant.name != *case_name {
-                                return None;
-                            }
-                            program
-                                .data_payload_fields(variant)
-                                .iter()
-                                .find(|field| field.symbol == member.member_symbol)
-                                .map(|field| {
-                                    (
-                                        variant
-                                            .identity
-                                            .map(|identity| format!("#{identity}"))
-                                            .unwrap_or_else(|| variant.name.as_str().to_owned()),
-                                        field_identity(field),
-                                    )
-                                })
-                        })
-                    })?;
-                    fields.push(CheckedStructuralPredicatePathSegment::Case(case));
-                    fields.push(CheckedStructuralPredicatePathSegment::Field(field));
-                } else {
-                    let identity = if member.member_symbol.is_valid() {
-                        program.data_definitions().iter().find_map(|data| {
-                            program.data_members(data).iter().find_map(|candidate| {
-                                let typed_trees::data::DataMember::Field(field) = candidate else {
-                                    return None;
-                                };
-                                (field.symbol == member.member_symbol)
-                                    .then(|| field_identity(field))
-                            })
-                        })?
-                    } else {
-                        // Contract member expressions can reach this carrier
-                        // before their field symbol is retained. Keep the
-                        // authored segment in that case: path_type_reference
-                        // resolves it against the exact receiver type below,
-                        // so this does not perform global name-based selection.
-                        member.member.as_str().to_owned()
-                    };
-                    fields.push(CheckedStructuralPredicatePathSegment::Field(identity));
-                }
-                Some(parameter)
-            }
-            _ => None,
-        }
-    }
 
     fn lower_structural_boolean_expression(
         program: &TypedTrees,
@@ -2159,6 +2087,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
         operators,
         expression,
         parameters,
+        parameters,
         &parameter_types,
         &[],
         exact_integer_casts,
@@ -2207,6 +2136,7 @@ pub(crate) fn lower_state_scalar_expression(
         operators,
         expression,
         parameters,
+        program.state_parameters(state),
         &parameter_types,
         &locals,
         expected_type,
@@ -2263,6 +2193,7 @@ pub(crate) fn lower_unit_scalar_argument(
         operators,
         expression,
         &parameters,
+        program.state_parameters(state),
         &parameter_types,
         &locals,
         expected_type,
@@ -2275,6 +2206,7 @@ fn lower_return_expression(
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
+    authored_parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
     result_type: PrimitiveType,
@@ -2291,6 +2223,7 @@ fn lower_return_expression(
             operators,
             expression,
             parameters,
+            authored_parameters,
             parameter_types,
             locals,
             exact_integer_casts,
@@ -2314,6 +2247,7 @@ fn lower_return_expression(
         operators,
         expression,
         parameters,
+        authored_parameters,
         parameter_types,
         locals,
         exact_integer_casts,
@@ -2344,6 +2278,7 @@ fn lower_scalar_operands(
     operators: &CheckedOperatorFacts,
     binary: &typed_trees::expression::TableBinaryExpression,
     parameters: &[StateParameter],
+    authored_parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
@@ -2357,6 +2292,7 @@ fn lower_scalar_operands(
             operators,
             expression,
             parameters,
+            authored_parameters,
             parameter_types,
             locals,
             exact_integer_casts,
@@ -2391,12 +2327,23 @@ fn lower_scalar_expression(
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
+    authored_parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
     if let Some(length) = exact_inline_literal_subslice_length(program, expression) {
         return Some((length, ArithmeticDomain::Exact));
+    }
+    if matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Name(_) | ExpressionNode::Member(_)
+    ) && let Some(field) = structural_fields::lower_structural_parameter_field(
+        program,
+        authored_parameters,
+        expression,
+    ) {
+        return Some(field);
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
@@ -2472,6 +2419,7 @@ fn lower_scalar_expression(
                             operators,
                             cast.value,
                             parameters,
+                            authored_parameters,
                             parameter_types,
                             locals,
                             exact_integer_casts,
@@ -2489,6 +2437,7 @@ fn lower_scalar_expression(
                 operators,
                 unary.operand,
                 parameters,
+                authored_parameters,
                 parameter_types,
                 locals,
                 exact_integer_casts,
@@ -2501,6 +2450,7 @@ fn lower_scalar_expression(
                 operators,
                 binary,
                 parameters,
+                authored_parameters,
                 parameter_types,
                 locals,
                 exact_integer_casts,
@@ -2653,6 +2603,19 @@ fn construct_integer_cast(
                     minimum: fact.minimum.clone(),
                     maximum: fact.maximum.clone(),
                 },
+            },
+            cast.domain,
+        ));
+    }
+    if cast.domain == ArithmeticDomain::Trapping
+        && is_integer(source_type)
+        && source_type != PrimitiveType::Addr
+        && target_type != PrimitiveType::Addr
+    {
+        return Some((
+            CheckedScalarExpression::IntegerTrappingCast {
+                primitive_type: target_type,
+                operand: Box::new(operand),
             },
             cast.domain,
         ));
@@ -2829,6 +2792,7 @@ fn lower_boolean_expression(
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
+    authored_parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
@@ -2878,6 +2842,7 @@ fn lower_boolean_expression(
                     operators,
                     unary.operand,
                     parameters,
+                    authored_parameters,
                     parameter_types,
                     locals,
                     exact_integer_casts,
@@ -2901,6 +2866,7 @@ fn lower_boolean_expression(
                     operators,
                     binary,
                     parameters,
+                    authored_parameters,
                     parameter_types,
                     locals,
                     exact_integer_casts,
@@ -2920,6 +2886,7 @@ fn lower_boolean_expression(
                     operators,
                     binary.left,
                     parameters,
+                    authored_parameters,
                     parameter_types,
                     locals,
                     exact_integer_casts,
@@ -2929,6 +2896,7 @@ fn lower_boolean_expression(
                     operators,
                     binary.right,
                     parameters,
+                    authored_parameters,
                     parameter_types,
                     locals,
                     exact_integer_casts,
@@ -2949,6 +2917,7 @@ fn lower_boolean_expression(
                 operators,
                 binary.left,
                 parameters,
+                authored_parameters,
                 parameter_types,
                 locals,
                 exact_integer_casts,
@@ -2958,6 +2927,7 @@ fn lower_boolean_expression(
                 operators,
                 binary.right,
                 parameters,
+                authored_parameters,
                 parameter_types,
                 locals,
                 exact_integer_casts,
@@ -3028,6 +2998,7 @@ fn lower_boolean_guard(
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,
     parameters: &[StateParameter],
+    authored_parameters: &[StateParameter],
     parameter_types: &[PrimitiveType],
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
@@ -3038,6 +3009,7 @@ fn lower_boolean_guard(
             operators,
             expression,
             parameters,
+            authored_parameters,
             parameter_types,
             locals,
             exact_integer_casts,
@@ -3054,6 +3026,7 @@ fn lower_boolean_guard(
                     operators,
                     binary.right,
                     parameters,
+                    authored_parameters,
                     parameter_types,
                     locals,
                     exact_integer_casts,
@@ -3065,6 +3038,7 @@ fn lower_boolean_guard(
                     operators,
                     binary.left,
                     parameters,
+                    authored_parameters,
                     parameter_types,
                     locals,
                     exact_integer_casts,
@@ -3078,6 +3052,7 @@ fn lower_boolean_guard(
         operators,
         expression,
         parameters,
+        authored_parameters,
         parameter_types,
         locals,
         exact_integer_casts,
@@ -3153,7 +3128,10 @@ pub(crate) fn scalar_expression_type(
         | CheckedScalarExpression::IntegerBinary { primitive_type, .. }
         | CheckedScalarExpression::IntegerBitwiseNot { primitive_type, .. }
         | CheckedScalarExpression::IntegerWiden { primitive_type, .. }
-        | CheckedScalarExpression::IntegerExactCast { primitive_type, .. } => Some(*primitive_type),
+        | CheckedScalarExpression::IntegerExactCast { primitive_type, .. }
+        | CheckedScalarExpression::IntegerTrappingCast { primitive_type, .. } => {
+            Some(*primitive_type)
+        }
         CheckedScalarExpression::IntegerLiteral { literal } => {
             primitive_for_landed(literal.landing()?.landed_type)
         }
@@ -3334,7 +3312,7 @@ mod tests {
                 });
                 let operators = CheckedOperatorFacts::with_roots(uses, Arena::new(), Arena::new());
                 assert_eq!(
-                    lower_boolean_guard(&program, &operators, expression, &[], &[], &[], &[])
+                    lower_boolean_guard(&program, &operators, expression, &[], &[], &[], &[], &[])
                         .is_some(),
                     accepted,
                     "value={value}, status={status:?}",
