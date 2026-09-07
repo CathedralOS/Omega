@@ -19,6 +19,7 @@ use std::sync::Arc;
 pub struct CheckedCompilation {
     program: CheckedTrees,
     dispatch_source_edits: selected_dispatch::SelectedDispatchSourceEdits,
+    boundary_dispatch_source_edits: selected_dispatch::SelectedDispatchSourceEdits,
     source_file_count: usize,
     subsystem: u16,
     package_subject: Option<package_compilation::PackageCompilationSubject>,
@@ -63,6 +64,7 @@ impl PartialEq for CheckedCompilation {
     fn eq(&self, other: &Self) -> bool {
         self.program == other.program
             && self.dispatch_source_edits == other.dispatch_source_edits
+            && self.boundary_dispatch_source_edits == other.boundary_dispatch_source_edits
             && self.source_file_count == other.source_file_count
             && self.subsystem == other.subsystem
             && self.package_subject == other.package_subject
@@ -106,7 +108,35 @@ impl CheckedCompilation {
     pub fn pre_selected_dispatch_source_trees(
         &self,
     ) -> Result<std::borrow::Cow<'_, typed_trees::TypedTrees>, Vec<Diagnostic>> {
-        self.dispatch_source_edits.source_trees(&self.program.typed)
+        match self
+            .boundary_dispatch_source_edits
+            .source_trees(&self.program.typed)?
+        {
+            std::borrow::Cow::Borrowed(typed) => self.dispatch_source_edits.source_trees(typed),
+            std::borrow::Cow::Owned(typed) => Ok(std::borrow::Cow::Owned(
+                self.dispatch_source_edits
+                    .source_trees(&typed)?
+                    .into_owned(),
+            )),
+        }
+    }
+
+    /// Terminal retains boundary requirements; Omega selects their adapters.
+    /// Restore only interpreter adapter dispatch, leaving selected operator
+    /// execution and its checked plans intact. The journal validates every
+    /// replaced operand graph before this view can reach source custody.
+    pub(crate) fn terminal_production_trees(
+        &self,
+    ) -> Result<std::borrow::Cow<'_, CheckedTrees>, Vec<Diagnostic>> {
+        match self
+            .boundary_dispatch_source_edits
+            .source_trees(&self.program.typed)?
+        {
+            std::borrow::Cow::Borrowed(_) => Ok(std::borrow::Cow::Borrowed(&self.program)),
+            std::borrow::Cow::Owned(typed) => Ok(std::borrow::Cow::Owned(
+                CheckedTrees::with_roots(typed, self.program.facts.clone()),
+            )),
+        }
     }
 
     /// Exact physical/generated source count consumed by this checked run.
@@ -1434,6 +1464,8 @@ fn compile_assembled_checked_child(
     Ok(CheckedCompilation {
         program,
         dispatch_source_edits: selected_execution_settlement.dispatch_source_edits,
+        boundary_dispatch_source_edits: selected_execution_settlement
+            .boundary_dispatch_source_edits,
         source_file_count,
         subsystem,
         package_subject,
@@ -1524,6 +1556,99 @@ mod continuation_tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.root);
         }
+    }
+
+    #[test]
+    fn terminal_view_restores_boundary_calls_without_erasing_selected_operators() {
+        use typed_trees::expression::ExpressionNode;
+        use typed_trees::statement::StatementNode;
+
+        let fixture = PreparedFixture::new();
+        fs::write(
+            &fixture.main,
+            r#"
+boundary trait Sink { machine emit(value: i32); }
+data SinkProvider {}
+machine SinkProvider::emit(value: i32) satisfies Sink::emit {}
+data Math {}
+boundary operator - Math::subtract(left: i32, right: i32) -> i32;
+data MathProvider {}
+machine MathProvider::subtract(left: i32, right: i32) -> i32
+satisfies Math::subtract { left }
+machine calculate(left: i32 [0..=100], right: i32 [0..=100]) -> i32
+{ left - right }
+data Main { sink: Sink; }
+machine Main::main(&mut self) { self.sink.emit(7); }
+"#,
+        )
+        .unwrap();
+        let mut checked = super::compile_to_checked(&fixture.main, Some("macos_arm64"))
+            .expect("mixed selected execution should check");
+        let main = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::main")
+            .unwrap();
+        let statements = checked.machine_states(main)[0].statement_nodes;
+        let StatementNode::Call(execution_call) =
+            &checked.statement_table.statements(statements)[0]
+        else {
+            panic!("settled direct adapter call");
+        };
+        let execution_target = execution_call.target_symbol;
+        let source = checked.pre_selected_dispatch_source_trees().unwrap();
+        let StatementNode::Call(source_call) = &source.statement_table.statements(statements)[0]
+        else {
+            panic!("authored boundary call");
+        };
+        assert_ne!(source_call.target_symbol, execution_target);
+        let terminal = checked.terminal_production_trees().unwrap();
+        assert_eq!(
+            &terminal.statement_table.statements(statements)[0],
+            &StatementNode::Call(source_call.clone())
+        );
+        assert_eq!(terminal.facts, checked.facts);
+        let selected_operators = checked.expression_table.iter_expressions().filter(|(_, expression)| {
+            matches!(expression, ExpressionNode::Call(call) if call.target.as_str() == "MathProvider::subtract")
+        }).collect::<Vec<_>>();
+        assert!(
+            !selected_operators.is_empty(),
+            "fixture must exercise a selected operator rewrite"
+        );
+        for (expression, execution) in selected_operators {
+            assert_eq!(terminal.expression_table.expression(expression), execution);
+            assert_ne!(source.expression_table.expression(expression), execution);
+        }
+        let artifact = terminal_production::produce_terminal_artifact(&terminal, "Main::main")
+            .expect("boundary call and checked adapter enter canonical Terminal");
+        artifact.validate().expect("canonical artifact validates");
+        assert!(
+            terminal_production::produce_terminal_artifact(&checked, "Main::main").is_err(),
+            "interpreter execution view must not silently pass source custody"
+        );
+        drop(terminal);
+        drop(source);
+        let StatementNode::Call(call) =
+            &mut checked.typed.statement_table.statements_mut(statements)[0]
+        else {
+            panic!("settled call");
+        };
+        call.target_symbol = symbols::SymbolHandle::invalid();
+        assert!(
+            checked.terminal_production_trees().is_err(),
+            "tampered settlement must reject before restoration"
+        );
+        assert!(checked.pre_selected_dispatch_source_trees().is_err());
+    }
+
+    #[test]
+    fn terminal_view_without_boundary_edits_borrows_checked_program() {
+        let fixture = PreparedFixture::new();
+        let checked = super::compile_to_checked(&fixture.main, Some("macos_arm64")).unwrap();
+        assert!(matches!(
+            checked.terminal_production_trees().unwrap(),
+            std::borrow::Cow::Borrowed(_)
+        ));
     }
 
     #[test]
