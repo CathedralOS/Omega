@@ -54,6 +54,12 @@ rows are the complete current selective set within this expression grammar; a
 future lazy or selective form must extend this table explicitly rather than
 inherit an open exception.
 
+Bounds checking follows these selected paths too: the right operand of `&&`
+may use the left operand's true-path facts, and the right operand of `||` may
+use its false-path facts. These assumptions do not escape the expression.
+Possible writes still invalidate earlier bounds; an effectful guard cannot be
+replayed as a fact about operands it may have changed.
+
 Named aggregate fields are scheduled where the literal writes them, not where
 the data declaration places them. For `data Pair { first: T; second: T; }`, the
 literal `Pair { second: make_second(), first: make_first() }` calls

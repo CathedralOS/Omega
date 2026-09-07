@@ -1,5 +1,5 @@
 use diagnostics::Diagnostic;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
@@ -54,6 +54,55 @@ pub(super) fn check_expression<'program>(
                 binary.left,
                 diagnostics,
             );
+            if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
+                && let Some(frames) = call_frames
+                && frames
+                    .expression_write_frame(machine, binary.left)
+                    .into_complete_paths()
+                    .is_some_and(|paths| paths.is_empty())
+            {
+                let mut right_facts = facts.clone();
+                if binary.operator == BinaryOperator::And {
+                    super::guards::seed_guard_facts(
+                        program,
+                        machine,
+                        state,
+                        &mut right_facts,
+                        binary.left,
+                    );
+                    super::guards::seed_value_vs_value_endpoints(
+                        program,
+                        machine,
+                        state,
+                        &mut right_facts,
+                        binary.left,
+                    );
+                } else {
+                    super::guards::seed_negated_guard_facts(
+                        program,
+                        machine,
+                        state,
+                        &mut right_facts,
+                        binary.left,
+                    );
+                }
+                check_expression(
+                    program,
+                    machine,
+                    state,
+                    call_frames,
+                    &mut right_facts,
+                    binary.right,
+                    diagnostics,
+                );
+                // The right operand may not run. Its guarded facts cannot
+                // escape, but any possible writes must retire incoming facts.
+                let writes = frames
+                    .expression_write_frame(machine, binary.right)
+                    .into_complete_paths();
+                facts.invalidate_call_writes(program, machine, state, writes.as_deref(), None);
+                return;
+            }
             check_expression(
                 program,
                 machine,
