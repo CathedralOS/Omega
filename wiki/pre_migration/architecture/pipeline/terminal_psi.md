@@ -2362,14 +2362,24 @@ omit it; contextual cleanup requirements keep their receipt-bound environment.
 Runtime field lookup shares the structural nominal resolver and preserves
 explicit numbered field identities.
 
-Direct fixed-integer entry comparisons reuse the checked integer-contract
-owner for literal landing, same-carrier operands, and selected operator meaning.
+Fixed-integer entry comparisons over direct parameters and plain field paths
+reuse the checked integer-contract owner for literal landing, same-carrier
+operands, and selected operator meaning.
 Their strict preflight checks the live expression and formal symbols, names,
 builtin type identities, and every type chain used to count dense scalar slots.
-Mutable formals still denote invocation-entry operands. Comparisons are total
+Field operands retain authored structural root positions and exact field paths,
+including numbered identities and the explicit receiver; each selected leaf
+must be a fixed-integer carrier. Write-only roots provide no readable field
+hypothesis. Shared comparison construction does not widen the separate scalar
+contract reader's namespace. Mutable formals and fields still denote
+invocation-entry operands. Comparisons are total
 even on Wrapping, Saturating, or Trapping-qualified inputs; this admits no
-arithmetic, casts, calls, numeric fields, or body values as new hypotheses.
+arithmetic, casts, calls, or body values as new hypotheses.
 The separate Boolean-only result-contract fallback remains unchanged.
+The source regression command is `cargo nextest run -p checked-trees-to-lowered-psi
+--test entry_requirement_crash_coverage --no-fail-fast`. Structural entry cases
+serialize and independently verify their retained requirements and unchanged
+callee continuations; they do not execute arbitrary host records as entry proofs.
 
 Numeric requirement and crash encodings retain their existing distinct forms.
 The verifier constructs an `IntegerOrderDiscreteness` certificate to connect an
@@ -2425,8 +2435,8 @@ runtime requirements and structural root/path checks. This logical budget does
 not replace arithmetic-subtree, structural-path, or sum-case checks.
 
 Boolean implication beyond structural common consequences, exact entry crash
-hypotheses beyond plain Boolean field paths and direct fixed-integer scalar
-comparisons, and arithmetic-expression or float entry coverage remain
+hypotheses beyond Boolean/fixed-integer direct parameters and plain field paths,
+and arithmetic-expression or float entry coverage remain
 implementation work. Case-qualified payload paths need their case identity in
 the canonical crash predicate before they can supply exact entry hypotheses.
 

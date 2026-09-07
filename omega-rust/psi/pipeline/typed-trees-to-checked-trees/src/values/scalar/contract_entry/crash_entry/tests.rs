@@ -473,10 +473,6 @@ fn integer_entry_comparisons_reject_unsupported_terms_and_bad_landings() {
         "machine value(input: i32) -> bool requires input > cost() { true } machine cost() -> i32 { 1 }",
     );
     assert!(read(&program).is_none());
-    let program = typed(
-        "data Record { number: i32; } machine value(input: &Record) -> bool requires input.number > 0 { true }",
-    );
-    assert!(read(&program).is_none());
 }
 
 #[test]
@@ -671,6 +667,272 @@ fn integer_entry_comparisons_keep_authored_operator_meaning() {
     for (primitive, admitted) in [("i32", false), ("f64", true)] {
         let program = typed(&format!(
             "boundary operator > {primitive}::custom(left: {primitive}, right: {primitive}) -> bool; machine value(input: i32) -> bool requires input > 0 {{ true }}"
+        ));
+        assert_eq!(read(&program).is_some(), admitted, "{primitive} operator");
+    }
+}
+
+fn numeric_field(primitive: &str, root: &str, predicate: &str) -> TypedTrees {
+    typed(&format!(
+        "data Input {{ number: {primitive}; other: {primitive}; }} machine value(input: {root}, other: &Input, flag: bool) -> bool\nrequires {predicate}\n{{ true }}"
+    ))
+}
+
+#[test]
+fn integer_entry_fields_reuse_fixed_carrier_landing_and_total_comparisons() {
+    for primitive in ["i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64"] {
+        for predicate in [
+            "input.number > 0",
+            "0 <= input.number",
+            "input.number < other.other",
+            "input.number >= other.number",
+            "input.number == other.number",
+            "input.number != other.number",
+            "flag && input.number > 0",
+            "!(input.number < other.number) || flag",
+            "(input.number == other.number) == true",
+        ] {
+            let program = numeric_field(primitive, "&Input", predicate);
+            assert!(read(&program).is_some(), "{primitive}: {predicate}");
+            assert!(
+                super::super::lower_machine_entry_scalar_contract_expression(
+                    &program,
+                    &CheckedOperatorFacts::default(),
+                    &program.machines()[0],
+                    requirement(&program),
+                    &[],
+                )
+                .is_none(),
+                "separate scalar Boolean fallback remains closed to fields"
+            );
+        }
+    }
+    for policy in ["", " in Wrapping", " in Saturating", " in Trapping"] {
+        for root in ["Input", "&Input", "&mut Input"] {
+            let program = numeric_field(&format!("i32{policy}"), root, "input.number > 0");
+            assert!(read(&program).is_some(), "{root}, {policy}");
+        }
+    }
+}
+
+#[test]
+fn integer_entry_fields_keep_nested_identity_and_mixed_scalar_ordinals() {
+    use checked_trees::CheckedScalarExpression;
+    use typed_trees::types::PrimitiveType;
+
+    for root in ["Outer", "&Outer", "&mut Outer"] {
+        let mut program = typed(&format!(
+            "data Inner {{ number: i32; }} data Outer {{ inner: Inner; }} machine value(flag: bool, input: {root}, mut limit: i32) -> bool\nrequires input.inner.number < limit\n{{ true }}"
+        ));
+        field_mut(&mut program, 0).identity = Some(7);
+        field_mut(&mut program, 1).identity = Some(9);
+        let Some(CheckedBooleanExpression::IntegerComparison { left, right, .. }) = read(&program)
+        else {
+            panic!("nested field and direct scalar comparison");
+        };
+        assert_eq!(
+            *left,
+            CheckedScalarExpression::StructuralParameterField {
+                parameter_position: 1,
+                path: vec![
+                    CheckedStructuralPredicatePathSegment::Field("#9".to_owned()),
+                    CheckedStructuralPredicatePathSegment::Field("#7".to_owned()),
+                ],
+                primitive_type: PrimitiveType::I32,
+            }
+        );
+        assert_eq!(
+            *right,
+            CheckedScalarExpression::Parameter {
+                position: 1,
+                primitive_type: PrimitiveType::I32,
+            }
+        );
+    }
+    for receiver in ["self", "&self", "&mut self"] {
+        let program = typed(&format!(
+            "data Input {{ number: i32; }} machine Input::value({receiver}, limit: i32) -> bool\nrequires self.number < limit\n{{ true }}"
+        ));
+        let Some(CheckedBooleanExpression::IntegerComparison { left, right, .. }) = read(&program)
+        else {
+            panic!("exact self field comparison: {receiver}");
+        };
+        assert_eq!(
+            *left,
+            CheckedScalarExpression::StructuralParameterField {
+                parameter_position: 0,
+                path: vec![CheckedStructuralPredicatePathSegment::Field(
+                    "number".to_owned()
+                )],
+                primitive_type: PrimitiveType::I32,
+            }
+        );
+        assert_eq!(
+            *right,
+            CheckedScalarExpression::Parameter {
+                position: 0,
+                primitive_type: PrimitiveType::I32,
+            }
+        );
+    }
+}
+
+#[test]
+fn integer_entry_fields_reject_wrong_namespace_and_field_identity() {
+    let program = typed(
+        "data Input { number: i32; } data Other { number: i32; } machine value(input: &Input, other: &Other) -> bool\nrequires input.number > 0\n{ true }",
+    );
+    let root = requirement(&program);
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(root) else {
+        panic!("comparison");
+    };
+    let operand = binary.left;
+    let ExpressionNode::Member(member) = program.expression_table.expression(operand) else {
+        panic!("field");
+    };
+    let receiver = member.receiver;
+    let field_symbol = member.member_symbol;
+    let DataMember::Field(foreign) = &program.data_members(&program.data_definitions()[1])[0]
+    else {
+        panic!("foreign field");
+    };
+    for wrong in [
+        SymbolHandle::invalid(),
+        foreign.symbol,
+        SymbolHandle::from_parts(field_symbol.arena_index(), field_symbol.generation() + 1),
+    ] {
+        let mut invalid = program.clone();
+        let ExpressionNode::Member(member) = invalid.expression_table.expression_mut(operand)
+        else {
+            unreachable!();
+        };
+        member.member_symbol = wrong;
+        assert!(read(&invalid).is_none(), "wrong exact field identity");
+    }
+    let mut invalid = program.clone();
+    let ExpressionNode::Member(member) = invalid.expression_table.expression_mut(operand) else {
+        unreachable!();
+    };
+    member.member = "other".into();
+    assert!(read(&invalid).is_none());
+    let parameters = program.state_parameters(&program.machine_states(&program.machines()[0])[0]);
+    for wrong in [SymbolHandle::invalid(), parameters[1].symbol] {
+        let mut invalid = program.clone();
+        let ExpressionNode::Name(name) = invalid.expression_table.expression_mut(receiver) else {
+            panic!("root name");
+        };
+        name.symbol = wrong;
+        name.head_symbol = wrong;
+        assert!(read(&invalid).is_none(), "wrong exact root identity");
+    }
+}
+
+#[test]
+fn integer_entry_fields_reject_unreadable_roots_and_invalid_type_chains() {
+    for mut invalid in [simple(), numeric_field("i32", "&Input", "input.number > 0")] {
+        let parameters = invalid.machine_states(&invalid.machines()[0])[0].parameters;
+        let root_type = invalid.tables.state_parameters.span_or_empty(parameters)[0].type_reference;
+        let mut write_only = invalid
+            .type_reference_table
+            .type_reference(root_type)
+            .clone();
+        let TypeReferenceNode::Reference { access, .. } = &mut write_only else {
+            panic!("borrowed root");
+        };
+        *access = language_core::ReferenceAccess::WriteOnly;
+        invalid
+            .type_reference_table
+            .substitute_node(root_type, write_only);
+        assert!(
+            read(&invalid).is_none(),
+            "write-only root has no Boolean or integer entry observation"
+        );
+    }
+    let program = numeric_field("i32", "&Input", "input.number > 0");
+    let reference = match &program.data_members(&program.data_definitions()[0])[0] {
+        DataMember::Field(field) => field.type_reference,
+        _ => panic!("integer field"),
+    };
+    for mutation in 0..5 {
+        let mut invalid = program.clone();
+        let replacement = match mutation {
+            0 => TypeReferenceHandle::invalid(),
+            1 => {
+                TypeReferenceHandle::from_parts(reference.arena_index(), reference.generation() + 1)
+            }
+            2 => invalid
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol: program.data_definitions()[0].symbol,
+                    name: "i32".into(),
+                }),
+            3 => {
+                let cycle = invalid
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Constrained {
+                        base_type: reference,
+                        constraints: Default::default(),
+                    });
+                invalid.type_reference_table.substitute_node(
+                    cycle,
+                    TypeReferenceNode::Constrained {
+                        base_type: cycle,
+                        constraints: Default::default(),
+                    },
+                );
+                cycle
+            }
+            4 => {
+                let mut deep = reference;
+                for _ in 0..65 {
+                    deep = invalid
+                        .type_reference_table
+                        .insert(TypeReferenceNode::Constrained {
+                            base_type: deep,
+                            constraints: Default::default(),
+                        });
+                }
+                deep
+            }
+            _ => unreachable!(),
+        };
+        field_mut(&mut invalid, 0).type_reference = replacement;
+        assert!(read(&invalid).is_none(), "field type mutation {mutation}");
+    }
+}
+
+#[test]
+fn integer_entry_fields_reject_partial_syntax_and_incompatible_carriers() {
+    for (primitive, predicate) in [
+        ("i32", "input.number + 1 > 0"),
+        ("i32 in Trapping", "input.number + 1 > 0"),
+        ("i32 in Trapping", "input.number / 0 > 0"),
+        ("i32", "(input.number as i64) > 0"),
+        ("u8", "input.number > 256"),
+        ("f64", "input.number > 0"),
+        ("i32", "input.number > flag"),
+    ] {
+        assert!(
+            read(&numeric_field(primitive, "&Input", predicate)).is_none(),
+            "{primitive}: {predicate}"
+        );
+    }
+    for predicate in [
+        "input.signed > input.unsigned",
+        "input.signed == input.unsigned",
+    ] {
+        let program = typed(&format!(
+            "data Input {{ signed: i32; unsigned: u32; }} machine value(input: &Input) -> bool\nrequires {predicate}\n{{ true }}"
+        ));
+        assert!(read(&program).is_none(), "{predicate}");
+    }
+}
+
+#[test]
+fn integer_entry_fields_retain_selected_comparison_meaning() {
+    for (primitive, admitted) in [("i32", false), ("f64", true)] {
+        let program = typed(&format!(
+            "data Input {{ number: i32; }} boundary operator > {primitive}::custom(left: {primitive}, right: {primitive}) -> bool; machine value(input: &Input) -> bool\nrequires input.number > 0\n{{ true }}"
         ));
         assert_eq!(read(&program).is_some(), admitted, "{primitive} operator");
     }

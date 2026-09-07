@@ -1,7 +1,8 @@
 //! Exact invocation predicates over Boolean fields and total integer comparisons.
 
 use checked_trees::{
-    CheckedBooleanExpression, CheckedOperatorFacts, CheckedStructuralPredicatePathSegment,
+    CheckedBooleanExpression, CheckedOperatorFacts, CheckedScalarExpression,
+    CheckedStructuralPredicatePathSegment,
 };
 use symbols::{BuiltinTypeAtom, SymbolKind};
 use typed_trees::TypedTrees;
@@ -192,6 +193,15 @@ impl<'program> Reader<'program> {
                         return Some(true);
                     }
                 }
+                ExpressionNode::Member(_) => {
+                    let field = self.field_path(operand, depth + 1)?;
+                    if self
+                        .primitive(field.type_reference, depth + 1)?
+                        .is_some_and(|(_, atom)| fixed_integer_atom(atom))
+                    {
+                        return Some(true);
+                    }
+                }
                 _ => {}
             }
         }
@@ -204,45 +214,79 @@ impl<'program> Reader<'program> {
         operands: [ExpressionHandle; 2],
         depth: usize,
     ) -> Option<CheckedBooleanExpression> {
-        // The established numeric owner counts the entire scalar telescope,
-        // including unread formals. Validate every consulted type chain before
-        // calling its recursive primitive lookup; dummy/stale types and cycles
-        // cannot change the dense entry operand positions.
+        // Dense scalar positions depend on the entire entry telescope, including
+        // unread formals. Validate its type chains before counting positions;
+        // dummy/stale types and cycles cannot change the entry namespace.
         for parameter in self.parameters {
-            if self.program.symbols.name(parameter.symbol) != parameter.name.as_str() {
+            if parameter.is_const
+                || self.program.symbols.name(parameter.symbol) != parameter.name.as_str()
+            {
                 return None;
             }
             self.primitive(parameter.type_reference, depth + 1)?;
         }
-        for operand in operands {
+        let mut subjects = [None, None];
+        for (position, operand) in operands.into_iter().enumerate() {
             self.charge(depth)?;
             if !self.program.expression_table.expression_is_valid(operand) {
                 return None;
             }
             match self.program.expression_table.expression(operand) {
                 ExpressionNode::Name(_) => {
-                    let position = self.parameter(operand, false)?;
-                    let (_, atom) =
-                        self.primitive(self.parameters[position].type_reference, depth + 1)??;
+                    let parameter_position = self.parameter(operand, false)?;
+                    let type_reference = self.parameters[parameter_position].type_reference;
+                    let (primitive_type, atom) = self.primitive(type_reference, depth + 1)??;
                     if !fixed_integer_atom(atom) {
                         return None;
                     }
+                    let mut scalar_position = 0;
+                    for parameter in &self.parameters[..parameter_position] {
+                        if self
+                            .primitive(parameter.type_reference, depth + 1)?
+                            .is_some()
+                        {
+                            scalar_position += 1;
+                        }
+                    }
+                    subjects[position] = Some((
+                        CheckedScalarExpression::Parameter {
+                            position: scalar_position,
+                            primitive_type,
+                        },
+                        type_reference,
+                    ));
+                }
+                ExpressionNode::Member(_) => {
+                    let field = self.field_path(operand, depth + 1)?;
+                    let (primitive_type, atom) =
+                        self.primitive(field.type_reference, depth + 1)??;
+                    if !fixed_integer_atom(atom) {
+                        return None;
+                    }
+                    subjects[position] = Some((
+                        CheckedScalarExpression::StructuralParameterField {
+                            parameter_position: u32::try_from(field.parameter_position).ok()?,
+                            path: field.path,
+                            primitive_type,
+                        },
+                        field.type_reference,
+                    ));
                 }
                 ExpressionNode::Integer(_) => {}
                 // This slice establishes no totality for arithmetic, calls,
-                // casts, fields, result values, or current body storage.
+                // casts, result values, or current body storage.
                 _ => return None,
             }
         }
         // Literal landing, same-carrier checks, and selected operator meaning
         // stay with the existing numeric contract owner. Trapping-qualified
         // inputs are legal: the comparison itself is a total operation.
-        super::super::lower_integer_contract_predicate(
+        super::super::result_contract::lower_integer_contract_comparison(
             self.program,
             self.operators,
             self.machine,
             expression,
-            false,
+            subjects,
         )
     }
 
@@ -386,7 +430,11 @@ impl<'program> Reader<'program> {
                 // Only the root signature carries borrow/access custody. A
                 // reference-valued intermediate field requires a dereference
                 // path that this plain-field representation does not retain.
-                TypeReferenceNode::Reference { referee, .. } if root => type_reference = *referee,
+                TypeReferenceNode::Reference {
+                    referee, access, ..
+                } if root && *access != language_core::ReferenceAccess::WriteOnly => {
+                    type_reference = *referee;
+                }
                 TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
                 TypeReferenceNode::Named { symbol, name } => {
                     // Resolution assigns SelfType the attached machine's
