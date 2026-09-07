@@ -1,6 +1,6 @@
 """Actual full-checker proof tables, never injected comparison state."""
 
-from proof_wire import NAT, ZERO, checked, clause, failure, function, proof_count, proof_row, record, theory, vector
+from proof_wire import NAT, ZERO, checked, clause, failure, function, proof_row, record, theory, vector
 
 
 def cases():
@@ -9,25 +9,24 @@ def cases():
     owners = (ZERO, record(2, 1, 0))
     first = record(5, 2, 1, 1)
     reflexivity = record(1, 1, 1)
-    count = 65534
+    count = 163838
     rows = (first,) + (reflexivity,) * (count - 1)
-    assert 4 * count + 8 == 262144
-    yield vector("exact_complete_checking_work", checked(count, 262144), rows, owners,
+    assert 4 * count + 8 == 655360
+    yield vector("exact_complete_checking_work", checked(count, 655360), rows, owners,
                  definitions=definitions, repetitions=1, timeout=600)
-    count = 65535
+    count = 163839
     rows = (first,) + (reflexivity,) * (count - 1)
-    # Before final comparisons, P+1 +6 +3(P-1) =4P+4 =262144.
+    # Before final comparisons, P+1 +6 +3(P-1) =4P+4 =655360.
     coordinate = proof_row(rows[:-1], definitions, owners) + 8
-    assert coordinate == 1048740
-    yield vector("adjacent_final_root_comparison", failure(coordinate, 4, 2, 262144, 262145),
+    assert coordinate == 2621604
+    yield vector("adjacent_final_root_comparison", failure(coordinate, 4, 2, 655360, 655361),
                  rows, owners, definitions=definitions, repetitions=1, timeout=600)
     count = 262143
-    yield vector("proof_index_exact_then_first_row_refusal",
-                 failure(proof_row() + 4, 4, 2, 262144, 262145), (reflexivity,) * count,
-                 repetitions=1, timeout=600)
-    count = 262144
-    yield vector("adjacent_proof_index_reservation",
-                 failure(proof_count(), 4, 2, 262144, 262145), (reflexivity,) * count,
+    # Setup consumes 262144; 131072 Ref rows consume the remaining 393216.
+    coordinate = proof_row((reflexivity,) * 131072) + 4
+    assert coordinate == 2097268
+    yield vector("proof_index_and_rows_share_work",
+                 failure(coordinate, 4, 2, 655360, 655361), (reflexivity,) * count,
                  repetitions=1, timeout=600)
     count = 32768
     rows = (reflexivity,) + tuple(record(2, 1, 1, previous) for previous in range(1, count))

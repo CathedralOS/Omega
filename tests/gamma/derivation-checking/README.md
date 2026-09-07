@@ -36,8 +36,8 @@ authored test rows, which ordinary Gamma source admits and checks.
 
 ## Retained controls
 
-There are 83 vectors and 161 observations: 78 small vectors run twice with a
-60-second host timeout, and five large vectors run once with 600 seconds.
+There are 82 vectors and 160 observations: 78 small vectors run twice with a
+60-second host timeout, and four large vectors run once with 600 seconds.
 
 - [positive.py](positive.py): all five rules, ordered constructor congruence,
   repeated premises, duplicate/witness structural aliases, and a connected
@@ -65,13 +65,16 @@ There are 83 vectors and 161 observations: 78 small vectors run twice with a
 For `P` Reflexivity rows comparing the same valid term, setup costs `P+1`,
 each row costs `1+2`, and final root comparisons cost four: `4P+5` total.
 A nullary constant Unfold costs three more than a Reflexivity row, so replacing
-one row yields `4P+8`. The 65,534-row fixture therefore completes at exactly
-262,144 units. With 65,535 rows, the first final root comparison requests
-262,145 at byte 1,048,740 and must refuse.
+one row yields `4P+8`. The 163,838-row fixture therefore completes at exactly
+655,360 units. With 163,839 rows, the first final root comparison requests
+655,361 at byte 2,621,604 and must refuse.
 
-A 262,143-row table exhausts the allowance during setup and refuses the first
-row reservation at byte 116. A 262,144-row table refuses setup itself at the
-proof-count field, byte 108. Both report the full limit/requested values.
+A 262,143-row table consumes 262,144 units during setup and the remaining
+393,216 in 131,072 Ref rows. The next row reservation refuses at byte 2,097,268
+with the full limit/requested values. A fresh proof-index reservation cannot
+exhaust this larger work provision: the 8 MiB envelope permits fewer than
+524,288 minimum-size proof rows. Substitution's bulk controls separately cover
+exact and adjacent reservation refusal in an already consumed session.
 The 32,768-row backward Symmetry chain costs `6P+3 = 196,611`; it checks logical
 proof depth without expanding the chain or recursively traversing premises.
 

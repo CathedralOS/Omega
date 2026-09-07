@@ -7,16 +7,16 @@ def cases():
     different = theory((record(1, 0), record(1, 0)))
     owners = (ZERO, record(1, 2, 0))
     yield vector("exact_then_adjacent_transition",
-                 compared(1, 262144) + failure(4097, 4, 2, 262144, 262145), owners,
+                 compared(1, 655360) + failure(4097, 4, 2, 655360, 655361), owners,
                  right=2, definitions=different, entry="budget", repetitions=1, timeout=600)
     yield vector("invalid_ids_precede_exhausted_counter",
-                 compared(1, 262144) + failure(4097), owners,
+                 compared(1, 655360) + failure(4097), owners,
                  right=1, definitions=different, entry="budget", repetitions=1, timeout=600)
     yield vector("terminal_resume_cannot_return_boolean_at_exhaustion",
-                 compared(0, 262143) + failure(12289, 4, 2, 262144, 262145), owners,
+                 compared(0, 655359) + failure(12289, 4, 2, 655360, 655361), owners,
                  right=2, definitions=different, entry="resume", repetitions=1, timeout=600)
     yield vector("pending_parent_cannot_complete_at_exhaustion",
-                 failure(20481, 4, 2, 262144, 262145),
+                 failure(20481, 4, 2, 655360, 655361),
                  (ZERO, record(1, 2, 1, 1), record(1, 2, 1, 1)), left=2, right=3,
                  entry="pending", repetitions=1, timeout=600)
     count = 46484

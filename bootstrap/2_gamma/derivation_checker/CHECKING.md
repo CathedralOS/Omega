@@ -139,7 +139,7 @@ source/evaluator bounds are not claimed runtime peak measurements. A different
 checker entry or changed implementation must recheck its function, syntax,
 binding, context, and temporary-value bounds before artifact acceptance.
 
-All work after Grounded shares the same 262,144-unit counter: proof-index setup,
+All work after Grounded shares the same 655,360-unit counter: proof-index setup,
 row checks, congruence premises, clause/index setup, and every comparison and
 substitution transition. No rule restarts or rolls back the session. Live
 pending frames and completed memo insertions are bounded by consumed units;
@@ -147,14 +147,17 @@ discarded local memos and replaced frames still count toward allocation.
 These provisions are adjustable engineering choices, not calculus restrictions.
 
 The complete cumulative pair bound is
-`7,864,346 + 262,144*96 + 128 = 33,030,298`, below the selected Gamma arena of
+`7,864,346 + 655,360*48 + 128 = 39,321,754`, below the selected Gamma arena of
 40,265,318 pairs. The first term covers formation and Grounded. `P+1` units pay
 for `3P-1` index pairs, reservation carriers, and bounded proof context setup.
 Each row/premise unit pays for its own reservation and any constant coordination
 carriers; structural comparison and substitution charge their own operations.
-The once-per-request 128-pair allowance covers session setup, final Checked or
-failure publication, and constant boundary carriers, not repeated row costs.
-The implementation must enumerate its allocations against this ledger.
+The [amortized traversal argument](COMPARISON.md#amortized-allocation-argument)
+establishes 48 pairs per unit across charged operations, not per individual
+transition. The once-per-request 128-pair allowance covers the at-most-34-pair
+unfinished-prefix deficit, session setup, final Checked or failure publication,
+and constant boundary carriers, not repeated row costs. The implementation must
+enumerate its allocations against this ledger.
 
 Actual proof setup uses `3P+4` pairs: four reservation carriers, `3P-1` index
 pairs, and one context pair. Row and premise coordination each add at most

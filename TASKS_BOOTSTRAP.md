@@ -74,10 +74,8 @@ prerequisite to every lower-rung milestone.
   execution routes and their adapters together.
   For P1, resolve capacity-accounting cost within the reviewed encoder/scanner
   outline: global sharing still leaves the existing per-byte Word-counter recipe
-  outside current input/work provisions before encoding. Review the checker's
-  cumulative-allocation argument and coherent work/storage provision for the
-  costed binary-tree structural fold; do not raise work in isolation. Then cost
-  source-bound capacity accounting and a contiguous sequence covering operands,
+  outside current input/work provisions before encoding. Cost source-bound
+  capacity accounting and a contiguous sequence covering operands,
   trivia, assertions, and exact endpoints before another helper family.
   The existing representation and fold probes are prerequisite measurements, not
   full-certificate feasibility; do not promote unchecked source lengths or
