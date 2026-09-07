@@ -1058,6 +1058,21 @@ pub enum ModuleError {
     },
     IntegerStructuralFieldRequiresIntegerResult(OperationId),
     ByteSequenceLengthRequiresU64Result(OperationId),
+    ByteSequenceReadRequiresU8Result(OperationId),
+    InvalidByteSequenceReadSource {
+        operation: OperationId,
+        source: PlaceId,
+    },
+    InvalidByteSequenceReadLength {
+        operation: OperationId,
+        source: PlaceId,
+        length: ValueId,
+    },
+    ByteSequenceReadOperandTypeMismatch {
+        operation: OperationId,
+        operand: ValueId,
+        actual: ScalarType,
+    },
     InvalidByteSequenceLengthSource {
         operation: OperationId,
         source: PlaceId,

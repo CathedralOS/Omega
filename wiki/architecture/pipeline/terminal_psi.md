@@ -167,7 +167,7 @@ Interpretation binds exact bytes to each invocation's parameter places and
 restores the caller's byte storage on return. Nested and repeated calls retain
 their own payloads, including empty sequences, independently of opaque host
 identities. An opaque incoming value without byte contents cannot execute a
-byte-consuming call. Projected views, owned byte storage, element reads and
+byte-consuming call. Projected views, owned byte storage,
 subslicing operations, and native whole-byte-view argument layout remain
 outside this executable forwarding path.
 
@@ -181,6 +181,26 @@ Source `.len` operands retain authored parameter positions until their explicit
 mapping to Terminal places, including inside arithmetic and nested scalar calls.
 Native lowering rejects the operation explicitly until byte-view descriptor
 realization is implemented; callable ranked state composition remains separate.
+
+Vocabulary 82 adds `ByteSequenceRead { source, index, length, obligation }`,
+producing one exact `u8`. Both scalar operands are exact `u64` values. The length
+must be a dominating `ByteSequenceLength` of the identical immutable source;
+an arbitrary integer, equal-valued alias, other view, or sibling branch does
+not establish that custody. The verifier reconstructs the canonical
+`index < length` obligation and requires its checked certificate. The operation
+does not assert its own bounds or accept an admission in place of that proof.
+Interpretation reads the invocation's actual byte contents and charges one
+operation unit. Native lowering explicitly rejects this operation until view
+descriptors and indexed loads are realized.
+
+Source production retains whole-parameter indexed operands as an empty
+structural projection path; nominal field reads still require a nonempty path.
+Anonymous index literals land in `u64` through the existing literal-landing
+rules. Explicitly typed indices retain their types; signed-index realization
+is not implemented by reinterpreting them as unsigned. Boolean emission carries
+available length observations down the selected path and restores the incoming
+set before emitting a sibling. A newly emitted length is only an observation,
+not evidence that a read is in bounds.
 
 Vocabulary 27 also closes the O0 provider-backed attachment specialization. The
 machine retains `attachment: Some(Main)`, its relevant `console` field retains
@@ -1073,7 +1093,7 @@ Validation rejoins the complete application, Unit callable interface, selected
 row or parameter slot, operation, access, and source. Fixed fuel and reference
 execution resolve the same rows without allocating a value ID or result home.
 Format 71/vocabulary 74 added a distinct owner-local selection argument source,
-retained by current format 77/vocabulary 81 alongside rebound descriptors and
+retained by current format 77/vocabulary 82 alongside rebound descriptors and
 inbound parameters. Direct-selection
 Unit and scalar forwarding therefore cross the helper without relabeling their
 custody. The scalar form retains its exact result through the ordinary caller,
@@ -5066,9 +5086,9 @@ that alternative appended to the enclosing assumptions and requires the same
 conclusion in every branch. Discharged local assumptions are not ambient
 requirements in the acceptance record. This permits signed division to use
 both nonzero signs while independently proving the `MIN / -1` exclusion.
-The current proof vocabulary uses proof-bundle format 26, canonical
-proof-calculus trust root 26, and Rust admission kernel v9; it adds no semantic
-operation or proposition vocabulary. `EqualitySymmetry` reverses one independently proved scalar
+The current proof vocabulary uses proof-bundle format 27, canonical
+proof-calculus trust root 27, proof-system marker 2, and Rust admission kernel
+v10. `EqualitySymmetry` reverses one independently proved scalar
 equality, retaining its exact child citation. This lets canonical contract
 equalities participate in either direction without inventing an equality or
 depending on runtime value identity ordering.
@@ -5080,8 +5100,9 @@ neither reverses strict order nor treats Boolean equality as integer order.
 proved integer equality while preserving the relation kind, `<` or `<=`.
 The other endpoint must remain identical, and equality must join the exact old
 and new endpoints in either orientation. It cannot turn non-strict order into
-strict order. Format 26 retains tag 11's child/endpoint payload shape under this
-explicitly generalized rule; format 25 bundles reject as stale. Literal strict
+strict order. Format 27 retains tag 11's child/endpoint payload shape under this
+explicitly generalized rule and adds discreteness at tag 19; format 26 bundles
+reject as stale. Literal strict
 comparisons use the existing closed-integer primitive followed by explicit
 substitution of evaluated operand identities, not trusted constant folding.
 Proof-node encoding, decoding, and kernel traversal use explicit pending work
@@ -5089,6 +5110,14 @@ so proofs at the existing codec depth limit do not exhaust the host call stack.
 Case discovery follows transitive value dependencies; unrelated disjunctions
 do not multiply the search merely because they share a literal value. This is
 producer-side proof discovery and grants no additional verifier authority.
+
+`IntegerOrderDiscreteness` carries an independently proved fixed-integer `<=`
+relation and concludes `<` by replacing one literal endpoint with its immediate
+outward neighbor: `1 <= length` becomes `0 < length`, for example. The other
+endpoint must be identical. The kernel checks exact adjacency, carrier bounds,
+and the child derivation; it neither wraps at integer limits nor applies the
+rule to addresses. This lets a selected false `length == 0` branch prove a head
+read without adding a read-specific trusted axiom or changing the read goal.
 
 Exact representability uses a separate proof-only, total mathematical term
 domain rather than executable `ScalarTerm` operations, whose exact arithmetic
@@ -5176,7 +5205,7 @@ and mutable-borrowed roots remain observable. It walks the complete relevant
 record/mixed-field, fixed-array-index, or sum-case payload path, and requires the selected leaf to
 declare the same IEEE format. Owner, root, path, relevance, leaf kind, and
 format substitution fail closed. Introduced in Terminal format 70 / vocabulary
-73 and retained by current format 77 / vocabulary 81, source tag 9 rejects
+73 and retained by current format 77 / vocabulary 82, source tag 9 rejects
 under legacy formats. Checked/source production now
 covers one nonempty field/case path below a direct structural parameter in the
 owning top-level machine contract. Checked custody retains exact owner symbol,

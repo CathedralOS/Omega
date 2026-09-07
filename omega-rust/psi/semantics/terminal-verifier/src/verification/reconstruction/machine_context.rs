@@ -23,6 +23,7 @@ impl<'a> MachineReconstructionContext<'a> {
                 matches!(
                     &operation.kind,
                     OperationKind::Call { .. }
+                        | OperationKind::ByteSequenceRead { .. }
                         | OperationKind::CallUnit { .. }
                         | OperationKind::CallStructuralScalar { .. }
                         | OperationKind::CallDynamicScalar { .. }

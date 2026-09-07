@@ -87,6 +87,21 @@ pub(super) fn append_operation(
     if let Some(observation) = structural_effect_leaf_observation(operation)
         .map_err(ModuleError::OperationSemanticSchema)?
     {
+        if let Some((id, proposition)) = observation.canonical_obligation() {
+            operation_obligations.push(ReconstructedOperationObligation {
+                owner: ReconstructedTerminalObligationOwner::Operation {
+                    machine: machine.id,
+                    operation: operation.id,
+                },
+                obligation: Obligation {
+                    id,
+                    proposition,
+                    class: ObligationClass::Derivable,
+                },
+                semantic_axioms: axioms.clone(),
+                canonical_certificate: true,
+            });
+        }
         if let Some(equation) = observation.local_equation() {
             axioms.push(equation.clone());
         }
@@ -157,6 +172,7 @@ pub(super) fn append_operation(
         | OperationKind::StructuralScalarFieldStore { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::ByteSequenceLength { .. }
+        | OperationKind::ByteSequenceRead { .. }
         | OperationKind::EstablishPayloadlessCase { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
         | OperationKind::EstablishAffineScalarRecord { .. }

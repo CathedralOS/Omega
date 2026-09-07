@@ -137,7 +137,8 @@ fn schedule_children<'proof>(
         ProofRule::EqualitySymmetry { equality } => {
             pending.push(Action::Enter(equality));
         }
-        ProofRule::IntegerOrderWeakening { relation } => {
+        ProofRule::IntegerOrderWeakening { relation }
+        | ProofRule::IntegerOrderDiscreteness { relation } => {
             pending.push(Action::Enter(relation));
         }
         ProofRule::EqualityTransitivity {

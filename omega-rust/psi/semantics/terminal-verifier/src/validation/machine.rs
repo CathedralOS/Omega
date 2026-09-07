@@ -289,6 +289,21 @@ pub(super) fn validate_machine(
                 OperationKind::ByteSequenceLength { source } => {
                     super::byte_sequence_length::validate(module, machine, operation, source)?;
                 }
+                OperationKind::ByteSequenceRead {
+                    source,
+                    length,
+                    obligation,
+                    ..
+                } => {
+                    super::byte_sequence_read::validate(
+                        module, machine, operation, source, length,
+                    )?;
+                    insert_unique(
+                        &mut registry.obligations,
+                        obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
+                }
                 OperationKind::CallUnit { .. }
                 | OperationKind::WriteOnlyPrimitiveStore { .. }
                 | OperationKind::StructuralScalarFieldStore { .. }

@@ -2400,16 +2400,21 @@ fn lower_scalar_expression(
         if primitive_type != PrimitiveType::U8 {
             return None;
         }
-        let (index, _) = lower_scalar_expression(
-            program,
-            operators,
-            indexed.index,
-            parameters,
-            authored_parameters,
-            parameter_types,
-            locals,
-            exact_integer_casts,
-        )?;
+        let index =
+            land_anonymous_scalar_expression(program, operators, indexed.index, PrimitiveType::U64)
+                .or_else(|| {
+                    lower_scalar_expression(
+                        program,
+                        operators,
+                        indexed.index,
+                        parameters,
+                        authored_parameters,
+                        parameter_types,
+                        locals,
+                        exact_integer_casts,
+                    )
+                    .map(|(index, _)| index)
+                })?;
         let index_type = scalar_expression_type(&index)?;
         if !is_integer(index_type) || index_type == PrimitiveType::Addr {
             return None;

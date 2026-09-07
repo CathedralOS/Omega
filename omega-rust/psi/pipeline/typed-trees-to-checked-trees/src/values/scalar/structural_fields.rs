@@ -320,6 +320,9 @@ pub(super) fn lower_structural_parameter_field(
 ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
     let (parameter_position, path, type_reference) =
         structural_parameter_place(program, parameters, expression)?;
+    if path.is_empty() {
+        return None;
+    }
     let primitive_type = program.primitive_type_reference(type_reference)?;
     if !is_integer(primitive_type) || primitive_type == PrimitiveType::Addr {
         return None;
@@ -354,9 +357,6 @@ pub(super) fn structural_parameter_place(
             facts::PlaceRoot::Symbol(parameter.symbol),
         ) == root
     })?;
-    if place.segments.is_empty() {
-        return None;
-    }
     let mut path = Vec::new();
     for segment in &place.segments {
         path.push(match segment {

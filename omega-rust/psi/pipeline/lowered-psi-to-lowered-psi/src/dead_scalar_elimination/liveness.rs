@@ -88,6 +88,7 @@ pub(super) fn eliminate(
 /// The exhaustive match forces new operation variants to declare that fact.
 fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
     match operation {
+        O::ByteSequenceRead { index, length, .. } => values.extend([*index, *length]),
         O::IntegerConstant { .. }
         | O::BooleanConstant { .. }
         | O::IeeeFloatConstant { .. }

@@ -29,7 +29,7 @@ use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
-pub(crate) const FORMAT_MARKER: u16 = 26;
+pub(crate) const FORMAT_MARKER: u16 = 27;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -353,6 +353,10 @@ fn encode_proof_node(
                         writer.u8(18);
                         pending.push(ProofEncodingAction::Node(relation, child_depth));
                     }
+                    ProofRule::IntegerOrderDiscreteness { relation } => {
+                        writer.u8(19);
+                        pending.push(ProofEncodingAction::Node(relation, child_depth));
+                    }
                     ProofRule::EqualityTransitivity {
                         left_equals_middle,
                         middle_equals_right,
@@ -454,6 +458,7 @@ fn encode_proof_rule_suffix(
         | ProofRule::EqualityTransitivity { .. }
         | ProofRule::EqualitySymmetry { .. }
         | ProofRule::IntegerOrderWeakening { .. }
+        | ProofRule::IntegerOrderDiscreteness { .. }
         | ProofRule::IntegerLessOrEqualTransitivity { .. } => {}
         ProofRule::IntegerOrderSubstitution { endpoint, .. } => {
             writer.index("integer order substitution endpoint", *endpoint)?;
@@ -1333,7 +1338,7 @@ fn decode_proof_node(
         let remaining = match tag {
             1..=3 | 14 => 0,
             4 => reader.count()?,
-            5 | 6 | 9 | 12 | 13 | 16 | 17 | 18 => 1,
+            5 | 6 | 9 | 12 | 13 | 16 | 17 | 18 | 19 => 1,
             7 | 8 | 10 | 11 | 15 => 2,
             tag => return Err(ProofCodecError::InvalidTag("ProofRule", tag)),
         };
@@ -1417,6 +1422,13 @@ fn decode_proof_rule(
         },
         17 => ProofRule::EqualitySymmetry {
             equality: Box::new(children.next().expect("decoded equality symmetry child")),
+        },
+        19 => ProofRule::IntegerOrderDiscreteness {
+            relation: Box::new(
+                children
+                    .next()
+                    .expect("decoded integer order discreteness child"),
+            ),
         },
         18 => ProofRule::IntegerOrderWeakening {
             relation: Box::new(

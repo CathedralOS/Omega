@@ -321,8 +321,8 @@ mod tests {
 
     #[test]
     fn proof_system_marker_has_no_compatibility_ladder() {
-        assert_eq!(ProofSystemMarker::new(1), Some(ProofSystemMarker::CURRENT));
+        assert_eq!(ProofSystemMarker::new(2), Some(ProofSystemMarker::CURRENT));
         assert_eq!(ProofSystemMarker::new(0), None);
-        assert_eq!(ProofSystemMarker::new(2), None);
+        assert_eq!(ProofSystemMarker::new(1), None);
     }
 }

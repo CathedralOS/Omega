@@ -1,7 +1,7 @@
-//! Strict order transport through explicitly proved endpoint equalities.
+//! Strict order from exact endpoint equalities and checked discrete bounds.
 
 use proof_admission::{ProofNode, ProofRule};
-use semantic_vocabulary::{Proposition, ScalarTerm, ScalarType};
+use semantic_vocabulary::{IntegerCarrier, IntegerValue, Proposition, ScalarTerm, ScalarType};
 
 use super::super::super::integer_evidence::{closed_integer_relation, projected_facts};
 use super::super::exact;
@@ -32,6 +32,24 @@ pub(super) fn prove(
                     return Some(proof);
                 }
             }
+            Proposition::LessOrEqual(left, right) => {
+                let conclusions = [
+                    adjacent(left, false)
+                        .map(|previous| Proposition::LessThan(previous, right.clone())),
+                    adjacent(right, true).map(|next| Proposition::LessThan(left.clone(), next)),
+                ];
+                for conclusion in conclusions.into_iter().flatten() {
+                    let discrete = ProofNode {
+                        conclusion,
+                        rule: ProofRule::IntegerOrderDiscreteness {
+                            relation: Box::new(fact.proof()),
+                        },
+                    };
+                    if let Some(proof) = complete(goal, discrete, assumptions, semantic_axioms) {
+                        return Some(proof);
+                    }
+                }
+            }
             Proposition::Equal(left, right) => equalities.push((left, right)),
             _ => {}
         }
@@ -60,6 +78,20 @@ pub(super) fn prove(
     };
     let closed = closed_integer_relation(Proposition::LessThan(literal(left)?, literal(right)?))?;
     complete(goal, closed, assumptions, semantic_axioms)
+}
+
+fn adjacent(literal: &ScalarTerm, increasing: bool) -> Option<ScalarTerm> {
+    let (integer_type, value) = literal.integer_value()?;
+    if integer_type.carrier() != IntegerCarrier::Fixed || integer_type.is_address() {
+        return None;
+    }
+    let adjacent = match (value, increasing) {
+        (IntegerValue::Signed(value), true) => IntegerValue::Signed(value.checked_add(1)?),
+        (IntegerValue::Signed(value), false) => IntegerValue::Signed(value.checked_sub(1)?),
+        (IntegerValue::Unsigned(value), true) => IntegerValue::Unsigned(value.checked_add(1)?),
+        (IntegerValue::Unsigned(value), false) => IntegerValue::Unsigned(value.checked_sub(1)?),
+    };
+    ScalarTerm::integer(integer_type, adjacent).ok()
 }
 
 fn complete(
@@ -108,6 +140,42 @@ mod tests {
     use semantic_vocabulary::{
         IntegerSign, IntegerType, IntegerValue, PropositionContext, ValueId,
     };
+
+    #[test]
+    fn discrete_bound_transports_the_index_literal_without_inventing_a_strict_fact() {
+        let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        let scalar_type = ScalarType::Integer(integer_type);
+        let value = |identity| ScalarTerm::value(ValueId::new(identity).unwrap(), scalar_type);
+        let literal =
+            |number| ScalarTerm::integer(integer_type, IntegerValue::Unsigned(number)).unwrap();
+        let context = PropositionContext::from_value_types(
+            (1..=2).map(|identity| (ValueId::new(identity).unwrap(), scalar_type)),
+        )
+        .unwrap();
+        let axioms = [
+            Proposition::Equal(value(1), literal(0)),
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(literal(1), value(2)),
+                Proposition::LessOrEqual(value(2), literal(255)),
+            ]),
+        ];
+        let goal = Proposition::LessThan(value(1), value(2));
+        let proof = prove(&goal, &[], &axioms).expect("discrete bound plus index equality");
+        check_certificate(&context, &goal, &[], &axioms, &proof).unwrap();
+        assert!(prove(&goal, &[], &axioms[..1]).is_none());
+        assert!(check_certificate(&context, &goal, &[], &axioms[..1], &proof).is_err());
+        assert!(
+            prove(
+                &goal,
+                &[],
+                &[
+                    axioms[0].clone(),
+                    Proposition::LessOrEqual(literal(0), value(2))
+                ]
+            )
+            .is_none()
+        );
+    }
 
     #[test]
     fn strict_literal_transport_replays_nested_and_reversed_equalities() {

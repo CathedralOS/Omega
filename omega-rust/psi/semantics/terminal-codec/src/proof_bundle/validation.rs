@@ -100,6 +100,9 @@ fn validate_proof_node(node: &ProofNode, depth: usize) -> Result<(), ProofCodecE
         | ProofRule::IntegerOrderWeakening {
             relation: conjunction,
         }
+        | ProofRule::IntegerOrderDiscreteness {
+            relation: conjunction,
+        }
         | ProofRule::ConjunctionElimination { conjunction, .. }
         | ProofRule::ImplicationIntroduction { body: conjunction } => {
             validate_proof_node(conjunction, depth + 1)

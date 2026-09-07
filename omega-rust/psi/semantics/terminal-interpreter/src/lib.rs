@@ -2404,6 +2404,64 @@ impl TerminalExecution {
                         }
                         self.values.insert(result.id, value);
                     }
+                    OperationKind::ByteSequenceRead {
+                        source,
+                        index,
+                        length,
+                        ..
+                    } => {
+                        let result = operation.result.expect_scalar();
+                        let byte_type =
+                            IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
+                                .expect("u8 is valid");
+                        let count_type =
+                            IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                                .expect("u64 is valid");
+                        if result.scalar_type != ScalarType::Integer(byte_type) {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let count = |operand| -> Result<u64, TerminalInterpretError> {
+                            let value = self
+                                .values
+                                .get(&operand)
+                                .ok_or(TerminalInterpretError::VerifiedValueMissing(operand))?;
+                            let TerminalScalarValue::Integer {
+                                scalar_type,
+                                value: IntegerValue::Unsigned(value),
+                            } = value
+                            else {
+                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                            };
+                            if *scalar_type != count_type {
+                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                            }
+                            u64::try_from(*value)
+                                .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)
+                        };
+                        let byte_index = count(index)?;
+                        let byte_length = count(length)?;
+                        let bytes = self.byte_sequence_values.get(&source).ok_or(
+                            TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
+                        )?;
+                        if u64::try_from(bytes.len()).ok() != Some(byte_length)
+                            || byte_index >= byte_length
+                        {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let byte_index = usize::try_from(byte_index)
+                            .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
+                        let byte = bytes
+                            .get(byte_index)
+                            .copied()
+                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        self.values.insert(
+                            result.id,
+                            TerminalScalarValue::Integer {
+                                scalar_type: byte_type,
+                                value: IntegerValue::Unsigned(u128::from(byte)),
+                            },
+                        );
+                    }
                     OperationKind::ByteSequenceLength { source } => {
                         let result = operation.result.expect_scalar();
                         let integer_type =
