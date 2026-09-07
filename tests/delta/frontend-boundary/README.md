@@ -152,7 +152,7 @@ source identity is pinned before any observation. The gate implements the
 bounded checks above, not full resource conformance, arbitrary emission-depth
 closure, or closure of the Delta bootstrap edge.
 
-The phase order is fixed by [D20](../../../wiki/architecture/bootstrap_chain/decisions.md#d20--delta-names-resolve-through-four-namespaces-without-active-shadowing)
-and [D33](../../../wiki/architecture/bootstrap_chain/decisions.md#d33--dcout-admission-and-schema-diagnosis-are-bounded-and-total).
+The phase order is fixed by [D20](../../../wiki/pre_migration/architecture/bootstrap_chain/decisions.md#d20--delta-names-resolve-through-four-namespaces-without-active-shadowing)
+and [D33](../../../wiki/pre_migration/architecture/bootstrap_chain/decisions.md#d33--dcout-admission-and-schema-diagnosis-are-bounded-and-total).
 See also the [Delta language](../../../bootstrap/3_delta/LANGUAGE.md) and the
 adjacent [request-boundary gate](../request-boundary/README.md).

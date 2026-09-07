@@ -1,7 +1,10 @@
-# Lattice — ratified decisions
+# Bootstrap decisions awaiting consolidation
+
+> **Needs porting.** Extract current contracts into the specification and remove
+> superseded history. See the [migration index](../../README.md).
 
 This file records architectural decisions. Current implementation order lives
-only in [`TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md).
+only in [`TASKS_BOOTSTRAP.md`](../../../../TASKS_BOOTSTRAP.md).
 
 ## D1 — Rust exits by role, not by rung
 

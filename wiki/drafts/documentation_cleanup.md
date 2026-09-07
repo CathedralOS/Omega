@@ -89,10 +89,11 @@ an identified consumer needs it; do not confuse evidence with a changelog.
 Move tool usage beside its tool and completion plans to drafts or tasks.
 Do not create a permanent archive of obsolete designs.
 
-The bootstrap decision record is protected by `AGENTS.md`. Obtain explicit
-owner authorization before moving, changing, or superseding it. Its linked
-bootstrap-alternatives document remains at the old path to preserve that link.
-These two exceptions do not block the rest of the cleanup.
+The owner has authorized consolidating the
+[bootstrap decision record](../pre_migration/architecture/bootstrap_chain/decisions.md)
+and [chain alternatives](../pre_migration/design_briefs/bootstrap_chain_alternatives.md)
+under the same rules. Preserve current contracts, not the ledger format or
+superseded history. No old-location exception remains.
 
 ### 4. Close the migration
 
@@ -104,8 +105,7 @@ Maintain current rules in place; Git owns implementation history.
 
 - Every current subject has one authoritative owner and a useful entry point.
 - The guide teaches; proposals and drafts do not compete with the specification.
-- `pre_migration/` is empty and removed, including the protected exceptions after
-  authorization.
+- `pre_migration/` is empty and removed, including the bootstrap records.
 - No completed-work diary remains in current reference material or task boards.
 - Local links and anchors resolve, displaced paths have no stale readers, and
   affected source-reading tests pass. Documentation edits alone do not require

@@ -24,13 +24,12 @@ use this material as input to review, not as automatically approved specificatio
 Preserve intended contracts; raise genuine unsettled conflicts in
 [owner questions](../../OWNER_QUESTIONS.md).
 
-## Protected-location exception
+## Bootstrap records
 
-The [bootstrap decision record](../architecture/bootstrap_chain/decisions.md)
-cannot be moved or amended without explicit owner authorization.
-[Bootstrap chain alternatives](../design_briefs/bootstrap_chain_alternatives.md)
-also remains at its old path because that record links to it. Neither location
-means the documentation cleanup is complete. Their authority transition remains
-an explicit exception in the [cleanup plan](../drafts/documentation_cleanup.md).
+The [bootstrap decision record](architecture/bootstrap_chain/decisions.md) and
+[chain alternatives](design_briefs/bootstrap_chain_alternatives.md) are part of
+this queue. Extract current contracts, retain only useful proposal rationale,
+and delete superseded history. The owner has authorized their consolidation;
+neither file is a permanent archive or a special-location exception.
 
 This directory is a migration queue, not a permanent archive. Delete it when empty.

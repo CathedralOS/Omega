@@ -3,7 +3,7 @@
 > **Needs porting.** This document has not been consolidated or vetted for the
 > current documentation structure. See the [migration index](../../README.md).
 
-[Chain overview](bootstrap_chain.md) · [Decisions](../../../architecture/bootstrap_chain/decisions.md) ·
+[Chain overview](bootstrap_chain.md) · [Decisions](decisions.md) ·
 [Proof kernel](proof_kernel.md)
 
 Hosting does not establish correctness. Every compiler source is checked against
