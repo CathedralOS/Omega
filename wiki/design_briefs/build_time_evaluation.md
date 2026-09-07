@@ -533,7 +533,7 @@ EvaluationUsage {
 ```
 
 `fuel_units` is ultimately charged by the canonical Terminal Psi fuel schedule
-in [`canonical_ir_fuel_and_resource_provisioning.md`](canonical_ir_fuel_and_resource_provisioning.md).
+in the [logical-work specification](../spec/resources/logical_work.md).
 The remaining counts are attributed telemetry rather than interchangeable work
 currencies. The evaluator's local schedule charges one unit for each entered
 state, executed statement, and evaluated expression. Semantic evaluation and

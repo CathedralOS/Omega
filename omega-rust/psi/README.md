@@ -7,11 +7,10 @@ realization authority. Crates under this directory must not depend on Omega
 backend, target, ABI, storage, instruction, object, or installation
 representations.
 
-Frontend ownership has migrated completely: Omega consumes Psi-owned source
-and semantic representations directly, and no Omega-named frontend adapter or
-`core` re-export sits between them. Terminal-Psi coverage still grows in
-vertical slices; constructs outside that vocabulary continue from checked Psi
-semantics into Omega lowering until their terminal form lands.
+Omega consumes the verified Terminal product, not a checked-tree fallback.
+Constructs outside the executable Terminal vocabulary reject until their
+semantic and consumer support is implemented. No Omega-named frontend adapter
+or `core` re-export creates another source-to-native route.
 
 Current roots:
 
@@ -83,32 +82,19 @@ Current roots:
 - `semantics/terminal-interpreter`: canonical decoding, verification, and
   fuel-bounded reference execution of terminal-Psi artifacts.
 
-Every workspace harness invokes the Psi source-to-checked stages directly.
-Omega begins at provider selection and realization: it consumes terminal Psi
-where that vocabulary exists and otherwise lowers checked Psi semantics while
-the remaining terminal slices are implemented. Cross-layer interpreter/native
-comparisons live in an Omega test-only harness; both reference interpreters
-remain Psi-owned.
+Source harnesses enter Psi's source-to-checked stages. Omega provider selection
+and realization consume the verified Terminal product. Cross-layer
+interpreter/native comparisons belong in a test harness; reference interpretation
+remains Psi-owned and is not a source-shaped native fallback.
 
-The shared free/attached Unit state-graph producer retains the authored
-`Slice::Length` witness as `TerminalRankedScc::Natural`, using actual immutable
-byte-view lengths rather than a synthetic counter. Ordinary Terminal verification
-reconstructs every SCC and internal edge, checks exact successor-rank substitution,
-and accepts preserving staging edges only when strict edges meet every cycle.
-`terminal-verifier/src/control_cycles` owns those checks; the lowerer's
-`attached_unit/composed_control/state_graph/ranking.rs` retains the source witness.
-Grouped `proof_bundle.control_cycles` evidence uses the shared component checker
-for one well-foundedness citation and every edge comparison. Serialized writer
-coverage includes raw bytes, optional newline, caller continuation, and resumable
-interpretation. Terminal semantic format/vocabulary markers are 79/85; the proof
-format marker is 30.
+The shared Unit producer retains authored natural ranking, scalar prefixes,
+guarded byte head/tail operations, and simultaneous structural block arguments.
+The verifier's `control_cycles` owner checks the complete component and per-edge
+evidence; unsupported witnesses cannot silently become unranked execution.
 
-This natural-rank slice also accepts fixed unsigned scalar parameter ranks at
-the Terminal boundary. Mutable/owned cyclic custody, general projections and
-ranking views, callee-progress composition, and source-to-Psi correspondence
-remain separate limitations. Native byte views and Natural fixed-fuel/native
-routes remain fenced; only the legacy unsigned countdown has the special ranked
-native and fixed-fuel routes. Source `requires bytes.len > 0` still needs
-contract-level byte-length observation and exact caller substitution. See
-[Terminal Psi architecture](../../wiki/architecture/pipeline/terminal_psi.md#borrowed-byte-writer-composition)
-for the supported writer composition and remaining boundaries.
+[Terminal production](compiler/terminal-production/README.md#borrowed-byte-writer-composition)
+owns writer composition and its remaining source/native integration limits.
+The [byte-view specification](../../wiki/spec/terminal-psi/byte_views.md) owns
+descriptor meaning; [logical work](../../wiki/spec/resources/logical_work.md)
+owns fixed-bound evidence. Neither interpreted writer coverage nor a natural
+ranking proves native descriptor realization or a quantitative bound.

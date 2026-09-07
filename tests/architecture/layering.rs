@@ -84,7 +84,7 @@ const KNOWN_EDGE_EXCEPTIONS: &[(&str, &str)] = &[
     // verification or a second representation-local wire format.
     ("abstract-operations", "terminal-codec"),
     // This target-neutral semantic service owns the pre-resolution/pre-check
-    // conveyors documented in canonical_ir_fuel_and_resource_provisioning.md.
+    // conveyors; target/provider realization remains a later Omega concern.
     // Its probe evaluations deliberately invoke these three Psi frontend passes
     // while keeping target/provider realization outside Psi.
     (

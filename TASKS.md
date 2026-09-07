@@ -192,7 +192,7 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   and its checked/lowered structural operand; preserve source and type custody.
   Terminal production retains authored boundary calls; native provider selection
   owns adapter realization, independently of interpreter dispatch. Complete the
-  [borrowed-byte writer closure](wiki/architecture/pipeline/terminal_psi.md#borrowed-byte-writer-composition)
+  [borrowed-byte writer closure](omega-rust/psi/compiler/terminal-production/README.md#borrowed-byte-writer-composition)
   in `typed-trees-to-checked-trees/src/flow/terminal_unit/` and
   `checked-trees-to-lowered-psi/src/attached_unit/`.
   The private writer calls its concrete provider's byte leaf directly; extending
@@ -297,7 +297,7 @@ machinery must not migrate into the Omega-written compiler source.
 
 Owners include
 `wiki/design_briefs/authority_values_and_boundary_evidence.md` and
-`wiki/design_briefs/canonical_ir_fuel_and_resource_provisioning.md`.
+`wiki/spec/resources/storage.md`.
 
 - **ENTRY-CONTENT-ROOTS.** Connect the generated target entry stub to the exact
   selected semantic continuation, consume the activation loan, and retain

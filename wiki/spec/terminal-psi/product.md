@@ -108,8 +108,8 @@ later facts.
 Semantic/program identity and fuel-schedule identity are independent.
 Changing a fuel schedule changes accounting, not program meaning. Semantic
 caches bind semantics and program identity; cost evidence additionally binds
-the schedule. The [fuel and resource contract](../../design_briefs/canonical_ir_fuel_and_resource_provisioning.md)
-owns the accounting rules during consolidation.
+the schedule. [Logical work](../resources/logical_work.md) and
+[spatial resources](../resources/storage.md) own those separate contracts.
 
 Executable publication stages and replays retained image bytes. Installation
 is a further authority-bearing operation. Neither native lowering nor the

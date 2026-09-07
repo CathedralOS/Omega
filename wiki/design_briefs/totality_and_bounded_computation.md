@@ -64,7 +64,7 @@ This algorithm-visible budget is distinct from Terminal-Psi logical-work
 accounting used by compiler services and static analysis. Neither creates a
 native runtime meter.
 See
-[`canonical_ir_fuel_and_resource_provisioning.md`](canonical_ir_fuel_and_resource_provisioning.md).
+the [logical-work specification](../spec/resources/logical_work.md).
 
 ## Failure and non-return
 

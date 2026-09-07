@@ -285,7 +285,7 @@ verifier-derived cyclic component; a component cause is `Unranked`,
 A wall-clock observation is not a theorem; converting a ceiling to time
 requires a separate target timing model and retains that model's trust
 provenance. See
-[`canonical_ir_fuel_and_resource_provisioning.md`](../design_briefs/canonical_ir_fuel_and_resource_provisioning.md).
+the [logical-work and response specification](../spec/resources/logical_work.md).
 
 Maximum-logical-work evidence supports compiler-service budgets, static
 reports, and target timing analysis. Native execution has no logical-fuel

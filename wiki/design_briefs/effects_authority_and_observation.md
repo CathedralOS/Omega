@@ -941,7 +941,7 @@ recognizes only exact compiler-owned Build-facet calls.
 - General parametric work functions and target WCET. Canonical-IR fuel,
   restricted fixed-work entry/segment checking, and attributed response
   outcomes follow
-  [`canonical_ir_fuel_and_resource_provisioning.md`](canonical_ir_fuel_and_resource_provisioning.md).
+  the [logical-work specification](../spec/resources/logical_work.md).
 - Additional operational-clause declarations.
 - Named or ordinary-export service-row variables beyond the concrete envelope
   substitution used by `invokes` and per-requirement bounded installation rows.
