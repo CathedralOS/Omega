@@ -17,8 +17,6 @@ bootstrap/
   3_delta/                       typed pure functional language
     compiler/
       delta_compiler.gamma       selected staged recursive-ADT/match compiler
-    bootstrap/
-      concatenative-compiler/    downgraded former Delta compiler
   4_epsilon/                     fixed-storage compiler-host language
     compiler/
       epsilon_compiler.delta     checked evaluator entrance

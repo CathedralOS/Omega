@@ -2,8 +2,8 @@
 
 Delta is the small, typed, pure definitional language used to implement the
 Epsilon compiler. Its selected Gamma-authored implementation edge is currently
-open. The downgraded concatenative compiler and older bounded oracles are
-implementation evidence; none defines a second Delta language.
+open. Earlier concatenative compilers and bounded oracles supplied implementation
+evidence; none defines a second Delta language.
 
 ## Source envelope
 
@@ -374,6 +374,5 @@ compiler-owned resource/internal DCOUT outcomes remain open; underlying
 evaluator failures do not substitute for those
 outcomes. These frontend judgments do not close the Delta edge or establish
 full resource conformance. The complete compiler artifact remains
-absent. The former concatenative-Gamma
-implementation is retained only under Delta-owned bootstrap material and does
-not define a second route.
+absent. The former concatenative-Gamma implementation is retired; its selected
+conformance replacements do not by themselves close this edge.

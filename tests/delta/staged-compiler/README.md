@@ -14,8 +14,11 @@ malformed programs, and canonical `ConformanceBytesV1` admission and execution.
 experiments' shared source bytes: accumulation, lexical bindings, all seven
 operators, forward/nested calls, and thirteen ordered arguments produce 15 and
 21 through selected Delta/Gamma. Thirteen is a fixture size, not an arity limit.
-The remaining legacy comparison and selected Gamma evaluator also read these
-fixtures here; neither needs an alternate scalar compiler to retain the source.
+The selected Gamma evaluator also reads the scalar fixtures here; it needs no
+alternate scalar compiler to retain the source. `nested_match.delta` preserves
+inner and outer payload binders together and returns 9; `tail_recursive.delta`
+executes 100,000 mutually recursive tail calls and returns 1. Both sources moved
+unchanged from the retired concatenative compiler-slice gate.
 The final declaration-scale control compiles 3,001 functions to the retained
 78,271-byte receipt and executes its selected function. Each evaluator call
 retains the existing 30-second watchdog.
