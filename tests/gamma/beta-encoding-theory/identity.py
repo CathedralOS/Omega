@@ -11,6 +11,7 @@ def fixed_identity():
     constructors += [record(3, 0)] * 16 + [record(4, 0), record(4, 1, 3)]
     constructors += [record(5, 8, *([1] * 8)), record(6, 0), record(6, 2, 1, 6)]
     constructors += [record(7, 0), record(7, 1, 5)]
+    constructors += [record(8, 0)] * 3
     functions = []
     for admitted in BOOLEAN_TABLES:
         functions.append(function((1,), [clause((record(1, 257 + int(byte in admitted), 0),), byte + 1, 1) for byte in range(256)], mode=1, result=2))
@@ -45,5 +46,20 @@ def fixed_identity():
         functions.append(function((1,) * 8, (clause(templates, body=len(templates)),), result=7))
     templates = [record(0, slot) for slot in range(1, 9)] + [record(2, 35, 8, *range(1, 9))]
     functions.append(function((5,), (clause(templates, 277, 9),), mode=1, result=7))
-    package = theory(constructors, functions, sorts=7)
+    for left in range(16):
+        clauses = [clause((record(1, 282 if left < right else 283 if left == right else 284, 0),), 259 + right, 1) for right in range(16)]
+        functions.append(function((3,), clauses, mode=1, result=8))
+    clauses = [clause((record(0, 1), record(2, 37 + left, 1, 1)), 259 + left, 2) for left in range(16)]
+    functions.append(function((3, 3), clauses, mode=1, result=8))
+    functions.append(function((8, 8), (clause((record(1, 282, 0),), 282, 1), clause((record(0, 1),), 283, 1), clause((record(1, 284, 0),), 284, 1)), mode=1, result=8))
+    templates = [record(0, 0), record(0, 1), record(2, 22, 1, 1), record(2, 22, 1, 2), record(2, 53, 2, 3, 4), record(2, 23, 1, 1), record(2, 23, 1, 2), record(2, 53, 2, 6, 7), record(2, 54, 2, 5, 8)]
+    functions.append(function((1, 1), (clause(templates, body=9),), result=8))
+    templates = [record(0, slot) for slot in (*range(8), *range(9, 17))]
+    templates.append(record(2, 55, 2, 1, 9))
+    for position in range(1, 8):
+        templates += [record(2, 55, 2, position + 1, position + 9), record(2, 54, 2, 16 + 2 * position, 15 + 2 * position)]
+    functions.append(function((1,) * 8 + (5,), (clause(templates, 277, 31),), mode=1, selected=8, result=8))
+    templates = [record(0, slot) for slot in range(2, 10)] + [record(0, 1), record(2, 56, 9, *range(1, 10))]
+    functions.append(function((5, 5), (clause(templates, 277, 10),), mode=1, result=8))
+    package = theory(constructors, functions, sorts=8)
     return len(package), hashlib.sha256(package).hexdigest()

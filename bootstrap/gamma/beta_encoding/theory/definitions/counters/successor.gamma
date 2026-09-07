@@ -6,6 +6,6 @@
     (let signature Int (beta_theory_fields3 7 1 5)
       (let mode Int (beta_theory_fields3 1 0 1)
         (let clause Int (beta_theory_fields3 39 277 9)
-          (let variables Int (beta_counter_variables 1 8)
+          (let variables Int (beta_theory_variables 1 8)
             (let carry Int (beta_counter_word_template 2 35 -1 0)
               (beta_theory_word 9))))))))

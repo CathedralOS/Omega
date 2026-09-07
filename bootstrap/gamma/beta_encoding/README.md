@@ -2,7 +2,8 @@
 
 [theory/theory.gamma](theory/theory.gamma) emits the source-owned portion of
 the transparent Beta definitions: byte classification, nibble conversion,
-fixed-width words, their little-endian byte lists, and checked counter increment.
+fixed-width words, their little-endian byte lists, checked counter increment,
+and unsigned comparison.
 It does not emit an assembler, complete encoding theory, owner-root
 reconstruction, or whole-source certificate.
 
@@ -24,7 +25,9 @@ counter definitions, and their subordinate files own the individual equations.
 `definitions/counters.gamma` orders byte helpers, result selection, carry
 stages, and the public successor; `definitions/counters/` owns those pieces
 and their fixed template writers.
-`encoding/` writes administrative fields.
+`definitions/ordering.gamma` orders nibble, byte, and word comparisons;
+`definitions/ordering/` owns those equations. Shared administrative-field and
+template writers live in `encoding/`, not in either arithmetic component.
 The checker receives Gamma-emitted package bytes, not host-generated
 definitions. No new checker primitive is introduced.
 
@@ -47,6 +50,7 @@ bytes to these exact constructors independently of the certificate producer.
 | Word | 5 | Word 277 takes exactly eight Bytes, least significant first. |
 | ByteList | 6 | Nil 278; Cons 279 takes one Byte and one ByteList. |
 | WordResult | 7 | Overflow 280; WordValue 281 takes one Word. |
+| Ordering | 8 | Less 282, Equal 283, Greater 284. |
 
 Every constructor term is finite. Word has exactly the unsigned 64-bit value
 domain: eight independent Byte positions, with no shorter, wider, or sign-tagged
@@ -129,8 +133,39 @@ Explicit derivations must rewrite the Boolean condition before selecting a
 branch, then unfold the selected continuation. Unchosen branches need no
 normalization. Overflow here is an ordinary value in the Beta theory, distinct
 from the generic checker's resource refusal: neither asserts that an exhausted
-checker has proved a result. Checked increment does not yet supply word
-comparison, complete limit enforcement, or source/token traversal.
+checker has proved a result. Checked increment does not by itself establish
+complete limit enforcement or source/token traversal.
+
+## Unsigned comparison
+
+`word_compare(left, right)` returns Less, Equal, or Greater over the full
+unsigned 64-bit Word domain. Address assertions need Equal; source/output
+capacity checks need to distinguish Less from Equal and Greater. The comparison
+does not use Gamma's signed ordering, subtract words, or wrap a difference.
+The highest bit therefore has ordinary positive unsigned weight.
+
+| Function identity | Signature | Defining behavior |
+| --- | --- | --- |
+| 37..52 | `Nibble right -> Ordering` | Complete sixteen-case helper with fixed left nibble 0..15. |
+| 53 `nibble_compare` | `(Nibble left, Nibble right) -> Ordering` | Case on left; apply its earlier helper to right. |
+| 54 `ordering_then` | `(Ordering high, Ordering low) -> Ordering` | Preserve Less or Greater; use low only when high is Equal. |
+| 55 `byte_compare` | `(Byte left, Byte right) -> Ordering` | Compare high nibbles first, then low nibbles on equality. |
+| 56 `word_compare_right` | `(Byte left0, ..., Byte left7, Word right) -> Ordering` | Decompose right and combine the eight byte comparisons. |
+| 57 `word_compare` | `(Word left, Word right) -> Ordering` | Decompose left, then call the right-word helper. |
+
+Nibble helpers enumerate all 256 ordered pairs. Byte comparison reuses the
+existing high/low nibble definitions; word comparison examines byte seven down
+to byte zero. The first differing position decides the result, regardless of
+opposing lower positions. Equal requires every position to agree. Although
+Word stores bytes least-significant first for serialization, comparison priority
+runs in the opposite direction.
+
+The two word clauses expose each operand's eight fields through ordinary
+constructor matching. No nested pattern, integer primitive, or new proof rule
+is introduced. Before selecting an `ordering_then` clause, an explicit
+derivation must rewrite its high argument to an Ordering constructor. These
+definitions supply comparison, not the still-missing encoder state transitions
+that enforce the actual source/output limits.
 
 ## Encoding and execution boundary
 
@@ -141,26 +176,29 @@ before emission and returns Gamma's marked application result to publish bytes
 without an extra scalar terminator. The exact closure and that entry are pinned
 by the [theory gate](../../../tests/gamma/beta-encoding-theory/README.md).
 
-The section has seven sorts, 281 constructors, and 36 functions. The vocabulary
-and outer fields occupy 3,436 bytes; lexical functions occupy 33,200; sixteen
+The section has eight sorts, 284 constructors, and 57 functions. The vocabulary
+and outer fields occupy 3,472 bytes; lexical functions occupy 33,200; sixteen
 fixed-high helpers occupy 8,640; the public join occupies 800; the split functions
 occupy 16,440; and word serialization occupies 348. Counter byte helpers occupy
 16,440 bytes, result selection 92, carry stages 2,896, and the public successor
-188. Thus the exact section is 82,480 bytes. All administrative fields fit u31;
+188. Ordering adds 8,640 bytes of fixed-left nibble helpers, 800 for public
+nibble comparison, 124 for result selection, 224 for byte comparison, 628 for
+the right-word helper, and 208 for public word comparison. Thus the exact
+section is 93,140 bytes. All administrative fields fit u31;
 none supplies semantic integer constants or operations. [PROFILE.md](PROFILE.md)
-records the current source
-bounds and scoped measurements, separate from full-certificate acceptance.
+records the current source bounds and scoped measurements, separate from
+full-certificate acceptance.
 
 Generic formation checks every declaration and every clause, including unused
 rows; explicit derivations check classifications, nibble operations and their
-composition, word serialization, and checked increment against independent
-literal expectations. Exact package identity and those checks complement source
+composition, word serialization, checked increment, and unsigned ordering against
+independent literal expectations. Exact package identity and those checks complement source
 audit, but do not discharge the full Beta root.
 
 ## Remaining encoder dependency
 
-Extend the same artifact-specific ownership with word comparison and the
-remaining checked arithmetic needed for hexadecimal parsing,
+Extend the same artifact-specific ownership with the remaining checked
+arithmetic needed for hexadecimal parsing,
 token and operand state, the complete mnemonic table, address assertions,
 failure values, and exact source/output limits and exhaustion. Structural
 recursion must consume an unchanged immediate source tail, using earlier total

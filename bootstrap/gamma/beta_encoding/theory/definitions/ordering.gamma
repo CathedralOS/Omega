@@ -1,0 +1,8 @@
+; Append unsigned comparison after functions 1..36 without changing old IDs.
+(def beta_ordering_definitions () Int
+  (let helpers Int (beta_ordering_nibble_helpers 0)
+    (let nibbles Int (beta_ordering_nibble_definition)
+      (let choice Int (beta_ordering_then_definition)
+        (let bytes Int (beta_ordering_byte_definition)
+          (let right Int (beta_ordering_word_right_definition)
+            (beta_ordering_word_definition)))))))
