@@ -3,6 +3,10 @@
 [Pipeline architecture](pipeline.md) | [Optimization phases](optimization_phases.md)
 | [Execution board](../../../TASKS_OPTIMIZER.md)
 
+This is the design reference for the separately scheduled follow-ups in
+`TASKS_OPTIMIZER.md`, not an ongoing cleanup run or a second execution board.
+The required end state remains unchanged when implementation is deferred.
+
 This is a replacement plan, not a commitment to migrate the existing code.
 Get to the required architecture, then build out its supported behavior. Code
 generation is cheap compared with prolonged adaptation of the wrong structure.
@@ -41,12 +45,11 @@ rules; do not disguise missing behavior as completed cleanup.
 | 3. Delete the alternate physical pipeline | Empty and nonempty optimization selections use the same physical stages through native publication. |
 | 4. Deliver optimized portable Psi | Selected target-neutral passes actually execute before Terminal publication. |
 
-These are finish conditions, not four serial queues. The immediate priority is
-the common executable route in move 3. Rebuild its representations and owners
-alongside it; do not postpone convergence until every existing representation or
-helper has been tidied. Finish the remaining Omega/Psi ownership sweep and
-pre-Terminal optimization against that architecture. Directory renames and
-private helper extractions are not substitutes for an executable replacement.
+These are architectural finish conditions, not four serial queues. The taskboard
+tracks unfinished owner consolidation, representation ownership and pre-Terminal
+optimization. The single physical route is a constraint on that work, not a
+completed deletion to repeat. Directory renames and private helper extractions
+are not substitutes for a connected executable pipeline.
 
 ## 1. Consolidate pipeline owners
 
@@ -201,7 +204,7 @@ A serial public pipeline does not require branchless internal algorithms.
 - Keep discoveries under these four moves. Add a separate product task only for
   independently required functionality, not another cleanup substep.
 - Remove completed work. Keep history and test counts in commits, not this plan.
-  The taskboard carries one integration item linking here.
+  The taskboard owns the remaining assignments and links here for their contract.
 
 A milestone must demonstrate the changed ownership/route and preserved behavior,
 with focused controls, formatting, affected-crate Clippy and all-target checks,
