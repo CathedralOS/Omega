@@ -5,7 +5,7 @@ macOS arm64 or Windows x64 in Git Bash. Python 3 and the selected checked-in
 Alpha seed are required; macOS also requires `codesign`. Windows runtime
 validation is not implied by this portable entrypoint.
 
-The contract is [COMPARISON.md](../../../bootstrap/gamma/derivation_checker/COMPARISON.md).
+The contract is [COMPARISON.md](../../../bootstrap/2_gamma/derivation_checker/COMPARISON.md).
 The gate materializes the complete canonical checker implementation once. Each
 source is the exact concatenation of `diagnostic.gamma`, one whole named file
 in `entries/`, and that implementation. `source.tsv` pins every composition in

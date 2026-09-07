@@ -228,14 +228,14 @@ Omega/
 |       |-- src/                                         # Tiny `omega` product command.
 |       `-- tests/                                       # Cargo integration tests for that product command.
 |-- bootstrap/
-|   |-- alpha/                                             # Alpha semantics and native VM seeds.
-|   |-- beta/                                              # Trusted tape-assembly language and compiler.
-|   |-- gamma/                                             # Typed scalar/effect language and Beta-written evaluator.
-|   |-- delta/                                             # Typed pure functional compiler language.
-|   |-- epsilon/                                           # Fixed-storage compiler-host language and evaluator.
-|   `-- omega/                                             # Epsilon-written first Omega compiler D.
+|   |-- 0_alpha/                                           # Alpha semantics and native VM seeds.
+|   |-- 1_beta/                                            # Trusted tape-assembly language and compiler.
+|   |-- 2_gamma/                                           # Typed scalar/effect language and Beta-written evaluator.
+|   |-- 3_delta/                                           # Typed pure functional compiler language.
+|   |-- 4_epsilon/                                         # Fixed-storage compiler-host language and evaluator.
+|   `-- 5_omega/                                           # Epsilon-written first Omega compiler D.
 |       |-- compiler/                                      # D source members.
-|       `-- compiler.epsilon.sources                 # Canonical D source-member manifest.
+|       `-- omega_compiler.epsilon.sources                  # Canonical D source-member manifest.
 |-- source/
 |   |-- library/                                           # Core, allocation, and standard library source.
 |   |   |-- core/                                          # Always-available language package.
@@ -275,8 +275,8 @@ The displayed tree is the canonical ownership shape. The unblocked relocation
 steps are complete:
 
 ```text
-bootstrap/{alpha,beta,gamma,delta,epsilon}/ canonical language rungs
-bootstrap/omega/                       Epsilon-written first Omega compiler D
+bootstrap/{0_alpha,1_beta,2_gamma,3_delta,4_epsilon}/ canonical language rungs
+bootstrap/5_omega/                       Epsilon-written first Omega compiler D
 source/library/                        core, allocation, and standard libraries
 source/psi/                            Omega-written target-neutral phases through terminal Psi
 source/omega/                          Terminal-Psi consumer and product root

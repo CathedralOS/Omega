@@ -17,7 +17,7 @@ materialized `evaluator`, use
 not reconstruct or replace the evaluator. Both entrypoints propagate failures.
 
 The [producer entry](main.gamma) calls ordinary Gamma
-[`beta_encoding_theory`](../../../bootstrap/gamma/beta_encoding/theory/theory.gamma)
+[`beta_encoding_theory`](../../../bootstrap/2_gamma/beta_encoding/theory/theory.gamma)
 only for empty input. Its marked application result publishes bytes without a
 scalar terminator. Three nonempty inputs require status 1 and empty stdout and
 stderr. The exact producer composition is pinned in [source.tsv](source.tsv).
@@ -33,7 +33,7 @@ except the explicitly corrupted copy in one negative control. No host-produced
 package is admitted as checker input. Identity is not a proof rule or artifact
 admission, and these fixtures contain no general Beta parser or proof producer.
 
-The finite equations transcribe [Beta's language contract](../../../bootstrap/beta/LANGUAGE.md):
+The finite equations transcribe [Beta's language contract](../../../bootstrap/1_beta/LANGUAGE.md):
 
 | Fixture family | Positive equations | Explicit proof rows | Expected work |
 | --- | ---: | ---: | ---: |

@@ -29,7 +29,7 @@ a second platform-native compiler.
 Gamma's evaluator is written in Beta, so the Alpha-to-Beta and Beta-to-Gamma
 edges both depend on this language judgment. Successful compilation yields
 Alpha tape whose execution is governed by
-[`bootstrap/alpha/SEMANTICS.md`](../alpha/SEMANTICS.md).
+[`bootstrap/0_alpha/SEMANTICS.md`](../0_alpha/SEMANTICS.md).
 
 ## Retention inventory
 

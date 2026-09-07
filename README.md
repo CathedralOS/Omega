@@ -159,7 +159,7 @@ compiler `omega₀`, which compiles the Omega-written closure `C` into productio
 lives in
 [`repository_structure.md`](wiki/architecture/bootstrap_chain/repository_structure.md).
 Beta's self-reconstructing compiler and admitted Alpha tape live under
-`bootstrap/beta/`; the older imperative Gamma rung remains retired.
+`bootstrap/1_beta/`; the older imperative Gamma rung remains retired.
 The whole-chain audit is defined in
 [`bootstrap_minimization.md`](wiki/design_briefs/bootstrap_minimization.md), and
 the candidate shorter chains and common audit experiment are defined in
@@ -168,7 +168,7 @@ The literal Epsilon v1 contract and the incidental ordinary-Omega surface used b
 the compiler source are defined and kept distinct in
 [`compiler_source_profile.md`](wiki/architecture/bootstrap_chain/compiler_source_profile.md).
 [`source/README.md`](source/README.md) describes the final product-source side;
-the [ground-equality checker](bootstrap/gamma/derivation_checker/README.md) is an
+the [ground-equality checker](bootstrap/2_gamma/derivation_checker/README.md) is an
 ordinary Gamma tool, not another language rung. Its full Beta encoding certificate
 and artifact admission remain open.
 

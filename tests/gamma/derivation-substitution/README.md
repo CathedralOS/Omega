@@ -5,8 +5,8 @@ macOS arm64 or Windows x64 in Git Bash. Python 3 and the selected checked-in Alp
 seed are required; macOS additionally needs `codesign`. Windows runtime validation
 is not implied by this portable entrypoint.
 
-The contract is [SUBSTITUTION.md](../../../bootstrap/gamma/derivation_checker/SUBSTITUTION.md),
-following [COMPARISON.md](../../../bootstrap/gamma/derivation_checker/COMPARISON.md).
+The contract is [SUBSTITUTION.md](../../../bootstrap/2_gamma/derivation_checker/SUBSTITUTION.md),
+following [COMPARISON.md](../../../bootstrap/2_gamma/derivation_checker/COMPARISON.md).
 The gate materializes the complete production closure once. Each diagnostic is
 the exact concatenation of `diagnostic.gamma`, a whole `entries/<name>.gamma`,
 and that closure. `source.tsv` pins each composition in `fixtures.py` order.

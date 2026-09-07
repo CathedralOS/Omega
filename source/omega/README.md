@@ -12,13 +12,13 @@ Omega-written compiler closure C. The build binds the ordinary
 standard library through ordinary package declarations.
 
 The first compiler D is a separate Epsilon-written bootstrap implementation
-under [`../../bootstrap/omega/`](../../bootstrap/omega/). Interpreted D compiles
+under [`../../bootstrap/5_omega/`](../../bootstrap/5_omega/). Interpreted D compiles
 this final closure to `omega0`; `omega0` then recompiles the same closure to
 `omega`. Rust under [`../../omega-rust/`](../../omega-rust/) remains a
 nonauthoritative development comparator.
 
 ```text
-interpreted bootstrap/omega D + source/{psi,omega,library} -> omega0
+interpreted bootstrap/5_omega D + source/{psi,omega,library} -> omega0
 omega0 + source/{psi,omega,library}                        -> omega
 ```
 
