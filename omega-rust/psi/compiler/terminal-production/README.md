@@ -101,6 +101,32 @@ with an unrelated length parameter. Native byte-view realization, natural-ranked
 fixed bounds, general structural helper calls, and source-to-Psi correspondence
 remain separate work; a Console-specific intrinsic would bypass this adapter.
 
+## Multi-state control
+
+The [control-flow contract](../../../../wiki/spec/terminal-psi/control_flow.md)
+is broader than any one checked source family. The
+[composed Unit producer](../../pipeline/typed-trees-to-checked-trees/src/flow/terminal_unit/composed_control.rs)
+retains per-state operations, call coordinates, contracts, and service reach.
+Admission and emission rejoin the original checked calls and publish complete
+boundary/service/attachment catalogs; an unavailable child rejects the machine.
+Provider-backed fields need exact attachment roots and a canonical requirement
+set, not an invented runtime receiver. Closed anonymous-integer comparisons
+become mathematical Boolean constants before downstream lowering.
+
+Its first two-leaf boundary branch is not the general control limit: prefixed,
+nested, dynamic, and state-graph families have separate admission. Claim-free
+structural cleanup control remains distinct from effectful control; composing
+them requires retained operations, successor bindings, and cleanup frontiers.
+General custody joins, computed structural transfers, and mixed cleanup must
+not inherit admission from a scalar/byte-view cyclic family.
+
+Natural-cycle production retains the authored witness in
+[ranking.rs](../../pipeline/checked-trees-to-lowered-psi/src/attached_unit/composed_control/state_graph/ranking.rs).
+[control_cycle_proofs.rs](../../pipeline/checked-trees-to-lowered-psi/src/control_cycle_proofs.rs)
+answers verifier-reconstructed questions. Proof-only recursive calls use their
+own complete reachable closure; neither producer supplies semantic obligation
+identities or substitutes a synthetic countdown for a view's extent.
+
 ## FloatMeaning correspondence
 
 The [proof-value contract](../../../../wiki/spec/terminal-psi/mathematical_values.md)

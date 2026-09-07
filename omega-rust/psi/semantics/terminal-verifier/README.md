@@ -23,6 +23,33 @@ Call validation proves concrete signature, clause, substitution, movement,
 outcome, crash, and lifetime conditions before reconstruction imports guarantees.
 Do not duplicate those policies in operation-specific verifier branches.
 
+## Cyclic control
+
+Contract: [control flow and ranking](../../../../wiki/spec/terminal-psi/control_flow.md).
+[control_cycles](src/control_cycles.rs) reconstructs complete SCC topology,
+rank substitution, and proof questions. The natural carrier selects one fixed
+unsigned type per component; ranks are scalar machine/block parameters or actual
+byte-length observations. Its preserving-edge subgraph must be acyclic.
+`proof_bundle.control_cycles` groups those certificates independently of
+[proof-call recursion](src/proof_recursion.rs).
+
+[Cyclic eligibility](src/validation/control_flow/unranked_cycles.rs) admits
+scalar work, unrestricted shared byte views, and bounded Unit-effect operations.
+It does not admit general owned/mutable cyclic custody, structural results,
+projected claims, or arbitrary operation families. Eligibility is not dominance,
+frontier, or proof authority; all subsequent checks still run.
+
+[Proof scheduling](src/control_graph.rs) cuts DFS ancestor edges in its working
+graph. Cut targets start without incoming semantic axioms; every normal return
+still contributes to the exit intersection. General invariant reconstruction,
+wider rank views/projections, callee-progress composition, and cyclic guarded-
+crash path enumeration need further support.
+
+The legacy unsigned countdown has separate interpreter, native, and fixed-fuel
+verifier entrances. Its acyclic skeleton and one covered backedge must agree on
+the complete structural frontier. Ordinary verification does not confer that
+specialized authority. Natural-rank verification is not countdown admission.
+
 ## Trust and implementation gaps
 
 The [codec trust graph](../terminal-codec/src/trust_graph/current.rs) binds the

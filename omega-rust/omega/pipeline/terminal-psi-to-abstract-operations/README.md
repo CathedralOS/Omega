@@ -62,6 +62,34 @@ happen to traverse arrays. ABI copies materialize only the owned subtree being
 transferred; this is not a borrowed-referent copy. No-code residual cleanup emits
 neither instructions nor liveness-dependent loops.
 
+## Ranked native admission
+
+Contract: [control flow and ranking](../../../../wiki/spec/terminal-psi/control_flow.md).
+[ranked_native.rs](src/artifact/ranked_native.rs) currently admits only the entry
+machine's exact unsigned countdown and ceiling. Native and fixed-fuel verification
+run independently. This is not admission of an ordinary call to a ranked callee.
+The [projected-receiver contract](../../../../wiki/pre_migration/design_briefs/termination_ranking_and_progress.md#ranked-callees-on-projected-receivers)
+needs composed argument references, call/return, cleanup, callee measure checking,
+and resource evidence; removing an entry guard or widening parameter count is
+not that implementation.
+
+The bounded structural frontier has one affine-owned place or a persistent
+mutable receiver. Borrowed receivers preserve their original referent, reference
+multiplicity, empty owned frontier, and `BorrowedReference` ABI shape. Primitive
+arrays retain exact lengths/element types rather than synthetic record leaves.
+Assignment and replay derive shape and target pointer placement from declarations;
+only the target-prescribed rank register is admitted.
+
+The retained countdown projection contains canonical semantics/proof bytes,
+fixed-fuel fields, header/backedge frontiers, graph, ABI, and type closure. Object
+replay decodes the proof again, reconstructs graph/frontiers and physical body,
+and rejoins coordinates to the verified module. Coherent substitutions and
+stripped records reject. The specialized Linux x86-64/AArch64 body retains exact
+four-operation/five-edge work attribution; it does not insert runtime accounting.
+Ordinary selected-instruction support, provider installation, and mixed work do
+not follow from this specialized route. It must not become a second architectural
+pipeline as broader ranked lowering is implemented.
+
 ## Dynamic dispatch
 
 The [dynamic-dispatch contract](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md)
