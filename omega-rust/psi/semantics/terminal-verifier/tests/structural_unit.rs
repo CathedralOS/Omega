@@ -2302,6 +2302,58 @@ fn complete_dense_projected_linear_consumption_closes_the_partial_frontier() {
 }
 
 #[test]
+fn linear_projected_custody_survives_an_empty_jump() {
+    let mut module = two_element_projected_unit_call_module();
+    let mut second = module.machines[0].blocks[0].operations[0].clone();
+    second.id = operation_id(4);
+    let OperationKind::CallUnit {
+        structural_arguments,
+        claim_transfers,
+        ..
+    } = &mut second.kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path = vec![StructuralPathSegment::FixedIndex(1)];
+    claim_transfers[0].claim = claim_id(2);
+    module.machines[0].blocks[0].terminator = Terminator::Jump {
+        edge: edge_id(1),
+        target: block_id(3),
+        arguments: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+        residual_affine_discards: Vec::new(),
+    };
+    module.machines[0].blocks.push(Block {
+        id: block_id(3),
+        parameters: Vec::new(),
+        operations: vec![second],
+        terminator: Terminator::ReturnUnit {
+            edge: edge_id(3),
+            trivial_affine_discards: Vec::new(),
+        },
+    });
+    validate_module(&module).expect("a linear partial root survives an ordinary empty edge");
+    let frontiers = reconstruct_structural_ownership_frontiers(&module).unwrap();
+    let caller = frontiers.machine(machine_id(1)).unwrap();
+    let continuation = caller.edge_exit(edge_id(1)).unwrap();
+    assert_eq!(continuation, caller.block_entry(block_id(3)).unwrap());
+    assert_eq!(continuation.owned_places().len(), 1);
+    assert_eq!(continuation.owned_places()[0].place, place_id(1));
+    assert_eq!(continuation.claims().len(), 1);
+    assert_eq!(continuation.claims()[0].claim, claim_id(2));
+    assert_eq!(continuation.partial_custody().len(), 1);
+    assert_eq!(continuation.partial_custody()[0].place, place_id(1));
+    assert_eq!(
+        continuation.partial_custody()[0].moved_paths,
+        vec![vec![StructuralPathSegment::FixedIndex(0)]],
+    );
+    let completed = caller.operation_exit(operation_id(4)).unwrap();
+    assert!(completed.owned_places().is_empty());
+    assert!(completed.claims().is_empty());
+    assert!(completed.partial_custody().is_empty());
+}
+
+#[test]
 fn projected_unit_calls_reject_signatures_outside_the_bounded_slice() {
     let mut scalar_caller = projected_unit_call_module();
     scalar_caller.machines[0].parameters.push(ValueDeclaration {
@@ -3829,6 +3881,7 @@ fn jump_applies_a_canonical_subset_of_affine_discards() {
                 edge: edge_id(2),
                 target: block_id(3),
                 arguments: vec![value_id(10)],
+                residual_affine_discards: Vec::new(),
                 trivial_affine_discards: vec![place_id(4)],
             },
         },
@@ -4206,6 +4259,7 @@ fn unit_crash_ceiling_follows_only_unanimous_cfg_formal_copies() {
             edge: edge_id(edge),
             target: completion.id,
             arguments: vec![value_id(parameter)],
+            residual_affine_discards: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
     };

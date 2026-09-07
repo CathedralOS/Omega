@@ -70,6 +70,7 @@ fn jump(edge: u64, target: u64, arguments: &[u64]) -> Terminator {
         edge: successor.edge,
         target: successor.target,
         arguments: successor.arguments,
+        residual_affine_discards: Vec::new(),
         trivial_affine_discards: Vec::new(),
     }
 }

@@ -579,7 +579,9 @@ Owners include
   whole-result disposal does not cover a projected result's residuals.
   Extend anonymous projected helper-result operands beyond one final ordinary
   Unit consumer: preserve each temporary's dying call continuation across
-  later statements, multiple producers, and other argument effects. Extend the
+  later statements, multiple producers, and other argument effects. Wire their
+  checked continuation plans into Terminal Jump residual cleanup and implement
+  its native lowering without dropping the residual schedule. Extend the
   type-directed record/array complement in
   [Terminal Psi](wiki/architecture/pipeline/terminal_psi.md) to construction-local
   roots and mixed live-root schedules, preserving maximal untouched subtrees,

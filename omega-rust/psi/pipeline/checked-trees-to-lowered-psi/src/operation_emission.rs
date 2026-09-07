@@ -462,6 +462,7 @@ pub(super) fn emit_staged_scalar_call_binding(
                     edge,
                     target: next_stage,
                     arguments,
+                    residual_affine_discards: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
             });
@@ -505,6 +506,7 @@ pub(super) fn emit_staged_scalar_call_binding(
             edge,
             target: continuation,
             arguments: continuation_arguments,
+            residual_affine_discards: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
     });

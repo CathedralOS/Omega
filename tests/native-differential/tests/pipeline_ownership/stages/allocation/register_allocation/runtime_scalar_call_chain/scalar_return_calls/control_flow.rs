@@ -133,6 +133,7 @@ fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
             target: block(28_170),
             arguments: vec![value(raw + 1)],
             trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
         },
     };
     middle.blocks = vec![

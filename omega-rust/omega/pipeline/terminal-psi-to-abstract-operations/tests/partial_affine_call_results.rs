@@ -43,6 +43,94 @@ fn anonymous_call_result_cleanup_retains_expression_owned_residuals() {
     }
 }
 
+#[test]
+fn omega_rejects_verified_partial_result_continuation_cleanup() {
+    let source = "data Token { value: u64; }
+        data Pair { left: Token; right: Token; }
+        data Sink {}
+        machine Sink::take(token: Token) {}
+        data Root {}
+        machine Root::forward(value: Pair) -> Pair { value }
+        machine Root::enter(value: Pair) {
+            Sink::take(Root::forward(value).right);
+        }";
+    let tokens = Lexer::new(source).tokenize().unwrap();
+    let syntax = parse_syntax_trees(&tokens).unwrap();
+    let resolved = lower_syntax_trees(&syntax).unwrap();
+    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
+    let checked = lower_typed_trees(typed).unwrap();
+    let mut terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
+        .expect("existing anonymous partial-return source lowers");
+    let module = &mut terminal.semantic_module;
+    let next_block = semantic_vocabulary::BlockId::new(
+        module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .map(|block| block.id.get())
+            .max()
+            .unwrap()
+            + 1,
+    )
+    .unwrap();
+    let next_edge = semantic_vocabulary::EdgeId::new(
+        module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| block.terminator.edges())
+            .map(|edge| edge.get())
+            .max()
+            .unwrap()
+            + 1,
+    )
+    .unwrap();
+    let entry = module.entry;
+    let caller = module
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == entry)
+        .unwrap();
+    let terminal_psi::Terminator::ReturnUnitPartialAffine {
+        edge,
+        trivial_affine_discards,
+        residual_affine_discards,
+    } = caller.blocks[0].terminator.clone()
+    else {
+        panic!("source fixture retains exact partial result cleanup")
+    };
+    assert!(!residual_affine_discards.is_empty());
+    caller.blocks[0].terminator = terminal_psi::Terminator::Jump {
+        edge,
+        target: next_block,
+        arguments: Vec::new(),
+        trivial_affine_discards,
+        residual_affine_discards,
+    };
+    caller.blocks.push(terminal_psi::Block {
+        id: next_block,
+        parameters: Vec::new(),
+        operations: Vec::new(),
+        terminator: terminal_psi::Terminator::ReturnUnit {
+            edge: next_edge,
+            trivial_affine_discards: Vec::new(),
+        },
+    });
+    terminal_verifier::verify_module(module, &terminal.proof_bundle, &AdmissionProfile::default())
+        .expect("partial continuation is valid target-neutral Terminal Psi");
+    let semantic = encode_module(module).unwrap();
+    let proof = encode_proof_bundle(&terminal.proof_bundle).unwrap();
+    assert!(matches!(
+        lower_artifact_sections_for_optimization(&semantic, &proof, &AdmissionProfile::default()),
+        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::Lowering(
+            terminal_psi_to_abstract_operations::LoweringError::UnsupportedPartialAffineContinuation {
+                machine,
+                edge: rejected_edge,
+            }
+        )) if machine == entry && rejected_edge == edge
+    ));
+}
+
 fn check_authored_call_result_cleanup(boundary: bool, attached: bool, anonymous: bool) {
     for (fields, calls, expected) in [
         (

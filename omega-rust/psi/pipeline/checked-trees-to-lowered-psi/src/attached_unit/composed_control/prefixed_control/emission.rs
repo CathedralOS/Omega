@@ -35,6 +35,7 @@ pub(super) fn emit(
                     edge: edge_id(allocate_dense(&mut next_edge)?),
                     target: state_ids[index + 1],
                     arguments: vec![control_parameters[index].id],
+                    residual_affine_discards: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
             })

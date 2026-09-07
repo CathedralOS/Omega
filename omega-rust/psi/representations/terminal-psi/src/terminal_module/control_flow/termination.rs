@@ -15,6 +15,9 @@ pub enum Terminator {
         /// Exact no-code affine discards performed after edge fuel and outgoing
         /// scalar materialization, in reverse parameter declaration order.
         trivial_affine_discards: Vec<PlaceId>,
+        /// Exact maximal live residual subtrees, disposed in type-directed
+        /// reverse order after outgoing scalar materialization.
+        residual_affine_discards: Vec<StructuralAffineDiscard>,
     },
     /// Select exactly one ordered successor from an already-defined Boolean
     /// value. Exhaustiveness and mutual exclusion are structural.

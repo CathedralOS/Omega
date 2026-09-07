@@ -4,6 +4,9 @@ use semantic_vocabulary::StructuralPlaceKind;
 #[path = "result_residuals/installed_provider.rs"]
 mod installed_provider;
 
+#[path = "result_residuals/continuation.rs"]
+mod continuation;
+
 fn field(name: &str) -> StructuralPathSegment {
     StructuralPathSegment::Field(name.into())
 }

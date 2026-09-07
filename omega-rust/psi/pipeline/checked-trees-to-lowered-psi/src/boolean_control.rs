@@ -314,6 +314,7 @@ fn emit_reserved_boolean_value_blocks(
                     edge,
                     target,
                     arguments: vec![value],
+                    residual_affine_discards: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
             };
@@ -511,6 +512,7 @@ pub(super) fn emit_reserved_boolean_tuple_stage_blocks(
                     edge,
                     target: next_stage,
                     arguments,
+                    residual_affine_discards: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
                 all_operations.len(),

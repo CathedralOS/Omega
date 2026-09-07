@@ -465,6 +465,7 @@ pub(super) fn lower_structural_unit_control_machine(
                                 ))
                         })
                         .collect::<Result<Vec<_>, _>>()?,
+                    residual_affine_discards: Vec::new(),
                     trivial_affine_discards: lower_discards(
                         trivial_affine_discard_parameter_positions,
                     )?,
@@ -819,6 +820,7 @@ fn lower_ranked_structural_unit_countdown(
                     edge: preheader_edge,
                     target: header,
                     arguments: vec![initial],
+                    residual_affine_discards: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
             },
@@ -895,6 +897,7 @@ fn lower_ranked_structural_unit_countdown(
                     edge: backedge,
                     target: header,
                     arguments: vec![next],
+                    residual_affine_discards: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
             },

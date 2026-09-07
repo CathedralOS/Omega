@@ -1811,6 +1811,7 @@ fn jump_performs_affine_discard_only_after_edge_charge() {
                 edge: edge_id(2),
                 target: block_id(3),
                 arguments: vec![value_id(10)],
+                residual_affine_discards: Vec::new(),
                 trivial_affine_discards: vec![place_id(2)],
             },
         },

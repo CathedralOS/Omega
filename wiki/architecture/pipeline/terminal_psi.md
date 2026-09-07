@@ -1666,7 +1666,7 @@ complement. No new representation is needed.
 Terminal verification, canonical encoding, and interpretation also admit one
 claim-free, unqualified affine call-result root. An ordinary whole-value producer
 or structural boundary call establishes that exact result place before the
-projected ordinary Unit calls. The bounded schedule has one producer followed
+projected ordinary Unit calls. The bounded return schedule has one producer followed
 by projected disposers in one block, with no other live roots left at return.
 Ordinary production transfers its input into the result; it does not leave a
 second owner. The same type-directed complement reconstructs record fields,
@@ -1676,6 +1676,32 @@ Reordered production, overlapping moves, whole-root cleanup after a partial move
 and residual type/order drift reject. A crash retains the abandoned residual
 frontier and carries no cleanup successor. This does not admit construction-local
 partial moves, mixed-root cleanup ordering, or scalar-return residuals.
+
+An ordinary `Jump` can also dispose one such root's exact residual complement
+before entering its successor. Its ordered `residual_affine_discards` retain
+the place, path, and subtree type; verification reconstructs them from the
+actual projected transfers and the live frontier. The root may be an owned
+parameter or an ordinary/boundary call result. Unrelated live roots remain live;
+mixing whole-root cleanup with residual cleanup on this edge remains unsupported
+until one schedule can express their combined establishment order. Indexed
+transfers retain the contract-free caller and exact Unit disposer requirements.
+Construction-local roots, mixed residual roots, and ranked-backedge cleanup are
+not admitted by this route. Existing linear projected custody across ordinary
+jumps remains governed by its own claim checks.
+
+Interpretation validates the exact residual transaction, charges the edge,
+materializes scalar arguments, disposes the remainder, and then binds successor
+parameters. Exhausted fuel leaves every residual live; the next successor effect
+observes none of the disposed root's custody. A fully transferred root needs no
+residual row. Empty-residual jumps keep their existing tag-1 encoding byte for
+byte; nonempty residuals use tag 10 with the same jump semantics. An empty tag-10
+payload is noncanonical. Omega's entrance rejects nonempty residual jumps until
+native continuation cleanup is implemented; it cannot silently lower them to
+root-only cleanup.
+
+Source production of anonymous partial-result operands still uses the final-call
+schedule below. Wiring their checked call-continuation cleanup into this jump
+route remains CML4 work, independently of Terminal acceptance.
 
 Checked-source production carries this result-root schedule for one leading
 immutable local initialized by a whole-value ordinary call or structural boundary

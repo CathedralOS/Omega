@@ -7145,6 +7145,7 @@ impl Fixture {
                         edge: EdgeId::new(1).expect("jump edge"),
                         target: BlockId::new(2).expect("exit block"),
                         arguments: vec![constant],
+                        residual_affine_discards: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                 },

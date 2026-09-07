@@ -76,11 +76,16 @@ pub(super) fn validate_ranked_scc(
         target,
         arguments,
         trivial_affine_discards,
+        residual_affine_discards,
     } = &source.terminator
     else {
         return Err(invalid());
     };
-    if *edge != row.edge || *target != row.target || !trivial_affine_discards.is_empty() {
+    if *edge != row.edge
+        || *target != row.target
+        || !trivial_affine_discards.is_empty()
+        || !residual_affine_discards.is_empty()
+    {
         return Err(invalid());
     }
     match row.guard {

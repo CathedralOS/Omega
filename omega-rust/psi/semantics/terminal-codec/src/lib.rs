@@ -612,21 +612,28 @@ fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecEr
                     }
                 }
             }
-            let Terminator::ReturnUnitPartialAffine {
-                trivial_affine_discards,
-                residual_affine_discards,
-                ..
-            } = &block.terminator
-            else {
-                continue;
+            let (trivial_affine_discards, residual_affine_discards) = match &block.terminator {
+                Terminator::ReturnUnitPartialAffine {
+                    trivial_affine_discards,
+                    residual_affine_discards,
+                    ..
+                } => {
+                    if !matches!(machine.result, TerminalMachineResult::Unit)
+                        || residual_affine_discards.is_empty()
+                    {
+                        return malformed(
+                            "partial affine cleanup requires a Unit result and a residual action",
+                        );
+                    }
+                    (trivial_affine_discards, residual_affine_discards)
+                }
+                Terminator::Jump {
+                    trivial_affine_discards,
+                    residual_affine_discards,
+                    ..
+                } => (trivial_affine_discards, residual_affine_discards),
+                _ => continue,
             };
-            if !matches!(machine.result, TerminalMachineResult::Unit)
-                || residual_affine_discards.is_empty()
-            {
-                return malformed(
-                    "partial affine cleanup requires a Unit result and a residual action",
-                );
-            }
             for discard in residual_affine_discards {
                 let parameter = machine
                     .structural_parameters

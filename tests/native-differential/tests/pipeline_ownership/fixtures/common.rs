@@ -164,6 +164,7 @@ pub(crate) fn artifact() -> (Vec<u8>, Vec<u8>) {
                         edge: EdgeId::new(2_013).unwrap(),
                         target: exit,
                         arguments: vec![computed, computed],
+                        residual_affine_discards: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     },
                 },

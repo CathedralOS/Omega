@@ -588,6 +588,10 @@ pub(super) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             if let Terminator::ReturnUnitPartialAffine {
                 residual_affine_discards,
                 ..
+            }
+            | Terminator::Jump {
+                residual_affine_discards,
+                ..
             } = &block.terminator
             {
                 let mut places_and_paths = BTreeSet::new();
