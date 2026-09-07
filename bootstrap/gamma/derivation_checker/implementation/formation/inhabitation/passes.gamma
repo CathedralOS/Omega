@@ -1,0 +1,39 @@
+(def formation_inhabited ((constructors Int) (sorts Int)) Int
+  (let empty Int (pair 0 0)
+    (let present Int (pair 1 0)
+      (formation_inhabitation_passes constructors sorts empty 0 empty present))))
+
+(def formation_inhabitation_passes ((constructors Int) (sorts Int)
+  (marks Int) (marked Int) (empty Int) (present Int)) Int
+  (let scanned Int
+    (formation_inhabitation_rows (formation_index_lookup constructors 1)
+      (first constructors) sorts marks marked empty present)
+    (let next_marked Int (second scanned)
+      (if (eq next_marked sorts) 0
+        (if (eq next_marked marked) (layout_failure 28)
+          (formation_inhabitation_passes constructors sorts (first scanned)
+            next_marked empty present))))))
+
+; One result carrier per pass, never per constructor or field.
+(def formation_inhabitation_rows ((cursor Int) (remaining Int) (sorts Int)
+  (marks Int) (marked Int) (empty Int) (present Int)) Int
+  (if (eq remaining 0) (pair marks marked)
+    (let result_sort Int (formation_result_sort cursor)
+      (if (formation_marked marks 1 (+ sorts 1) result_sort)
+        (formation_inhabitation_rows (formation_record_next cursor)
+          (- remaining 1) sorts marks marked empty present)
+        (if (formation_inhabitation_arguments (+ cursor 12)
+          (formation_arity cursor) sorts marks)
+          (formation_inhabitation_rows (formation_record_next cursor)
+            (- remaining 1) sorts
+            (formation_mark marks 1 (+ sorts 1) result_sort empty present)
+            (+ marked 1) empty present)
+          (formation_inhabitation_rows (formation_record_next cursor)
+            (- remaining 1) sorts marks marked empty present))))))
+
+(def formation_inhabitation_arguments ((cursor Int) (remaining Int)
+  (sorts Int) (marks Int)) Int
+  (if (eq remaining 0) 1
+    (if (formation_marked marks 1 (+ sorts 1) (layout_word cursor))
+      (formation_inhabitation_arguments (+ cursor 4) (- remaining 1) sorts marks)
+      0)))

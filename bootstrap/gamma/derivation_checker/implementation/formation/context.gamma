@@ -1,0 +1,40 @@
+; Global context: (constructors, functions). Function context costs two pairs.
+(def formation_function_context ((identity Int) (record Int) (theory Int)) Int
+  (pair identity (pair record theory)))
+
+(def formation_function_identity ((context Int)) Int
+  (first context))
+
+(def formation_function_record ((context Int)) Int
+  (first (second context)))
+
+(def formation_function_theory ((context Int)) Int
+  (second (second context)))
+
+; Clause context costs two pairs and owns exactly one local template index.
+(def formation_clause_context ((function Int) (constructor Int) (templates Int)) Int
+  (pair function (pair constructor templates)))
+
+(def formation_clause_function ((context Int)) Int
+  (first context))
+
+(def formation_clause_constructor ((context Int)) Int
+  (first (second context)))
+
+(def formation_clause_templates ((context Int)) Int
+  (second (second context)))
+
+(def formation_formed ((frame Int) (sorts Int) (context Int)) Int
+  (pair 4 (pair frame (pair sorts (pair (first context) (second context))))))
+
+(def formed_frame ((payload Int)) Int
+  (first payload))
+
+(def formed_sort_count ((payload Int)) Int
+  (first (second payload)))
+
+(def formed_constructors ((payload Int)) Int
+  (first (second (second payload))))
+
+(def formed_functions ((payload Int)) Int
+  (second (second (second payload))))

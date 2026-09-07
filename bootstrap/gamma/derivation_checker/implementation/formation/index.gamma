@@ -1,0 +1,34 @@
+; Count, not scalar/pair comparison, selects the node representation.
+; A nonempty build allocates 3n-2 pairs, including its returned cursor carrier.
+(def formation_index_build ((cursor Int) (count Int)) Int
+  (if (eq count 0)
+    (pair 0 cursor)
+    (if (eq count 1)
+      (pair cursor (formation_record_next cursor))
+      (let left_count Int (/ count 2)
+        (let left Int (formation_index_build cursor left_count)
+          (let right Int
+            (formation_index_build (second left) (- count left_count))
+            (pair (pair (first left) (first right)) (second right))))))))
+
+(def formation_index ((table Int)) Int
+  (let count Int (layout_word table)
+    (let built Int (formation_index_build (+ table 4) count)
+      (pair count (first built)))))
+
+(def formation_index_count ((index Int)) Int
+  (first index))
+
+(def formation_index_lookup ((index Int) (identity Int)) Int
+  (if (if (lt identity 1) 1 (lt (first index) identity))
+    0
+    (formation_index_descend (second index) (first index) identity)))
+
+(def formation_index_descend ((tree Int) (count Int) (identity Int)) Int
+  (if (eq count 1)
+    tree
+    (let left_count Int (/ count 2)
+      (if (lt left_count identity)
+        (formation_index_descend (second tree) (- count left_count)
+          (- identity left_count))
+        (formation_index_descend (first tree) left_count identity)))))
