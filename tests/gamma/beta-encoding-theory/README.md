@@ -7,6 +7,25 @@ Missing Python explicitly skips; unsupported hosts fail with status 2.
 The gate prints the executing host. A result on one host does not establish
 execution on the other.
 
+For the bounded full-subject representation probe, run
+`sh tests/gamma/beta-encoding-theory/run.sh --subject-shape` on either supported
+host. This selects [subject_shape.py](subject_shape.py), not the finite-equation
+suite. It checks separately encoded copies of the entire current evaluator
+source and tape as ByteLists, then requires an exact rejection after changing
+the first source byte in the witness. Both rows are literal reflexivity claims;
+the final root is tape-list reflexivity, **not** `encode_Beta(source) = tape`.
+Host code constructs diagnostic records only. Theory bytes still come from the
+pinned Gamma emitter, and all owner/witness rows pass the ordinary checker.
+The 300-second per-invocation watchdog grants no verdict on timeout.
+
+The runner prints exact subject identities, request bytes, term counts, checking
+work, and elapsed time. At total subject length N, two separately represented
+spines require `4*N+13` work: index3, two row checks, two comparisons costing
+`4*N+4`, and four final-root transitions. These expectations are derived before
+execution, not learned from output. This measures one full-size prerequisite,
+not certificate production, Beta semantics, or full encoding-proof feasibility.
+See the [cost review](../../../wiki/design_briefs/bootstrap_cost_review.md).
+
 The shell entry resolves bootstrap roles, materializes both complete source
 closures, and invokes `materialize_gamma_evaluator` for the selected
 Beta-authored evaluator. All test logic uses Python's standard library.

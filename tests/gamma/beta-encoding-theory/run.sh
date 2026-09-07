@@ -7,6 +7,13 @@ export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
 . "$OMEGA_REPO_ROOT/tools/bootstrap/gamma/evaluator_env.sh"
 
+case "${1:-}" in
+    '') ENCODING_GATE=gate.py ;;
+    --subject-shape) ENCODING_GATE=subject_shape.py ;;
+    *) echo "usage: run.sh [--subject-shape]" >&2; exit 2 ;;
+esac
+[ "$#" -le 1 ] || { echo "usage: run.sh [--subject-shape]" >&2; exit 2; }
+
 command -v python3 >/dev/null 2>&1 || {
     echo "Beta encoding theory: skipped (python3 absent)"
     exit 0
@@ -27,4 +34,4 @@ python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$ENCODING_TMP/checker.gamma" \
     --prefix "$OMEGA_REPO_ROOT/tests/gamma/derivation-checking/main.gamma"
 materialize_gamma_evaluator "$ENCODING_TMP/evaluator" >/dev/null
-python3 -B "$GATE_DIR/gate.py" "$ENCODING_TMP"
+python3 -B "$GATE_DIR/$ENCODING_GATE" "$ENCODING_TMP"
