@@ -143,10 +143,14 @@ prerequisite to every lower-rung milestone.
   `sh tests/delta/frontend-boundary/run.sh` passes 270 controls and 50 repeated
   accepted compilation/application observations. `sh tests/epsilon/checking/run.sh`
   reconstructs the unchanged 707,983-byte receipt and passes 60 judgments.
-  The retained argument-count contradiction is covered. Next audit the remaining
-  DCOUT obligations, including declaration metadata assertions in
-  `bootstrap/3_delta/compiler/implementation/checking/types.gamma`; their complete
-  owned-failure coverage is not established by these checks.
+  Follow the [selected producer's resource ownership](bootstrap/3_delta/compiler/implementation/boundary/README.md#resource-ownership-in-the-selected-producer):
+  Alpha local-slot/label/fixup resources have zero use here, and match coverage
+  is bounded by admitted constructors. Do not implement fictitious tables or
+  chase arbitrary corrupt private pairs. The next acceptance is source-to-receipt
+  conformance: witness actual generated-Gamma admission failures, covering all
+  generated functions, body heights, and validation environments, then fix their
+  producer or return a truthful owned refusal. Runtime exhaustion remains a
+  separate observation obligation, not a static promise of unlimited execution.
   Acceptance: Delta conformance and malformed-source gates pass, the exact
   Epsilon evaluator closure compiles through the selected route, and its
   available entries execute with measured resources and unchanged semantics.
