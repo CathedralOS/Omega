@@ -10,6 +10,63 @@ fn arrival_program(source: &str) -> TypedTrees {
     symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
 }
 
+#[test]
+fn fixed_array_length_proves_its_declared_return_range() {
+    for (source, accepted) in [
+        (
+            "machine length(witness: &[u32; 4]) -> u64 [0..=4] { witness.len }",
+            true,
+        ),
+        (
+            "machine length(witness: [u32; 4]) -> u64 [0..=4] { witness.len }",
+            true,
+        ),
+        (
+            "machine length(witness: &mut [u32; 4]) -> u64 [0..=4] { witness.len }",
+            true,
+        ),
+        (
+            "machine length(witness: &[u32; 0]) -> u64 [0..=0] { witness.len }",
+            true,
+        ),
+        (
+            "machine length(witness: &[u32; 4]) -> u64 [0..=3] { witness.len }",
+            false,
+        ),
+        (
+            "machine length(witness: &[u32]) -> u64 [0..=4] { witness.len }",
+            false,
+        ),
+        (
+            "data Buffer { len: u64; } machine length(witness: &Buffer) -> u64 [0..=4] { witness.len }",
+            false,
+        ),
+        (
+            "domain [u8; 8]::Utf8 requires valid_utf8(self); machine length(witness: &[u8; 8] in Utf8) -> u64 [0..=8] { witness.len }",
+            false,
+        ),
+        (
+            "data Buffer { values: [u32; 4]; } machine length(witness: &Buffer) -> u64 [0..=4] { witness.values.len }",
+            true,
+        ),
+        (
+            "machine length(witness: &[u32; 4]) -> u64 [0..=4] { let captured: u64 = witness.len; captured }",
+            true,
+        ),
+        (
+            "machine length(witness: &[u32; 4]) -> u64 [0..=4] { transition true { true -> (witness.len) false -> 0u64 } }",
+            true,
+        ),
+    ] {
+        let program = arrival_program(source);
+        let result = crate::validate_program(&program);
+        assert_eq!(result.is_ok(), accepted, "{source}: {result:?}");
+        if !accepted {
+            assert!(format!("{result:?}").contains("not provably within its declared range"));
+        }
+    }
+}
+
 fn delivered_bounds(source: &str) -> Option<Interval> {
     let program = arrival_program(source);
     let machine = &program.machines()[0];

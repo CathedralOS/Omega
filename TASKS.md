@@ -611,9 +611,6 @@ Owners include
   caller-specific snapshots beyond immutable scalar formal comparisons, including
   a callee's borrowed collection length in caller-side requirement proofs; carry
   those facts into nested exact-cast obligations without rereading arguments.
-  Use known fixed-array extents in declared return-range proofs; returning
-  `witness.len` from a specialized fixed-array parameter currently fails even
-  when its concrete length fits the declared interval.
   Transport dependent and public-trait call-result bounds into subslice proofs
   through their actual call-entry and public requirement identities, not caller
   fields or private realization types.
