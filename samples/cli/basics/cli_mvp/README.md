@@ -54,12 +54,13 @@ local-project package review route. Keep its result separate from the outer comm
 
 ## Trace the actual route
 
-The Windows and macOS outer CLI probes complete fresh checked package review,
-then stop with
+Earlier Windows and macOS outer CLI probes completed fresh checked package review,
+then stopped with
 `fresh package review has blocking rows but no explicit --package-root-policy`.
 This is a policy boundary before accepted native production. The compiler-library
-sample test bypasses it and stops later at structural-argument path validation
-in Terminal production.
+sample test bypasses it and now stops later at structural operand validation
+in Terminal production, as detailed below. Recent macOS outer probes have not reached
+that policy boundary within the measured runtime window.
 Neither result establishes native execution.
 
 The missing-policy diagnostic includes exact conflict identities and source
@@ -109,11 +110,14 @@ boundary-call source view; direct selected-adapter calls belong to interpreter
 dispatch, while native adapter selection remains on the Omega side. Source
 custody and structural validation must not be bypassed.
 
-The fresh outer CLI recheck at `25dba13583` was interrupted after 90.29 seconds
-(including 11.99 seconds building Rust), still in preliminary package validation.
-It did not produce a fresh policy or native diagnostic. A host stack sample found
-incoming-guard/requirement analysis active; this is separate from the subsecond
-compiler-library probe above.
+The outer CLI with production changes in `0c0e044772` was interrupted after
+315.28 seconds of already-built binary execution on macOS ARM64, still without
+a policy or native diagnostic. Guard analysis now screens ineligible calls before
+effect inference, and indexed-access checks share completed write summaries.
+A one-second host stack sample around one minute reaches static boundary
+requirement construction and repeated intrinsic-target resolution. This locates
+remaining work; it does not establish an end-to-end speedup and is separate from
+the subsecond compiler-library probe above.
 
 The shared free/attached Unit graph retains scalar prefixes, guarded head/tail
 operands, repeated descriptor bindings, and authored `Slice::Length` ranking.
