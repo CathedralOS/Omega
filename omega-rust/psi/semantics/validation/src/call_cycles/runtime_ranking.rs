@@ -208,7 +208,12 @@ pub(super) fn check_component(
                     else {
                         return Err("the ranked parameter has no corresponding actual argument");
                     };
-                    if ranged {
+                    if ranged
+                        || matches!(
+                            ranks[position].order,
+                            projection::RankOrder::IncreasingTo(_)
+                        )
+                    {
                         match prove_ranking_range_call(
                             program,
                             RankingRangeCallMember {

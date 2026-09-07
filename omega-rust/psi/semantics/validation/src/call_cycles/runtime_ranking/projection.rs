@@ -72,10 +72,7 @@ impl RankProjection {
                 let [bound] = custody.view_arguments.as_slice() else {
                     return None;
                 };
-                if witness.view_arguments.len() != 1
-                    || !bound.is_valid()
-                    || custody.rank_range.is_none()
-                {
+                if witness.view_arguments.len() != 1 || !bound.is_valid() {
                     return None;
                 }
             } else if !witness.view_arguments.is_empty() || !custody.view_arguments.is_empty() {

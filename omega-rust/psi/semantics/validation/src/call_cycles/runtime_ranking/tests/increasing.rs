@@ -16,6 +16,43 @@ terminates by position -> Nat::IncreasingTo(bound) in 0..=ceiling;
 }";
 
 #[test]
+fn increasing_call_bound_does_not_require_an_authored_rank_range() {
+    let source = INCREASING
+        .replace(" in 0..=capacity", "")
+        .replace(" in 0..=ceiling", "");
+    let program = typed_source(&source);
+    assert_eq!(
+        progress(&program, 0),
+        Some(RankingRangeCallProgress::NonIncreasing)
+    );
+    assert_eq!(
+        progress(&program, 1),
+        Some(RankingRangeCallProgress::Strict)
+    );
+    assert_eq!(admitted(&program).len(), 1);
+    for source in [
+        source.replace("position + 1", "position"),
+        source.replace(
+            "self.second(capacity, cursor, limit)",
+            "self.second(capacity, cursor, limit + 1)",
+        ),
+    ] {
+        assert!(admitted(&typed_source(&source)).is_empty(), "{source}");
+    }
+    let mut missing = program.clone();
+    missing.ranking_expression_custody[0].view_arguments.clear();
+    assert!(admitted(&missing).is_empty());
+    let mut foreign = program.clone();
+    foreign.ranking_expression_custody[0].view_arguments[0] =
+        foreign.ranking_expression_custody[1].view_arguments[0];
+    assert!(progress(&foreign, 0).is_none());
+    assert!(admitted(&foreign).is_empty());
+    let mut stale_range = program;
+    stale_range.ranking_expression_custody[0].rank_range = Some(ExpressionHandle::invalid());
+    assert!(admitted(&stale_range).is_empty());
+}
+
+#[test]
 fn increasing_call_compares_produced_distance_in_each_exact_telescope() {
     let program = typed_source(INCREASING);
     assert_eq!(
