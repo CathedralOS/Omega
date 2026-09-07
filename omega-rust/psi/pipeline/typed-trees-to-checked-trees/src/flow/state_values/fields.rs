@@ -11,10 +11,14 @@ pub(super) struct FieldValue {
     segments: Vec<facts::PlaceSegment>,
     literal: ExpressionHandle,
     predicates: Vec<ByteSequencePredicate>,
+    integer_bounds: Option<facts::IntegerRange>,
 }
 
 pub(super) fn height(fields: &[FieldValue]) -> usize {
-    fields.iter().map(|field| 1 + field.predicates.len()).sum()
+    fields
+        .iter()
+        .map(|field| 1 + field.predicates.len() + usize::from(field.integer_bounds.is_some()))
+        .sum()
 }
 
 /// Missing evidence is absorbing after a state has one reachable predecessor.
@@ -29,12 +33,19 @@ pub(super) fn meet(previous: &mut Vec<FieldValue>, incoming: &[FieldValue]) -> b
             field.literal = ExpressionHandle::invalid();
             changed = true;
         }
+        // Keep only a range established identically on every incoming edge.
+        // Dropping a differing range is absorbing, so loops have the same
+        // finite descending evidence budget as literal and byte-class facts.
+        if field.integer_bounds != next.integer_bounds && field.integer_bounds.is_some() {
+            field.integer_bounds = None;
+            changed = true;
+        }
         field.predicates.retain(|predicate| {
             let retained = next.predicates.contains(predicate);
             changed |= !retained;
             retained
         });
-        field.literal.is_valid() || !field.predicates.is_empty()
+        field.literal.is_valid() || !field.predicates.is_empty() || field.integer_bounds.is_some()
     });
     changed
 }
@@ -66,7 +77,7 @@ pub(super) fn capture(
             .context_view(semantic.contexts.get(reference.context))
             .facts()
         {
-            let (literal, predicates) = match fact.payload {
+            let (literal, predicates, integer_bounds) = match fact.payload {
                 FactPayload::AssignedValue { value }
                     if program.expression_table.expression_is_valid(value) =>
                 {
@@ -80,6 +91,7 @@ pub(super) fn capture(
                             .into_iter()
                             .filter(|predicate| predicate.holds_for(bytes))
                             .collect::<Vec<_>>(),
+                        None,
                     )
                 }
                 FactPayload::BytePredicate { predicate: proved } => (
@@ -88,7 +100,21 @@ pub(super) fn capture(
                         .into_iter()
                         .filter(|predicate| proved.implies(*predicate))
                         .collect(),
+                    None,
                 ),
+                FactPayload::AssignedIntegerBounds { bounds }
+                    if semantic.integer_ranges.is_valid(bounds) =>
+                {
+                    let bounds = semantic.integer_ranges.get(bounds);
+                    if bounds.minimum > bounds.maximum {
+                        continue;
+                    }
+                    (
+                        ExpressionHandle::invalid(),
+                        Vec::new(),
+                        Some(bounds.clone()),
+                    )
+                }
                 _ => continue,
             };
             let FactPlace::Place(place) = fact.place else {
@@ -119,6 +145,15 @@ pub(super) fn capture(
                 if literal.is_valid() {
                     field.literal = literal;
                 }
+                if let Some(incoming) = integer_bounds {
+                    field.integer_bounds = Some(match field.integer_bounds.take() {
+                        Some(previous) => facts::IntegerRange {
+                            minimum: previous.minimum.min(incoming.minimum),
+                            maximum: previous.maximum.max(incoming.maximum),
+                        },
+                        None => incoming,
+                    });
+                }
                 for predicate in predicates {
                     if !field.predicates.contains(&predicate) {
                         field.predicates.push(predicate);
@@ -129,6 +164,7 @@ pub(super) fn capture(
                     segments: place.segments,
                     literal,
                     predicates,
+                    integer_bounds,
                 });
             }
         }
@@ -159,6 +195,13 @@ pub(super) fn append(
             segments,
         });
         let mut references = HandleSpan::empty();
+        let bounds_payload =
+            field
+                .integer_bounds
+                .as_ref()
+                .map(|bounds| FactPayload::AssignedIntegerBounds {
+                    bounds: semantic.integer_ranges.append(bounds.clone()),
+                });
         let payloads = field
             .literal
             .is_valid()
@@ -173,7 +216,8 @@ pub(super) fn append(
                     .map(|predicate| FactPayload::BytePredicate {
                         predicate: *predicate,
                     }),
-            );
+            )
+            .chain(bounds_payload);
         for payload in payloads {
             let fact = semantic.append_fact(Fact {
                 place: FactPlace::Place(place),

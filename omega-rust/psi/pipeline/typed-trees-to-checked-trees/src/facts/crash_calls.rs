@@ -395,6 +395,7 @@ fn substitute_checked_scalar_expression(
         | CheckedScalarExpression::StorageRead { .. }
         | CheckedScalarExpression::StructuralParameterField { .. }
         | CheckedScalarExpression::IntegerTrappingCast { .. }
+        | CheckedScalarExpression::IntegerWrappingCast { .. }
         | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => return None,
         CheckedScalarExpression::IntegerLiteral { literal } => {
             CheckedScalarExpression::IntegerLiteral {

@@ -322,6 +322,53 @@ fn trapping_casts_retain_only_representable_normal_return_values() {
 }
 
 #[test]
+fn wrapping_casts_apply_target_width_and_signedness() {
+    for (value, target, converted) in [
+        (53, PrimitiveType::U8, 53),
+        (256, PrimitiveType::U8, 0),
+        (511, PrimitiveType::U8, 255),
+        (-1, PrimitiveType::U8, 255),
+        (255, PrimitiveType::I8, -1),
+        (128, PrimitiveType::I8, -128),
+        (-129, PrimitiveType::I8, 127),
+        (65536, PrimitiveType::U16, 0),
+        (65535, PrimitiveType::I16, -1),
+        (4_294_967_296, PrimitiveType::U32, 0),
+        (4_294_967_295, PrimitiveType::I32, -1),
+    ] {
+        let cast = CheckedScalarExpression::IntegerWrappingCast {
+            primitive_type: target,
+            operand: Box::new(literal(value, LandedIntegerType::I64)),
+        };
+        assert_eq!(evaluate(&cast, &mut |_| None), expected(converted));
+    }
+    let cast = CheckedScalarExpression::IntegerWrappingCast {
+        primitive_type: PrimitiveType::I64,
+        operand: Box::new(CheckedScalarExpression::Parameter {
+            position: 0,
+            primitive_type: PrimitiveType::U64,
+        }),
+    };
+    assert_eq!(
+        evaluate(&cast, &mut |_| Some(ScalarValue::Integer(
+            BigInt::from_u64(u64::MAX)
+        ))),
+        expected(-1),
+    );
+    assert_eq!(evaluate(&cast, &mut |_| None), None);
+    let invalid_source = CheckedScalarExpression::IntegerWrappingCast {
+        primitive_type: PrimitiveType::U8,
+        operand: Box::new(literal(256, LandedIntegerType::U8)),
+    };
+    assert_eq!(evaluate(&invalid_source, &mut |_| None), None);
+    let address_target = CheckedScalarExpression::IntegerWrappingCast {
+        primitive_type: PrimitiveType::Addr,
+        operand: Box::new(literal(53, LandedIntegerType::U8)),
+    };
+    assert_eq!(evaluate(&address_target, &mut |_| None), None);
+}
+
+#[test]
 fn booleans_preserve_short_circuit_order_and_unknown_values() {
     use CheckedBooleanExpression as Boolean;
     for (left, conjunction, expected) in [

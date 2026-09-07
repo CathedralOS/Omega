@@ -107,6 +107,39 @@ fn indexed_byte_ranges_preserve_only_live_ascii_replacements() {
     }
 }
 
+#[test]
+fn remainder_ranges_cross_state_edges_without_replaying_the_source() {
+    for (after_capture, accepted) in [
+        ("", true),
+        ("self.value = 255;", true),
+        ("self.digit = 128;", false),
+        (
+            "let alias: &mut u32 in Wrapping = &mut self.digit; alias = 128;",
+            false,
+        ),
+    ] {
+        let source = format!(
+            r#"
+            domain [u8; 1]::Utf8 requires valid_utf8(self);
+            data Buffer {{ value: u32 in Wrapping; digit: u32 in Wrapping; byte: u8; output: [u8; 1] in Utf8; }}
+            machine Buffer::render(&mut self) {{
+                self.output = "A";
+                self.digit = self.value % 10;
+                {after_capture}
+                transition {{ _ -> write() }}
+                state write(&mut self) {{
+                    self.byte = ((self.digit + 48) as u8 in Wrapping) as u8;
+                    self.output[0] = self.byte;
+                    transition {{ _ -> done() }}
+                }}
+                state done(&mut self) {{}}
+            }}
+        "#
+        );
+        check(&source, accepted);
+    }
+}
+
 fn loop_source(initialization: &str, replacement: &str) -> String {
     format!(
         r#"

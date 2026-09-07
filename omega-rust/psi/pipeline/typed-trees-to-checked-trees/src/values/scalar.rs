@@ -297,6 +297,34 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         }
                     }
                     StatementNode::Assignment(assignment) => {
+                        if let Some(expression) =
+                            scalar_qualified_call_expression(program, assignment.value)
+                            && let ExpressionNode::Call(call) =
+                                program.expression_table.expression(expression)
+                            && let Some(arguments) = lower_boundary_call_arguments(
+                                program,
+                                operators,
+                                state,
+                                statement_ordinal,
+                                0,
+                                &crate::CallSite::Expression { expression, call },
+                                &scalar_parameters,
+                                parameters,
+                                &parameter_types,
+                                &locals,
+                                exact_integer_casts,
+                                true,
+                            )
+                        {
+                            retain_call_arguments(
+                                arguments,
+                                &scalar_parameters,
+                                &locals,
+                                &mut expressions,
+                                &mut source_bindings,
+                                &mut binding_symbols,
+                            );
+                        }
                         // Retain selected RHS meaning at the statement. A later
                         // executable consumer still owns its admitted store shape.
                         let Some(target_type_reference) =
@@ -2588,6 +2616,37 @@ fn construct_integer_bitwise_not(
     ))
 }
 
+/// Locate a call beneath only same-carrier integer qualifications. The actual
+/// callee declaration supplies that carrier; no conversion result is guessed.
+pub(crate) fn scalar_qualified_call_expression(
+    program: &TypedTrees,
+    mut expression: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let mut targets = Vec::new();
+    loop {
+        if !program.expression_table.expression_is_valid(expression) {
+            return None;
+        }
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Cast(cast)
+                if !cast.form.is_recast() && cast.semantic_domain.is_empty() =>
+            {
+                targets.push(program.primitive_type_reference(cast.target_type)?);
+                expression = cast.value;
+            }
+            ExpressionNode::Call(call) => {
+                let state = crate::find_state(program, call.target_symbol)?;
+                let primitive = program.primitive_type_reference(state.return_type)?;
+                return (is_integer(primitive)
+                    && primitive != PrimitiveType::Addr
+                    && targets.iter().all(|target| *target == primitive))
+                .then_some(expression);
+            }
+            _ => return None,
+        }
+    }
+}
+
 /// Retain cast meaning and any partial-conversion proof at the original source
 /// occurrence even when the operand is a completed computation-plan value.
 fn construct_integer_cast(
@@ -2659,6 +2718,19 @@ fn construct_integer_cast(
                     minimum: fact.minimum.clone(),
                     maximum: fact.maximum.clone(),
                 },
+            },
+            cast.domain,
+        ));
+    }
+    if cast.domain == ArithmeticDomain::Wrapping
+        && is_integer(source_type)
+        && source_type != PrimitiveType::Addr
+        && target_type != PrimitiveType::Addr
+    {
+        return Some((
+            CheckedScalarExpression::IntegerWrappingCast {
+                primitive_type: target_type,
+                operand: Box::new(operand),
             },
             cast.domain,
         ));
@@ -3186,7 +3258,8 @@ pub(crate) fn scalar_expression_type(
         | CheckedScalarExpression::IntegerBitwiseNot { primitive_type, .. }
         | CheckedScalarExpression::IntegerWiden { primitive_type, .. }
         | CheckedScalarExpression::IntegerExactCast { primitive_type, .. }
-        | CheckedScalarExpression::IntegerTrappingCast { primitive_type, .. } => {
+        | CheckedScalarExpression::IntegerTrappingCast { primitive_type, .. }
+        | CheckedScalarExpression::IntegerWrappingCast { primitive_type, .. } => {
             Some(*primitive_type)
         }
         CheckedScalarExpression::IntegerLiteral { literal } => {

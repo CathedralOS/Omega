@@ -4,6 +4,11 @@ use super::*;
 use checked_trees::CheckedScalarExpressionRole;
 use facts::ScalarValue;
 
+mod calls;
+mod captured;
+use calls::capture_call;
+use captured::{CapturedValue, LiveValues};
+
 #[cfg(test)]
 mod call_tests;
 
@@ -25,7 +30,7 @@ pub(super) fn capture_statement(
     if !program.expression_table.expression_is_valid(source) {
         return None;
     }
-    if let ExpressionNode::Call(call) = program.expression_table.expression(source) {
+    if let Some(call) = selected_call(program, source) {
         return capture_call(
             program,
             borrow,
@@ -69,13 +74,31 @@ pub(super) fn capture_statement(
 
 pub(super) fn capture_bounds(
     program: &typed_trees::TypedTrees,
+    borrow: &BorrowFacts,
     semantic: &FactPlan,
-    context: &FlowBuildContext,
+    context: &mut FlowBuildContext,
     state: SymbolHandle,
     statement_index: usize,
     statement: &StatementNode,
     active: HandleSpan<FlowSemanticContextRef>,
 ) -> Option<facts::IntegerRange> {
+    let source = match statement {
+        StatementNode::LocalData(local) => local.initial_value,
+        StatementNode::Assignment(assignment) => assignment.value,
+        _ => return None,
+    };
+    if let Some(call) = selected_call(program, source) {
+        return capture_call(
+            program,
+            borrow,
+            semantic,
+            context,
+            state,
+            statement_index,
+            call,
+            active,
+        );
+    }
     let (expression, symbols) = selected_statement(
         program,
         context.scalar_expressions,
@@ -100,6 +123,20 @@ pub(super) fn capture_bounds(
             symbols,
         },
     )
+}
+
+fn selected_call(
+    program: &typed_trees::TypedTrees,
+    source: ExpressionHandle,
+) -> Option<&typed_trees::expression::TableCallExpression> {
+    if let ExpressionNode::Call(call) = program.expression_table.expression(source) {
+        return Some(call);
+    }
+    let source = crate::values::scalar_qualified_call_expression(program, source)?;
+    let ExpressionNode::Call(call) = program.expression_table.expression(source) else {
+        return None;
+    };
+    Some(call)
 }
 
 fn selected_statement<'plans>(
@@ -163,296 +200,8 @@ fn selected_statement<'plans>(
     Some((expression, symbols))
 }
 
-// Evaluate selected scalar locals and local stores followed by one return.
-// Intervening Unit calls preserve these normal-return facts only when their
-// complete storage footprint is empty. This never proves that a call returns.
-fn capture_call(
-    program: &typed_trees::TypedTrees,
-    borrow: &BorrowFacts,
-    semantic: &FactPlan,
-    context: &mut FlowBuildContext,
-    caller_state: SymbolHandle,
-    statement_index: usize,
-    call: &typed_trees::expression::TableCallExpression,
-    active: HandleSpan<FlowSemanticContextRef>,
-) -> Option<ScalarValue> {
-    if call.receiver.is_valid()
-        || !call.machine_arguments.is_empty()
-        || call.static_requirement_dispatch.is_some()
-        || call.quotient_operation.is_some()
-        || call.private_layout_operation.is_some()
-    {
-        return None;
-    }
-    let machine = program.machines().iter().find(|machine| {
-        program
-            .machine_states(machine)
-            .first()
-            .is_some_and(|state| state.symbol == call.target_symbol)
-    })?;
-    if !machine.body_is_present
-        || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-        || !machine.owned_data.is_empty()
-    {
-        return None;
-    }
-    let [state] = program.machine_states(machine) else {
-        return None;
-    };
-    let statements = program.statement_table.statements(state.statement_nodes);
-    let parameters = program.state_parameters(state);
-    let arguments = program.expression_table.expression_handles(call.arguments);
-    if arguments.len() != parameters.len()
-        || parameters.iter().any(|parameter| {
-            parameter.is_self
-                || parameter.is_const
-                || (parameter.is_mutable
-                    && crate::values::mutable_scalar_parameter_type(program, parameter).is_none())
-                || program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_none()
-        })
-    {
-        return None;
-    }
-    let argument_values = arguments
-        .iter()
-        .enumerate()
-        .map(|(argument_index, argument)| {
-            let statement_ordinal = u32::try_from(statement_index).ok()?;
-            let argument_ordinal = u32::try_from(argument_index).ok()?;
-            let plans = context.scalar_expressions;
-            let mut bindings = plans.source_bindings.iter().filter(|(_, binding)| {
-                binding.state == caller_state
-                    && binding.statement_ordinal == statement_ordinal
-                    && matches!(binding.role, CheckedScalarExpressionRole::CallArgument {
-                        argument_ordinal: selected, ..
-                    } if selected == argument_ordinal)
-            });
-            if let Some((_, binding)) = bindings.next() {
-                if bindings.next().is_some()
-                    || binding.expression != *argument
-                    || binding.destination.is_valid()
-                {
-                    return None;
-                }
-                let mut expressions = plans.expressions.iter().filter(|expression| {
-                    expression.state == caller_state
-                        && expression.statement_ordinal == statement_ordinal
-                        && expression.role == binding.role
-                });
-                let expression = &expressions.next()?.expression;
-                if expressions.next().is_some() {
-                    return None;
-                }
-                // Capture selected arithmetic against the live caller facts.
-                // A missing value must not fall back to replaying its source.
-                return crate::values::evaluate_checked_scalar(
-                    expression,
-                    &mut crate::values::PlaceScalarValues {
-                        program,
-                        parameters: program
-                            .state_parameters(crate::find_state(program, caller_state)?),
-                        symbols: plans.binding_symbols.span_or_empty(binding.symbols),
-                        value_at_place: |place: &CanonicalPlace| {
-                            crate::values::scalar_value_at_place(
-                                program,
-                                semantic,
-                                context
-                                    .contexts
-                                    .semantic_context_refs
-                                    .span_or_empty(active)
-                                    .iter()
-                                    .map(|reference| semantic.contexts.get(reference.context)),
-                                place,
-                            )
-                        },
-                    },
-                );
-            }
-            match program.expression_table.expression(*argument) {
-                ExpressionNode::Integer(value) => {
-                    return value.value_bignum().map(ScalarValue::Integer);
-                }
-                ExpressionNode::Boolean(value) => return Some(ScalarValue::Boolean(*value)),
-                _ => {}
-            }
-            let place = canonical_place_from_expression_in_state(
-                program,
-                caller_state,
-                statement_index,
-                *argument,
-            )?;
-            if !place.segments.iter().all(|segment| {
-                matches!(
-                    segment,
-                    facts::PlaceSegment::Field { .. }
-                        | facts::PlaceSegment::Case { .. }
-                        | facts::PlaceSegment::FixedIndex { .. }
-                )
-            }) {
-                return None;
-            }
-            crate::values::scalar_value_at_place(
-                program,
-                semantic,
-                context
-                    .contexts
-                    .semantic_context_refs
-                    .span_or_empty(active)
-                    .iter()
-                    .map(|reference| semantic.contexts.get(reference.context)),
-                &place,
-            )
-        })
-        .collect::<Option<Vec<_>>>()?;
-    let plans = context.scalar_expressions;
-    let mut symbols: Vec<_> = parameters
-        .iter()
-        .map(|parameter| parameter.symbol)
-        .collect();
-    let mut values = CallValues {
-        bindings: Vec::with_capacity(parameters.len()),
-        storage: Vec::new(),
-    };
-    for (parameter, value) in parameters.iter().zip(argument_values) {
-        if !parameter.symbol.is_valid()
-            || parameters
-                .iter()
-                .filter(|candidate| candidate.symbol == parameter.symbol)
-                .count()
-                != 1
-        {
-            return None;
-        }
-        if parameter.is_mutable {
-            // Preserve authored scalar positions without exposing the old
-            // incoming value as a body binding after storage changes.
-            values.bindings.push(None);
-            values.storage.push((parameter.symbol, value));
-        } else {
-            values.bindings.push(Some(value));
-        }
-    }
-    let mut immutable_local_count = 0_u32;
-    for (statement_index, statement) in statements.iter().enumerate() {
-        if let StatementNode::Call(call) = statement {
-            retains_values_across_unit_call(
-                program,
-                borrow,
-                context,
-                machine,
-                state,
-                statement_index,
-                call,
-                &symbols,
-                &values,
-            )?;
-            continue;
-        }
-        let statement_ordinal = u32::try_from(statement_index).ok()?;
-        let (source, destination, role) = match statement {
-            StatementNode::LocalData(local) => {
-                if !local.symbol.is_valid()
-                    || symbols.contains(&local.symbol)
-                    || values
-                        .storage
-                        .iter()
-                        .any(|(symbol, _)| *symbol == local.symbol)
-                    || program
-                        .primitive_type_reference(local.type_reference)
-                        .is_none()
-                {
-                    return None;
-                }
-                (
-                    local.initial_value,
-                    local.symbol,
-                    if local.is_mutable {
-                        CheckedScalarExpressionRole::StorageInitializer
-                    } else {
-                        CheckedScalarExpressionRole::LocalInitializer {
-                            binding_ordinal: immutable_local_count,
-                        }
-                    },
-                )
-            }
-            StatementNode::Assignment(assignment) => {
-                let ExpressionNode::Name(path) =
-                    program.expression_table.expression(assignment.target)
-                else {
-                    return None;
-                };
-                if !values
-                    .storage
-                    .iter()
-                    .any(|(symbol, _)| *symbol == path.symbol)
-                {
-                    return None;
-                }
-                (
-                    assignment.value,
-                    path.symbol,
-                    CheckedScalarExpressionRole::AssignmentValue,
-                )
-            }
-            StatementNode::Expression(result) if statement_index + 1 == statements.len() => (
-                *result,
-                SymbolHandle::invalid(),
-                CheckedScalarExpressionRole::Return,
-            ),
-            _ => return None,
-        };
-        let mut bindings = plans.source_bindings.iter().filter(|(_, binding)| {
-            binding.state == state.symbol
-                && binding.statement_ordinal == statement_ordinal
-                && binding.role == role
-                && binding.expression == source
-                && binding.destination == destination
-        });
-        let (_, binding) = bindings.next()?;
-        if bindings.next().is_some()
-            || plans.binding_symbols.span_or_empty(binding.symbols) != symbols
-        {
-            return None;
-        }
-        let mut expressions = plans.expressions.iter().filter(|expression| {
-            expression.state == state.symbol
-                && expression.statement_ordinal == statement_ordinal
-                && expression.role == role
-        });
-        let expression = &expressions.next()?.expression;
-        if expressions.next().is_some() {
-            return None;
-        }
-        // Read the complete RHS against the old storage, then commit the write.
-        // Immutable locals retain their captured values across later assignments.
-        let value = crate::values::evaluate_checked_scalar(expression, &mut values)?;
-        match role {
-            CheckedScalarExpressionRole::Return => return Some(value),
-            CheckedScalarExpressionRole::LocalInitializer { .. } => {
-                symbols.push(destination);
-                values.bindings.push(Some(value));
-                immutable_local_count = immutable_local_count.checked_add(1)?;
-            }
-            CheckedScalarExpressionRole::StorageInitializer => {
-                values.storage.push((destination, value));
-            }
-            CheckedScalarExpressionRole::AssignmentValue => {
-                let (_, current) = values
-                    .storage
-                    .iter_mut()
-                    .find(|(symbol, _)| *symbol == destination)?;
-                *current = value;
-            }
-            _ => return None,
-        }
-    }
-    None
-}
-
 #[allow(clippy::too_many_arguments)]
-fn retains_values_across_unit_call(
+fn retains_values_across_unit_call<Value>(
     program: &typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     context: &mut FlowBuildContext,
@@ -461,7 +210,7 @@ fn retains_values_across_unit_call(
     statement_index: usize,
     call: &typed_trees::statement::TableCall,
     symbols: &[SymbolHandle],
-    values: &CallValues,
+    values: &CallValues<Value>,
 ) -> Option<()> {
     if call.receiver_symbol.is_valid()
         || call.receiver_root_symbol.is_valid()
@@ -555,9 +304,9 @@ fn retains_values_across_unit_call(
 /// Call-local scratch: immutable bindings use their selected ordinal namespace;
 /// mutable locals and owned formals use exact storage symbols and cannot alias
 /// caller storage. Mutable formals leave holes in the immutable namespace.
-struct CallValues {
-    bindings: Vec<Option<ScalarValue>>,
-    storage: Vec<(SymbolHandle, ScalarValue)>,
+struct CallValues<Value = ScalarValue> {
+    bindings: Vec<Option<Value>>,
+    storage: Vec<(SymbolHandle, Value)>,
 }
 
 impl crate::values::ScalarValueSource for CallValues {

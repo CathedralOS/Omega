@@ -303,6 +303,7 @@ pub(super) fn propagate_statement_transfers(
     let integer_bounds = if scalar_value.is_none() {
         scalar_values::capture_bounds(
             program,
+            borrow,
             semantic,
             ctx,
             state_symbol,

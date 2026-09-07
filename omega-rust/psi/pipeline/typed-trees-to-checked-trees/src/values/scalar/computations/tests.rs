@@ -3,6 +3,77 @@ use super::*;
 mod assignments;
 mod guards;
 
+#[test]
+fn explicit_wrapping_narrowing_retains_its_selected_policy() {
+    let checked = checked_source(
+        "machine narrow(value: u32) -> u8 { (value as u8 in Wrapping) as u8 }",
+        false,
+    );
+    assert!(
+        checked
+            .facts
+            .values
+            .scalar_expressions
+            .expressions
+            .iter()
+            .any(|expression| {
+                expression.role == CheckedScalarExpressionRole::Return
+                    && matches!(&expression.expression,
+                    CheckedScalarExpression::IntegerWrappingCast {
+                        primitive_type: PrimitiveType::U8, operand,
+                    } if matches!(operand.as_ref(), CheckedScalarExpression::Parameter {
+                        position: 0, primitive_type: PrimitiveType::U32,
+                    }))
+            })
+    );
+}
+
+#[test]
+fn qualified_call_assignment_retains_exact_argument_coordinates() {
+    let checked = checked_source(
+        "machine narrow(value: u32) -> u8 { (value as u8 in Wrapping) as u8 }
+         data Buffer { byte: u8 in Wrapping; }
+         machine Buffer::write(&mut self, value: u32) {
+             self.byte = narrow(value) as u8 in Wrapping;
+         }",
+        false,
+    );
+    let assignment = checked
+        .machines()
+        .iter()
+        .flat_map(|machine| checked.machine_states(machine))
+        .flat_map(|state| checked.statement_table.statements(state.statement_nodes))
+        .find_map(|statement| match statement {
+            StatementNode::Assignment(assignment) => Some(assignment),
+            _ => None,
+        })
+        .expect("authored call assignment");
+    let expression = scalar_qualified_call_expression(&checked.typed, assignment.value)
+        .expect("same-carrier qualification keeps the actual call");
+    let ExpressionNode::Call(call) = checked.expression_table.expression(expression) else {
+        panic!("exact call handle");
+    };
+    let argument = checked.expression_table.expression_handles(call.arguments)[0];
+    assert!(
+        checked
+            .facts
+            .values
+            .scalar_expressions
+            .source_bindings
+            .iter()
+            .any(|(_, binding)| {
+                binding.expression == argument
+                    && matches!(
+                        binding.role,
+                        CheckedScalarExpressionRole::UnitCallArgument {
+                            call_ordinal: 0,
+                            argument_ordinal: 0
+                        }
+                    )
+            })
+    );
+}
+
 fn checked(argument: &str, combined: bool) -> checked_trees::CheckedTrees {
     let source = format!(
         r#"

@@ -136,6 +136,11 @@ impl ScalarBindings {
                     "checked trapping conversion requires runtime policy realization",
                 ));
             }
+            CheckedScalarExpression::IntegerWrappingCast { .. } => {
+                return Err(LoweringError::Unsupported(
+                    "checked wrapping conversion requires runtime policy realization",
+                ));
+            }
             CheckedScalarExpression::Boolean(expression) => self.boolean(expression)?,
             CheckedScalarExpression::IntegerLiteral { .. }
             | CheckedScalarExpression::IeeeFloatLiteral { .. }

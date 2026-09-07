@@ -243,6 +243,45 @@ fn full_u64_bounds_and_products_do_not_narrow_through_signed_host_values() {
 }
 
 #[test]
+fn wrapping_cast_bounds_preserve_in_range_values_and_widen_discontinuities() {
+    for (source, target, incoming, expected) in [
+        (
+            PrimitiveType::U32,
+            PrimitiveType::U8,
+            range(48, 57),
+            range(48, 57),
+        ),
+        (
+            PrimitiveType::U16,
+            PrimitiveType::U8,
+            range(255, 257),
+            range(0, 255),
+        ),
+        (
+            PrimitiveType::I16,
+            PrimitiveType::U8,
+            range(-1, 1),
+            range(0, 255),
+        ),
+        (
+            PrimitiveType::U64,
+            PrimitiveType::I64,
+            range(0, i128::from(u64::MAX)),
+            range(i128::from(i64::MIN), i128::from(i64::MAX)),
+        ),
+    ] {
+        let expression = CheckedScalarExpression::IntegerWrappingCast {
+            primitive_type: target,
+            operand: Box::new(parameter(0, source)),
+        };
+        assert_eq!(
+            evaluate(&expression, &mut Bounds(vec![incoming])),
+            Some(expected)
+        );
+    }
+}
+
+#[test]
 fn every_source_leaf_rejects_reversed_outside_or_absent_carrier_bounds() {
     let path = vec![CheckedStructuralPredicatePathSegment::Field("byte".into())];
     for expression in [

@@ -173,3 +173,242 @@ fn mutable_owned_scalar_formals_do_not_alias_the_callers_local() {
     );
     assert!(preserves_values(&checked));
 }
+
+fn range_call_source(body: &str) -> CheckedTrees {
+    checked(&format!(
+        "machine observe(value: bool) {{}} \
+         machine narrow(value: u32) -> u8 {{ {body} }} \
+         data Input {{ value: u32 in Wrapping; }} \
+         machine wrapper(input: &Input) -> u8 {{ \
+             let digit: u32 in Wrapping = input.value % 10 + 48; \
+             let byte: u8 = narrow(digit as u32); byte \
+         }}"
+    ))
+}
+
+fn captured_range(checked: &CheckedTrees) -> Option<facts::IntegerRange> {
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "wrapper")
+        .expect("wrapper machine");
+    let state = &checked.machine_states(machine)[0];
+    let (statement_index, statement) = checked.statement_table.statements(state.statement_nodes)
+        .iter().enumerate().find(|(_, statement)| {
+            matches!(statement, StatementNode::LocalData(local)
+                if matches!(checked.expression_table.expression(local.initial_value), ExpressionNode::Call(_)))
+        }).expect("actual scalar call initializer");
+    let flow_state = checked
+        .facts
+        .flow
+        .control
+        .states
+        .iter()
+        .find(|(_, candidate)| candidate.state_symbol == state.symbol)
+        .map(|(_, state)| state)
+        .expect("wrapper flow state");
+    let active = checked
+        .facts
+        .flow
+        .control
+        .statements
+        .span_or_empty(flow_state.statements)
+        .iter()
+        .find(|statement| statement.statement_index == statement_index)
+        .expect("call initializer entry")
+        .entry_semantic_contexts;
+    let mut context = FlowBuildContext::new(
+        &checked.facts.borrow,
+        &checked.facts.proof,
+        &checked.facts.semantic,
+        &checked.facts.values.scalar_expressions,
+    );
+    context.contexts = checked.facts.flow.contexts.clone();
+    super::capture_bounds(
+        &checked.typed,
+        &checked.facts.borrow,
+        &checked.facts.semantic,
+        &mut context,
+        state.symbol,
+        statement_index,
+        statement,
+        active,
+    )
+}
+
+#[test]
+fn selected_scalar_calls_capture_live_argument_ranges_and_local_snapshots() {
+    for body in [
+        "(value as u8 in Wrapping) as u8",
+        "observe(false); (value as u8 in Wrapping) as u8",
+        "let mut copy: u32 = value; \
+         let saved: u8 = (copy as u8 in Wrapping) as u8; copy = 200; saved",
+    ] {
+        let checked = range_call_source(body);
+        assert_eq!(
+            captured_range(&checked),
+            Some(facts::IntegerRange {
+                minimum: numerics::bignum::BigInt::from_u64(48),
+                maximum: numerics::bignum::BigInt::from_u64(57),
+            }),
+            "{body}"
+        );
+    }
+}
+
+#[test]
+fn selected_call_ranges_reject_missing_or_substituted_custody() {
+    use checked_trees::CheckedScalarExpressionRole;
+
+    let authentic = range_call_source("(value as u8 in Wrapping) as u8");
+    assert!(captured_range(&authentic).is_some());
+    let wrapper = authentic
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "wrapper")
+        .expect("wrapper machine");
+    let state_symbol = authentic.machine_states(wrapper)[0].symbol;
+    let (binding_handle, binding) = authentic
+        .facts
+        .values
+        .scalar_expressions
+        .source_bindings
+        .iter()
+        .find(|(_, binding)| {
+            binding.state == state_symbol
+                && matches!(
+                    binding.role,
+                    CheckedScalarExpressionRole::CallArgument { .. }
+                )
+        })
+        .expect("selected ordinary argument binding");
+    assert!(
+        authentic
+            .facts
+            .values
+            .scalar_expressions
+            .source_bindings
+            .iter()
+            .any(|(_, alternative)| {
+                alternative.state == state_symbol
+                    && alternative.statement_ordinal == binding.statement_ordinal
+                    && alternative.expression == binding.expression
+                    && matches!(
+                        alternative.role,
+                        CheckedScalarExpressionRole::UnitCallArgument {
+                            call_ordinal: 0,
+                            argument_ordinal: 0,
+                        }
+                    )
+            }),
+        "the authentic local retains a separate Unit argument view"
+    );
+    let (borrow_handle, borrowed_state) = authentic
+        .facts
+        .borrow
+        .states
+        .iter()
+        .find(|(_, state)| state.state_symbol == state_symbol)
+        .expect("wrapper borrow state");
+    let call = authentic
+        .facts
+        .borrow
+        .calls
+        .span_or_empty(borrowed_state.calls)[0]
+        .clone();
+    for corruption in [
+        "missing argument binding",
+        "duplicate argument binding",
+        "wrong argument source",
+        "wrong argument destination",
+        "wrong local binding ordinal",
+        "missing call",
+        "wrong call target",
+        "wrong call ordinal",
+        "missing callee body",
+        "missing selected return",
+    ] {
+        let mut changed = authentic.clone();
+        match corruption {
+            "missing argument binding" => {
+                changed
+                    .facts
+                    .values
+                    .scalar_expressions
+                    .source_bindings
+                    .get_mut(binding_handle)
+                    .state = Default::default();
+            }
+            "duplicate argument binding" => {
+                changed
+                    .facts
+                    .values
+                    .scalar_expressions
+                    .source_bindings
+                    .insert(binding.clone());
+            }
+            "wrong argument source" => {
+                changed
+                    .facts
+                    .values
+                    .scalar_expressions
+                    .source_bindings
+                    .get_mut(binding_handle)
+                    .expression = Default::default();
+            }
+            "wrong argument destination" => {
+                changed
+                    .facts
+                    .values
+                    .scalar_expressions
+                    .source_bindings
+                    .get_mut(binding_handle)
+                    .destination = state_symbol;
+            }
+            "wrong local binding ordinal" => {
+                changed
+                    .facts
+                    .values
+                    .scalar_expressions
+                    .source_bindings
+                    .get_mut(binding_handle)
+                    .role = CheckedScalarExpressionRole::CallArgument {
+                    binding_ordinal: 0,
+                    argument_ordinal: 0,
+                };
+            }
+            "missing call" => {
+                changed.facts.borrow.states.get_mut(borrow_handle).calls = Default::default();
+            }
+            "wrong call target" | "wrong call ordinal" => {
+                let mut call = call.clone();
+                if corruption == "wrong call target" {
+                    call.target_symbol = state_symbol;
+                } else {
+                    call.call_ordinal = 1;
+                }
+                let calls = changed.facts.borrow.calls.insert_many([call]);
+                changed.facts.borrow.states.get_mut(borrow_handle).calls = calls;
+            }
+            "missing callee body" => {
+                changed
+                    .typed
+                    .machines_mut()
+                    .iter_mut()
+                    .find(|machine| machine.name.as_str() == "narrow")
+                    .expect("narrow machine")
+                    .body_is_present = false;
+            }
+            "missing selected return" => {
+                changed
+                    .facts
+                    .values
+                    .scalar_expressions
+                    .expressions
+                    .retain(|expression| expression.role != CheckedScalarExpressionRole::Return);
+            }
+            _ => unreachable!("enumerated custody mutation"),
+        }
+        assert_eq!(captured_range(&changed), None, "accepted {corruption}");
+    }
+}

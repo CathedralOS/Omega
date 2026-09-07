@@ -38,6 +38,9 @@ pub(super) fn validate(predicate: &CheckedBooleanExpression) -> Result<(), Lower
 
 fn scalar(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
     match expression {
+        CheckedScalarExpression::IntegerWrappingCast { .. } => Err(LoweringError::Unsupported(
+            "wrapping conversion is not supported scalar contract arithmetic",
+        )),
         CheckedScalarExpression::StructuralParameterIndexedRead { .. } => {
             Err(LoweringError::Unsupported(
                 "indexed structural scalar reads are not supported contract operands",

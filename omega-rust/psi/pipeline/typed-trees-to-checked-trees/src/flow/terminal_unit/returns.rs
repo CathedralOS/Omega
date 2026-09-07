@@ -2770,6 +2770,7 @@ pub(super) fn is_branch_free_structural_integer_expression(
     match expression {
         CheckedScalarExpression::StorageRead { .. }
         | CheckedScalarExpression::IntegerTrappingCast { .. }
+        | CheckedScalarExpression::IntegerWrappingCast { .. }
         | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => false,
         CheckedScalarExpression::IntegerLiteral { .. } => true,
         CheckedScalarExpression::IntegerBinary { left, right, .. } => {

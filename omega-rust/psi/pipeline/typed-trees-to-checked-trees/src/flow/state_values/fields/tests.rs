@@ -7,6 +7,7 @@ fn field(symbol: u32, literal: u32, predicates: Vec<ByteSequencePredicate>) -> F
         }],
         literal: ExpressionHandle::from_arena_index(literal),
         predicates,
+        integer_bounds: None,
     }
 }
 
@@ -47,4 +48,27 @@ fn field_height_bounds_each_monotone_evidence_loss() {
     }
     assert_eq!(losses, initial_height);
     assert!(previous.is_empty());
+}
+
+#[test]
+fn equal_integer_ranges_survive_but_differing_or_missing_ranges_are_absorbing() {
+    let mut initial = field(1, 0, Vec::new());
+    initial.integer_bounds = Some(facts::IntegerRange {
+        minimum: numerics::bignum::BigInt::from_u64(0),
+        maximum: numerics::bignum::BigInt::from_u64(9),
+    });
+    for missing in [false, true] {
+        let mut previous = vec![initial.clone()];
+        assert!(!meet(&mut previous, &[initial.clone()]));
+        let mut incoming = initial.clone();
+        if missing {
+            incoming.integer_bounds = None;
+        } else {
+            incoming.integer_bounds.as_mut().expect("range").maximum =
+                numerics::bignum::BigInt::from_u64(19);
+        }
+        assert!(meet(&mut previous, &[incoming]));
+        assert!(previous.is_empty());
+        assert!(!meet(&mut previous, &[initial.clone()]));
+    }
 }
