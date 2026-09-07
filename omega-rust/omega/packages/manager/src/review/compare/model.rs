@@ -305,8 +305,9 @@ impl ReviewOnlyCapabilityConflictSet {
 
     /// Render a fixed-vocabulary, injection-resistant exact conflict view.
     ///
-    /// Compiler rows are hexadecimal rather than decoded by package code. The
-    /// companion source patch supplies the human-readable code delta.
+    /// Compiler rows are summarized by byte length and digest rather than decoded
+    /// by package code. Source locations and the companion source patch supply
+    /// the human-readable code context.
     pub fn render_bounded(
         &self,
         maximum_bytes: usize,

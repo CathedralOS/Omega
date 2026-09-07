@@ -8,9 +8,9 @@ use crate::admission::{
 use crate::review::{
     CanonicalPackageReconstructionQuestionLimits, CompileResolvedPackageReviewsError,
     ReviewOnlyCapabilityConflictError, ReviewOnlyCapabilityConflictLimits,
-    ReviewOnlyRootPolicyDirectory, ReviewOnlyRootPolicyFileError, ReviewOnlyRootPolicyName,
-    ReviewOnlyRootPolicyRecordLimits, compare_review_only_initial_capabilities,
-    compile_resolved_package_candidate_for_production,
+    ReviewOnlyCapabilityConflictSet, ReviewOnlyRootPolicyDirectory, ReviewOnlyRootPolicyFileError,
+    ReviewOnlyRootPolicyName, ReviewOnlyRootPolicyRecordLimits,
+    compare_review_only_initial_capabilities, compile_resolved_package_candidate_for_production,
 };
 use compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileReport, OptimizationRollback, TrustAdmission,
@@ -110,7 +110,7 @@ impl<'a> PreparedLocalProjectNativeRequest<'a> {
 pub enum CompilePreparedLocalProjectNativeError {
     Review(CompileResolvedPackageReviewsError),
     Conflict(ReviewOnlyCapabilityConflictError),
-    MissingRootPolicy,
+    MissingRootPolicy(ReviewOnlyCapabilityConflictSet),
     UnexpectedRootPolicy,
     RootPolicyFile(ReviewOnlyRootPolicyFileError),
     Evidence(AcceptedOrdinaryEvidenceError),
@@ -125,9 +125,15 @@ impl fmt::Display for CompilePreparedLocalProjectNativeError {
             Self::Conflict(error) => {
                 write!(formatter, "cannot reconstruct package root-policy conflicts: {error}")
             }
-            Self::MissingRootPolicy => formatter.write_str(
-                "fresh package review has blocking rows but no explicit --package-root-policy",
-            ),
+            Self::MissingRootPolicy(conflicts) => {
+                writeln!(formatter,
+                    "fresh package review has blocking rows but no explicit --package-root-policy"
+                )?;
+                match conflicts.render_bounded(16 * 1024 * 1024) {
+                    Ok(review) => formatter.write_str(&review),
+                    Err(error) => write!(formatter, "cannot render root-policy conflicts: {error}"),
+                }
+            }
             Self::UnexpectedRootPolicy => formatter.write_str(
                 "fresh package review has no blocking rows but an explicit package root policy was supplied",
             ),
@@ -181,7 +187,11 @@ pub fn compile_prepared_local_project_for_native(
         (true, Some(_)) => {
             return Err(CompilePreparedLocalProjectNativeError::UnexpectedRootPolicy);
         }
-        (false, None) => return Err(CompilePreparedLocalProjectNativeError::MissingRootPolicy),
+        (false, None) => {
+            return Err(CompilePreparedLocalProjectNativeError::MissingRootPolicy(
+                conflicts,
+            ));
+        }
         (false, Some(root_policy)) => Some(
             root_policy
                 .directory
@@ -321,7 +331,8 @@ machine Main::main(&mut self) { }
         );
         assert!(matches!(
             missing,
-            Err(CompilePreparedLocalProjectNativeError::MissingRootPolicy)
+            Err(CompilePreparedLocalProjectNativeError::MissingRootPolicy(ref conflicts))
+                if !conflicts.is_empty()
         ));
 
         let prepared = super::super::prepare_local_project(&project.entry())
