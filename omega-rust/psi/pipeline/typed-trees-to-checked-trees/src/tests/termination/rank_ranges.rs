@@ -3,6 +3,7 @@ use super::{
 };
 
 mod named_states;
+mod payloads;
 mod relational;
 mod state_edges;
 mod static_fallback;

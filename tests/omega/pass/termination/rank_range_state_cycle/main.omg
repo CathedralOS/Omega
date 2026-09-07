@@ -1,25 +1,26 @@
 data Main {}
+data Payload { value: u64; }
 
 machine Main::main() -> u32 {
-    transition { _ -> self.walk(5) }
+    transition { _ -> self.walk(5, Payload { value: 7 }) }
 }
 
-machine Main::walk(remaining: u32 [0..=5])
+machine Main::walk(remaining: u32 [0..=5], payload: Payload)
 terminates by remaining in 0..=5;
 -> u32 {
     transition remaining > 2 {
-        true -> first(remaining)
-        false -> second(remaining)
+        true -> first(payload, remaining)
+        false -> second(remaining, payload)
     }
-    state first(pending: u32 [0..=5]) {
+    state first(carried: Payload, pending: u32 [0..=5]) {
         transition pending > 0 {
-            true -> second(pending - 1)
+            true -> second(pending - 1, carried)
             false -> pending
         }
     }
-    state second(left: u32 [0..=5]) {
+    state second(left: u32 [0..=5], saved: Payload) {
         transition left > 0 {
-            true -> first(left - 1)
+            true -> first(saved, left - 1)
             false -> left
         }
     }
