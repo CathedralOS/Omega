@@ -434,7 +434,8 @@ fn partial_affine_unit_cleanup_lowers_exact_terminal_paths_before_verification()
         panic!("expected one checked partial-cleanup plan")
     };
     let lowered = lower_partial_affine_unit_cleanup_machine(&checked, plan)
-        .expect("strict checked partial cleanup should lower in memory");
+        .expect("strict checked partial cleanup should lower in memory")
+        .terminal;
     let entry = lowered
         .semantic_module
         .machines
@@ -586,7 +587,8 @@ fn mixed_partial_affine_unit_cleanup_lowers_recursive_maximal_residuals() {
         panic!("expected one checked mixed partial-cleanup plan")
     };
     let lowered = lower_partial_affine_unit_cleanup_machine(&checked, plan)
-        .expect("strict mixed partial cleanup should lower in memory");
+        .expect("strict mixed partial cleanup should lower in memory")
+        .terminal;
     let entry = lowered
         .semantic_module
         .machines

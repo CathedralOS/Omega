@@ -259,6 +259,11 @@ pub(crate) fn lower_unit_structural_type_roots(
             &checked
                 .facts
                 .flow
+                .terminal_structural_returns
+                .structural_types,
+            &checked
+                .facts
+                .flow
                 .terminal_boundary_scalar_returns
                 .structural_types,
         ] {

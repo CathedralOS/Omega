@@ -434,7 +434,7 @@ pub(super) fn lower_selected_machine(
                 "partial affine Unit cleanup attachment disagrees with its signature",
             );
         }
-        return routed_machine(
+        return source_mapped_machine(
             lower_partial_affine_unit_cleanup_machine(checked, plan),
             SelectedMachineRoute::PartialAffineUnitCleanup,
         );
@@ -559,7 +559,7 @@ pub(super) fn lower_selected_machine(
             .for_machine(selection.machine)
             .is_some()
     {
-        return routed_machine(
+        return source_mapped_machine(
             lower_unit_effect_closure(checked, selection.machine),
             SelectedMachineRoute::UnitEffect,
         );
@@ -568,7 +568,7 @@ pub(super) fn lower_selected_machine(
         CheckedTerminalSignatureEligibility::Eligible => {}
         CheckedTerminalSignatureEligibility::Attached
         | CheckedTerminalSignatureEligibility::FreeUnitEffect => {
-            return routed_machine(
+            return source_mapped_machine(
                 lower_unit_effect_closure(checked, selection.machine),
                 SelectedMachineRoute::UnitEffect,
             );

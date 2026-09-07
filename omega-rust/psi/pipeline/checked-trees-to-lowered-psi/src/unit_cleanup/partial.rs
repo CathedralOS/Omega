@@ -8,7 +8,7 @@ mod residuals;
 pub(super) fn lower_partial_affine_unit_cleanup_machine(
     checked: &CheckedTrees,
     partial: &CheckedPartialAffineUnitCleanupMachinePlan,
-) -> Result<LoweredPsi, LoweringError> {
+) -> Result<crate::machine_dispatch::SourceMappedLowered, LoweringError> {
     let plan = &partial.machine;
     if checked
         .facts
@@ -218,7 +218,8 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
         }
     }
     staged_unit.machines.push(plan.clone());
-    let mut lowered = lower_unit_effect_closure(&staged, plan.machine)?;
+    let mut source_mapped = lower_unit_effect_closure(&staged, plan.machine)?;
+    let lowered = &mut source_mapped.terminal;
     let entry = lowered
         .semantic_module
         .machines
@@ -257,7 +258,7 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
         return unsupported("partial affine Unit return acquired root-only cleanup");
     }
     if partial.residual_affine_discards.is_empty() {
-        return Ok(lowered);
+        return Ok(source_mapped);
     }
     let terminal_type_ids = lowered
         .semantic_module
@@ -281,7 +282,7 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
         trivial_affine_discards: Vec::new(),
         residual_affine_discards,
     };
-    Ok(lowered)
+    Ok(source_mapped)
 }
 
 fn checked_partial_affine_residuals(

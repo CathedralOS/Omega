@@ -286,6 +286,78 @@ fn validate_parameter_partition(
             "affine identity parameter partition does not cover its source signature",
         );
     }
+    let source = parameters
+        .get(plan.structural_parameter.position as usize)
+        .ok_or(LoweringError::Unsupported(
+            "affine identity source position is out of range",
+        ))?;
+    let [checked_trees::statement::StatementNode::Expression(expression)] =
+        checked.statement_table.statements(state.statement_nodes)
+    else {
+        return unsupported("affine identity source body is not one return expression");
+    };
+    let checked_trees::expression::ExpressionNode::Name(path) =
+        checked.expression_table.expression(*expression)
+    else {
+        return unsupported("affine identity source does not return its owned parameter");
+    };
+    if checked.machine_states(machine).len() != 1
+        || !checked.machine_contracts(machine).is_empty()
+        || !checked.state_contracts(state).is_empty()
+        || path.symbol != source.symbol
+        || path.head_symbol != source.symbol
+        || checked
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            != 1
+        || checked
+            .typed
+            .normalized_type_identity(source.type_reference)
+            .into_string()
+            != plan.structural_parameter.type_identity
+        || checked
+            .typed
+            .normalized_type_identity(state.return_type)
+            .into_string()
+            != plan.result.type_identity
+    {
+        return unsupported("affine identity return disagrees with its authored source");
+    }
+    let flows = checked
+        .facts
+        .flow
+        .control
+        .states
+        .iter()
+        .filter(|(_, flow)| flow.machine_symbol == plan.machine && flow.state_symbol == plan.state)
+        .map(|(_, flow)| flow)
+        .collect::<Vec<_>>();
+    let [flow] = flows.as_slice() else {
+        return unsupported("affine identity has no exact checked source flow");
+    };
+    if !checked
+        .facts
+        .flow
+        .control
+        .calls
+        .span_or_empty(flow.calls)
+        .is_empty()
+        || !checked
+            .facts
+            .service_reaches
+            .rows
+            .services(flow.service_reach.direct)
+            .is_empty()
+        || !checked
+            .facts
+            .service_reaches
+            .rows
+            .services(flow.service_reach.transitive)
+            .is_empty()
+    {
+        return unsupported("affine identity source has calls or service effects");
+    }
     for (position, source) in parameters.iter().enumerate() {
         let primitive = checked.primitive_type_reference(source.type_reference);
         if position == plan.structural_parameter.position as usize {
