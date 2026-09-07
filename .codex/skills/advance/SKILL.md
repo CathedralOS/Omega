@@ -38,6 +38,20 @@ Do not switch lanes merely because another helper is easier to finish.
 
 ### Work from a should-be-working example
 
+Use examples to choose the next problem and verify progress. The language and
+architecture contracts govern the solution and its full acceptance criteria.
+An example exposes a missing capability; it does not define that capability's
+limits or justify sample-specific semantics, intrinsics, or compiler paths.
+Implement the smallest design-consistent capability needed by the example,
+without adding speculative generality. A passing example is a milestone, not
+proof that the capability or compiler is complete; retain the broader contract's
+required cases and evidence.
+
+When the route exposes an unsettled language or architecture choice, use the
+existing `OWNER_QUESTIONS.md` criteria before implementing that choice. When the
+design already answers it, continue implementation; difficulty or a cross-stage
+dependency alone is not a design question.
+
 Use the customer's actual command as the outer loop, including the shipped CLI,
 package preparation, publication, and execution. A compiler-library test is a
 useful inner loop but may bypass those dependencies. Trace backward from the
