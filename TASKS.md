@@ -246,16 +246,6 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   produced-rank facts.
   These are implementation gaps, not grounds to weaken the range obligation.
 
-  Variable-step natural call ranks over preserved mutable inputs now reach the
-  independent call-requirement check, which still rejects their arithmetic
-  contracts. `contracts/call_bounds/context.rs` binds only immutable parameters.
-  Extend that adapter using live call-entry facts and exact value preservation;
-  do not reuse a mutable parameter's entry value after a write. The
-  `rank_ranges::call_components::variable_call_step_uses_live_caller_arithmetic_premises`
-  test pins ranking acceptance and the remaining `cannot prove requires contract
-  for call first` diagnostic. Acceptance: those mutable cases reach checked trees,
-  while changed/exposed inputs cannot borrow stale arithmetic premises.
-
   Acceptance: named-state and call-component rank ranges accept proved
   constraints while changed endpoints and intervening writes invalidate their
   premises. Preserve the private-witness/public-guarantee split described in

@@ -1,0 +1,25 @@
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.first(0, 8, 8, 2) }
+}
+
+machine Main::first(&mut self, floor: u64, mut remaining: u64, ceiling: u64, mut step: u64)
+requires step > 0 && floor <= remaining && remaining <= ceiling;
+terminates by remaining;
+-> u64 {
+    transition remaining > floor {
+        true -> self.second(ceiling, remaining, floor, step)
+        false -> remaining
+    }
+}
+
+machine Main::second(&mut self, upper: u64, mut pending: u64, lower: u64, mut amount: u64)
+requires amount > 0 && lower <= pending && pending <= upper;
+terminates by pending;
+-> u64 {
+    transition pending >= amount && pending - amount >= lower {
+        true -> self.first(lower, pending - amount, upper, amount)
+        false -> pending
+    }
+}

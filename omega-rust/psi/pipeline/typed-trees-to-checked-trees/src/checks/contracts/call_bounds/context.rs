@@ -1,6 +1,6 @@
 //! Integer comparison entailment from surviving call-entry facts.
 //!
-//! The arithmetic engine receives immutable parameter atoms, landed literals,
+//! The arithmetic engine receives current parameter atoms, landed literals,
 //! and independently selected Exact addition/subtraction/multiplication trees.
 //! Caller storage and earlier initializers are never replayed.
 
@@ -107,6 +107,11 @@ fn prove(
         return None;
     }
     let caller_parameters = program.state_parameters(caller_state);
+    let frames = caller_parameters
+        .iter()
+        .any(|parameter| parameter.is_mutable)
+        .then(|| validation::CallFrameResolver::new(program))
+        .flatten();
     let bindings = caller_parameters
         .iter()
         .filter_map(|parameter| {
@@ -115,7 +120,7 @@ fn prove(
         })
         .collect::<Vec<_>>();
     let mut argument_bindings = Vec::new();
-    for (parameter, argument) in explicit_parameters.zip(arguments) {
+    for (position, (parameter, argument)) in explicit_parameters.zip(arguments).enumerate() {
         let Some(primitive) = program.primitive_type_reference(parameter.type_reference) else {
             continue;
         };
@@ -133,6 +138,18 @@ fn prove(
             *argument,
         ) != Some(primitive)
         {
+            return None;
+        }
+        if !arguments::capture_is_current(
+            program,
+            facts,
+            caller_machine,
+            caller_state,
+            call.statement_index,
+            *argument,
+            &arguments[position + 1..],
+            frames.as_ref(),
+        ) {
             return None;
         }
         argument_bindings.push(validation::StrictArithmeticExpressionBinding {
@@ -284,11 +301,7 @@ fn fixed_integer(primitive: PrimitiveType) -> bool {
 }
 
 fn fixed_parameter_type(program: &TypedTrees, parameter: &StateParameter) -> Option<PrimitiveType> {
-    if !parameter.symbol.is_valid()
-        || parameter.is_mutable
-        || parameter.is_const
-        || parameter.is_self
-    {
+    if !parameter.symbol.is_valid() || parameter.is_const || parameter.is_self {
         return None;
     }
     program
