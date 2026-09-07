@@ -4,6 +4,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 use typed_trees::types::PrimitiveType;
 
+mod expression_children;
 mod literal_widths;
 pub(crate) use literal_widths::validate_literal_widths;
 
@@ -141,9 +142,19 @@ pub(crate) fn validate_suffix_landing(
     let Some(unwrapped) = crate::places::unwrapped_type_reference(program, declared) else {
         return;
     };
+    if let typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
+        program.type_reference_table.type_reference(unwrapped)
+        && let ExpressionNode::ArrayLiteral(elements) = program.expression_table.expression(value)
+    {
+        for element in program.expression_table.expression_handles(*elements) {
+            validate_suffix_landing(program, *element, *element_type, diagnostics);
+        }
+        return;
+    }
     let Some(primitive) = program.primitive_type_reference(unwrapped) else {
         return;
     };
+    float_landing::validate_integer_tree_destination(program, value, primitive, diagnostics);
     if let Some((literal_handle, suffix_type)) = literal_landing(value) {
         let Some(declared_type) = landed_of_primitive(primitive) else {
             return;
