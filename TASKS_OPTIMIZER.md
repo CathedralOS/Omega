@@ -14,13 +14,17 @@ needed for independent replay through publication.
 ## Immediate gate
 
 - **PIPELINE-PHASE-INTEGRATION.** Execute the four
-  [ownership cleanup packages](wiki/architecture/pipeline/ownership_cleanup.md):
+  [replacement-first cleanup outcomes](wiki/architecture/pipeline/ownership_cleanup.md):
   (1) delete umbrella/catch-all owners and consolidate pipeline crates;
   (2) finish all Omega/Psi representation roots and current-data ownership;
   (3) delete the alternate physical route; (4) execute selected Psi optimization
-  before Terminal. Work in that order, moving data with owners where needed.
-  Whole-owner removal and real behavior are milestones; helper extractions are
-  prerequisites. Keep discoveries inside these moves and delete completed work.
+  before Terminal. Prioritize rebuilding the common physical route, replacing
+  obstructive representations and owners alongside it. Preserve behavior and
+  validation, not existing implementations; neither backend is the required
+  template. Do not delay convergence for serial helper/file migrations or keep
+  obsolete designs alive through compatibility adapters. Whole-owner removal
+  and real behavior are milestones. Keep discoveries inside these outcomes and
+  delete completed work.
   Acceptance: all four finish conditions hold, including preserved ordinary,
   ranked and callback behavior, empty/nonempty selection on one graph, standalone
   Psi and separately authorized resumed lowering, and independent replay.
