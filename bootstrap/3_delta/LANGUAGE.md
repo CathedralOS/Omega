@@ -287,12 +287,13 @@ rows, checking an exact duplicate before provisioning each fresh row. A fresh
 32,769th function returns `Incomplete` resource code 4 at its name-token start,
 limit 32,768 and requested 32,769, before insertion or declaration-type
 resolution. Complete grammar/depth checking precedes this count. Generated
-helpers and typed metadata copies do not add authored rows; Gamma's separate
-65,536-function executable-program bound remains a separate obligation.
+helpers and typed metadata copies do not add authored rows. Gamma's selected
+function table fits every source admitted by its request extent, independently
+of Delta's authored-row count.
 The [generated-census gate](../../tests/delta/generated-function-census/README.md)
 executes a complete receipt at the 32,768 authored-function allowance with
-additional Gamma runtime helpers. This does not bound normalization helpers
-for every admitted source or close the other generated-runtime resources.
+additional Gamma runtime helpers. Complete payload admission bounds function
+storage, but does not close the other generated-program resources.
 The same census accounts for 65,536 authored constructor rows globally across
 data declarations. Each fresh constructor advances that count once; payload
 fields and resolved metadata copies do not consume additional constructor rows.

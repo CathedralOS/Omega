@@ -224,10 +224,11 @@ raw roots still supply declaration custody checks. Only the completed phase
 publishes typed roots to body checking. Reusing an identical resolved row adds
 no shortcut around an annotation or a compiler-owned provision.
 
-This is not Gamma's separate 65,536-function limit on an executable generated
-program. Authored functions, fixed runtime helpers, adapters, and extracted
-normalization helpers all consume that later evaluator limit. Census admission
-at 32,768 therefore does not claim successful generated-program admission.
+Authored functions, fixed runtime helpers, adapters, and extracted normalization
+helpers all occupy Gamma function rows. Its selected table now fits every
+framed source, so complete payload admission also bounds those rows. This does
+not change Delta's separate authored-row provision or establish every other
+generated-program admission condition.
 Other compiler-owned resource/internal outcomes remain open; a physical
 evaluator failure is not a substitute for this exact compiler-owned refusal.
 
@@ -354,9 +355,10 @@ realization belongs below Delta. For the same reason, internal code 3's
 label/fixup contradiction has no producer here. This is nonreachability for this
 representation, not retirement of a ratified resource or diagnostic identity.
 
-Static admission of the emitted Gamma is a separate unfinished obligation:
-count every generated function, including fixed runtime, adapters and extracted
-helpers; establish each body's 255-list bound and validation environment fit.
+Static admission of the emitted Gamma remains partly unfinished. The evaluator
+profile's request-byte argument bounds every function row, including fixed
+runtime, adapters and extracted helpers. Establish each body's 255-list bound
+and validation environment fit.
 Do not reuse the authored-function resource or physical-slot resource to name
 those different counts. Dynamic non-tail contexts, temporary values, immutable
 pairs, and application input/output are selected evaluator/runtime resources.
@@ -405,8 +407,8 @@ not yet carry compiler-owned evidence. Lowering constructs a complete expanded
 Gamma plan before publication, and records the height of every generated
 expression. A separate normalizer extracts over-height fragments under the
 selected evaluator's 255-list body budget before serialization. It introduces
-no new refusal code or profile limit. Generated helpers count toward the
-existing function limit; non-tail calls and immutable allocation retain their
+no new refusal code or profile limit. Generated function storage fits by the
+request bound; non-tail calls and immutable allocation retain their
 separate context and storage bounds. Successful full generated-profile
 admission throughout Delta's 1,024-level profile remains open. Those empty-output evaluator
 statuses must not be decoded as DCOUT or synthesized into frames by a runner.

@@ -54,7 +54,23 @@ def source_fixture(count, width):
     ).encode("ascii")
 
 
+def normalization_fixture():
+    parameters = b" ".join(f"(p{index:03d} Int)".encode("ascii") for index in range(256))
+    child = b"(w " + b" ".join([b"(g (f))"] * 256) + b")"
+    # Root w has budget3, child w budget2, and each height2 leaf budget1.
+    # Normalization therefore extracts 256*256 ordinary helper definitions.
+    body = (b"(if 1 " * 252 + b"(w " + b" ".join([child] * 256) + b")"
+            + b" 0)" * 252)
+    return (b"(def f () Int 0)\n(def g ((x Int)) Int x)\n"
+            + b"(def w (" + parameters + b") Int 0)\n"
+            + b"(def deep () Int " + body + b")\n"
+            + b"(def main ((input Bytes)) Bytes input)\n")
+
+
 def main():
+    if len(sys.argv) not in (2, 3) or (len(sys.argv) == 3 and sys.argv[2] != "--normalization"):
+        raise SystemExit("usage: gate.py MATERIALIZED_DIRECTORY [--normalization]")
+    normalization_only = len(sys.argv) == 3
     directory = Path(sys.argv[1])
     gate = Path(__file__).resolve().parent
     timeout = positive_timeout("OMEGA_DELTA_CENSUS_SECONDS", 1200)
@@ -69,7 +85,7 @@ def main():
         rows = list(reader)
     if [(row["functions"], row["width"]) for row in rows] != [("4090", "4"), ("32768", "5")]:
         raise SystemExit("Delta census fixture inventory changed")
-    for row in rows:
+    for row in (() if normalization_only else rows):
         label = f"{row['functions']} authored Delta functions"
         source = source_fixture(int(row["functions"]), int(row["width"]))
         require_identity(label, source, row["source_bytes"], row["source_sha256"])
@@ -79,7 +95,18 @@ def main():
         output = evaluate(directory, receipt, b"", timeout, label + " execute")
         if output != b"A":
             raise SystemExit(f"{label}: expected A, received {output.hex()}")
-    print("Delta generated function census: two exact receipts execute", flush=True)
+    source = normalization_fixture()
+    require_identity("normalization source", source, 530514,
+                     "e087fe2574928d6e2917c7b23d438f770fea841eaeebc1bd38a1bb41ffe0cf1c")
+    request = b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(source)) + source
+    receipt = evaluate(directory, compiler, request, timeout, "normalization compile")
+    require_identity("normalization receipt", receipt, 3066611,
+                     "5950e25a48b36e742e11fff2aa7438c0b6d1239810c8c6572e201571e56363ae")
+    payload = b"\x00A\x80\xff"
+    if evaluate(directory, receipt, payload, timeout, "normalization execute") != payload:
+        raise SystemExit("normalization receipt changed binary input/output")
+    print(f"Delta generated function census: {1 if normalization_only else 3} exact receipts execute",
+          flush=True)
 
 
 if __name__ == "__main__":

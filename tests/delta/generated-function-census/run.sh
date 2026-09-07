@@ -1,6 +1,11 @@
 #!/usr/bin/env sh
 set -eu
 
+if [ "$#" -gt 1 ] || { [ "$#" -eq 1 ] && [ "$1" != --normalization ]; }; then
+    echo "usage: $0 [--normalization]" >&2
+    exit 2
+fi
+
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 OMEGA_REPO_ROOT=$(CDPATH= cd -- "$GATE_DIR/../../.." && pwd -P)
 export OMEGA_REPO_ROOT
@@ -18,4 +23,4 @@ python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$CENSUS_TMP/compiler.gamma" \
     --prefix "$OMEGA_PATH_DELTA_COMPILER_SOURCE"
 materialize_gamma_evaluator "$CENSUS_TMP/evaluator" >/dev/null
-python3 "$GATE_DIR/gate.py" "$CENSUS_TMP"
+python3 "$GATE_DIR/gate.py" "$CENSUS_TMP" "$@"

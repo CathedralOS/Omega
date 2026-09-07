@@ -90,7 +90,9 @@ this is not another evaluator, runtime representation, or application profile.
 ## Remaining resources
 
 Body-height normalization does not establish complete Gamma-profile admission.
-Generated helpers count toward the evaluator's 65,536-function limit. Calls
+Generated helpers are ordinary declarations. The evaluator's function table
+fits every source admitted by its request extent; payload preflight therefore
+also bounds generated function storage. Calls
 outside tail position can add live contexts to its separate 256-context limit,
 and plan construction, captures, and execution consume finite immutable storage.
 The transform does not introduce a new language refusal, increase a selected

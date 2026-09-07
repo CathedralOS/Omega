@@ -63,7 +63,7 @@ def fixtures():
 
 
 def upper_capacity_fixtures():
-    """Generate sorted-name controls for the expanded function census."""
+    """Cross the former census ceiling, bounded now by the complete request."""
     names = [f"u{index:05d}" for index in range(65535)]
     declarations = [
         f"(def {name} () Int {65 if index == 0 else 66 if index == 65534 else 0})\n"
@@ -74,10 +74,16 @@ def upper_capacity_fixtures():
         b"(def main () Int (let first Int (write (u00000)) (u65534)))\n"
     )
     exact = b"".join(declarations) + main
+    crossed = (exact.replace(b"(u65534)", b"(u65535)")
+               + b"(def u65535 () Int 67)\n")
+    # The table's physical capacity cannot be filled by a framed source.
+    # Exercise the actual controlling boundary, not a synthetic row counter.
+    full_request = crossed + b";" + b" " * (16777212 - len(crossed) - 1)
     return (
-        ("exact expanded function census", exact, (0, b"AB")),
-        ("duplicate at expanded function census",
+        ("former exact function census", exact, (0, b"AB")),
+        ("duplicate at former function census",
          exact + b"(def u00000 () Int 0)\n", (1, b"")),
-        ("fresh function beyond expanded census",
-         exact + b"(def u65535 () Int 0)\n", (3, b"")),
+        ("called function beyond former census", crossed, (0, b"AC")),
+        ("expanded census at exact request extent", full_request, (0, b"AC")),
+        ("expanded census beyond request extent", full_request + b" ", (3, b"")),
     )

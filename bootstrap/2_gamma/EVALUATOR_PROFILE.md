@@ -62,7 +62,7 @@ The current evaluator uses these Alpha memory regions:
 0x01500000..0x01d00000   temporary value stack
 0x01e00000..0x01f00000   function activation rows
 0x01f00000..0x02000000   nested-call context rows
-0x04000000..0x04300000   function rows and lookup index
+0x04000000..0x0a000000   function rows and lookup index
 0x0e000000..0x0efffffc   buffered output bytes
 0x10000000..0x70000000   immutable pair nodes
 ```
@@ -87,7 +87,7 @@ only an extent beyond the end is refused.
 | Resource | Retained representation | Maximum |
 | --- | --- | ---: |
 | complete request | bytes at `0x00100000` | 16,777,216 bytes |
-| function census | five-word rows, with an explicit logical cap | 65,536 functions |
+| function census | five-word rows; request extent dominates physical capacity | 2,097,152 rows |
 | active lexical environment | four-word `(name span, value, kind)` rows | 131,072 bindings |
 | temporary values and arguments | two-word `(value, kind)` entries | 524,288 values |
 | nested expression lists | evaluator recursion, prechecked during census | 255 lists |
@@ -109,19 +109,32 @@ bytes after the maximum whole-node count. Output preflights each buffered byte.
 A scalar transformer may emit at most 16,777,211 bytes with `write` before its
 final byte. An application result may publish all 16,777,212 buffered bytes.
 
-The 65,536 five-word function rows occupy `0x04000000..0x04280000` in
-authored declaration order. A separate sorted index of 65,536 eight-byte row
-pointers occupies `0x04280000..0x04300000`, inside the same function partition.
+The 2,097,152 five-word function rows occupy `0x04000000..0x09000000` in
+authored declaration order. A separate sorted index of 2,097,152 eight-byte row
+pointers occupies `0x09000000..0x0a000000`, inside the same function partition.
 Lookup compares name length and then exact name bytes by binary search; it
 does not change declaration order, the retained `main` row, or first-declaration
 application-marker ownership. Census checks duplicates before the selected
 function-count preflight. After admitting and completing a row, insertion
 shifts only initialized index entries and stores its pointer at an index no
-greater than 65,535. Lookup reads only the initialized prefix. The last row's
-last word starts at `0x0427fff8`; the last index slot starts at `0x042ffff8`.
-Both writes end exactly at their respective region boundaries. This private
-capacity admits Delta-generated helpers beyond the former 4,096-function
-ceiling without changing source representation or introducing an AST.
+greater than 2,097,151. Lookup reads only the initialized prefix. The last
+physical row's last word starts at `0x08fffff8`; the last index slot starts at
+`0x09fffff8`. Both writes end exactly at their respective region boundaries.
+The region uses previously unused Alpha memory and remains below buffered output;
+Alpha RAM, pair storage, and hidden-stack containment do not change.
+
+The request bound makes exhaustion of this table unreachable. Before advancing
+the completed-row count, census consumes at least eight distinct source bytes:
+the declaration's opening parenthesis, `def`, result annotation `Int`, and
+closing parenthesis. Names, parameters, the body, and separators require more;
+eight is a deliberately loose lower bound, including declarations that later
+fail static validation. The cursor never rewinds during census. Thus completed
+rows are at most `floor(16,777,212 / 8) = 2,097,151`. A partially admitted next
+row also fits, and only completed rows enter the index. The defensive count
+preflight remains, but an exact/adjacent physical-table refusal cannot be
+constructed from a framed source. Request extent is the controlling boundary.
+This admits generated helpers beyond the former 65,536-function ceiling without
+an AST, another compiler pass, or a separate generated-function refusal.
 Sorted-index insertion still has quadratic worst-case pointer movement for
 reverse-ordered names; the enlarged capacity does not remove that cost.
 
@@ -179,19 +192,20 @@ outcome. Gamma has no time or fuel bound; a nonterminating program diverges.
 
 The selected implementation is
 [`evaluator/gamma_evaluator.beta`](evaluator/gamma_evaluator.beta), a 1,632-line,
-46,484-byte addressed Beta program assembling to an 8,355-byte Alpha tape. Its
+46,489-byte addressed Beta program assembling to an 8,355-byte Alpha tape. Its
 current SHA-256 identities are:
 
 ```text
-Beta source  16388aafda52c1db3d8a416e97d885341ac7000d2e8d92b62953daf7937f36ef
-Alpha tape   e157391249afa316d8bc9daece8d9934c365d0980ff9181781dcd366bd76d91b
+Beta source  6f441a73df46b42d0280a31e13a9ed4d55db6a4c39163fb39958f9c8906b11d7
+Alpha tape   324b7eeca5f877240175d42fe69d83083c9d768c60b49772a788823af08a7de4
 ```
 
 Proper-tail execution, static validation of unreachable bodies, exact resource
 outcomes, bounded output, profile-owned arithmetic traps, and provenance-tagged
 immutable-pair allocation are implemented. Buffered scalar transformation and
 generic application publication share this one selected evaluator. The gate
-pins exact source and tape identities plus exact/adjacent function, environment,
+pins exact source and tape identities, former function ceilings and the
+controlling exact/adjacent request extent, plus exact/adjacent environment,
 syntax-depth, and call-context boundaries; the fixed identity makes the remaining
 arithmetic extent arguments above reviewable against one immutable subject
 rather than a host model.

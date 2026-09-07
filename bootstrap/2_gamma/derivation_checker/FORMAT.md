@@ -199,7 +199,7 @@ list for arbitrary row lookup or copy every sealed-input byte into a pair.
 Comparison and substitution use bounded explicit worklists, preserving DAG
 sharing; recursively expanding two separately encoded shared trees can require
 exponential work. Ordinary byte-list representations of the selected source
-and tape already have 46,484- and 8,355-element spines. Gamma's source syntax
+and tape already have 46,489- and 8,355-element spines. Gamma's source syntax
 and native call-depth limits must not become the logical term-depth limit.
 
 The implementation must publish a concrete, adjustable profile before accepting

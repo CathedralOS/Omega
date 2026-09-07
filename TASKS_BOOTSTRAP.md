@@ -138,12 +138,14 @@ prerequisite to every lower-rung milestone.
   Gamma emission. The current Epsilon source plus a diagnostic entry already
   compiles; further optimization needs measured customer or conformance pressure,
   not a standing mandate to improve general transformation costs.
-  Resume evidence against `f88b61a026` plus the evaluator identity pinned in
+  Resume evidence against `b1c5c3b32d` plus the evaluator identity pinned in
   [its profile](bootstrap/2_gamma/EVALUATOR_PROFILE.md), macOS arm64:
-  `sh tests/delta/resource-boundary/run.sh --generated-environment` compiles
-  65,534 parameters plus checked arithmetic to the unchanged 853,595-byte
-  receipt, then executes it with exact binary input/output. The former evaluator
-  refused that receipt during static validation. Canonical Delta closure SHA-256
+  `sh tests/delta/generated-function-census/run.sh --normalization` compiles
+  five authored functions with 65,536 extracted helpers to the unchanged
+  3,066,611-byte receipt, then executes it with exact binary input/output.
+  The former evaluator refused that receipt during census. The selected
+  function table fits every framed source by the profile's source-byte bound.
+  Canonical Delta closure SHA-256
   remains `2479e20b073df10c03cb00a22e415246451219ac3242acf53cf2b242449f9176`.
   `sh tests/epsilon/checking/run.sh` reconstructs the unchanged 707,983-byte
   receipt and passes all 60 checking judgments with the selected evaluator.
@@ -151,8 +153,8 @@ prerequisite to every lower-rung milestone.
   Alpha local-slot/label/fixup resources have zero use here, and match coverage
   is bounded by admitted constructors. Do not implement fictitious tables or
   chase arbitrary corrupt private pairs. The next acceptance is source-to-receipt
-  conformance: cover remaining generated function-count and body-height bounds,
-  including normalization-helper captures in validation environments, then fix their
+  conformance: establish body-height and validation-environment bounds,
+  including normalization-helper captures, then fix any witnessed
   producer or return a truthful owned refusal. Runtime exhaustion remains a
   separate observation obligation, not a static promise of unlimited execution.
   Acceptance: Delta conformance and malformed-source gates pass, the exact
