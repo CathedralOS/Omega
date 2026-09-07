@@ -147,7 +147,57 @@ fn capture_call(
     }
     let argument_values = arguments
         .iter()
-        .map(|argument| {
+        .enumerate()
+        .map(|(argument_index, argument)| {
+            let statement_ordinal = u32::try_from(statement_index).ok()?;
+            let argument_ordinal = u32::try_from(argument_index).ok()?;
+            let plans = context.scalar_expressions;
+            let mut bindings = plans.source_bindings.iter().filter(|(_, binding)| {
+                binding.state == caller_state
+                    && binding.statement_ordinal == statement_ordinal
+                    && matches!(binding.role, CheckedScalarExpressionRole::CallArgument {
+                        argument_ordinal: selected, ..
+                    } if selected == argument_ordinal)
+            });
+            if let Some((_, binding)) = bindings.next() {
+                if bindings.next().is_some()
+                    || binding.expression != *argument
+                    || binding.destination.is_valid()
+                {
+                    return None;
+                }
+                let mut expressions = plans.expressions.iter().filter(|expression| {
+                    expression.state == caller_state
+                        && expression.statement_ordinal == statement_ordinal
+                        && expression.role == binding.role
+                });
+                let expression = &expressions.next()?.expression;
+                if expressions.next().is_some() {
+                    return None;
+                }
+                // Capture selected arithmetic against the live caller facts.
+                // A missing value must not fall back to replaying its source.
+                return crate::values::evaluate_checked_scalar(
+                    expression,
+                    &mut crate::values::BoundScalarValues {
+                        symbols: plans.binding_symbols.span_or_empty(binding.symbols),
+                        value_at_symbol: |symbol| {
+                            let place = canonical_place_from_symbol(symbol)?;
+                            crate::values::scalar_value_at_place(
+                                program,
+                                semantic,
+                                context
+                                    .contexts
+                                    .semantic_context_refs
+                                    .span_or_empty(active)
+                                    .iter()
+                                    .map(|reference| semantic.contexts.get(reference.context)),
+                                &place,
+                            )
+                        },
+                    },
+                );
+            }
             match program.expression_table.expression(*argument) {
                 ExpressionNode::Integer(value) => {
                     return value.value_bignum().map(ScalarValue::Integer);

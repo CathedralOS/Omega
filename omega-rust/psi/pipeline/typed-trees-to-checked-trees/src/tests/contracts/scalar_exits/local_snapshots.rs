@@ -1,6 +1,31 @@
 use super::check;
 
 #[test]
+fn call_snapshots_capture_selected_computed_arguments() {
+    for (value_type, input, argument, expected) in [
+        ("u8", "3", "input + 4", "7"),
+        ("u8", "255", "((input as u8 in Wrapping) + 2) as u8", "1"),
+        (
+            "u8",
+            "255",
+            "((input as u8 in Saturating) + 2) as u8",
+            "255",
+        ),
+        ("bool", "false", "!input", "true"),
+    ] {
+        for accepted in [true, false] {
+            let comparison = if accepted { "==" } else { "!=" };
+            check(
+                &format!(
+                    "machine identity(value: {value_type}) -> {value_type} {{ value }} machine produce() -> {value_type} ensures result {comparison} {expected} {{ let input: {value_type} = {input}; let saved: {value_type} = identity({argument}); saved }}"
+                ),
+                accepted,
+            );
+        }
+    }
+}
+
+#[test]
 fn computed_local_snapshots_retain_exact_values_and_selected_policies() {
     for (value_type, initializer, expected) in [
         ("u8", "3 + 4", "7"),

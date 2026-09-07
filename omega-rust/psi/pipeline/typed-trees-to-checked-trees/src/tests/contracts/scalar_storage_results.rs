@@ -32,6 +32,35 @@ fn check(source: &str, accepted: bool) {
 }
 
 #[test]
+fn computed_call_arguments_preserve_only_live_ascii_results() {
+    for (body, accepted) in [
+        (
+            "let mut input: u8 = 64; let byte: u8 = narrow(input + 1); input = 200; line[0] = byte;",
+            true,
+        ),
+        (
+            "let mut input: u8 = 200; input = 64; let byte: u8 = narrow(input + 1); line[0] = byte;",
+            true,
+        ),
+        (
+            "let mut input: u8 = 64; input = 200; let byte: u8 = narrow(input + 1); line[0] = byte;",
+            false,
+        ),
+        (
+            "let input: u8 = 64; corrupt(&mut input); let byte: u8 = narrow(input + 1); line[0] = byte;",
+            false,
+        ),
+        (
+            "let byte: u8 = narrow(((unknown as u8 in Wrapping) + 1) as u8); line[0] = byte;",
+            false,
+        ),
+        ("let byte: u8 = narrow(other() + 1); line[0] = byte;", false),
+    ] {
+        check(&byte_store_source("value", body), accepted);
+    }
+}
+
+#[test]
 fn current_storage_and_saved_local_results_preserve_ascii() {
     for callee in [
         "let mut byte: u8 = 200; byte = value; byte",
