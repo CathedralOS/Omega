@@ -5,6 +5,7 @@ mod bitwise_integer_bounds;
 mod byte_subslice_arguments;
 mod call_computations;
 mod call_result_relations;
+mod exact_cancellation;
 mod guard_boolean_custody;
 mod guard_operator_custody;
 mod guard_parameter_bounds;
