@@ -137,21 +137,22 @@ pub(super) fn lower_unit_structural_types_including(
     let plans = &checked.facts.flow.terminal_unit_effects;
     let mut roots = additional_roots.to_vec();
     for symbol in closure {
-        let machine = unique_unit_machine(plans, *symbol)?;
-        roots.extend(machine.attachment_type_identity.iter().cloned());
+        let body = UnitBody::find(plans, *symbol)?;
+        roots.extend(body.attachment().map(str::to_owned));
         roots.extend(
-            machine
-                .structural_parameters
-                .iter()
+            body.structural_parameters()
                 .map(|parameter| parameter.type_identity.clone()),
         );
-        for local in &machine.trivial_affine_locals {
+        for local in match body {
+            UnitBody::Ordinary(machine) => machine.trivial_affine_locals.as_slice(),
+            UnitBody::Composed(_) => &[],
+        } {
             roots.push(local.type_identity.clone());
             if let Some(construction) = &local.construction {
                 roots.push(construction.root_type_identity.clone());
             }
         }
-        for operation in &machine.operations {
+        for operation in body.operations() {
             match operation {
                 CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal {
                     type_identity,
@@ -542,12 +543,11 @@ pub(super) fn lower_unit_structural_domains_including(
         }
     }
     for symbol in closure {
-        let machine = unique_unit_machine(plans, *symbol)?;
-        for domain in machine
-            .structural_parameters
-            .iter()
+        let body = UnitBody::find(plans, *symbol)?;
+        for domain in body
+            .structural_parameters()
             .flat_map(|parameter| &parameter.qualifications)
-            .chain(&machine.body_qualifications)
+            .chain(body.qualifications())
         {
             if !selected.contains(domain) {
                 selected.push(*domain);
@@ -662,7 +662,7 @@ pub(super) fn lower_unit_services_including(
     let plans = &checked.facts.flow.terminal_unit_effects;
     let mut selected = additional_roots.to_vec();
     for symbol in closure {
-        let machine = unique_unit_machine(plans, *symbol)?;
+        let body = UnitBody::find(plans, *symbol)?;
         if let Some(provider) = provider_candidates
             .iter()
             .find(|candidate| candidate.candidate == *symbol)
@@ -671,19 +671,19 @@ pub(super) fn lower_unit_services_including(
                 &facts.rows,
                 plans,
                 provider,
-                machine,
+                body.ordinary()?,
                 &mut selected,
             )?;
         } else {
             collect_installation_machine_contract_services(
                 checked,
                 *symbol,
-                machine.contract_service_reach,
-                machine.service_reach,
+                body.entry()?.contract_service_reach,
+                body.service_reach(),
                 &mut selected,
             )?;
         }
-        for operation in &machine.operations {
+        for operation in body.operations() {
             match operation {
                 CheckedUnitEffectOperationPlan::CallUnit { service_reach, .. }
                 | CheckedUnitEffectOperationPlan::ScalarCall { service_reach, .. }

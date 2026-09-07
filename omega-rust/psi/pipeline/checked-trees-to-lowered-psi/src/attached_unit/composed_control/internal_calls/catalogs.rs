@@ -1,6 +1,7 @@
-//! Composed roots and ordinary Unit bodies share one selected catalog.
+//! Composed roots and callable Unit bodies share one selected catalog.
 
 use super::*;
+use crate::attached_unit::bodies::UnitBody;
 use crate::attached_unit::{lower_shared_unit_closure, shared_closure::ExternalUnitRoots};
 
 #[allow(clippy::too_many_arguments)]
@@ -12,7 +13,7 @@ pub(in crate::attached_unit::composed_control) fn lower(
     service_reach: ServiceReachSummary,
     states: &[checked_trees::CheckedComposedUnitControlStatePlan],
     boundaries: &[(&CheckedBoundaryMachinePlan, String)],
-    targets: &[(&checked_trees::CheckedUnitEffectMachinePlan, String)],
+    targets: &[(UnitBody<'_>, String)],
 ) -> Result<super::super::catalogs::ComposedCatalogs, LoweringError> {
     let mut services = Vec::new();
     collect_installation_machine_contract_services(
@@ -40,8 +41,8 @@ pub(in crate::attached_unit::composed_control) fn lower(
     );
     let unit_roots = targets
         .iter()
-        .map(|(target, _)| target.machine)
-        .collect::<Vec<_>>();
+        .map(|(target, _)| target.entry().map(|entry| entry.machine))
+        .collect::<Result<Vec<_>, LoweringError>>()?;
     let boundary_roots = boundaries
         .iter()
         .map(|(boundary, _)| boundary.machine)
@@ -85,7 +86,8 @@ pub(in crate::attached_unit::composed_control) fn lower(
     let internal_targets = targets
         .iter()
         .map(|(target, _)| {
-            let id = lookup_machine_id(&shared.machine_ids, target.machine)?;
+            let entry = target.entry()?;
+            let id = lookup_machine_id(&shared.machine_ids, entry.machine)?;
             let declaration = shared
                 .lowered
                 .semantic_module
@@ -103,7 +105,7 @@ pub(in crate::attached_unit::composed_control) fn lower(
                 );
             }
             Ok(super::super::catalogs::LoweredComposedInternalTarget {
-                source: target.machine,
+                source: entry.machine,
                 id,
                 scalar_parameters: declaration
                     .parameters
@@ -112,7 +114,7 @@ pub(in crate::attached_unit::composed_control) fn lower(
                     .collect(),
                 parameter_relative_crash_routes: lower_checked_crash_routes(
                     checked,
-                    target.machine,
+                    entry.machine,
                 )?,
             })
         })

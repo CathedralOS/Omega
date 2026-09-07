@@ -1,16 +1,18 @@
 //! Fail-closed rejoin of the composed carrier to checked flow and contracts.
 
 use super::*;
+use crate::attached_unit::bodies::UnitBody;
 
-pub(super) struct AdmittedComposedUnit<'a> {
-    pub(super) entry: &'a checked_trees::CheckedComposedUnitControlStatePlan,
-    pub(super) leaves: Vec<&'a checked_trees::CheckedComposedUnitControlStatePlan>,
-    pub(super) boundaries: Vec<(&'a CheckedBoundaryMachinePlan, String)>,
-    pub(super) internal_targets: Vec<(&'a checked_trees::CheckedUnitEffectMachinePlan, String)>,
+pub(in crate::attached_unit) struct AdmittedComposedUnit<'a> {
+    pub(in crate::attached_unit) entry: &'a checked_trees::CheckedComposedUnitControlStatePlan,
+    pub(in crate::attached_unit) leaves:
+        Vec<&'a checked_trees::CheckedComposedUnitControlStatePlan>,
+    pub(in crate::attached_unit) boundaries: Vec<(&'a CheckedBoundaryMachinePlan, String)>,
+    pub(in crate::attached_unit) internal_targets: Vec<(UnitBody<'a>, String)>,
     pub(super) custody: custody::ComposedCustody,
 }
 
-pub(super) fn admit_composed_unit_control<'a>(
+pub(in crate::attached_unit) fn admit_composed_unit_control<'a>(
     checked: &'a CheckedTrees,
     plan: &'a checked_trees::CheckedComposedUnitControlMachinePlan,
 ) -> Result<AdmittedComposedUnit<'a>, LoweringError> {
@@ -149,7 +151,7 @@ pub(crate) fn admit_dynamic_continuation<'a>(
 ) -> Result<
     (
         Vec<(&'a CheckedBoundaryMachinePlan, String)>,
-        Vec<(&'a checked_trees::CheckedUnitEffectMachinePlan, String)>,
+        Vec<(UnitBody<'a>, String)>,
     ),
     LoweringError,
 > {
@@ -300,6 +302,44 @@ pub(super) fn exact_attachment<'a>(
     checked: &'a CheckedTrees,
     plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
 ) -> Result<&'a checked_trees::CheckedUnitStructuralTypePlan, LoweringError> {
+    let mut machines = checked
+        .machines()
+        .iter()
+        .filter(|machine| machine.symbol == plan.machine);
+    let machine = machines.next().ok_or(LoweringError::Unsupported(
+        "composed Unit attachment has no authored machine",
+    ))?;
+    if machines.next().is_some() {
+        return unsupported("composed Unit attachment has duplicate authored machines");
+    }
+    let program = &checked.typed;
+    let mut attachments = program
+        .data_definitions()
+        .iter()
+        .filter(|data| machine.attached_data.as_ref() == Some(&data.name));
+    let attachment = attachments.next().ok_or(LoweringError::Unsupported(
+        "composed Unit has no authored attachment",
+    ))?;
+    if attachments.next().is_some() || !program.data_type_parameters(attachment).is_empty() {
+        return unsupported("composed Unit attachment is ambiguous or generic");
+    }
+    // Reproduce the checked shape identity from its resolved declaration, not
+    // from the retained plan's unverified spelling or an unrelated record.
+    let mut identity = String::from("named(name(");
+    for character in program
+        .symbols
+        .display_path(attachment.symbol, "::")
+        .chars()
+    {
+        if matches!(character, '\\' | '(' | ')' | ',') {
+            identity.push('\\');
+        }
+        identity.push(character);
+    }
+    identity.push_str("))");
+    if identity != plan.attachment_type_identity {
+        return unsupported("composed Unit attachment disagrees with its authored owner");
+    }
     exact_attachment_identity(checked, &plan.attachment_type_identity)
 }
 
@@ -338,7 +378,7 @@ pub(super) fn admit_call_targets<'a>(
 ) -> Result<
     (
         Vec<(&'a CheckedBoundaryMachinePlan, String)>,
-        Vec<(&'a checked_trees::CheckedUnitEffectMachinePlan, String)>,
+        Vec<(UnitBody<'a>, String)>,
     ),
     LoweringError,
 > {
@@ -371,7 +411,7 @@ pub(super) fn retain_call_targets<'a>(
 ) -> Result<
     (
         Vec<(&'a CheckedBoundaryMachinePlan, String)>,
-        Vec<(&'a checked_trees::CheckedUnitEffectMachinePlan, String)>,
+        Vec<(UnitBody<'a>, String)>,
     ),
     LoweringError,
 > {
@@ -410,11 +450,12 @@ pub(super) fn retain_call_targets<'a>(
         return unsupported("composed Unit boundaries have duplicate canonical identities");
     }
     internal_targets.sort_by(|left, right| left.1.cmp(&right.1));
-    if internal_targets
-        .windows(2)
-        .any(|pair| pair[0].1 == pair[1].1 && pair[0].0.machine != pair[1].0.machine)
-    {
-        return unsupported("composed Unit internal targets have duplicate canonical identities");
+    for pair in internal_targets.windows(2) {
+        if pair[0].1 == pair[1].1 && pair[0].0.entry()?.machine != pair[1].0.entry()?.machine {
+            return unsupported(
+                "composed Unit internal targets have duplicate canonical identities",
+            );
+        }
     }
     Ok((boundaries, internal_targets))
 }

@@ -40,14 +40,13 @@ pub(super) fn checked_unit_provider_candidates(
     closure: &[symbols::SymbolHandle],
 ) -> Result<Vec<CheckedUnitProviderCandidate>, LoweringError> {
     let plans = &checked.facts.flow.terminal_unit_effects;
-    let mut boundary_symbols = closure
+    let bodies = closure
         .iter()
-        .flat_map(|symbol| {
-            plans
-                .for_machine(*symbol)
-                .into_iter()
-                .flat_map(|plan| &plan.operations)
-        })
+        .map(|symbol| UnitBody::find(plans, *symbol))
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let mut boundary_symbols = bodies
+        .into_iter()
+        .flat_map(UnitBody::operations)
         .filter_map(|operation| match operation {
             CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
             | CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. }

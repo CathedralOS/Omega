@@ -10,6 +10,7 @@ use crate::scalar_call_closure::callee::{CheckedScalarCallee, PreparedScalarCall
 
 pub(crate) mod argument_evaluation;
 mod argument_schedule;
+pub(crate) mod bodies;
 mod byte_subslices;
 mod call_closure;
 mod catalog;
@@ -24,6 +25,7 @@ mod selected_operator;
 pub(super) mod shared_closure;
 mod structural_calls;
 
+use bodies::UnitBody;
 use parameters::lower_unit_scalar_parameter_types;
 pub(super) use parameters::validate_direct_unit_parameter_custody;
 
@@ -336,7 +338,7 @@ fn assemble_unit_closure(
                 ordinary_scalar_roots.push(target);
             }
         }
-        for operation in &unique_unit_machine(plans, *machine_symbol)?.operations {
+        for operation in UnitBody::find(plans, *machine_symbol)?.operations() {
             match operation {
                 CheckedUnitEffectOperationPlan::ScalarCall {
                     target_machine,
@@ -396,7 +398,7 @@ fn assemble_unit_closure(
 
     let mut selected_structural_scalar_roots = Vec::new();
     for machine_symbol in &closure {
-        for operation in &unique_unit_machine(plans, *machine_symbol)?.operations {
+        for operation in UnitBody::find(plans, *machine_symbol)?.operations() {
             if let CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
                 realization_machine,
                 ..
@@ -425,7 +427,7 @@ fn assemble_unit_closure(
         }
     }
     for machine_symbol in &closure {
-        for operation in &unique_unit_machine(plans, *machine_symbol)?.operations {
+        for operation in UnitBody::find(plans, *machine_symbol)?.operations() {
             let target = match operation {
                 CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
                     realization_machine,
@@ -467,8 +469,27 @@ fn assemble_unit_closure(
             )?;
         }
     }
+    let mut composed_bodies = Vec::new();
     for machine_symbol in &closure {
-        let machine = unique_unit_machine(plans, *machine_symbol)?;
+        let body = UnitBody::find(plans, *machine_symbol)?;
+        if let UnitBody::Composed(plan) = body {
+            let admitted = composed_control::admit_callable(checked, plan)?;
+            for (boundary, _) in &admitted.boundaries {
+                retain_exact_unit_boundary(
+                    checked,
+                    plans,
+                    &mut boundaries,
+                    boundary.machine,
+                    boundary.state,
+                    boundary.contract_report_fingerprint,
+                    boundary.service_reach,
+                    boundary.result.clone(),
+                )?;
+            }
+            composed_bodies.push((*machine_symbol, admitted));
+            continue;
+        }
+        let machine = body.ordinary()?;
         if machine.contract_report_fingerprint == 0 {
             return unsupported("Unit closure contains a null checked contract fingerprint");
         }
@@ -507,7 +528,7 @@ fn assemble_unit_closure(
                     service_reach,
                     ..
                 } => {
-                    let target = unique_unit_machine(plans, *target_machine)?;
+                    let target = UnitBody::find(plans, *target_machine)?.entry()?;
                     if target.state != *target_state
                         || target.contract_report_fingerprint != *target_contract_report_fingerprint
                         || !checked_unit_target_reach_matches(
@@ -520,14 +541,17 @@ fn assemble_unit_closure(
                         );
                     }
                     crate::call_source_custody::projected_receivers::validate(
-                        checked, machine, operation, target,
+                        checked,
+                        machine,
+                        operation,
+                        target.structural_parameters,
                     )?;
                     structural_calls::validate_consumer(
                         checked,
                         machine,
                         operation,
-                        &target.structural_parameters,
-                        &target.entry_claims,
+                        target.structural_parameters,
+                        target.entry_claims,
                     )?;
                 }
                 CheckedUnitEffectOperationPlan::StructuralCall { .. } => {
@@ -958,8 +982,9 @@ fn assemble_unit_closure(
     let mut lowered_machine_scalar_parameters = Vec::with_capacity(closure.len());
     let mut lowered_claims = Vec::with_capacity(closure.len());
     for machine_symbol in &closure {
-        let plan = unique_unit_machine(plans, *machine_symbol)?;
-        if plan.body_qualifications.iter().any(|domain| {
+        let body = UnitBody::find(plans, *machine_symbol)?;
+        let plan = body.entry()?;
+        if body.qualifications().iter().any(|domain| {
             !plan
                 .structural_parameters
                 .iter()
@@ -970,12 +995,12 @@ fn assemble_unit_closure(
             );
         }
         let parameters = lower_unit_parameters(
-            &plan.structural_parameters,
+            plan.structural_parameters,
             &type_ids,
             &domain_ids,
             &mut next_place,
         )?;
-        let scalar_parameters = lower_unit_scalar_parameter_types(&plan.scalar_parameters)?
+        let scalar_parameters = lower_unit_scalar_parameter_types(plan.scalar_parameters)?
             .into_iter()
             .map(|scalar_type| {
                 Ok(ValueDeclaration {
@@ -987,7 +1012,7 @@ fn assemble_unit_closure(
         // ClaimId is machine-local; unrelated closure members must not shift
         // this machine's canonical claim namespace.
         let claims =
-            lower_unit_entry_claims(plan.machine, plan.state, &plan.entry_claims, &parameters)?;
+            lower_unit_entry_claims(plan.machine, plan.state, plan.entry_claims, &parameters)?;
         lowered_machine_parameters.push((*machine_symbol, parameters));
         lowered_machine_scalar_parameters.push((*machine_symbol, scalar_parameters));
         lowered_claims.push((*machine_symbol, claims.entry_claims, claims.source_claims));
@@ -1000,7 +1025,7 @@ fn assemble_unit_closure(
         .iter()
         .zip(&lowered_machine_parameters)
         .map(|(symbol, (lowered_symbol, parameters))| {
-            let plan = unique_unit_machine(plans, *symbol)?;
+            let plan = UnitBody::find(plans, *symbol)?.entry()?;
             if symbol != lowered_symbol || plan.structural_parameters.len() != parameters.len() {
                 return unsupported(
                     "Unit predicate signature does not match its structural roster",
@@ -1133,7 +1158,8 @@ fn assemble_unit_closure(
     let mut selected_ieee_float_fma_occurrences = Vec::new();
 
     for machine_symbol in &closure {
-        let plan = unique_unit_machine(plans, *machine_symbol)?;
+        let body = UnitBody::find(plans, *machine_symbol)?;
+        let plan = body.entry()?;
         let terminal_machine = lookup_machine_id(&machine_ids, plan.machine)?;
         let parameters = lowered_machine_parameters
             .iter()
@@ -1153,6 +1179,48 @@ fn assemble_unit_closure(
             .iter()
             .find(|(symbol, _, _)| *symbol == plan.machine)
             .expect("every closure machine has lowered entry claims");
+        if let UnitBody::Composed(source_plan) = body {
+            let position = composed_bodies
+                .iter()
+                .position(|(source, _)| *source == *machine_symbol)
+                .ok_or(LoweringError::Unsupported(
+                    "composed callable has no admitted body",
+                ))?;
+            let (_, admitted) = composed_bodies.remove(position);
+            let (machine, mut occurrences) = composed_control::callable::emit(
+                checked,
+                source_plan,
+                admitted,
+                parameters.clone(),
+                scalar_parameters,
+                composed_control::callable::SharedCatalog {
+                    structural_types: &structural_types,
+                    type_ids: &type_ids,
+                    domain_ids: &domain_ids,
+                    services: &services,
+                    service_ids: &service_ids,
+                    root_service_reach: &root_service_reach,
+                    boundaries: &boundary_machines,
+                    boundary_parameters: &lowered_boundary_parameters,
+                    machine_ids: &machine_ids,
+                    scalar_parameters: &lowered_machine_scalar_parameters,
+                    requirements: &lowered_machine_runtime_requirements,
+                    scalar_requirement_counts: &scalar_requirement_counts,
+                },
+                composed_control::callable::EmissionCounters {
+                    place: &mut next_place,
+                    value: &mut next_value,
+                    block: &mut next_block,
+                    operation: &mut next_operation,
+                    edge: &mut next_edge,
+                    call_obligation: &mut next_call_obligation,
+                },
+            )?;
+            machines.push(machine);
+            source_call_occurrences.append(&mut occurrences);
+            continue;
+        }
+        let plan = body.ordinary()?;
         let content_entry_claims = content_conservation::lower_whole_content_entry_claims(
             checked,
             &plan.structural_parameters,
@@ -1598,7 +1666,7 @@ fn assemble_unit_closure(
                     claim_transfers,
                     ..
                 } => {
-                    let target = unique_unit_machine(plans, *target_machine)?;
+                    let target = UnitBody::find(plans, *target_machine)?.entry()?;
                     if scalar_arguments.len() != target.scalar_parameters.len() {
                         return unsupported(
                             "Unit call scalar argument count disagrees with its target",
@@ -1623,7 +1691,7 @@ fn assemble_unit_closure(
                         &local_places,
                         &affine_scalar_record_places,
                         &structural_result_places,
-                        &target.structural_parameters,
+                        target.structural_parameters,
                         &type_ids,
                         &structural_types,
                         &target

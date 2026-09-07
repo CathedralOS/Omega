@@ -19,7 +19,7 @@ pub(crate) fn checked_unit_call_closure_including(
     while let Some(machine_symbol) = closure.get(next).copied() {
         next += 1;
         let name = checked_terminal_machine_name(checked, machine_symbol)?;
-        let machine = unique_unit_machine(plans, machine_symbol).map_err(|error| match error {
+        let machine = UnitBody::find(plans, machine_symbol).map_err(|error| match error {
             LoweringError::Unsupported(reason) => LoweringError::InvalidUnitMachinePlan {
                 machine: name.to_owned(),
                 reason,
@@ -27,8 +27,7 @@ pub(crate) fn checked_unit_call_closure_including(
             error => error,
         })?;
         for target in machine
-            .operations
-            .iter()
+            .operations()
             .filter_map(|operation| match operation {
                 CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. } => {
                     Some(*target_machine)
@@ -371,9 +370,8 @@ pub(super) fn reject_recursive_unit_closure(
             return Ok(());
         }
         active.push(symbol);
-        for target in unique_unit_machine(plans, symbol)?
-            .operations
-            .iter()
+        for target in UnitBody::find(plans, symbol)?
+            .operations()
             .filter_map(|operation| match operation {
                 CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. } => {
                     Some(*target_machine)

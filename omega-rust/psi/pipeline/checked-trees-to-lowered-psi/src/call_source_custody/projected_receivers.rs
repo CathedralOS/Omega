@@ -209,7 +209,7 @@ pub(crate) fn validate(
     checked: &CheckedTrees,
     caller: &CheckedUnitEffectMachinePlan,
     operation: &CheckedUnitEffectOperationPlan,
-    target: &CheckedUnitEffectMachinePlan,
+    target_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
 ) -> Result<(), LoweringError> {
     let CheckedUnitEffectOperationPlan::CallUnit {
         coordinate,
@@ -233,8 +233,7 @@ pub(crate) fn validate(
     ) {
         return Ok(());
     }
-    let mut targets = target
-        .structural_parameters
+    let mut targets = target_parameters
         .iter()
         .enumerate()
         .filter(|(_, parameter)| parameter.is_self);

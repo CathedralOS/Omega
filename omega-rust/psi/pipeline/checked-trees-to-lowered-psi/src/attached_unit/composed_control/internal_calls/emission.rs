@@ -1,4 +1,4 @@
-//! Calls into complete ordinary Unit bodies in the shared catalog.
+//! Calls into complete Unit bodies in the shared catalog.
 
 use super::*;
 
