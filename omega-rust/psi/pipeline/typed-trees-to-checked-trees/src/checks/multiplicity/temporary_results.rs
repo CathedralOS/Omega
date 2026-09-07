@@ -7,6 +7,9 @@
 use super::*;
 
 mod projected;
+mod shared;
+
+pub(super) use shared::append_shared_borrow;
 
 pub(super) fn append_whole_affine_transfer(
     program: &typed_trees::TypedTrees,

@@ -58,6 +58,7 @@ pub(crate) fn validate_usage(
         return unsupported("Unit structural result binding disagrees with its producer");
     }
     let mut consumed = false;
+    let mut anonymous_shared = false;
     let mut projected_paths = Vec::<&[checked_trees::CheckedUnitStructuralPathSegment]>::new();
     for (operation_index, operation) in caller.operations.iter().enumerate() {
         let (CheckedUnitEffectOperationPlan::CallUnit {
@@ -129,21 +130,53 @@ pub(crate) fn validate_usage(
                     checked_trees::CheckedStructuralAccess::Owned
                         | checked_trees::CheckedStructuralAccess::SharedBorrow
                 )
-                || (argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow
-                    && producer.coordinate.call_ordinal != 0)
                 || argument.type_identity != result.type_identity
                 || result.multiplicity != Multiplicity::Affine
             {
                 return unsupported(
-                    "Unit structural result use is not a whole affine move or named shared borrow",
+                    "Unit structural result use is not a whole affine move or shared borrow",
                 );
+            }
+            if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+                && producer.coordinate.call_ordinal != 0
+            {
+                if anonymous_shared
+                    || producer.operation_index != 0
+                    || operation_index != 1
+                    || producer.coordinate.statement_index != 0
+                    || producer.coordinate.call_ordinal != 1
+                    || !producer.discard
+                    || coordinate.statement_index != 0
+                    || coordinate.call_ordinal != 0
+                    || !matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { scalar_arguments, structural_arguments, .. }
+                        if scalar_arguments.is_empty() && structural_arguments.len() == 1)
+                    || !matches!(
+                        caller.operations.as_slice(),
+                        [
+                            _,
+                            _,
+                            CheckedUnitEffectOperationPlan::ReturnUnit {
+                                statement_index: 1,
+                                ..
+                            }
+                        ]
+                    )
+                {
+                    return unsupported(
+                        "anonymous shared result has no dying Unit call continuation",
+                    );
+                }
+                anonymous_shared = true;
             }
             consumed = argument.access == checked_trees::CheckedStructuralAccess::Owned;
         }
     }
     if (projected_paths.is_empty() && producer.discard == consumed)
         || (!projected_paths.is_empty() && producer.discard)
-        || (producer.coordinate.call_ordinal != 0 && !consumed && projected_paths.is_empty())
+        || (producer.coordinate.call_ordinal != 0
+            && !consumed
+            && projected_paths.is_empty()
+            && !anonymous_shared)
     {
         return unsupported(
             "Unit structural result cleanup disagrees with its final consuming use",
@@ -333,12 +366,21 @@ pub(crate) fn validate_consumer(
                     )?;
                     if root != facts::PlaceRoot::Expression(source_expression)
                         || path != argument.path
-                        || access.is_some()
-                        || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                        || access.unwrap_or(checked_trees::CheckedStructuralAccess::Owned)
+                            != argument.access
                     {
                         return unsupported(
                             "anonymous result projection disagrees with its authored source",
                         );
+                    }
+                    if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
+                        super::shared_temporary::validate(
+                            checked,
+                            caller,
+                            *producer_coordinate,
+                            *coordinate,
+                            source_expression,
+                        )?;
                     }
                 }
                 matches
@@ -390,8 +432,6 @@ pub(crate) fn validate_consumer(
                     | checked_trees::CheckedStructuralAccess::SharedBorrow
             )
             || argument.access != parameter.access
-            || (argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow
-                && producer.coordinate.call_ordinal != 0)
             || parameter.multiplicity
                 != if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
                     Multiplicity::Unrestricted

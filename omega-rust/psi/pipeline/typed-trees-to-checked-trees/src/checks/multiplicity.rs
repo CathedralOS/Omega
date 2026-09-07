@@ -456,6 +456,13 @@ fn record_permission_events_with_incoming_guards(
             &places,
             &mut permission_events,
         );
+        temporary_results::append_shared_borrow(
+            program,
+            facts,
+            machine,
+            state,
+            &mut permission_events,
+        );
     }
 
     append_borrow_permission_events(facts, &mut permission_events, &mut claim_identities);

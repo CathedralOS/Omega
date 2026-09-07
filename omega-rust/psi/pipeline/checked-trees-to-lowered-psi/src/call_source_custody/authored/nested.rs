@@ -177,6 +177,12 @@ pub(crate) fn authored_postorder(
                 children.push((member.receiver, direct_argument, None));
                 None
             }
+            ExpressionNode::Borrow(borrow)
+                if direct_argument && borrow.access == language_core::ReferenceAccess::Shared =>
+            {
+                children.push((borrow.target, true, None));
+                None
+            }
             ExpressionNode::Indexed(indexed)
                 if matches!(table.expression(indexed.index), ExpressionNode::Integer(_)) =>
             {

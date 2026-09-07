@@ -5,6 +5,7 @@ use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 
 mod result_uses;
+mod shared_temporary;
 pub(super) use result_uses::{validate_consumer, validate_usage};
 
 fn target(

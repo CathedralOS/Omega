@@ -3281,15 +3281,26 @@ verification requires the intact owner to be live at every read and rejects a
 call that both borrows and moves that result. The shared parameter is unrestricted;
 the produced value and its caller-owned custody remain affine. Provider refusal
 leaves that custody available for retry, and a later operand crash adds no cleanup
-successor. Anonymous shared borrows, mutable/write-only or projected result
+successor. One final ordinary Unit call may also read a whole anonymous result
+through its sole `&producer(...)` argument. The source owner retains the real
+expression root: owned affine establishment at the producer, an unrestricted
+shared loan at the consumer, then affine cleanup at that consumer's dying
+continuation. Lowering independently rejoins those events, their provenance,
+source order, and exact call identities. No source local is synthesized; the
+existing result binding remains live through the read and is disposed on the
+immediately following Unit return. This route requires one source call statement
+and exactly two captured calls, with an ordinary or boundary producer. Longer
+lifetimes, additional arguments, or additional producers require their own exact
+continuation cleanup. Broader anonymous shared borrows, mutable/write-only or projected result
 operands, self consumers, linear result claims, and sum-payload inspection remain
 separate work.
 Anonymous boundary structural results use the same argument schedule as
 ordinary affine producers. Static requirements, bodyless declarations, and
 caller-owned nominal requirements retain their exact source target separately
 from the resolved boundary declaration. Each temporary is established after
-successful provider completion and transfers exactly once to its enclosing
-consumer. Provider refusal preserves completed operands for retry; a later
+successful provider completion and either transfers exactly once to its enclosing
+consumer or retains ownership through the bounded shared-read continuation above.
+Provider refusal preserves completed operands for retry; a later
 operand crash preserves earlier effects without a cleanup successor.
 
 Scalar-returning boundary callers also use this evaluator for their existing
@@ -4165,8 +4176,10 @@ local names. Captured call ordinals identify authored
 preorder occurrences; the operation sequence evaluates children before their
 parent and siblings in argument order. Lowering independently rejoins that
 syntax order, every result producer, and the enclosing consuming expression.
-In this whole-result operand schedule, an anonymous result must transfer exactly
-once to its enclosing call, with no caller-return disposal. The bounded partial
+In the owned whole-result operand schedule, an anonymous result must transfer
+exactly once to its enclosing call, with no caller-return disposal. The bounded
+shared-read schedule above instead preserves that owner until the final call
+returns, then disposes it at the coincident caller-return continuation. The bounded partial
 cleanup schedule above instead transfers a selected subtree and disposes its
 remainder at the dying call continuation. Source permission events retain both
 the producer's input transfer and the temporary expression's transfer into its
@@ -4190,9 +4203,9 @@ prevents later arguments and the enclosing invocation from running; it has no
 caller cleanup successor. Fuel exhaustion preserves the completed prefix and
 does not repeat a paid call or transfer on resumption.
 
-This does not widen the native call ABI or admit result projections,
-anonymous borrowed operands, or borrowed/qualified/linear result obligations.
-The named shared-read route above does not turn an owned result into a returned
+This does not widen the native call ABI or admit general result projections,
+anonymous mutable/write-only operands, or borrowed/qualified/linear result obligations.
+The shared-read routes above do not turn an owned result into a returned
 reference. Projected results need exact
 residual cleanup alongside their retained storage, loans, and claim transfers
 before those gates can open.

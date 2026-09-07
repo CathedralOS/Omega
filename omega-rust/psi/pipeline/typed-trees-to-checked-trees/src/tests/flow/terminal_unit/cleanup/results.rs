@@ -3,6 +3,7 @@
 use super::*;
 
 mod anonymous;
+mod anonymous_shared;
 
 #[test]
 fn partial_result_cleanup_retains_exact_producer_root_and_residual() {

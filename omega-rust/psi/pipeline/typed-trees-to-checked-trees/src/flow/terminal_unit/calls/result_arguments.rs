@@ -2,6 +2,8 @@
 
 use super::*;
 
+mod anonymous_shared;
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn argument(
     program: &TypedTrees,
@@ -42,12 +44,22 @@ pub(super) fn argument(
             };
             if borrow.access != language_semantics::ReferenceAccess::Shared
                 || !program.expression_table.expression_is_valid(borrow.target)
-                || !matches!(place.root, facts::PlaceRoot::Symbol(_))
-                || exact_structural_argument_access(
-                    program, facts, machine, state, call, place, access,
-                )? != access
             {
                 return None;
+            }
+            match place.root {
+                facts::PlaceRoot::Symbol(_) => {
+                    if exact_structural_argument_access(
+                        program, facts, machine, state, call, place, access,
+                    )? != access
+                    {
+                        return None;
+                    }
+                }
+                facts::PlaceRoot::Expression(source) if source == borrow.target => {
+                    anonymous_shared::validate(program, facts, machine, state, call, source)?;
+                }
+                _ => return None,
             }
             (borrow.target, referee)
         }
@@ -99,7 +111,7 @@ pub(super) fn argument(
         // Ordinary and boundary affine producers own anonymous results.
         // Rejoin their exact captured
         // preorder coordinate; the shared sequencer executes it in postorder.
-        facts::PlaceRoot::Expression(source) if source == expression || projected => {
+        facts::PlaceRoot::Expression(source) if source == value_expression || projected => {
             if projected
                 && crate::flow::canonical_place_from_expression_in_state(
                     program,
