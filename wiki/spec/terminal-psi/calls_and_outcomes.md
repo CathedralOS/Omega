@@ -35,6 +35,33 @@ places remain distinct through lowering, assignment, emission, and installation.
 A result's qualifications and claims are semantic metadata, not additional ABI
 words.
 
+## Call contracts
+
+A call names its exact callee and positional actuals. Each published callee
+`requires` clause has one distinct caller obligation at the same position.
+Validation checks the complete scalar/structural signature, defined operands,
+result, transfer rows, obligation arity and uniqueness, and surviving crash
+continuations. Structural qualifications do not occupy scalar proof slots.
+
+The verifier substitutes actual value/place identities into requirements before
+importing guarantees. Clause positions and child order survive substitution,
+even when actuals are equal or reordered. Never reverse-match caller expressions
+or compare uninstantiated formal names. A callee's guarantees cannot prove its
+own invocation's requirements; the argument's arithmetic obligations precede the
+call obligation.
+
+Normal guarantees refer to the actual result and appropriate parameter versions.
+The reserved result occurrence belongs to its contract owner, not any local or
+parameter spelled `result`. Declared requirements and published crash routes
+describe invocation entry. Reassigned storage and earlier immutable snapshots
+are distinct values; current reads cannot impersonate entry facts.
+
+Surviving crash routes are derived from the pinned callee contract using exact
+actuals. A simplified caller condition is proof information, not a replacement
+callee interface. Empty or untranslated continuation rows cannot erase a crash.
+A true route permits that crash; it does not execute one. An unconditional
+no-return callee crash needs no extra caller branch or fabricated crash event.
+
 ## Argument and result ordering
 
 Operands evaluate in authored formal-position order, with nested producers

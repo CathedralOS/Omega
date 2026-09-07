@@ -22,6 +22,42 @@ complete graph transactionally in loan order. Aggregate/helper transfers,
 ambiguous or reassigned aliases, and write-only local loans cannot gain inferred
 resource authority from these cases.
 
+## Entry-contract readers
+
+Entry requirements and crash routes retain incoming operands independently of
+executable mutable storage. Strict readers rejoin exact live machine/entry-state
+owners, symbols, parameter order, builtin type/operator meaning, and field paths.
+Same-spelled locals or fields from another owner cannot supply a missing identity.
+Unread structural operands and receivers still occupy authored positions;
+dense scalar positions count only preceding primitive parameters.
+
+Boolean entry readers admit direct owned formals and plain field paths through
+eligible owned/shared/mutable roots. Explicit receiver paths rejoin the exact
+machine-owned `Self` alias and nominal field identity. Fixed-integer comparisons
+share literal landing, same-carrier construction, and numbered-field handling
+with the integer-contract owner; write-only fields supply no readable hypothesis.
+Comparison totality on policy-qualified inputs does not admit arithmetic, casts,
+calls, or current body values as new entry facts. The Boolean-only result fallback
+has a different namespace and must not be widened by sharing this construction.
+
+Boolean polarity, compound equality, and common-consequence extraction use bounded
+logical conversion (4,096 work units, depth 64), not eager runtime operations.
+Conjunction combines facts; every disjunct must establish a retained common fact.
+Keep original published predicate identity and exact entry ordinals. Exhaustion
+does not restart the budget for another route. Selected user operators do not
+inherit builtin meaning from spelling. Arithmetic-subtree, path, and case checks
+remain separate from the logical expansion budget.
+Bounds-guard operand recovery likewise checks the actual collection receiver,
+length carrier, and builtin computation. A field spelled `len` keeps its declared
+type; anonymous or unresolved operands do not inherit a sibling's type. Recovering
+a type or finding a comparison declaration supplies no bounds proof.
+
+The focused source-to-artifact regression is
+[entry_requirement_crash_coverage.rs](../checked-trees-to-lowered-psi/tests/entry_requirement_crash_coverage.rs).
+It verifies retained requirements and unchanged call routes, not execution of
+arbitrary host records as entry proofs. Generic/lifetime attachments, broader
+entry arithmetic, and mutable value-origin transport remain distinct work.
+
 ## Scalar convergence classification
 
 [shared_convergence.rs](src/flow/terminal_unit/shared_convergence.rs) recognizes

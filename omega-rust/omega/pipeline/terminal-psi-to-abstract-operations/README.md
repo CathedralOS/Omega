@@ -62,6 +62,24 @@ happen to traverse arrays. ABI copies materialize only the owned subtree being
 transferred; this is not a borrowed-referent copy. No-code residual cleanup emits
 neither instructions nor liveness-dependent loops.
 
+## Scalar call realization
+
+Each callee selects its own ABI. Evaluate arguments into disjoint durable homes
+before filling register or outgoing-stack destinations. Emission includes the
+complete outgoing area (including Microsoft x64 shadow space), x86 alignment,
+and AArch64 link preservation. Typed relocations bind exact Psi operations and
+callees; conditional emission preserves live inputs and rebases independently
+encoded arm/condition relocations into final function order.
+
+Selected-operator Unit continuations currently have narrower admission than the
+call vocabulary: fixed-native integer results and supported ordinary scalar
+closures, with exact selected-plan/adapter identity replay. The structural-operand
+subset consumes a permutation of whole claim-free affine roots with separate
+scalar operands; its hosted empty-record path has Linux x86-64/AArch64 native
+coverage. Nontrivial layouts, claims, services, projections, borrowed operands,
+and wider control do not follow from that case. Artifact replay is consistency
+evidence, not a claim that a human audited the emitted program.
+
 ## Scalar cleanup tails
 
 Native scalar-return lowering preserves the result across executable cleanup and,

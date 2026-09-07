@@ -2,6 +2,8 @@
 
 Public contract: [Terminal Psi product](../../../../wiki/spec/terminal-psi/product.md).
 This crate sequences production; it does not own another executable IR.
+The [scalar computation and call map](scalar_calls.md) covers authored occurrence
+replay, argument evaluation, and shared ordinary/composed call closures.
 
 Enter [production.rs](src/production.rs). The sequence is
 `checked-trees-to-lowered-psi` -> `lowered-psi-to-lowered-psi` ->
