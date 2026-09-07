@@ -41,7 +41,7 @@ pub trait ProviderExecutionEvidence: std::fmt::Debug {
 }
 
 /// Exact caller-local claim source retained by one admitted installed-provider
-/// Unit call. This mirrors terminal abstract custody without making the
+/// call. This mirrors terminal abstract custody without making the
 /// installation evidence crate depend on an Omega lowering representation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstalledProviderCompletionClaimSource {
@@ -53,11 +53,13 @@ pub struct InstalledProviderCompletionClaimSource {
 /// Read-only projection of one boundary occurrence admitted as a call to an
 /// exact checked provider machine.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InstalledProviderUnitCallEvidence {
+pub struct InstalledProviderCallEvidence {
     pub caller: semantic_vocabulary::MachineId,
     pub psi_operation: semantic_vocabulary::OperationId,
     pub boundary: semantic_vocabulary::BoundaryMachineId,
     pub provider: terminal_psi::ProviderCandidateConformance,
+    /// Exact caller-local result established by successful provider completion.
+    pub result: terminal_psi::OperationResult,
     /// Ordered scalar values supplied by the exact admitted call occurrence.
     pub scalar_arguments: Vec<semantic_vocabulary::ValueId>,
     pub structural_arguments: Vec<terminal_psi::StructuralArgument>,
@@ -70,7 +72,7 @@ pub struct InstalledProviderUnitCallEvidence {
 /// mutable installation map or construction authority.
 pub trait ProviderInstallationEvidence: std::fmt::Debug {
     fn psi(&self) -> terminal_psi::TerminalPsiIdentity;
-    fn installed_provider_unit_calls(&self) -> Vec<InstalledProviderUnitCallEvidence>;
+    fn installed_provider_calls(&self) -> Vec<InstalledProviderCallEvidence>;
 }
 
 /// Read-only projection of one opaque, installation-owned component progress

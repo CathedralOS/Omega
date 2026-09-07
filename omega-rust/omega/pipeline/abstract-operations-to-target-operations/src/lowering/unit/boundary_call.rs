@@ -26,7 +26,7 @@ pub(super) fn lower_boundary_call(
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
     installed_calls: &BTreeMap<
         (MachineId, OperationId, BoundaryMachineId),
-        InstalledProviderUnitCallEvidence,
+        InstalledProviderCallEvidence,
     >,
     native_callbacks: &BTreeMap<OperationId, target_operations::TargetNativeCallbackArgument>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,

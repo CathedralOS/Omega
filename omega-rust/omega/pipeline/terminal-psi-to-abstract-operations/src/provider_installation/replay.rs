@@ -1,12 +1,12 @@
 use super::error::ProviderInstallationError;
-use super::model::AdmittedInstalledProviderUnitCall;
+use super::model::AdmittedInstalledProviderCall;
 use crate::shared::*;
 
-pub(super) fn replay_installed_provider_unit_calls(
+pub(super) fn replay_installed_provider_calls(
     plan: &AbstractOperationPlan,
     module: &terminal_psi::TerminalModule,
     installed: &[ProviderCandidateConformance],
-) -> Result<Vec<AdmittedInstalledProviderUnitCall>, ProviderInstallationError> {
+) -> Result<Vec<AdmittedInstalledProviderCall>, ProviderInstallationError> {
     let mut calls = Vec::new();
     for caller in &plan.functions {
         for operation in &caller.operations {
@@ -25,7 +25,7 @@ pub(super) fn replay_installed_provider_unit_calls(
             let Some(provider) = installed.iter().find(|row| row.boundary == *boundary) else {
                 continue;
             };
-            let malformed = || ProviderInstallationError::InstalledUnitCallReplayMismatch {
+            let malformed = || ProviderInstallationError::InstalledCallReplayMismatch {
                 caller: caller.machine,
                 operation: *psi_operation,
                 boundary: *boundary,
@@ -50,13 +50,30 @@ pub(super) fn replay_installed_provider_unit_calls(
                 .iter()
                 .find(|machine| machine.id == caller.machine)
                 .ok_or_else(malformed)?;
-            if !result.is_unit()
+            let terminal_operation = terminal_caller
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .find(|operation| operation.id == *psi_operation)
+                .ok_or_else(malformed)?;
+            let exact_result = match (result, &terminal_operation.result) {
+                (
+                    abstract_operations::AbstractBoundaryResult::Unit,
+                    terminal_psi::OperationResult::Unit,
+                ) => true,
+                (
+                    abstract_operations::AbstractBoundaryResult::Structural(actual),
+                    terminal_psi::OperationResult::Structural(expected),
+                ) => actual == expected,
+                _ => false,
+            };
+            if !exact_result
                 || boundary_declaration.identity != provider.requirement_identity
-                || !boundary_declaration.result.is_unit()
-                || !matches!(&candidate.result, AbstractFunctionResult::Unit)
-                || !matches!(
+                || !replays_result(
+                    &terminal_operation.result,
+                    &boundary_declaration.result,
+                    &candidate.result,
                     &terminal_candidate.result,
-                    terminal_psi::TerminalMachineResult::Unit
                 )
                 || structural_arguments.len() != provider.signature.parameters.len()
                 || boundary_declaration.structural_parameters.len() != structural_arguments.len()
@@ -202,9 +219,10 @@ pub(super) fn replay_installed_provider_unit_calls(
             {
                 return Err(malformed());
             }
-            calls.push(AdmittedInstalledProviderUnitCall {
+            calls.push(AdmittedInstalledProviderCall {
                 caller: caller.machine,
                 psi_operation: *psi_operation,
+                result: terminal_operation.result.clone(),
                 boundary: *boundary,
                 provider: provider.clone(),
                 scalar_arguments: arguments.clone(),
@@ -215,6 +233,44 @@ pub(super) fn replay_installed_provider_unit_calls(
         }
     }
     Ok(calls)
+}
+
+/// Candidate and caller result places are scoped to different machines. Join
+/// their signatures without substituting either place for the other.
+fn replays_result(
+    occurrence: &terminal_psi::OperationResult,
+    boundary: &terminal_psi::BoundaryMachineResult,
+    candidate: &AbstractFunctionResult,
+    terminal_candidate: &terminal_psi::TerminalMachineResult,
+) -> bool {
+    match (occurrence, boundary, candidate, terminal_candidate) {
+        (
+            terminal_psi::OperationResult::Unit,
+            terminal_psi::BoundaryMachineResult::Unit,
+            AbstractFunctionResult::Unit,
+            terminal_psi::TerminalMachineResult::Unit,
+        ) => true,
+        (
+            terminal_psi::OperationResult::Structural(occurrence),
+            terminal_psi::BoundaryMachineResult::Structural(boundary),
+            AbstractFunctionResult::Structural(candidate),
+            terminal_psi::TerminalMachineResult::Structural(terminal_candidate),
+        ) => {
+            candidate == terminal_candidate
+                && occurrence.structural_type == boundary.structural_type
+                && candidate.structural_type == boundary.structural_type
+                && occurrence.multiplicity == StructuralMultiplicity::Affine
+                && boundary.multiplicity == StructuralMultiplicity::Affine
+                && candidate.multiplicity == StructuralMultiplicity::Affine
+                && occurrence.qualifications.is_empty()
+                && occurrence.projected_qualifications.is_empty()
+                && occurrence.claims.is_empty()
+                && boundary.qualifications.is_empty()
+                && candidate.qualifications.is_empty()
+                && candidate.projected_qualifications.is_empty()
+        }
+        _ => false,
+    }
 }
 
 fn replays_supported_scalar_call(

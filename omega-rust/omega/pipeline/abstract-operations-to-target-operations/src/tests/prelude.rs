@@ -14,7 +14,7 @@ pub(super) use calling_conventions::{
     CallSignature, CallingPolicy, ValueLocation, ValueShape, evaluate_call_plan,
 };
 pub(super) use installation_evidence::{
-    InstalledProviderCompletionClaimSource, InstalledProviderUnitCallEvidence,
+    InstalledProviderCallEvidence, InstalledProviderCompletionClaimSource,
     ProviderInstallationEvidence,
 };
 pub(super) use semantic_vocabulary::{

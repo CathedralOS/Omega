@@ -8,7 +8,7 @@ mod replay;
 
 pub use error::ProviderInstallationError;
 pub use model::{
-    AdmittedInstalledProviderUnitCall, AdmittedProviderInstallation, SelectedProviderAdapter,
+    AdmittedInstalledProviderCall, AdmittedProviderInstallation, SelectedProviderAdapter,
 };
 
 use crate::shared::*;

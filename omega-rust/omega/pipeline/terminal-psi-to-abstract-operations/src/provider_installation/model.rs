@@ -10,22 +10,23 @@ pub struct SelectedProviderAdapter {
     pub machine_identity: String,
 }
 
-/// One exact structural Unit boundary occurrence bound to the checked provider
+/// One exact boundary occurrence bound to the checked provider
 /// row selected for its requirement. Private fields prevent target lowering
 /// from reconstructing this authority from a candidate machine ID alone.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AdmittedInstalledProviderUnitCall {
+pub struct AdmittedInstalledProviderCall {
     pub(crate) caller: MachineId,
     pub(crate) psi_operation: OperationId,
     pub(crate) boundary: semantic_vocabulary::BoundaryMachineId,
     pub(crate) provider: ProviderCandidateConformance,
+    pub(crate) result: terminal_psi::OperationResult,
     pub(crate) scalar_arguments: Vec<semantic_vocabulary::ValueId>,
     pub(crate) structural_arguments: Vec<StructuralArgument>,
     pub(crate) completion_claim_sources: Vec<CompletionClaimSource>,
     pub(crate) completion_receipts: Vec<CompletionReceipt>,
 }
 
-impl AdmittedInstalledProviderUnitCall {
+impl AdmittedInstalledProviderCall {
     pub const fn caller(&self) -> MachineId {
         self.caller
     }
@@ -40,6 +41,10 @@ impl AdmittedInstalledProviderUnitCall {
 
     pub const fn provider(&self) -> &ProviderCandidateConformance {
         &self.provider
+    }
+
+    pub const fn result(&self) -> &terminal_psi::OperationResult {
+        &self.result
     }
 
     pub fn scalar_arguments(&self) -> &[semantic_vocabulary::ValueId] {
@@ -67,7 +72,7 @@ pub struct AdmittedProviderInstallation {
     pub(crate) psi_installation: terminal_interpreter::AdmittedProviderInstallation,
     pub(crate) psi: terminal_psi::TerminalPsiIdentity,
     pub(crate) installed_candidates: Vec<ProviderCandidateConformance>,
-    pub(crate) installed_unit_calls: Vec<AdmittedInstalledProviderUnitCall>,
+    pub(crate) installed_calls: Vec<AdmittedInstalledProviderCall>,
 }
 
 impl AdmittedProviderInstallation {
@@ -83,8 +88,8 @@ impl AdmittedProviderInstallation {
         &self.installed_candidates
     }
 
-    pub fn installed_unit_calls(&self) -> &[AdmittedInstalledProviderUnitCall] {
-        &self.installed_unit_calls
+    pub fn installed_calls(&self) -> &[AdmittedInstalledProviderCall] {
+        &self.installed_calls
     }
 }
 
@@ -93,17 +98,18 @@ impl installation_evidence::ProviderInstallationEvidence for AdmittedProviderIns
         self.psi
     }
 
-    fn installed_provider_unit_calls(
+    fn installed_provider_calls(
         &self,
-    ) -> Vec<installation_evidence::InstalledProviderUnitCallEvidence> {
-        self.installed_unit_calls
+    ) -> Vec<installation_evidence::InstalledProviderCallEvidence> {
+        self.installed_calls
             .iter()
             .map(
-                |call| installation_evidence::InstalledProviderUnitCallEvidence {
+                |call| installation_evidence::InstalledProviderCallEvidence {
                     caller: call.caller,
                     psi_operation: call.psi_operation,
                     boundary: call.boundary,
                     provider: call.provider.clone(),
+                    result: call.result.clone(),
                     scalar_arguments: call.scalar_arguments.clone(),
                     structural_arguments: call.structural_arguments.clone(),
                     completion_claim_sources: call

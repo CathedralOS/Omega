@@ -18,12 +18,12 @@ fn omega_retains_the_exact_installed_provider_scalar_argument() {
     let selected = selected("second-plan", "SecondProvider", "SecondProvider::emit");
     let installation = admit_provider_installation(&plan, &semantic, &proof, &profile, &selected)
         .expect("fixed i32 provider installation");
-    let [call] = installation.installed_unit_calls() else {
+    let [call] = installation.installed_calls() else {
         panic!("one installed scalar provider call")
     };
     assert_eq!(call.scalar_arguments(), &[value_id(1)]);
 
-    let projected = ProviderInstallationEvidence::installed_provider_unit_calls(&installation);
+    let projected = ProviderInstallationEvidence::installed_provider_calls(&installation);
     let [evidence] = projected.as_slice() else {
         panic!("one projected scalar provider call")
     };
@@ -73,7 +73,7 @@ fn omega_rejects_substituting_a_computed_i32_for_the_exact_caller_parameter() {
     let selected = selected("second-plan", "SecondProvider", "SecondProvider::emit");
     assert!(matches!(
         admit_provider_installation(&plan, &semantic, &proof, &profile, &selected),
-        Err(ProviderInstallationError::InstalledUnitCallReplayMismatch { .. })
+        Err(ProviderInstallationError::InstalledCallReplayMismatch { .. })
     ));
 }
 

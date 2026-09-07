@@ -6,7 +6,7 @@ pub(super) fn has_installed_scalar_call(
     function: &AbstractFunction,
     installed_calls: &BTreeMap<
         (MachineId, OperationId, BoundaryMachineId),
-        InstalledProviderUnitCallEvidence,
+        InstalledProviderCallEvidence,
     >,
 ) -> bool {
     function.operations.iter().any(|operation| {
@@ -26,7 +26,7 @@ pub(super) fn unsupported_scalar_call(
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
     installed_calls: &BTreeMap<
         (MachineId, OperationId, BoundaryMachineId),
-        InstalledProviderUnitCallEvidence,
+        InstalledProviderCallEvidence,
     >,
 ) -> Option<(OperationId, BoundaryMachineId)> {
     function.operations.iter().find_map(|operation| {

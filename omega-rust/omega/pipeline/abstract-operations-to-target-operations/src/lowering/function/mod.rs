@@ -17,7 +17,7 @@ pub(super) fn lower_function(
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
     installed_calls: &BTreeMap<
         (MachineId, OperationId, BoundaryMachineId),
-        InstalledProviderUnitCallEvidence,
+        InstalledProviderCallEvidence,
     >,
     ieee_float_fma: &BTreeMap<OperationId, target_operations::TargetX86ScalarFmaSettlement>,
     native_callbacks: &BTreeMap<OperationId, target_operations::TargetNativeCallbackArgument>,

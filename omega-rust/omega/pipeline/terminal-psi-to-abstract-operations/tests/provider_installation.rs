@@ -13,3 +13,5 @@ mod projected_claims;
 mod scalar_provider;
 #[path = "provider_installation/structural_provider.rs"]
 mod structural_provider;
+#[path = "provider_installation/structural_results.rs"]
+mod structural_results;

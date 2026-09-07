@@ -21,7 +21,7 @@ fn omega_retains_and_replays_the_whole_root_structural_provider_call() {
     let selected = selected("second-plan", "SecondProvider", "SecondProvider::emit");
     let installation = admit_provider_installation(&plan, &semantic, &proof, &profile, &selected)
         .expect("whole-root structural provider installation");
-    let [call] = installation.installed_unit_calls() else {
+    let [call] = installation.installed_calls() else {
         panic!("one installed structural provider call")
     };
     assert_eq!(call.provider(), &plan.provider_candidates[1]);

@@ -62,7 +62,7 @@ pub fn validate_installed_program_storage_continuation_evidence(
     let [installed_candidate] = installation.installed_candidates() else {
         return Err(Error::InstallationRosterMismatch);
     };
-    let [installed_call] = installation.installed_unit_calls() else {
+    let [installed_call] = installation.installed_calls() else {
         return Err(Error::InstallationRosterMismatch);
     };
     let semantic_arguments = call
@@ -86,6 +86,7 @@ pub fn validate_installed_program_storage_continuation_evidence(
         return Err(Error::StructuralContractMismatch);
     }
     if installed_call.caller() != entry.machine
+        || !matches!(installed_call.result(), terminal_psi::OperationResult::Unit)
         || installed_call.psi_operation() != call.operation
         || installed_call.boundary() != *boundary
         || installed_call.structural_arguments() != semantic_arguments

@@ -5,7 +5,7 @@ use super::*;
 #[derive(Debug)]
 struct InstalledProviderFixture {
     psi: TerminalPsiIdentity,
-    calls: Vec<InstalledProviderUnitCallEvidence>,
+    calls: Vec<InstalledProviderCallEvidence>,
 }
 
 impl ProviderInstallationEvidence for InstalledProviderFixture {
@@ -13,7 +13,7 @@ impl ProviderInstallationEvidence for InstalledProviderFixture {
         self.psi
     }
 
-    fn installed_provider_unit_calls(&self) -> Vec<InstalledProviderUnitCallEvidence> {
+    fn installed_provider_calls(&self) -> Vec<InstalledProviderCallEvidence> {
         self.calls.clone()
     }
 }
@@ -174,11 +174,12 @@ fn installed_provider_plan() -> (
     };
     let installation = InstalledProviderFixture {
         psi: plan.psi,
-        calls: vec![InstalledProviderUnitCallEvidence {
+        calls: vec![InstalledProviderCallEvidence {
             caller,
             psi_operation: operation,
             boundary,
             provider,
+            result: terminal_psi::OperationResult::Unit,
             scalar_arguments: Vec::new(),
             structural_arguments: vec![argument],
             completion_claim_sources: vec![InstalledProviderCompletionClaimSource {
@@ -328,11 +329,12 @@ fn installed_scalar_provider_plan() -> (
     };
     let installation = InstalledProviderFixture {
         psi: plan.psi,
-        calls: vec![InstalledProviderUnitCallEvidence {
+        calls: vec![InstalledProviderCallEvidence {
             caller,
             psi_operation: operation,
             boundary,
             provider,
+            result: terminal_psi::OperationResult::Unit,
             scalar_arguments: vec![caller_value],
             structural_arguments: Vec::new(),
             completion_claim_sources: Vec::new(),
@@ -429,6 +431,46 @@ fn installed_i32_provider_rejects_scalar_evidence_substitution() {
             boundary,
         })
     );
+}
+
+#[test]
+fn installed_provider_result_evidence_cannot_bypass_unit_native_fence() {
+    for replace_call_result in [false, true] {
+        let (mut plan, mut installation, boundary, operation) = installed_provider_plan();
+        let result =
+            terminal_psi::OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                place: PlaceId::new(9_602).unwrap(),
+                structural_type: StructuralTypeId::new(950).unwrap(),
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            });
+        installation.calls[0].result = result.clone();
+        if replace_call_result {
+            let AbstractOperation::BoundaryCall { result: actual, .. } =
+                &mut plan.functions[0].operations[0]
+            else {
+                unreachable!()
+            };
+            *actual = abstract_operations::AbstractBoundaryResult::Structural(
+                result.structural().unwrap().clone(),
+            );
+        }
+        assert_eq!(
+            lower_to_target_operations_with_provider_executions_and_installation(
+                &plan,
+                NativeTarget::linux_x64(),
+                &[],
+                Some(&installation),
+            ),
+            Err(LoweringError::InstalledProviderCallEvidenceMismatch {
+                machine: plan.entry,
+                operation,
+                boundary,
+            })
+        );
+    }
 }
 
 #[test]

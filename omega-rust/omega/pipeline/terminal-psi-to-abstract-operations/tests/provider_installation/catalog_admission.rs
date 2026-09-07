@@ -89,16 +89,16 @@ fn omega_installs_only_the_checked_adapter_selected_by_provider_plan_facts() {
         installation.installed_candidates(),
         &plan.provider_candidates[1..]
     );
-    assert_eq!(installation.installed_unit_calls().len(), 1);
+    assert_eq!(installation.installed_calls().len(), 1);
     assert_eq!(
         optimized_installation.installed_candidates(),
         installation.installed_candidates()
     );
     assert_eq!(
-        optimized_installation.installed_unit_calls(),
-        installation.installed_unit_calls()
+        optimized_installation.installed_calls(),
+        installation.installed_calls()
     );
-    let installed_call = &installation.installed_unit_calls()[0];
+    let installed_call = &installation.installed_calls()[0];
     assert_eq!(installed_call.caller(), machine_id(1));
     assert_eq!(installed_call.psi_operation(), operation_id(1));
     assert_eq!(installed_call.boundary(), boundary_id(1));
