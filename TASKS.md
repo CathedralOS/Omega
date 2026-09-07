@@ -602,7 +602,7 @@ Owners include
   carriers beyond the existing empty-record prefix and single-i64-field local
   in ordinary Unit call closures.
   Extend result operands to mutable/write-only borrows, anonymous shared borrows
-  beyond one final ordinary Unit call with one whole-result argument,
+  with multiple arguments/producers per call and non-Unit or boundary consumers,
   projected routes, and self consumers without losing their exact result owner.
   Rejoin exact source/evaluation custody and remove only the cleanup transferred
   by the call; linear structural-result claims need their owning result plan.

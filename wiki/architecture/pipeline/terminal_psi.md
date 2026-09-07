@@ -3281,17 +3281,22 @@ verification requires the intact owner to be live at every read and rejects a
 call that both borrows and moves that result. The shared parameter is unrestricted;
 the produced value and its caller-owned custody remain affine. Provider refusal
 leaves that custody available for retry, and a later operand crash adds no cleanup
-successor. One final ordinary Unit call may also read a whole anonymous result
+successor. An ordinary Unit call may also read a whole anonymous result
 through its sole `&producer(...)` argument. The source owner retains the real
 expression root: owned affine establishment at the producer, an unrestricted
 shared loan at the consumer, then affine cleanup at that consumer's dying
 continuation. Lowering independently rejoins those events, their provenance,
 source order, and exact call identities. No source local is synthesized; the
-existing result binding remains live through the read and is disposed on the
-immediately following Unit return. This route requires one source call statement
-and exactly two captured calls, with an ordinary or boundary producer. Longer
-lifetimes, additional arguments, or additional producers require their own exact
-continuation cleanup. Broader anonymous shared borrows, mutable/write-only or projected result
+existing result binding remains live through the read. A checked
+`CallContinuationCleanup` entry immediately after the consumer names its exact
+call coordinate and ordered affine discard rows. Lowering emits an ordinary
+`Jump` with cleanup to the next evaluation block, forwarding every live scalar
+binding. The temporary is neither retained until caller return nor represented
+as another authored call. Each such source statement has exactly two captured
+calls, with an ordinary or boundary producer. Earlier locals, later statements,
+and successive producers in separate statements share the ordinary schedule;
+each temporary dies before the next statement runs. Multiple arguments or
+producers in one call, other consumer return carriers, mutable/write-only or projected result
 operands, self consumers, linear result claims, and sum-payload inspection remain
 separate work.
 Anonymous boundary structural results use the same argument schedule as
@@ -4178,8 +4183,8 @@ parent and siblings in argument order. Lowering independently rejoins that
 syntax order, every result producer, and the enclosing consuming expression.
 In the owned whole-result operand schedule, an anonymous result must transfer
 exactly once to its enclosing call, with no caller-return disposal. The bounded
-shared-read schedule above instead preserves that owner until the final call
-returns, then disposes it at the coincident caller-return continuation. The bounded partial
+shared-read schedule above instead preserves that owner until its consumer
+returns, then disposes it on the exact normal call-continuation edge. The bounded partial
 cleanup schedule above instead transfers a selected subtree and disposes its
 remainder at the dying call continuation. Source permission events retain both
 the producer's input transfer and the temporary expression's transfer into its

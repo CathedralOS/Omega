@@ -485,7 +485,7 @@ fn assemble_unit_closure(
             );
         }
         validate_unit_operation_sequence(machine)?;
-        for operation in &machine.operations {
+        for (operation_index, operation) in machine.operations.iter().enumerate() {
             crate::call_source_custody::validate_operation(
                 checked,
                 machine.machine,
@@ -493,6 +493,9 @@ fn assemble_unit_closure(
                 operation,
             )?;
             match operation {
+                CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. } => {
+                    structural_calls::validate_cleanup(checked, machine, operation_index)?;
+                }
                 CheckedUnitEffectOperationPlan::CallUnit {
                     target_machine,
                     target_state,
@@ -1379,6 +1382,31 @@ fn assemble_unit_closure(
                 _ => return unsupported("call schedule disagrees with its active argument group"),
             };
             let operation = &plan.operations[operation_index];
+            if let CheckedUnitEffectOperationPlan::CallContinuationCleanup {
+                affine_discards, ..
+            } = operation
+            {
+                let discards = affine_discards.iter().map(|discard| {
+                    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } = discard.source else {
+                        return unsupported("call continuation cleanup requires a result binding");
+                    };
+                    let (place, discard_on_return) = structural_result_places.get(binding_ordinal as usize)
+                        .ok_or(LoweringError::Unsupported("call continuation result has not been produced"))?;
+                    if *discard_on_return || !discard.path.is_empty() {
+                        return unsupported("call continuation cleanup has conflicting custody");
+                    }
+                    Ok(place.id)
+                }).collect::<Result<Vec<_>, LoweringError>>()?;
+                evaluation.cleanup_continuation(
+                    discards,
+                    &mut scalar_result_values,
+                    &mut next_value_identity,
+                    &mut next_block,
+                    &mut next_edge,
+                    &operations,
+                )?;
+                continue;
+            }
             let source_value_count = retained_scalar_prefix.unwrap_or(scalar_result_values.len());
             let evaluated_scalar_arguments = if staged {
                 Some(
@@ -2981,7 +3009,8 @@ fn assemble_unit_closure(
                         value,
                     }
                 }
-                CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {
+                CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
+                | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {
                     return unsupported("Unit return is not the final checked operation");
                 }
             };

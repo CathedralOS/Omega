@@ -1763,6 +1763,7 @@ pub(super) fn build_checked_machine_with(
             | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
+            | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
             | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => Vec::new(),
         })
         .collect::<BTreeSet<_>>();

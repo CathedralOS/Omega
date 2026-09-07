@@ -267,6 +267,7 @@ pub(super) fn build(
             Some(result) => bind_scalar_call_result(facts, operation, result, true)?,
             None => operation,
         });
+        append_call_cleanup(&mut operations, statement_index, &structural_results)?;
     }
     if operations.iter().any(|operation| {
         matches!(
@@ -290,6 +291,78 @@ pub(super) fn build(
         local_count,
         structural_local_symbols,
     })
+}
+
+fn append_call_cleanup(
+    operations: &mut Vec<CheckedUnitEffectOperationPlan>,
+    statement_index: u32,
+    results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
+) -> Option<()> {
+    let Some(CheckedUnitEffectOperationPlan::CallUnit {
+        coordinate,
+        structural_arguments,
+        ..
+    }) = operations.last()
+    else {
+        return Some(());
+    };
+    let coordinate = *coordinate;
+    let mut discards = Vec::new();
+    for (result, root) in results.iter().rev() {
+        if !matches!(root, facts::PlaceRoot::Expression(_))
+            || result.statement_index != statement_index
+            || !structural_arguments.iter().any(|argument| {
+                argument.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
+                    && argument.access == CheckedStructuralAccess::SharedBorrow
+            })
+        {
+            continue;
+        }
+        discards.push(checked_trees::CheckedUnitPartialAffineDiscardPlan {
+            source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: result.binding_ordinal,
+            },
+            path: Vec::new(),
+            type_identity: result.type_identity.clone(),
+        });
+    }
+    if discards.is_empty() {
+        return Some(());
+    }
+    for discard in &discards {
+        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            binding_ordinal,
+        } = discard.source
+        else {
+            return None;
+        };
+        let producer = operations.iter_mut().find(|operation| {
+            matches!(operation,
+            CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
+                if result.binding_ordinal == binding_ordinal)
+        })?;
+        let (CheckedUnitEffectOperationPlan::StructuralCall {
+            discard_result_on_return,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+            discard_result_on_return,
+            ..
+        }) = producer
+        else {
+            return None;
+        };
+        if !*discard_result_on_return {
+            return None;
+        }
+        *discard_result_on_return = false;
+    }
+    operations.push(CheckedUnitEffectOperationPlan::CallContinuationCleanup {
+        coordinate,
+        affine_discards: discards,
+    });
+    Some(())
 }
 
 fn consume_results(

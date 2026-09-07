@@ -12,6 +12,41 @@ pub(crate) struct Evaluation {
 }
 
 impl Evaluation {
+    /// Preserve evaluated scalar bindings while committing only the dying
+    /// affine owners on the completed call's normal continuation.
+    pub(crate) fn cleanup_continuation(
+        &mut self,
+        discards: Vec<PlaceId>,
+        values: &mut Vec<ValueDeclaration>,
+        next_value: &mut u64,
+        next_block: &mut u64,
+        next_edge: &mut u64,
+        operations: &OperationBuffer,
+    ) -> Result<(), LoweringError> {
+        let types = values
+            .iter()
+            .map(|value| value.scalar_type)
+            .collect::<Vec<_>>();
+        let parameters = declarations(&types, next_value)?;
+        let continuation = block_id(allocate_dense(next_block)?);
+        self.blocks.push(Block {
+            id: self.current,
+            parameters: std::mem::take(&mut self.parameters),
+            operations: operations[self.operation_start..].to_vec(),
+            terminator: Terminator::Jump {
+                edge: edge_id(allocate_dense(next_edge)?),
+                target: continuation,
+                arguments: values.iter().map(|value| value.id).collect(),
+                trivial_affine_discards: discards,
+            },
+        });
+        *values = parameters.clone();
+        self.parameters = parameters;
+        self.current = continuation;
+        self.operation_start = operations.len();
+        Ok(())
+    }
+
     pub(crate) fn new(next_block: &mut u64) -> Result<Self, LoweringError> {
         let entry = block_id(allocate_dense(next_block)?);
         Ok(Self {

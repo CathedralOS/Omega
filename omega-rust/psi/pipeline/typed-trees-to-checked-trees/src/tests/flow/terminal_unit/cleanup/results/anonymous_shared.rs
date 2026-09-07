@@ -44,7 +44,7 @@ fn anonymous_shared_permissions_retain_then_discard_exact_expression_owner() {
             .terminal_unit_effects
             .for_machine(machine)
             .expect("anonymous shared Unit plan");
-        assert_eq!(plan.operations.len(), 3);
+        assert_eq!(plan.operations.len(), 4);
         let (producer_coordinate, producer_state) = match &plan.operations[0] {
             CheckedUnitEffectOperationPlan::StructuralCall {
                 coordinate,
@@ -60,7 +60,7 @@ fn anonymous_shared_permissions_retain_then_discard_exact_expression_owner() {
                 discard_result_on_return,
                 ..
             } => {
-                assert!(*discard_result_on_return);
+                assert!(!*discard_result_on_return);
                 assert_eq!((result.statement_index, result.binding_ordinal), (0, 0));
                 (*coordinate, *target_state)
             }
@@ -285,8 +285,8 @@ fn anonymous_shared_permissions_reject_missing_changed_and_late_custody() {
                 .flow
                 .terminal_unit_effects
                 .for_machine(machine_named(&later, "main"))
-                .is_none(),
-            "temporary lifetime cannot extend across another statement"
+                .is_some(),
+            "temporary cleanup precedes the following statement"
         );
     }
 }

@@ -1260,11 +1260,11 @@ impl CheckedUnitStructuralArgumentPlan {
     }
 }
 
-/// One claim-free affine structural leaf that remains live after a projected
-/// transfer and is disposed on the enclosing Unit-return edge. The root is a
-/// structural parameter or call-result binding; the path is canonical semantic
-/// identity rather than a retained source handle. Other argument-source kinds
-/// do not yet admit partial cleanup.
+/// One claim-free affine structural place disposed on the normal edge selected
+/// by its containing plan. An empty path denotes the whole root; a nonempty path
+/// denotes a retained residual subtree. The root is a structural parameter or
+/// call-result binding, with canonical semantic path identity. Other source
+/// kinds do not yet admit this cleanup.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitPartialAffineDiscardPlan {
     pub source: CheckedUnitStructuralArgumentSourcePlan,
@@ -1436,6 +1436,12 @@ impl CheckedBoundaryMachineResultPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedUnitEffectOperationPlan {
+    /// Normal edge after the named call completes. Cleanup belongs to this
+    /// continuation, not the caller's final return or a synthetic source call.
+    CallContinuationCleanup {
+        coordinate: CheckedUnitCallCoordinate,
+        affine_discards: Vec<CheckedUnitPartialAffineDiscardPlan>,
+    },
     EstablishTrivialAffineLocal {
         statement_index: u32,
         declaration_ordinal: u32,

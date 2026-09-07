@@ -714,6 +714,7 @@ pub(super) fn lower_unit_services_including(
                 | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+                | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
                 | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {}
             }
         }

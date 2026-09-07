@@ -10,17 +10,22 @@ pub(in crate::checks::multiplicity) fn append_shared_borrow(
     state: &typed_trees::state::State,
     permissions: &mut Vec<FlowPermissionEventFact>,
 ) {
-    let Some(events) = events(program, facts, machine, state) else {
-        return;
-    };
-    if permissions.iter().any(|event| {
-        event.machine_symbol == machine.symbol
-            && event.state_symbol == state.symbol
-            && event.root == events[0].root
-    }) {
-        return;
+    for statement_index in 0..program
+        .statement_table
+        .statements(state.statement_nodes)
+        .len()
+    {
+        let Some(events) = events(program, facts, machine, state, statement_index) else {
+            continue;
+        };
+        if !permissions.iter().any(|event| {
+            event.machine_symbol == machine.symbol
+                && event.state_symbol == state.symbol
+                && event.root == events[0].root
+        }) {
+            permissions.extend(events);
+        }
     }
-    permissions.extend(events);
 }
 
 fn events(
@@ -28,9 +33,13 @@ fn events(
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
+    statement_index: usize,
 ) -> Option<[FlowPermissionEventFact; 3]> {
-    // No following statement may retain a temporary whose loan ends here.
-    let [StatementNode::Call(_)] = program.statement_table.statements(state.statement_nodes) else {
+    let StatementNode::Call(_) = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index)?
+    else {
         return None;
     };
     let flow = facts
@@ -40,8 +49,15 @@ fn events(
         .iter()
         .map(|(_, flow)| flow)
         .find(|flow| flow.machine_symbol == machine.symbol && flow.state_symbol == state.symbol)?;
-    let calls = facts.flow.control.calls.span(flow.calls)?;
-    if calls.len() != 2 || calls.iter().any(|call| call.statement_index != 0) {
+    let calls = facts
+        .flow
+        .control
+        .calls
+        .span(flow.calls)?
+        .iter()
+        .filter(|call| call.statement_index == statement_index)
+        .collect::<Vec<_>>();
+    if calls.len() != 2 {
         return None;
     }
     let consumer = calls.iter().find(|call| call.call_ordinal == 0)?;
@@ -62,7 +78,7 @@ fn events(
     ) {
         return None;
     }
-    let source = crate::find_call_site(program, machine.symbol, state.symbol, 0, 0)?;
+    let source = crate::find_call_site(program, machine.symbol, state.symbol, statement_index, 0)?;
     let [argument] = crate::call_site_argument_expressions(program, &source) else {
         return None;
     };
@@ -106,12 +122,12 @@ fn events(
         return None;
     }
     let producer_source = PermissionEventSource::Call {
-        statement_index: 0,
+        statement_index,
         call_ordinal: 1,
         target_symbol: producer.target_symbol,
     };
     let consumer_source = PermissionEventSource::Call {
-        statement_index: 0,
+        statement_index,
         call_ordinal: 0,
         target_symbol: consumer.target_symbol,
     };

@@ -29,7 +29,7 @@ fn anonymous_shared_result_keeps_its_owner_until_call_completion() {
         .expect("zero-parameter free caller retains a boundary-produced temporary");
     for boundary in [false, true] {
         for fields in ["value: u64;", "", "elements: [u16; 3];"] {
-            assert_anonymous_shared(&anonymous_source(boundary, fields), boundary);
+            assert_anonymous_shared(&anonymous_source(boundary, fields), boundary, &[]);
         }
     }
 }
@@ -57,12 +57,12 @@ fn anonymous_source(boundary: bool, fields: &str) -> String {
     source
 }
 
-fn assert_anonymous_shared(source: &str, boundary: bool) {
+fn assert_anonymous_shared(source: &str, boundary: bool, names: &[&str]) {
     use terminal_fuel::FuelChargeSite;
     use terminal_psi::{OperationKind, StructuralAccess};
 
     let checked = checked(source);
-    let artifact = encoded_locals(&checked, &[]);
+    let artifact = encoded_locals(&checked, names);
     let published = terminal_production::produce_terminal_artifact(&checked, "Main::main")
         .expect("anonymous shared argument retains and then cleans its owner");
     let module = decode_module(&artifact.0).unwrap();
@@ -101,11 +101,20 @@ fn assert_anonymous_shared(source: &str, boundary: bool) {
         .iter()
         .find(|block| {
             matches!(&block.terminator,
-                Terminator::ReturnUnit { trivial_affine_discards, .. }
-                    if trivial_affine_discards == &[result.place]
-            )
+            Terminator::Jump { trivial_affine_discards, .. }
+                if trivial_affine_discards == &[result.place]
+                )
         })
         .expect("only the actual temporary owner is cleaned");
+    let Terminator::Jump { target, .. } = cleanup.terminator else {
+        unreachable!()
+    };
+    let next_operation = caller
+        .blocks
+        .iter()
+        .find(|block| block.id == target)
+        .and_then(|block| block.operations.first())
+        .map(|operation| operation.id);
     let arguments = if boundary {
         Vec::new()
     } else {
@@ -135,6 +144,7 @@ fn assert_anonymous_shared(source: &str, boundary: bool) {
         let mut complete = false;
         let mut observed_return = false;
         let mut observed_consumer = false;
+        let mut observed_next = false;
         for _ in 0..256 {
             match execution
                 .resume_with_effect_handler(&mut fuel, &mut observer)
@@ -159,6 +169,16 @@ fn assert_anonymous_shared(source: &str, boundary: bool) {
                         assert_eq!(observer.consumed, [700]);
                         observed_return = true;
                     }
+                    if next_operation.is_some_and(|operation| {
+                        exhaustion.site == FuelChargeSite::Operation(operation)
+                    }) {
+                        assert_eq!(
+                            execution.live_affine_frontier().count(),
+                            0,
+                            "the previous temporary dies before the next statement"
+                        );
+                        observed_next = true;
+                    }
                     fuel.replenish(1).unwrap();
                 }
                 TerminalExecutionStatus::Complete(result) => {
@@ -172,11 +192,19 @@ fn assert_anonymous_shared(source: &str, boundary: bool) {
         assert!(complete);
         assert_eq!(observed_return, incremental);
         assert_eq!(observed_consumer, incremental);
+        assert_eq!(observed_next, incremental && next_operation.is_some());
         assert_eq!(
             observer.produced,
             if boundary { vec![700] } else { Vec::new() }
         );
         assert_eq!(observer.consumed, [700]);
+        if !names.is_empty() {
+            assert_eq!(
+                observer.results.calls.last(),
+                Some(&vec![unsigned(16, 17)]),
+                "scalar local survives cleanup edge"
+            );
+        }
         assert!(execution.live_affine_frontier().next().is_none());
         if let Some(reference) = &reference {
             assert_eq!(execution.effects(), reference);
@@ -274,7 +302,24 @@ fn anonymous_shared_result_permissions_rejoin_exact_owner_and_continuation() {
 }
 
 #[test]
-fn anonymous_shared_results_reject_missing_cleanup_and_later_statements() {
+fn anonymous_shared_result_is_cleaned_before_the_next_statement() {
+    for boundary in [false, true] {
+        let source = anonymous_source(boundary, "value: u64;").replace(")); }", ")); done(); }")
+            + "machine done() {}";
+        assert_anonymous_shared(&source, boundary, &[]);
+        let with_scalar = anonymous_source(boundary, "value: u64;")
+            .replace(
+                "machine observe(token: &Token)",
+                "machine tick(value: u16) reaches Sink; machine observe(token: &Token)",
+            )
+            .replace("{ read(&", "{ let prefix: u16 = 17u16; read(&")
+            .replace(")); }", ")); Sink::tick(prefix); }");
+        assert_anonymous_shared(&with_scalar, boundary, &["prefix"]);
+    }
+}
+
+#[test]
+fn anonymous_shared_results_reject_conflicting_return_cleanup() {
     for boundary in [false, true] {
         let source = anonymous_source(boundary, "value: u64;");
         let original = checked(&source);
@@ -299,14 +344,132 @@ fn anonymous_shared_results_reject_missing_cleanup_and_later_statements() {
         else {
             panic!("anonymous producer")
         };
-        *discard_result_on_return = false;
+        *discard_result_on_return = true;
         assert!(terminal_production::produce_terminal_artifact(&changed, "Main::main").is_err());
-        let extended = source.replace(")); }", ")); done(); }") + "machine done() {}";
-        assert!(
-            terminal_production::produce_terminal_artifact(&checked(&extended), "Main::main")
-                .is_err()
-        );
     }
+}
+
+#[test]
+fn anonymous_shared_continuation_rejects_missing_delayed_or_rebound_cleanup() {
+    for boundary in [false, true] {
+        let source = anonymous_source(boundary, "value: u64;").replace(")); }", ")); done(); }")
+            + "machine done() {}";
+        let original = checked(&source);
+        encoded_locals(&original, &[]);
+        for mutation in 0..8 {
+            let mut changed = original.clone();
+            let plan = changed
+                .facts
+                .flow
+                .terminal_unit_effects
+                .machines
+                .iter_mut()
+                .find(|plan| plan.machine == main_machine(&original).symbol)
+                .unwrap();
+            match mutation {
+                0 => {
+                    plan.operations.remove(2);
+                }
+                1 => plan.operations.swap(2, 3),
+                2 => plan.operations.insert(3, plan.operations[2].clone()),
+                _ => {
+                    let CheckedUnitEffectOperationPlan::CallContinuationCleanup {
+                        coordinate,
+                        affine_discards,
+                    } = &mut plan.operations[2]
+                    else {
+                        panic!("continuation cleanup")
+                    };
+                    match mutation {
+                        3 => coordinate.statement_index += 1,
+                        4 => affine_discards.clear(),
+                        5 => affine_discards[0].source = checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal: 99 },
+                        6 => affine_discards[0].type_identity.push_str("-different"),
+                        7 => affine_discards[0].path.push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(0)),
+                        _ => unreachable!(),
+                    }
+                }
+            }
+            assert!(
+                terminal_production::produce_terminal_artifact(&changed, "Main::main").is_err(),
+                "boundary={boundary}, mutation={mutation}"
+            );
+        }
+    }
+}
+
+#[test]
+fn successive_anonymous_shared_results_have_distinct_cleanup_edges() {
+    use terminal_fuel::FuelChargeSite;
+    let source = anonymous_source(true, "value: u64;").replace(
+        "read(&Factory::create());",
+        "read(&Factory::create()); read(&Factory::create());",
+    );
+    let artifact = encoded_locals(&checked(&source), &[]);
+    let module = decode_module(&artifact.0).unwrap();
+    let caller = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let cleanup_edges = caller
+        .blocks
+        .iter()
+        .filter_map(|block| match &block.terminator {
+            Terminator::Jump {
+                edge,
+                trivial_affine_discards,
+                ..
+            } if !trivial_affine_discards.is_empty() => {
+                assert_eq!(trivial_affine_discards.len(), 1);
+                Some(*edge)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(cleanup_edges.len(), 2);
+    let mut execution = TerminalExecution::start_artifact(
+        &artifact.0,
+        &artifact.1,
+        &AdmissionProfile::default(),
+        &[],
+    )
+    .unwrap();
+    let mut observer = ObserveMoves::default();
+    let mut fuel = TerminalFuelMeter::with_allowance(0);
+    let mut cleanups = 0;
+    let mut complete = false;
+    for _ in 0..256 {
+        match execution
+            .resume_with_effect_handler(&mut fuel, &mut observer)
+            .unwrap()
+        {
+            TerminalExecutionStatus::SponsorExhausted(exhaustion) => {
+                if let FuelChargeSite::Edge(edge) = exhaustion.site
+                    && cleanup_edges.contains(&edge)
+                {
+                    assert_eq!(
+                        execution.live_affine_frontier().count(),
+                        1,
+                        "no earlier temporary remains live"
+                    );
+                    cleanups += 1;
+                }
+                fuel.replenish(1).unwrap();
+            }
+            TerminalExecutionStatus::Complete(value) => {
+                assert_eq!(value, TerminalExecutionResult::Unit);
+                complete = true;
+                break;
+            }
+            status => panic!("unexpected {status:?}"),
+        }
+    }
+    assert!(complete);
+    assert_eq!(cleanups, 2);
+    assert_eq!(observer.produced, [700, 701]);
+    assert_eq!(observer.consumed, [700, 701]);
+    assert!(execution.live_affine_frontier().next().is_none());
 }
 
 #[test]
