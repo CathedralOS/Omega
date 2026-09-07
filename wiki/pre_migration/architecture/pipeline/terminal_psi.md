@@ -2401,7 +2401,7 @@ identities; checked scalar operands count only preceding primitive parameters.
 Mutable formal reads in this contract namespace rebind to that scalar entry
 position, independently of the execution support for the enclosing body.
 
-Structural entry hypotheses use a separate strict Boolean reader, not the
+Structural entry hypotheses use a separate strict entry-predicate reader, not the
 closed-scalar result-contract fallback. Plain Boolean field paths rejoin each
 selection through its retained live field symbol, exact nominal receiver, and
 declared field type. The root retains its authored parameter ordinal; nested
@@ -2417,6 +2417,25 @@ crash contracts retain that receiver even when the executable body alone could
 omit it; contextual cleanup requirements keep their receipt-bound environment.
 Runtime field lookup shares the structural nominal resolver and preserves
 explicit numbered field identities.
+
+Direct fixed-integer entry comparisons reuse the checked integer-contract
+owner for literal landing, same-carrier operands, and selected operator meaning.
+Their strict preflight checks the live expression and formal symbols, names,
+builtin type identities, and every type chain used to count dense scalar slots.
+Mutable formals still denote invocation-entry operands. Comparisons are total
+even on Wrapping, Saturating, or Trapping-qualified inputs; this admits no
+arithmetic, casts, calls, numeric fields, or body values as new hypotheses.
+The separate Boolean-only result-contract fallback remains unchanged.
+
+Numeric requirement and crash encodings retain their existing distinct forms.
+The verifier constructs an `IntegerOrderDiscreteness` certificate to connect an
+adjacent inclusive entry bound to its strict crash predicate. Each scoped entry
+alternative must prove a published alternative; no disjunct becomes an ambient
+fact. The existing kernel checks the certificate and its exact premises under
+the shared search and depth limits. No numeric normalization or proof rule is
+added. Caller requirement proofs may also reuse an exact strict-order
+certificate with `IntegerOrderWeakening` to discharge the original inclusive
+goal, preserving all endpoint-equality citations.
 
 Independent call-ceiling validation proves the union of a same-cause bucket's
 published alternatives from caller requirements. It reuses the checked Boolean
@@ -2462,7 +2481,8 @@ runtime requirements and structural root/path checks. This logical budget does
 not replace arithmetic-subtree, structural-path, or sum-case checks.
 
 Boolean implication beyond structural common consequences, exact entry crash
-hypotheses beyond plain Boolean field paths, and numeric entry coverage remain
+hypotheses beyond plain Boolean field paths and direct fixed-integer scalar
+comparisons, and arithmetic-expression or float entry coverage remain
 implementation work. Case-qualified payload paths need their case identity in
 the canonical crash predicate before they can supply exact entry hypotheses.
 

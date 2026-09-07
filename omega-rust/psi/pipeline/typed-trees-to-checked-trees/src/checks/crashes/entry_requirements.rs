@@ -118,9 +118,10 @@ fn has_exact_entry_meaning(
     parameter_names: &[String],
     expression: ExpressionHandle,
 ) -> bool {
-    // This strict owner checks Boolean-only operands, exact entry symbols,
-    // builtin operation meanings and an acyclic live expression tree. Numeric
-    // clauses retain their independent totality/proof owner.
+    // This strict owner checks exact entry symbols, builtin operation meanings
+    // and an acyclic live expression tree. Direct integer comparisons retain
+    // their existing total numeric contract owner; partial arithmetic cannot
+    // become a hypothesis merely because it appears in a Requires clause.
     if crate::values::lower_machine_entry_crash_contract_expression(
         program,
         operators,
@@ -174,11 +175,11 @@ mod tests {
     }
 
     #[test]
-    fn only_boolean_entry_requirements_seed_crash_consequences() {
+    fn total_entry_requirements_seed_crash_consequences_but_arrival_facts_do_not() {
         let program = typed("machine value(mut flag: bool) -> bool\nrequires !flag\n{ flag }");
         assert!(!requirements(&program, &["flag"]).consequences.is_empty());
         let program = typed("machine value(input: u32) -> u32\nrequires input > 0\n{ input }");
-        assert!(requirements(&program, &["input"]).consequences.is_empty());
+        assert!(!requirements(&program, &["input"]).consequences.is_empty());
         let program = typed(
             "machine value(flag: bool) -> bool { transition { _ -> finish(true) } state finish(flag: bool) -> bool\nrequires flag\n{ flag } }",
         );
