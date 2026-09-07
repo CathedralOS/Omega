@@ -10,6 +10,12 @@ The retained cases compare exact receipts for nominal matches, recursion,
 lists, `Bytes`, and forward/mutual nominal types. Further controls cover scope,
 declaration lookup, checked arithmetic, immutable byte ropes, proper tail calls,
 malformed programs, and canonical `ConformanceBytesV1` admission and execution.
+`scalar_recursive.delta` and `scalar_surface.delta` preserve the retired scalar
+experiments' shared source bytes: accumulation, lexical bindings, all seven
+operators, forward/nested calls, and thirteen ordered arguments produce 15 and
+21 through selected Delta/Gamma. Thirteen is a fixture size, not an arity limit.
+The remaining legacy comparison and selected Gamma evaluator also read these
+fixtures here; neither needs an alternate scalar compiler to retain the source.
 The final declaration-scale control compiles 3,001 functions to the retained
 78,271-byte receipt and executes its selected function. Each evaluator call
 retains the existing 30-second watchdog.

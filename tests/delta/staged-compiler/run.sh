@@ -48,7 +48,7 @@ COMPILER="$COMPILER" CANONICAL_COMPILER="$CANONICAL_COMPILER" \
     BYTES_SOURCE="$BYTES_SOURCE" BYTES_EXPECTED="$BYTES_EXPECTED" \
     FORWARD_SOURCE="$FORWARD_SOURCE" FORWARD_EXPECTED="$FORWARD_EXPECTED" \
     EPSILON_SOURCE="$EPSILON_SOURCE" \
-    EVALUATOR="$TMP/evaluator" PYTHONPATH="$GATE_DIR" python3 -B - <<'PY'
+    EVALUATOR="$TMP/evaluator" GATE_DIR="$GATE_DIR" PYTHONPATH="$GATE_DIR" python3 -B - <<'PY'
 import hashlib
 import os
 import signal
@@ -216,6 +216,15 @@ if none_status != 0 or evaluate(none_receipt) != (0, b"\x07"):
 identity = b"(def main () Int 7)\n"
 if evaluate(compiler, identity) != (0, identity + b"\n"):
     raise SystemExit("ordinary scalar Gamma was not preserved")
+
+for fixture, expected_result in (
+    ("scalar_recursive.delta", b"\x0f"),
+    ("scalar_surface.delta", b"\x15"),
+):
+    scalar_source = Path(os.environ["GATE_DIR"], fixture).read_bytes()
+    scalar_status, scalar_receipt = evaluate(compiler, scalar_source)
+    if scalar_status != 0 or evaluate(scalar_receipt) != (0, expected_result):
+        raise SystemExit(f"{fixture} scalar lowering or execution changed")
 
 epsilon_data_prefix = epsilon_source.split(b"\n(def ", 1)[0] + b"\n"
 if epsilon_data_prefix.count(b"(data ") < 100:

@@ -7,18 +7,21 @@ is now open; this retained compiler emits former concatenative Gamma source.
 
 The 240-line Gamma elaborator validates one typed accumulator-recursion schema
 with arbitrary binder spellings and emits `scalar_recursive.gamma` byte for
-byte. The expansion is the same workload used by the direct Functional and
+byte. The expansion is the same workload used by the retired direct Functional and
 State Delta compiler experiments. It uses only Gamma's existing value stack,
 ordinary calls, branches, and tail `jump`; no Gamma or Alpha primitive was
 added, and the elaborator contains no Alpha encoder.
 
 The generated Gamma application writes its scalar result as one byte because
 Gamma's application contract completes `main` with status zero. The direct
-scalar Functional Delta experiment currently exposes its result as an Alpha
+scalar Functional Delta experiment exposed its result as an Alpha
 halt status. Both observations carry the value 15, but this first gate does not
 claim identical application profiles. A renamed 1,000-step input additionally
 proves structural binder checking and constant-space Gamma recursion; malformed
 schema variants reject before publishing any output.
+
+The shared `scalar_recursive.delta` and `scalar_surface.delta` fixtures now live
+under `tests/delta/staged-compiler/`, which checks their selected-route behavior.
 
 The measured path is:
 
