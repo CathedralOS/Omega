@@ -4,6 +4,9 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
+#[cfg(test)]
+mod tests;
+
 /// Whether `expression`'s type is provably an UNSIGNED integer primitive. An
 /// unsigned index is non-negative by construction, so it discharges the lower
 /// half of the index obligation (`0 <= i`) by type and never needs a separate
@@ -59,14 +62,31 @@ pub(super) fn expression_is_slice(
 ///
 /// Every store into an Exact ranged place is range-checked (the narrowing
 /// keystone) and ZII requires 0 in range, so the declared interval holds at
-/// every read.
+/// every read. An exactly selected ordinary call may contribute its literal
+/// return interval; checking the callee's return remains an independent duty.
 pub(in crate::checks) fn expression_enforced_declared_range(
     program: &typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<(i64, i64)> {
-    let type_reference = expression_type_reference(program, machine, state, expression)?;
+    let (type_reference, is_call_result) = match program.expression_table.expression(expression) {
+        ExpressionNode::Call(call) => {
+            // A private trait realization is not the public requirement's
+            // proof interface. Its result needs that interface's own reader.
+            if call.static_requirement_dispatch.is_some() {
+                return None;
+            }
+            (
+                validation::declared_place_type_raw(program, machine, Some(state), expression)?,
+                true,
+            )
+        }
+        _ => (
+            expression_type_reference(program, machine, state, expression)?,
+            false,
+        ),
+    };
     let primitive = primitive_of_type_reference(program, type_reference)?;
     if !matches!(
         primitive,
@@ -81,8 +101,15 @@ pub(in crate::checks) fn expression_enforced_declared_range(
     ) {
         return None;
     }
-    enforced_range_of_type_reference(program, type_reference)
-        .or_else(|| dependent_range_substituted(program, machine, type_reference))
+    enforced_range_of_type_reference(program, type_reference).or_else(|| {
+        // `self.count` in a callee result is not the caller's same-named field.
+        // Relational call-entry substitution belongs to the call proof owner.
+        if is_call_result {
+            None
+        } else {
+            dependent_range_substituted(program, machine, type_reference)
+        }
+    })
 }
 
 /// R1 dependent range (`i: u32 [0..=self.count]`): the SUBSTITUTED literal

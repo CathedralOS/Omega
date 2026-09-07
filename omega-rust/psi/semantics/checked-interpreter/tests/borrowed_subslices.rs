@@ -149,54 +149,25 @@ fn borrowed_window_execution_rejects_stale_range_proofs() {
 }
 
 #[test]
-fn runtime_window_selectors_execute_once_for_borrows_reads_and_writes() {
-    use typed_trees::expression::ExpressionNode;
-    // Source proof does not yet discharge an inline call's subslice bound.
-    // Graft the separately checked call into a valid range to exercise the
-    // runtime seam without claiming that source-proof frontier is complete.
+fn checked_window_selectors_execute_once_for_borrows_reads_and_writes() {
     for operation in [
-        "fill(&mut values[1..3]);",
-        "let observed: i32 = values[1..3][0];",
-        "values[1..3][0] = 7;",
-        "let observed: i32 = inspect(values[1..3]);",
-        "let length: u64 = values[1..3].len;",
+        "fill(&mut values[first(&mut calls)..3]);",
+        "let observed: i32 = values[first(&mut calls)..3][0];",
+        "values[first(&mut calls)..3][0] = 7;",
+        "let observed: i32 = inspect(values[first(&mut calls)..3]);",
+        "let length: u64 = values[first(&mut calls)..3].len;",
     ] {
-        let mut program = checked(&format!("machine first(calls: &mut i32 in Wrapping) -> u64 [1..=1] {{
+        assert_seven(&format!("machine first(calls: &mut i32 in Wrapping) -> u64 [1..=1] {{
                 calls = calls + 1; 1
             }}
             machine fill(values: &mut [i32]) {{ values[..] = [7, 6]; }}
             machine inspect(values: &[i32]) -> i32 {{ 7 }}
             machine main() -> i32 {{
                 let mut calls: i32 in Wrapping = 0;
-                let first_position: u64 = first(&mut calls);
                 let mut values: [i32; 4] = [11, 7, 6, 22];
                 {operation}
-                transition calls == 2 && values[0] == 11 && values[1] == 7 && values[2] == 6 && values[3] == 22 {{ true -> 7 false -> 0 }}
+                transition calls == 1 && values[0] == 11 && values[1] == 7 && values[2] == 6 && values[3] == 22 {{ true -> 7 false -> 0 }}
             }}"));
-        let call = program
-            .expression_table
-            .expression_entries()
-            .find_map(|(handle, node)| match node {
-                ExpressionNode::Call(call) if call.target.as_str() == "first" => Some(handle),
-                _ => None,
-            })
-            .expect("separately checked selector call");
-        let window = program
-            .expression_table
-            .expression_entries()
-            .find_map(|(handle, node)| match node {
-                ExpressionNode::Range(range) if range.start.is_valid() => Some(handle),
-                _ => None,
-            })
-            .expect("selected window");
-        let ExpressionNode::Range(range) = program.typed.expression_table.expression_mut(window)
-        else {
-            panic!("window kind")
-        };
-        range.start = call;
-        let outcome = interpret_entry(&program, "main", &[]);
-        assert_eq!(outcome.error, None, "{operation}");
-        assert_eq!(outcome.exit_code, 7, "{operation}");
     }
 }
 
@@ -210,5 +181,36 @@ fn dynamic_and_empty_borrows_use_their_runtime_extent() {
             fill(&mut values[start..3]);
             empty(&mut values[4..]);
             transition values[0] == 11 && values[1] == 7 && values[2] == 6 && values[3] == 22 { true -> 7 false -> 0 }
+        }");
+}
+
+#[test]
+fn declared_selector_call_range_admits_and_executes_the_borrow() {
+    assert_seven("machine first(calls: &mut i32 in Wrapping) -> u64 [1..=1] {
+            calls = calls + 1; 1
+        }
+        machine fill(values: &mut [i32]) { values[..] = [0.1 * 70, 6]; }
+        machine main() -> i32 {
+            let mut calls: i32 in Wrapping = 0;
+            let mut values: [i32; 4] = [11, 0, 0, 22];
+            fill(&mut values[first(&mut calls)..3]);
+            transition calls == 1 && values[0] == 11 && values[1] == 7 && values[2] == 6 && values[3] == 22 { true -> 7 false -> 0 }
+        }");
+}
+
+#[test]
+fn independently_bounded_selector_calls_execute_in_source_order() {
+    assert_seven("machine first(calls: &mut i32 in Wrapping) -> u64 [1..=1] {
+            calls = calls * 10 + 1; 1
+        }
+        machine last(calls: &mut i32 in Wrapping) -> u64 [3..=3] {
+            calls = calls * 10 + 2; 3
+        }
+        machine fill(values: &mut [u8]) { values[..] = [0.1 * 70, 6]; }
+        machine main() -> i32 {
+            let mut calls: i32 in Wrapping = 0;
+            let mut values: [u8; 4] = \"abcd\";
+            fill(&mut values[first(&mut calls)..last(&mut calls)]);
+            transition calls == 12 && values[0] == 97 && values[1] == 7 && values[2] == 6 && values[3] == 100 { true -> 7 false -> 0 }
         }");
 }

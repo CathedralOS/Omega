@@ -621,9 +621,13 @@ Owners include
   storage or retain callee-local IDs.
   Complete nonliteral contract arithmetic and callee-result bounds requiring
   caller-specific snapshots beyond immutable scalar formal comparisons, including
-  a callee's borrowed collection length in caller-side requirement proofs and
-  inline selector-call return ranges in subslice bounds; carry
+  a callee's borrowed collection length in caller-side requirement proofs; carry
   those facts into nested exact-cast obligations without rereading arguments.
+  Transport dependent and public-trait call-result bounds into subslice proofs
+  through their actual call-entry and public requirement identities, not caller
+  fields or private realization types. Complete specialization of inline generic
+  selector calls before bounds checking; even a const-generic endpoint with a
+  fixed-array witness currently lacks its complete specialization tuple there.
   Retire the remaining flat guarded-argument call hoisting once these paths use
   the same evaluation graph. Owning area: argument normalization and checked scalar
   computation lowering. Acceptance: selected arguments
