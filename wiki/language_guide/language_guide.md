@@ -1,20 +1,14 @@
 # Omega Language Guide
 
-This guide is the current semantic authority for Omega's language direction.
-Syntax may still change, but each chapter should describe one present model—not
-the sequence of arguments that produced it. When a ruling changes, rewrite the
-affected chapter in place and move any still-useful rationale to a design
-brief; do not retain contradictory “proposal / owner answer / amendment” layers
-in the guide.
+This guide explains Omega's current language direction. During documentation
+consolidation, its chapters remain the reference for language subjects not yet
+extracted into the specification. The [documentation index](../README.md)
+identifies each migrated subject's authoritative owner.
 
-Documentation roles:
-
-- language-guide chapters state current language behavior;
-- frozen design briefs supply laws, rationale, and acceptance cases;
-- architecture documents state compiler representation and ownership;
-- `TASKS.md` contains engineering status and remaining work, not language
-  decision transcripts; and
-- `OWNER_QUESTIONS.md` contains unresolved owner decisions only.
+Describe one present model, not the arguments that produced it. Rewrite changed
+rules in place; keep useful proposal rationale in proposals, engineering status on
+the execution board, and unresolved decisions in `OWNER_QUESTIONS.md`.
+The guide must not independently redefine a specification's contract.
 
 Implementation-status claims name the exact landed layer: source surface,
 normalization, validation, lowering, runtime realization, or proof. Landing one

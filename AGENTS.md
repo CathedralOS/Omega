@@ -620,6 +620,8 @@ what you mean. When a literal phrase is available, use it.
 
 - [Omega Language Guide](wiki/language_guide/language_guide.md)
 - [Architecture](wiki/architecture/architecture.md)
-- [Terminal Psi Architecture](wiki/architecture/pipeline/terminal_psi.md)
+- [Documentation index](wiki/README.md)
+- [Terminal Psi product contract](wiki/spec/terminal-psi/product.md)
+- [Remaining Terminal vocabulary](wiki/architecture/pipeline/terminal_psi.md)
 - [Optimization Phases](wiki/architecture/pipeline/optimization_phases.md)
 - [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_contract.md)

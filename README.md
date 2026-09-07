@@ -255,6 +255,7 @@ mbx nextest run -p compiler --test canary_suite proof_and_float_suites::fail_can
 
 The language is moving quickly. The best current design references are:
 
+- [Documentation index](wiki/README.md)
 - [Omega Language Guide](wiki/language_guide/language_guide.md)
 - [Architecture](wiki/architecture/architecture.md)
 - [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_contract.md)

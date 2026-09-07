@@ -11,8 +11,8 @@ The target architecture has one named language/realization boundary. Psi owns
 Omega-file parsing and every target-neutral stage, including selected Psi
 optimization, through immutable terminal Psi. Omega consumes terminal Psi and
 owns installation, later representation-specific optimization, ABI and storage
-realization, target operations, and native artifacts. See [Terminal Psi
-Architecture](terminal_psi.md) and [Optimization
+realization, target operations, and native artifacts. See the [Terminal Psi
+product contract](../../spec/terminal-psi/product.md) and [Optimization
 Phases](optimization_phases.md). The stage list and matrix below describe the
 one production path. Unsupported Terminal-Psi vocabulary rejects; the compiler
 does not retain a second source-shaped backend as a fallback.
@@ -393,7 +393,8 @@ Current deliberate gaps:
 
 ## Stages
 
-- [Terminal Psi target architecture and migration](terminal_psi.md)
+- [Terminal Psi product contract](../../spec/terminal-psi/product.md)
+- [Remaining Terminal vocabulary and verification](terminal_psi.md)
 - [Optimization phases and migration](optimization_phases.md)
 
 - [Source Files To Tokens](stages/source_files_to_tokens.md)
