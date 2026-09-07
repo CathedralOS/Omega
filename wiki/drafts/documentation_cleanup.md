@@ -57,8 +57,7 @@ transcripts. Rejected designs normally leave the tree. Git retains them.
 
 ### 1. Consolidate the large mixed references
 
-Continue with [Terminal Psi](../pre_migration/architecture/pipeline/terminal_psi.md),
-then [build/package behavior](../pre_migration/design_briefs/build_and_package_model.md),
+Continue with [build/package behavior](../pre_migration/design_briefs/build_and_package_model.md),
 [calling plans](../pre_migration/design_briefs/calling_plans.md), and the
 [typed-to-checked stage](../pre_migration/architecture/pipeline/stages/typed_trees_to_checked_trees.md).
 
@@ -88,6 +87,10 @@ Port or delete every remaining document. Preserve release evidence only where
 an identified consumer needs it; do not confuse evidence with a changelog.
 Move tool usage beside its tool and completion plans to drafts or tasks.
 Do not create a permanent archive of obsolete designs.
+Useful project-specific notes without a permanent owner, such as Cathedral
+alignment, move to drafts after review. They need not become language documents
+or formal proposals. Give them a purpose and removal condition; delete stale
+claims and redundant history rather than moving them unchanged.
 
 The owner has authorized consolidating the
 [bootstrap decision record](../pre_migration/architecture/bootstrap_chain/decisions.md)
@@ -113,6 +116,7 @@ Maintain current rules in place; Git owns implementation history.
 - Contracts are preserved, unspecified behavior is explicit, and implementation
   or formal-verification status is not overstated.
 
-Next: consolidate the remaining Terminal operation-specific material and physical
-payload tables, then move to the build/package reference. The remaining documents
-in pre_migration still need review, not automatic promotion into the specification.
+Next: consolidate build/package behavior. Terminal's subject contracts now have
+specification owners; complete byte-level tables remain explicit PSIIR work, not
+an implied achievement of the prose migration. The remaining documents in
+pre_migration still need review, not automatic promotion into the specification.

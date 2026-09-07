@@ -1,6 +1,9 @@
 # Drafts
 
 Temporary investigations, working notes, and migration plans live here.
+Useful project-specific material without a permanent documentation owner also
+belongs here—for example, Cathedral alignment notes. It need not be a language
+proposal or become part of the specification merely to remain available.
 They do not define language or toolchain rules.
 
 Each draft names its purpose and when it can be deleted. Promote useful settled
@@ -10,5 +13,7 @@ the existing task boards, not in a second tracking system.
 - [Documentation cleanup](documentation_cleanup.md).
 - [Terminal realization gaps](terminal_realization.md).
 
-Old documents waiting for review belong in [pre_migration/](../pre_migration/README.md),
-not here. Concrete proposed language or toolchain changes belong in proposals.
+Old documents still waiting for review belong in [pre_migration/](../pre_migration/README.md)
+during migration. After review, keep useful temporary residue here; delete obsolete
+or redundant history. Concrete proposed language or toolchain changes belong in
+proposals.

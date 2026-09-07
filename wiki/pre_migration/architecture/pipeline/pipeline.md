@@ -397,7 +397,7 @@ Current deliberate gaps:
 ## Stages
 
 - [Terminal Psi product contract](../../../spec/terminal-psi/product.md)
-- [Remaining Terminal vocabulary and verification](terminal_psi.md)
+- [Terminal verification](../../../spec/terminal-psi/verification.md)
 - [Optimization phases and migration](optimization_phases.md)
 
 - [Source Files To Tokens](stages/source_files_to_tokens.md)

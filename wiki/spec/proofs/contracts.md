@@ -167,6 +167,28 @@ Deterministic normalization owns identity; stronger proof search may establish
 more claims but cannot rename them. Terminal obligations and certificate checks
 follow the [verification contract](../terminal-psi/verification.md).
 
+## Published quotient correspondence
+
+The retained Terminal correspondence table is proof-only. Its current certificate
+forms are monomorphic total direct faithful `define`, and position-preserving
+direct `lift` with `Congruence` and `ForwardPreconditionTransport` evidence.
+Each row retains the exact public callable, selected application, theorem roles,
+relations, eligibility, contract-fact coordinates, and direct result shape.
+
+Role tags precede application and role-specific payload in identity. Transport
+facts retain Left/Right application side, authored source coordinate, and selected
+theorem coordinate. Rows are strictly identity-ordered; theorem evidence and
+fact/source/theorem coordinates have canonical role-specific order. Decode and
+validation rederive identity and the exact congruence/precondition-transport join.
+Missing, duplicate, reversed, surplus, unknown-tag, or role/payload-mismatched
+evidence rejects.
+
+The table owns no executable machine or operation and authorizes no representative
+call. Execution validation rejects nonempty tables until executable quotient
+lowering is implemented. Proof-only package review independently reconstructs
+the complete source batch; canonical retention is not ordinary checked package
+projection or a substitute for source-to-executable correspondence.
+
 ## Undetermined foundations
 
 The following are required design work, not implicit choices made by current

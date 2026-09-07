@@ -4,6 +4,16 @@ Start at [lib.rs](src/lib.rs). Source automation must preserve the
 [mathematical proof contract](../../../../wiki/spec/proofs/contracts.md) and
 feed the separately reconstructed [Terminal questions](../../../../wiki/spec/terminal-psi/verification.md).
 
+## Quotient correspondence
+
+The [published correspondence contract](../../../../wiki/spec/proofs/contracts.md#published-quotient-correspondence)
+is implemented through [quotients/terminal_bridge.rs](src/quotients/terminal_bridge.rs)
+and the relation-plan bridge. Current direct `define`/transport-backed `lift`
+retention and proof-only package review do not admit executable quotient calls.
+Adapted, permuted, repeated, generic/private applications and broader lift forms
+still require complete correspondence and package-projection integration.
+Do not retain schema-bump history as a substitute for those acceptance conditions.
+
 ## Structural algebra automation
 
 [structural_judgment.rs](src/contract_entailment/structural_judgment.rs) retains

@@ -172,6 +172,17 @@ analysis may report `NoFiniteGuarantee` at the responsible edge and its cyclic
 component. Bounded-response and termination profiles reject that result unless
 accepted finite-wait evidence closes it.
 
+### Task activation identity
+
+Task-runtime `start`/`try_start` selection is build-owned. Its strong,
+domain-separated specialization commitment binds the exact checked requirement
+and operation, package-qualified target/entry signature and parameter modes,
+and target machine contract. A compact specialization value is a report
+coordinate only. Runtime receipt invocation identity uses the strong commitment;
+compact equality cannot authorize another specialization. These selections travel
+through the [build-owned companion](product.md#build-owned-companion), not by
+changing target-neutral call meaning.
+
 ## Crash
 
 `Trap` and `Abort` are closed causes on distinct no-successor terminators.
