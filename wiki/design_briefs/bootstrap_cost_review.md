@@ -10,7 +10,7 @@ The objective remains the [smallest human-auditable chain](bootstrap_minimizatio
 | --- | --- | --- |
 | Delta height normalization | Current Epsilon customer lowers to height 69; normalization adds no helpers. | Freeze expansion. Do not raise Gamma depth for this customer. Resolve deep-source conformance before deleting the transform. |
 | Delta name construction | Shared-prefix cursors save 275,352 pairs/11,014,080 bytes over root-rebuilding seeks on the current Epsilon subject; both produce the same complete receipt. | Retain the existing implementation without expansion. Customer capacity alone does not require it; preserve separate conformance obligations before considering removal. |
-| Generic Gamma checker | Entire raw source/tape lists can be checked, but separately represented copies cost 229 seconds before any encoding derivation. | Keep the narrow checker; require a costed, shared certificate strategy before further encoder helper families. |
+| Generic Gamma checker | Shared trees reduce whole-source/tape comparison to 61,529 work units; a simple source-shape fold still needs a predicted 534,538 and exhausts the 262,144 limit. | Review coherent work/allocation provision and source-bound accounting before further encoder helper families; neither probe proves encoding. |
 | Partial Beta theory | Lexical and word helpers exist; full encoder, independent owner root, and source-owned certificate producer do not. | Do not treat helper completion as full-proof feasibility or trust reduction. |
 | Retained concatenative route | Eleven bootstrap files, 236,347 bytes; eight remaining test entrypoints after experiment retirement below. | Candidate for further retirement, not dead code. Map unique coverage and preserve useful findings before coordinated removal. |
 
@@ -292,6 +292,73 @@ framing and the cumulative-allocation argument also need consideration. No new
 trusted arithmetic, assembler primitive, unchecked length, chunk-level budget
 reset, or narrowed root follows from this engineering result. The complete
 certificate remains open, and its auditability advantage remains unproven.
+
+### Binary trees: smaller representation, insufficient work provision
+
+A scratch measurement at `c6b832590d7c36a2f9ded6a49ccf6180c9f0d37c`
+uses the same complete source/tape subjects and unchanged 63,504-byte checker.
+Split each nonempty byte sequence longer than one byte at the largest power of
+two strictly smaller than its length; recursively intern identical subtrees.
+Empty and individual bytes are leaves. This operates on raw bytes, not Beta
+tokens or trusted producer-supplied chunk boundaries.
+
+With a scratch free-tree vocabulary (256 byte constructors, Empty, binary Join),
+the two-Ref comparison request has 15,636 owner terms and 15,379 duplicate witness
+joins. It checks in 65.243 seconds with 61,529 work units and 745,508 request bytes.
+Changing a witness byte reference rejects with tag 1, code 12, coordinate 745,488,
+zero limit/requested, in 33.536 seconds. The final root is still tape reflexivity,
+not encoding. The vocabulary is only 3,120 bytes, versus the partial Beta theory's
+93,140; the whole input reduction cannot be attributed to trees alone. Term
+storage accounts for 1,894,080 bytes of the reduction. This vocabulary is not a
+replacement Beta theory.
+
+A second scratch vocabulary separates Byte, Source, and Shape sorts and defines
+one structurally recursive function:
+
+```text
+shape(Empty) = EmptyShape
+shape(Leaf(byte)) = Unit
+shape(Join(left, right)) = ShapeJoin(shape(left), shape(right))
+```
+
+Both recursive arguments are unchanged immediate constructor children, as the
+existing calculus requires. Each distinct leaf uses one Unfold row; each distinct
+join uses Unfold, binary Cong, and Trans, sharing child equalities. The independent
+diagnostic root is `shape(source) = expected_shape`. This connects an equation to
+the raw source structure, but proves neither its capacity nor Beta encoding.
+The typed vocabulary is 3,376 bytes. The complete source contains 76 distinct byte
+leaves and 11,865 distinct joins, height 16, and only 23 distinct erased shapes.
+
+| Shape-fold subject bytes | Request bytes | Ground terms | Proof rows | Work |
+| --- | ---: | ---: | ---: | ---: |
+| 0 | 3,500 | 3 | 1 | 12 |
+| 1 | 3,520 | 4 | 1 | 13 |
+| 2 (`ab`) | 3,760 | 11 | 5 | 66 |
+| 4 (`abab`) | 3,924 | 15 | 8 | 111 |
+| 256 (all byte values) | 58,792 | 1,542 | 1,021 | 13,528 |
+| 46,484 (complete source; constructed cost) | 1,670,848 | 35,846 | 35,671 | 534,538 |
+
+The first five check with exactly these row/work observations; the 256-byte
+case takes 4.711 seconds. Changing the two-byte proof's final endpoint to Unit
+rejects at coordinate 3,748 with code 12 and zero limit/requested. The full request
+was also executed: it returns owned Incomplete (tag 2, code 4, coordinate
+1,203,828, limit 262,144, requested 262,145) in 111.570 seconds. Its 534,538 work
+is the recipe ledger, not an observed successful check: each distinct nonempty
+leaf costs eight units including proof indexing, each join 45, plus five setup
+units. All observed invocations return process status 0 and empty stderr on macOS
+arm64; Windows was not run. No allocation peak was measured.
+
+**Disposition:** tree sharing merits further costing, not immediate adoption.
+Even this simple full-source fold exceeds the current work provision. Applying
+the published conservative ledger to its predicted work gives
+`7,864,346 + 534,538*96 + 128 = 59,180,122` pairs, above Gamma's 40,265,318-pair
+provision. Audit whether the allocation bound can be tightened across all request
+paths, or provision a coherent larger work/storage profile, before more encoder
+helpers. A balanced tree's depth alone is not a source-length proof: capacity
+requires a checked relation to its full shape and the owner's exact bytes.
+An ordered tree scanner and numeric bound remain uncosted. No checker rule,
+production representation, resource limit, or trusted boundary changed; the
+temporary emitters and fixed proof recipes are not retained as a new framework.
 
 ## Legacy route: retirement must follow its consumers
 
