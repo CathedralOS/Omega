@@ -4,6 +4,16 @@ Start at [lib.rs](src/lib.rs). Execution follows verified
 [calls and outcomes](../../../../wiki/spec/terminal-psi/calls_and_outcomes.md)
 and [structural ownership](../../../../wiki/spec/terminal-psi/ownership.md).
 
+## Cyclic execution
+
+Ordinary interpretation accepts verified natural-ranked scalar/immutable-view
+graphs under the [control contract](../../../../wiki/spec/terminal-psi/control_flow.md).
+The legacy one-machine structural Unit countdown uses its own verifier entrance:
+it reconstructs `0 < remaining` as the unsigned `1 <= remaining` premise and
+checks exact subtraction before creating resumable state. This interpreter
+acceptance grants no native, fixed-fuel, provider-installation, or mixed-work
+authority.
+
 ## Boundary responses
 
 [effect_results.rs](src/effect_results.rs) distinguishes Unit, scalar, and opaque

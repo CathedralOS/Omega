@@ -4,6 +4,8 @@ This contract separates artifact reconstruction, certificate checking, and proof
 search. It does not claim that the complete low-rung implementation exists.
 See the [product](product.md), [encoding](encoding.md), and
 [observation](observations.md) contracts.
+Runtime cycles and grouped recursive certificates follow
+[control flow and ranking](control_flow.md).
 
 ## Responsibilities
 
