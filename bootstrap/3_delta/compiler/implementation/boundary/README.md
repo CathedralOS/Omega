@@ -382,8 +382,10 @@ a synthetic-frame diagnostic is not a finite source-conformance criterion.
 Trace a reachable producer/consumer disagreement before adding another guard,
 and preserve already-owned outcomes without claiming arbitrary corruption is
 canonicalized. Likewise, an unrepresentable expanded byte demand is not
-automatically corrupt metadata: count-overflow work first needs a reachable
-demand argument and an exact outcome representation.
+automatically corrupt metadata. The
+[emission occurrence argument](../emission/README.md#reachable-byte-count-bound)
+bounds all source-generated intermediate and complete byte counts below `2^62`;
+private overflowing counts are not a missing authored-source refusal case.
 
 ### Publication and generated admission
 

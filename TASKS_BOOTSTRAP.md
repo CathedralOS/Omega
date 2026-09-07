@@ -157,12 +157,16 @@ prerequisite to every lower-rung milestone.
   gives source-level height and static-environment arguments, including helper
   captures; `sh tests/delta/normalization/run.sh` exercises successful compilation
   and execution at source depth 1,024. These are not checked edge certificates.
-  Next acceptance: bound reachable emission-byte summary arithmetic from admitted
-  source through lowering, capture, and serialization, then resolve any witnessed
-  producer/refusal disagreement. Do not infer byte-count safety from the height
-  bound or add corruption guards without a reachable producer case. Runtime
-  exhaustion remains a separate observation obligation, not a static promise
-  of unlimited execution.
+  The [emission occurrence argument](bootstrap/3_delta/compiler/implementation/emission/README.md#reachable-byte-count-bound)
+  separately bounds intermediate and complete byte counts below `2^62`;
+  synthetic overflowing metadata is not an admitted-source refusal case.
+  Next acceptance: witness and classify the remaining compiler-execution
+  resource gap using full admitted source, not injected counters. Trace the
+  first evaluator exhaustion to its actual allocation owner and required DCOUT
+  observation before choosing an implementation change. Distinguish cumulative
+  compiler allocation from final receipt size; no host-synthesized frames or
+  invented Alpha slot/label/fixup allocations. Application runtime exhaustion
+  remains separate, not a static promise of unlimited execution.
   Acceptance: Delta conformance and malformed-source gates pass, the exact
   Epsilon evaluator closure compiles through the selected route, and its
   available entries execute with measured resources and unchanged semantics.
