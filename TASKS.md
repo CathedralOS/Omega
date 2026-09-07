@@ -577,14 +577,13 @@ Owners include
   Implement native boundary call-result residual cleanup, including result homes
   and projected copies;
   whole-result disposal does not cover a projected result's residuals.
-  Extend anonymous projected helper-result operands beyond one final ordinary
-  Unit consumer: preserve each temporary's dying call continuation across
-  later statements, multiple producers, and other argument effects. Wire their
-  checked continuation plans into Terminal Jump residual cleanup and implement
-  its native lowering without dropping the residual schedule. Extend the
+  Extend anonymous projected helper-result operands to multiple producers and
+  other effects within one consumer's argument list and non-Unit consumers,
+  preserving each temporary's exact dying continuation. Implement native
+  Terminal Jump residual cleanup without dropping its ordered schedule. Extend the
   type-directed record/array complement in
   [Terminal Psi](wiki/architecture/pipeline/terminal_psi.md) to construction-local
-  roots and mixed live-root schedules, preserving maximal untouched subtrees,
+  roots and mixed dying-root schedules, preserving maximal untouched subtrees,
   empty complements, and reverse establishment order without runtime liveness
   flags. Entry-parameter cleanup alone cannot dispose a temporary's remainder.
 

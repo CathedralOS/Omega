@@ -8,6 +8,9 @@ use super::*;
 mod ordered;
 mod partial;
 use ordered::lower_ordered_nominal_affine_unit_cleanup_machine;
+pub(crate) use partial::{
+    checked_partial_affine_residuals, validate_anonymous_partial_permissions,
+};
 
 pub(super) fn lower_nominal_affine_unit_cleanup_machine(
     checked: &CheckedTrees,

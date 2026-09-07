@@ -4,10 +4,11 @@ use super::*;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 
+mod continuation;
 mod result_uses;
 mod shared_temporary;
+pub(super) use continuation::validate_cleanup;
 pub(super) use result_uses::{validate_consumer, validate_usage};
-pub(super) use shared_temporary::validate_cleanup;
 
 fn target(
     checked: &CheckedTrees,

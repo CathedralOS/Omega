@@ -2,7 +2,7 @@
 
 use super::*;
 
-mod anonymous;
+pub(super) mod anonymous;
 mod residuals;
 
 pub(super) fn build_nominal_affine_unit_cleanup_machine(

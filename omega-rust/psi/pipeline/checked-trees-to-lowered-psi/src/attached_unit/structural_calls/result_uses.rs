@@ -66,27 +66,46 @@ pub(crate) fn validate_usage(
             affine_discards,
         } = operation
         {
-            for discard in affine_discards {
-                if discard.source
-                    != (checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                        binding_ordinal: result.binding_ordinal,
-                    })
+            let source = checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: result.binding_ordinal,
+            };
+            // Empty complements still end the temporary's lifetime. Its exact
+            // consumer identifies that owner even when no residual row exists.
+            let owns_continuation = operation_index
+                .checked_sub(1)
+                .and_then(|previous| caller.operations.get(previous))
+                .is_some_and(|operation| {
+                    matches!(operation,
+                    CheckedUnitEffectOperationPlan::CallUnit { structural_arguments, .. }
+                        if structural_arguments.iter().any(|argument| argument.source == source))
+                });
+            if !owns_continuation {
+                if affine_discards
+                    .iter()
+                    .any(|discard| discard.source == source)
                 {
-                    continue;
+                    return unsupported("call continuation substituted its result owner");
                 }
-                if consumed
-                    || disposed
-                    || producer.discard
-                    || !discard.path.is_empty()
-                    || discard.type_identity != result.type_identity
-                    || producer.coordinate.call_ordinal == 0
-                    || producer.coordinate.statement_index != coordinate.statement_index
-                    || operation_index <= producer.operation_index
-                {
-                    return unsupported("call continuation does not own this intact result");
-                }
-                disposed = true;
+                continue;
             }
+            if consumed
+                || disposed
+                || producer.discard
+                || producer.coordinate.call_ordinal == 0
+                || producer.coordinate.statement_index != coordinate.statement_index
+                || operation_index <= producer.operation_index
+                || if projected_paths.is_empty() {
+                    !matches!(affine_discards.as_slice(), [discard]
+                        if discard.source == source && discard.path.is_empty() && discard.type_identity == result.type_identity)
+                } else {
+                    affine_discards
+                        .iter()
+                        .any(|discard| discard.source != source || discard.path.is_empty())
+                }
+            {
+                return unsupported("call continuation does not own this result remainder");
+            }
+            disposed = true;
             continue;
         }
         let (CheckedUnitEffectOperationPlan::CallUnit {
@@ -189,6 +208,13 @@ pub(crate) fn validate_usage(
             && !consumed
             && projected_paths.is_empty()
             && !disposed)
+        || (producer.coordinate.call_ordinal != 0
+            && !projected_paths.is_empty()
+            && !disposed
+            && !matches!(
+                caller.operations.as_slice(),
+                [_, _, CheckedUnitEffectOperationPlan::ReturnUnit { .. }]
+            ))
     {
         return unsupported(
             "Unit structural result cleanup disagrees with its final consuming use",

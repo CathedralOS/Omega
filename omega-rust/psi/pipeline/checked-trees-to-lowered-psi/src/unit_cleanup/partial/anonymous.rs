@@ -19,6 +19,22 @@ pub(super) fn validate(
     else {
         return unsupported("anonymous partial permissions have no exact call schedule");
     };
+    validate_permissions(
+        checked,
+        plan,
+        producer,
+        consumer,
+        &partial.residual_affine_discards,
+    )
+}
+
+pub(crate) fn validate_permissions(
+    checked: &CheckedTrees,
+    plan: &CheckedUnitEffectMachinePlan,
+    producer: &CheckedUnitEffectOperationPlan,
+    consumer: &CheckedUnitEffectOperationPlan,
+    residuals: &[CheckedUnitPartialAffineDiscardPlan],
+) -> Result<(), LoweringError> {
     let (CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. }
     | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate, .. }) = producer
     else {
@@ -77,7 +93,12 @@ pub(super) fn validate(
             .ok_or(LoweringError::Unsupported(
                 "anonymous partial permissions have a stale call span",
             ))?;
-    if calls.len() != 2 {
+    if calls
+        .iter()
+        .filter(|call| call.statement_index == coordinate.statement_index as usize)
+        .count()
+        != 2
+    {
         return unsupported("anonymous partial permissions have extra captured calls");
     }
     let call_source = |coordinate: checked_trees::CheckedUnitCallCoordinate,
@@ -117,7 +138,7 @@ pub(super) fn validate(
                 && event.state_symbol == plan.state
                 && event.root == facts::PlaceRoot::Expression(expression)
         });
-    for index in 0..partial.residual_affine_discards.len() + 2 {
+    for index in 0..residuals.len() + 2 {
         let (kind, source, path) = match index {
             0 => (PermissionEventKind::Establish, producer_source, &[][..]),
             1 => (
@@ -128,7 +149,7 @@ pub(super) fn validate(
             _ => (
                 PermissionEventKind::AffineDrop,
                 consumer_source,
-                partial.residual_affine_discards[index - 2].path.as_slice(),
+                residuals[index - 2].path.as_slice(),
             ),
         };
         let (_, event) = events.next().ok_or(LoweringError::Unsupported(

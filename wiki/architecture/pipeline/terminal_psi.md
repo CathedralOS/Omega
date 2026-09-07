@@ -1699,10 +1699,6 @@ payload is noncanonical. Omega's entrance rejects nonempty residual jumps until
 native continuation cleanup is implemented; it cannot silently lower them to
 root-only cleanup.
 
-Source production of anonymous partial-result operands still uses the final-call
-schedule below. Wiring their checked call-continuation cleanup into this jump
-route remains CML4 work, independently of Terminal acceptance.
-
 Checked-source production carries this result-root schedule for one leading
 immutable local initialized by a whole-value ordinary call or structural boundary
 call, followed by ordinary Unit disposers. Named field and literal-index operands
@@ -1715,16 +1711,29 @@ accept these partial moves. Boundary production retains its declared service
 reach; it does not make the subsequent disposers effectful.
 
 An anonymous projected operand such as `Sink::take(Root::forward(value).right)`
-uses the same result-root schedule when it is the caller's sole statement.
+retains that partial-return schedule when it is the caller's sole statement.
 The producer may be an ordinary whole-value call or a structural boundary call.
 The checker establishes the temporary at its exact producer expression,
 transfers the selected field/literal-index path, and records the maximal residual
 paths with that establishment provenance at the enclosing call continuation.
 No named local is synthesized. Captured call ordinals remain preorder while
 execution runs the producer before its consumer. The existing return edge owns
-cleanup because this continuation ends the caller; later statements, multiple
-anonymous producers, and other argument effects require their own continuation
-support. The ordinary root-only sequencer still rejects projected moves.
+cleanup because this continuation ends the caller, preserving that form's
+existing native support.
+
+Wider single-state Unit bodies use the ordinary statement sequencer and its
+`CallContinuationCleanup` entry. Each projected consumer has one anonymous
+ordinary/boundary producer, one owned structural argument, and the existing
+empty-body, effect-free Unit disposer. The exact producer expression, statement
+coordinate, result binding, selected transfer, and ordered residual permissions
+rejoin independently before lowering emits the residual `Jump`. Earlier scalar
+locals, later statements, and successive producing statements keep their authored
+order; every temporary dies before the next statement. Even an empty complement
+retains its checked continuation entry, while its Terminal jump needs no discard
+rows. Named partial results still use the separate partial-return plan. Multiple
+producers or effects within one consumer's argument list, non-Unit consumers,
+and mixed dying-root cleanup remain outside this source route. Native lowering
+of nonempty residual jumps remains explicitly unsupported.
 
 Lowering and Terminal verification independently reconstruct that complement
 from the types and moves, rejecting overlaps, missing or extra residuals, and
