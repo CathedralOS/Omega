@@ -24,6 +24,9 @@ current support matrix. The remaining integration work is:
   [intrinsic_settlements.rs](../../omega-rust/omega/compiler/compiler/src/compiler/intrinsic_settlements.rs)
   with the contract's single exhaustive optional mapping. The present guard and
   wildcard-backed match do not force future planner variants to be classified.
+- Close the current-only codec gap described in the
+  [codec implementation notes](../../omega-rust/psi/semantics/terminal-codec/README.md#compatibility-gap).
+  A legacy decoder route must not become an undocumented compatibility policy.
 
 Acceptance: each demanded route independently replays its complete semantics,
 arguments/results, resource inputs, and native publication; unsupported routes

@@ -1,0 +1,106 @@
+# Terminal observations
+
+[Portable product](product.md) | [Boundary realization](boundary_calls.md)
+
+## Meaning of a profile
+
+`TerminalTraceV1` is a static observer reconstructed from the exact canonical
+module, not a record filled in by an execution. An execution has one maximal
+semantic trace. A certificate proves refinement under that independently
+reconstructed profile. Equal profile identities establish use of the same
+observer, not behavior equality without a subject-bound refinement proof.
+
+The ordered, termination-sensitive trace domain is:
+
+```text
+ExternalEvent* Return(exact semantic value)
+ExternalEvent* Crash(Trap | Abort)
+ExternalEvent* ExternalTerminate(effect identity, exact semantic arguments)
+infinite maximal execution, represented by its finite observable prefixes
+```
+
+Unit return is a value-free return, distinct from every other outcome. Silent
+infinite reduction and infinite event-producing reduction are both divergence.
+A step simulation may preserve those traces without proving global termination.
+Missing ranking evidence, unknown analysis results, and lack of a finite work
+guarantee create no execution outcome or observation row.
+
+## Reconstructed rows
+
+The profile binds, in closed order:
+
+1. Domain tag, schema version, Terminal vocabulary, and exact module commitment.
+2. One mandatory root row: entry, ordered scalar/structural input schemas, and
+   Unit/scalar/structural result-comparison schema.
+3. Crash sites ordered by machine, block, and edge, with exact closed cause.
+4. Ordinary external-event sites ordered by machine, block, and operation,
+   with event kind, exact public boundary/service identity, ordered argument
+   schemas, and result schema.
+5. Terminal-external sites with exact site, public effect identity, and argument
+   schemas.
+
+The canonical profile encoding begins with
+`omega.terminal.observation-profile.v1`. It uses fixed little-endian coordinates,
+length-prefixed canonical identities, and explicit row-group tags and counts,
+including an empty terminal-external group when none exists. Unknown schemas,
+vocabularies, tags, classifications, malformed ordering, duplicate coordinates,
+missing/extra sites, zero module commitments, and empty profiles reject.
+Decoding rejects trailing bytes.
+
+The consumer selects the typed schema and may retain an authenticated expected
+commitment. The verifier independently derives the instance from the validated
+module and compares the complete decoded profile. The proof producer supplies
+neither site rows nor weakening flags. Cross-profile reuse requires a checked
+canonical forgetting projection; profile equality is not such a projection.
+
+Each ordinary `BoundaryCall` and direct semantic service operation such as
+`PortWrite` is an ordered external event. Every new operation must be explicitly
+classified as internal, ordinary external, or terminal-external under a known
+profile. No default-pure or unknown classification is accepted.
+
+## Values and correspondence
+
+Static rows carry semantic types and comparison rules. Runtime traces carry
+actual arguments, results, and return values in execution order. Machine,
+block, operation, and edge coordinates establish proof correspondence; they
+are not user-visible trace values unless a separate language rule exposes them.
+
+Scalar comparison requires the exact verifier-derived Boolean, fixed-integer,
+binary32, or binary64 schema. Malformed integers, type drift, and address-carrier
+schemas reject. Booleans and integers compare exactly; IEEE values compare
+interchange bits, preserving signed zero and NaN payloads, not host float equality.
+Whole-root structural comparison requires exact type, complete canonical
+required qualifications, empty runtime paths, and complete opaque value identity.
+Projected qualifications and nested runtime-value comparison require additional
+support; a comparison helper does not construct a trace or issue refinement.
+
+A digest cannot silently replace semantic value equality. Its use as a compact
+coordinate requires an explicit commitment/collision admission.
+
+## Successful external termination: source form undetermined
+
+Successful external termination is a source-semantic effect. A `never` result
+proves only no normal return and cannot distinguish success from crash or
+divergence. The checked boundary and Terminal declaration must retain an explicit
+closed completion kind and effect identity; invocation is a terminal transfer,
+not an ordinary call with a fictional successor. Providers and backends consume
+that fact, never infer it from spelling, selected implementation, or syscall.
+
+The semantic requirement is settled. The authored declaration of that completion
+kind and the ownership/resolution of its effect identity are **undetermined**.
+The [external-completion question](../../../OWNER_QUESTIONS.md#q1--terminal-external-completion-declarations)
+asks for those source rules. The internal contract's descriptive
+`TerminatesExternally(effect_identity)` name is not approved source syntax.
+
+Until that source-to-Terminal route is defined and implemented, an ordinary Unit
+`exit_process` call or a provider's nonreturning native operation establishes no
+terminal-external observation. Unsupported terminal-external rows reject; do
+not fill them from interpreter name matching or backend behavior.
+
+## Other observation domains
+
+Fuel exhaustion, evaluator timeout, and producer/checker incomplete outcomes are
+consumer/product results, not Terminal program meaning. Compiler-product subjects
+add sealed inputs, source diagnostics, artifact bytes, and resource outcomes.
+Deployment separately admits the formal-target-to-silicon relationship.
+Neither accounting limits nor deployment evidence weakens the reusable trace.

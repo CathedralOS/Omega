@@ -183,6 +183,6 @@ The cleanup is complete when:
   unspecified behavior, and makes no unsupported formal-verification claim.
 
 Next executable step: consolidate the remaining Terminal operation, proof,
-observation, encoding, and fuel reference into subject owners, deleting displaced
+encoding, and fuel reference into subject owners, deleting displaced
 text and repairing its links in the same checkpoint. Do not start another
 planning pass before that replacement.

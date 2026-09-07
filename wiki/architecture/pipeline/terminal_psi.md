@@ -4,9 +4,10 @@
 
 The [portable-product contract](../../spec/terminal-psi/product.md),
 [boundary-call and realization contract](../../spec/terminal-psi/boundary_calls.md),
-and [immutable byte-view vocabulary](../../spec/terminal-psi/byte_views.md) have
+the [immutable byte-view vocabulary](../../spec/terminal-psi/byte_views.md), and
+[observations](../../spec/terminal-psi/observations.md) have
 moved to their specification owners. This remaining reference owns the operation,
-proof, observation, encoding, and fuel details below until their consolidation;
+proof, encoding, and fuel details below until their consolidation;
 it does not redefine those migrated subjects.
 
 Implementation entry maps live beside
@@ -4237,85 +4238,6 @@ unreachable, unless specialization makes erasure valid.
 
 These normalized obligations are semantic and fingerprinted. Their proof
 derivations remain replaceable proof-bundle material.
-
-## Canonical observation profile
-
-D39 fixes `TerminalTraceV1` as a static observer reconstructed from the exact
-canonical module. It is not a per-execution result record. The module-scoped
-profile instance binds the Terminal vocabulary and module commitment; one root
-row; every crash site; every ordinary external-event site; and every declared
-terminal-external site. Canonical rows use exact Terminal coordinates and
-semantic type/comparison identities. The runtime trace carries actual values in
-execution order:
-
-```text
-ExternalEvent* Return(value)
-ExternalEvent* Crash(Trap | Abort)
-ExternalEvent* ExternalTerminate(effect identity, arguments)
-infinite maximal execution through its finite observable prefixes
-```
-
-Site coordinates prove correspondence but are not user-visible trace values.
-`BoundaryCall` and direct semantic service operations such as `PortWrite` are
-ordinary events in version 1. Every new operation variant must receive an
-explicit known classification. Unknown versions or classifications and empty,
-missing, duplicate, stale, substituted, padded, or misordered site rows reject.
-The proof producer supplies none of them. Exact profile equality permits proof
-replay under the same observer but never substitutes for the refinement proof.
-
-The first bounded implementation rung admits roots, crash sites, and ordinary
-events. A typed `TerminalTraceV1` profile retains the exact
-`TerminalPsiIdentity`, one mandatory root row with ordered scalar and structural
-input schemas plus the Unit, scalar, or structural result comparison schema,
-every crash terminator ordered by `(machine, block, edge)` with its closed
-cause, and every `BoundaryCall` or `PortWrite` ordered by
-`(machine, block, operation)`. Each ordinary-event row binds the exact local
-boundary or service declaration ID to its canonical public identity and carries
-ordered scalar and structural argument schemas plus the exact result schema.
-The standalone encoding begins with
-`omega.terminal.observation-profile.v1`, uses fixed little-endian coordinates
-and explicit group tags/counts, and writes a zero terminal-external count rather
-than omitting that later group. Decoding rejects unknown schema, vocabulary,
-row, or event-kind tags; a zero module commitment; an empty root count;
-noncanonical qualification or site order; duplicate coordinates; nonzero
-terminal-external counts; and trailing bytes. Module-bound acceptance
-canonical-validates the module, computes its full vocabulary-plus-fingerprint
-identity, independently asks the verifier to derive the root, crash roster, and
-ordinary-event roster, and compares the complete decoded profile exactly. A
-producer supplies neither the identity nor rows. Exhaustive operation
-classification admits only the two known ordinary event kinds and cannot make
-a future Terminal operation internal by default. This carrier changes no
-Terminal module format, vocabulary, runtime outcome, or fuel schedule.
-Terminal-external completion, runtime trace values/refinement, and forgetting
-projections remain later D39 slices. The bounded runtime-value helpers compare
-two scalar values or two exact whole-root structural values against one
-verifier-derived schema. Scalar comparison rejects type drift, address-carrier
-schemas, and malformed fixed integers, compares Boolean and fixed-integer
-values directly, and compares binary32/binary64 interchange bits without
-host-float equality. Structural comparison requires exact structural type,
-canonical complete required qualifications, empty runtime paths, and complete
-opaque value identity; projected qualifications and nested runtime values stay
-fenced. Neither helper constructs a trace or issues a refinement result.
-
-A terminal-external event requires an explicit checked boundary completion
-identity. `never` alone proves no normal return but cannot distinguish
-successful termination from divergence or crash. Terminal therefore still
-needs a closed completion carrier such as
-`TerminatesExternally(effect_identity)` and a terminal invocation form. The
-current ordinary Unit `exit_process` call, interpreter spelling match, and
-provider-selected nonreturning backend operation are migration facts rather
-than issuers for this row.
-
-The semantics are settled, but the authored carrier is design-blocked. No
-current boundary declaration field states the completion kind, and no ruling
-assigns ownership or resolution of `effect_identity`. Because D39 explicitly
-forbids spelling-, provider-, syscall-, and backend-derived authority, Terminal
-must not infer this row until the source form and identity authority are fixed.
-
-Fixed fuel, timeout, and `Incomplete` outcomes remain in consumer profiles.
-Compiler products compose input, diagnostics, artifact bytes, and product
-resource outcomes over this reusable trace. Deployment adds the distinct
-formal-target-to-silicon admission.
 
 ## Verification boundary
 
