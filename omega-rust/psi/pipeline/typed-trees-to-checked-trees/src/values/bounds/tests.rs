@@ -56,6 +56,54 @@ fn operation(
 }
 
 #[test]
+fn remainder_bounds_require_nonnegative_dividends_and_positive_divisors() {
+    use CheckedIntegerBinaryKind::*;
+    for kind in [ExactRemainder, WrappingRemainder, SaturatingRemainder] {
+        for (primitive, left, right, expected) in [
+            (
+                PrimitiveType::U8,
+                range(0, 255),
+                range(10, 10),
+                Some(range(0, 9)),
+            ),
+            (
+                PrimitiveType::U8,
+                range(0, 3),
+                range(5, 20),
+                Some(range(0, 3)),
+            ),
+            (
+                PrimitiveType::U8,
+                range(0, 255),
+                range(1, 1),
+                Some(range(0, 0)),
+            ),
+            (PrimitiveType::U8, range(0, 255), range(0, 10), None),
+            (PrimitiveType::I8, range(-1, 127), range(10, 10), None),
+            (PrimitiveType::I8, range(0, 127), range(-10, -1), None),
+            (
+                PrimitiveType::I8,
+                range(0, 127),
+                range(2, 10),
+                Some(range(0, 9)),
+            ),
+            (
+                PrimitiveType::U64,
+                range(0, i128::from(u64::MAX)),
+                range(i128::from(u64::MAX), i128::from(u64::MAX)),
+                Some(range(0, i128::from(u64::MAX) - 1)),
+            ),
+        ] {
+            assert_eq!(
+                evaluate(&operation(kind, primitive), &mut Bounds(vec![left, right])),
+                expected,
+                "{kind:?} {primitive:?}",
+            );
+        }
+    }
+}
+
+#[test]
 fn in_carrier_arithmetic_preserves_interval_bounds_for_each_policy() {
     use CheckedIntegerBinaryKind::*;
     for (kinds, left, right, expected) in [
