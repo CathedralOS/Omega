@@ -123,6 +123,16 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   Acceptance remains native execution with the documented exit/output and
   unchanged checked text facts; the console dependencies below are also required.
 
+  Work from the actual `cli_mvp` [command and route](samples/cli/basics/cli_mvp/README.md).
+  At code checkpoint `54e0957333` on Windows x64, `mbx run -p omega -- --target windows_x86_64 --build-dir build/cli-mvp-route samples/cli/basics/cli_mvp/main.omg`
+  builds the CLI, then exits 1 during fresh `omega-language-std` review: the
+  writer's entry/emit head and tail bounds fail, plus filesystem
+  `self.rda_depth - 2` against length 16. Review compiles `std/main.omg` before
+  the application. Compare its exact guard/operator and state-edge range facts
+  with application-root checking in `typed-trees-to-checked-trees/src/checks/ranges/`;
+  preserve bound checking. Acceptance: whole-std review succeeds, then the same
+  CLI command reaches its next boundary. The sample harness bypasses this review.
+
   Resume the native `cli_mvp` customer at code checkpoint `6901c9214c`.
   On macOS ARM64, `CARGO_INCREMENTAL=0 OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
