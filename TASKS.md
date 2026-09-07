@@ -103,13 +103,14 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
 
   Resume native `print_squares` with `OMEGA_SAMPLE_RUNTIME_FILTER=print_squares`
   and `mbx nextest run -p compiler --test samples_compile --no-fail-fast -E 'test(=samples_with_documented_exit_run_correctly)'`.
-  At code checkpoint `226e41697d` on Windows x64, this still exits 100 before
+  At code checkpoint `6e0afc54a4` on Windows x64, this still exits 100 before
   execution:
   `InvalidUnitMachinePlan` names `Main::main` with `attached Unit closure is missing a checked transitive machine plan`.
-  The verifier now admits the bounded scalar-only unranked `Conditional`/`Jump`
-  cycle in `terminal-verifier/src/validation/control_flow.rs`; its focused
-  `ranked_scc::unranked_scalar_cycle_is_interpreter_valid` check passes, but the
-  source producer does not reach Terminal validation yet.
+  The verifier admits the bounded scalar-only and Unit-effect unranked
+  `Conditional`/`Jump` cycles in
+  `terminal-verifier/src/validation/control_flow.rs`; their focused
+  `ranked_scc` checks pass, but the source producer does not reach Terminal
+  validation yet.
   The ordinary Unit planner in
   `typed-trees-to-checked-trees/src/flow/terminal_unit/control.rs` requires one
   authored state, and the composed-control routes admit specific acyclic
@@ -331,14 +332,16 @@ Owners include
   and ordinary operations. No new loop opcode, fabricated per-state machine,
   private countdown, or second interpreter is needed.
 
-  `terminal-verifier/src/validation/control_flow.rs` and `frontier.rs` currently
+  `terminal-verifier/src/validation/control_flow.rs` and `frontier.rs` still
   require a topological order after removing only the exact countdown's
-  backedge; general cycles fail even representation validation. Derive SCCs
-  and scalar dominance from the full graph, reconstruct the exact ownership
-  fixed point, and validate every incoming scalar/structural transfer. Keep
-  cycle safety independent from optional termination certificates and finite
-  fuel. Existing countdown-only admission in `validation.rs` cannot authorize
-  effectful cyclic callers or callees by relaxing its shape guard alone.
+  backedge; the bounded no-custody Unit-effect route is the only unranked
+  exception, and general cycles with definitions, parameters, or structural
+  custody still fail. Derive SCCs and scalar dominance from the full graph,
+  reconstruct the exact ownership fixed point, and validate every incoming
+  scalar/structural transfer. Keep cycle safety independent from optional
+  termination certificates and finite fuel. Existing bounded admission cannot
+  authorize general effectful cyclic callers or callees by relaxing its shape
+  guard alone.
 
   Share state-body construction and lowering across ordinary/composed Unit
   plans in `typed-trees-to-checked-trees/src/flow/terminal_unit/` and

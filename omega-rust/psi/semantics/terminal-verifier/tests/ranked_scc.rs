@@ -4,14 +4,14 @@ use proof_admission::{
 };
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue,
-    MachineId, ObligationId, OperationId, PlaceId, Proposition, ScalarTerm, ScalarType,
+    MachineId, ObligationId, OperationId, PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId,
     StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use terminal_psi::{
-    Block, MachineContract, Operation, OperationKind, OperationResult, StructuralAccess,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalMachine,
-    TerminalMachineResult, TerminalModule, TerminalRankedGuard, TerminalRankedScc,
+    Block, MachineContract, Operation, OperationKind, OperationResult, ServiceDeclaration,
+    StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
+    TerminalMachine, TerminalMachineResult, TerminalModule, TerminalRankedGuard, TerminalRankedScc,
     TerminalRankedSccEdge, TerminalRankedSuccessorArgument, Terminator, ValueDeclaration,
     VocabularyMarker,
 };
@@ -276,6 +276,28 @@ fn unranked_scalar_cycle() -> TerminalModule {
             },
         },
     ];
+    module
+}
+
+fn unranked_effectful_unit_cycle() -> TerminalModule {
+    let mut module = unranked_scalar_cycle();
+    let service = id(1, ServiceId::new);
+    module.services.push(ServiceDeclaration {
+        id: service,
+        identity: "DebugIo".to_owned(),
+        parents: Vec::new(),
+    });
+    module.root_service_reach.concrete = vec![service];
+    module.machines[0].published_service_ceiling.push(service);
+    module.machines[0].blocks[0].operations.push(Operation {
+        id: id(5, OperationId::new),
+        result: OperationResult::Unit,
+        kind: OperationKind::PortWrite {
+            service,
+            port: 0x3f8,
+            value: b'X',
+        },
+    });
     module
 }
 
@@ -736,4 +758,12 @@ fn unranked_scalar_cycle_is_interpreter_valid() {
     assert_eq!(validate_module_representation(&module), Ok(()));
     validate_module_for_interpretation(&module)
         .expect("a scalar-only unranked cycle is interpreter-valid");
+}
+
+#[test]
+fn unranked_effectful_unit_cycle_is_interpreter_valid() {
+    let module = unranked_effectful_unit_cycle();
+    assert_eq!(validate_module_representation(&module), Ok(()));
+    validate_module_for_interpretation(&module)
+        .expect("a unit-effect unranked cycle is interpreter-valid");
 }
