@@ -17,7 +17,6 @@ pub enum FunctionRelativeOptimizationRealizationError {
     CalleeSaveStorage(crate::frame_layout::NonAuthoritativeCalleeSaveStorageError),
     FrameLayout(crate::frame_layout::TargetFrameLayoutError),
     FrameProtocol(crate::TargetFrameProtocolEncodingError),
-    MissingFunctionRelativeLayoutOptimization,
     OptimizationCustodyUnavailable,
     StatisticsOverflow,
     RootMismatch,

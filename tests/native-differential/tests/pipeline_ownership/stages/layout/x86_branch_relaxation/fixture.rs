@@ -56,16 +56,15 @@ pub(super) fn physical_homes() -> StagedOptimizedRegisterHomes {
     stage_optimized_register_homes(legality).unwrap()
 }
 
-pub(super) fn direct_realization() -> StagedFunctionRelativeLayoutOptimizationRealization {
+pub(super) fn direct_realization() -> StagedFixedFrameFunctionRelativeRealization {
     direct_realization_for(false)
 }
 
-pub(super) fn alternate_direct_realization() -> StagedFunctionRelativeLayoutOptimizationRealization
-{
+pub(super) fn alternate_direct_realization() -> StagedFixedFrameFunctionRelativeRealization {
     direct_realization_for(true)
 }
 
-fn direct_realization_for(subtract: bool) -> StagedFunctionRelativeLayoutOptimizationRealization {
+fn direct_realization_for(subtract: bool) -> StagedFixedFrameFunctionRelativeRealization {
     let (semantic, proof) = conditional_exact_binary_artifact(subtract);
     let selections =
         OptimizationSelections::new([Optimization::X86RelaxConditionalBranchesToRel8V1]).unwrap();
@@ -82,9 +81,7 @@ fn direct_realization_for(subtract: bool) -> StagedFunctionRelativeLayoutOptimiz
         &[],
     )
     .unwrap();
-    (staged)
-        .into_function_relative_layout_for_test()
-        .unwrap_or_else(|| {
-            panic!("the exact rel8 selection must use the direct layout realization route")
-        })
+    (staged).into_fixed_frame_for_test().unwrap_or_else(|| {
+        panic!("the exact rel8 selection must use the direct layout realization route")
+    })
 }

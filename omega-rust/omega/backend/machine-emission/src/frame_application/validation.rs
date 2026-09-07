@@ -10,6 +10,9 @@ use optimization_core::FunctionFragmentEmissionManifestIdentity;
 use register_model::ValidatedPhysicalRegisterModel;
 use std::collections::BTreeMap;
 
+#[path = "validation_widths.rs"]
+mod widths;
+
 pub(super) fn validate(
     source: &FunctionFragmentEmissionPlan,
     source_manifest: FunctionFragmentEmissionManifestIdentity,
@@ -99,6 +102,13 @@ fn validate_function(
     architecture: target::Architecture,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<(), FrameApplicationError> {
+    widths::validate_widths(
+        source,
+        candidate,
+        prologue.len(),
+        epilogue.len(),
+        architecture,
+    )?;
     if prologue.is_empty() != epilogue.is_empty()
         || source.machine != candidate.machine
         || source.machine != application.machine

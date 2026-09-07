@@ -100,11 +100,15 @@ fn selected_lowering_realization_owns_current_data_independently_of_replay() {
 fn branch_relaxation_realization_owns_current_data_independently_of_replay() {
     let allocation = allocation(NativeTarget::linux_x64(), false, true);
     let original = allocation.program().clone();
-    let mut realization = crate::tests::with_allocated_machine(
-        allocation,
-        stage_function_relative_layout_optimization_realization,
-    )
-    .unwrap();
+    let mut realization =
+        crate::tests::with_allocated_machine(allocation, |allocation, machine| {
+            stage_fixed_frame_function_relative_realization(
+                allocation,
+                machine,
+                selected_lowering_budget(),
+            )
+        })
+        .unwrap();
     assert!(std::sync::Arc::ptr_eq(
         &original.selected,
         &realization.allocation().program().selected
@@ -113,12 +117,11 @@ fn branch_relaxation_realization_owns_current_data_independently_of_replay() {
         &original.homes,
         &realization.allocation().program().homes
     ));
-    let custody =
-        validate_function_relative_layout_optimization_realization_custody(&realization).unwrap();
+    let custody = validate_fixed_frame_function_relative_realization(&realization).unwrap();
     for selected in [false, true] {
         change_current_program(realization.allocation_mut(), selected);
         assert_eq!(
-            validate_function_relative_layout_optimization_realization_custody(&realization),
+            validate_fixed_frame_function_relative_realization(&realization),
             Err(FunctionRelativeOptimizationRealizationError::Allocation(
                 AllocationReplayError::CurrentProgramMismatch
             ))
@@ -127,8 +130,7 @@ fn branch_relaxation_realization_owns_current_data_independently_of_replay() {
             .allocation_mut()
             .substitute_current_program_for_test(original.clone());
         assert_eq!(
-            validate_function_relative_layout_optimization_realization_custody(&realization)
-                .unwrap(),
+            validate_fixed_frame_function_relative_realization(&realization).unwrap(),
             custody
         );
     }
@@ -189,7 +191,11 @@ fn realization_receipt_roles_cannot_be_substituted_at_the_common_allocation_entr
     assert!(matches!(
         crate::tests::with_allocated_machine(
             allocation(NativeTarget::linux_x64(), true, true),
-            stage_function_relative_layout_optimization_realization
+            |allocation, machine| stage_fixed_frame_function_relative_realization(
+                allocation,
+                machine,
+                selected_lowering_budget()
+            )
         ),
         Err(FunctionRelativeOptimizationRealizationError::RootMismatch)
     ));

@@ -7,10 +7,11 @@ fn authenticated_action_corruption_rejects_at_the_public_realization_boundary() 
     let mut realization = super::fixture::direct_realization();
     realization
         .relaxation_mut()
+        .unwrap()
         .corrupt_first_action_bytes_and_reauthenticate_for_test();
 
     assert_eq!(
-        validate_function_relative_layout_optimization_realization_custody(&realization),
+        validate_fixed_frame_function_relative_realization(&realization),
         Err(
             FunctionRelativeOptimizationRealizationError::LayoutOptimization(
                 ResolvedLayoutOptimizationError::Relaxation(

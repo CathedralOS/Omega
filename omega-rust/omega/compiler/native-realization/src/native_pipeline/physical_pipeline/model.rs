@@ -101,18 +101,6 @@ impl From<machine_emission::StagedPostAllocationMachineFunctionRelativeRealizati
     }
 }
 
-impl From<machine_emission::StagedFunctionRelativeLayoutOptimizationRealization>
-    for StagedOptimizedVerifiedPhysicalPipeline
-{
-    fn from(
-        realization: machine_emission::StagedFunctionRelativeLayoutOptimizationRealization,
-    ) -> Self {
-        Self {
-            source: realization.into(),
-        }
-    }
-}
-
 impl From<machine_emission::StagedSelectedLoweringFunctionRelativeRealization>
     for StagedOptimizedVerifiedPhysicalPipeline
 {

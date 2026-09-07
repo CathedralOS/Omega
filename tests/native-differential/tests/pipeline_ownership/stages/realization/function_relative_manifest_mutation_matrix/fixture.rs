@@ -2,18 +2,15 @@
 
 use crate::tests::*;
 
-pub(super) fn direct_rel8_realization() -> StagedFunctionRelativeLayoutOptimizationRealization {
+pub(super) fn direct_rel8_realization() -> StagedFixedFrameFunctionRelativeRealization {
     direct_rel8_realization_for(false)
 }
 
-pub(super) fn alternate_direct_rel8_realization()
--> StagedFunctionRelativeLayoutOptimizationRealization {
+pub(super) fn alternate_direct_rel8_realization() -> StagedFixedFrameFunctionRelativeRealization {
     direct_rel8_realization_for(true)
 }
 
-fn direct_rel8_realization_for(
-    subtract: bool,
-) -> StagedFunctionRelativeLayoutOptimizationRealization {
+fn direct_rel8_realization_for(subtract: bool) -> StagedFixedFrameFunctionRelativeRealization {
     let (semantic, proof) = conditional_exact_binary_artifact(subtract);
     let selections =
         OptimizationSelections::new([Optimization::X86RelaxConditionalBranchesToRel8V1]).unwrap();
@@ -30,11 +27,9 @@ fn direct_rel8_realization_for(
         &[],
     )
     .unwrap();
-    (physical)
-        .into_function_relative_layout_for_test()
-        .unwrap_or_else(|| {
-            panic!("the exact rel8 selection must use direct function-relative realization")
-        })
+    (physical).into_fixed_frame_for_test().unwrap_or_else(|| {
+        panic!("the exact rel8 selection must use direct function-relative realization")
+    })
 }
 
 pub(super) fn post_allocation_realization() -> StagedPostAllocationMachineFunctionRelativeRealization

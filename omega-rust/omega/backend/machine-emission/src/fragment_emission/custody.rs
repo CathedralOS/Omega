@@ -1,14 +1,12 @@
 use crate::FunctionFragmentReplayInputs;
 use crate::{
     validate_fixed_frame_function_relative_realization,
-    validate_function_relative_layout_optimization_realization_custody,
     validate_optimized_structural_unit_function_relative_realization,
     validate_optimized_unit_function_relative_realization,
     validate_post_allocation_machine_function_relative_realization_custody,
     validate_selected_lowering_function_relative_realization_custody,
 };
 use machine_code::FunctionFragmentEmissionPlan;
-use target::Architecture;
 
 use super::error::FunctionFragmentEmissionError;
 use super::model::{
@@ -20,13 +18,6 @@ pub(super) fn validate_source(
     source: &StagedOptimizedFunctionFragmentEmissionSource,
 ) -> Result<(), FunctionFragmentEmissionError> {
     match source.replay() {
-        FunctionFragmentReplayInputs::X86Rel8Direct(realization) => {
-            validate_function_relative_layout_optimization_realization_custody(realization)
-                .map_err(FunctionFragmentEmissionError::Source)?;
-            if realization.layout().target().architecture != Architecture::X86_64 {
-                return Err(FunctionFragmentEmissionError::SourceKindMismatch);
-            }
-        }
         FunctionFragmentReplayInputs::SelectedLowering(realization) => {
             validate_selected_lowering_function_relative_realization_custody(realization)
                 .map_err(FunctionFragmentEmissionError::Source)?;

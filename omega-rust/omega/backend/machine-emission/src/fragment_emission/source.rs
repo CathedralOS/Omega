@@ -122,14 +122,6 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
     }
 }
 
-impl From<crate::StagedFunctionRelativeLayoutOptimizationRealization>
-    for StagedOptimizedFunctionFragmentEmissionSource
-{
-    fn from(realization: crate::StagedFunctionRelativeLayoutOptimizationRealization) -> Self {
-        FunctionFragmentReplayInputs::X86Rel8Direct(Box::new(realization)).into()
-    }
-}
-
 impl From<crate::StagedSelectedLoweringFunctionRelativeRealization>
     for StagedOptimizedFunctionFragmentEmissionSource
 {

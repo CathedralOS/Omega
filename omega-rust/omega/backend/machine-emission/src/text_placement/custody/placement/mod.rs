@@ -35,8 +35,7 @@ pub(super) fn input(
             false,
             true,
             FunctionFragmentEmissionStage::ValidatedRelocationFreeFunctionFragmentsV1,
-            FunctionFragmentEmissionSourceKind::X86Rel8V1
-            | FunctionFragmentEmissionSourceKind::SelectedLoweringV1
+            FunctionFragmentEmissionSourceKind::SelectedLoweringV1
             | FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 { .. }
             | FunctionFragmentEmissionSourceKind::UnitBaselineV1,
         ) => Ok(TextPlacementInput::RelocationFree(fragments)),

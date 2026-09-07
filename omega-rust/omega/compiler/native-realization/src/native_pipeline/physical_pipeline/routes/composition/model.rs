@@ -13,10 +13,9 @@ pub(crate) enum ResolvedPhysicalPhaseComposition {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ResolvedRealizationPlan {
-    Identity,
+    CurrentAllocation,
     SelectedLowering,
     PostAllocationMachine {
         entry: PostAllocationMachineRuleCatalogEntry,
     },
-    FunctionRelativeLayout,
 }

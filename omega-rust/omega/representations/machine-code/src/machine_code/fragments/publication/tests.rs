@@ -1,9 +1,9 @@
 use super::*;
 
 #[test]
-fn retired_recovery_role_and_prior_wire_versions_reject() {
+fn retired_realization_roles_and_prior_wire_versions_reject() {
     let encoded = record(FunctionFragmentEmissionSourceKind::UnitBaselineV1).encode();
-    for version in 0..11_u32 {
+    for version in 0..12_u32 {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(
@@ -11,12 +11,14 @@ fn retired_recovery_role_and_prior_wire_versions_reject() {
             Err(FunctionFragmentEmissionManifestDecodeError::UnsupportedVersion(version))
         );
     }
-    let mut retired = encoded;
-    retired[45] = 3;
-    assert_eq!(
-        FunctionFragmentEmissionManifest::decode(&retired),
-        Err(FunctionFragmentEmissionManifestDecodeError::UnknownSourceKind(3))
-    );
+    for tag in [1, 3] {
+        let mut retired = encoded.clone();
+        retired[45] = tag;
+        assert_eq!(
+            FunctionFragmentEmissionManifest::decode(&retired),
+            Err(FunctionFragmentEmissionManifestDecodeError::UnknownSourceKind(tag))
+        );
+    }
 }
 
 fn record(source_kind: FunctionFragmentEmissionSourceKind) -> FunctionFragmentEmissionManifest {
@@ -73,7 +75,6 @@ fn record(source_kind: FunctionFragmentEmissionSourceKind) -> FunctionFragmentEm
 #[test]
 fn publication_records_roundtrip_without_a_compiler_or_admission_capsule() {
     let sources = [
-        FunctionFragmentEmissionSourceKind::X86Rel8V1,
         FunctionFragmentEmissionSourceKind::SelectedLoweringV1,
         FunctionFragmentEmissionSourceKind::UnitBaselineV1,
         FunctionFragmentEmissionSourceKind::StructuralUnitV1,
@@ -86,7 +87,7 @@ fn publication_records_roundtrip_without_a_compiler_or_admission_capsule() {
         let record = record(source);
         let encoded = record.encode();
         assert_eq!(&encoded[..8], b"OMGFFE\0\0");
-        assert_eq!(&encoded[8..12], &11_u32.to_le_bytes());
+        assert_eq!(&encoded[8..12], &12_u32.to_le_bytes());
         let extra_rule_tag = usize::from(matches!(
             source,
             FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 { .. }

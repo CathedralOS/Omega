@@ -209,7 +209,7 @@ fn apply_function(
         })
         .ok_or(FrameApplicationError::OffsetOverflow)?;
     function.bytes = bytes;
-    super::reflow::reencode_branches(function, architecture, physical)?;
+    super::reflow::reencode_branches(function, &mut applications, architecture, physical)?;
 
     Ok(FunctionAppliedFrameProtocol {
         machine: function.machine,
@@ -315,6 +315,10 @@ fn shift_fixup(
 }
 
 #[cfg(test)]
+#[path = "branch_tests.rs"]
+mod branch_tests;
+
+#[cfg(test)]
 mod tests {
     use machine_code::{
         FunctionFragmentBlockSpan, FunctionFragmentInstructionSpan,
@@ -344,7 +348,7 @@ mod tests {
 
     use super::*;
 
-    fn source_plan() -> FunctionFragmentEmissionPlan {
+    pub(super) fn source_plan() -> FunctionFragmentEmissionPlan {
         let machine = MachineId::new(1).unwrap();
         let callee = MachineId::new(2).unwrap();
         let call = FunctionFragmentInstructionSpan {
@@ -413,7 +417,7 @@ mod tests {
         plan
     }
 
-    fn protocol(machine: MachineId) -> TargetFrameProtocolEncodingPlan {
+    pub(super) fn protocol(machine: MachineId) -> TargetFrameProtocolEncodingPlan {
         TargetFrameProtocolEncodingPlan {
             frame_layout: TargetFrameLayoutIdentity::from_bytes([4; 32]),
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([5; 32]),
@@ -435,7 +439,7 @@ mod tests {
         }
     }
 
-    fn physical() -> register_model::ValidatedPhysicalRegisterModel {
+    pub(super) fn physical() -> register_model::ValidatedPhysicalRegisterModel {
         validate_physical_register_model(isa_x86_64::x86_64_physical_register_model()).unwrap()
     }
 

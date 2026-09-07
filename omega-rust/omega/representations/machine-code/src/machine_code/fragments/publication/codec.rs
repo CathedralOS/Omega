@@ -17,11 +17,11 @@ use super::{
 };
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGFFE\0\0";
-const MANIFEST_VERSION: u32 = 11;
+const MANIFEST_VERSION: u32 = 12;
 
 impl FunctionFragmentEmissionManifest {
     pub fn recomputed_identity(&self) -> FunctionFragmentEmissionManifestIdentity {
-        let mut canonical = b"omega.function-fragment-emission-manifest.v11\0".to_vec();
+        let mut canonical = b"omega.function-fragment-emission-manifest.v12\0".to_vec();
         canonical.extend_from_slice(&encode_manifest_content(self));
         FunctionFragmentEmissionManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -56,7 +56,6 @@ impl FunctionFragmentEmissionManifest {
             }
         };
         let source_kind = match cursor.byte()? {
-            1 => FunctionFragmentEmissionSourceKind::X86Rel8V1,
             2 => FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
                 optimization: decode_post_allocation_optimization(cursor.byte()?)?,
             },
@@ -154,7 +153,6 @@ fn encode_manifest_content(record: &FunctionFragmentEmissionManifest) -> Vec<u8>
         FunctionFragmentEmissionStage::ValidatedFunctionFragmentsWithUnresolvedInternalMachineFixupsV1 => 2,
     });
     match record.source_kind {
-        FunctionFragmentEmissionSourceKind::X86Rel8V1 => bytes.push(1),
         FunctionFragmentEmissionSourceKind::SelectedLoweringV1 => bytes.push(6),
         FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
             optimization,

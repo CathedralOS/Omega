@@ -22,7 +22,6 @@ use crate::{SelectedFormEncodingIdentity, WholeFunctionExitContractIdentity};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionFragmentEmissionSourceKind {
-    X86Rel8V1,
     SelectedLoweringV1,
     PostAllocationMachineOptimizationV1 { optimization: Optimization },
     UnitBaselineV1,

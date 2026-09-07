@@ -2132,7 +2132,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             )
         });
     let optimizer_identity_route_path = root.join(
-        "omega-rust/omega/compiler/native-realization/src/native_pipeline/physical_pipeline/routes/identity.rs",
+        "omega-rust/omega/compiler/native-realization/src/native_pipeline/physical_pipeline/routes/current_allocation.rs",
     );
     let optimizer_identity_route = std::fs::read_to_string(&optimizer_identity_route_path)
         .unwrap_or_else(|error| {
@@ -2198,7 +2198,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             )
             && optimizer_physical_model.contains("into_function_fragment_emission_source(")
             && optimizer_selected_phases
-                .contains("stage_identity_function_relative_pipeline(allocation, machine)")
+                .contains("stage_current_allocation_function_relative_pipeline(allocation, machine)")
             && optimizer_identity_route
                 .contains("stage_optimized_unit_function_relative_realization(allocation, machine)")
             && optimizer_identity_route.contains(
@@ -5237,10 +5237,10 @@ fn selected_lowering_fragment_admission_is_rule_independent() {
         );
     }
     for (manifest, version) in [
-        (publication.with_extension("").join("codec.rs"), 11),
+        (publication.with_extension("").join("codec.rs"), 12),
         (
             root.join("omega-rust/omega/representations/machine-code/src/machine_code/layout/text_section/publication/codec.rs"),
-            12,
+            13,
         ),
     ] {
         let encoded = std::fs::read_to_string(&manifest)
@@ -5630,7 +5630,7 @@ fn allocation_history_does_not_choose_a_separate_frame_or_publication_owner() {
     let root = workspace_root();
     let pipeline = root.join("omega-rust/omega/compiler/native-realization/src");
     let route = std::fs::read_to_string(
-        pipeline.join("native_pipeline/physical_pipeline/routes/identity.rs"),
+        pipeline.join("native_pipeline/physical_pipeline/routes/current_allocation.rs"),
     )
     .expect("read common function-relative route entrance");
     for required in [
@@ -5656,15 +5656,26 @@ fn allocation_history_does_not_choose_a_separate_frame_or_publication_owner() {
     .expect("read fragment source taxonomy");
     assert!(!fragment_source.contains("StagedAllocationRecoveryFunctionRelativeRealization"));
     assert!(!fragment_source.contains("ActiveResidentRematerialization("));
+    assert!(!fragment_source.contains("X86Rel8Direct"));
+    assert!(!model.contains("StagedFunctionRelativeLayoutOptimizationRealization"));
+    let allocation = std::fs::read_to_string(root.join(
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/current.rs",
+    ))
+    .expect("read allocation phase entrance");
+    assert!(!allocation.contains("FunctionRelativeLayout"));
+    assert!(!allocation.contains("stage_optimized_allocation_legality_for_frameless_leaf"));
     let frame = std::fs::read_to_string(root.join(
         "omega-rust/omega/backend/machine-emission/src/function_realization/routes/fixed_frame.rs",
     ))
     .expect("read common fixed-frame realization");
     assert!(frame.contains("replay_allocation()"));
     assert!(!frame.contains("baseline_allocation_source"));
+    assert!(frame.contains("execute_resolved_layout_optimization("));
+    assert!(frame.contains("validate_resolved_layout_optimization("));
     for retired in [
         "omega-rust/omega/backend/machine-emission/src/function_realization/allocation_recovery/mod.rs",
         "omega-rust/omega/compiler/native-realization/src/native_pipeline/physical_pipeline/routes/allocation_recovery/mod.rs",
+        "omega-rust/omega/backend/machine-emission/src/function_realization/routes/layout_optimization.rs",
     ] {
         assert!(
             !root.join(retired).exists(),

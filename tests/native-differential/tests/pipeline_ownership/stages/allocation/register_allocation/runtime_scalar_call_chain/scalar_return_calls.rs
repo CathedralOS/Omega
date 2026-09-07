@@ -4,6 +4,7 @@ use crate::tests::*;
 
 mod boolean_calls;
 mod control_flow;
+mod framed_rel8;
 
 fn artifact(value: u64) -> (Vec<u8>, Vec<u8>) {
     let mut entry = conditional_u64_integer_equal_parameters_machine(28_000, [1, 0]);
@@ -170,6 +171,112 @@ fn mixed_arithmetic_calls_reject_missing_or_substituted_exact_evidence() {
             compiler_baseline_request_v1(&choices),
         )
         .is_err()
+    );
+}
+
+#[test]
+fn scalar_calls_with_rel8_use_common_fixed_frame_publication() {
+    let (semantic, proof) = preserving_artifact(37);
+    let interpreted = terminal_interpreter::interpret_terminal_artifact_measured(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+    )
+    .unwrap();
+    assert!(matches!(
+        interpreted.value(),
+        terminal_interpreter::TerminalExecutionResult::Scalar(
+            terminal_interpreter::TerminalScalarValue::Integer {
+                value: IntegerValue::Unsigned(37),
+                ..
+            }
+        )
+    ));
+    let source = terminal_codec::decode_module(&semantic).unwrap();
+    let expected_calls = source
+        .machines
+        .iter()
+        .flat_map(|machine| {
+            machine.blocks.iter().flat_map(move |block| {
+                block
+                    .operations
+                    .iter()
+                    .filter_map(move |operation| match operation.kind {
+                        OperationKind::Call { callee, .. } => {
+                            Some((machine.id, operation.id, callee))
+                        }
+                        _ => None,
+                    })
+            })
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    for target in [NativeTarget::linux_x64(), NativeTarget::windows_x64()] {
+        let selections =
+            OptimizationSelections::new([Optimization::X86RelaxConditionalBranchesToRel8V1])
+                .unwrap();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            compiler_baseline_request_v1(&selections),
+        )
+        .unwrap();
+        let physical = stage_optimized_verified_physical_pipeline_with_provider_executions(
+            optimized,
+            target,
+            &[],
+        )
+        .expect("ordinary calls and branch relaxation must compose through the common frame route");
+        let realization = physical.fixed_frame_for_test().unwrap();
+        validate_fixed_frame_function_relative_realization(realization).unwrap();
+        assert!(!realization.relaxation().unwrap().actions().is_empty());
+        let emitted = stage_optimized_function_fragment_emission(
+            physical.into_function_fragment_emission_source(),
+        )
+        .unwrap();
+        let framed = stage_function_fragment_frame_application(emitted).unwrap();
+        let text = stage_optimized_fixed_frame_text_section(framed).unwrap();
+        assert_eq!(
+            text.text_section()
+                .resolved_internal_machine_calls
+                .iter()
+                .map(|call| (call.caller, call.operation, call.callee))
+                .collect::<std::collections::BTreeSet<_>>(),
+            expected_calls
+        );
+        let object = stage_optimized_relocation_free_object_container(text).unwrap();
+        validate_optimized_relocation_free_object_container(&object).unwrap();
+        let published = image_emission::build_function_fragment_object_artifact(&object).unwrap();
+        image_emission::validate_function_fragment_object_artifact(&object, &published).unwrap();
+        let image = image_emission::emit_executable_image(&published, 3).unwrap();
+        image_emission::validate_executable_image(&published, &image).unwrap();
+        let record = image_emission::build_installation_record(
+            &image,
+            semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),
+        )
+        .unwrap();
+        let encoded = image_emission::encode_installation_record(&record).unwrap();
+        let decoded = image_emission::decode_installation_record(&encoded).unwrap();
+        image_emission::validate_installation_record(&decoded, &image).unwrap();
+        assert_eq!(
+            image_emission::derive_installation_stack_demand(&decoded, &image, published.entry())
+                .unwrap(),
+            image_emission::derive_stack_demand(&published, published.entry()).unwrap()
+        );
+        #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+        if target == NativeTarget::windows_x64() {
+            let text = object.source().text_section();
+            let code = super::native_execution::Code::new(&text.bytes);
+            assert_eq!(
+                code.call_scalar(usize::try_from(text.semantic_entry_offset).unwrap(), [0; 4]),
+                37
+            );
+        }
+    }
+    #[cfg(not(all(target_os = "windows", target_arch = "x86_64")))]
+    eprintln!(
+        "SKIP: Windows native execution requires a Windows x86-64 host; cross-target replay still runs"
     );
 }
 

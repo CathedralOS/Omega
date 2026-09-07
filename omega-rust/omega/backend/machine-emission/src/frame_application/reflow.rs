@@ -20,11 +20,16 @@ use target::Architecture;
 
 use super::FrameApplicationError;
 
+#[path = "widening.rs"]
+mod widening;
+
 pub(super) fn reencode_branches(
     function: &mut FunctionFragment,
+    epilogues: &mut [machine_code::FunctionAppliedFrameEpilogue],
     architecture: Architecture,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<(), FrameApplicationError> {
+    widening::widen_out_of_range_branches(function, epilogues, architecture)?;
     let block_offsets = function
         .blocks
         .iter()

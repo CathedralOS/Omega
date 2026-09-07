@@ -14,19 +14,3 @@ pub(in crate::function_realization) fn custody_receipt(
         realization: manifest.record.identity,
     }
 }
-
-pub(in crate::function_realization) fn direct_custody_receipt(
-    source: StagedOptimizedRegisterHomeCustodyReceipt,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
-    relaxation: &StagedOptimizedX86BranchRelaxation,
-    exit_contract: &ValidatedWholeFunctionExitContract,
-    manifest: &ValidatedFunctionRelativeOptimizationRealizationManifest,
-) -> StagedFunctionRelativeLayoutOptimizationRealizationCustodyReceipt {
-    StagedFunctionRelativeLayoutOptimizationRealizationCustodyReceipt {
-        source,
-        machine: machine.custody().clone(),
-        relaxation: relaxation.identity(),
-        exit_contract: exit_contract.identity(),
-        realization: manifest.record.identity,
-    }
-}

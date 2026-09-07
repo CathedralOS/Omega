@@ -1,15 +1,6 @@
 use super::super::error::*;
 use super::super::prelude::*;
 
-pub(in crate::function_realization) fn rel8_selected(
-    selections: &OptimizationSelections,
-    architecture: target::Architecture,
-) -> Result<bool, FunctionRelativeOptimizationRealizationError> {
-    let phase = selections.project_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
-    resolved_layout_to_resolved_layout::x86_rel8_selected(&phase, architecture)
-        .map_err(FunctionRelativeOptimizationRealizationError::RuleCatalog)
-}
-
 pub(in crate::function_realization) fn stage_layout_optimization<S: ValidatedSelectedAnalysis>(
     selected: &S,
     machine: &StagedOptimizedPostAllocationMachinePlan,
