@@ -201,8 +201,8 @@ pub use contract_entailment::is_arm_pattern_marker;
 pub use contract_entailment::transparent_proposition_application_entailed;
 pub use contract_entailment::{MatchedLawGuarantee, matched_machine_law_guarantees};
 pub use contract_entailment::{
-    RankingRangeEdgeProof, RankingRangeMeasure, RankingRangeState, prove_ranking_range_edge,
-    prove_ranking_range_entry, prove_ranking_range_transition,
+    RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises, RankingRangeState,
+    prove_ranking_range_edge, prove_ranking_range_entry, prove_ranking_range_transition,
 };
 pub use contract_entailment::{
     StrictArithmeticBindingValue, StrictArithmeticExpressionBinding,

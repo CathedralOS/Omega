@@ -711,6 +711,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "termination/rank_range_disjoint_receiver_write",
     "termination/rank_range_named_state",
     "termination/rank_range_state_cycle",
+    "termination/rank_range_entry_reentry",
     "termination/default_order_unsigned_width_countdown_compile",
     "termination/proof_non_tail_joint_machine_cycle_compile",
     "versioning/migration_generic_trait",

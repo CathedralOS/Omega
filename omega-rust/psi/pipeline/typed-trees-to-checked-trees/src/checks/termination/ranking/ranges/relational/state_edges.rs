@@ -14,6 +14,7 @@ pub(super) fn prove<'program>(
     range: ExpressionHandle,
     measure: validation::RankingRangeMeasure,
     frames: Option<&validation::CallFrameResolver<'program>>,
+    premises: validation::RankingRangePremises,
 ) -> bool {
     let states = program.machine_states(machine);
     let mut adjacency = graph::machine_adjacency(program, machine);
@@ -23,18 +24,14 @@ pub(super) fn prove<'program>(
         targets.sort_unstable();
         targets.dedup();
     }
-    // Re-entering the root would require re-establishing its arbitrary machine
-    // requirements. Range membership alone is not that judgment.
-    if adjacency.iter().skip(1).any(|targets| targets.contains(&0)) {
-        return false;
-    }
+    let entry_is_initial = !adjacency.iter().any(|targets| targets.contains(&0));
     let Some(mappings) = discover_mappings(program, machine, &adjacency) else {
         return false;
     };
     let components = graph::strongly_connected_components(&adjacency);
     for (source_position, source) in states.iter().enumerate() {
         for &target_position in &adjacency[source_position] {
-            if target_position == 0 {
+            if source_position == 0 && target_position == 0 {
                 continue;
             }
             let target = &states[target_position];
@@ -63,6 +60,14 @@ pub(super) fn prove<'program>(
                     machine,
                     range,
                     measure,
+                    if source_position == 0
+                        && entry_is_initial
+                        && matches!(premises, validation::RankingRangePremises::RankInvariant)
+                    {
+                        validation::RankingRangePremises::InitialEntry
+                    } else {
+                        premises
+                    },
                     validation::RankingRangeState {
                         state: source,
                         entry_parameters: &mappings[source_position],

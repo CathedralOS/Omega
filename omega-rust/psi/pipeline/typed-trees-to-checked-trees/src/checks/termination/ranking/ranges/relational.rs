@@ -52,18 +52,36 @@ pub(super) fn prove(
         return false;
     }
     let frames = validation::CallFrameResolver::new(program);
+    // A whole graph uses one inductive premise set. A failed edge cannot borrow
+    // stronger assumptions from a different, incompletely proved attempt.
+    [
+        validation::RankingRangePremises::RankInvariant,
+        validation::RankingRangePremises::EntryInvariant,
+    ]
+    .into_iter()
+    .any(|premises| prove_edges(program, machine, range, measure, frames.as_ref(), premises))
+}
+
+fn prove_edges<'program>(
+    program: &'program typed_trees::TypedTrees,
+    machine: &'program typed_trees::machine::Machine,
+    range: ExpressionHandle,
+    measure: validation::RankingRangeMeasure,
+    frames: Option<&validation::CallFrameResolver<'program>>,
+    premises: validation::RankingRangePremises,
+) -> bool {
+    let states = program.machine_states(machine);
+    let Some(root) = states.first() else {
+        return false;
+    };
     let edges = patterns::edges_to_state(program, root, root.symbol);
     if edges.is_empty() && states.len() == 1 && graph::machine_has_cycle(program, machine) {
         return false;
     }
     for edge in edges {
-        let Some(evaluated_prefix) = preserved_entry_prefix(
-            program,
-            machine,
-            root,
-            frames.as_ref(),
-            edge.statement_ordinal,
-        ) else {
+        let Some(evaluated_prefix) =
+            preserved_entry_prefix(program, machine, root, frames, edge.statement_ordinal)
+        else {
             return false;
         };
         let guards = edge
@@ -77,6 +95,7 @@ pub(super) fn prove(
             root,
             range,
             measure,
+            premises,
             &guards,
             &evaluated_prefix,
             edge.arguments,
@@ -87,7 +106,7 @@ pub(super) fn prove(
             return false;
         }
     }
-    states.len() == 1 || state_edges::prove(program, machine, range, measure, frames.as_ref())
+    states.len() == 1 || state_edges::prove(program, machine, range, measure, frames, premises)
 }
 
 fn preserved_entry_prefix<'program>(

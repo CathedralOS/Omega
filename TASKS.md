@@ -238,7 +238,7 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   rank-range checks in
   `typed-trees-to-checked-trees/src/checks/termination/ranking/`.
   Computed-only paths lacking a unique current-parameter origin,
-  non-bijective transfers involving rank inputs, entry-state reentry, and
+  non-bijective transfers involving rank inputs, and
   machine-call-component ranges need exact arrival mappings and preserved
   premises for ranked subjects and pinned endpoints. Mutable premises need live
   write-frame evidence.
