@@ -1,4 +1,4 @@
-// PRV4 standard SELF-FORWARDING checked adapter. The imported Console package
+// Standard checked adapter. The imported Console package
 // implements write/write_line as ordinary Omega machines over write_byte. Exercise both
 // runtime-place and literal byte-carrier sources; both must travel through the
 // honest borrowed byte-view path and measured byte walk.
@@ -15,8 +15,10 @@ data Main {
 
 machine Main::main(&mut self) {
     self.text = "Field";
+    self.console.write("");
     self.console.write(self.text);
     self.console.write_line("");
     self.console.write_line("Literal");
+    self.console.write("\x80\xff");
     self.console.exit_process(70);
 }
