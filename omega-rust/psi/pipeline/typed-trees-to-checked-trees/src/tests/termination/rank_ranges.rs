@@ -4,6 +4,7 @@ use super::{
 
 mod named_states;
 mod relational;
+mod state_edges;
 mod static_fallback;
 
 fn typed(source: &str) -> typed_trees::TypedTrees {

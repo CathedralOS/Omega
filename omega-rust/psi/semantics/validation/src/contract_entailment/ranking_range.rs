@@ -47,22 +47,30 @@ pub fn prove_ranking_range_edge(
         guards,
         evaluated_prefix,
         Some(arguments),
-        None,
+        EdgeContext::Root,
     )
 }
 
-/// Recheck a named self-edge under the range invariant established on every
-/// arrival. Each non-self formal corresponds to one exact entry parameter;
-/// the caller establishes that permutation from identity-forwarding arrivals.
-/// Neither machine requirements nor named-state declarations become induction
-/// hypotheses. Only rank membership and the supplied live guards are reused.
-pub fn prove_ranking_range_named_state_edge(
+/// An exact state telescope over the entry witness. The parameter list follows
+/// non-self formal order and names the entry symbol represented by each slot.
+#[derive(Clone, Copy)]
+pub struct RankingRangeState<'program> {
+    pub state: &'program State,
+    pub entry_parameters: &'program [symbols::SymbolHandle],
+}
+
+/// Check one state transition under independently established source and target
+/// telescopes. Named sources reuse only rank membership, not machine requires
+/// or declared ranges. Every destination formal receives its exact actual in
+/// one simultaneous substitution; graph ownership decides whether strict
+/// decrease is additionally required for this edge.
+pub fn prove_ranking_range_transition(
     program: &TypedTrees,
     machine: &Machine,
-    state: &State,
     range: ExpressionHandle,
     measure: RankingRangeMeasure,
-    entry_parameters: &[symbols::SymbolHandle],
+    source: RankingRangeState<'_>,
+    destination: RankingRangeState<'_>,
     guards: &[(ExpressionHandle, bool)],
     evaluated_prefix: &[ExpressionHandle],
     arguments: &[ExpressionHandle],
@@ -70,14 +78,25 @@ pub fn prove_ranking_range_named_state_edge(
     prove_edge(
         program,
         machine,
-        state,
+        source.state,
         range,
         measure,
         guards,
         evaluated_prefix,
         Some(arguments),
-        Some(entry_parameters),
+        EdgeContext::Transition {
+            source_parameters: source.entry_parameters,
+            destination,
+        },
     )
+}
+
+enum EdgeContext<'program> {
+    Root,
+    Transition {
+        source_parameters: &'program [symbols::SymbolHandle],
+        destination: RankingRangeState<'program>,
+    },
 }
 
 /// Separate results prevent a range-membership proof from authorizing descent.
@@ -105,7 +124,7 @@ pub fn prove_ranking_range_entry(
         &[],
         &[],
         None,
-        None,
+        EdgeContext::Root,
     )
     .is_some_and(|proof| proof.membership_and_pinning)
 }
@@ -119,18 +138,39 @@ fn prove_edge(
     guards: &[(ExpressionHandle, bool)],
     evaluated_prefix: &[ExpressionHandle],
     arguments: Option<&[ExpressionHandle]>,
-    entry_parameters: Option<&[symbols::SymbolHandle]>,
+    context: EdgeContext<'_>,
 ) -> Option<RankingRangeEdgeProof> {
     let states = program.machine_states(machine);
     let root = states.first()?;
     if !states
         .iter()
         .any(|candidate| candidate.symbol == state.symbol)
-        || (entry_parameters.is_none() && root.symbol != state.symbol)
-        || (entry_parameters.is_some() && root.symbol == state.symbol)
+        || (matches!(context, EdgeContext::Root) && root.symbol != state.symbol)
     {
         return None;
     }
+    let (entry_parameters, destination) = match &context {
+        EdgeContext::Root => (None, None),
+        EdgeContext::Transition {
+            source_parameters,
+            destination,
+        } => {
+            validate_mapping(program, machine, state, source_parameters)?;
+            validate_mapping(
+                program,
+                machine,
+                destination.state,
+                destination.entry_parameters,
+            )?;
+            // A named-state return to entry needs proof of the entry requires;
+            // the present invariant does not establish those arbitrary facts.
+            if state.symbol != root.symbol && destination.state.symbol == root.symbol {
+                return None;
+            }
+            (Some(*source_parameters), Some(*destination))
+        }
+    };
+    let entry_hypotheses = state.symbol == root.symbol;
     let ExpressionNode::Range(range) = program.expression_table.expression(range) else {
         return None;
     };
@@ -164,7 +204,8 @@ fn prove_edge(
     }
     let parameters = program.state_parameters(state);
     if arguments.is_some_and(|arguments| {
-        parameters
+        program
+            .state_parameters(destination.map_or(state, |destination| destination.state))
             .iter()
             .filter(|parameter| !parameter.is_self)
             .count()
@@ -197,39 +238,11 @@ fn prove_edge(
         });
     }
     if let Some(entry_parameters) = entry_parameters {
-        let root_parameters = program.state_parameters(root);
-        let current_parameters = parameters
+        for (parameter, entry_symbol) in parameters
             .iter()
             .filter(|parameter| !parameter.is_self)
-            .collect::<Vec<_>>();
-        if entry_parameters.len() != current_parameters.len()
-            || entry_parameters.len()
-                != root_parameters
-                    .iter()
-                    .filter(|parameter| !parameter.is_self)
-                    .count()
+            .zip(entry_parameters)
         {
-            return None;
-        }
-        for (position, (parameter, entry_symbol)) in
-            current_parameters.iter().zip(entry_parameters).enumerate()
-        {
-            if entry_parameters[..position].contains(entry_symbol) {
-                return None;
-            }
-            let entry = root_parameters
-                .iter()
-                .find(|entry| !entry.is_self && entry.symbol == *entry_symbol)?;
-            if !entry.symbol.is_valid()
-                || entry.is_mutable
-                || entry.is_const
-                || parameter.is_mutable
-                || parameter.is_const
-                || exact_integer_parameter(program, entry.type_reference)?
-                    != exact_integer_parameter(program, parameter.type_reference)?
-            {
-                return None;
-            }
             let value = bindings
                 .iter()
                 .find(|binding| binding.symbol == parameter.symbol)?
@@ -249,7 +262,7 @@ fn prove_edge(
     for contract in program
         .machine_contracts(machine)
         .iter()
-        .filter(|_| entry_parameters.is_none())
+        .filter(|_| entry_hypotheses)
     {
         if contract.kind != SignatureContractKind::Requires {
             continue;
@@ -264,10 +277,16 @@ fn prove_edge(
     }
     // Declared ranges are enforced at arrivals. Read the exact endpoints, not
     // their display text or the ordinary engine's name-keyed range shortcut.
-    for binding in bindings.iter().filter(|_| entry_parameters.is_none()) {
-        let parameter = parameters
+    for parameter in parameters
+        .iter()
+        .filter(|parameter| entry_hypotheses && !parameter.is_self)
+    {
+        let Some(binding) = bindings
             .iter()
-            .find(|parameter| parameter.symbol == binding.symbol)?;
+            .find(|binding| binding.symbol == parameter.symbol)
+        else {
+            continue;
+        };
         let StrictArithmeticBindingValue::Atom { identity, .. } = &binding.value else {
             return None;
         };
@@ -310,9 +329,9 @@ fn prove_edge(
             limit: upper,
         } => engine.normalize(upper)?.sub(&engine.normalize(lower)?),
     };
-    if entry_parameters.is_some() {
-        // This is the sole induction hypothesis: entry arrivals establish it,
-        // and each self-edge below re-establishes it with pinned endpoints.
+    if !entry_hypotheses {
+        // This is the sole induction hypothesis: entry establishes it, and
+        // every state transition re-establishes it with pinned endpoints.
         comparisons.extend([
             (
                 BinaryOperator::GreaterOrEqual,
@@ -360,14 +379,20 @@ fn prove_edge(
     let mut substitutions = BTreeMap::new();
     // Actual arguments retain the complete non-self formal ordinal. Filtering
     // numeric bindings must not shift a payload slot onto the next rank input.
-    for (parameter, argument) in parameters
+    let target_parameters =
+        program.state_parameters(destination.map_or(state, |destination| destination.state));
+    for (position, (parameter, argument)) in target_parameters
         .iter()
         .filter(|parameter| !parameter.is_self)
         .zip(arguments)
+        .enumerate()
     {
+        let source_symbol = destination.map_or(parameter.symbol, |destination| {
+            destination.entry_parameters[position]
+        });
         let Some(binding) = bindings
             .iter()
-            .find(|binding| binding.symbol == parameter.symbol)
+            .find(|binding| binding.symbol == source_symbol)
         else {
             continue;
         };
@@ -415,6 +440,61 @@ fn prove_edge(
         membership_and_pinning,
         strictly_decreases,
     })
+}
+
+fn validate_mapping(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    entry_parameters: &[symbols::SymbolHandle],
+) -> Option<()> {
+    let states = program.machine_states(machine);
+    let root = states.first()?;
+    if !states
+        .iter()
+        .any(|candidate| candidate.symbol == state.symbol)
+    {
+        return None;
+    }
+    let root_parameters = program.state_parameters(root);
+    let parameters = program.state_parameters(state);
+    if entry_parameters.len()
+        != parameters
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .count()
+        || entry_parameters.len()
+            != root_parameters
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .count()
+    {
+        return None;
+    }
+    for (position, (parameter, entry_symbol)) in parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .zip(entry_parameters)
+        .enumerate()
+    {
+        let entry = root_parameters
+            .iter()
+            .find(|entry| !entry.is_self && entry.symbol == *entry_symbol)?;
+        if !entry.symbol.is_valid()
+            || !parameter.symbol.is_valid()
+            || entry_parameters[..position].contains(entry_symbol)
+            || entry.is_mutable
+            || entry.is_const
+            || parameter.is_mutable
+            || parameter.is_const
+            || (state.symbol == root.symbol && parameter.symbol != *entry_symbol)
+            || exact_integer_parameter(program, entry.type_reference)?
+                != exact_integer_parameter(program, parameter.type_reference)?
+        {
+            return None;
+        }
+    }
+    Some(())
 }
 
 fn exact_integer_parameter(
