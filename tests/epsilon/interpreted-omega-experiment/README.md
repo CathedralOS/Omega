@@ -258,7 +258,7 @@ in records/arrays, payload ByteRange and argument traps, once-only subjects,
 wildcards, snapshots before later argument effects, binder copies and receiver
 places, ordinary calls/returns, recursion, state transfers, and retained views
 of binder-owned arrays. The three `sum_byte_before_*` controls exercise
-[immediate payload establishment](../../../bootstrap/epsilon/LANGUAGE.md#epsilon-constructor-payload-establishment-order):
+[immediate payload establishment](../../../bootstrap/4_epsilon/LANGUAGE.md#epsilon-constructor-payload-establishment-order):
 `ByteRange` preserves the preceding output, including output from evaluating
 the failing argument, and suppresses later mutation/output, Assertion, or exit.
 Existing successful snapshot and later-argument-trap controls ensure valid

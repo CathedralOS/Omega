@@ -115,7 +115,7 @@ changed receipt requires explanation, not a relaxed expectation.
 The [lowering-plan gate](../../../../../tests/delta/lowering-plan/README.md)
 checks authored expectations against the pre-normalization plan's expanded
 body heights. The separate normalizer handles the
-[selected Gamma profile](../../../../gamma/EVALUATOR_PROFILE.md#exact-capacities)
+[selected Gamma profile](../../../../2_gamma/EVALUATOR_PROFILE.md#exact-capacities)
 limit of 255 nested expression lists per generated function body. Serialization
 does not make extraction or capture decisions and does not alter those budgets.
 

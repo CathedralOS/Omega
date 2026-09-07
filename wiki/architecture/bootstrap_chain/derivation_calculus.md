@@ -1,19 +1,19 @@
 # Ground equality checker implementation design
 
-[Checker contract](proof_kernel.md) | [Beta encoding](../../../bootstrap/beta/LANGUAGE.md)
+[Checker contract](proof_kernel.md) | [Beta encoding](../../../bootstrap/1_beta/LANGUAGE.md)
 
 This specifies the ordinary-Gamma ground-equality checker design.
 It is not an accepted checker artifact, certificate, or new admission
-of the Gamma evaluator. The [inner format](../../../bootstrap/gamma/derivation_checker/FORMAT.md)
-assigns concrete wire fields; [executable theory formation](../../../bootstrap/gamma/derivation_checker/FORMATION.md)
+of the Gamma evaluator. The [inner format](../../../bootstrap/2_gamma/derivation_checker/FORMAT.md)
+assigns concrete wire fields; [executable theory formation](../../../bootstrap/2_gamma/derivation_checker/FORMATION.md)
 checks conservative definitions under a bounded component profile.
-[Ground checking](../../../bootstrap/gamma/derivation_checker/GROUND.md) validates
+[Ground checking](../../../bootstrap/2_gamma/derivation_checker/GROUND.md) validates
 closed applications and owner-root sorts with separate witness custody.
-[Structural comparison](../../../bootstrap/gamma/derivation_checker/COMPARISON.md)
+[Structural comparison](../../../bootstrap/2_gamma/derivation_checker/COMPARISON.md)
 uses completed-pair memoization and an explicit pending stack.
-[Checked template substitution](../../../bootstrap/gamma/derivation_checker/SUBSTITUTION.md)
+[Checked template substitution](../../../bootstrap/2_gamma/derivation_checker/SUBSTITUTION.md)
 checks stated unfolding with separate binding-scoped memoization and shared work.
-[Explicit proof checking](../../../bootstrap/gamma/derivation_checker/CHECKING.md)
+[Explicit proof checking](../../../bootstrap/2_gamma/derivation_checker/CHECKING.md)
 checks every row and the owner root, with a generic soundness argument and
 combined resource ledger. The full Beta theory, certificate measurements, and
 artifact acceptance remain open.
@@ -30,7 +30,7 @@ encode_Beta(S, source_limit, output_limit) = Success(T)
 and whitespace; `T` is its entire persisted Alpha tape. The artifact owner fixes
 the Beta definition package, both raw subjects, the Beta encoding profile, and
 this root independently of the certificate producer. Current source/tape
-identities live in the [Gamma evaluator profile](../../../bootstrap/gamma/EVALUATOR_PROFILE.md);
+identities live in the [Gamma evaluator profile](../../../bootstrap/2_gamma/EVALUATOR_PROFILE.md);
 they are observations, not permanent theorem constants.
 
 The encoder is a transparent definition, not a primitive invoking Beta. Its
@@ -128,14 +128,14 @@ this first finite-instance implementation.
 
 ## Complete Beta theory
 
-The [source-owned Beta theory](../../../bootstrap/gamma/beta_encoding/README.md)
+The [source-owned Beta theory](../../../bootstrap/2_gamma/beta_encoding/README.md)
 provides finite Byte/Nibble constructors, total lexical classifiers and nibble
 conversion, fixed-width Word constructors, little-endian byte lists, and checked
 counter increment with an explicit overflow result, and unsigned word comparison.
 It is not the complete encoder or owner-root reconstruction described below.
 
 The error-valued encoder must cover the full
-[Beta contract](../../../bootstrap/beta/LANGUAGE.md): textual ASCII, separators,
+[Beta contract](../../../bootstrap/1_beta/LANGUAGE.md): textual ASCII, separators,
 comments, EOF, complete-token lowercase hexadecimal words and registers, every
 opcode/operand/width, eight-byte little-endian words, `dw`, address assertions,
 malformed input, source/output provisions, arithmetic overflow, and exact
@@ -164,7 +164,7 @@ scaffolding is not introduced.
 
 ## Ownership and execution order
 
-The intended generic source layout is `bootstrap/gamma/derivation_checker/`:
+The intended generic source layout is `bootstrap/2_gamma/derivation_checker/`:
 
 ```text
 checker.gamma       coordinate formation, derivation checking, and root checking

@@ -4,22 +4,22 @@
 
 ```text
 bootstrap/
-  alpha/                         Alpha semantics and audited native VM seeds
-  beta/                          trusted imperative tape-assembly language
+  0_alpha/                       Alpha semantics and audited native VM seeds
+  1_beta/                        trusted imperative tape-assembly language
     compiler/
       beta_compiler.beta         self-reconstructing source
       beta_compiler_bytecode.tape admitted Alpha implementation
-  gamma/                         typed scalar/effect functional language
+  2_gamma/                       typed scalar/effect functional language
     evaluator/
       gamma_evaluator.beta       selected direct Beta evaluator
       gamma_evaluator_bytecode.tape derived Alpha implementation
     bootstrap/concatenative/     downgraded former Gamma implementation
-  delta/                         typed pure functional language
+  3_delta/                       typed pure functional language
     compiler/
       delta_compiler.gamma       selected staged recursive-ADT/match compiler
     bootstrap/
       concatenative-compiler/    downgraded former Delta compiler
-  epsilon/                       fixed-storage compiler-host language
+  4_epsilon/                     fixed-storage compiler-host language
     compiler/
       epsilon_compiler.delta     checked evaluator entrance
       epsilon_compiler.delta.sources ordered Delta source manifest
@@ -27,9 +27,9 @@ bootstrap/
       lexical/, parsing/         source validation and syntax construction
       checking/                  declarations, types, calls, and body judgments
       execution/                 invocation, storage, scalars, and control
-  omega/
+  5_omega/
     compiler/*.epsilon           incomplete Epsilon-written Omega compiler D
-    compiler.epsilon.sources canonical D member manifest
+    omega_compiler.epsilon.sources canonical D member manifest
 
 source/
   psi/                           target-neutral Omega product phases
@@ -54,7 +54,7 @@ tests/
   omega/                         Omega product language cases
 ```
 
-The Gamma evaluator belongs under `bootstrap/gamma/evaluator/` because it
+The Gamma evaluator belongs under `bootstrap/2_gamma/evaluator/` because it
 implements Gamma meaning and is written in Beta. Downgraded implementations
 remain nested beneath the bootstrap language whose transition they document.
 The selected Delta compiler path remains open.
@@ -69,11 +69,11 @@ its source suffix names the language implementing it:
 
 | Owner | Current source |
 | --- | --- |
-| Beta compiler | `bootstrap/beta/compiler/beta_compiler.beta` |
-| Gamma evaluator | `bootstrap/gamma/evaluator/gamma_evaluator.beta` |
-| Delta compiler | `bootstrap/delta/compiler/delta_compiler.gamma` (selected staged implementation) |
-| Epsilon evaluator | `bootstrap/epsilon/compiler/epsilon_compiler.delta.sources`; entrance `epsilon_compiler.delta` |
-| Omega `D` | `bootstrap/omega/compiler.epsilon.sources` and `bootstrap/omega/compiler/*.epsilon` |
+| Beta compiler | `bootstrap/1_beta/compiler/beta_compiler.beta` |
+| Gamma evaluator | `bootstrap/2_gamma/evaluator/gamma_evaluator.beta` |
+| Delta compiler | `bootstrap/3_delta/compiler/delta_compiler.gamma` (selected staged implementation) |
+| Epsilon evaluator | `bootstrap/4_epsilon/compiler/epsilon_compiler.delta.sources`; entrance `epsilon_compiler.delta` |
+| Omega `D` | `bootstrap/5_omega/omega_compiler.epsilon.sources` and `bootstrap/5_omega/compiler/*.epsilon` |
 | Omega `C` | `source/omega/build.omg`, `source/omega/main.omg` |
 
 There is no intermediate self-host owner.

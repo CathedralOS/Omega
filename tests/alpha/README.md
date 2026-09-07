@@ -1,7 +1,7 @@
 # Alpha tests
 
 These tests exercise the Alpha VM semantics and its independent reference. The
-audited VM implementations and normative semantics remain in `bootstrap/alpha/`.
+audited VM implementations and normative semantics remain in `bootstrap/0_alpha/`.
 
 | Retained child/files | Role | Deletion condition |
 | --- | --- | --- |

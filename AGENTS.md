@@ -293,13 +293,13 @@ there, not at `cargo check`.
   language rung, and it grants no authority.
 - `source/psi/` + `source/omega/` — the Omega-written product compiler, split
   along the same firewall. This is the destination.
-- `bootstrap/{alpha,beta,gamma,delta,epsilon}/` — the trust-minimizing bootstrap
+- `bootstrap/{0_alpha,1_beta,2_gamma,3_delta,4_epsilon}/` — the trust-minimizing bootstrap
   chain Alpha → Beta → Gamma → Delta → Epsilon → Omega. Alpha is raw tape
   execution; Beta is the trusted imperative tape-assembly language; Gamma is
   the small typed functional evaluator; Delta authors the Epsilon compiler;
   Epsilon authors the first Omega compiler. Intermediate self-hosting is not a
   goal.
-- `bootstrap/omega/` — the Epsilon-written first Omega compiler D. It is a
+- `bootstrap/5_omega/` — the Epsilon-written first Omega compiler D. It is a
   bootstrap implementation, not the final Omega-owned product source.
 - `source/library/` — bundled Omega packages; `omega::` imports resolve here,
   as either `name.omg` or `name/mod.omg`.
@@ -499,7 +499,7 @@ implementation; those meanings must stay distinct in commit subjects.
 | Lane | Responsibility and current path anchors |
 | --- | --- |
 | `alpha`, `beta`, `gamma`, `delta`, `epsilon` | The corresponding language rung in `bootstrap/<rung>/`, including its compiler/evaluator, Rust reference tooling, and rung-specific tests. Use the actual rung name. |
-| `bootstrap-omega` | The Epsilon-written first Omega compiler D in `bootstrap/omega/` and tests specifically of that implementation. Never shorten this to `omega`. |
+| `bootstrap-omega` | The Epsilon-written first Omega compiler D in `bootstrap/5_omega/` and tests specifically of that implementation. Never shorten this to `omega`. |
 | `bootstrap` | Cross-rung reconstruction, trust-chain edges, artifact provenance, and chain hygiene; includes `tests/bootstrap/` and shared `tools/bootstrap/` orchestration. A helper specific to one rung uses that rung's lane. |
 | `psi` | Target-neutral source semantics through Terminal Psi: parsing, resolution, typing, checking, proof, interpretation, and Psi optimization in `omega-rust/psi/` or `source/psi/`. |
 | `omega` | The Terminal-Psi-consuming compiler stage: Omega representations, transforms, optimization, and realization semantics in `omega-rust/omega/{representations,pipeline,semantics}/` or corresponding `source/omega/` implementation. Never a project-wide default. |

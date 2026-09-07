@@ -1,7 +1,7 @@
 # Beta language and encoding
 
 This document defines the source language whose deterministic encoding produces
-an Alpha bytecode payload. [`bootstrap/alpha/SEMANTICS.md`](../alpha/SEMANTICS.md)
+an Alpha bytecode payload. [`bootstrap/0_alpha/SEMANTICS.md`](../0_alpha/SEMANTICS.md)
 defines execution of that payload; Beta defines only the
 text-to-bytes correspondence.
 

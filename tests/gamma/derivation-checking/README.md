@@ -6,7 +6,7 @@ Bash. An unavailable Python installation explicitly skips; other hosts report
 unsupported. Host availability is not evidence of cross-platform execution.
 
 The tiny [main.gamma](main.gamma) calls the complete source-owned
-[`check_derivation`](../../../bootstrap/gamma/derivation_checker/CHECKING.md)
+[`check_derivation`](../../../bootstrap/2_gamma/derivation_checker/CHECKING.md)
 entrance. Success is `07` followed by proof count and cumulative work as two
 u64 little-endian words (17 bytes). Rejected/Incomplete observations contain
 their tag and four u64 failure fields (33 bytes). Every observation requires

@@ -2,7 +2,7 @@
 
 This directory owns the first full Omega compiler implementation, D. D is
 written in Epsilon and executed by the sibling
-[`../epsilon/`](../epsilon/) evaluator. It compiles the final Omega-written
+[`../epsilon/`](../4_epsilon/) evaluator. It compiles the final Omega-written
 Psi/Omega closure under [`../../source/`](../../source/) for the ordinary
 `alpha_bootstrap` target.
 
@@ -30,7 +30,7 @@ Alpha serialization an Epsilon concern.
 - [`../../source/`](../../source/) — final Omega-written Psi/Omega closure C;
 - [`../../omega-rust/`](../../omega-rust/) — maintained Rust implementation and
   differential comparator, never bootstrap authority;
-- [`../epsilon/`](../epsilon/) — final lower-rung evaluator that executes D.
+- [`../epsilon/`](../4_epsilon/) — final lower-rung evaluator that executes D.
 
 That source choice does not define a dialect or restrict programs the resulting
 compiler accepts. Standalone viewers, interpreters, REPLs, and proof

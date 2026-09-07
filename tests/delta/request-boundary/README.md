@@ -36,7 +36,7 @@ Request failures use Reject code 1 `malformed_request`, Reject code 2
 `unknown_profile`, or Incomplete resource 1 `source_bytes`, all in DCREQ
 coordinate space 4. These follow the common frame and bounded order fixed by
 [D30/D33](../../../wiki/architecture/bootstrap_chain/decisions.md#d33--dcout-admission-and-schema-diagnosis-are-bounded-and-total)
-and the [current Delta boundary contract](../../../bootstrap/delta/LANGUAGE.md#compiler-boundary-family).
+and the [current Delta boundary contract](../../../bootstrap/3_delta/LANGUAGE.md#compiler-boundary-family).
 The compiler owns the serialized constants; the gate's expected bytes are
 comparators, not a runtime metadata input.
 

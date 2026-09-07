@@ -63,8 +63,8 @@ prerequisite to every lower-rung milestone.
 
 - **BOOTSTRAP-COMPLEXITY-REVIEW.** Before further infrastructure expansion,
   review the current compiler/checker route against the human audit objective.
-  Owners: `bootstrap/delta/compiler/implementation/{normalization,checking/names}/`,
-  `bootstrap/gamma/{evaluator,derivation_checker,beta_encoding}/`, and the
+  Owners: `bootstrap/3_delta/compiler/implementation/{normalization,checking/names}/`,
+  `bootstrap/2_gamma/{evaluator,derivation_checker,beta_encoding}/`, and the
   retained concatenative inventories in the Gamma/Delta READMEs.
   Measure actual Epsilon lowering demand before choosing the 255-depth
   workaround or a larger coherent Gamma profile. Compare source, invariants,
@@ -80,8 +80,8 @@ prerequisite to every lower-rung milestone.
 ## P1 - Gamma checker and first complete encoding proof
 
 - **GAMMA-DERIVATION-CHECKER.** Close the first artifact-specific proof using
-  the ordinary-Gamma [checker](bootstrap/gamma/derivation_checker/CHECKING.md)
-  and [Beta definitions](bootstrap/gamma/beta_encoding/README.md), following the
+  the ordinary-Gamma [checker](bootstrap/2_gamma/derivation_checker/CHECKING.md)
+  and [Beta definitions](bootstrap/2_gamma/beta_encoding/README.md), following the
   [ground equality design](wiki/architecture/bootstrap_chain/derivation_calculus.md).
   Remaining work: complete error-valued Beta encoding definitions, independently
   reconstruct the owner-fixed proposition, and produce the untrusted explicit
@@ -93,7 +93,7 @@ prerequisite to every lower-rung milestone.
   in this certificate. No proof search, producer-selected root, trusted assembler
   primitive, or general-purpose extension.
   Acceptance: the full certificate checks under the exact
-  [result/resource profile](bootstrap/gamma/derivation_checker/FORMAT.md), with
+  [result/resource profile](bootstrap/2_gamma/derivation_checker/FORMAT.md), with
   measured bytes, storage, depth, and time and a reviewable account of the
   definitions and trusted assumptions. Malformed, cyclic, missing-premise,
   wrong-subject, wrong-rule, and exhausted requests cannot accept.
@@ -102,8 +102,8 @@ prerequisite to every lower-rung milestone.
 ## P2 - Gamma to Delta
 
 - **DELTA-COMPILER.** Finish the Gamma closure rooted at
-  `bootstrap/delta/compiler/delta_compiler.gamma` against the
-  [Delta contract](bootstrap/delta/LANGUAGE.md), especially remaining canonical
+  `bootstrap/3_delta/compiler/delta_compiler.gamma` against the
+  [Delta contract](bootstrap/3_delta/LANGUAGE.md), especially remaining canonical
   DCOUT resource and internal failures. Preserve full ordinary source semantics,
   checked arithmetic, exhaustive matching, proper-tail lowering, and canonical
   Gamma emission. The current Epsilon source plus a diagnostic entry already
@@ -118,8 +118,8 @@ prerequisite to every lower-rung milestone.
 ## P3 - Delta to Epsilon
 
 - **EPSILON-EVALUATOR.** Complete the closure selected by
-  `bootstrap/epsilon/compiler/epsilon_compiler.delta.sources` against the
-  [Epsilon contract](bootstrap/epsilon/LANGUAGE.md): remaining checking,
+  `bootstrap/4_epsilon/compiler/epsilon_compiler.delta.sources` against the
+  [Epsilon contract](bootstrap/4_epsilon/LANGUAGE.md): remaining checking,
   fixed-storage realization, deterministic outcomes, execution, and evaluator
   entry. Justify retained features by the Epsilon-written D source.
   Use concrete existing D slices for intermediate acceptance; do not invent
@@ -131,7 +131,7 @@ prerequisite to every lower-rung milestone.
 ## P4 - Epsilon to Omega and self-hosting
 
 - **OMEGA-D.** Complete the Epsilon closure selected by
-  `bootstrap/omega/omega_compiler.epsilon.sources` as the first full Omega
+  `bootstrap/5_omega/omega_compiler.epsilon.sources` as the first full Omega
   compiler. Work against settled product semantics and actual C requirements;
   conservative, slow interpreted execution is acceptable when feasible.
   Acceptance: interpreted D compiles the exact Omega C closure for its ordinary

@@ -1,7 +1,7 @@
 # Conservative theory formation gate
 
-The governing contract is [FORMATION.md](../../../bootstrap/gamma/derivation_checker/FORMATION.md),
-with literal fields defined by [FORMAT.md](../../../bootstrap/gamma/derivation_checker/FORMAT.md).
+The governing contract is [FORMATION.md](../../../bootstrap/2_gamma/derivation_checker/FORMATION.md),
+with literal fields defined by [FORMAT.md](../../../bootstrap/2_gamma/derivation_checker/FORMAT.md).
 
 Run `sh tests/gamma/derivation-formation/run.sh` from the repository root on
 macOS arm64 or Windows x64 in Git Bash. Both routes require Python 3 and the

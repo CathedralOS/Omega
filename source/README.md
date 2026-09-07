@@ -14,7 +14,7 @@ ownership firewall. They are compiled first by the Epsilon-written bootstrap
 compiler D and then by the resulting `omega0` tape:
 
 ```text
-bootstrap/omega D + source/{psi,omega,library} -> omega0
+bootstrap/5_omega D + source/{psi,omega,library} -> omega0
 omega0 + source/{psi,omega,library}            -> omega
 ```
 
