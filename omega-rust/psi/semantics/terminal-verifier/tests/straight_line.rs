@@ -513,6 +513,7 @@ fn proof_route_changes_do_not_change_the_reconstructed_question() {
     }];
     let kernel_bundle = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -521,6 +522,7 @@ fn proof_route_changes_do_not_change_the_reconstructed_question() {
     };
     let certificate_bundle = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -555,6 +557,7 @@ fn verifier_does_not_rediscover_an_alternate_route_for_a_malformed_certificate()
     }];
     let malformed_selected_route = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -698,6 +701,7 @@ fn boolean_constant_axiom_proves_the_return_contract() {
     };
     let bundle = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -800,6 +804,7 @@ fn boolean_not_axiom_proves_the_return_contract() {
     };
     let bundle = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -1044,6 +1049,7 @@ fn boolean_equality_axiom_proves_the_return_contract() {
     };
     let bundle = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -1199,6 +1205,7 @@ fn integer_equality_axiom_proves_the_return_contract() {
     };
     let bundle = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -1402,6 +1409,7 @@ fn integer_ordering_axioms_prove_return_contracts() {
         };
         let bundle = ProofBundle {
             recursive_components: Vec::new(),
+            control_cycles: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: vec![ObligationEvidence {
                 obligation,
@@ -1597,6 +1605,7 @@ fn integer_bitwise_axioms_prove_exact_result_contracts() {
         };
         let bundle = ProofBundle {
             recursive_components: Vec::new(),
+            control_cycles: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: vec![ObligationEvidence {
                 obligation,
@@ -1736,6 +1745,7 @@ fn integer_bitwise_not_reconstructs_its_exact_result_axiom() {
     };
     let bundle = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -1861,6 +1871,7 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
     };
     let bundle = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -3261,6 +3272,7 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
         };
         let bundle = ProofBundle {
             recursive_components: Vec::new(),
+            control_cycles: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: vec![ObligationEvidence {
                 obligation,
@@ -3321,6 +3333,7 @@ fn content_conservation_accepts_a_replaceable_certificate() {
     let (module, goal, obligation) = reflexive_content_module();
     let bundle = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -3345,6 +3358,7 @@ fn identity_reshuffle_reconstructs_content_equality_as_a_semantic_axiom() {
     let (module, goal, obligation) = identity_reshuffle_module();
     let bundle = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -3864,6 +3878,7 @@ fn sum_case_identity_reshuffle_reconstructs_content_equality() {
     module.machines[0].contract.ensures[0].proposition = goal.clone();
     let bundle = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -4103,6 +4118,7 @@ fn exact_payloadless_guard_rebases_result_case_and_replays_only_matching_unnamed
     );
     let bundle = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: success_obligation,
@@ -4286,6 +4302,7 @@ fn multi_exit_payloadless_guards_intersect_only_exits_of_the_same_case() {
 
     let bundle = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: [global_obligation, success_obligation, failure_obligation]
             .into_iter()
@@ -4378,6 +4395,7 @@ fn multi_exit_payloadless_guards_activate_named_producers_by_reached_case_set() 
     };
     let bundle = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: vec![producer(1), producer(2)],
         evidence: Vec::new(),
     };
@@ -4404,6 +4422,7 @@ fn partition_composition_is_available_after_its_exact_successful_call() {
     validate_module(&module).expect("the partition substitution remains valid replay evidence");
     let bundle = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -5700,6 +5719,7 @@ fn wrapping_add_axiom_proves_the_return_contract() {
     };
     let bundle = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -5764,6 +5784,7 @@ fn saturating_add_axiom_proves_the_return_contract() {
     };
     let bundle = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -5828,6 +5849,7 @@ fn wrapping_subtract_axiom_proves_the_return_contract() {
     };
     let bundle = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -5892,6 +5914,7 @@ fn saturating_subtract_axiom_proves_the_return_contract() {
     };
     let bundle = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -5956,6 +5979,7 @@ fn wrapping_multiply_axiom_proves_the_return_contract() {
     };
     let bundle = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -6020,6 +6044,7 @@ fn saturating_multiply_axiom_proves_the_return_contract() {
     };
     let bundle = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -6809,6 +6834,7 @@ fn proof_recursive_bundle(module: &TerminalModule) -> ProofBundle {
     };
     ProofBundle {
         evidence: Vec::new(),
+        control_cycles: Vec::new(),
         recursive_components: vec![RecursiveComponentEvidence {
             component: proof_recursive_component_identity(component),
             certificate: RecursiveComponentCertificate {
@@ -7289,6 +7315,7 @@ impl Fixture {
         };
         ProofBundle {
             recursive_components: Vec::new(),
+            control_cycles: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: vec![ObligationEvidence {
                 obligation: self.obligation,

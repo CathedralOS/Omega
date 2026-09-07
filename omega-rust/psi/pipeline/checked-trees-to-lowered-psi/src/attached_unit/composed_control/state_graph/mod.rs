@@ -9,6 +9,7 @@ use checked_trees::{
 mod admission;
 mod edges;
 mod emission;
+mod ranking;
 mod scalars;
 mod subslices;
 mod topology;

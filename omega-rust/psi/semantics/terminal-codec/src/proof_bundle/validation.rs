@@ -35,6 +35,22 @@ pub(super) fn validate_bundle(bundle: &ProofBundle) -> Result<(), ProofCodecErro
             validate_evidence_route(&edge.evidence)?;
         }
     }
+    let mut previous_component = None;
+    for component in &bundle.control_cycles {
+        if previous_component.is_some_and(|previous| previous >= component.component) {
+            return Err(ProofCodecError::NonCanonicalControlCycleEvidence);
+        }
+        previous_component = Some(component.component);
+        validate_evidence_route(&component.certificate.well_foundedness)?;
+        let mut previous_edge = None;
+        for edge in &component.certificate.edges {
+            if previous_edge.is_some_and(|previous| previous >= edge.obligation) {
+                return Err(ProofCodecError::NonCanonicalControlCycleEvidence);
+            }
+            previous_edge = Some(edge.obligation);
+            validate_evidence_route(&edge.evidence)?;
+        }
+    }
     let mut previous_term = None;
     for (index, producer) in bundle.evidence_producers.iter().enumerate() {
         let expected = EvidenceIdentity::new(

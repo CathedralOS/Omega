@@ -68,7 +68,11 @@ fn explicit_ranked_admission_retains_exact_fuel_graph_and_frontier_custody() {
         .iter()
         .find(|machine| machine.id == module.entry)
         .expect("entry machine");
-    let ranked = machine.ranked_scc.as_ref().expect("ranked SCC");
+    let ranked = machine
+        .ranked_scc
+        .as_ref()
+        .and_then(|ranked| ranked.as_unsigned_countdown())
+        .expect("countdown ranked SCC");
     let [covered] = ranked.covered_cyclic_edges.as_slice() else {
         panic!("one covered backedge")
     };

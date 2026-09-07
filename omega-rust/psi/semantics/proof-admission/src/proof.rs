@@ -2139,6 +2139,81 @@ mod tests {
     }
 
     #[test]
+    fn recursive_component_preserves_exact_machine_parameter_scope() {
+        use crate::{
+            AdmissionProfile, CertificateEnvelope, CertificateObligation, EvidenceRoute,
+            Obligation, ObligationClass, RecursiveComponentCertificate,
+            RecursiveComponentObligation, RecursiveEdgeCertificate, RecursiveEdgeObligation,
+            verify_recursive_component, verify_recursive_component_with_machine_parameters,
+        };
+        use semantic_vocabulary::{BlockId, EvidenceIdentity, ObligationId, RankingRelationId};
+
+        let (context, axioms, requirements, parameters, proof) = correlated_division_fixture();
+        let member = BlockId::new(1).unwrap();
+        let relation = RankingRelationId::new(1).unwrap();
+        let obligation = ObligationId::new(1).unwrap();
+        let question = CertificateObligation {
+            obligation: Obligation {
+                id: obligation,
+                proposition: proof.conclusion.clone(),
+                class: ObligationClass::Derivable,
+            },
+            assumptions: requirements,
+            semantic_axioms: axioms,
+        };
+        // The generic envelope checks caller-reconstructed propositions. The
+        // fixture exercises parameter-only proof scope, not a ranking theory.
+        let component = RecursiveComponentObligation {
+            members: vec![member],
+            ranking_relation: Some(relation),
+            well_foundedness: question.clone(),
+            edges: vec![RecursiveEdgeObligation {
+                caller: member,
+                callee: member,
+                decrease: question,
+            }],
+        };
+        let route = EvidenceRoute::CertificateDerived(CertificateEnvelope {
+            identity: EvidenceIdentity::new(1).unwrap(),
+            proof_system_marker: terminal_psi::ProofSystemMarker::CURRENT,
+            proof,
+        });
+        let certificate = RecursiveComponentCertificate {
+            identity: EvidenceIdentity::new(1).unwrap(),
+            ranking_relation: relation,
+            well_foundedness: route.clone(),
+            edges: vec![RecursiveEdgeCertificate {
+                obligation,
+                evidence: route,
+            }],
+        };
+        let profile = AdmissionProfile::default();
+        verify_recursive_component_with_machine_parameters(
+            &context,
+            &component,
+            &parameters,
+            certificate.clone(),
+            &profile,
+        )
+        .expect("actual invocation parameter supports the reconstructed proof");
+        assert!(
+            verify_recursive_component(&context, &component, certificate.clone(), &profile,)
+                .is_err()
+        );
+        assert!(
+            verify_recursive_component_with_machine_parameters(
+                &context,
+                &component,
+                &BTreeSet::from([ValueId::new(101).unwrap()]),
+                certificate,
+                &profile,
+            )
+            .is_err(),
+            "a loop-local value cannot replace the invocation parameter"
+        );
+    }
+
+    #[test]
     fn correlated_forbidden_root_rule_rejects_nonparameter_root_and_forged_conclusion() {
         let (context, axioms, requirements, _, proof) = correlated_division_fixture();
         assert!(matches!(

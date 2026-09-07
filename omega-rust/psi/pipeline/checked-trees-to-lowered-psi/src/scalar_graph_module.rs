@@ -1150,6 +1150,7 @@ pub(super) fn build_scalar_graph_module(
         },
         proof_bundle: ProofBundle {
             recursive_components: Vec::new(),
+            control_cycles: Vec::new(),
             evidence_producers: Vec::new(),
             evidence,
         },

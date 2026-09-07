@@ -28,6 +28,10 @@ static CURRENT_TRUST_GRAPH: OnceLock<Result<ValidatedTerminalTrustGraph, TrustGr
     OnceLock::new();
 
 const CODEC_SOURCE: &[u8] = include_bytes!("lib.rs");
+const MACHINE_WIRE_SOURCE: &[u8] = include_bytes!("machine_wire.rs");
+const PROOF_CODEC_VALIDATION_SOURCE: &[u8] = include_bytes!("proof_bundle/validation.rs");
+const PROOF_ADMISSION_RECURSION_SOURCE: &[u8] =
+    include_bytes!("../../proof-admission/src/recursion.rs");
 const VERIFIER_LIB_SOURCE: &[u8] = include_bytes!("../../terminal-verifier/src/lib.rs");
 const VERIFIER_VALIDATION_SOURCE: &[u8] =
     include_bytes!("../../terminal-verifier/src/validation.rs");

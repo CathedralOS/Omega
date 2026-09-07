@@ -3,7 +3,8 @@ use super::{
     BYTE_BLOCK_BINDINGS_SOURCE, BYTE_CYCLIC_ELIGIBILITY_SOURCE, BYTE_EXTENT_RECONSTRUCTION_SOURCE,
     BYTE_SUBSLICE_VALIDATION_SOURCE, BYTE_VIEW_ARGUMENTS_SOURCE, BYTE_VIEW_DOMINANCE_SOURCE,
     BYTE_VIEW_FRONTIER_SOURCE, BYTE_VIEW_FRONTIER_TRAVERSAL_SOURCE, CONTROL_GRAPH_SOURCE,
-    PROOF_ADMISSION_SUBTRACT_ORDER_SOURCE, TERMINAL_BYTE_EXTENT_SOURCE,
+    MACHINE_WIRE_SOURCE, PROOF_ADMISSION_RECURSION_SOURCE, PROOF_ADMISSION_SUBTRACT_ORDER_SOURCE,
+    PROOF_CODEC_VALIDATION_SOURCE, TERMINAL_BYTE_EXTENT_SOURCE,
 };
 
 use super::{
@@ -42,7 +43,7 @@ fn terminal_vocabulary_version() -> String {
 }
 
 fn canonical_terminal_bytes_identity() -> &'static str {
-    "root:canonical-terminal-bytes-format-78-vocabulary-84"
+    "root:canonical-terminal-bytes-format-79-vocabulary-85"
 }
 
 fn canonical_terminal_bytes_version() -> String {
@@ -53,7 +54,7 @@ fn canonical_terminal_bytes_version() -> String {
 }
 
 fn canonical_proof_calculus_identity() -> &'static str {
-    "root:canonical-proof-calculus-format-29"
+    "root:canonical-proof-calculus-format-30"
 }
 
 fn canonical_proof_calculus_version() -> String {
@@ -143,6 +144,14 @@ fn registered_roots() -> Vec<TrustDependencyNode> {
                     PROOF_ADMISSION_TRAVERSAL_SOURCE,
                 ),
                 ("terminal-codec/proof_bundle.rs", PROOF_CODEC_SOURCE),
+                (
+                    "terminal-codec/proof_bundle/validation.rs",
+                    PROOF_CODEC_VALIDATION_SOURCE,
+                ),
+                (
+                    "proof-admission/recursion.rs",
+                    PROOF_ADMISSION_RECURSION_SOURCE,
+                ),
             ],
         ),
         TrustDependencyNode::new(
@@ -156,7 +165,10 @@ fn registered_roots() -> Vec<TrustDependencyNode> {
             "Artifact identity and authoritative reconstruction begin at exact canonical bytes.",
             TrustAcceptingPolicy::RegisteredSemanticFoundation,
             Vec::new(),
-            &[("terminal-codec/lib.rs", CODEC_SOURCE)],
+            &[
+                ("terminal-codec/lib.rs", CODEC_SOURCE),
+                ("terminal-codec/machine_wire.rs", MACHINE_WIRE_SOURCE),
+            ],
         ),
         TrustDependencyNode::new(
             "root:explicit-rust-migration-policy",

@@ -89,3 +89,26 @@ where that vocabulary exists and otherwise lowers checked Psi semantics while
 the remaining terminal slices are implemented. Cross-layer interpreter/native
 comparisons live in an Omega test-only harness; both reference interpreters
 remain Psi-owned.
+
+The shared free/attached Unit state-graph producer retains the authored
+`Slice::Length` witness as `TerminalRankedScc::Natural`, using actual immutable
+byte-view lengths rather than a synthetic counter. Ordinary Terminal verification
+reconstructs every SCC and internal edge, checks exact successor-rank substitution,
+and accepts preserving staging edges only when strict edges meet every cycle.
+`terminal-verifier/src/control_cycles` owns those checks; the lowerer's
+`attached_unit/composed_control/state_graph/ranking.rs` retains the source witness.
+Grouped `proof_bundle.control_cycles` evidence uses the shared component checker
+for one well-foundedness citation and every edge comparison. Serialized writer
+coverage includes raw bytes, optional newline, caller continuation, and resumable
+interpretation. Terminal semantic format/vocabulary markers are 79/85; the proof
+format marker is 30.
+
+This natural-rank slice also accepts fixed unsigned scalar parameter ranks at
+the Terminal boundary. Mutable/owned cyclic custody, general projections and
+ranking views, callee-progress composition, and source-to-Psi correspondence
+remain separate limitations. Native byte views and Natural fixed-fuel/native
+routes remain fenced; only the legacy unsigned countdown has the special ranked
+native and fixed-fuel routes. Source `requires bytes.len > 0` still needs
+contract-level byte-length observation and exact caller substitution. See
+[Terminal Psi architecture](../../wiki/architecture/pipeline/terminal_psi.md#borrowed-byte-writer-composition)
+for the supported writer composition and remaining boundaries.

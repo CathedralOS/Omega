@@ -708,6 +708,9 @@ impl CheckedUnitEffectPlans {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedComposedUnitControlMachinePlan {
     pub machine: SymbolHandle,
+    /// Exact cyclic-state subjects selected by the checked Slice::Length
+    /// witness. Empty means this shared plan retains no such witness.
+    pub slice_length_ranks: Vec<CheckedStateSliceLengthRank>,
     /// Free helpers have no attachment; attached bodies retain their authored owner.
     pub attachment_type_identity: Option<String>,
     pub provider_attachment_requirements: Vec<CheckedProviderAttachmentRequirementPlan>,
@@ -717,6 +720,13 @@ pub struct CheckedComposedUnitControlMachinePlan {
     pub contract_service_reach: ServiceReachPlan,
     pub service_reach: ServiceReachSummary,
     pub states: Vec<CheckedComposedUnitControlStatePlan>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedStateSliceLengthRank {
+    pub state: SymbolHandle,
+    pub parameter: SymbolHandle,
+    pub parameter_position: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -793,30 +793,33 @@ fn lower_ranked_structural_unit_countdown(
             scalar_type: rank_scalar_type,
         }],
         structural_parameters: structural_parameters.clone(),
-        ranked_scc: Some(TerminalRankedScc {
-            header,
-            rank_parameter: rank,
-            rank_type,
-            lower_bound: IntegerValue::Unsigned(ranked.rank_lower_bound),
-            upper_bound: IntegerValue::Unsigned(ranked.rank_upper_bound),
-            covered_cyclic_edges: vec![TerminalRankedSccEdge {
-                edge: backedge,
-                source: decrement,
-                target: header,
-                guard: TerminalRankedGuard::UnsignedParameterPositive {
-                    block: header,
-                    edge: guard_edge,
-                    condition,
-                    parameter: rank,
-                },
-                successor_argument: TerminalRankedSuccessorArgument::UnsignedParameterMinusOne {
-                    argument_index: ranked.rank_scalar_parameter_index,
-                    argument: next,
-                    source_parameter: rank,
-                    target_parameter: rank,
-                },
-            }],
-        }),
+        ranked_scc: Some(TerminalRankedScc::UnsignedCountdown(
+            terminal_psi::TerminalUnsignedCountdownScc {
+                header,
+                rank_parameter: rank,
+                rank_type,
+                lower_bound: IntegerValue::Unsigned(ranked.rank_lower_bound),
+                upper_bound: IntegerValue::Unsigned(ranked.rank_upper_bound),
+                covered_cyclic_edges: vec![TerminalRankedSccEdge {
+                    edge: backedge,
+                    source: decrement,
+                    target: header,
+                    guard: TerminalRankedGuard::UnsignedParameterPositive {
+                        block: header,
+                        edge: guard_edge,
+                        condition,
+                        parameter: rank,
+                    },
+                    successor_argument:
+                        TerminalRankedSuccessorArgument::UnsignedParameterMinusOne {
+                            argument_index: ranked.rank_scalar_parameter_index,
+                            argument: next,
+                            source_parameter: rank,
+                            target_parameter: rank,
+                        },
+                }],
+            },
+        )),
         result: TerminalMachineResult::Unit,
         structural_places: structural_parameters
             .iter()

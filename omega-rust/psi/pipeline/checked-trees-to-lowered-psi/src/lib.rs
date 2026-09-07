@@ -117,6 +117,7 @@ mod machine_dispatch;
 mod nonzero_divisor_certificate;
 pub use nonzero_divisor_certificate::produce_checked_canonical_integer_proof;
 mod affine_return;
+mod control_cycle_proofs;
 mod operation_emission;
 mod payloadless_case_return;
 mod payloadless_guarded_call_return;

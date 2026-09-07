@@ -519,6 +519,7 @@ fn contextual_nominal_affine_cleanup_reconstructs_and_discharges_receiver_requir
     ));
     let bundle = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(1),
@@ -537,6 +538,7 @@ fn contextual_nominal_affine_cleanup_reconstructs_and_discharges_receiver_requir
 
     let wrong_bundle = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(1),
@@ -650,6 +652,7 @@ fn scalar_return_contextual_cleanups_require_reverse_root_order() {
     }
     let bundle = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: obligations
             .into_iter()
@@ -718,6 +721,7 @@ fn contextual_nominal_affine_cleanup_reconstructs_and_discharges_false_receiver_
 
     let bundle = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(1),
@@ -773,6 +777,7 @@ fn contextual_nominal_affine_cleanup_orders_mixed_polarities_before_field_bytes(
 
     let bundle = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: obligations
             .into_iter()
@@ -839,6 +844,7 @@ fn contextual_nominal_affine_cleanup_reconstructs_finite_ordered_requirements() 
 
     let bundle = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: expected
             .into_iter()
@@ -1124,6 +1130,7 @@ fn distinct_contextual_cleanup_targets_use_distinct_receivers_and_reconstruct_ea
 
     let bundle = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: obligations
             .into_iter()

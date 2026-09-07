@@ -6,7 +6,12 @@
 //! edges, then requires evidence for every bodyful contract clause. Proof
 //! bundles cannot choose which obligations exist.
 
+mod control_cycles;
 mod control_graph;
+pub use control_cycles::{
+    AcceptedControlCycle, ReconstructedControlCycleObligation, control_cycle_identity,
+    control_cycle_members, reconstruct_control_cycle_obligations,
+};
 mod optimization;
 mod proof_recursion;
 mod quotient_correspondence;

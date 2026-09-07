@@ -235,6 +235,7 @@ pub(crate) fn reconstruct_validated_structural_ownership_frontiers(
             let ranked_backedges = machine
                 .ranked_scc
                 .iter()
+                .filter_map(|ranking| ranking.as_unsigned_countdown())
                 .flat_map(|component| component.covered_cyclic_edges.iter().map(|row| row.edge))
                 .collect::<BTreeSet<_>>();
             frontier::validate_structural_frontier(
@@ -918,7 +919,11 @@ fn validate_native_ranked_countdown_module(module: &TerminalModule) -> Result<()
     else {
         return Err(ModuleError::NonExecutableRankedScc(module.entry));
     };
-    let component = machine.ranked_scc.as_ref().expect("ranked machine");
+    let component = machine
+        .ranked_scc
+        .as_ref()
+        .and_then(|ranking| ranking.as_unsigned_countdown())
+        .ok_or(ModuleError::NonExecutableRankedScc(machine.id))?;
     let u32_type = IntegerType::new(IntegerSign::Unsigned, 32)
         .expect("the fixed unsigned 32-bit carrier is valid");
     let [structural_parameter] = machine.structural_parameters.as_slice() else {
@@ -957,7 +962,12 @@ fn validate_interpretable_ranked_countdown_module(
     let ranked = module
         .machines
         .iter()
-        .filter(|machine| machine.ranked_scc.is_some())
+        .filter(|machine| {
+            machine
+                .ranked_scc
+                .as_ref()
+                .is_some_and(|ranking| ranking.as_unsigned_countdown().is_some())
+        })
         .collect::<Vec<_>>();
     let Some(machine) = ranked.first().copied() else {
         return Ok(());
@@ -974,7 +984,11 @@ fn validate_interpretable_ranked_countdown_module(
         return Err(reject());
     }
 
-    let component = machine.ranked_scc.as_ref().expect("ranked machine");
+    let component = machine
+        .ranked_scc
+        .as_ref()
+        .and_then(|ranking| ranking.as_unsigned_countdown())
+        .expect("ranked countdown machine");
     let header = machine
         .blocks
         .iter()

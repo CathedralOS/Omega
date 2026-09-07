@@ -153,31 +153,15 @@ fn a_ranked_writer_cannot_silently_become_an_unranked_loop() {
         "machine relay(bytes: &[u8]) reaches Output {",
         "machine relay(bytes: &[u8]) terminates by bytes -> Slice::Length; reaches Output {",
     );
-    let error = checked_trees_to_lowered_psi::lower_machine(&checked(&source), "Root::enter")
-        .expect_err("free ranking evidence must survive selection before lowering");
-    assert!(
-        matches!(
-            error,
-            checked_trees_to_lowered_psi::LoweringError::Unsupported(
-                "Unit-effect member has an invalid checked terminal selection"
-            )
-        ),
-        "{error:?}"
-    );
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked(&source), "Root::enter")
+        .expect("free ranking evidence survives shared lowering");
+    assert_eq!(lowered.proof_bundle.control_cycles.len(), 1);
     let attached = source
         .replace("machine relay(", "data Writer {} machine Writer::relay(")
         .replace("        relay(\"", "        Writer::relay(\"");
-    let error = checked_trees_to_lowered_psi::lower_machine(&checked(&attached), "Root::enter")
-        .expect_err("attached ranking evidence must survive the shared graph route");
-    assert!(
-        matches!(
-            error,
-            checked_trees_to_lowered_psi::LoweringError::Unsupported(
-                "Unit graph ranking certificate is not retained"
-            )
-        ),
-        "{error:?}"
-    );
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked(&attached), "Root::enter")
+        .expect("attached ranking evidence survives shared lowering");
+    assert_eq!(lowered.proof_bundle.control_cycles.len(), 1);
 }
 
 #[test]

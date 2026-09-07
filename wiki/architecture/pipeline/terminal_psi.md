@@ -181,7 +181,7 @@ actual bytes and charges one operation unit. This supplies no indexing proof.
 Source `.len` operands retain authored parameter positions until their explicit
 mapping to Terminal places, including inside arithmetic and nested scalar calls.
 Native lowering rejects the operation explicitly until byte-view descriptor
-realization is implemented; callable ranked state composition remains separate.
+realization is implemented; native ranked-callee composition remains separate.
 
 Vocabulary 82 adds `ByteSequenceRead { source, index, length, obligation }`,
 producing one exact `u8`. Both scalar operands are exact `u64` values. The length
@@ -254,7 +254,7 @@ length scalar, another collection's length, or a nominal field named `len` does
 not acquire that identity.
 
 Source state edges also retain exclusive ranges over whole immutable byte-view
-parameters in the shared acyclic Unit graph. The structural transfer keeps the
+parameters in the shared Unit state graph. The structural transfer keeps the
 full source expression; endpoint scalar facts use the state, transition statement,
 and authored target argument position, not a dense structural index. Lowering
 checks those coordinates and builtin range meaning, evaluates mixed scalar and
@@ -282,13 +282,13 @@ The existing value-independent logical fuel schedule covers these acyclic
 transfers. Native lowering rejects the bindings before projection until it can
 retain and realize the byte descriptors; fuel evidence does not grant that support.
 
-This closes acyclic call and state-edge tail execution, not slice-ranked loops.
-Those still need cyclic safety and ranking evidence for changing bindings.
-Ranked-body execution must also
-support rebinding borrowed descriptors when a producer executes again; the
-current executable countdown shape excludes subslice operations.
-Native lowering rejects the
-subslice explicitly until borrowed-view descriptor realization is available.
+The shared Unit graph also admits the authored `Slice::Length` witness through
+natural-ranked component records and separately checked per-edge evidence.
+Interpretation rebinds a repeated subslice producer's own borrowed descriptor;
+other aliases retain their previous views. This supports slice-ranked tail
+execution through ordinary calls and state edges. Native lowering still rejects
+the subslice and structural bindings until borrowed-view descriptor realization
+is available; natural ranking supplies no fixed-fuel certificate.
 
 Vocabulary 27 also closes the O0 provider-backed attachment specialization. The
 machine retains `attachment: Some(Main)`, its relevant `console` field retains
@@ -2350,21 +2350,22 @@ incoming semantic axioms. Operations and selected guards then establish facts
 on the remaining acyclic paths, and all normal returns participate in the exit
 intersection. A fact from the acyclic prefix or one loop iteration is not an
 invariant. An infinite component contributes no normal return and does not
-itself require a termination proof. General invariant and ranking reconstruction
-remain unfinished; guarded-crash path enumeration also remains restricted on
-cyclic graphs. Omitting an exit from a published `ensures` check is never a
-substitute for that work.
+itself require a termination proof. General invariant reconstruction and ranking
+relations beyond the natural-rank slice below remain unfinished; guarded-crash
+path enumeration also remains restricted on cyclic graphs. Omitting an exit
+from a published `ensures` check is never a substitute for that work.
 
-The exact ranked unsigned-countdown representation remains the ranked execution
-slice. Its acyclic skeleton establishes the header frontier, one complete
-covered cycle computes the preservation candidate, and all live claims, owned
-places, and partial-custody paths must match exactly before representation
+The legacy `TerminalRankedScc::UnsignedCountdown` representation retains its
+separate interpreter, fixed-fuel, and native execution routes. Its acyclic
+skeleton establishes the header frontier, one complete covered cycle computes
+the preservation candidate, and all live claims, owned places, and partial-custody
+paths must match exactly before representation
 admission. The reference interpreter has a distinct validation and verification
 carrier for only the one-machine structural Unit countdown: its proof scheduler
 removes the already validated covered backedge, reconstructs the taken
 `0 < remaining` edge as the discrete unsigned `1 <= remaining` subtraction
 premise, and requires the exact-subtract evidence before constructing resumable
-  execution state. Ordinary verification continues to reject the ranked machine,
+  execution state. Ordinary verification continues to reject this legacy variant,
   so fixed-fuel and Omega/native consumers cannot acquire authority through the
   interpreter path; provider installation and extra mixed work remain fenced.
   Fixed-fuel and native lowering instead use separate opaque verifier carriers
@@ -2419,10 +2420,12 @@ General cyclic control is nevertheless part of Terminal Psi's durable semantic
 model rather than a second loop language. `Jump` and `Conditional` form the
 graph; block parameters and exact successor arguments carry SSA values around a
 cycle. No `Loop` terminator, implicit induction variable, or optimizer-owned
-progress rule is introduced. The unsigned `n > 0` / `n - 1` countdown above
-remains the only ranked executable implementation slice until the general verifier and
-execution authorities land; `NonExecutableRankedScc` is therefore an
-implementation fence, not the final language invariant.
+progress rule is introduced. Ordinary verification and reference interpretation
+now accept `TerminalRankedScc::Natural` over the supported scalar and immutable
+byte-view cyclic graph. The unsigned `n > 0` / `n - 1` countdown above remains
+the only ranked native and fixed-fuel implementation slice;
+`NonExecutableRankedScc` is an implementation fence for unsupported consumer
+routes, not the final language invariant.
 
 For every finite cyclic component the verifier derives canonical SCC topology
 from the actual graph: members, entries, exits, and internal edges. A
@@ -2448,6 +2451,42 @@ and the verifier checks the cited proof rather than searching for a measure.
 Optimizer rewrites that change component membership, carried state, or decrease
 edges invalidate the old certificate and must pass ordinary Terminal
 verification again.
+
+The current natural-rank carrier retains one `TerminalNaturalCycle` per complete
+cyclic component, with canonical block ranks and every internal edge. Each
+component selects one fixed unsigned integer carrier. A block rank is a scalar
+machine/block parameter or an actual `ByteSequenceLength` observation. The
+verifier independently derives the full SCC roster and exact edge membership,
+checks rank type and dominance, and substitutes the target rank through the
+selected scalar or structural successor arguments. A dominating length value
+cannot be reused after its descriptor has been rebound without reexecuting the
+observation. General projections and other ranking views remain unsupported.
+
+Each internal edge requires a proof of `successor_rank <= source_rank` for
+preservation or `successor_rank < source_rank` for strict descent. Preserving
+implementation-staging edges are allowed only when strict edges meet every
+cycle: removing the strict edges must leave an acyclic graph. A preserving
+cross-edge cycle therefore rejects even if a DFS-discovered cycle decreases.
+This staging rule does not relax the authored state-transition decrease rule.
+
+`proof_bundle.control_cycles` retains one grouped certificate per reconstructed
+component, separate from proof-only call recursion. The generic proof-admission
+checker checks one shared well-foundedness citation for the fixed unsigned
+natural order and every internal edge's comparison against verifier-derived
+facts. Missing, surplus, reordered, or substituted evidence rejects. Rank
+bindings and comparison choices enter the proof-question commitment separately
+from topology identity. The ordinary verified synopsis reports the component,
+shared citation, and preserving and strict edge evidence.
+
+Topology, substitution, and proof-question reconstruction belong to
+`terminal-verifier/src/control_cycles`. The shared source producer retains
+the authored `Slice::Length` witness in
+`checked-trees-to-lowered-psi/src/attached_unit/composed_control/state_graph/ranking.rs`;
+`control_cycle_proofs.rs` produces evidence for the verifier's reconstructed
+questions. No synthetic countdown replaces the actual view extent. This slice
+keeps mutable/owned cyclic custody, general projections, wider ranking views,
+and callee-progress composition outside its authority. Natural ranking alone
+grants neither native byte-view realization nor a quantitative fixed-fuel bound.
 
 Proof-only call recursion uses the same one-certificate-per-component rule but
 is not an executable control-flow SCC. `TerminalModule` retains one canonical
@@ -3735,8 +3774,8 @@ converted into synthetic machines. Nested ordinary and
 composed calls share scalar helper identities and proof obligations. Whole-root
 linear arguments retain their call transfer, state-entry claim aliases, and
 selected boundary settlement. Calls from composed leaves still require
-scalar-only targets without runtime entry requirements. Claim-free unranked graphs
-with scalar parameters and shared byte views use general state traversal
+scalar-only targets without runtime entry requirements. Claim-free graphs with
+scalar parameters and shared byte views use general state traversal
 for both free and attached bodies, including branches, joins, and empty states.
 Qualification, owned-frontier, implicit-receiver, and closed-sum cases retain their
 specialized routes. Once the general route is selected, a failed source check
@@ -3745,7 +3784,8 @@ reuse the shared local-storage namespace. Branch-free scalar successor operands
 are evaluated only after their edge is selected, then passed simultaneously to
 the target state. Selected-edge subslices retain their exact operation-result
 descriptors through later states and repeated loop iterations, including
-descriptor-selecting joins. Retaining source loop ranking remains unfinished; see
+descriptor-selecting joins. The same route retains the supported authored
+`Slice::Length` witness and its natural-ranked component evidence; see
 [borrowed-byte writer composition](#borrowed-byte-writer-composition).
 
 Closed-sum continuations retain the structural-result boundary and its exact
@@ -5280,8 +5320,9 @@ The producer selects existing equations and proves positivity with ordinary
 literal, equality, or discrete-order rules. The kernel traverses both citations.
 Format 29 adds proof tag 20 and rejects format 28 bundles; the module format,
 vocabulary, and proof-system marker are unchanged. Guarded tail extent can thus
-prove strict descent through a serialized certificate, while cyclic descriptor
-bindings and the generic ranking consumer remain separate work.
+prove strict descent through a serialized certificate. The current natural-rank
+consumer joins that proof to exact cyclic descriptor bindings and every internal
+edge's comparison obligation.
 
 Exact representability uses a separate proof-only, total mathematical term
 domain rather than executable `ScalarTerm` operations, whose exact arithmetic
@@ -6478,8 +6519,8 @@ ledger and therefore supplies no reconstruction assurance.
 ## Canonical semantic bytes
 
 `terminal-codec` owns one canonical encoding of the supported in-memory
-vocabulary. `PSITERM\0` bytes currently carry format marker 78 and vocabulary
-marker 84. They use fixed-width little-endian counts, stable nonzero identities,
+vocabulary. `PSITERM\0` bytes currently carry format marker 79 and vocabulary
+marker 85. They use fixed-width little-endian counts, stable nonzero identities,
 full-width integer payloads, and closed sum tags. The format favors auditability
 over density.
 
@@ -6515,7 +6556,8 @@ path: semantic changes move the compiler, codec, verifier, interpreter, and
 lowerers together; stale modules reject. Golden tests freeze only the current
 encoding and identity.
 
-Proof bundles have separate canonical `PSIPRF` bytes and identity. They carry
+Proof bundles have separate canonical `PSIPRF` bytes and identity. Their current
+format marker is 30, including grouped runtime control-cycle evidence. They carry
 one current proof-system marker; stale markers reject. Evidence is strictly
 ordered by obligation identity and retains exact kernel rules, proof trees, and
 admission identities. Proof propositions preserve rule direction because cited
@@ -6636,9 +6678,9 @@ object/image join. The fixed-work theorem may accompany that artifact as
 non-authorizing PCC/report evidence; native execution remains the unchanged
 countdown body.
 
-The proof review synopsis has one matching ranked-only entry point. It accepts
-only the opaque native-ranked verifier result, preserves the ordinary acyclic
-synopsis bytes, and appends the exact verified machine/header, rank carrier and
+The legacy countdown proof review synopsis has a matching ranked-only entry
+point. It accepts only the opaque native-ranked verifier result, preserves the
+ordinary acyclic synopsis bytes, and appends the exact verified machine/header, rank carrier and
 bounds, covered edges, positive guard, and `n - 1` successor coordinates. Its
 rule label is `closed-unsigned-countdown verifier-reconstructed`; it is not a
 general recursive-component certificate. Invalid ranked structure or missing
@@ -6742,7 +6784,8 @@ The ordinary `IntegerSubtractOrder` certificate proves strict decrease from
 that equation and a proved positive start. Serialized Terminal execution tests
 this obligation as a read of the original view at the tail's length; zero start
 does not prove descent, and positive start does not waive the earlier bounds.
-Integrating these facts with the cyclic ranking certificate remains necessary.
+The shared Unit graph now uses these facts in its natural-ranked component
+certificate, including the strict comparison for each selected tail edge.
 
 A source `requires bytes.len > 0` is not a substitute for retaining the
 selected body guard: contract-level byte-length observations and their exact
@@ -6751,9 +6794,10 @@ caller substitution are not yet represented in Terminal. A contracted source
 Do not inject a body SSA value into the parameter-only contract scope or add
 an unrelated length parameter as a replacement for the view's actual extent.
 
-The shared Unit call catalog includes unranked free and attached state graphs
-with scalar parameters, immutable byte views, selected-edge subslices, and
-ordered Unit calls.
+The shared Unit call catalog includes free and attached state graphs with scalar
+parameters, immutable byte views, selected-edge subslices, and ordered Unit calls.
+It retains both unranked graphs and the supported authored `Slice::Length`
+witness; unsupported witnesses fail closed rather than becoming unranked.
 State construction and emission traverse the authored roster rather than match
 a particular number of states. Scalar successor bindings become simultaneous
 block arguments. Whole borrowed views use typed structural block arguments through
@@ -6786,16 +6830,17 @@ operation does not copy the payload. A reentered source entry uses ordinary
 block parameters and a one-shot invocation block, so later arrivals do not
 reuse invocation arguments. Fuel suspension resumes without duplicating effects.
 
-The writer still needs its slice-ranked body admitted through that shared catalog
-with its ranking certificate retained. Both free and attached source bodies with
-an implementation witness remain fenced rather than silently becoming unranked.
-Native byte-view layout and operations are also unfinished. A
-separate multistate plan is insufficient until calls, structural/scalar transfers,
-byte-view operations, effect ordering, and ranking survive Terminal production
-and its independent consumers together. Empty/nonempty raw bytes, both newline
-settings, and caller continuation exercise this contract; an unguarded head
-read or unchanged tail must reject. A Console-specific intrinsic would bypass
-the checked source adapter rather than implement this composition.
+The source-produced ranked writer regression survives canonical serialization,
+ordinary independent verification, and interpretation through the shared catalog.
+It exercises empty/nonempty raw bytes, both newline settings, caller continuation,
+and fuel suspension without repeated effects. Its authored witness survives as
+actual byte-length ranks, with grouped well-foundedness and comparison evidence;
+an unguarded head read or unchanged tail cannot acquire the required proof.
+This establishes the bounded writer composition, not full source-to-Psi
+correspondence or progress for arbitrary callees. Native byte-view layout and
+operations, natural-ranked fixed-fuel bounds, and contract-level byte-length
+substitution remain unfinished. A Console-specific intrinsic would bypass the
+checked source adapter rather than implement this composition.
 
 ## Implementation queue
 

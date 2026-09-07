@@ -21,7 +21,9 @@ pub(crate) fn build_checked_terminal_machine_selections(
                 } else if !machine.type_parameters.is_empty()
                     || !machine.owned_data.is_empty()
                     || !machine.satisfies.is_empty()
-                    || machine.termination_plan.implementation_witness.is_some()
+                    || (machine.termination_plan.implementation_witness.is_some()
+                        && crate::checks::termination::proven_slice_length_ranks(program, machine)
+                            .is_none())
                     || machine.suspends
                     || machine.blocks
                     || !machine.supply_mode.is_checked_body()

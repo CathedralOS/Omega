@@ -630,6 +630,7 @@ fn contextual_scalar_cleanup_proof_metadata_adds_zero_fixed_fuel() {
     evidence.sort_by_key(|evidence| evidence.obligation);
     let proof = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence,
     };
@@ -2518,6 +2519,7 @@ fn fixture() -> (TerminalModule, ProofBundle) {
     };
     let proof = ProofBundle {
         recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,

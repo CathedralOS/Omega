@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use semantic_vocabulary::{BlockId, EdgeId};
 use terminal_psi::{TerminalMachine, Terminator};
 
-fn successors(machine: &TerminalMachine) -> BTreeMap<BlockId, Vec<(EdgeId, BlockId)>> {
+pub(crate) fn successors(machine: &TerminalMachine) -> BTreeMap<BlockId, Vec<(EdgeId, BlockId)>> {
     machine
         .blocks
         .iter()
@@ -34,6 +34,61 @@ fn successors(machine: &TerminalMachine) -> BTreeMap<BlockId, Vec<(EdgeId, Block
             (block.id, edges)
         })
         .collect()
+}
+
+/// Complete cyclic components in canonical member order. Targets and entry
+/// must have passed ordinary graph validation before this private query.
+pub(crate) fn cyclic_components(machine: &TerminalMachine) -> Vec<Vec<BlockId>> {
+    let outgoing = successors(machine);
+    let mut entered = BTreeSet::from([machine.entry]);
+    let mut finished = Vec::new();
+    let mut pending = vec![(machine.entry, 0usize)];
+    while let Some((block, position)) = pending.last_mut() {
+        let Some((_, target)) = outgoing[block].get(*position).copied() else {
+            finished.push(*block);
+            pending.pop();
+            continue;
+        };
+        *position += 1;
+        if entered.insert(target) {
+            pending.push((target, 0));
+        }
+    }
+    let mut incoming = outgoing
+        .keys()
+        .map(|block| (*block, Vec::new()))
+        .collect::<BTreeMap<_, _>>();
+    for (block, edges) in &outgoing {
+        for (_, target) in edges {
+            incoming
+                .get_mut(target)
+                .expect("validated target")
+                .push(*block);
+        }
+    }
+    let mut assigned = BTreeSet::new();
+    let mut components = Vec::new();
+    for root in finished.into_iter().rev() {
+        if !assigned.insert(root) {
+            continue;
+        }
+        let mut component = vec![root];
+        let mut pending = vec![root];
+        while let Some(block) = pending.pop() {
+            for predecessor in &incoming[&block] {
+                if assigned.insert(*predecessor) {
+                    component.push(*predecessor);
+                    pending.push(*predecessor);
+                }
+            }
+        }
+        component.sort();
+        if component.len() > 1 || outgoing[&root].iter().any(|(_, target)| *target == root) {
+            components.push(component);
+        }
+    }
+    components.sort();
+    components
 }
 
 /// A cyclic block definition is available only when it dominates the use in

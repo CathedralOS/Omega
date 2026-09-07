@@ -104,7 +104,7 @@ record!(RankedMachineStructuralFrontiers {
     header_entry,
     backedge_exit
 });
-record!(TerminalRankedScc {
+record!(TerminalUnsignedCountdownScc {
     header,
     rank_parameter,
     rank_type,

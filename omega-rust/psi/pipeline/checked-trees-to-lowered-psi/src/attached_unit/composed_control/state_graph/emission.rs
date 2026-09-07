@@ -100,6 +100,8 @@ pub(in crate::attached_unit::composed_control) fn emit(
         });
     }
     let mut occurrences = Vec::new();
+    let mut block_ranks = std::collections::BTreeMap::new();
+    let mut rank_edges = std::collections::BTreeMap::new();
     for (position, state) in plan.states.iter().enumerate() {
         let state_parameters = state_views[position]
             .iter()
@@ -134,6 +136,16 @@ pub(in crate::attached_unit::composed_control) fn emit(
         let mut next_value = catalogs.next_value;
         let mut next_block = catalogs.next_block;
         let mut next_edge = catalogs.next_edge;
+        let current_rank =
+            if let Some(parameter_position) = ranking::parameter_position(plan, state) {
+                Some(crate::operation_emission::emit_byte_length(
+                    state_parameters[parameter_position].place,
+                    &mut next_value,
+                    &mut operations,
+                ))
+            } else {
+                None
+            };
         let bindings = scalars::emit_prefix(
             checked,
             state,
@@ -202,7 +214,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
                         "Unit graph target disappeared during emission",
                     ))?;
                 let stage = condition.is_some()
-                    && (edge.transfers.iter().any(|transfer| matches!(
+                    && ((current_rank.is_some() && ranking::parameter_position(plan, &plan.states[target]).is_some()) || edge.transfers.iter().any(|transfer| matches!(
                         transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { .. }
                     )) || edge.scalar_arguments.iter().any(|argument| {
                         matches!(
@@ -294,16 +306,49 @@ pub(in crate::attached_unit::composed_control) fn emit(
                         &mut operations,
                     ));
                 }
+                let arriving_rank = if current_rank.is_some() {
+                    if let Some(parameter_position) =
+                        ranking::parameter_position(plan, target_state)
+                    {
+                        Some(crate::operation_emission::emit_byte_length(
+                            structural_arguments[parameter_position].place,
+                            &mut next_value,
+                            &mut operations,
+                        ))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
                 let target = state_ids[target];
                 if stage {
                     let staged = block_id(allocate_dense(&mut next_block)?);
+                    let backedge = edge_id(allocate_dense(&mut next_edge)?);
+                    let selection_edge = edge_id(allocate_dense(&mut next_edge)?);
+                    if let Some(rank) = current_rank {
+                        block_ranks.insert(staged, rank);
+                        rank_edges.insert(
+                            selection_edge,
+                            (
+                                rank,
+                                terminal_psi::TerminalNaturalRankComparison::Preserving,
+                            ),
+                        );
+                        if let Some(after) = arriving_rank {
+                            rank_edges.insert(
+                                backedge,
+                                (after, terminal_psi::TerminalNaturalRankComparison::Strict),
+                            );
+                        }
+                    }
                     edge_blocks.push(Block {
                         id: staged,
                         parameters: Vec::new(),
                         structural_parameters: Vec::new(),
                         operations: operations[operation_start..].to_vec(),
                         terminator: Terminator::Jump {
-                            edge: edge_id(allocate_dense(&mut next_edge)?),
+                            edge: backedge,
                             target,
                             arguments,
                             structural_arguments,
@@ -312,15 +357,22 @@ pub(in crate::attached_unit::composed_control) fn emit(
                         },
                     });
                     Ok(SuccessorEdge {
-                        edge: edge_id(allocate_dense(&mut next_edge)?),
+                        edge: selection_edge,
                         target: staged,
                         arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     })
                 } else {
+                    let successor_edge = edge_id(allocate_dense(&mut next_edge)?);
+                    if let Some(after) = arriving_rank {
+                        rank_edges.insert(
+                            successor_edge,
+                            (after, terminal_psi::TerminalNaturalRankComparison::Strict),
+                        );
+                    }
                     Ok(SuccessorEdge {
-                        edge: edge_id(allocate_dense(&mut next_edge)?),
+                        edge: successor_edge,
                         target,
                         arguments,
                         structural_arguments,
@@ -380,6 +432,9 @@ pub(in crate::attached_unit::composed_control) fn emit(
                 ))?;
             root.structural_parameters = std::mem::take(&mut state_views[position]);
         }
+        if let Some(rank) = current_rank {
+            block_ranks.extend(evaluation.blocks.iter().map(|block| (block.id, rank)));
+        }
         blocks.extend(evaluation.blocks);
         blocks.extend(edge_blocks);
         occurrences.extend(operations.source_calls);
@@ -426,5 +481,6 @@ pub(in crate::attached_unit::composed_control) fn emit(
     };
     machine.contract.crash_routes =
         lower_checked_crash_route_buckets(&catalogs.root_crash_routes, &machine.parameters)?;
+    ranking::retain(&mut machine, &block_ranks, &rank_edges)?;
     Ok((machine, occurrences))
 }

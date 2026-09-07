@@ -9,11 +9,12 @@ const PARALLEL_PROOF_THRESHOLD: usize = 16;
 const MAX_PROOF_WORKERS: usize = 8;
 
 pub(super) fn finalize_operation_proofs(lowered: &mut LoweredPsi) -> Result<(), LoweringError> {
-    let has_ranked_countdown = lowered
-        .semantic_module
-        .machines
-        .iter()
-        .any(|machine| machine.ranked_scc.is_some());
+    let has_ranked_countdown = lowered.semantic_module.machines.iter().any(|machine| {
+        machine
+            .ranked_scc
+            .as_ref()
+            .is_some_and(|ranking| ranking.as_unsigned_countdown().is_some())
+    });
     let execution_validated = (!has_ranked_countdown)
         .then(|| terminal_verifier::validate_module(&lowered.semantic_module))
         .transpose()
@@ -148,6 +149,7 @@ pub(super) fn finalize_operation_proofs(lowered: &mut LoweredPsi) -> Result<(), 
         .proof_bundle
         .evidence
         .sort_by_key(|evidence| evidence.obligation);
+    crate::control_cycle_proofs::finalize(lowered)?;
     Ok(())
 }
 

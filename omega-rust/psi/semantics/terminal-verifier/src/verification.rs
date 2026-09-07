@@ -19,6 +19,7 @@ mod evidence_provenance;
 mod float_meaning_projection;
 mod proof_bundle;
 mod reconstruction;
+pub(crate) use reconstruction::reconstruct_validated_control_edge_axioms;
 mod substitution;
 
 use evidence_provenance::validate_evidence_producer_provenance;
@@ -86,6 +87,7 @@ struct VerifiedTerminalModuleState<'module> {
     reconstructed_obligations: ReconstructedTerminalObligationSet,
     accepted_facts: Vec<AcceptedFact>,
     accepted_recursive_components: Vec<RecursiveComponentAcceptance>,
+    accepted_control_cycles: Vec<crate::AcceptedControlCycle>,
     structural_frontiers: VerifiedTerminalStructuralFrontiers,
 }
 
@@ -100,6 +102,10 @@ impl<'module> VerifiedTerminalModule<'module> {
 
     pub fn accepted_recursive_components(&self) -> &[RecursiveComponentAcceptance] {
         &self.state.accepted_recursive_components
+    }
+
+    pub fn accepted_control_cycles(&self) -> &[crate::AcceptedControlCycle] {
+        &self.state.accepted_control_cycles
     }
 
     /// Exact artifact evidence accepted for this module. Retaining the bundle
@@ -167,6 +173,10 @@ impl<'module> VerifiedNativeRankedTerminalModule<'module> {
 
     pub fn accepted_recursive_components(&self) -> &[RecursiveComponentAcceptance] {
         &self.state.accepted_recursive_components
+    }
+
+    pub fn accepted_control_cycles(&self) -> &[crate::AcceptedControlCycle] {
+        &self.state.accepted_control_cycles
     }
 
     pub const fn proof_bundle(&self) -> &ProofBundle {
@@ -365,12 +375,63 @@ fn verify_validated_module<'module>(
             component,
         ));
     }
+    let reconstructed_cycles =
+        crate::control_cycles::reconstruct_validated_control_cycle_obligations(module)
+            .map_err(VerificationError::Module)?;
+    let mut cycle_evidence = BTreeMap::new();
+    let mut previous_cycle = None;
+    for entry in &proof_bundle.control_cycles {
+        if previous_cycle.is_some_and(|previous| previous >= entry.component) {
+            return Err(VerificationError::NonCanonicalControlCycleEvidence);
+        }
+        previous_cycle = Some(entry.component);
+        cycle_evidence.insert(entry.component, entry.certificate.clone());
+    }
+    let mut accepted_control_cycles = Vec::new();
+    for question in reconstructed_cycles {
+        let certificate = cycle_evidence.remove(&question.component).ok_or(
+            VerificationError::MissingControlCycleEvidence(question.component),
+        )?;
+        let context = contexts
+            .get(&question.machine)
+            .expect("validated machine context");
+        let machine = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == question.machine)
+            .expect("validated cycle owner");
+        let parameters = machine
+            .parameters
+            .iter()
+            .map(|parameter| parameter.id)
+            .collect();
+        let acceptance = proof_admission::verify_recursive_component_with_machine_parameters(
+            context,
+            &question.obligation,
+            &parameters,
+            certificate,
+            profile,
+        )
+        .map_err(|error| VerificationError::RejectedControlCycle {
+            component: question.component,
+            error,
+        })?;
+        accepted_control_cycles.push(crate::AcceptedControlCycle {
+            machine: question.machine,
+            component: question.component,
+            acceptance,
+        });
+    }
+    if let Some(component) = cycle_evidence.keys().next().copied() {
+        return Err(VerificationError::UnknownControlCycleEvidence(component));
+    }
     Ok(VerifiedTerminalModuleState {
         validated,
         proof_bundle: proof_bundle.clone(),
         reconstructed_obligations,
         accepted_facts,
         accepted_recursive_components,
+        accepted_control_cycles,
         structural_frontiers,
     })
 }
@@ -378,6 +439,13 @@ fn verify_validated_module<'module>(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VerificationError {
     Module(ModuleError),
+    NonCanonicalControlCycleEvidence,
+    MissingControlCycleEvidence(semantic_vocabulary::CycleComponentId),
+    UnknownControlCycleEvidence(semantic_vocabulary::CycleComponentId),
+    RejectedControlCycle {
+        component: semantic_vocabulary::CycleComponentId,
+        error: RecursiveComponentError<semantic_vocabulary::BlockId>,
+    },
     NonDenseEvidenceProducer {
         expected: EvidenceIdentity,
         actual: EvidenceIdentity,

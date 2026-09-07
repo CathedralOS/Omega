@@ -22,6 +22,9 @@ pub(super) fn rederive_exact_components(
     let [(machine, ranked)] = ranked.as_slice() else {
         return Err(topology_mismatch(module.entry));
     };
+    let ranked = ranked
+        .as_unsigned_countdown()
+        .ok_or_else(|| topology_mismatch(machine.id))?;
     let terminal = topology::derive_components(&graph::terminal_graph(machine));
     let [terminal_component] = terminal.as_slice() else {
         return Err(topology_mismatch(machine.id));

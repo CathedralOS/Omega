@@ -51,7 +51,7 @@ fn order_discreteness_roundtrips_exact_child_and_replays_acceptance_trace() {
             },
         });
         let bytes = encode_proof_bundle(&original).unwrap();
-        assert_eq!(&bytes[8..10], &29_u16.to_le_bytes());
+        assert_eq!(&bytes[8..10], &30_u16.to_le_bytes());
         let positions = bytes
             .iter()
             .enumerate()

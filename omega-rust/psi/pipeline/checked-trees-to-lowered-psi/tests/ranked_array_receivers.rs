@@ -94,6 +94,7 @@ fn canonical_countdown(field_type: &str) -> (TerminalModule, ProofBundle) {
     let rank = machine
         .ranked_scc
         .as_ref()
+        .and_then(|rank| rank.as_unsigned_countdown())
         .expect("retained countdown rank");
     assert_eq!(
         rank.rank_type,
@@ -282,6 +283,7 @@ fn ranked_array_receiver_rejects_altered_rank_successor_argument() {
     let rank = module.machines[0]
         .ranked_scc
         .as_mut()
+        .and_then(|rank| rank.as_unsigned_countdown_mut())
         .expect("ranked component");
     let TerminalRankedSuccessorArgument::UnsignedParameterMinusOne { argument_index, .. } =
         &mut rank.covered_cyclic_edges[0].successor_argument;

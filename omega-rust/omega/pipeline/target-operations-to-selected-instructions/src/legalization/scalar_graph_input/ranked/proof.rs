@@ -32,7 +32,11 @@ pub(super) fn replay_verifier_custody(custody: &RankedU32CountdownCustody) -> Op
     let [machine] = custody.semantic_replay.machines.as_slice() else {
         return None;
     };
-    if machine.ranked_scc.as_ref() != Some(&custody.ranked_scc)
+    if machine
+        .ranked_scc
+        .as_ref()
+        .and_then(|ranked| ranked.as_unsigned_countdown())
+        != Some(&custody.ranked_scc)
         || !super::semantic_graph::replay_ranked_graph_matches(machine, custody)
     {
         return None;

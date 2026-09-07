@@ -980,7 +980,13 @@ pub(super) fn validate_machine(
         &blocks,
         &representation_backedges,
     )?;
-    if policy == ValidationPolicy::Execution && machine.ranked_scc.is_some() {
+    crate::control_cycles::validate_natural_cycles(machine)?;
+    if policy == ValidationPolicy::Execution
+        && machine
+            .ranked_scc
+            .as_ref()
+            .is_some_and(|ranking| ranking.as_unsigned_countdown().is_some())
+    {
         return Err(ModuleError::NonExecutableRankedScc(machine.id));
     }
     Ok(())

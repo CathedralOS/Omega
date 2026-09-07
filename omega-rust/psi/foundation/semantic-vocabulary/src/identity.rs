@@ -155,6 +155,10 @@ semantic_id!(
     "Stable semantic identity of one verifier-reconstructed recursive component."
 );
 semantic_id!(
+    CycleComponentId,
+    "Stable semantic identity of one verifier-derived runtime control component."
+);
+semantic_id!(
     RankingRelationId,
     "Stable semantic identity of one verifier-reconstructed ranking relation."
 );

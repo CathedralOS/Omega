@@ -26,6 +26,7 @@ fn derive_one(
     let ranked = machine
         .ranked_scc
         .as_ref()
+        .and_then(|ranked| ranked.as_unsigned_countdown())
         .ok_or_else(|| mismatch(component))?;
     let [covered] = ranked.covered_cyclic_edges.as_slice() else {
         return Err(mismatch(component));

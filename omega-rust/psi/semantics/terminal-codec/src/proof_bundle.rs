@@ -20,6 +20,7 @@ use sha2::{Digest, Sha256};
 pub use synopsis::{
     render_verified_native_ranked_countdown_synopsis, render_verified_proof_synopsis,
 };
+use terminal_psi::ControlCycleEvidence;
 use terminal_verifier::{
     EvidenceProducerProvenance, EvidenceProducerRealization, EvidenceProducerRowSource,
     ObligationEvidence, ProofBundle, RecursiveComponentEvidence,
@@ -29,7 +30,7 @@ use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
-pub(crate) const FORMAT_MARKER: u16 = 29;
+pub(crate) const FORMAT_MARKER: u16 = 30;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -92,6 +93,14 @@ pub fn decode_proof_bundle(bytes: &[u8]) -> Result<ProofBundle, ProofCodecError>
             format_marker,
         )?);
     }
+    let control_cycle_count = reader.count()?;
+    let mut control_cycles = Vec::new();
+    for _ in 0..control_cycle_count {
+        control_cycles.push(ControlCycleEvidence {
+            component: reader.id("CycleComponentId")?,
+            certificate: decode_component_certificate(&mut reader, format_marker)?,
+        });
+    }
     let producer_count = reader.count()?;
     let mut evidence_producers = Vec::new();
     for _ in 0..producer_count {
@@ -103,6 +112,7 @@ pub fn decode_proof_bundle(bytes: &[u8]) -> Result<ProofBundle, ProofCodecError>
     let bundle = ProofBundle {
         evidence,
         recursive_components,
+        control_cycles,
         evidence_producers,
     };
     validate_bundle(&bundle)?;
@@ -137,7 +147,13 @@ fn encode_raw(bundle: &ProofBundle, format_marker: u16) -> Result<Vec<u8>, Proof
         bundle.recursive_components.len(),
     )?;
     for component in &bundle.recursive_components {
-        encode_recursive_component_evidence(&mut writer, component, format_marker)?;
+        writer.id(component.component);
+        encode_component_certificate(&mut writer, &component.certificate, format_marker)?;
+    }
+    writer.len("control cycle evidence", bundle.control_cycles.len())?;
+    for component in &bundle.control_cycles {
+        writer.id(component.component);
+        encode_component_certificate(&mut writer, &component.certificate, format_marker)?;
     }
     writer.len("evidence producers", bundle.evidence_producers.len())?;
     for producer in &bundle.evidence_producers {
@@ -267,24 +283,16 @@ fn encode_evidence_route(
     Ok(())
 }
 
-fn encode_recursive_component_evidence(
+fn encode_component_certificate(
     writer: &mut Writer,
-    evidence: &RecursiveComponentEvidence,
+    certificate: &RecursiveComponentCertificate,
     format_marker: u16,
 ) -> Result<(), ProofCodecError> {
-    writer.id(evidence.component);
-    writer.id(evidence.certificate.identity);
-    writer.id(evidence.certificate.ranking_relation);
-    encode_evidence_route(
-        writer,
-        &evidence.certificate.well_foundedness,
-        format_marker,
-    )?;
-    writer.len(
-        "recursive component edge evidence",
-        evidence.certificate.edges.len(),
-    )?;
-    for edge in &evidence.certificate.edges {
+    writer.id(certificate.identity);
+    writer.id(certificate.ranking_relation);
+    encode_evidence_route(writer, &certificate.well_foundedness, format_marker)?;
+    writer.len("recursive component edge evidence", certificate.edges.len())?;
+    for edge in &certificate.edges {
         writer.id(edge.obligation);
         encode_evidence_route(writer, &edge.evidence, format_marker)?;
     }
@@ -1309,6 +1317,16 @@ fn decode_recursive_component_evidence(
     format_marker: u16,
 ) -> Result<RecursiveComponentEvidence, ProofCodecError> {
     let component = reader.id("RecursiveComponentId")?;
+    Ok(RecursiveComponentEvidence {
+        component,
+        certificate: decode_component_certificate(reader, format_marker)?,
+    })
+}
+
+fn decode_component_certificate(
+    reader: &mut Reader<'_>,
+    format_marker: u16,
+) -> Result<RecursiveComponentCertificate, ProofCodecError> {
     let identity = reader.id("EvidenceIdentity")?;
     let ranking_relation = reader.id("RankingRelationId")?;
     let well_foundedness = decode_evidence_route(reader, format_marker)?;
@@ -1320,14 +1338,11 @@ fn decode_recursive_component_evidence(
             evidence: decode_evidence_route(reader, format_marker)?,
         });
     }
-    Ok(RecursiveComponentEvidence {
-        component,
-        certificate: RecursiveComponentCertificate {
-            identity,
-            ranking_relation,
-            well_foundedness,
-            edges,
-        },
+    Ok(RecursiveComponentCertificate {
+        identity,
+        ranking_relation,
+        well_foundedness,
+        edges,
     })
 }
 
@@ -2143,6 +2158,7 @@ pub enum ProofCodecError {
     IndexOutsideHost,
     NonCanonicalEvidenceOrder,
     NonCanonicalRecursiveComponentEvidence,
+    NonCanonicalControlCycleEvidence,
     NonCanonicalEvidenceProducerOrder,
     NonCanonicalEvidenceProducerRows,
     InvalidEvidenceProducer,

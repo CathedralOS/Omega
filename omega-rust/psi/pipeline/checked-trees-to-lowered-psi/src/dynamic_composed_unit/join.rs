@@ -338,6 +338,7 @@ pub(super) fn lower(
         },
         proof_bundle: ProofBundle {
             recursive_components: Vec::new(),
+            control_cycles: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: Vec::new(),
         },

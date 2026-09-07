@@ -8,7 +8,9 @@ pub use admission::*;
 pub use nodes::*;
 pub use recursion::*;
 use semantic_vocabulary::Proposition;
-use semantic_vocabulary::{EvidenceIdentity, EvidenceTermId, ObligationId, RecursiveComponentId};
+use semantic_vocabulary::{
+    CycleComponentId, EvidenceIdentity, EvidenceTermId, ObligationId, RecursiveComponentId,
+};
 pub use witnesses::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,6 +25,14 @@ pub struct ObligationEvidence {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecursiveComponentEvidence {
     pub component: RecursiveComponentId,
+    pub certificate: RecursiveComponentCertificate,
+}
+
+/// Runtime control-component evidence is distinct from proof-only call
+/// recursion. Both reuse the same relation-and-edge certificate envelope.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ControlCycleEvidence {
+    pub component: CycleComponentId,
     pub certificate: RecursiveComponentCertificate,
 }
 
@@ -58,5 +68,6 @@ pub enum EvidenceProducerRowSource {
 pub struct ProofBundle {
     pub evidence: Vec<ObligationEvidence>,
     pub recursive_components: Vec<RecursiveComponentEvidence>,
+    pub control_cycles: Vec<ControlCycleEvidence>,
     pub evidence_producers: Vec<EvidenceProducerProvenance>,
 }

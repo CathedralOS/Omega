@@ -1,12 +1,33 @@
 use semantic_vocabulary::{BlockId, EdgeId, IntegerType, IntegerValue, ValueId};
 
-/// One exact ranked strongly connected component in Terminal-Psi identity.
-///
-/// The current representation admits only the deliberately narrow unsigned
-/// countdown shape. The row names Terminal identities exclusively; frontend
-/// arena handles and source coordinates cannot survive this boundary.
+/// Private progress evidence for a machine's actual control graph. Neither
+/// variant grants finite fuel or native realization.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct TerminalRankedScc {
+pub enum TerminalRankedScc {
+    UnsignedCountdown(TerminalUnsignedCountdownScc),
+    Natural(Vec<TerminalNaturalCycle>),
+}
+
+impl TerminalRankedScc {
+    pub fn as_unsigned_countdown(&self) -> Option<&TerminalUnsignedCountdownScc> {
+        match self {
+            Self::UnsignedCountdown(component) => Some(component),
+            Self::Natural(_) => None,
+        }
+    }
+
+    pub fn as_unsigned_countdown_mut(&mut self) -> Option<&mut TerminalUnsignedCountdownScc> {
+        match self {
+            Self::UnsignedCountdown(component) => Some(component),
+            Self::Natural(_) => None,
+        }
+    }
+}
+
+/// Existing exact countdown migration route. Consumers of this shape must
+/// select it explicitly rather than interpreting arbitrary ranking evidence.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalUnsignedCountdownScc {
     pub header: BlockId,
     pub rank_parameter: ValueId,
     pub rank_type: IntegerType,
@@ -14,6 +35,39 @@ pub struct TerminalRankedScc {
     pub upper_bound: IntegerValue,
     /// Strictly ordered by `edge`; every cyclic edge must appear exactly once.
     pub covered_cyclic_edges: Vec<TerminalRankedSccEdge>,
+}
+
+/// Producer-selected natural ranks for one complete cyclic component. The
+/// verifier derives topology and checks that these rows cover it exactly.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalNaturalCycle {
+    pub rank_type: IntegerType,
+    /// Canonical block order; rank values are actual unsigned SSA observations.
+    pub ranks: Vec<TerminalBlockNaturalRank>,
+    /// Canonical edge order, including preserving implementation-staging edges.
+    pub edges: Vec<TerminalNaturalRankEdge>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalBlockNaturalRank {
+    pub block: BlockId,
+    pub value: ValueId,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalNaturalRankEdge {
+    pub edge: EdgeId,
+    pub source: BlockId,
+    pub target: BlockId,
+    /// The target rank after exact substitution through this successor.
+    pub successor_rank: ValueId,
+    pub comparison: TerminalNaturalRankComparison,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TerminalNaturalRankComparison {
+    Preserving,
+    Strict,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

@@ -12,7 +12,7 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{
     StructuralMultiplicity, StructuralPathSegment, TerminalModule, TerminalPsiIdentity,
-    TerminalRankedScc,
+    TerminalUnsignedCountdownScc,
 };
 
 /// Native-ranked admission kept beside, rather than inside, the ordinary
@@ -35,7 +35,7 @@ pub struct RankedNativeAbstractOperationPlan {
 pub struct RankedU32CountdownCustody {
     pub semantic_replay: TerminalModule,
     pub proof_replay: Vec<u8>,
-    pub ranked_scc: TerminalRankedScc,
+    pub ranked_scc: TerminalUnsignedCountdownScc,
     pub fixed_fuel: RankedFixedEntryFuel,
     pub graph: RankedU32CountdownGraph,
     pub structural_frontiers: RankedMachineStructuralFrontiers,

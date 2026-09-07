@@ -96,6 +96,7 @@ fn source_countdown_reaches_all_loop_prerequisite_analyses_without_rewrites() {
     let ranked = module.machines[0]
         .ranked_scc
         .as_ref()
+        .and_then(|ranked| ranked.as_unsigned_countdown())
         .expect("source countdown rank");
     let decrement = ranked.covered_cyclic_edges[0].source;
     let [component] = session.cycle_components().components() else {
@@ -392,7 +393,11 @@ fn ranked_countdown_certificate_replay_rejects_every_evidence_axis() {
 #[test]
 fn ranked_context_rejects_topology_and_frozen_body_corruption() {
     let (module, verified) = countdown_unit();
-    let ranked = module.machines[0].ranked_scc.as_ref().unwrap();
+    let ranked = module.machines[0]
+        .ranked_scc
+        .as_ref()
+        .and_then(|ranked| ranked.as_unsigned_countdown())
+        .unwrap();
     let decrement = ranked.covered_cyclic_edges[0].source;
     let preheader = module.machines[0].entry;
     let (input, original) = verified.into_parts();

@@ -86,10 +86,18 @@ impl ReconstructedTerminalObligationSet {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ReconstructedMachineSemantics {
+    pub(crate) edge_axioms: BTreeMap<semantic_vocabulary::EdgeId, Vec<Proposition>>,
     pub(super) operation_obligations: Vec<ReconstructedOperationObligation>,
     pub(super) exit_axioms: Vec<Proposition>,
     pub(super) outcome_exit_axioms: BTreeMap<OutcomeSpecificGuard, Vec<Proposition>>,
     pub(super) crash_sites: Vec<ReconstructedCrashSiteFacts>,
+}
+
+pub(crate) fn reconstruct_validated_control_edge_axioms(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+) -> Result<BTreeMap<semantic_vocabulary::EdgeId, Vec<Proposition>>, ModuleError> {
+    Ok(reconstruct_machine_semantics(module, machine)?.edge_axioms)
 }
 
 /// Private source-independent facts at an exact crash terminator. Asserted
@@ -292,12 +300,18 @@ fn reconstruct_machine_semantics_with_crash_facts(
     let mut outcome_exits = BTreeMap::<OutcomeSpecificGuard, Vec<Vec<Proposition>>>::new();
     let mut operation_obligations = Vec::new();
     let mut crash_sites = Vec::new();
+    let mut edge_axioms = BTreeMap::new();
     let mut ignored_backedges = machine
         .ranked_scc
         .iter()
+        .filter_map(|ranking| ranking.as_unsigned_countdown())
         .flat_map(|component| component.covered_cyclic_edges.iter().map(|row| row.edge))
         .collect::<BTreeSet<_>>();
-    let iteration_entries = if machine.ranked_scc.is_none() {
+    let iteration_entries = if machine
+        .ranked_scc
+        .as_ref()
+        .is_none_or(|ranking| ranking.as_unsigned_countdown().is_none())
+    {
         let feedback = crate::control_graph::feedback_edges(machine);
         ignored_backedges.extend(feedback.keys().copied());
         feedback.values().copied().collect::<BTreeSet<_>>()
@@ -351,6 +365,35 @@ fn reconstruct_machine_semantics_with_crash_facts(
                 });
             }
         }
+        if matches!(
+            machine.ranked_scc,
+            Some(terminal_psi::TerminalRankedScc::Natural(_))
+        ) {
+            match &block.terminator {
+                Terminator::Jump { edge, .. } => {
+                    edge_axioms.insert(*edge, axioms.clone());
+                }
+                Terminator::Conditional {
+                    condition,
+                    when_true,
+                    when_false,
+                } => {
+                    for (successor, positive) in [(when_true, true), (when_false, false)] {
+                        let mut selected = axioms.clone();
+                        if let Some(fact) =
+                            path_facts::condition_fact(*condition, positive, &axioms, &|value| {
+                                context.value_term(value)
+                            })
+                            && !selected.contains(&fact)
+                        {
+                            selected.push(fact);
+                        }
+                        edge_axioms.insert(successor.edge, selected);
+                    }
+                }
+                _ => {}
+            }
+        }
         terminator_facts::append_terminator(
             &block.terminator,
             current,
@@ -371,6 +414,7 @@ fn reconstruct_machine_semantics_with_crash_facts(
         );
     }
     Ok(ReconstructedMachineSemantics {
+        edge_axioms,
         operation_obligations,
         crash_sites,
         exit_axioms: machine_flow::guaranteed_exit_facts(exits),

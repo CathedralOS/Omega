@@ -1298,6 +1298,7 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
     let ranked = machine
         .ranked_scc
         .as_ref()
+        .and_then(|ranked| ranked.as_unsigned_countdown())
         .expect("ranked Terminal identity");
     assert_eq!(machine.entry, block_id(1));
     assert_eq!(ranked.header, block_id(2));
@@ -1550,6 +1551,7 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
     let edge = &mut mutated_component.machines[0]
         .ranked_scc
         .as_mut()
+        .and_then(|ranked| ranked.as_unsigned_countdown_mut())
         .expect("ranked component")
         .covered_cyclic_edges[0];
     let terminal_psi::TerminalRankedSuccessorArgument::UnsignedParameterMinusOne {
