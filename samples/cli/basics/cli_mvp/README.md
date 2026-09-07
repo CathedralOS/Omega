@@ -61,15 +61,22 @@ This is a policy boundary before accepted native production. The compiler-librar
 sample test bypasses it and stops later at the missing Terminal writer body.
 Neither result establishes native execution.
 
-Inspect the exact blocking rows before choosing policy. The existing
+The native package-acceptance workflow is under
+[owner review](../../../../OWNER_QUESTIONS.md#q1--package-acceptance-at-native-build):
+the current implementation requires a second candidate-bound file even when
+ordinary package review already accepted unchanged policy. The existing
 [root-policy contract](../../../../wiki/design_briefs/build_and_package_model.md)
-requires an explicit file bound to the current reconstructed conflicts; std has
-no implicit authority. Do not supply blanket acceptance merely to advance the
-example. The next assignment and tested revision remain on the execution board.
+has not been changed. Std has no implicit authority; do not supply blanket
+acceptance merely to advance the example. Native proof, provider, and receiving
+permission checks remain independent requirements. The next assignment and
+tested revision remain on the execution board.
 
 Use `omega audit packages --project samples/cli/basics/cli_mvp
 --target macos_arm64 --details` to inspect the current macOS package findings;
-select `windows_x86_64` for the Windows closure.
+select `windows_x86_64` for the Windows closure. This displays ordinary package
+findings; it does not generate the separate native policy record. Its
+`requires-review false` result is not evidence that the native file requirement
+has been satisfied.
 
 The existing focused review probe is
 `mbx nextest run -p package-manager --test standard_library_package_resolution --no-fail-fast -E 'test(=real_standard_library_has_a_complete_ordinary_review_entry)'`.

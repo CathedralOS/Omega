@@ -124,21 +124,20 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   unchanged checked text facts; the console dependencies below are also required.
 
   Work from the actual `cli_mvp` [command and route](samples/cli/basics/cli_mvp/README.md).
-  At code checkpoint `f1628ba90b` on Windows x64, `mbx run -p omega -- --target windows_x86_64 --build-dir build/cli-mvp-bounds samples/cli/basics/cli_mvp/main.omg`
-  exits 1 after fresh checked package review: `fresh package review has blocking
-  rows but no explicit --package-root-policy`. Next inspect the exact blocking
-  rows from `compare_review_only_initial_capabilities` in
-  `packages/manager/src/operations/compile_project.rs` and the existing audit
-  route. Follow the [root-policy contract](wiki/design_briefs/build_and_package_model.md):
-  establish which decisions the caller must supply, without granting std implicit
-  authority or fabricating acceptance. Acceptance: the same CLI route recovers
-  explicit policy against its current conflicts and reaches native production.
-  The macOS ARM64 route also reaches this policy boundary with the production
-  sources at `60b02a9fff`: `CARGO_INCREMENTAL=0 cargo run -p omega -- --target
-  macos_arm64 --build-dir build/cli-mvp-final samples/cli/basics/cli_mvp/main.omg`.
-  Inspect it with `omega audit packages --project samples/cli/basics/cli_mvp
-  --target macos_arm64 --details`. The inner sample harness bypasses this
-  review/policy route.
+  With production sources at `60b02a9fff`, the macOS ARM64 command
+  `CARGO_INCREMENTAL=0 cargo run -p omega -- --target macos_arm64
+  --build-dir build/cli-mvp-final samples/cli/basics/cli_mvp/main.omg` exits 1
+  after checked package review: `fresh package review has blocking rows but no
+  explicit --package-root-policy`. **OWNER-BLOCKED: native package acceptance**
+  awaits the [acceptance decision](OWNER_QUESTIONS.md#q1--package-acceptance-at-native-build).
+  A locked one-claim fixture at `09bab8091c` passes ordinary update/resume and
+  audit with unchanged accepted policy, yet native compilation requests a second
+  approval record. Do not extend that record's UI or fabricate approval before
+  resolving its purpose. Owning areas are `packages/manager/src/operations/`
+  and `review/reconstruction/root_policy.rs`. Acceptance: the agreed workflow
+  handles reviewed unchanged policy and new findings explicitly, preserves native
+  verification, and lets this CLI route reach native production. The inner sample
+  harness bypasses this policy route; independent writer work remains actionable.
 
   The downstream native `cli_mvp` probe at code checkpoint `9f93744f34` remains red.
   On macOS ARM64, `CARGO_INCREMENTAL=0 OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
