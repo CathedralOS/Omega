@@ -170,16 +170,20 @@ the [Rust Compiler Completion Contract](wiki/pre_migration/releases/rust_compile
   harness bypasses this policy route; independent writer work remains actionable.
 
   The macOS ARM64 outer CLI remains prohibitively slow in preliminary package
-  validation. With the production changes in `0c0e044772`, the already-built
-  binary command above (`--build-dir build/cli-mvp-shared-guards`) was interrupted
-  at 315.28 seconds without a diagnostic. A one-second host profile around one
-  minute now reaches `flow/terminal_unit/control.rs::build_static_boundary_requirements`:
-  each boundary signature scans calls, repeatedly resolving intrinsic targets
-  across program machines. Guard call-shape screening and range-state write-summary
-  reuse are in place; this is not an end-to-end speedup claim. Eliminate the
-  repeated boundary lookup using the same exact identity and reach-consistency
-  checks. Acceptance: the unchanged CLI reaches its next real diagnostic promptly,
-  with comparable before/after timings; do not weaken package or proof checks.
+  validation. With production changes in `dcb670edfd`, the already-built binary
+  command above (`--build-dir build/cli-mvp-shared-arrivals`) was interrupted at
+  249.36 seconds without a diagnostic. Boundary target lookup and incoming-state
+  analysis now reuse their immutable inputs, but this is not a completed-route
+  speedup. A one-second profile around 2.5 minutes reaches
+  `flow/builder.rs` → `call_phases/invalidation.rs` →
+  `mutation/summary.rs::build_state_mutation_summaries`. Flow contexts own new
+  summary caches on each fixed-point iteration although program/borrow inputs
+  are unchanged. Before another cache edit, measure phase costs and rebuild
+  counts across the complete package route; two local-cache milestones have not
+  established customer acceptance. Prefer correcting the existing cache lifetime
+  over another cache layer. Acceptance: the unchanged CLI reaches its next real
+  diagnostic promptly, with comparable before/after timings and unchanged checks.
+  This performance investigation does not block the native operand work below.
   Windows x64 at `a78040898d`: `mbx run -p omega -- --target windows_x86_64
   --build-dir build/cli-mvp-route samples/cli/basics/cli_mvp/main.omg` took
   718 seconds wall time (23.45 seconds reported Rust build) and exited 1 at

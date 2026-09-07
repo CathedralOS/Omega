@@ -110,14 +110,15 @@ boundary-call source view; direct selected-adapter calls belong to interpreter
 dispatch, while native adapter selection remains on the Omega side. Source
 custody and structural validation must not be bypassed.
 
-The outer CLI with production changes in `0c0e044772` was interrupted after
-315.28 seconds of already-built binary execution on macOS ARM64, still without
-a policy or native diagnostic. Guard analysis now screens ineligible calls before
-effect inference, and indexed-access checks share completed write summaries.
-A one-second host stack sample around one minute reaches static boundary
-requirement construction and repeated intrinsic-target resolution. This locates
-remaining work; it does not establish an end-to-end speedup and is separate from
-the subsecond compiler-library probe above.
+The outer CLI with production changes in `dcb670edfd` was interrupted after
+249.36 seconds of already-built binary execution on macOS ARM64, still without
+a policy or native diagnostic. Boundary-target lookup and incoming-state
+analysis now share immutable derivations. A one-second host stack sample around
+2.5 minutes reaches flow construction's mutation-summary builder; each flow
+fixed-point iteration currently creates a new cache. Complete-route phase
+timings and rebuild counts are the next performance investigation, not more
+isolated cache tests. These interrupted probes do not establish an end-to-end
+speedup and are separate from the subsecond compiler-library probe above.
 
 The shared free/attached Unit graph retains scalar prefixes, guarded head/tail
 operands, repeated descriptor bindings, and authored `Slice::Length` ranking.
