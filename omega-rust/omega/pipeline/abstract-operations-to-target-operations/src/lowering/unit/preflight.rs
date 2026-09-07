@@ -17,7 +17,8 @@ pub(super) fn validate_unit_function_shape(
         entry.parameters == function.parameters
             || (entry.parameters.is_empty()
                 && (has_parameter_sourced_store_shape(function)
-                    || has_parameter_sourced_unit_call_shape(function)))
+                    || has_parameter_sourced_unit_call_shape(function)
+                    || has_scalar_unit_leaf_shape(function)))
     });
     if function.block_entries.len() != 1
         || function.block_entries[0].block != function.entry
@@ -26,6 +27,15 @@ pub(super) fn validate_unit_function_shape(
         return Err(LoweringError::UnitFunctionNotStraightLine(function.machine));
     }
     Ok(())
+}
+
+fn has_scalar_unit_leaf_shape(function: &AbstractFunction) -> bool {
+    !function.parameters.is_empty()
+        && function.structural_parameters.is_empty()
+        && function.entry_claims.is_empty()
+        && function.published_service_ceiling.is_empty()
+        && matches!(function.operations.as_slice(),
+            [AbstractOperation::ReturnUnit { cleanup_actions, .. }] if cleanup_actions.is_empty())
 }
 
 fn has_parameter_sourced_unit_call_shape(function: &AbstractFunction) -> bool {

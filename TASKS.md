@@ -581,12 +581,12 @@ Owners include
   other effects within one consumer's argument list and non-Unit consumers,
   preserving each temporary's exact dying continuation. Extend native
   Terminal Jump residual cleanup beyond acyclic Unit fallthrough with ordinary
-  direct-register results and parameter roots: scalar bindings, boundary-result
+  direct-register results and parameter roots: computed scalar bindings, boundary-result
   projections, and cyclic control need their own storage and edge replay without
-  delaying cleanup until final return. Preserve incoming scalar values before
-  earlier calls can clobber their ABI registers, and rejoin Jump aliases to
-  their actual parameter or operation-result identity; per-call argument
-  shuffle snapshots do not provide entry-value preservation.
+  delaying cleanup until final return. Extend entry-origin scalar continuation
+  storage to operation-result values and their exact defining identities;
+  per-call argument shuffle snapshots do not preserve a result across earlier
+  calls.
   Extend the
   type-directed record/array complement in
   [Terminal Psi](wiki/architecture/pipeline/terminal_psi.md) to construction-local

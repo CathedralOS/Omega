@@ -64,6 +64,7 @@ pub(super) fn emit(
     }
     let mut emitted = emit_unit_body(
         &AssignedUnitBody {
+            entry_register_spills: Vec::new(),
             structural_types: structural_types.clone(),
             call_plan: call_plan.clone(),
             scalar_parameters: Vec::new(),

@@ -109,7 +109,11 @@ pub(super) fn exact_projected_segment(
         .parameters
         .iter()
         .find(|parameter| parameter.place == source)?;
-    if !body.scalar_parameters.is_empty()
+    if (!body.scalar_parameters.is_empty()
+        && !body
+            .operations
+            .iter()
+            .any(|operation| matches!(operation, AssignedUnitOperation::Continue { .. })))
         || parameter.multiplicity != StructuralMultiplicity::Affine
         || parameter.access != StructuralAccess::Owned
         || !parameter.projected_qualifications.is_empty()
@@ -218,13 +222,20 @@ pub(super) fn exact_projected_segment(
     let mut layouts = Layouts::new(&body.structural_types, root_type)?;
     let root_shape = layouts.shape(root_type)?;
     let metadata = layouts.root_array_metadata(root_type)?;
+    let scalar_shapes = body
+        .scalar_parameters
+        .iter()
+        .map(|parameter| {
+            let shape = super::unit_scalar_shape(parameter.value, parameter.scalar_type).ok()?;
+            (shape == parameter.placement.shape).then_some(shape)
+        })
+        .collect::<Option<Vec<_>>>()?;
     let incoming = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
-            parameters: body
-                .parameters
-                .iter()
-                .map(|parameter| parameter.shape)
+            parameters: scalar_shapes
+                .into_iter()
+                .chain(body.parameters.iter().map(|parameter| parameter.shape))
                 .collect(),
             result: None,
         },
@@ -232,10 +243,12 @@ pub(super) fn exact_projected_segment(
     .ok()?;
     if parameter.shape != root_shape
         || body
-            .parameters
+            .scalar_parameters
             .iter()
+            .map(|parameter| &parameter.placement)
+            .chain(body.parameters.iter().map(|parameter| &parameter.placement))
             .zip(&incoming.parameters)
-            .any(|(parameter, placement)| parameter.placement != *placement)
+            .any(|(source, placement)| source != placement)
         || body.call_plan != incoming
     {
         return None;

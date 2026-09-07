@@ -101,7 +101,7 @@ use structural_scalar_codec::{
 use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joins;
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 82;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 83;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -1699,30 +1699,14 @@ fn installed_scalar_source_is_exact(
                     .and_then(|abi| abi.parameters.get(index))
             })
             .is_some_and(|parameter| {
-                let expected_location = match parameter.placement.locations.as_slice() {
-                    [
-                        calling_conventions::ValueLocation::Register {
-                            register,
-                            value_byte_offset: 0,
-                            byte_size,
-                        },
-                    ] if *byte_size == parameter.placement.shape.byte_size => Some(
-                        machine_code::UnitScalarParameterLocationRecord::Register(*register),
-                    ),
-                    [
-                        calling_conventions::ValueLocation::Stack {
-                            stack_byte_offset,
-                            value_byte_offset: 0,
-                            byte_size,
-                            ..
-                        },
-                    ] if *byte_size == parameter.placement.shape.byte_size => Some(
-                        machine_code::UnitScalarParameterLocationRecord::IncomingStack {
-                            byte_offset: *stack_byte_offset,
-                        },
-                    ),
-                    _ => None,
-                };
+                let expected_location = function.unit_scalar_abi.as_ref().and_then(|abi| {
+                    crate::unit_scalar_call_custody::entry_spills::parameter_location(
+                        abi,
+                        usize::try_from(parameter_index).ok()?,
+                        source_value,
+                        consumer.code_offset,
+                    )
+                });
                 parameter.value == source_value
                     && parameter.scalar_type == scalar_type
                     && expected_location == Some(location)
@@ -1921,9 +1905,15 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             function.machine,
         ))?;
         if !function.unit_continuations.is_empty()
-            && crate::unit_call_custody::result_home::parameter_storage_end(
+            && crate::unit_scalar_call_custody::entry_spills::validate_shape(
                 record.target,
                 &function.unit_parameter_homes,
+                function.unit_scalar_abi.as_ref(),
+                true,
+                function
+                    .unit_stack
+                    .as_ref()
+                    .map_or(0, |stack| stack.frame_bytes),
             )
             .is_none_or(|end| {
                 function.unit_stack.as_ref().is_none_or(|stack| {
@@ -1969,7 +1959,10 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 || function.scalar_affine_cleanup.is_some()
                 || !function.scalar_control_affine_cleanups.is_empty()
                 || function.structural_call_scalar_return.is_some()
-                || function.unit_scalar_abi.is_some()
+                || !crate::unit_continuations::exact_scalar_bindings(
+                    function.unit_scalar_abi.as_ref(),
+                    &function.unit_continuations,
+                )
                 || !function.unit_scalar_homes.is_empty()
                 || !function.unit_integer_constants.is_empty()
                 || !function.unit_affine_scalar_records.is_empty()
@@ -1979,6 +1972,16 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     .boundary_settlements
                     .iter()
                     .any(|settlement| settlement.machine == function.machine))
+        {
+            return Err(InstallationError::InvalidUnitAffineCleanup(
+                function.machine,
+            ));
+        }
+        if function.unit_continuations.is_empty()
+            && function
+                .unit_scalar_abi
+                .as_ref()
+                .is_some_and(|abi| !abi.entry_register_spills.is_empty())
         {
             return Err(InstallationError::InvalidUnitAffineCleanup(
                 function.machine,
@@ -3172,7 +3175,9 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     stack.frame_bytes,
                     parameter_homes,
                     &function.unit_scalar_homes,
+                    function.unit_scalar_abi.as_ref(),
                     None,
+                    !function.unit_continuations.is_empty(),
                 )
             {
                 return Err(InstallationError::InvalidInternalUnitCall(
@@ -3247,15 +3252,24 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     .zip(&abi.parameters)
                     .enumerate()
                     .all(|(index, (argument, parameter))| {
-                        let expected_argument_bytes =
-                            custody.arguments.first().and_then(|structural| {
+                        let expected_argument_bytes = function
+                            .unit_call_stacks
+                            .iter()
+                            .find(|call| {
+                                call.owner == custody.owner && call.target == custody.target
+                            })
+                            .and_then(|call| {
+                                let linkage_bytes = match record.target.architecture {
+                                    target::Architecture::X86_64 => 8,
+                                    target::Architecture::Aarch64 => 0,
+                                };
                                 crate::unit_scalar_call_custody::expected_argument_bytes(
                                     record.target,
                                     &plan,
                                     &custody.scalar_arguments,
                                     index,
                                     function.unit_stack.as_ref()?.frame_bytes,
-                                    structural.call_stack_bytes,
+                                    call.transient_bytes.checked_sub(linkage_bytes)?,
                                 )
                             });
                         usize::try_from(argument.parameter_index) == Ok(index)

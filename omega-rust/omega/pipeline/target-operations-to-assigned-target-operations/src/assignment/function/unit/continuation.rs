@@ -8,6 +8,7 @@ use terminal_psi::{StructuralAccess, StructuralMultiplicity, TerminalAffineClean
 pub(super) fn validate(
     body: &TargetUnitBody,
     function: &TargetFunction,
+    target: NativeTarget,
 ) -> Result<(), AssignmentError> {
     let machine = function.machine;
     let has_continuations = body
@@ -44,7 +45,46 @@ pub(super) fn validate(
         return Ok(());
     }
     let failure = || AssignmentError::UnitContinuationMismatch(machine);
-    if !body.scalar_parameters.is_empty() {
+    if body.scalar_parameters.iter().any(|parameter| !matches!(parameter.scalar_type,
+        semantic_vocabulary::ScalarType::Integer(integer)
+            if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed && matches!(integer.bits(), 8 | 16 | 32 | 64))) {
+        return Err(failure());
+    }
+    let mut scalar_values = body
+        .scalar_parameters
+        .iter()
+        .map(|parameter| (parameter.value, parameter.scalar_type))
+        .collect::<BTreeMap<_, _>>();
+    if scalar_values.len() != body.scalar_parameters.len() {
+        return Err(failure());
+    }
+    let mut scalar_shapes = Vec::new();
+    for parameter in &body.scalar_parameters {
+        let semantic_vocabulary::ScalarType::Integer(integer) = parameter.scalar_type else {
+            return Err(failure());
+        };
+        let width = integer.bits() / 8;
+        scalar_shapes.push(ValueShape::integer(width, width));
+    }
+    let expected_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: scalar_shapes
+                .into_iter()
+                .chain(body.parameters.iter().map(|parameter| parameter.shape))
+                .collect(),
+            result: None,
+        },
+    )
+    .map_err(|_| failure())?;
+    if body.call_plan != expected_plan
+        || body
+            .scalar_parameters
+            .iter()
+            .map(|parameter| &parameter.placement)
+            .chain(body.parameters.iter().map(|parameter| &parameter.placement))
+            .ne(expected_plan.parameters.iter())
+    {
         return Err(failure());
     }
     let mut blocks = BTreeSet::new();
@@ -70,7 +110,14 @@ pub(super) fn validate(
     let mut moved = Vec::new();
     for (position, operation) in body.operations.iter().enumerate() {
         match operation {
-            TargetUnitOperation::Continue { psi_edge, source_block, target_block, cleanup_actions } => {
+            TargetUnitOperation::Continue { psi_edge, source_block, target_block, bindings, cleanup_actions } => {
+                let mut pending = BTreeMap::new();
+                for binding in bindings {
+                    if scalar_values.get(&binding.argument) != Some(&binding.scalar_type)
+                        || scalar_values.contains_key(&binding.parameter)
+                        || pending.insert(binding.parameter, binding.scalar_type).is_some() { return Err(failure()); }
+                }
+                scalar_values.extend(pending);
                 if position + 1 == body.operations.len() || source_block == target_block
                     || !edges.insert(*psi_edge) || !blocks.insert(*source_block) || blocks.contains(target_block)
                     || successor.is_some_and(|expected| expected != *source_block)
@@ -92,8 +139,9 @@ pub(super) fn validate(
                     || !live.iter().rev().zip(cleanup_actions).all(|((place, _), action)| matches!(action, TerminalAffineCleanupAction::DiscardRoot(actual) if actual == place)) { return Err(failure()); }
             }
             TargetUnitOperation::Call { arguments, scalar_arguments, claim_transfers, requirement_obligations, crash_continuations, .. }
-                if scalar_arguments.is_empty() && claim_transfers.is_empty() && requirement_obligations.is_empty() && crash_continuations.is_empty() => {
+                if claim_transfers.is_empty() && requirement_obligations.is_empty() && crash_continuations.is_empty() => {
                     if arguments.is_empty() && partial_root.is_none() { continue; }
+                    if !scalar_arguments.is_empty() { return Err(failure()); }
                     let [argument] = arguments.as_slice() else { return Err(failure()); };
                     let (_, root_type) = live.iter().find(|(place, _)| *place == argument.place).ok_or_else(failure)?;
                     if argument.path.is_empty() || argument.access != StructuralAccess::Owned || argument.root_structural_type != *root_type

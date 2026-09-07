@@ -15,6 +15,9 @@ mod projected_call_result;
 #[path = "terminal_psi_structural_return/projected_continuations.rs"]
 mod projected_continuations;
 
+#[path = "terminal_psi_structural_return/scalar_continuations.rs"]
+mod scalar_continuations;
+
 #[path = "terminal_psi_structural_return/parameter_continuation.rs"]
 mod parameter_continuation;
 

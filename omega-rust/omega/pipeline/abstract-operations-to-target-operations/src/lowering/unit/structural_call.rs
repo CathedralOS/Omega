@@ -24,6 +24,7 @@ pub(super) fn lower_structural_unit_call(
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     local_sources_by_place: &BTreeMap<PlaceId, StructuralCallLocalSource>,
     scalar_values: &BTreeMap<ValueId, super::scalar_call::KnownUnitInteger>,
+    scalar_aliases: &BTreeMap<ValueId, ValueId>,
     boolean_constants: &BTreeMap<ValueId, (OperationId, bool)>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
@@ -106,6 +107,7 @@ pub(super) fn lower_structural_unit_call(
         .enumerate()
         .map(
             |(parameter_index, (((source_value, parameter), expected_shape), placement))| {
+                let source_value = scalar_aliases.get(source_value).unwrap_or(source_value);
                 let source = match parameter.scalar_type {
                     ScalarType::Boolean => {
                         if let Some((caller_parameter_index, _)) = function

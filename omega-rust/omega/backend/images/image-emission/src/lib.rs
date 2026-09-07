@@ -1296,25 +1296,52 @@ fn build_object_artifact_with_x86_feature_profile(
         };
         let continuation_discards = unit_continuations::validate_function(function)?;
         if !function.unit_continuations.is_empty()
-            && unit_call_custody::result_home::parameter_storage_end(plan.target, parameter_homes)
-                .is_none_or(|end| {
-                    validated_function_stack.as_ref().is_none_or(|stack| {
-                        end > stack.frame_bytes
-                            || (function
-                                .internal_unit_calls
-                                .iter()
-                                .all(|call| call.structural_result.is_none())
-                                && !unit_call_custody::result_home::exact_frame(
-                                    plan.target,
-                                    end,
-                                    stack.frame_bytes,
-                                    function
-                                        .unit_stack
-                                        .and_then(|stack| stack.aarch64_return_link)
-                                        .map(|link| link.frame_byte_offset),
-                                ))
-                    })
+            && unit_scalar_call_custody::entry_spills::validate_shape(
+                plan.target,
+                parameter_homes,
+                function.unit_scalar_abi.as_ref(),
+                true,
+                validated_function_stack
+                    .as_ref()
+                    .map_or(0, |stack| stack.frame_bytes),
+            )
+            .is_none_or(|end| {
+                validated_function_stack.as_ref().is_none_or(|stack| {
+                    end > stack.frame_bytes
+                        || (function
+                            .internal_unit_calls
+                            .iter()
+                            .all(|call| call.structural_result.is_none())
+                            && !unit_call_custody::result_home::exact_frame(
+                                plan.target,
+                                end,
+                                stack.frame_bytes,
+                                function
+                                    .unit_stack
+                                    .and_then(|stack| stack.aarch64_return_link)
+                                    .map(|link| link.frame_byte_offset),
+                            ))
                 })
+            })
+        {
+            return Err(ObjectError::InvalidUnitAffineCleanupEvidence(
+                function.machine,
+            ));
+        }
+        if !function.unit_continuations.is_empty()
+            && !unit_scalar_call_custody::entry_spills::exact_prologue(
+                plan.target,
+                &function.bytes,
+                function.unit_scalar_abi.as_ref(),
+                parameter_homes,
+                validated_function_stack
+                    .as_ref()
+                    .map_or(0, |stack| stack.frame_bytes),
+                function
+                    .semantic_code_attribution
+                    .first()
+                    .map_or(usize::MAX, |row| row.code_offset),
+            )
         {
             return Err(ObjectError::InvalidUnitAffineCleanupEvidence(
                 function.machine,

@@ -1,6 +1,6 @@
 //! Replay real fallthrough edges and partial ownership before emitting any bytes.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use assigned_target_operations::{AssignedFunction, AssignedUnitBody, AssignedUnitOperation};
 use semantic_vocabulary::{MachineId, PlaceId, StructuralTypeId};
@@ -39,7 +39,9 @@ fn exact(
     target: NativeTarget,
     functions: &[AssignedFunction],
 ) -> Option<ContinuationReplay> {
-    if !body.scalar_parameters.is_empty()
+    if body.scalar_parameters.iter().any(|parameter| !matches!(parameter.scalar_type,
+        semantic_vocabulary::ScalarType::Integer(integer)
+            if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed && matches!(integer.bits(), 8 | 16 | 32 | 64)))
         || body.parameters.iter().any(|parameter| {
             parameter.access != StructuralAccess::Owned
                 || parameter.multiplicity != StructuralMultiplicity::Affine
@@ -68,6 +70,14 @@ fn exact(
     let mut seen_roots = live.clone();
     let mut retired_roots = BTreeSet::new();
     let mut operation_ids = BTreeSet::new();
+    let mut scalar_values = body
+        .scalar_parameters
+        .iter()
+        .map(|parameter| (parameter.value, parameter.scalar_type))
+        .collect::<BTreeMap<_, _>>();
+    if scalar_values.len() != body.scalar_parameters.len() {
+        return None;
+    }
     let mut edges = BTreeSet::new();
     let mut blocks = BTreeSet::new();
     let mut expected_source = None;
@@ -111,7 +121,7 @@ fn exact(
             } => {
                 if !operation_ids.insert(*psi_operation)
                     || result.is_some()
-                    || !scalar_arguments.is_empty()
+                    || (!copies.is_empty() && !scalar_arguments.is_empty())
                     || !claim_transfers.is_empty()
                 {
                     return None;
@@ -131,7 +141,20 @@ fn exact(
                 source_block,
                 target_block,
                 cleanup_actions,
+                bindings,
             } => {
+                let mut pending = BTreeMap::new();
+                for binding in bindings {
+                    if scalar_values.get(&binding.argument) != Some(&binding.scalar_type)
+                        || scalar_values.contains_key(&binding.parameter)
+                        || pending
+                            .insert(binding.parameter, binding.scalar_type)
+                            .is_some()
+                    {
+                        return None;
+                    }
+                }
+                scalar_values.extend(pending);
                 if ordinal + 1 >= body.operations.len()
                     || !edges.insert(*psi_edge)
                     || expected_source.is_some_and(|expected| expected != *source_block)
@@ -191,7 +214,7 @@ fn exact(
                 }
                 returned = true;
             }
-            // Boundary results, scalar bindings, branches, and other Unit
+            // Boundary results, scalar producers, branches, and other Unit
             // operations retain their own admission paths, not this chain.
             _ => return None,
         }
@@ -210,6 +233,7 @@ pub(super) fn record(
         source_block,
         target_block,
         cleanup_actions,
+        bindings,
     } = operation
     else {
         return None;
@@ -219,6 +243,7 @@ pub(super) fn record(
         successor_operation_ordinal: operation_ordinal.checked_add(1)?,
         source_block: *source_block,
         target_block: *target_block,
+        bindings: bindings.clone(),
         cleanup: machine_code::UnitAffineCleanupRecord {
             psi_edge: *psi_edge,
             structural_types: body.structural_types.clone(),

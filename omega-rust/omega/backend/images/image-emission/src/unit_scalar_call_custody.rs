@@ -5,6 +5,8 @@
 //! fields and the callee ABI; producer-authored expected bytes are deliberately
 //! absent.
 
+pub(crate) mod entry_spills;
+
 use calling_conventions::{
     CallSignature, CallingPolicy, IndirectPointerLocation, MachineRegister, ValueLocation,
     ValuePlacement, ValueShape, evaluate_call_plan,
@@ -465,35 +467,11 @@ pub(super) fn validate_source(
             location,
         } => {
             let index = usize::try_from(parameter_index).map_err(|_| invalid())?;
-            let parameter = function
-                .unit_scalar_abi
-                .as_ref()
-                .and_then(|abi| abi.parameters.get(index))
-                .ok_or_else(invalid)?;
-            let expected_location = match parameter.placement.locations.as_slice() {
-                [
-                    calling_conventions::ValueLocation::Register {
-                        register,
-                        value_byte_offset: 0,
-                        byte_size,
-                    },
-                ] if *byte_size == parameter.placement.shape.byte_size => {
-                    machine_code::UnitScalarParameterLocationRecord::Register(*register)
-                }
-                [
-                    calling_conventions::ValueLocation::Stack {
-                        stack_byte_offset,
-                        value_byte_offset: 0,
-                        byte_size,
-                        ..
-                    },
-                ] if *byte_size == parameter.placement.shape.byte_size => {
-                    machine_code::UnitScalarParameterLocationRecord::IncomingStack {
-                        byte_offset: *stack_byte_offset,
-                    }
-                }
-                _ => return Err(invalid()),
-            };
+            let abi = function.unit_scalar_abi.as_ref().ok_or_else(invalid)?;
+            let parameter = abi.parameters.get(index).ok_or_else(invalid)?;
+            let expected_location =
+                entry_spills::parameter_location(abi, index, source_value, consumer_code_offset)
+                    .ok_or_else(invalid)?;
             if parameter.value != source_value
                 || parameter.scalar_type != scalar_type
                 || location != expected_location
@@ -886,6 +864,14 @@ pub(super) fn expected_argument_bytes(
                                 .checked_add(byte_offset)?,
                             scalar_home_shape(argument.source.scalar_type())?.byte_size,
                         )?,
+                        machine_code::UnitScalarParameterLocationRecord::FrameSpill {
+                            byte_offset,
+                        } => expected_x86_stack_load(
+                            &mut bytes,
+                            register,
+                            outbound_bytes.checked_add(byte_offset)?,
+                            8,
+                        )?,
                     }
                 }
                 InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
@@ -951,6 +937,13 @@ pub(super) fn expected_argument_bytes(
                                 .checked_add(frame_bytes)?
                                 .checked_add(byte_offset)?,
                             scalar_home_shape(argument.source.scalar_type())?.byte_size,
+                        )?),
+                        machine_code::UnitScalarParameterLocationRecord::FrameSpill {
+                            byte_offset,
+                        } => words.push(expected_aarch64_stack_load(
+                            register,
+                            outbound_bytes.checked_add(byte_offset)?,
+                            8,
                         )?),
                     }
                 }

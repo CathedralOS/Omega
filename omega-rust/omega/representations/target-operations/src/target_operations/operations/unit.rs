@@ -352,6 +352,7 @@ pub enum TargetUnitOperation {
         psi_edge: EdgeId,
         source_block: BlockId,
         target_block: BlockId,
+        bindings: Vec<abstract_operations::ValueBinding>,
         cleanup_actions: Vec<TerminalAffineCleanupAction>,
     },
     Return {

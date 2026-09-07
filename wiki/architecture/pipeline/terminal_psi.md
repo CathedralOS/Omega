@@ -1706,8 +1706,10 @@ cleanup they cannot preserve. Native Unit lowering carries acyclic adjacent
 fallthrough jumps as explicit continuation operations. Each retains the real
 edge, source and target blocks, and ordered residual schedule. Assignment and
 emission replay the live parameter/result roots and exact complement before
-retiring that root; unrelated roots remain live. Scalar bindings, boundary-result
-projections, and cyclic cleanup remain outside this native route. Scalar graph
+retiring that root; unrelated roots remain live. Fixed-integer entry-origin
+bindings retain simultaneous Jump assignment and canonical original parameter
+identity. Boundary-result projections, computed scalar bindings, and cyclic
+cleanup remain outside this native route. Scalar graph
 legalization and native publication cannot silently erase those residuals.
 
 Checked-source production carries this result-root schedule for one leading
@@ -1750,8 +1752,18 @@ producers or effects within one consumer's argument list, non-Unit consumers,
 and mixed dying-root cleanup remain outside this source route. Native lowering
 supports ordinary direct-register result producers on acyclic Unit fallthrough
 continuations, including successive producers and intervening zero-argument
-Unit calls. Scalar parameters/bindings and projected boundary results remain
-outside this native continuation route.
+Unit calls. Fixed-integer entry parameters can cross these jumps and feed later
+scalar-only ordinary Unit calls. Register inputs are saved before structural
+parameter staging or any call; incoming-stack inputs keep their original ABI
+locations. Entry homes reuse the Unit frame, after structural parameter homes
+and before result homes. Bodies without continuations retain their existing
+storage policy. Object validation reconstructs the entry stores and complete
+structural staging prefix; installation evidence retains their exact ordered
+locations and byte intervals. Source-to-target validation rejoins authored Jump
+bindings and actual consumer origins. Later artifact checks establish retained
+binding type, definition, and scope, not independent recovery of which authored
+alias a canonicalized consumer used. Computed scalar values and projected
+boundary results remain outside this native continuation route.
 
 Lowering and Terminal verification independently reconstruct that complement
 from the types and moves, rejecting overlaps, missing or extra residuals, and

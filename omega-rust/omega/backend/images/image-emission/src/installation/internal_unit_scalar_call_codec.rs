@@ -151,6 +151,10 @@ pub(super) fn encode_argument_source(
                     bytes.extend_from_slice(&[1, 0, 0, 0]);
                     push_u32(bytes, byte_offset);
                 }
+                machine_code::UnitScalarParameterLocationRecord::FrameSpill { byte_offset } => {
+                    bytes.extend_from_slice(&[2, 0, 0, 0]);
+                    push_u32(bytes, byte_offset);
+                }
             }
         }
         InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
@@ -222,6 +226,9 @@ pub(super) fn decode_argument_source(
                 ),
                 1 if register_tag_byte == 0 => {
                     machine_code::UnitScalarParameterLocationRecord::IncomingStack { byte_offset }
+                }
+                2 if register_tag_byte == 0 => {
+                    machine_code::UnitScalarParameterLocationRecord::FrameSpill { byte_offset }
                 }
                 _ => {
                     return Err(InstallationError::InvalidInstalledScalarSourceTag(

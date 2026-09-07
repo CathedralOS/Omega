@@ -133,6 +133,7 @@ fn mixed_plan(target: NativeTarget) -> AssignedOperationPlan {
                     edges: vec![EdgeId::new(9920).unwrap()],
                 },
                 operation: AssignedOperation::UnitBody(AssignedUnitBody {
+                    entry_register_spills: Vec::new(),
                     structural_types: vec![declaration],
                     call_plan: caller_plan.clone(),
                     scalar_parameters: Vec::new(),

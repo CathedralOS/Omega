@@ -428,6 +428,7 @@ fn emit_function(
     let mut x86_floating_control = None;
     let mut unit_affine_cleanup = None;
     let mut unit_continuations = Vec::new();
+    let mut unit_entry_register_spills = Vec::new();
     let mut semantic_code_attribution = Vec::new();
     let mut port_effects = Vec::new();
     let mut boundary_settlements = Vec::new();
@@ -508,6 +509,7 @@ fn emit_function(
             unit_parameters = emitted.parameters;
             unit_affine_cleanup = emitted.affine_cleanup;
             unit_continuations = emitted.continuations;
+            unit_entry_register_spills = emitted.entry_register_spills;
             emitted.bytes
         }
         AssignedOperation::ReturnForwardedDynamicParameterScalarCall { .. }
@@ -572,6 +574,7 @@ fn emit_function(
             unit_parameters = emitted.parameters;
             unit_affine_cleanup = emitted.affine_cleanup;
             unit_continuations = emitted.continuations;
+            unit_entry_register_spills = emitted.entry_register_spills;
             emitted.bytes
         }
         AssignedOperation::ReturnBoundaryPortReadU8 {
@@ -791,6 +794,7 @@ fn emit_function(
             unit_parameters = emitted.parameters;
             unit_affine_cleanup = emitted.affine_cleanup;
             unit_continuations = emitted.continuations;
+            unit_entry_register_spills = emitted.entry_register_spills;
             emitted.bytes
         }
         AssignedOperation::ReturnStructuralParameter {
@@ -1221,6 +1225,7 @@ fn emit_function(
                 Some(machine_code::UnitScalarFunctionAbiRecord {
                     call_plan: body.call_plan.clone(),
                     parameters: body.scalar_parameters.clone(),
+                    entry_register_spills: unit_entry_register_spills,
                 })
             }
             _ => None,

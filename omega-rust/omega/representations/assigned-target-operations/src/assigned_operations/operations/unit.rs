@@ -67,6 +67,10 @@ pub struct AssignedUnitBody {
     pub structural_types: Vec<StructuralTypeDeclaration>,
     pub call_plan: CallPlan,
     pub scalar_parameters: Vec<ScalarAbiValue>,
+    /// Real-continuation bodies preserve incoming scalar registers in the
+    /// existing frame before structural staging. Other Unit bodies retain
+    /// their original empty entry-spill roster.
+    pub entry_register_spills: Vec<crate::assigned_operations::storage::EntryRegisterSpill>,
     pub parameters: Vec<TargetStructuralParameter>,
     pub operations: Vec<AssignedUnitOperation>,
 }
@@ -530,6 +534,7 @@ pub enum AssignedUnitOperation {
         psi_edge: EdgeId,
         source_block: BlockId,
         target_block: BlockId,
+        bindings: Vec<target_operations::ValueBinding>,
         cleanup_actions: Vec<TerminalAffineCleanupAction>,
     },
     Return {

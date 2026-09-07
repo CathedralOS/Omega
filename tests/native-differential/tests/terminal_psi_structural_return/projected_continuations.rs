@@ -136,6 +136,7 @@ fn check(carrier: &str, projection: &str, byte_size: u16, repeated: bool) {
                 source_block,
                 target_block,
                 cleanup_actions,
+                ..
             } = &mut body.operations[ordinal]
             else {
                 unreachable!()
