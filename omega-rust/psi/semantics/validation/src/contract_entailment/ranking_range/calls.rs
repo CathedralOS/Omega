@@ -1,5 +1,5 @@
-//! Cross-machine scalar rank transport. Each side retains its own authored
-//! template; simultaneous call substitution is not local-state correspondence.
+//! Cross-machine scalar rank transport with optional authored ranges. Each side
+//! retains its own template; call substitution is not local-state correspondence.
 
 use super::*;
 
@@ -60,7 +60,8 @@ pub(crate) fn prove_ranking_range_call_entry(
 
 /// The caller owns prefix stability and whole-component cycle coverage. This
 /// judgment reads only caller entry hypotheses, never destination requirements,
-/// and proves destination membership plus equality of authored range endpoints.
+/// and proves nonincrease or strict descent with pinned view bounds. Authored
+/// ranges additionally require membership and equality of their endpoints.
 pub(crate) fn prove_ranking_range_call(
     program: &TypedTrees,
     caller: RankingRangeCallMember<'_>,
@@ -87,15 +88,16 @@ pub(crate) fn prove_ranking_range_call(
     }
     let admit_source =
         |expression| meanings::builtin(program, caller.machine, source, expression, 0);
-    let ExpressionNode::Range(source_range) = program.expression_table.expression(caller.range)
-    else {
+    if caller.range.is_valid() != callee.range.is_valid() {
         return None;
-    };
-    let ExpressionNode::Range(destination_range) =
-        program.expression_table.expression(callee.range)
-    else {
+    }
+    // IncreasingTo already produces a natural rank through max(0, limit-cursor).
+    // An absent optional range adds no endpoint obligations or synthetic bound.
+    if !caller.range.is_valid()
+        && !matches!(source_measure, RankingRangeMeasure::IncreasingTo { .. })
+    {
         return None;
-    };
+    }
     admit_member(program, &caller, source, source_measure)?;
     admit_member(program, &callee, destination, destination_measure)?;
     for &(guard, _) in guards {
@@ -119,8 +121,18 @@ pub(crate) fn prove_ranking_range_call(
         RankingRangeMeasure::IncreasingTo { limit, .. } => Some(engine.normalize(limit)?),
         _ => None,
     };
-    let floor = engine.normalize(source_range.start)?;
-    let ceiling = engine.normalize(source_range.end)?;
+    let source_range = if caller.range.is_valid() {
+        let ExpressionNode::Range(range) = program.expression_table.expression(caller.range) else {
+            return None;
+        };
+        Some((
+            engine.normalize(range.start)?,
+            engine.normalize(range.end)?,
+            range.end_inclusive,
+        ))
+    } else {
+        None
+    };
     if !engine.install_hypotheses(comparisons) {
         return None;
     }
@@ -157,8 +169,18 @@ pub(crate) fn prove_ranking_range_call(
         (None, RankingRangeMeasure::Single(_)) => None,
         _ => return None,
     };
-    let next_floor = engine.normalize(destination_range.start)?;
-    let next_ceiling = engine.normalize(destination_range.end)?;
+    let destination_range = if callee.range.is_valid() {
+        let ExpressionNode::Range(range) = program.expression_table.expression(callee.range) else {
+            return None;
+        };
+        Some((
+            engine.normalize(range.start)?,
+            engine.normalize(range.end)?,
+            range.end_inclusive,
+        ))
+    } else {
+        None
+    };
     if engine.requires_unsatisfiable {
         return Some(RankingRangeCallProgress::Strict);
     }
@@ -172,24 +194,21 @@ pub(crate) fn prove_ranking_range_call(
     {
         return None;
     }
-    if !membership(
-        &engine,
-        source_measure,
-        &rank,
-        &floor,
-        &ceiling,
-        source_range.end_inclusive,
-    ) || !membership(
-        &engine,
-        destination_measure,
-        &next_rank,
-        &next_floor,
-        &next_ceiling,
-        destination_range.end_inclusive,
-    ) || !prove(next_floor.sub(&floor), 0)
-        || !prove(floor.sub(&next_floor), 0)
-        || !prove(next_ceiling.sub(&ceiling), 0)
-        || !prove(ceiling.sub(&next_ceiling), 0)
+    if let (Some((floor, ceiling, inclusive)), Some((next_floor, next_ceiling, next_inclusive))) =
+        (source_range, destination_range)
+        && (!membership(&engine, source_measure, &rank, &floor, &ceiling, inclusive)
+            || !membership(
+                &engine,
+                destination_measure,
+                &next_rank,
+                &next_floor,
+                &next_ceiling,
+                next_inclusive,
+            )
+            || !prove(next_floor.sub(&floor), 0)
+            || !prove(floor.sub(&next_floor), 0)
+            || !prove(next_ceiling.sub(&ceiling), 0)
+            || !prove(ceiling.sub(&next_ceiling), 0))
     {
         return None;
     }
@@ -211,11 +230,14 @@ fn admit_member(
     state: &State,
     measure: RankingRangeMeasure,
 ) -> Option<()> {
-    let ExpressionNode::Range(range) = program.expression_table.expression(member.range) else {
-        return None;
-    };
-    for expression in [member.subject, range.start, range.end] {
-        meanings::builtin(program, member.machine, state, expression, 0)?;
+    meanings::builtin(program, member.machine, state, member.subject, 0)?;
+    if member.range.is_valid() {
+        let ExpressionNode::Range(range) = program.expression_table.expression(member.range) else {
+            return None;
+        };
+        for expression in [range.start, range.end] {
+            meanings::builtin(program, member.machine, state, expression, 0)?;
+        }
     }
     if let RankingRangeMeasure::IncreasingTo { limit, .. } = measure {
         meanings::builtin(program, member.machine, state, limit, 0)?;
@@ -276,9 +298,10 @@ fn scalar_entry<'program>(
     let custody = program.ranking_expression_custody_for(machine.symbol)?;
     if Some(witness.view_path.as_str()) != witness.ranking_view.canonical_path()
         || witness.subjects.len() != 1
-        || witness.rank_range.is_none()
+        || witness.rank_range.is_some() != custody.rank_range.is_some()
         || custody.subjects.as_slice() != [member.subject]
-        || custody.rank_range != Some(member.range)
+        || custody.rank_range.unwrap_or_default() != member.range
+        || custody.rank_range.is_some_and(|range| !range.is_valid())
     {
         return None;
     }

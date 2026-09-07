@@ -32,8 +32,8 @@ pub(super) fn preserves_rank(
     let Some(entry) = program.machine_states(machine).first() else {
         return false;
     };
-    // A ranged call consumes entry hypotheses and endpoints as well as its
-    // rank. Protect every nonself input in that mode; translate exact owned
+    // Ranged and IncreasingTo calls consume entry hypotheses and pinned bounds
+    // as well as the subject. Protect every nonself input; translate exact owned
     // declarations to the caller-relative frame vocabulary only here.
     frames
         .and_then(|frames| {
@@ -47,7 +47,9 @@ pub(super) fn preserves_rank(
                 .iter()
                 .filter(|parameter| {
                     !parameter.is_self
-                        && (rank.range.is_valid() || parameter.symbol == rank.parameter)
+                        && (rank.range.is_valid()
+                            || matches!(rank.order, RankOrder::IncreasingTo(_))
+                            || parameter.symbol == rank.parameter)
                 })
                 .all(|parameter| {
                     paths

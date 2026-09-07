@@ -243,8 +243,8 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   `validation/src/call_cycles/runtime_ranking/`.
   Computed-only paths lacking a unique current-parameter origin,
   non-bijective transfers involving rank inputs, and call components with
-  internal state arrivals, mixed ranged/unranged members, unranged
-  `Nat::IncreasingTo`, or slice-length, bounded-distance, or custom views need
+  internal state arrivals, mixed ranged/unranged members, or slice-length,
+  bounded-distance, or custom views need
   exact arrival mappings and preserved premises for ranked subjects and pinned
   endpoints. Mutable premises need live write-frame evidence.
   Custom scalar views and slice-length ranges over projected storage need their

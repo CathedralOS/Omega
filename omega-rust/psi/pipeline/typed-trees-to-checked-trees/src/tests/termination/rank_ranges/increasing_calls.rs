@@ -146,6 +146,9 @@ fn increasing_call_steps_need_live_positive_arithmetic_premises() {
         );
     prove(&source);
     reject(&source.replace("requires amount > 0 && ", "requires "));
+    let unranged = without_ranges(&source);
+    prove(&unranged);
+    reject(&unranged.replace("requires amount > 0 && ", "requires "));
 }
 
 #[test]
@@ -156,4 +159,67 @@ fn source_selected_addition_and_comparison_do_not_supply_increasing_progress() {
     ] {
         reject(&format!("{declaration} {PAIR}"));
     }
+}
+
+fn without_ranges(source: &str) -> String {
+    source
+        .replace(" in 0..=capacity", "")
+        .replace(" in 0..=ceiling", "")
+}
+
+#[test]
+fn increasing_call_components_need_no_optional_rank_range() {
+    let source = without_ranges(PAIR);
+    prove(&source);
+    prove(&source.replace(
+        "    transition cursor < limit",
+        "    self.observed = cursor; transition cursor < limit",
+    ));
+    reject(&source.replace("position + 1", "position"));
+    reject(&source.replace(
+        "false -> position",
+        "false -> self.first(bound, position, ceiling)",
+    ));
+    reject(&source.replace(
+        "self.first(bound, position + 1, ceiling)",
+        "self.first(bound - 1, position, ceiling)",
+    ));
+    reject(&source.replace(
+        "    transition cursor < limit",
+        "    limit = 0; transition cursor < limit",
+    ));
+}
+
+#[test]
+fn unranged_increasing_calls_forward_clamped_zero_without_counting_plateau_as_descent() {
+    let source = without_ranges(PAIR)
+        .replace("cursor <= limit && ", "")
+        .replace("position <= bound && ", "")
+        .replace(
+            "transition cursor < limit {\n        true -> self.second(capacity, cursor, limit)\n        false -> cursor\n    }",
+            "transition { _ -> self.second(capacity, cursor, limit) }",
+        );
+    // Entry may already be at or beyond the bound. Forwarding preserves rank
+    // zero; only the second member's below-bound arm must strictly decrease.
+    prove(&source);
+    reject(&source.replace(
+        "transition position < bound",
+        "transition position < 18446744073709551615u64",
+    ));
+    reject(&source.replace(
+        "false -> position",
+        "false -> self.first(bound, position, ceiling)",
+    ));
+}
+
+#[test]
+fn unranged_increasing_calls_keep_selected_meaning_and_uniform_range_policy() {
+    for declaration in [
+        "operator + u64::add(left: u64, right: u64) -> u64;",
+        "operator < u64::less(left: u64, right: u64) -> bool;",
+    ] {
+        reject(&format!("{declaration} {}", without_ranges(PAIR)));
+    }
+    reject(&PAIR.replace(" in 0..=capacity", ""));
+    reject(&PAIR.replace(" in 0..=ceiling", ""));
 }
