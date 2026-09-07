@@ -122,20 +122,23 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   Acceptance remains native execution with the documented exit/output and
   unchanged checked text facts; the console dependencies below are also required.
 
-  Resume the native `cli_mvp` customer at code checkpoint `fa27dbbd1b`.
+  Resume the native `cli_mvp` customer at code checkpoint `a9c2854307`.
   On macOS ARM64, `CARGO_INCREMENTAL=0 OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
   samples_with_documented_exit_run_correctly --no-fail-fast` exits 100 before
   execution: `InvalidUnitMachinePlan` names
-  `ConsoleNativeProvider::write_line`. Next retain the free helper's plain
-  `Console` provider and borrowed-view signature in the shared call graph for the
+  `ConsoleNativeProvider::write_line`. Next retain the free helper's borrowed-view
+  and scalar signature in the shared call graph for the
   [borrowed-byte writer closure](wiki/architecture/pipeline/terminal_psi.md#borrowed-byte-writer-composition)
   in `typed-trees-to-checked-trees/src/flow/terminal_unit/` and
   `checked-trees-to-lowered-psi/src/attached_unit/`.
   Existing three-state callees use the shared body catalog; extend that path
   to the writer without splitting authored states into synthetic machines.
-  The callable writer plan must retain provider/view/scalar transfers,
-  length observations at the selected state edges, and slice-decrease evidence.
+  The private writer calls its concrete provider's byte leaf directly; extending
+  plain boundary-trait or `Service` forwarding is not a prerequisite.
+  The callable plan must retain exact intrinsic settlement, view/scalar transfers,
+  length and guarded head/tail observations at selected edges, and
+  slice-decrease evidence.
   Terminal state-edge transfer and repeated-producer descriptor rebinding remain
   necessary for that loop; native whole-byte-view layout, length, indexed reads,
   and subslice realization are also still missing.
