@@ -123,37 +123,26 @@ Current compiler coverage includes:
   evidence discharges compatibility; unresolved equality rejects without
   ambient lemma search or an index-specific citation surface.
 
-### The proof-side proposition-family fragment
+### Proof-side relation expressions
 
-The systems verdict above remains unchanged for runtime data. The
-law-bearing-quotient ruling adds one ordered proof-side fragment that did not
-exist when the original ladder was sequenced:
+The systems restrictions above do not bound the mathematical proof stratum.
+A relation may quantify independently indexed representatives from one carrier
+family; another relation may require identical indices. Those choices belong
+to its logical binders, not to global roles assigned to carrier parameters.
 
-```omega
-proposition R<I, J>(left: C<I>, right: C<J>);
-```
+Constructive witnesses and laws use ordinary trait/conformance bundles.
+General nested quantification, arbitrary mathematical functions/predicates, and
+nonconstructive existence remain required independently of executable layouts.
+Their syntax and universe/equality rules still need design. No arbitrary
+runtime type computation is implied by this mathematical requirement.
 
-`C` is a proof carrier family with a typed proof-static index telescope, and
-`I`/`J` are independently quantified index packs. Evidence is a retained
-carrierless erased term produced by a privately selected conformance and
-projected through the proposition's declared interface. This is
-proposition-valued dependency only:
-it does not admit arbitrary value-to-runtime-`Type` computation, runtime proof
-fields, value-directed layout, or general Pi-type normalization.
+Constructor lifting selects the exact relation for the quotient/container
+pair. Dependent fields are processed in dependency order; a coarser relation
+on an earlier field requires explicit transport for a later field whose
+logical type no longer coincides. Erasure does not discharge that obligation.
 
-Independent packs are local to the proposition declaration. Carrier parameters
-have no global relation roles: another proposition over the same `C` may use
-one shared pack and require exact indices. Constructor lifting consumes a
-proposition-valued heterogeneous `Lift<I,J,R>` member selected for the exact
-quotient/container pair. Dependent fields are processed in dependency order;
-a coarser relation on an earlier field generates an explicit transport
-obligation for every later proposition application that no longer coincides.
-
-This fragment is a hard predecessor of evidence-bearing quotients. The
-relation-property hierarchy (`Reflexive`, `Symmetric`, `Transitive`,
-and `Equivalence`), `%`, and the proposition applications used by selected
-ordinary lifting theorems cannot be implemented independently from it. The
-complete formation and lifting rules live in
+These contracts precede full evidence-bearing quotients; see
+[Mathematical Proofs](mathematical_proofs.md) and
 [Law-Bearing Relations, Evidence, And Quotients](law_bearing_relations_and_quotients.md).
 
 ## 3. (A) The limited systems fragment
@@ -613,7 +602,7 @@ The staged path (no rewrite at any stage):
    automation strength was never its gap).
 4. **The ghost stratum.** Recursive ghost data is gated on the existing
    strict-decrease measure (never definitional unfolding — Lean's lesson).
-   Before quotient formation, add the `proposition`-family/index-telescope
+   Before quotient formation, add the relation-expression/index-telescope
    fragment and carrierless selected-conformance evidence specified in the
    law-bearing-relation brief. Relation properties are explicit composable
    conformances; quotient lifting explicitly selects an ordinary checked

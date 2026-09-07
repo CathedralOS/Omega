@@ -47,8 +47,9 @@ discharge those obligations but may not define, omit, or replace them.
 
 ## Unsupported frontier
 
-- General quantified propositions and quantified sequence facts are not in the
-  checked source fragment.
+- General quantified contracts, arbitrary mathematical function/predicate
+  parameters, and noncomputable proof values remain incomplete. They are
+  required by the contract-first design, not optional syntax extensions.
 - Proof views and the broader typed `Nat`, `Int`, `Rat`, sequence/Cauchy, and
   `Real` corpus are incomplete.
 - Mutual or general recursive proof bodies need the component certificate rule;
@@ -58,5 +59,5 @@ discharge those obligations but may not define, omit, or replace them.
   explicit admitted evidence, and every admission must remain visible.
 
 The open implementation and acceptance conditions are maintained only in the
-P3 `PROOF-CERTIFICATION-BRIDGE`, PCC verifier closure, and proposition tasks in
+P3 `PROOF-CERTIFICATION-BRIDGE`, `PROOF-CONTRACT-MIGRATION`, and PCC verifier closure in
 `TASKS.md`; do not append landing logs here.

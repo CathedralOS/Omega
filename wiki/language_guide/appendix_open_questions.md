@@ -5,7 +5,7 @@ belongs in the relevant chapter or frozen design brief, not here. Immediate
 owner decisions belong in the repository-root `OWNER_QUESTIONS.md`;
 engineering work belongs in `TASKS.md`.
 
-Last pruned: 2026-08-29.
+Last pruned: 2026-09-07.
 
 ## Reach, resources, and progress
 
@@ -55,11 +55,20 @@ Last pruned: 2026-08-29.
   bounds, inferred bounds, or named approximation policies.
 - Extend sequence-wide text proofs beyond validate-once plus preservation
   lemmas when richer inductive invariants have a concrete customer.
-- Expose proposition-expression implication, conjunction, and falsehood only
-  when a source theorem needs to compose them as values of the proof logic.
-  The proof kernel already checks those forms; ordinary `requires`/`ensures`
-  clauses and Boolean facts cover the current proposition-family and decider
-  customers without a second surface.
+- Specify general logical binders, predicate abstraction/passing, and proof-only
+  noncomputable values for the [contract-first proof direction](../design_briefs/mathematical_proofs.md).
+  Quantification and selectable axioms are required; their absence in the
+  current checker is not a language restriction to preserve.
+- Specify universe/equality rules and distinguish selectable axioms within one
+  foundation from support for different foundations. No cross-foundation
+  compatibility is implied by identical printed statements.
+
+## Candidate proof ergonomics
+
+[Named proof-formula syntax](../design_briefs/proof_formula_syntax_candidates.md)
+is an unproven ergonomic augmentation, not planned implementation or a prerequisite.
+Compare substantial proofs against ordinary contracts and named trait bundles
+before proposing it. The migration task is separate from this candidate.
 
 ## Core surface and types
 

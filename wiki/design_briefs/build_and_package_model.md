@@ -357,7 +357,7 @@ and composed only of flat bodyless requirements over the same supported type
 surface. The trait, requirement, authored path, and nominal machine binder keep
 their exact symbols through append-only lowering. Boundary traits, nested
 contract telescopes, operational or proof contracts, default bodies,
-declaration-identity machine binders, proposition binders, generated-machine
+declaration-identity machine binders, generated-machine
 `satisfies`, conformance bounds, and broader supply forms remain fenced.
 Suffix-only finalization owns satisfied
 declarations, progress premises, domain constraints, semantic qualification
@@ -392,7 +392,7 @@ base selection carrier into one combined carrier, and settles selected origins
 and target-owned `provider_defaults` against the final typed continuation.
 Unselected generated siblings remain inert. Extension-owned, boundary,
 declaration-identity, plural, nested, or operational static-machine binders,
-proposition generic binders, broader generic constraints, generated-machine
+broader generic constraints, generated-machine
 satisfactions/conformance bounds, broader supply forms, additional root kinds,
 and the remaining fenced data shapes still require explicit append-only
 continuation cohorts. These are implementation tasks, not alternate language
@@ -1137,7 +1137,7 @@ ordered typed application; a still-generic use may export artifact-qualified
 symbolic demand, but only final substitution to a closed application can
 produce coverage. Type and const arguments are supported first. Const identity
 is the canonical evaluated value in its declared carrier, never its spelling;
-lifetime, machine, and proposition arguments remain fail-closed. A boundary
+lifetime and machine arguments remain fail-closed. A boundary
 operator telescope of length zero uses one canonical empty application without
 substitution; an ordinary boundary-trait machine has no telescope and never
 uses that value.
@@ -1174,7 +1174,7 @@ coordinate, stable requirement identity, and direct requirement-type-binder to
 callable-type-binder mapping. Checked conversion and package capture each
 rejoin the authored use to its enclosing callable and exact declaration
 telescopes. Private callables, nested symbolic types, consts, lifetimes,
-machines, propositions, fixed-token uses, and statement uses remain absent or
+machines, fixed-token uses, and statement uses remain absent or
 fail closed. This row is composition input only: it names no provider and
 claims no realization, coverage, Terminal custody, native code, or admission.
 
@@ -2441,10 +2441,8 @@ rejects. Public const declarations additionally retain the exact parsed
 initializer-expression span through symbol resolution and typed lowering,
 before substitution erases the value tree. `PublicConst` rows carry it as
 `const_initializer` beside the declaration-name anchor. Relocation changes the
-explanatory coordinates but not the semantic row bytes. Transparent public
-propositions retain their complete formula extent at the parser boundary under
-`proposition_formula`; primitive and witness propositions receive no invented
-formula location. Every authored proof fact retains its full semantic-token
+explanatory coordinates but not the semantic row bytes. Every authored proof
+fact retains its full semantic-token
 extent under `proof_fact` through syntax, resolution, typed lowering, generic
 synthesis, and checked specialization. Public domain/data facts require that
 custody, as does every fact beneath an authored public contract clause;
@@ -2462,17 +2460,13 @@ The same compiler-owned walk covers value parameters nested in structural
 static-machine contracts. These coordinates bind what review displays without
 changing semantic row identity.
 
-Proposition and named-evidence projection is the concrete model for this
-cross-representation rule. Typed proposition applications own structural
-declaration symbols, binder arguments, and ordinary value-expression
-arguments. Checked proof facts own acceptance, evidence-term and witness-
-interface routing, and proof/admission disposition. The package projector joins
-those facts into one canonical row without making either source representation
-public. Checked display strings remain diagnostics and may never become
-package identity. Where a witness-interface argument is currently retained
-only as text, the responsible existing typed or checked representation must
-gain a structural carrier before that form is admissible; parsing diagnostic
-text back into semantics is forbidden.
+Contract and bundle projection follows this cross-representation rule. Typed
+expressions own structural subjects and arguments; checked facts own proof
+acceptance, exact witness identity, validity, and admitted assumptions. The
+projector joins them without publishing compiler-private representations.
+Rendered diagnostic strings cannot be parsed back into semantic identity.
+The mathematical-proof migration must preserve these joins for the replacement
+contract language and bundle interfaces; unsupported forms fail closed.
 
 Package-visible structural identity follows the same rule: every non-binder
 nominal in a public type is qualified by exact package ownership, an exact
@@ -2503,8 +2497,8 @@ exact declared const parameter; fixed-array and open-expression binders must
 reconcile uniquely to the exact alpha-normalized telescope. Residual const
 declarations and unrelated source-spelled leaves reject. The transport atom is
 never itself package identity.
-Review v42 and canonical row v2 close the corresponding proposition-binder
-split. A concrete type argument is a structural type identity, so compiler builtins use closed atoms
+Generic proof arguments require complete structural identity. A concrete type
+argument is a structural type identity, so compiler builtins use closed atoms
 and authored nominals require exact package/toolchain-source ownership. A
 machine argument remains an exact nominal declaration. Unresolved ownership is
 diagnostic state inside ordinary compiler identity only: exact review type
@@ -2516,13 +2510,12 @@ Those numbered ordinary-data identities are
 the wire contract; the retired standalone `wire data` form is not projected as
 a duplicate API. Public data has a closed ordinary/quotient form. A quotient
 row binds its exact carrier-family type identity and package-qualified public
-relation declaration after package review independently reruns the complete
-formation judgment. The relation's public-proposition row separately binds its
-telescope, body, and evidence classification. The selected equivalence proof
-implementation is private admission custody and does not enter quotient API
-identity. Data declarations do not admit proposition parameters; static-machine
-parameters and the representable default-domain proof fragment have exact
-canonical rows, while unsupported proof forms fail closed.
+relation after package review independently reruns formation. Its normalized
+logical expression, binders, and dependencies determine mathematical identity;
+the chosen equivalence proof does not redefine that identity. The proof's exact
+assumptions and selected conformance remain admission evidence. General
+mathematical binders and bundle rows must migrate with the source semantics;
+unsupported forms fail closed rather than becoming partial canonical rows.
 Public domain rows likewise retain exact declaring-package identity,
 alpha-normalized type/const binders, carrier type, and index arguments.
 Synthesized semantic paths retain an authored provenance span without replacing
@@ -2572,20 +2565,16 @@ identity, and structural type arguments. Binder-free `where T satisfies Trait`
 does not fabricate evidence. Selected conformances retain exact
 package-qualified declaration, complete alpha-normalized application,
 instantiated subject, and underlying public-trait application; the semantic
-declaration owns exact conformance, subject, and trait symbols. Public trait requirements retain named and unnamed
-`requires` and `ensures` through the same closed structural fact/expression and
-evidence vocabulary as public callables, joined to their exact checked
-state-signature owner. Named inputs retain ordered proposition and evidence-
-interface identity while treating their source aliases as local. Named outputs
-also retain their public selector identity. Their
-abstract published crash ceilings come from exactly one checked capsule keyed
-by the trait and requirement symbols and retain canonical causes and guards;
-they do not fabricate realized body sites or calls. Proposition/evidence
-arguments in selected conformance applications and unsupported expression forms
-reject rather than producing partial canonical rows. Trailing `boundary host` / `boundary Name`
-clauses and trait `invariant` clauses are retired rather than awaiting package
-rows. Trait requirement witnesses remain ordinary explicit contracts rather
-than package-only evidence syntax.
+declaration owns exact conformance, subject, and trait symbols. Public trait
+requirements retain their complete
+`requires` and `ensures` through structural fact/expression identities joined
+to their checked owner. Bundle interfaces retain exact law subjects, witnesses,
+and dependencies, not local diagnostic aliases. Abstract published crash
+ceilings come from the checked capsule keyed by trait and requirement and
+retain canonical causes and guards; they do not fabricate body sites or calls.
+Unsupported arguments or expressions reject rather than producing partial
+canonical rows. Trailing `boundary host` / `boundary Name` and trait
+`invariant` clauses are retired rather than awaiting package rows.
 Requirements also retain whether their checked declaration supplies a default
 realization; implementation bodies remain checked source subject to universal
 update triage rather than entering the evidence format as compiler-private IR.
@@ -2789,8 +2778,8 @@ realization and top-level requirement signatures. Each side retains the exact
 const carrier; authored binder names alpha-normalize out of callable carrier
 identity, while positional const use in fixed-array lengths is revalidated
 against the exact requirement-to-provider binder relation. Post-check carrier
-substitution and inapplicable type-property bounds reject. Static-machine,
-proposition, and conformance-bound external forms remain fail-closed.
+substitution and inapplicable type-property bounds reject. Static-machine
+and conformance-bound external forms remain fail-closed.
 Canonical-row recovery remains v15.
 
 Package review v108/canonical row v66 replaces the external realization's
@@ -2801,7 +2790,7 @@ multiplicity and carry-property bounds on both sides. Bounded realizations are
 revalidated against the requirement from retained typed custody; a provider
 that gains a stronger bound rejects, while an accepted weakening still
 preserves both exact telescopes and changes external-supply identity. Const,
-machine, proposition, and conformance-bound static forms remain fail-closed.
+machine and conformance-bound static forms remain fail-closed.
 Canonical-row recovery remains v15.
 
 Package review v107/canonical row v65 admits unselected external executable-
@@ -2840,7 +2829,7 @@ ordinal. Projection still recloses the complete authored conformance
 application and compares it with the exact checked call-occurrence row, so
 renaming the binder preserves review identity while selecting another binder
 changes it and retained-occurrence substitution rejects. Named or structured
-const values, and lifetime, machine, or proposition parameters remain
+const values, and lifetime or machine parameters remain
 fail-closed in this lane. Canonical-row recovery remains v15.
 
 Package review v103/canonical row v61 extends the checked closed-conformance
@@ -2848,7 +2837,7 @@ contract-argument lane to a declaration telescope containing exact type
 arguments and parser-canonical integer-literal const arguments. The row retains
 the consts in declaration order, so `FieldOrder<Card, 7>` and
 `FieldOrder<Card, 8>` cannot alias. Forwarded const binders, named or structured
-consts, and lifetime, machine, or proposition parameters remain fail-closed.
+consts, and lifetime or machine parameters remain fail-closed.
 The target-trait telescope remains type-only; const target arguments cannot be
 relabelled as type identities. Canonical-row recovery remains v15.
 
@@ -2863,13 +2852,13 @@ selection retained from the authored call, and projects its package-qualified
 declaration, ordered type arguments, instantiated subject, and target trait
 application. In v101, both the conformance declaration telescope and
 target-trait telescope had to contain only type parameters with exact arity; a
-machine, const, or proposition target-trait parameter rejected rather than
+machine or const target-trait parameter rejected rather than
 being mislabeled as a type identity. Missing, duplicate, redirected,
 substituted,
 or source-selection custody rejects. The compact
 report fingerprint and commitment remain local joins, not portable package
-identity. Evidence projections into executable calls, proposition parameters
-on machines, and nested machine applications remain rejected by the language;
+identity. Evidence projections into executable calls and nested machine
+applications remain rejected by the language;
 review does not invent rows for them. Canonical-row recovery remains v15.
 
 Package review v95/canonical row v53 extends the opaque external executable-
@@ -3362,9 +3351,8 @@ signature, proof/crash contracts, reach, invocation, suspension, blocking, and
 termination envelope. A nominal contract retains its exact public trait and
 requirement identities. Checked proof/crash rows are keyed to each structural
 binder, including nested binders; missing custody, excessive nesting, and
-private nominal contracts reject. Proposition parameters and
-proposition/evidence arguments in selected conformance applications remain
-fail-closed. Selected type, const, and machine arguments use the same
+private nominal contracts reject. General mathematical arguments in selected
+conformance applications remain fail-closed. Selected type, const, and machine arguments use the same
 categorized static-argument vocabulary.
 Review v44 and canonical row v4 extend contract-call rows with static-machine
 arguments. Each retains either the exact caller machine-binder ordinal or the
@@ -3373,7 +3361,7 @@ Review v45 and canonical row v5 rejoin each contract call to exactly one
 selected callee static telescope. Supported arguments retain their category as
 a direct concrete type identity, parser-canonical integer const literal, caller
 machine-binder ordinal, or exact concrete machine entry identity. Nested static
-applications, forwarded or symbolic type/const binders, proposition/evidence
+applications, forwarded or symbolic type/const binders, general mathematical
 static arguments, quotient calls, compiler intrinsics, and malformed or
 ambiguous joins remain fail-closed.
 Review v46 and canonical row v6 add bounded recursive generic data-type static
@@ -3381,14 +3369,14 @@ arguments in contract calls. Each application base rejoins exactly one checked
 data declaration, whose telescope is recursively classified; changing a nested
 type changes canonical evidence. This rung admits zero-lifetime generic data
 applications only. Lifetime-bearing applications, generic machine/conformance
-applications, unresolved forwarded type/const binders, proposition/evidence
+applications, unresolved forwarded type/const binders, general mathematical
 static arguments, quotient calls, and compiler intrinsics remain fail-closed.
 Review v47 and canonical row v7 admit lifetime-bearing recursive generic data
 static arguments in contract calls after an exact data-declaration lifetime-
 arity join. Lifetime arguments retain alpha-normalized caller lifetime-binder
 ordinals: renames are stable, while selecting a different lifetime changes
 canonical evidence. Generic machine/conformance applications, unresolved
-forwarded type/const binders, proposition/evidence static arguments, quotient
+forwarded type/const binders, general mathematical static arguments, quotient
 calls, and compiler intrinsics remain fail-closed.
 Review v48 and canonical row v8 admit contract-call forwarding of caller type
 and const binders. Each argument is validated against the exact caller and
@@ -3396,32 +3384,15 @@ selected-callee telescope categories and encoded by its alpha-normalized caller
 static-telescope ordinal: binder renames are stable, while selecting a different
 binder changes canonical evidence. The frontend now resolves const-parameter
 carrier types on machines and traits. Symbolic const declarations or
-expressions, proposition/evidence static arguments, true nested
+expressions, general mathematical static arguments, true nested
 machine/conformance applications, quotient calls, and compiler intrinsics
 remain fail-closed.
-Review v49 and canonical row v9 admit public-trait proposition-family
-parameters with their mandatory declaration-site value signature. Each retains
-the ordered, package-qualified and alpha-normalized value-parameter types.
-Trait, proposition, and value-parameter binder renames are stable, while
-changing a signature type changes canonical evidence. Non-default
-`const`/`mut`/`self` value-parameter modes remain fail-closed because current
-proposition-family compatibility checking does not certify those modes.
-Proposition-valued or evidence contract-call static arguments remain
-fail-closed, as do symbolic const declarations or expressions, true nested
-machine/conformance applications, quotients, and compiler intrinsics.
-Review v50 and canonical row v10 admit unnamed public contract facts whose
-proposition endpoint is a containing proposition-family parameter. The fact
-retains the exact static-telescope ordinal and ordered, checked contract
-expressions supplied to that family. Static-binder renames are stable, while
-selecting another proposition-family slot or changing its value arguments
-changes canonical evidence. Compiler validation rejects named generic
-proposition evidence because the unresolved family has no exact witness
-interface; proposition-valued contract-call static arguments remain a separate
-incomplete form. Generic proposition law conformance now compares the exact
-normalized proposition declaration and structural application; rendered labels
-are diagnostic only, and a same-spelled foreign endpoint cannot discharge the
-selected law. This compiler result still does not become standalone package
-proof until it is carried by the total recheckable package evidence artifact.
+General mathematical predicate parameters and contract expressions need exact
+binder and subject identity through source checking and review. Renaming a
+bound variable is not a semantic change; changing the selected subject or
+relation is. The contract/bundle migration must define and recheck these rows
+rather than reusing a presentation label as proof or inventing a partial
+interface for an unsupported binder.
 Review v51 and canonical row v11 admit the four compiler-owned byte-sequence
 predicate calls in public contract facts. The checked authored-selection row
 now retains the exact closed predicate instead of one undifferentiated
@@ -3465,7 +3436,7 @@ cross-family, or provider-drifting mappings reject. Generic/exact-application
 coverage remains fail-closed until it receives a distinct compiler-owned
 carrier.
 Review v83 and canonical row v41 admit width-landed float literals in public
-contract expressions, including transparent propositions whose comparison
+contract expressions, including logical expressions whose comparison
 operand is a typed named parameter and callable contracts whose comparison root
 is `result`. Result landing comes from the exact return type of the owning
 state, operator, or trait requirement. The row contains the checked `f32` or
@@ -3561,29 +3532,26 @@ the exact public trait with its instantiated type arguments. Checked closure
 first validates the complete declaration telescope; review independently
 rejoins its semantic declarations and never uses display strings as identity.
 Binder renames are stable, while changing any selected application argument
-changes canonical evidence. Proposition/evidence arguments and non-public
+changes canonical evidence. General mathematical arguments and non-public
 selections remain fail-closed.
 Review v64 and canonical row v22 admit the proof-only representation
 observation `zero_value<T>()` in public contracts. Canonical identity retains
 the exact package-qualified, alpha-normalized observed type rather than layout
-bytes, source spelling, or a checker verdict. Proposition-local type binders
+bytes, source spelling, or a checker verdict. Logical type binders
 receive exact symbols before typed lowering; binder renames are stable, while a
 different observed type changes the row. Quotient targets remain rejected by
 the settled representation-observer fence before package review.
 Expression-owned type positions retain their exact authored public/private
 disposition through symbol resolution. Cast targets, cast domain indices, and
 `zero_value<T>()` therefore lower nominal selections under their real contract
-position rather than a private default; proposition casts now resolve those
+position rather than a private default; proof-expression casts resolve those
 types through the same exact symbol path as machine casts. Checked visibility
 and direct-dependency admission reject private or transitive-only targets.
-Review v65 and canonical row v23 admit outcome-specific `ensures` without
-collapsing them into unconditional postconditions. Each row carries the exact
-package-qualified result-data and result-case identities, its public selector
-when named, its checked evidence-lane position, and the ordinary canonical fact.
-Projection rejoins exactly one producer-side checked guarded-guarantee carrier;
-missing, duplicate, or mismatched custody rejects. Authored group/row ordering
-is irrelevant, while moving a fact between cases or renaming a public selector
-changes canonical identity.
+Outcome-specific `ensures` must not collapse into unconditional postconditions.
+Each row retains the exact result-data and case identities and canonical fact,
+joined to the checked guarded-guarantee owner. Missing, duplicate, or mismatched
+custody rejects. Source row ordering is irrelevant; moving a fact to another
+case changes its meaning. The contract/bundle migration preserves these rules.
 Review v66 and canonical row v24 admit public-operator crash ceilings. Checked
 lowering issues one exact operator-symbol-keyed crash-contract row for every
 root and domain-homed operator, including crash-free declarations, and package
@@ -3617,13 +3585,6 @@ exact `OperatorDeclaration` owner row for every non-crash public-operator
 and fact exactly; missing, duplicate, or mismatched rows reject. Operator
 contracts remain Omega's existing unnamed surface—this adds neither binding
 syntax nor evidence lanes.
-Review v52 and canonical row v12 add blocking standalone public-proposition
-shape. Every package-owned `pub proposition` is retained whether used or not;
-primitive publication records only vocabulary, while witness and transparent
-forms retain their structural interface or normalized expansion. This source
-API row does not mint a primitive fact, and a transparent alias remains absent
-from normalized proposition identity while still participating in source
-compatibility.
 Review v53 and canonical row v13 add blocking standalone public-const shape.
 Every package-owned public const contributes its exact package-qualified
 declaration identity, exact typed declared-type identity, and canonical
@@ -3733,20 +3694,11 @@ ordinals, `result`, generic binders, and package-qualified nominals. Domain-
 membership rows retain the exact value expression and package-qualified public
 domain; a private package domain cannot leak through a public callable.
 Projection reads the earlier typed semantic tree only after checked compilation
-succeeds. Proposition rows retain an exact package-qualified primitive
-endpoint, alpha-normalized declaration binders and parameter types, structural
-binder/value arguments, and fact-only or witness classification. Transparent
-aliases expand before identity. Witness rows retain exact root arguments and
-the complete package-qualified direct/inherited requirement surface. Named
-contracts join checked evidence-term identity and positional lane; local
-`requires` alias spelling is omitted while public `ensures` selector spelling
-remains. Diagnostic strings do not enter the row. A proof-static
-`evidence.member` binder argument retains its source named-`requires` lane,
-exact package-qualified declaring trait, structural requirement-argument
-template, and exact requirement while omitting the local evidence alias. The
-lane binds that template to the source proposition application's concrete
-arguments. Matching checked evidence-term, interface, and projection facts are
-required. Direct parameter-rooted member paths retain their receiver ordinal
+succeeds. General logical expressions and bundle projections must retain
+normalized binders, exact law/member selections, and fully substituted subject
+arguments. Statement identity, witness identity, and admitted assumptions remain
+separate; a local alias or diagnostic string is not an identity oracle.
+Direct parameter-rooted member paths retain their receiver ordinal
 and exact package-qualified case/field chain after a unique checked semantic-
 place join and exactly one finalized public-interface member-token selection
 to the same field. Missing, duplicate, or mismatched custody rejects. Simple
@@ -3759,7 +3711,7 @@ expressions, attached `self.member()` calls and path-qualified
 `Data::member(value)` calls rederive that target only from the exact checked
 owner environment. A path qualifier is not encoded as a value receiver, and no
 program-wide name fallback participates in the row. Unreduced symbolic const expressions,
-proposition/evidence static arguments, quotient calls, true nested
+general mathematical static arguments, quotient calls, true nested
 machine/conformance applications, unrepresented compiler-intrinsic calls,
 computed members whose receivers are not in the closed expression vocabulary,
 proposition-argument members without their checked join, and unsupported

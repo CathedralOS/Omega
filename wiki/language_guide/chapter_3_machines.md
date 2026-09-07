@@ -15,10 +15,10 @@ function-like call is one important use of a machine, not its definition.
 Machines may be attached to data, or free-standing when there is no natural
 owning data type.
 
-`proposition P(...);` is the adjacent proof-formula declaration that machine
-contracts may require or ensure. An ordinary proof machine carries the checked
-work or derivation that establishes it. Chapter 10 defines primitive,
-witness-bearing, and transparent proposition declarations.
+Contracts state logical conditions; ordinary machines establish their
+conclusions. Traits and named conformances bundle mathematical operations,
+witnesses, and laws. General logical expressions do not add an executable
+machine supply mode; see [chapter 10](chapter_10_compile_time_proofs.md).
 
 ## One Construct, Several Uses
 
@@ -494,34 +494,12 @@ body must keep every derived crash site within the published guards. Chapter 16
 defines the crash surface, its no-cleanup terminal semantics, and the separate
 requirements for fault-tolerant continuation.
 
-A contract fact may be named when the body must retain and project its exact
-erased proof term:
-
-```omega
-requires proof: witness_bearing_proposition(input)
-ensures result_proof: another_proposition(result)
-```
-
-Named requirements are positional erased proof inputs supplied after a call's
-`;` separator, which marks the boundary between ordinary Type arguments and
-Prop inhabitants. Named guarantees are public proof-output selectors. The
-ordinary result stays in its declared Type lane; a caller that needs one exact
-outgoing witness selects it after the same `;` separator in the binding pattern:
-
-```omega
-let (value; result_proof: proof) = call(...);
-```
-
-Unselected guarantees still enter the caller's fact catalog but mint no local
-witness term. Outcome-guarded selectors exist only in the matching outcome arm.
-Chapter 10 defines evidence projection, assignment, call passing, output-lane
-binding, and the separate proposition, evidence-term, and derivation identities.
-Trait machine requirements admit the same named proof lanes. The requirement
-owns their normalized propositions, ordered input positions, evidence
-interfaces, and public output selectors; a satisfying machine supplies those
-proofs without replacing the published interface. This preserves the complete
-callable contract when a concrete certified operation is abstracted behind a
-trait and adds no runtime ABI fields.
+A proof machine may consume mathematical witnesses and their laws through
+ordinary named trait/conformance bundles. Contract facts still follow from
+checked bodies and instantiated assumptions, not from a bundle's name.
+Projection and forwarding preserve the witness's identity and validity.
+See [chapter 10](chapter_10_compile_time_proofs.md#contracts-and-evidence-bundles);
+the general bundle migration remains incomplete.
 
 A result-case group makes postconditions conditional on one exact nominal case
 of the declared result sum:
@@ -530,7 +508,7 @@ of the declared result sum:
 machine Search::find(items: &[Item], target: Item) -> SearchResult
 ensures
     SearchResult::Found -> {
-        in_bounds: result.index < items.len;
+        result.index < items.len;
         items[result.index] == target;
     }
 {
@@ -541,8 +519,8 @@ ensures
 `->` is the existing case-directed token. The braces organize contract rows;
 they construct no value, package, aggregate, or independently identified group.
 The case path resolves against the declared result sum and normalizes to its
-exact case symbol. A group may contain named evidence outputs and unnamed
-fact-only guarantees. It is not a domain declaration or arbitrary Boolean
+exact case symbol. A group contains ordinary guarantees checked on that result
+path. It is not a domain declaration or arbitrary Boolean
 guard: the returned sum tag establishes the exclusive case fact, and that fact
 activates the rows. Use a qualified payload type such as `T in D` when domain
 membership belongs to the returned value itself; use a guarded guarantee for a

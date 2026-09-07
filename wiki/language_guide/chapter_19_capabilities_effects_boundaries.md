@@ -1266,7 +1266,7 @@ category, and ordinal are identity, while binder names and source spellings are
 not. Production currently admits type arguments and const arguments. A const
 argument is the canonical evaluated value in its declared carrier, so `2 + 2`
 and `4` select the same `4 : u64` application. Lifetime, static-machine, and
-proposition arguments remain fail-closed until their operator-specific
+general mathematical arguments remain fail-closed until their operator-specific
 substitution and replay rules exist.
 
 An application in still-generic code may refer to the enclosing artifact's

@@ -949,48 +949,24 @@ several requirements within one conformance.
 
 ### Proof projection and carrierless evidence
 
-A trait body may declare a proposition-valued requirement with the ordinary
-`proposition` form:
+Traits group mathematical operations, witness values/functions, and laws
+expressed through ordinary machine contracts. Named conformances supply the
+complete bundle. A law contributes a checked contract, not a runtime dispatch
+slot. A proof-only bundle contributes no runtime instance or table merely
+because its interface is used in a proof.
 
-```omega
-trait Related {
-    proposition relates(left: Self, right: Self);
-}
-```
+Consumers rely on the declared laws and exact selected bundle, not on private
+implementation facts. Repeated projection preserves witness identity;
+equal conclusions do not identify different witnesses. Erased Type witnesses
+retain ordinary multiplicity and validity scope.
 
-A conformance block supplies that member with the transparent `=` proposition
-form. The proposition requirement contributes proof identity and laws but no
-runtime table slot. It uses the same closed conformance membership as machine
-requirements.
-
-Dynamic erasure uses one per-requirement projection with two strata. A
-carrier-bearing eligible machine contributes a runtime slot. A carrierless
-machine contributes a stable opaque proof symbol plus its normalized contract.
-A law contributes only its contract. A trait may contain both strata; they are
-not independently authored surfaces.
-
-Projecting the same carrierless evidence term twice yields the same opaque proof
-symbols. Distinct evidence terms remain distinct to proof construction even
-when they establish the same proof-irrelevant proposition. Because the
-evidence has no runtime carrier, it may be passed and returned in erased proof
-input and output lanes without allocation or cleanup. Transparent
-proposition aliases hide that mechanism in mathematical APIs.
-
-This is the existential evidence used by proposition-valued relations and
-law-bearing quotients. It never makes a carrierless machine runtime-callable,
-and it never permits a local dynamic descriptor to cross a component boundary.
-See [chapter 10](chapter_10_compile_time_proofs.md) and
-[Law-Bearing Relations, Evidence, And Quotients](../design_briefs/law_bearing_relations_and_quotients.md).
-
-A witness-bearing proposition names exactly one such carrierless evidence
-interface in its `evidence` clause. The proposition owner authorizes that
-interface. Selected conformances supply concrete witnesses; they do not create
-proposition identities or appear in mathematical contracts. A named
-`requires` binding projects the same retained evidence term that was introduced
-or forwarded, and a named `ensures` binding is assigned a producer privately
-in the proof body. The normalized interface and named output schema are
-fingerprinted public proof content even though the selected witness has no
-runtime carrier.
+General predicate parameters, logical binders, and noncomputable mathematical
+values remain to be specified. A Boolean accessor is appropriate for a
+decidable property but cannot replace an arbitrary mathematical predicate.
+See [chapter 10](chapter_10_compile_time_proofs.md#contracts-and-evidence-bundles)
+and the [mathematical proof contract](../design_briefs/mathematical_proofs.md).
+The migration must demonstrate these bundles through calls, serialization,
+and independent replay; this section does not claim full implementation.
 
 ### Operational envelopes
 
@@ -1235,91 +1211,25 @@ that make those machines safe to use through ordinary contracts. There is no
 trait-level `invariant` clause and no implicit contract injected around every
 requirement.
 
-```omega
-trait BoundedCounter<proposition Valid>
-where proposition Valid(value: Self);
-{
-    machine Self::increment(&mut self)
-        ensures Valid(self);
+An abstract `Self` has no structural field namespace. Contracts use declared
+accessors or mathematical parameters rather than guessing a concrete field.
+For example, an accessor-based counter interface can require a nonnegative
+returned count. A satisfier must prove the accessor's contract from its own
+representation. For an arbitrary nondecidable validity condition, the required
+general predicate-parameter syntax remains design work; do not substitute a
+Boolean decider silently.
 
-    machine Self::snapshot(&self, out: &mut CounterSnapshot)
-        requires Valid(self);
-}
-```
+A satisfying machine proves the inherited contract on every applicable result
+path. It may expose stronger facts to direct callers but cannot weaken the
+requirement used by static or dynamic dispatch. Witness bundles preserve their
+declared laws, exact substitutions, validity scopes, and admitted assumptions.
+Implementation-private proofs cannot introduce undeclared public guarantees.
 
-The proposition parameter has an authored signature and enters the exact trait
-application. A conformance therefore binds it explicitly; the compiler never
-discovers or fabricates a carrier predicate. Abstract `Self` has no structural
-field namespace, so `self.value` in a trait requirement contract rejects.
-Representation-independent traits use proposition parameters or declared
-accessor requirements instead.
-
-Trait requirements preserve the complete erased proof-call surface of the
-operations they abstract. A witness-bearing proposition may therefore be named
-as an incoming or outgoing lane:
-
-```omega
-proposition ValidPacket(packet: Packet) evidence ValidPacketEvidence;
-
-trait Decoder {
-    machine decode(bytes: &[u8]) -> Packet
-        ensures validation: ValidPacket(result);
-
-    machine consume(value: Packet)
-        requires validation: ValidPacket(value);
-}
-```
-
-`validation` on `decode` is a public proof-output selector. The binding on
-`consume` is a callee-local alias for its positional erased input; callers pass
-the term after `;` and do not select that alias by name. Both lanes require a
-witness-bearing proposition with one declared evidence interface. An unnamed
-contract remains fact-only and creates no selectable term.
-
-The trait owns the normalized proposition application, lane position, evidence
-interface, and output-selector identity. A satisfying machine must establish
-that exact surface on every applicable ordinary exit. It may add stronger facts
-for direct calls but may not weaken, rename, or substitute the inherited witness
-contract. Default realizations obey the same rule. Renaming an input alias is
-local; renaming an output selector is a breaking proof-API change.
-
-Every subject mentioned by a lane must already be bound by the requirement's
-signature, result, static telescope, or declared proposition parameters. The
-lane does not introduce an existential value binder. Evidence about a prior
-borrow must therefore name a still-valid occurrence explicitly, or the API must
-publish a separate proposition whose declared subject is an ordinary retained
-value.
-
-Static and dynamic requirement calls expose one opaque requirement-level
-witness. Satisfier-private producer conformances and proof identities remain
-hidden behind the declared evidence interface. This abstraction adds no runtime
-field, dictionary entry, calling-plan argument, allocation, cleanup, or fuel.
-
-The current compiler implements the first static form through an attached or
-free caller's explicit proof-static conformance binder. The selected trait,
-requirement, conformance, and one-state realization must be concrete and
-non-generic. Unit retains its attached/free carrier. The bounded scalar
-extension admits only exact `i32` or `bool`: the specialized caller is free,
-and the requirement
-and realization are receiverless with zero ordinary arguments. Erased named
-inputs remain available. The value uses the ordinary scalar call result and
-adds no proof-specific ABI, storage, operation, or fuel. A source-derived
-matched requirement/realization result class is committed in the closed
-callable registry, so coordinated runtime scalar retargeting rejects. The
-public requirement may own any finite ordered set of
-subjectless named inputs, including none, and must own at least one subjectless
-unconditional named output; every public row in this form is named. A call may
-select any output subset, while omitted selectors remain fact-only. Each
-selected output is a fresh opaque witness even if the realization forwards its
-local input or publishes stronger direct-call outputs. The exact
-realization may come from the selected conformance's trait default; each
-conformance keeps a distinct closed-application commitment and generated
-realization identity, and an inline override takes precedence. Direct calls
-through a conformance name, inherited requirement rows, generic,
-subject-bearing, or unnamed public lanes, scalar shapes other than exact `i32`
-or `bool`,
-receiver- or ordinary-argument-bearing scalar calls, attached scalar callers, and dynamic
-named-witness calls remain unavailable until their complete carriers land.
+Every referenced subject must be bound in the logical or ordinary contract
+scope. A bundle cannot keep a borrowed occurrence valid after its lifetime or
+hide invalidation by a write. Calls import facts only where the relevant
+outcome has been established. These requirements remain unchanged by the
+contract/bundle migration in `PROOF-CONTRACT-MIGRATION`.
 
 Value-wide facts belong to the carrier's default domain: field constraints and
 the data signature's `where` facts. Algebraic laws remain resultless theorem

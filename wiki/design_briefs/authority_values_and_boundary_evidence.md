@@ -297,8 +297,7 @@ numbers in different spaces never compose.
 The proposition is transparent source mathematics:
 
 ```omega
-pub proposition no_wrap(base: addr, length: u64) =
-    embed(base) + embed(length) <= addr::Bound;
+requires embed(base) + embed(length) <= addr::Bound;
 ```
 
 `addr::Bound` is the selected target's exclusive one-past address bound as

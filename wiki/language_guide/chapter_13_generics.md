@@ -358,7 +358,7 @@ Rules:
 
 ### Proof-family index telescopes
 
-Proof-side proposition and quotient machinery reads a generic proof carrier as
+Proof-side relation and quotient machinery reads a generic proof carrier as
 a family with one typed index telescope:
 
 ```text
@@ -373,53 +373,27 @@ either generator identity. A nullary carrier such as `Rat` uses the same rule
 with empty packs.
 
 This does not assign a global relational role to a carrier parameter. The
-relation declaration chooses whether its subjects use independent packs or one
+relation's binders determine whether its subjects use independent packs or one
 shared pack:
 
-```omega
-proposition equivalent<machine A, machine B>(
-    left: Stream<A>,
-    right: Stream<B>
-);
-
-proposition same_source<machine S>(
-    left: Stream<S>,
-    right: Stream<S>
-);
-```
-
-The first formula permits heterogeneous generator indices; the second
-requires one generator. Merely declaring either formula proves nothing. Its
-evidence and selected relation-law conformances determine where it may be used.
-Static arguments otherwise remain nominally exact during structural lifting;
-heterogeneity is authored by each relation's own telescope.
+A relation between `Stream<A>` and `Stream<B>` may use independent generator
+indices, while another relation may require two `Stream<S>` subjects with the
+same index. Merely naming either relation proves nothing. Its checked laws
+determine where it may be used. Static arguments otherwise remain exact during
+structural lifting; no carrier parameter has a global relation role.
 
 This is a proof-stratum interpretation of the machine parameters already
 defined above, not a runtime machine value and not a runtime-dependent carrier.
-The proposition-family extension that consumes these telescopes is ordered
-ahead of quotient implementation and lives in
-[chapter 10](chapter_10_compile_time_proofs.md) and the
-[law-bearing relation brief](../design_briefs/law_bearing_relations_and_quotients.md).
+General relation expressions that consume these telescopes precede full
+quotient implementation; see [chapter 10](chapter_10_compile_time_proofs.md)
+and the [relation brief](../design_briefs/law_bearing_relations_and_quotients.md).
 
-A generic proof formula uses a proposition parameter and an explicit family
-signature:
-
-```omega
-trait Symmetric<C, proposition Relation>
-where
-    proposition Relation(left: C, right: C);
-```
-
-Substitution must provide a proposition family with that binder telescope and
-representative-value signature. A resultless machine signature remains an
-operation constraint:
-
-```omega
-where
-    machine Visit(item: &T);
-```
-
-It requires an executable procedure and does not introduce a proof formula.
+Mathematical quantification is broader than the static machine-symbol binders
+above. General contracts must admit arbitrary mathematical functions and
+predicates without requiring executable implementations. Their source syntax
+and typing rules remain to be specified. An ordinary resultless callable
+constraint still requires an operation; it does not supply that missing
+mathematical abstraction.
 
 ## Where Clauses
 

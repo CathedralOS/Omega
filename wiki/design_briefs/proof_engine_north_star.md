@@ -1,9 +1,12 @@
-# Design Brief: Proof-Engine North Star — Obsoleting SPARK, Rust, and Lean
+# Design Brief: Proof-Engine North Star
 
 Status: **settled architectural direction; implementation is staged.** The
 language guide governs landed source semantics, the terminal-Psi and proof-
 kernel pages govern the artifact boundary, and `TASKS.md` owns remaining work.
-This brief states only the endpoint those increments converge toward.
+This brief states the endpoint those increments converge toward. The
+[contract-first mathematical proof direction](mathematical_proofs.md) governs
+the source model: ordinary proof machines and trait bundles, general logic in
+contracts, and explicitly selectable axioms. Its implementation remains open.
 
 The endpoint is one typed framework with distinct value, proposition, and
 effectful-computation judgments, explicit binding relevance, validity scope,
@@ -14,7 +17,7 @@ per-edge descent, normalization cites exact conformance/law evidence, and the
 human synopsis is derived from the accepted certificate. For Type occurrences,
 `[erased]` remains orthogonal to multiplicity, validity, conservation, and
 provenance; Prop terms are intrinsically erased and copyable. Relation
-heterogeneity belongs to each proposition's own carrier telescopes, never to a
+heterogeneity belongs to each relation's own carrier telescopes, never to a
 global carrier-role convention.
 
 ## The ambition
@@ -60,50 +63,28 @@ prove a falsehood, because the kernel re-checks the term it produced. So you can
 pile on arbitrarily clever automation without growing the trusted base. (Axioms
 are the opposite — they're what you *don't* prove; minimize them.)
 
-The key observation for Omega: **the entailment engine we already have is a
-decision-procedure tactic** — the same category as Lean's `omega`/`ring`. The
-difference from Lean is purely architectural, and that difference is the fork.
+Omega's source entailment engine provides automation for a bounded contract
+fragment. Extending that automation and specifying a general mathematical
+calculus are different obligations; neither substitutes for the other.
 
-## The fork
+## Automation and checked derivations
 
-| | Automation-as-base | Kernel + tactics |
-|---|---|---|
-| Examples | **Omega today**, F\*, Dafny, SPARK | Lean, Coq, Agda |
-| Trusted base | the whole prover/SMT engine (large) | a tiny kernel (small) |
-| Proof terms | none — the engine decides directly | every proof is a kernel-checked term |
-| Ergonomics | fully automatic where it works | tactics/term-mode for the hard parts |
-| Reach | only what the procedures decide — **no arbitrary quantified / higher-order math** | **all of mathematics** |
-| Failure mode | engine bug = silent unsoundness | kernel is small enough to trust; tactic bugs caught by re-check |
+Automation searches for proofs; the kernel checks explicit derivations in a
+specified calculus. No terminating decision procedure decides all mathematical
+truths. This does not prevent automation from supporting quantified statements
+or from producing certificates for a useful fragment. A small checker is a
+trust-minimization goal, not by itself a proof of mathematical expressivity.
 
-Omega is unambiguously in the left column today, and doing it well. The left
-column is *exactly* what "kill SPARK / Rust" needs. It is *fundamentally
-incapable* of "kill Lean" — undecidability means no decision procedure covers
-all of math, and with no kernel there is nothing to check a human-supplied proof
-against.
-
-## The synthesis to build
-
-Neither column alone is the target. "Kill Lean inside a systems language" does
-**not** mean adopting Lean's manual misery — it means building the synthesis
-that neither camp ships cleanly:
-
-1. **A tiny trusted kernel** so arbitrary proofs are *expressible and checkable*
-   (this is what unlocks general math and shrinks the trusted base).
-2. **Automation as the front line** so the basic 95% — bounds, overflow, ranges,
-   ring identities, bounded induction — is discharged with *zero* tactics, the
-   way the entailment engine already does it.
-3. **An escape hatch to an explicit proof** for the genuinely-hard 5% that
-   automation can't crack; the kernel checks it. An SMT-style procedure can even
-   emit a kernel-checkable certificate, so automation and kernel compose.
-
-This is strictly better than Lean (far less hand-proving) and strictly better
-than pure-SMT/SPARK (it can do the hard cases at all, with a smaller trusted
-base). F\* is the nearest existing point on the map (SMT automation over a
-dependently-typed, kernel-checked core) — the closest prior art to study.
+The target combines automation for common contracts with explicit proof-machine
+bodies for harder theorems. Both must produce checkable evidence with retained
+assumptions. Lean-competitive mathematical capability is a long-term requirement,
+not something established by changing declaration syntax or by one proof corpus.
 
 ## One typed core, three judgments
 
-The destination is one calculus, not several unrelated proof mechanisms:
+The destination is one explicit account of checking and trust, with these
+judgments. This table does not settle a universe hierarchy or prohibit separately
+identified mathematical foundations:
 
 | Judgment | Subject | Runtime meaning |
 |---|---|---|
@@ -111,24 +92,24 @@ The destination is one calculus, not several unrelated proof mechanisms:
 | `Prop` | formulas that may hold about values | no runtime representation |
 | computation | effectful machines producing values or proofs | carries effects, work, failure, suspension, and termination |
 
-`data` constructs values in `Type`. `proposition` constructs formulas in
-`Prop`. A proof is an inhabitant of a proposition. An ordinary checked machine
-may construct values or establish proofs; `requires` and `ensures` elaborate to
-erased proof flow at the machine entry and terminal edges. Trait laws,
-termination facts, domain facts, quotient laws, and conservation equations
-therefore share one proposition/proof account even when their source surfaces
-remain specialized and ergonomic.
+`data` constructs values in `Type`. Contracts state formulas, and ordinary
+checked machines establish their conclusions from premises. Traits and named
+conformances group witness operations with their laws. Termination facts,
+domain facts, quotient laws, and conservation equations share a checked
+logical account without requiring a separate source declaration for formulas.
 
-This unification preserves three distinctions:
+An object, a statement about it, a proof of that statement, and a decision
+procedure are distinct. Internal `Prop` notation does not require a source
+result type or another executable machine category. General logical expressions
+and arbitrary mathematical function/predicate binders remain necessary even
+where no decision procedure exists.
 
-- an object such as `Nat` is not a claim about that object;
-- a proposition is not the particular evidence that establishes it; and
-- a proof is not a decision procedure returning `bool`.
-
-The `Prop` universe is internal and proof-only. Source proposition families are
-not runtime values, fields, layouts, or machine result carriers. A Boolean
-expression in a contract is the decidable special case: it denotes the
-proposition that the expression evaluates to `true`.
+Selectable axioms must survive as exact transitive dependencies of checked
+theorems. Changing axioms within a fixed calculus is not the same as changing
+its universes, equality, computation, or proof-irrelevance rules. The latter
+requires explicit foundation design and compatibility, not guessed reuse of
+identically printed statements. The checker establishes derivability, not
+consistency of arbitrary admitted axioms.
 
 ## Evidence dimensions
 
@@ -211,64 +192,32 @@ proof irrelevance never identifies evidence for distinct propositions.
 
 ## Witnesses and elimination
 
-A fact-only proposition hides all proof identity. A witness-bearing nominal
-proposition publishes one opaque evidence interface. Selected carrierless
-conformance is one representation of an inhabitant of that proposition, not a
-parallel logical mechanism. The normalized interface is fingerprinted public
-proof content; changing it is a breaking proof-API revision while the nominal
-proposition symbol remains stable.
+Use ordinary trait/conformance bundles for mathematical witnesses and their
+laws. Repeated projection of one bundle preserves witness identity; distinct
+bundles may supply different witnesses for the same statement. Statement
+equality does not authorize equating witness values.
 
-The `evidence Interface;` clause publishes the elimination contract. Named
-`requires` bindings retain exact incoming evidence terms and project their
-members in proof-only computation; named `ensures` bindings expose exact terms
-through the erased proof-output lane. Producer conformances are selected
-privately at introduction and never enter mathematical signatures. A witness that must
-influence runtime computation belongs in an ordinary `Type`-level dependent
-pair whose relevance is tracked explicitly; erasure alone does not authorize
-eliminating a `Prop` inhabitant into runtime `Type`.
+Existence and executable construction are distinct. Constructive proofs may
+supply a witness bundle. Nonconstructive proofs may reason about existence under
+explicit assumptions, including choice when accepted; resulting noncomputable
+mathematical values remain proof-only. Erasure never licenses runtime extraction.
 
-Trait machine requirements admit those same lanes. The requirement, rather than
-any satisfier, owns the ordered propositions, evidence interfaces, and public
-output selectors. A static or dynamic requirement call may therefore return an
-opaque requirement-level witness, while satisfier-private producer identity and
-projections remain hidden. Abstracting a concrete machine behind a trait never
-erases part of its published proof-call contract.
-
-The kernel and artifact keep three identities separate: the nominal
-proposition application, the retained evidence term that determines stable
-opaque projections, and the derivation provenance that records trust. Two
-derivations may reach the same term through different admitted premises; two
-terms may inhabit the same proof-irrelevant proposition while carrying
-different hidden witnesses.
-
-For a generic machine instance, the producer coordinate is the replayed
-domain-separated `MachineSpecializationCommitment`: canonical template
-contract, exact generic arguments, selected machine contracts, closed
-conformances, and accepted-template grant. Proof-output lowering encodes the
-full 32-byte commitment, never the compact specialization report fingerprint.
-
-Result-case guarantee groups are a contract-indexing form, not another proof
-carrier. `ExactCase -> { ... }` attaches each contained named or unnamed
-guarantee to one nominal result case. Matching the sum tag activates its facts;
-the group creates no proposition, domain, package, or evidence identity. Named
-rows retain selectable erased terms, while unnamed rows retain only their
-proved proposition and provenance. Referenced borrow and revision scopes remain
-part of either row's validity and are invalidated normally by intersecting
-writes.
+The source syntax and typing rules for general quantification, predicate
+abstraction, and noncomputable values remain open implementation/design work.
+Universe levels, equality, induction, and quotients must be specified before
+claiming general mathematical coverage. Neither the current specialized
+entailment engine nor static machine-symbol parameters already supplies that
+whole foundation.
 
 ## Migration boundary
 
-The current rule that recursive/non-layoutable mathematical data becomes
-proof-only remains live until explicit relevance replaces it. During migration,
-an explicit relevance annotation takes precedence; structural classification
-is then legacy inference for unannotated declarations. The destination treats
-recursive and other non-layoutable values as ordinary `Type` inhabitants that
-may occupy erased bindings but not runtime-relevant ones; constructor tags as
-well as fields contribute representation. The later effectful
-computation judgment must account for Omega's states, transitions, effects,
-suspension, failure, work, and multiplicity rather than pretending machines
-are pure dependent functions. Neither migration blocks proposition families,
-terminal-Psi proof identity, or the present certificate kernel.
+`PROOF-CONTRACT-MIGRATION` in [TASKS.md](../../TASKS.md) owns source replacement,
+core examples, and evidence preservation through Terminal Psi and replay.
+The proof cases in [Mathematical Proofs](mathematical_proofs.md#migration-acceptance)
+must demonstrate witness composition, higher-order reasoning, nonconstructive
+existence, axiom policy, and quotient laws. Optional naming syntax is not a
+dependency of that work. Explicit relevance and effectful-computation work
+remain separate requirements; bundling does not settle their semantics.
 
 ## Certified elaboration and review
 
@@ -320,7 +269,7 @@ recursive-component and law-normalization certificate shapes.
 
 The source engine does not yet emit those terminal certificates. Quantifiers
 remain unsupported; proof views do not yet have semantics; and the broader
-proposition-family, explicit-relevance, and effectful-computation migrations
+contract/bundle, explicit-relevance, and effectful-computation migrations
 remain open. `TASKS.md` is the authoritative queue for that gap.
 
 Terminal-Psi artifact verification has a settled endpoint beyond that source
@@ -334,45 +283,37 @@ semantics. Until those theorems and the low generator land, current verifier,
 reduction, and denotation dependencies remain explicit trusted-judgment nodes;
 no clean artifact report may hide them beneath kernel acceptance.
 
-## The three kills, sequenced
+## Implementation priorities
 
-- **SPARK — near, mostly hardening.** Omega is already SPARK-shaped (first-class
-  contracts + automated discharge) and arguably ahead (built-in induction,
-  proof-oriented from the ground up rather than bolted onto Ada). The S4
-  narrowing work and domains-over-carriers are this rung: make more obligations
-  discharge automatically.
-- **Rust — in progress.** Ownership/borrows + logic-errors-proven-away
-  (panic-as-effect) + exact-arithmetic-by-default. This is the systems-safety
-  story already being executed.
-- **Lean — the long pole.** Still needs quantifiers, a much broader proposition
-  and proof-term vocabulary, and the automation-to-certificate bridge into the
-  now-live small Psi kernel. This is most of what Lean *is* — a multi-year arc.
-
-The friendly part of the sequencing remains: the automation-first base delivers
-SPARK/Rust-class value while the initial kernel grows, and **the kernel can
-become the backstop without discarding the automation** — they compose
-(automation tries first; kernel-checked explicit proof catches the rest). So the
-end-state is coherent and incremental, not a rewrite.
+Current systems customers need sound contract checking, ownership, and
+artifact replay. General mathematics additionally needs higher-order logical
+terms, quantifiers, dependent mathematical values, and explicit foundation and
+axiom rules. Neither a small kernel nor an ergonomic source syntax proves those
+capabilities complete. Automation remains useful through this expansion, but a
+failed search must not become acceptance of an unproved conclusion.
 
 ## Remaining research questions for the Lean rung
 
-1. **Logic surface:** what fragment of quantification do we admit, and how is it
-   discharged — bounded instantiation (stays automated) vs general (needs the
-   kernel)?
+1. **Logic surface:** specify general quantification and arbitrary mathematical
+   function/predicate abstraction, including nonconstructive existence.
+   Bounded automatic instantiation is a proof-search strategy, not the limit
+   on statements users may express.
 2. **Kernel growth:** the initial terminal-Psi kernel checks typed scalar
    propositions, structural implication/conjunction proofs, and total closed
    judgments. Which additional term constructors and rules are necessary for
    quantified mathematics while keeping the trusted core small?
 3. **Certificate bridge:** carry the live recursive/normalization kernel shapes
    through terminal Psi and emit them from source automation.
-4. **`Real` / analysis:** the proof-side Cauchy/evidence/quotient construction
-   and dedicated `proposition` surface are settled; implementing the
-   proposition-family/index-telescope fragment gates its
-   implementation, while the runtime approximation-policy surface remains
-   open.
+4. **`Real` / analysis:** general relation expressions, mathematical-function
+   binders, and witness bundles must support the Cauchy/quotient construction.
+   Demonstrate those proofs before claiming the replacement complete; runtime
+   approximation policy remains open.
 5. **Trust migration:** which existing automated judgments become total kernel
    primitives, which emit certificates, and which remain explicitly admitted
    while the terminal-Psi bridge is incomplete?
+
+Universe/equality rules and foundation compatibility also require explicit
+design. Selectable axioms are required independently of that work.
 
 None of these block the near-term work; they're the gates on the long pole, and
 this brief exists so they're chosen deliberately when the time comes.
