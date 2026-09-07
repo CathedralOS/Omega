@@ -86,6 +86,16 @@ transiently break a fact in place are also legal: the compiler carries the
 proof debt as an invariant window, re-proven at the next consumption point —
 Chapter 11 owns those rules.
 
+Scalar result facts describe the value returned at the call, not a deferred
+read of the caller's arguments or the callee's locals. The current checker can
+capture selected fixed-integer and Boolean computations through single-state
+helpers with local mutable storage: each assignment reads the previous value
+before updating it, and immutable copies retain their earlier value. Unsupported
+calls or nonlocal writes do not produce such a snapshot. Byte-store proofs may
+consume a captured byte only while the destination carrier's required per-byte
+class remains proved; an ASCII replacement alone cannot preserve an arbitrary
+UTF-8 sequence.
+
 ## Generic Contracts
 
 Bounds may refer to compile-time or proof-visible values.

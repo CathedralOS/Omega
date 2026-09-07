@@ -201,6 +201,29 @@ fn selected_scalar_call_result_captures_projected_assignment() {
 }
 
 #[test]
+fn selected_scalar_call_result_evaluates_local_storage_in_order() {
+    let source = r#"
+        domain [u8; 2]::Utf8 requires valid_utf8(self);
+        machine narrow(value: i32 [0..=255]) -> u8 {
+            let mut byte: u8 = value as u8;
+            byte = byte / 2;
+            let saved: u8 = byte;
+            byte = 200;
+            saved
+        }
+        machine establish(line: &mut [u8; 2]) ensures line in Utf8 {
+            let mut value: i32 = 130;
+            let byte: u8 = narrow(value);
+            value = 200;
+            line = "AB";
+            line[0] = byte;
+        }
+    "#;
+    lower_typed_trees(parse_typed_trees(source))
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+}
+
+#[test]
 fn selected_scalar_call_result_rejects_unproved_or_replaced_bytes() {
     for (callee, body) in [
         ("value as u8", "let byte: u8 = narrow(200); line[0] = byte;"),

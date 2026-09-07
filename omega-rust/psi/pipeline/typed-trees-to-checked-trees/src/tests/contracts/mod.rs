@@ -21,6 +21,7 @@ mod propositions;
 mod qualification_evidence;
 mod resultless_laws;
 mod scalar_exits;
+mod scalar_storage_results;
 mod state_entry_contracts;
 mod total_specification_arithmetic;
 mod transition_exits;

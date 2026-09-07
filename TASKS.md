@@ -557,8 +557,8 @@ Owners include
   at calls, transitions, and returns. Do not encode universal coverage as an
   unresolved index or assume arbitrary incoming storage is zero-initialized.
   Indexed text writers still need numeric conversion result evidence for
-  callees with nested calls or mutable storage and unsupported cast policies
-  beyond the selected immutable-local scalar snapshots consumed by
+  callees with nested calls, mutable formals, or nonlocal storage and unsupported
+  cast policies beyond the selected local scalar snapshots consumed by
   `typed-trees-to-checked-trees/src/flow/transfers/byte_sequences.rs`. `format_number`'s
   `narrow_i32_to_u8_trapping` result and `print_squares`'s
   `narrow_u32_to_u8_wrapping` result publish no result range, and the checker
