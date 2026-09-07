@@ -165,8 +165,8 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   `typed-trees-to-checked-trees/src/flow/terminal_unit/receiver_calls.rs`;
   preserve the source place, access, and ownership across each supported call
   shape and validate the resulting Terminal closure. Do not erase a required
-  callee receiver to make argument counts agree. Indexed write-only receiver
-  source admission remains separately gated under the borrow implementation.
+  callee receiver to make argument counts agree. Remaining indexed write-only
+  receiver work belongs to `WRITE-ONLY-BORROW` below.
 
   Acceptance: both tests pass, with every maintained sample reaching checked
   trees and every documented exit oracle observed on its matching host.
