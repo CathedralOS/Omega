@@ -31,6 +31,13 @@ trust must be deleted or delegated to that owner rather than dressed as an
 Omega guarantee. If the boundary or enforceable claim is genuinely ambiguous,
 promote that narrow ambiguity here before adding machinery.
 
+A compelling proposal for a new bootstrap language, replacement rung, or
+alternate dialect belongs here before implementation, even as an experiment.
+Apply the [bootstrap scope checkpoint](AGENTS.md#scope-checkpoints): identify
+the concrete compiler customer or required proof obligation, compare existing
+languages and simpler refactors, and account for total audit cost and machinery
+displaced. Await an owner decision; a task or prototype is not approval.
+
 Last pruned: 2026-09-05.
 
 No unresolved owner questions.

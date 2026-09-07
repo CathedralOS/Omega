@@ -453,6 +453,13 @@ Scope/prioritization questions belong in the conversation; only actual owner
 language/architecture decisions belong in `OWNER_QUESTIONS.md`. A pause does not
 authorize deletion, abandoning required proofs, or rewriting settled decisions.
 
+A compelling case for a new bootstrap language, replacement rung, or alternate
+dialect must be surfaced in `OWNER_QUESTIONS.md` before implementation, including
+an experimental implementation. Name the concrete compiler customer or required
+proof obligation, why the selected languages or a simpler refactor cannot serve
+it adequately, and the expected whole-chain audit cost and displaced machinery.
+Investigate and present the case; wait for the owner's decision before building it.
+
 ### Agent delegation
 
 Use Astra for coordination and delegated work requiring judgment: repository

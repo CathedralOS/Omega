@@ -43,6 +43,9 @@ a general-purpose proof-system project or an end in itself.
   Report evidence and alternatives before extending a faulty premise. Changes
   to ratified language/trust contracts follow [owner escalation](AGENTS.md#workflow);
   engineering review does not authorize silently weakening the proof claim.
+- Surface a compelling case for a new language, replacement rung, or alternate
+  dialect in `OWNER_QUESTIONS.md` before implementing it, even experimentally;
+  follow the [scope checkpoint](AGENTS.md#scope-checkpoints) and await the decision.
 
 ## Dependencies
 
