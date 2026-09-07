@@ -642,6 +642,7 @@ impl<'program> Engine<'program> {
         }
         // Second pass: re-normalize under the substitutions and store bounds.
         let mut lower_bounds = Vec::new();
+        let mut nonzero_differences = Vec::new();
         for (operator, left, right) in comparisons {
             let left = self.substituted(&left);
             let right = self.substituted(&right);
@@ -658,9 +659,7 @@ impl<'program> Engine<'program> {
                     lower_bounds.push((difference_rl, BigInt::zero()));
                     lower_bounds.push((difference_lr, BigInt::zero()));
                 }
-                // A `!=` hypothesis carries no single lower bound; ignore it
-                // (sound: dropping hypotheses only weakens proving power).
-                BinaryOperator::NotEqual => {}
+                BinaryOperator::NotEqual => nonzero_differences.push(difference_lr),
                 _ => fully_visible = false,
             }
         }
@@ -676,6 +675,25 @@ impl<'program> Engine<'program> {
 
         self.seed_matrix();
         self.close_matrix();
+        // Disequality alone has no direction. Once the ordinary bounds prove
+        // a direction, excluding zero strengthens that integer bound by one.
+        // Unoriented differences remain unused; this is not a branch search.
+        let previous_bounds = self.bounds.len();
+        for difference in nonzero_differences {
+            let opposite = difference.neg();
+            let nonnegative = self.prove_at_least(&difference, &BigInt::zero());
+            let nonpositive = self.prove_at_least(&opposite, &BigInt::zero());
+            match (nonnegative, nonpositive) {
+                (true, true) => self.requires_unsatisfiable = true,
+                (true, false) => self.bounds.push((difference, BigInt::from_i64(1))),
+                (false, true) => self.bounds.push((opposite, BigInt::from_i64(1))),
+                (false, false) => {}
+            }
+        }
+        if self.bounds.len() != previous_bounds {
+            self.seed_matrix();
+            self.close_matrix();
+        }
         fully_visible
     }
 

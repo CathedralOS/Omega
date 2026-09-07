@@ -1,0 +1,22 @@
+data Main {}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.first(8, 2) }
+}
+
+machine Main::first(&mut self, remaining: u64, step: u64) -> u64
+requires step > 0;
+terminates by remaining;
+{
+    transition { _ -> self.second(step, remaining) }
+}
+
+machine Main::second(&mut self, amount: u64, pending: u64) -> u64
+requires amount > 0;
+terminates by pending;
+{
+    transition pending >= amount {
+        true -> self.first(pending - amount, amount)
+        false -> pending
+    }
+}

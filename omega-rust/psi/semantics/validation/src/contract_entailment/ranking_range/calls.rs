@@ -91,13 +91,8 @@ pub(crate) fn prove_ranking_range_call(
     if caller.range.is_valid() != callee.range.is_valid() {
         return None;
     }
-    // IncreasingTo already produces a natural rank through max(0, limit-cursor).
-    // An absent optional range adds no endpoint obligations or synthetic bound.
-    if !caller.range.is_valid()
-        && !matches!(source_measure, RankingRangeMeasure::IncreasingTo { .. })
-    {
-        return None;
-    }
+    // Both selected scalar views already produce natural ranks. An absent
+    // optional range adds no endpoint obligations or synthetic bound.
     admit_member(program, &caller, source, source_measure)?;
     admit_member(program, &callee, destination, destination_measure)?;
     for &(guard, _) in guards {
@@ -148,7 +143,7 @@ pub(crate) fn prove_ranking_range_call(
         if exact_integer_parameter(program, parameter.type_reference).is_none() {
             continue;
         }
-        if !parameter.symbol.is_valid() || parameter.is_mutable || parameter.is_const {
+        if !parameter.symbol.is_valid() || parameter.is_const {
             return None;
         }
         actuals.push(StrictArithmeticExpressionBinding {
@@ -212,8 +207,14 @@ pub(crate) fn prove_ranking_range_call(
     {
         return None;
     }
-    let descent = rank.sub(&next_rank);
     let clamped = matches!(source_measure, RankingRangeMeasure::IncreasingTo { .. });
+    // Without an authored range, natural subtraction still cannot descend out
+    // of the well-founded carrier. Do not count mathematical underflow as a
+    // valid unsigned rank merely because its raw polynomial decreases.
+    if !clamped && (!prove(rank.clone(), 0) || !prove(next_rank.clone(), 0)) {
+        return None;
+    }
+    let descent = rank.sub(&next_rank);
     // A raw decrease below zero is only a plateau step. Strict clamped
     // descent requires a positive source coordinate as well as raw descent.
     if (!clamped || prove(rank, 1)) && prove(descent.clone(), 1) {
@@ -357,7 +358,6 @@ fn scalar_entry<'program>(
         .iter()
         .find(|parameter| parameter.symbol == path.symbol)?;
     if parameter.is_self
-        || parameter.is_mutable
         || parameter.is_const
         || !matches!(
             exact_integer_parameter(program, parameter.type_reference),

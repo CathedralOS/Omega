@@ -1,6 +1,50 @@
 use super::*;
 
 #[test]
+fn disequality_strengthens_only_an_independently_proven_integer_direction() {
+    let program = TypedTrees::default();
+    let remaining = Polynomial::atom("remaining".to_owned());
+    let floor = Polynomial::atom("floor".to_owned());
+    for operator in [BinaryOperator::GreaterOrEqual, BinaryOperator::LessOrEqual] {
+        for reverse in [false, true] {
+            let mut engine = Engine::for_proof_integer_formation(&program);
+            let mut comparisons = vec![
+                (BinaryOperator::NotEqual, remaining.clone(), floor.clone()),
+                (operator, remaining.clone(), floor.clone()),
+            ];
+            if reverse {
+                comparisons.reverse();
+            }
+            assert!(engine.install_hypotheses(comparisons));
+            let difference = if operator == BinaryOperator::GreaterOrEqual {
+                remaining.sub(&floor)
+            } else {
+                floor.sub(&remaining)
+            };
+            assert!(engine.prove_at_least(&difference, &BigInt::from_i64(1)));
+            assert!(!engine.prove_at_least(&difference, &BigInt::from_i64(2)));
+            assert!(!engine.prove_at_least(&difference.neg(), &BigInt::zero()));
+            assert!(!engine.requires_unsatisfiable);
+        }
+    }
+    let mut unknown = Engine::for_proof_integer_formation(&program);
+    assert!(unknown.install_hypotheses(vec![(
+        BinaryOperator::NotEqual,
+        remaining.clone(),
+        floor.clone()
+    ),]));
+    assert!(!unknown.prove_at_least(&remaining.sub(&floor), &BigInt::from_i64(1)));
+    assert!(!unknown.prove_at_least(&floor.sub(&remaining), &BigInt::from_i64(1)));
+    assert!(!unknown.requires_unsatisfiable);
+    let mut contradictory = Engine::for_proof_integer_formation(&program);
+    assert!(contradictory.install_hypotheses(vec![
+        (BinaryOperator::NotEqual, remaining.clone(), floor.clone()),
+        (BinaryOperator::Equal, remaining, floor),
+    ]));
+    assert!(contradictory.requires_unsatisfiable);
+}
+
+#[test]
 fn constant_multiplication_preserves_one_sided_bounds() {
     let positive = Interval {
         low: Some(BigInt::from_i64(2)),
