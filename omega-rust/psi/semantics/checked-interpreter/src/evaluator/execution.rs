@@ -463,6 +463,7 @@ impl<'program> Evaluator<'program> {
         for owned in self.program.machine_owned_data(machine) {
             let value = if owned.initial_value.is_valid() {
                 let frame = Frame {
+                    return_primitive: None,
                     locals: RefCell::new(BTreeMap::new()),
                     type_locals: RefCell::new(BTreeMap::new()),
                     self_cell: self.allocate_cell(Value::Unit)?,
@@ -929,7 +930,11 @@ impl<'program> Evaluator<'program> {
                         }
                     }
                     StatementNode::Expression(expression) => {
-                        tail_value = Some(self.eval_expression(*expression, &frame)?);
+                        tail_value = Some(self.eval_expression_with_destination(
+                            *expression,
+                            frame.return_primitive,
+                            &frame,
+                        )?);
                     }
                     other => {
                         self.exec_statement(other, &frame)?;
@@ -1056,6 +1061,7 @@ impl<'program> Evaluator<'program> {
             arg_index += 1;
         }
         Ok(Frame {
+            return_primitive: self.program.primitive_type_reference(state.return_type),
             locals: RefCell::new(locals),
             type_locals: RefCell::new(type_locals),
             self_cell,

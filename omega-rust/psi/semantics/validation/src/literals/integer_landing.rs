@@ -1,4 +1,4 @@
-//! Chapter 5 anonymous integer arithmetic: exact values before one landing.
+//! Chapter 5 anonymous numeric arithmetic before one integer landing.
 //! The authored expression remains intact; consumers retain the rendered value
 //! at its actual destination, not widths on the anonymous intermediate nodes.
 
@@ -20,7 +20,7 @@ pub(super) use destinations::append_destination_literals;
 #[cfg(test)]
 mod tests;
 
-/// Render a wholly anonymous fixed-integer expression at its first typed
+/// Render a wholly anonymous numeric expression at its first fixed-integer
 /// destination. The caller owns operator-selection evidence. No named value,
 /// cast, call, prior landing, or target-semantic observation is evaluated here.
 pub fn land_anonymous_integer_expression(
@@ -87,6 +87,24 @@ pub(crate) fn anonymous_numeric_value(
     expression: ExpressionHandle,
     builtin: &mut impl FnMut(ExpressionHandle) -> bool,
 ) -> Option<AnonymousNumericValue> {
+    evaluate_anonymous_value::<true>(program, expression, builtin)
+}
+
+/// Float landing keeps its existing integer-spelling path separate from
+/// decimal arithmetic, whose ExactFloat evaluator preserves signed-zero rules.
+pub(super) fn anonymous_integer_literal_tree_value(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    builtin: &mut impl FnMut(ExpressionHandle) -> bool,
+) -> Option<AnonymousNumericValue> {
+    evaluate_anonymous_value::<false>(program, expression, builtin)
+}
+
+fn evaluate_anonymous_value<const ALLOW_DECIMAL_LITERALS: bool>(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    builtin: &mut impl FnMut(ExpressionHandle) -> bool,
+) -> Option<AnonymousNumericValue> {
     enum Step {
         Enter(ExpressionHandle),
         Leave(ExpressionHandle),
@@ -107,6 +125,15 @@ pub(crate) fn anonymous_numeric_value(
                 match program.expression_table.expression(expression) {
                     ExpressionNode::Integer(literal) if literal.landing().is_none() => {
                         values.push(BigRational::from_integer(literal.value_bignum()?))
+                    }
+                    ExpressionNode::Float(literal)
+                        if ALLOW_DECIMAL_LITERALS && literal.landing().is_none() =>
+                    {
+                        let value = BigRational::from_decimal_str(literal.text())?;
+                        if !fractional_origin.is_valid() && value.to_integer_exact().is_none() {
+                            fractional_origin = expression;
+                        }
+                        values.push(value);
                     }
                     ExpressionNode::Binary(binary) if builtin(expression) => {
                         active.push(expression);

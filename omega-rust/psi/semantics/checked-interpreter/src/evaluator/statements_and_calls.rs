@@ -50,7 +50,22 @@ impl<'program> Evaluator<'program> {
                 // TARGET's declared type is an owned `[T; N]` (FixedArray) -- a slice `&[T]`
                 // target is a shared view whose writes MUST alias the backing array, so it stays
                 // shared. `Ref` is likewise left shared for `&mut` write-through.
-                let value = self.eval_expression(assignment.value, frame)?;
+                let destination = self
+                    .expression_type_reference(assignment.target, frame)
+                    .and_then(|mut target| {
+                        // Assignment through a reference requests the referee's
+                        // value type; it does not replace the reference itself.
+                        while let TypeReferenceNode::Reference { referee: base, .. }
+                        | TypeReferenceNode::Constrained {
+                            base_type: base, ..
+                        } = self.program.type_reference_table.type_reference(target)
+                        {
+                            target = *base;
+                        }
+                        self.program.primitive_type_reference(target)
+                    });
+                let value =
+                    self.eval_expression_with_destination(assignment.value, destination, frame)?;
                 let copy_array = matches!(value, Value::Array(_))
                     && self
                         .assignment_target_type_reference(assignment.target, frame)
@@ -179,7 +194,12 @@ impl<'program> Evaluator<'program> {
                 // view and must keep sharing the array's cells. A `Ref` keeps aliasing the
                 // referent.
                 let value = if local.initial_value.is_valid() {
-                    let value = self.eval_expression(local.initial_value, frame)?;
+                    let destination = self.program.primitive_type_reference(local.type_reference);
+                    let value = self.eval_expression_with_destination(
+                        local.initial_value,
+                        destination,
+                        frame,
+                    )?;
                     let copy_array = matches!(value, Value::Array(_))
                         && self.declared_type_is_fixed_array(local.type_reference);
                     if matches!(value, Value::Struct { .. }) || copy_array {
@@ -268,7 +288,11 @@ impl<'program> Evaluator<'program> {
             TransitionTargetNode::Terminal => Ok(TransitionDecision::Terminal),
             TransitionTargetNode::SelfTarget => Ok(TransitionDecision::SelfTarget),
             TransitionTargetNode::Value(expression) => {
-                let value = self.eval_expression(*expression, frame)?;
+                let value = self.eval_expression_with_destination(
+                    *expression,
+                    frame.return_primitive,
+                    frame,
+                )?;
                 Ok(TransitionDecision::Value(value))
             }
             TransitionTargetNode::Named {
@@ -295,10 +319,12 @@ impl<'program> Evaluator<'program> {
                         })?,
                 };
 
-                let mut args = Vec::new();
-                for argument in self.program.statement_table.expression_handles(*arguments) {
-                    args.push(self.eval_state_argument(*argument, frame)?);
-                }
+                let args = self.eval_state_arguments(
+                    &machine,
+                    &state_name,
+                    self.program.statement_table.expression_handles(*arguments),
+                    frame,
+                )?;
 
                 Ok(TransitionDecision::Named {
                     state_name,
@@ -433,14 +459,14 @@ impl<'program> Evaluator<'program> {
             self.resolve_state_call(call.receiver, target, frame)?
         };
 
-        let mut args = Vec::new();
-        for argument in self
-            .program
-            .statement_table
-            .expression_handles(call.arguments)
-        {
-            args.push(self.eval_state_argument(*argument, frame)?);
-        }
+        let args = self.eval_state_arguments(
+            &machine,
+            &state_name,
+            self.program
+                .statement_table
+                .expression_handles(call.arguments),
+            frame,
+        )?;
 
         self.run_state_collect(&machine, &state_name, instance, args)
             .map(|value| value.unwrap_or(Value::Unit))

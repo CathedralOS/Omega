@@ -2,6 +2,22 @@ use super::*;
 use typed_trees::expression::TableBinaryExpression;
 
 #[test]
+fn decimal_values_land_exactly_at_integer_destinations() {
+    for (text, expected) in [("7.0", Some(7)), ("7.5", None)] {
+        let mut program = TypedTrees::default();
+        let decimal = program.expression_table.insert(ExpressionNode::Float(
+            numerics::literals::FloatLiteral::parse(text).expect("decimal literal"),
+        ));
+        assert_eq!(
+            land_anonymous_integer_expression(&program, decimal, PrimitiveType::I32, |_| true)
+                .and_then(|literal| literal.value_i64()),
+            expected,
+            "{text}"
+        );
+    }
+}
+
+#[test]
 fn anonymous_landing_rejects_stale_cycles_and_unselected_operations() {
     let mut program = TypedTrees::default();
     let first = program

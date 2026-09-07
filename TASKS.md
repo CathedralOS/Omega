@@ -649,7 +649,7 @@ Owners include
   ignored-backedge first-pass facts must never authorize a loop crash guard.
   Complete [exact anonymous division and landing](wiki/language_guide/chapter_5_expressions_evaluation.md#exact-anonymous-division-and-landing)
   for the remaining parameter and aggregate destinations, numeric policies,
-  mixed integer/decimal trees at remaining integer and constant destinations,
+  mixed integer/decimal generic constant expressions,
   remaining float destinations,
   remaining constant-argument destinations and policies, and their proof
   consumers. Preserve exact rational intermediates until an actual landing

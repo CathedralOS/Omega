@@ -114,16 +114,20 @@ fn assert_delivered_value(checked: &CheckedTrees, expected: i64) {
 
 #[test]
 fn anonymous_rational_arguments_deliver_seven_at_every_call_form() {
-    for form in FORMS {
-        let checked = accepts(&source(form, "7 / 2 * 2", "i32", ""));
-        assert_delivered_value(&checked, 7);
+    for argument in ["7 / 2 * 2", "7 / 2.0 * 2", "7.0", "0.1 * 70"] {
+        for form in FORMS {
+            let checked = accepts(&source(form, argument, "i32", ""));
+            assert_delivered_value(&checked, 7);
+        }
     }
 }
 
 #[test]
 fn final_fractional_arguments_reject_at_every_call_form() {
-    for form in FORMS {
-        rejects(&source(form, "7 / 2", "i32", ""));
+    for argument in ["7 / 2", "7 / 2.0", "7.5", "0.1 * 71", "7.0f64"] {
+        for form in FORMS {
+            rejects(&source(form, argument, "i32", ""));
+        }
     }
 }
 
@@ -155,6 +159,7 @@ fn large_anonymous_intermediates_land_only_at_the_parameter() {
     for argument in [
         "(2147483647 + 1) - 2147483641",
         "(18446744073709551615 + 1) - 18446744073709551609",
+        "(18446744073709551615.0 + 1) - 18446744073709551609",
     ] {
         for form in FORMS {
             let checked = accepts(&source(form, argument, "i32 [7..=7]", ""));
@@ -165,9 +170,11 @@ fn large_anonymous_intermediates_land_only_at_the_parameter() {
 
 #[test]
 fn call_guarantees_transport_exact_rational_arguments() {
-    for form in [CallForm::Returned, CallForm::LocalBinding] {
-        accepts(&source(form, "7 / 2 * 2", "i32", "ensures result == 7"));
-        rejects(&source(form, "7 / 2 * 2", "i32", "ensures result == 6"));
+    for argument in ["7 / 2 * 2", "7 / 2.0 * 2", "0.1 * 70"] {
+        for form in [CallForm::Returned, CallForm::LocalBinding] {
+            accepts(&source(form, argument, "i32", "ensures result == 7"));
+            rejects(&source(form, argument, "i32", "ensures result == 6"));
+        }
     }
 }
 
@@ -208,6 +215,22 @@ fn parameter_arithmetic_policy_does_not_truncate_anonymous_fractions() {
         // The same declaration admits an integral argument. Its policy changes
         // subsequent typed operations, not anonymous integrality at delivery.
         accepts(&source(CallForm::Statement, "7", &parameter_type, ""));
+    }
+}
+
+#[test]
+fn decimal_argument_proofs_establish_only_the_exact_integer_value() {
+    for argument in ["7.0", "7 / 2.0 * 2", "0.1 * 70"] {
+        for (parameter_type, accepted) in [("i32 [7..=7]", true), ("i32 [6..=6]", false)] {
+            let source = source(CallForm::Statement, argument, parameter_type, "");
+            let program = parse_typed_trees(&source);
+            let plan = proof::obligations::build_proof_plan(&program);
+            assert_eq!(
+                proof::checker::check_proof_plan(&plan).is_ok(),
+                accepted,
+                "{source}"
+            );
+        }
     }
 }
 
@@ -264,12 +287,26 @@ fn named_state_rational_argument_checks_and_proves_the_same_singleton() {
 fn parameter_policy_cannot_wrap_or_saturate_anonymous_argument_landing() {
     for policy in ["", " in Wrapping", " in Saturating", " in Trapping"] {
         let parameter_type = format!("u8{policy}");
-        for argument in ["513 / 2 * 2", "256", "-1"] {
+        for argument in [
+            "513 / 2 * 2",
+            "256",
+            "-1",
+            "256.0",
+            "-0.1 * 10",
+            "7 / 2.0",
+            "1.5",
+        ] {
             rejects(&source(CallForm::Statement, argument, &parameter_type, ""));
         }
         accepts(&source(
             CallForm::Statement,
             "255 / 2 * 2",
+            &parameter_type,
+            "",
+        ));
+        accepts(&source(
+            CallForm::Statement,
+            "255 / 2.0 * 2",
             &parameter_type,
             "",
         ));
