@@ -65,6 +65,21 @@ path without dropping sibling sources. Replay access attenuation and linear
 multiplicity separately. Path, receipt, provider, type, or qualification drift
 rejects. Claim transfer alone cannot prove residual content geometry.
 
+## Host result validation
+
+An embedding handler distinguishes Unit, exactly typed scalar, and opaque
+structural responses. Structural responses bind the exact declared type,
+ordered qualifications, and whole-root path before result custody is installed.
+Unsupported result capability rejects before invoking the handler. A malformed
+response does not commit interpreter receipts or ownership changes, but this
+does not roll back effects already performed by the host.
+
+The host must supply a legitimate owned value. An opaque identity number does
+not establish global allocation freshness against interpreter-created values
+or suspended callers. Shape validation alone is not external ownership proof.
+Current interpreter limits are described beside
+[effect handling](../../../omega-rust/psi/semantics/terminal-interpreter/README.md).
+
 ## Reachability and attachments
 
 An installation-bound requirement may retain an upper-bound reachability row.

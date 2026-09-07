@@ -69,6 +69,9 @@ residual cleanup. Admitting a result signature alone establishes none of those.
 
 ## Normal cleanup
 
+The [ownership contract](ownership.md) defines claim paths, partial moves,
+residual complements, and nominal cleanup eligibility.
+
 The normal return carries an exact ordered cleanup-action stream, empty when
 nothing remains live. Actions distinguish:
 

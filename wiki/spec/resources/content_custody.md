@@ -23,6 +23,14 @@ a matching compact identifier proves a content theorem.
 
 ## Call conservation
 
+A qualified input's content subject binds the same exact entry parameter and
+structural claim, its entry revision, and the qualification owner's normalized
+projection/algebra. That definition is independent of routes and producer
+schemas. Replay its expression and carrier paths against the owner definition;
+rewriting both a schema and its fingerprint cannot authorize less capacity.
+Carrier bytes or a domain name alone establish no content. Projected exits
+require checked partition/residual geometry.
+
 Identity-preserving reshuffles are derived. A partition-composition row names
 the exact call that produced it. Validation checks:
 

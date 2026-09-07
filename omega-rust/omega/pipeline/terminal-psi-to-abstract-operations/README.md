@@ -33,6 +33,35 @@ publication routes are not architectural alternatives. Machine-effect facts
 must still reach final call placement, frame/return-address preservation,
 relocations, bytes, and independently validated publication.
 
+## Structural results and residual cleanup
+
+The [ownership contract](../../../../wiki/spec/terminal-psi/ownership.md) requires
+replay of actual moves and maximal residual subtrees, independently of producer
+rows. Parameter/result sources and unrelated live roots remain distinct.
+Current native continuation support is an adjacent acyclic Unit chain; broader
+cycles, computed scalar bindings, projected boundary results, and mixed cleanup
+schedules need complete downstream support rather than erased edges.
+
+Ordinary identity-result producers and projected disposers retain separate result
+homes under the admitted direct integer-class aggregate ABI. Split register
+fragments preserve order, register, offset, and exact width; Microsoft x64's
+indirect structural-return form remains outside this lane. Odd-sized fragments
+cannot read or write alignment padding. Eight-byte home alignment does not
+increase logical extent. Staging, copying, and result stores must preserve
+source registers and indirect bases, and independently replay all intervals.
+
+Continuations retain real edges and ordered cleanup, including a zero-byte record
+for an empty complement. Final-return records contain only owners still live
+there. Entry-origin scalar homes must survive calls and staging; source-to-target
+validation rejoins authored bindings, while later byte replay cannot recover an
+unretained authored alias or block map. Object/image/installation replay checks
+the retained source/result, call/edge sequence, layout, homes, and partition.
+
+Root length/stride metadata belongs to array roots, not record roots whose paths
+happen to traverse arrays. ABI copies materialize only the owned subtree being
+transferred; this is not a borrowed-referent copy. No-code residual cleanup emits
+neither instructions nor liveness-dependent loops.
+
 ## Dynamic dispatch
 
 The [dynamic-dispatch contract](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md)
