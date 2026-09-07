@@ -54,23 +54,23 @@ local-project package review route. Keep its result separate from the outer comm
 
 ## Trace the actual route
 
-The outer CLI probe reaches fresh `omega-language-std` package review and reports
-four unproved head/tail bounds in `console_write_bytes` plus filesystem index
-bounds (two on the macOS route). Std's
-[review entry](../../../../source/library/std/main.omg) imports a broader source
-set than the sample entry. The inner sample test gets farther and
-stops at the missing Terminal writer body. Neither result establishes native execution.
+The Windows outer CLI probe completes fresh checked package review, then stops with
+`fresh package review has blocking rows but no explicit --package-root-policy`.
+This is a policy boundary before accepted native production. The compiler-library
+sample test bypasses it and stops later at the missing Terminal writer body.
+Neither result establishes native execution.
 
-The next investigation compares the same writer guards under those two roots:
-exact operator selection, the builtin-guard-meaning gate in
-[`guards.rs`](../../../../omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/ranges/guards.rs),
-and the minimum-length fact at the selected state edge. Different source scope
-is established; the cause of the missing facts is not. The existing focused
-review probe is `mbx nextest run -p package-manager --test standard_library_package_resolution --no-fail-fast -E 'test(=real_standard_library_has_a_complete_ordinary_review_entry)'`.
-That test currently selects the Linux x64 source profile even on Windows; it is
-an inner comparison, not Windows acceptance. Review must accept the proved bounds
-without admitting unguarded reads. Then rerun the CLI before advancing to the
-writer's executable plan.
+Inspect the exact blocking rows before choosing policy. The existing
+[root-policy contract](../../../../wiki/design_briefs/build_and_package_model.md)
+requires an explicit file bound to the current reconstructed conflicts; std has
+no implicit authority. Do not supply blanket acceptance merely to advance the
+example. The next assignment and tested revision remain on the execution board.
+
+The existing focused review probe is
+`mbx nextest run -p package-manager --test standard_library_package_resolution --no-fail-fast -E 'test(=real_standard_library_has_a_complete_ordinary_review_entry)'`.
+It selects the Linux x64 source profile even on Windows, so it is an inner
+comparison rather than Windows acceptance. The actual CLI command remains the
+outer check through package review, policy, native production, and execution.
 
 | Step | Owning code and required result |
 | --- | --- |
