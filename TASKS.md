@@ -133,15 +133,20 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   `CARGO_INCREMENTAL=0 cargo run -p omega -- --target macos_arm64
   --build-dir build/cli-mvp-tails samples/cli/basics/cli_mvp/main.omg` exits 1
   after checked package review: `fresh package review has blocking rows but no
-  explicit --package-root-policy`. **OWNER-BLOCKED: native package acceptance**
-  awaits the [acceptance decision](OWNER_QUESTIONS.md#q1--package-acceptance-at-native-build).
+  explicit --package-root-policy`. Implement
+  [single package acceptance](wiki/design_briefs/build_and_package_model.md#single-package-acceptance):
+  preserve accepted project policy as native preparation's comparison baseline,
+  check its join to fresh native requirements, and remove the duplicate file/flag.
   A locked one-claim fixture at `09bab8091c` passes ordinary update/resume and
   audit with unchanged accepted policy, yet native compilation requests a second
-  approval record. Do not extend that record's UI or fabricate approval before
-  resolving its purpose. Owning areas are `packages/manager/src/operations/`
-  and `review/reconstruction/root_policy.rs`. Acceptance: the agreed workflow
-  handles reviewed unchanged policy and new findings explicitly, preserves native
-  verification, and lets this CLI route reach native production. The inner sample
+  approval record. Reuse current policy comparison; do not build another acceptance
+  codec or UI. Owners: `packages/manager/src/operations/` and
+  `review/reconstruction/root_policy.rs`. Acceptance: unchanged accepted native
+  builds need no second approval; missing/new requirements use ordinary review;
+  resolution-only updates preserve grants and regeneration cannot invent them;
+  source changes remain visible with equal policy; stale evidence, receiving
+  denial, and unproved contracts still reject. This removes the policy blocker
+  without changing the independent native-lowering requirements. The inner sample
   harness bypasses this policy route; independent writer work remains actionable.
 
   The downstream native `cli_mvp` probe at code checkpoint `cf1ca5f862` remains red.

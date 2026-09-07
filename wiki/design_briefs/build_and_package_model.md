@@ -4060,9 +4060,10 @@ resolver credentials or expand their output roots. Later checking failure may
 follow permitted build I/O, but does not modify accepted project files.
 
 Command review files and the proposal are the install/update restart state.
-The separate native root-policy record and optional review-baseline capsule
-are implementation facilities, not extra documents an installer must approve.
-The lock already retains accepted policy for later comparison. Do not require
+The lock retains accepted policy for later comparison, including native builds
+under [single package acceptance](#single-package-acceptance). The separate
+native root-policy input is superseded, not an additional approval document.
+An optional review-baseline capsule adds no approval requirement. Do not require
 a parallel baseline archive, governance record, or evidence-promotion step.
 
 Source changes should expose an available code diff or explain why it is
@@ -4189,16 +4190,65 @@ digest/commitment rows under `omega.lock` must be explicitly moved to
 renamed or interpreted as compiler admission policy. This separates two file
 owners; it adds no install/update audit or certification requirement.
 
-Package root policy uses a separate explicit command input. For native
-`build.omg` projects, `--package-root-policy <file>` identifies one canonical
-direct child of the caller-selected directory capability. The package-manager
-operation first recompiles the exact target closure and reconstructs current
-blocking conflicts, then recovers the file against those conflicts and reruns
-ordinary evidence acceptance. The option is required when blockers exist and
-rejected when they do not; it is also rejected for checking and standalone
-source compilation. This file is not `omega.lock`, project preparation never
-searches for it, and accepted package permissions remain distinct from the
-receiving realization policy.
+### Single package acceptance
+
+Package acceptance is one project decision. Native compilation verifies current
+requirements against that recorded acceptance; it does not ask the owner to
+approve the same requirements again. This explicitly supersedes the former
+requirement for a separate candidate-bound `--package-root-policy <file>` input.
+Remove that duplicate file/flag workflow, not the native checks it currently
+feeds. No additional native-specific package decision has been identified.
+
+Recheck the actual source closure and selected target, then compare its fresh
+normalized policy with the project's accepted policy. Matching requirements reuse
+acceptance. Missing acceptance or changes requiring a decision use the existing
+install/update review workflow; an ordinary native build reports those needs
+without approving them. Use the existing package-policy comparison, including
+full row content, package replacement, and root-role tracking, rather than a new
+approval-reuse scheme. Native preparation must preserve the accepted baseline
+instead of substituting an empty one, and native admission must check the join
+from that comparison to its freshly reconstructed requirements.
+
+Acceptance covers defined permission and assumption contracts, including their
+constraints, not diagnostic wording or incidental presentation. Compatibility
+inherits the existing evidence-schema rule: exact semantic-schema identity is
+required; an unsupported identity requires reconstruction and fresh admission,
+not guessed equivalence. This decision introduces no separate migration policy.
+
+The current acceptance record is `omega.lock`. Its location is not the reason
+for consolidation and does not prescribe permanent storage or a new acceptance
+vocabulary. Regardless of storage: acceptance remains project-owned; every
+consumer checks it against current requirements; regeneration cannot invent it;
+and resolution-only updates with unchanged requirements preserve the accepted
+permissions and assumptions without adding grants. This is semantic preservation,
+not byte-identical decision serialization: comparison and source commitments may
+change. An absent accepted baseline remains absent until explicit acceptance.
+
+Unchanged policy does not imply unchanged behavior or filesystem-object
+confinement, even for exact mechanism rows. Source changes must remain visible
+when policy matches; an available diff or an explanation of its absence supports
+audit, not a preventive security guarantee. Do not impose a separate reuse rule
+on transitional broad classes under the claim that exact rows confine objects.
+
+Build evaluation can execute build machines. Its filesystem/output grants must
+be enforced before access; package acceptance neither grants that authority
+retrospectively nor replaces it. Likewise, compiler admissions, proof obligations,
+native artifact verification, and the independently supplied receiving permission
+policy retain their separate owners. Fresh permission rows must still correspond
+to the exact checked source, provider, production, and selected mechanisms.
+Recorded acceptance is trusted project intent, never proof or permission to
+substitute stale evidence. Receiving-policy denial and unproved contracts still
+reject after package acceptance succeeds.
+
+Implementation status: this is the ratified contract, not implemented behavior.
+The native path still starts from empty policy and requires the duplicate flag.
+The remaining implementation is tracked in [TASKS.md](../../TASKS.md). Controls
+must cover unchanged accepted native builds without a second approval; missing
+or new acceptance; resolution-only updates preserving grants; regeneration without
+an accepted baseline; source-change visibility with equal policy; and rejection
+of stale/substituted evidence, receiving-policy denial, and unproved contracts.
+
+### Core and ordinary library packages
 
 `omega::language::core` is bundled with the compiler by decision rather than by
 omission. It is the language: the checker cannot typecheck without it, its
@@ -4344,8 +4394,10 @@ foundation. The Rust package crate now has reviewed production building blocks
 for immutable source custody, typed identity/closure, compiler handoff/review,
 row conflicts, restart-stable review baselines, and triage. Install/update
 commands now join those facilities to per-change decisions and recoverable
-build/lock publication. Native candidate-bound root policy remains a separate
-compiler operation, not a prerequisite for source installation.
+build/lock publication. Native candidate-bound root policy remains in the current
+implementation but is superseded by [single package acceptance](#single-package-acceptance);
+consolidating its coordinator and admission consumer is unfinished engineering,
+not an owner decision or a new prerequisite for source installation.
 The name-keyed lock, caller-constructed manifest JSON, mandatory caller-supplied
 name/alias, fingerprint-only baseline, and free-form receipt prototypes are
 deleted rather than retained as a parallel test model.
