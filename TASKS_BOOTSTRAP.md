@@ -70,10 +70,14 @@ prerequisite to every lower-rung milestone.
   Compare name-checking storage costs against actual customer pressure, separately
   from maximum-boundary controls. Map unique legacy assertions to selected gates
   before removing the old execution routes and their adapters together.
-  For P1, specify the complete encoder's state/recursion and shared proof-composition
-  strategy, then cost a contiguous sequence covering operands, trivia, assertions,
-  and exact endpoints before another helper family. The existing whole-subject
-  list probe is a prerequisite measurement, not full-certificate feasibility.
+  For P1, resolve capacity-accounting cost within the reviewed encoder/scanner
+  outline: global sharing still leaves the existing per-byte Word-counter recipe
+  outside current input/work provisions before encoding. Cost grouped/binary
+  accounting or a coherent larger profile, then a contiguous sequence covering
+  operands, trivia, assertions, and exact endpoints before another helper family.
+  The existing list and counter probes are prerequisite measurements, not
+  full-certificate feasibility; do not promote unchecked source lengths or
+  independent chunk budgets into proof premises.
   Acceptance: a bounded simplification/retirement plan and evidence that the
   proposed proof route can plausibly reduce total audit burden, with extrapolated
   cost distinguished from actual full-subject checks. Return for user direction

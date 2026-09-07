@@ -146,6 +146,94 @@ Reuse existing ground identities and closed facts first. Report extrapolation
 separately from complete-subject measurement. If this cannot plausibly improve
 the total audit burden, return for a design decision instead of expanding it.
 
+## Counter strategy: sharing does not establish feasibility
+
+A follow-up at `e128a74dbba34b651ac7c36e782e66ec4a0c3eeb` tests the concrete
+proposal to maintain a Word source position by proving one existing
+`word_successor` equation per byte. Run
+`sh tests/gamma/beta-encoding-theory/run.sh --counter-cost`.
+This reuses the existing diagnostic recipe, globally interns identical ground
+terms, and shares identical proof rows after remapping their premises. It does
+not search for shorter proofs, interpret the theory, or implement a Beta encoder.
+
+| Constructed consecutive increments | Ground rows | Proof rows | Work | Request bytes |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | 15 | 15 | 266 | 93,988 |
+| 24 | 268 | 314 | 6,637 | 108,616 |
+| 257 | 2,834 | 3,350 | 130,186 | 257,116 |
+| 46,484: one per raw source byte | 373,550 | 513,467 | 11,204,359 | 25,285,216 |
+
+The first three requests are checked by the unchanged Gamma implementation,
+with exact row/work observations in 3.157, 4.863, and 25.661 seconds on macOS
+arm64. Changing the final endpoint of the 257-increment request rejects with
+tag 1, code 12, coordinate 257,104 and zero limit/requested in 25.932 seconds.
+All four invocations return process status 0 and empty stderr; the complete
+owned observation determines the verdict. Windows execution was unavailable.
+The full-sized table is **constructed only**:
+it exceeds both the checker's 8 MiB input and Gamma's 16 MiB enclosing frame.
+Its work is derived from the existing recipe ledger, not an executed verdict.
+Before sharing, the same full-sized recipe would retain 790,878 term rows,
+977,793 proof rows, and 25,098,413 work. Sharing materially helps but still leaves
+source counting alone at about 43 times the current checking-work provision.
+Neither table includes a proof that these numbers count the source, a scanner,
+operand parsing, output construction, assertions, or the final encoding root.
+This is a cost for this recipe, not a lower bound on every possible certificate.
+
+The 24-byte literal example is:
+
+```text
+imm r0 0x1 ; x
+0xa:
+ret
+```
+
+It includes a word operand, comment, exact address assertion, and final LF/EOF.
+Its expected tape from the written Beta rules is opcode 1, register 0, the eight
+little-endian bytes of 1, then opcode 20: eleven bytes. This is a hand-derived
+example, not a checked encoding result. The probe establishes only the cost of
+its source-position increments; token handling and their connection to those
+eleven output bytes are deliberately still missing. Small-example success must
+not conceal the full-subject failure of the proposed counter strategy.
+
+### Candidate complete construction and remaining decision
+
+The complete transparent encoder needs three ordinary-definition phases:
+
+1. Validate the entire source envelope and its capacity, including comment bytes.
+   This cannot be delegated to an unchecked producer-supplied length. The
+   per-byte Word-successor recipe above is not a viable baseline under the current
+   profile. A grouped/binary length derivation is an engineering alternative to
+   cost before adding helpers; a larger coherent profile is another, not a
+   change to source semantics. Neither alternative is established by this probe.
+2. Consume the immediate source tail in one structurally decreasing scanner.
+   Its state distinguishes trivia, comments, an unfinished token, expected item
+   or operand, emitted-byte count, output accumulator, and failure. Completed
+   tokens select only the closed mnemonic/operand table, `dw`, or an assertion.
+   EOF must finish the last token and reject missing operands. Failure values
+   remain explicit; no helper-returned cursor substitutes for structural decrease.
+3. Finalize an error-or-success value, exact output ordering and provision, and
+   full exhaustion. Assertions compare against emitted length at their precise
+   position. The owner fixes the complete `encode_Beta(S, limits) = Success(T)`
+   root from the exact raw bytes and independently fixed definitions.
+
+For a forward state-fold formulation, one byte step would unfold the scanner,
+use a closed state-transition equality, rewrite its recursive-call argument by
+congruence, and compose with transitivity. Shared source suffix identities avoid
+copying source lists; shared byte classifications and closed arithmetic facts
+avoid repeating those derivations. Equalities still have to establish every
+transition and finalization. This specifies the dependency/recursion route, not
+an implemented or fully costed theory. Output ordering and resource/error
+precedence must be audited against Beta before promoting particular equations.
+
+**Disposition:** do not extend the encoder around per-byte Word counter proofs.
+The next proof-feasibility decision is cheaper capacity accounting and its
+composition with this complete scanner route, followed by a costed contiguous
+example. An 8 MiB limit increase alone cannot fit the measured recipe; Gamma
+framing and the cumulative-allocation argument also need consideration. No new
+trusted arithmetic, assembler primitive, unchecked length, chunk-level budget
+reset, or narrowed root follows from this engineering result. The complete
+certificate remains open, and its auditability advantage remains unproven.
+
 ## Legacy route: retirement must follow its consumers
 
 `bootstrap/2_gamma/bootstrap/concatenative/` and

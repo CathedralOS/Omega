@@ -7,13 +7,11 @@ No host parsing of Beta, theory generation, or artifact admission occurs.
 
 import hashlib
 import os
-import platform
 import struct
 import sys
 from pathlib import Path
 
-from gate import invoke, pin, require, source_identity
-from identity import fixed_identity
+from gate import invoke, prepare, require
 from lexical import certificate, envelope, proposition, record, rejected, checked
 
 
@@ -53,21 +51,7 @@ def main():
     if len(sys.argv) != 2:
         raise SystemExit("usage: subject_shape.py PREPARED_DIRECTORY")
     temporary = Path(sys.argv[1]).resolve()
-    gate = Path(__file__).resolve().parent
-    producer = (temporary / "producer.gamma").read_bytes()
-    checker = (temporary / "checker.gamma").read_bytes()
-    source_identity("producer", producer, gate / "source.tsv")
-    source_identity("checker", checker, gate.parent / "derivation-checking/source.tsv")
-    evaluator = temporary / "evaluator"
-    result, elapsed = invoke(evaluator, "emit", producer, b"")
-    if result.returncode != 0 or result.stderr:
-        raise SystemExit(f"subject shape: emitter failed: {result.returncode}/{result.stderr!r}")
-    definitions = result.stdout
-    identity = pin(gate / "theory.tsv", ["bytes", "sha256"])
-    actual = (len(definitions), hashlib.sha256(definitions).hexdigest())
-    if actual != fixed_identity() or actual != (int(identity["bytes"]), identity["sha256"]):
-        raise SystemExit(f"subject shape: changed theory identity: {actual}")
-    print(f"subject shape: {platform.system()} {platform.machine()}, emission {elapsed:.3f}s", flush=True)
+    evaluator, _, checker, definitions = prepare(temporary)
     subjects = []
     for role in ("OMEGA_PATH_GAMMA_EVALUATOR_SOURCE", "OMEGA_PATH_GAMMA_EVALUATOR_TAPE"):
         path = Path(os.environ[role])
