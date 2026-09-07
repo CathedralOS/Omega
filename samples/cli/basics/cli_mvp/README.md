@@ -86,8 +86,9 @@ The observed compiler-library failure names `ConsoleNativeProvider::write_line`,
 but its missing dependency is the five-state `console_write_bytes` body. The
 ordinary planner handles one-state bodies, and the shared composed call catalog
 now traverses acyclic free and attached graphs with unchanged borrowed views.
-The writer still needs state-local scalar construction, computed successor
-operands, derived tail views, and cyclic execution with retained slice ranking.
+The shared route retains scalar declaration/assignment prefixes and computed
+scalar successor operands, including guarded byte-head reads. The writer still
+needs derived tail views and cyclic execution with retained slice ranking.
 Caller pruning exposes that missing transitive body at the adapter.
 
 The next writer acceptance is the actual authored closure through verified

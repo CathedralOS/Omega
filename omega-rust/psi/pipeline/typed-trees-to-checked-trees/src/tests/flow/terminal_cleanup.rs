@@ -546,7 +546,10 @@ fn structural_unit_jump_composes_signatures_transfers_and_cleanup() {
     };
     assert_eq!(scalar_arguments.len(), 1);
     assert_eq!(scalar_arguments[0].argument_ordinal, 1);
-    assert_eq!(scalar_arguments[0].source_scalar_parameter_index, 0);
+    assert_eq!(
+        scalar_arguments[0].source,
+        checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 0 }
+    );
     assert_eq!(scalar_arguments[0].target_scalar_parameter_index, 0);
     assert_eq!(
         scalar_arguments[0].primitive_type,
@@ -661,8 +664,8 @@ fn structural_unit_countdown_retains_exact_ranked_scc_plan() {
     assert_eq!(*guard_scalar_parameter_index, 0);
     assert_eq!(when_true.target_state, ranked.header_state);
     assert_eq!(
-        when_true.scalar_arguments[0].source_scalar_parameter_index,
-        0
+        when_true.scalar_arguments[0].source,
+        checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 0 }
     );
     assert_eq!(
         when_true.scalar_arguments[0].target_scalar_parameter_index,
@@ -815,8 +818,8 @@ fn structural_unit_conditional_composes_independent_transfer_cleanup_frontiers()
     assert_eq!(when_true.scalar_arguments.len(), 1);
     assert_eq!(when_true.scalar_arguments[0].argument_ordinal, 1);
     assert_eq!(
-        when_true.scalar_arguments[0].source_scalar_parameter_index,
-        1
+        when_true.scalar_arguments[0].source,
+        checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 }
     );
     assert_eq!(
         when_true.scalar_arguments[0].target_scalar_parameter_index,

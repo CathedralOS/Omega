@@ -211,7 +211,8 @@ fn multi_prefixed_control_rejects_second_edge_corruption() {
     else {
         unreachable!()
     };
-    successor.scalar_arguments[0].source_scalar_parameter_index = 1;
+    successor.scalar_arguments[0].source =
+        checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 };
     assert!(matches!(
         lower_machine(&checked, "Root::enter"),
         Err(LoweringError::Unsupported(_))

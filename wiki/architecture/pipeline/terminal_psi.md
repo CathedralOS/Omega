@@ -3665,8 +3665,11 @@ with scalar parameters and unchanged shared byte views use general state travers
 for both free and attached bodies, including branches, joins, and empty states.
 Qualification, owned-frontier, implicit-receiver, and closed-sum cases retain their
 specialized routes. Once the general route is selected, a failed source check
-does not fall back to a shape matcher. Computed state-edge operands, changing
-borrowed descriptors, and loop ranking remain unfinished; see
+does not fall back to a shape matcher. Scalar declaration/assignment prefixes
+reuse the shared local-storage namespace. Branch-free scalar successor operands
+are evaluated only after their edge is selected, then passed simultaneously to
+the target state. Changing borrowed descriptors and loop ranking remain
+unfinished; see
 [borrowed-byte writer composition](#borrowed-byte-writer-composition).
 
 Closed-sum continuations retain the structural-result boundary and its exact
@@ -6662,9 +6665,22 @@ branches and joins; a join selecting different descriptors rejects until its
 structural bindings can be represented. Source-state identity, call order,
 guard facts, successor operands, and cleanup facts are checked before emission.
 These graphs can call byte boundaries and scalar-only Unit helpers; general
-structural helper calls and state-local value construction remain unfinished.
+structural helper calls remain unfinished. Before a state's calls, a contiguous
+prefix can declare immutable scalars, initialize mutable scalar storage, and
+assign that storage using branch-free checked expressions. Calls and guards use
+the resulting namespace; local storage is not treated as an immutable parameter
+slot. Every prefix expression rejoins its authored statement and destination.
+Interleaved writes after calls and initializer computations needing calls or
+short-circuit control remain outside this shared route.
 
-The writer still needs selected-edge length/head/tail evaluation, descriptor
+Computed scalar successor operands use the existing checked expression at the
+authored transition coordinate. Conditional edges stage those computations after
+selection, preserving guard facts for division and byte-head bounds proofs.
+Length observations refer to the actual borrowed view; a selected head read
+still needs proof of a nonempty view. Neither edge selection alone nor an
+unrelated extent supplies that proof.
+
+The writer still needs derived tail descriptors on selected edges, descriptor
 rebinding, and its slice-ranked body admitted through that shared catalog. A
 separate multistate plan is insufficient until calls, structural/scalar transfers,
 byte-view operations, effect ordering, and ranking survive Terminal production

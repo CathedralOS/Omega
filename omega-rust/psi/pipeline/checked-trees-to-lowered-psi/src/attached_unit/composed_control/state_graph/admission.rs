@@ -28,9 +28,7 @@ pub(in crate::attached_unit::composed_control) fn has_shared_graph_custody(
         && plan.body_qualifications.is_empty()
         && plan.provider_attachment_requirements.is_empty()
         && plan.states.iter().all(|state| {
-            state.bindings.is_empty()
-                && state.binding_initializers.is_empty()
-                && state.entry_claims.is_empty()
+            state.entry_claims.is_empty()
                 && state.structural_parameters.iter().all(|parameter| {
                     parameter.multiplicity == Multiplicity::Unrestricted
                         && parameter.access == checked_trees::CheckedStructuralAccess::SharedBorrow
@@ -103,8 +101,6 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
                 TypeReferenceNode::Unit
             )
             || !state.entry_claims.is_empty()
-            || !state.bindings.is_empty()
-            || !state.binding_initializers.is_empty()
         {
             return unsupported("Unit graph state identity, contract, or custody drifted");
         }
@@ -172,9 +168,23 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
             }
         }
         let statements = checked.statement_table.statements(source.statement_nodes);
+        scalars::validate(checked, state)?;
+        let prefix_count = statements
+            .iter()
+            .take_while(|statement| {
+                matches!(
+                    statement,
+                    StatementNode::LocalData(_) | StatementNode::Assignment(_)
+                )
+            })
+            .count();
+        if prefix_count != state.bindings.len() {
+            return unsupported("Unit graph scalar prefix dropped or added a binding");
+        }
         let call_count = statements
             .iter()
             .enumerate()
+            .skip(prefix_count)
             .take_while(|(ordinal, statement)| match statement {
                 StatementNode::Call(_) => true,
                 StatementNode::Expression(expression) if *ordinal + 1 == statements.len() => {
@@ -187,6 +197,7 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
                 _ => false,
             })
             .count();
+        let terminator_ordinal = prefix_count + call_count;
         if state.operations.len() != call_count {
             return unsupported("Unit graph dropped or added a body effect");
         }
@@ -219,11 +230,13 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
                     );
                 }
             };
-            if coordinate.statement_index as usize != ordinal || coordinate.call_ordinal != 0 {
+            if coordinate.statement_index as usize != prefix_count + ordinal
+                || coordinate.call_ordinal != 0
+            {
                 return unsupported("Unit graph reordered a source effect");
             }
         }
-        let tail = &statements[call_count..];
+        let tail = &statements[terminator_ordinal..];
         match (&state.terminator, tail) {
             (CheckedComposedUnitControlTerminatorPlan::ReturnUnit, []) => {}
             (
@@ -231,7 +244,13 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
                 [StatementNode::Transition(transition)],
             ) if transition.guard == TransitionGuardNode::Always => {
                 edges::validate(
-                    checked, plan, source, state, transition, successor, call_count,
+                    checked,
+                    plan,
+                    source,
+                    state,
+                    transition,
+                    successor,
+                    terminator_ordinal,
                 )?;
             }
             (
@@ -248,22 +267,27 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
                 edges::validate_fallback(checked, true_source, false_source)?;
                 if checked.facts.values.scalar_expressions.expression_at(
                     state.state,
-                    u32::try_from(call_count)
+                    u32::try_from(terminator_ordinal)
                         .map_err(|_| LoweringError::Unsupported("Unit graph ordinal overflow"))?,
                     CheckedScalarExpressionRole::Guard,
                 ) != Some(guard)
                 {
                     return unsupported("Unit graph guard disagrees with checked expression");
                 }
-                let expression = lower_checked_scalar_expression_at(
-                    checked,
-                    state.state,
-                    when_true.statement_ordinal,
-                    CheckedScalarExpressionRole::Guard,
-                )?;
-                let types = lower_unit_scalar_parameter_types(&state.scalar_parameters)?;
-                validate_direct_parameter_types(&expression, &types)?;
-                if expression.scalar_type() != ScalarType::Boolean {
+                let (binding, _) = checked
+                    .facts
+                    .values
+                    .scalar_expressions
+                    .bound_expression_at(
+                        state.state,
+                        when_true.statement_ordinal,
+                        CheckedScalarExpressionRole::Guard,
+                    )
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit graph guard has no exact source binding",
+                    ))?;
+                crate::scalar_source_custody::validate_pure(checked, binding, ScalarType::Boolean)?;
+                if !matches!(guard, CheckedScalarExpression::Boolean(_)) {
                     return unsupported("Unit graph guard is not Boolean");
                 }
                 edges::validate(
@@ -273,7 +297,7 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
                     state,
                     true_source,
                     when_true,
-                    call_count,
+                    terminator_ordinal,
                 )?;
                 edges::validate(
                     checked,
@@ -282,7 +306,7 @@ pub(in crate::attached_unit::composed_control) fn admit<'a>(
                     state,
                     false_source,
                     when_false,
-                    call_count + 1,
+                    terminator_ordinal + 1,
                 )?;
             }
             _ => return unsupported("Unit graph terminator disagrees with authored state"),

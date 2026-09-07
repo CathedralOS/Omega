@@ -44,6 +44,7 @@ pub(in crate::attached_unit::composed_control) fn emit(
             .collect::<Vec<_>>();
         let mut operations = OperationBuffer::new(catalogs.next_operation - 1);
         let mut evaluation = crate::attached_unit::argument_evaluation::Evaluation {
+            scalar_bindings: None,
             structural_parameters: state
                 .structural_parameters
                 .iter()
@@ -64,6 +65,15 @@ pub(in crate::attached_unit::composed_control) fn emit(
         let mut next_value = catalogs.next_value;
         let mut next_block = catalogs.next_block;
         let mut next_edge = catalogs.next_edge;
+        let bindings = scalars::emit_prefix(
+            checked,
+            state,
+            &evaluation.structural_parameters,
+            &mut values,
+            &mut next_value,
+            &mut operations,
+        )?;
+        evaluation.scalar_bindings = Some(bindings.clone());
         super::super::emission::emit_call_operations(
             checked,
             plan.machine,
@@ -78,8 +88,43 @@ pub(in crate::attached_unit::composed_control) fn emit(
             &mut next_edge,
             &mut operations,
         )?;
+        let condition =
+            if let CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, .. } =
+                &state.terminator
+            {
+                let expression = bindings.expression_at(
+                    checked,
+                    state.state,
+                    when_true.statement_ordinal,
+                    CheckedScalarExpressionRole::Guard,
+                )?;
+                if expression.scalar_type() != ScalarType::Boolean
+                    || direct_expression_contains_short_circuit(&expression)
+                {
+                    return unsupported("Unit graph guard needs a branch-free Boolean value");
+                }
+                validate_direct_parameter_types(
+                    &expression,
+                    &values
+                        .iter()
+                        .map(|value| value.scalar_type)
+                        .collect::<Vec<_>>(),
+                )?;
+                Some(emit_direct_expression(
+                    &expression,
+                    &values,
+                    &mut next_value,
+                    &mut operations,
+                ))
+            } else {
+                None
+            };
+        let body_end = operations.len();
+        let inherited_lengths = operations.byte_lengths.clone();
+        let mut edge_blocks = Vec::new();
         let mut successor =
             |edge: &CheckedStructuralControlSuccessorPlan| -> Result<SuccessorEdge, LoweringError> {
+                operations.byte_lengths = inherited_lengths.clone();
                 let target = plan
                     .states
                     .iter()
@@ -87,23 +132,84 @@ pub(in crate::attached_unit::composed_control) fn emit(
                     .ok_or(LoweringError::Unsupported(
                         "Unit graph target disappeared during emission",
                     ))?;
-                Ok(SuccessorEdge {
-                    edge: edge_id(allocate_dense(&mut next_edge)?),
-                    target: state_ids[target],
-                    arguments: edge
-                        .scalar_arguments
-                        .iter()
-                        .map(|transfer| {
-                            values
-                                .get(transfer.source_scalar_parameter_index as usize)
-                                .map(|value| value.id)
-                                .ok_or(LoweringError::Unsupported(
-                                    "Unit graph scalar successor value missing",
-                                ))
-                        })
-                        .collect::<Result<Vec<_>, _>>()?,
-                    trivial_affine_discards: Vec::new(),
-                })
+                let stage = condition.is_some()
+                    && edge.scalar_arguments.iter().any(|argument| {
+                        matches!(
+                            argument.source,
+                            checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
+                        )
+                    });
+                let operation_start = operations.len();
+                let mut arguments = Vec::new();
+                for transfer in &edge.scalar_arguments {
+                    let expression = match transfer.source {
+                        checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+                            index,
+                        } => bindings.expression(&CheckedScalarExpression::Parameter {
+                            position: index as usize,
+                            primitive_type: transfer.primitive_type,
+                        })?,
+                        checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression => {
+                            bindings.expression_at(
+                                checked,
+                                state.state,
+                                edge.statement_ordinal,
+                                CheckedScalarExpressionRole::TransitionArgument {
+                                    argument_ordinal: transfer.argument_ordinal,
+                                },
+                            )?
+                        }
+                    };
+                    if expression.scalar_type() != terminal_scalar_type(transfer.primitive_type)?
+                        || direct_expression_contains_short_circuit(&expression)
+                    {
+                        return unsupported(
+                            "Unit graph successor needs a matching branch-free value",
+                        );
+                    }
+                    validate_direct_parameter_types(
+                        &expression,
+                        &values
+                            .iter()
+                            .map(|value| value.scalar_type)
+                            .collect::<Vec<_>>(),
+                    )?;
+                    arguments.push(emit_direct_expression(
+                        &expression,
+                        &values,
+                        &mut next_value,
+                        &mut operations,
+                    ));
+                }
+                let target = state_ids[target];
+                if stage {
+                    let staged = block_id(allocate_dense(&mut next_block)?);
+                    edge_blocks.push(Block {
+                        id: staged,
+                        parameters: Vec::new(),
+                        operations: operations[operation_start..].to_vec(),
+                        terminator: Terminator::Jump {
+                            edge: edge_id(allocate_dense(&mut next_edge)?),
+                            target,
+                            arguments,
+                            trivial_affine_discards: Vec::new(),
+                            residual_affine_discards: Vec::new(),
+                        },
+                    });
+                    Ok(SuccessorEdge {
+                        edge: edge_id(allocate_dense(&mut next_edge)?),
+                        target: staged,
+                        arguments: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    })
+                } else {
+                    Ok(SuccessorEdge {
+                        edge: edge_id(allocate_dense(&mut next_edge)?),
+                        target,
+                        arguments,
+                        trivial_affine_discards: Vec::new(),
+                    })
+                }
             };
         let terminator = match &state.terminator {
             CheckedComposedUnitControlTerminatorPlan::ReturnUnit => Terminator::ReturnUnit {
@@ -121,28 +227,31 @@ pub(in crate::attached_unit::composed_control) fn emit(
                 }
             }
             CheckedComposedUnitControlTerminatorPlan::Conditional {
-                guard,
                 when_true,
                 when_false,
-            } => {
-                let expression = lower_checked_scalar_expression(guard)?;
-                let condition =
-                    emit_direct_expression(&expression, &values, &mut next_value, &mut operations);
-                Terminator::Conditional {
-                    condition,
-                    when_true: successor(when_true)?,
-                    when_false: successor(when_false)?,
-                }
-            }
+                ..
+            } => Terminator::Conditional {
+                condition: condition.ok_or(LoweringError::Unsupported(
+                    "Unit graph conditional lost its guard",
+                ))?,
+                when_true: successor(when_true)?,
+                when_false: successor(when_false)?,
+            },
             _ => return unsupported("Unit graph terminator escaped admission"),
         };
         evaluation.blocks.push(Block {
             id: evaluation.current,
             parameters: evaluation.parameters,
-            operations: operations[evaluation.operation_start..].to_vec(),
+            operations: operations[evaluation.operation_start..if condition.is_some() {
+                body_end
+            } else {
+                operations.len()
+            }]
+                .to_vec(),
             terminator,
         });
         blocks.extend(evaluation.blocks);
+        blocks.extend(edge_blocks);
         occurrences.extend(operations.source_calls);
         catalogs.next_value = next_value;
         catalogs.next_block = next_block;

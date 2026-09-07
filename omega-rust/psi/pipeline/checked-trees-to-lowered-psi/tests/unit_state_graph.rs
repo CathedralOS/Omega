@@ -11,6 +11,9 @@ use tokens_to_syntax_trees::parse_syntax_trees;
 #[path = "unit_state_graph/cases.rs"]
 mod cases;
 
+#[path = "unit_state_graph/scalars.rs"]
+mod scalars;
+
 const SOURCE: &str = r#"
     boundary trait Output { machine write(bytes: &[u8], marker: u8) reaches Output; }
     machine relay(bytes: &[u8], selected: bool, marker: u8) reaches Output {

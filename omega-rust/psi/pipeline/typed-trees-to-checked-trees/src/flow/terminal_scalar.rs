@@ -132,126 +132,8 @@ fn build_machine_graph(
                 .collect::<Option<Vec<_>>>()?;
             let result_type = program.primitive_type_reference(state.return_type)?;
             let statements = program.statement_table.statements(state.statement_nodes);
-            let binding_count = statements
-                .iter()
-                .take_while(|statement| {
-                    matches!(
-                        statement,
-                        StatementNode::LocalData(_) | StatementNode::Assignment(_)
-                    )
-                })
-                .count();
-            let bindings = statements[..binding_count]
-                .iter()
-                .enumerate()
-                .map(|(statement_index, statement)| {
-                    use checked_trees::CheckedScalarBindingDestination;
-                    match statement {
-                        StatementNode::LocalData(local) => {
-                            if !program
-                                .expression_table
-                                .expression_is_valid(local.initial_value)
-                            {
-                                return None;
-                            }
-                            let statement_ordinal = u32::try_from(statement_index).ok()?;
-                            let role = if local.is_mutable {
-                                checked_trees::CheckedScalarExpressionRole::StorageInitializer
-                            } else {
-                                checked_trees::CheckedScalarExpressionRole::LocalInitializer {
-                                    binding_ordinal: u32::try_from(statements[..statement_index]
-                                        .iter().filter(|statement| matches!(statement,
-                                            StatementNode::LocalData(local) if !local.is_mutable
-                                        )).count()).ok()?,
-                                }
-                            };
-                            let value = if computations
-                                .root_at(state.symbol, statement_ordinal, role)
-                                .is_some()
-                            {
-                                CheckedScalarBindingValue::Computation
-                            } else {
-                                checked_binding_value(program, local.initial_value)?
-                            };
-                            if local.is_mutable
-                                && matches!(value, CheckedScalarBindingValue::DirectCall { .. })
-                            {
-                                return None;
-                            }
-                            Some(CheckedScalarBinding {
-                                statement_ordinal,
-                                destination: if local.is_mutable {
-                                    CheckedScalarBindingDestination::StorageInitialize {
-                                        symbol: local.symbol,
-                                    }
-                                } else {
-                                    CheckedScalarBindingDestination::Immutable
-                                },
-                                primitive_type: program
-                                    .primitive_type_reference(local.type_reference)?,
-                                value,
-                            })
-                        }
-                        StatementNode::Assignment(assignment) => {
-                            let typed_trees::expression::ExpressionNode::Name(name) =
-                                program.expression_table.expression(assignment.target)
-                            else {
-                                return None;
-                            };
-                            if !name.symbol.is_valid() || name.head_symbol != name.symbol {
-                                return None;
-                            }
-                            let destination = statements[..statement_index]
-                                .iter()
-                                .find_map(|statement| match statement {
-                                    StatementNode::LocalData(local)
-                                        if local.symbol == name.symbol && local.is_mutable =>
-                                    {
-                                        Some((
-                                            local.symbol,
-                                            program
-                                                .primitive_type_reference(local.type_reference)?,
-                                        ))
-                                    }
-                                    _ => None,
-                                })
-                                .or_else(|| {
-                                    parameters.iter().find_map(|parameter| {
-                                        (parameter.symbol == name.symbol)
-                                            .then(|| {
-                                                Some((
-                                                    parameter.symbol,
-                                                    crate::values::mutable_scalar_parameter_type(
-                                                        program, parameter,
-                                                    )?,
-                                                ))
-                                            })
-                                            .flatten()
-                                    })
-                                })?;
-                            let statement_ordinal = u32::try_from(statement_index).ok()?;
-                            let role = checked_trees::CheckedScalarExpressionRole::AssignmentValue;
-                            let value = if computations
-                                .root_at(state.symbol, statement_ordinal, role)
-                                .is_some()
-                            {
-                                CheckedScalarBindingValue::Computation
-                            } else {
-                                CheckedScalarBindingValue::Expression
-                            };
-                            Some(CheckedScalarBinding {
-                                statement_ordinal,
-                                destination: CheckedScalarBindingDestination::StorageAssign {
-                                    symbol: destination.0,
-                                },
-                                primitive_type: destination.1,
-                                value,
-                            })
-                        }
-                        _ => None,
-                    }
-                })
-                .collect::<Option<Vec<_>>>()?;
+            let bindings = checked_binding_prefix(program, state, computations)?;
+            let binding_count = bindings.len();
             let terminator_ordinal = u32::try_from(binding_count).ok()?;
             let terminator = match &statements[binding_count..] {
                 [StatementNode::Expression(_)] => CheckedScalarStateTerminator::Return {
@@ -398,6 +280,138 @@ fn build_machine_graph(
             })
             .collect(),
     })
+}
+
+/// Retain the contiguous authored declaration/assignment prefix in the shared
+/// scalar binding representation. Consumers choose the supported value forms.
+pub(super) fn checked_binding_prefix(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    computations: &checked_trees::CheckedScalarComputationPlans,
+) -> Option<Vec<CheckedScalarBinding>> {
+    let parameters = program.state_parameters(state);
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let binding_count = statements
+        .iter()
+        .take_while(|statement| {
+            matches!(
+                statement,
+                StatementNode::LocalData(_) | StatementNode::Assignment(_)
+            )
+        })
+        .count();
+    let bindings =
+        statements[..binding_count]
+            .iter()
+            .enumerate()
+            .map(|(statement_index, statement)| {
+                use checked_trees::CheckedScalarBindingDestination;
+                match statement {
+                    StatementNode::LocalData(local) => {
+                        if !program
+                            .expression_table
+                            .expression_is_valid(local.initial_value)
+                        {
+                            return None;
+                        }
+                        let statement_ordinal = u32::try_from(statement_index).ok()?;
+                        let role = if local.is_mutable {
+                            checked_trees::CheckedScalarExpressionRole::StorageInitializer
+                        } else {
+                            let preceding_immutable_count = statements[..statement_index].iter().filter(|statement| {
+                                matches!(statement, StatementNode::LocalData(local) if !local.is_mutable)
+                            }).count();
+                            checked_trees::CheckedScalarExpressionRole::LocalInitializer {
+                                binding_ordinal: u32::try_from(preceding_immutable_count).ok()?,
+                            }
+                        };
+                        let value = if computations
+                            .root_at(state.symbol, statement_ordinal, role)
+                            .is_some()
+                        {
+                            CheckedScalarBindingValue::Computation
+                        } else {
+                            checked_binding_value(program, local.initial_value)?
+                        };
+                        if local.is_mutable
+                            && matches!(value, CheckedScalarBindingValue::DirectCall { .. })
+                        {
+                            return None;
+                        }
+                        Some(CheckedScalarBinding {
+                            statement_ordinal,
+                            destination: if local.is_mutable {
+                                CheckedScalarBindingDestination::StorageInitialize {
+                                    symbol: local.symbol,
+                                }
+                            } else {
+                                CheckedScalarBindingDestination::Immutable
+                            },
+                            primitive_type: program
+                                .primitive_type_reference(local.type_reference)?,
+                            value,
+                        })
+                    }
+                    StatementNode::Assignment(assignment) => {
+                        let typed_trees::expression::ExpressionNode::Name(name) =
+                            program.expression_table.expression(assignment.target)
+                        else {
+                            return None;
+                        };
+                        if !name.symbol.is_valid() || name.head_symbol != name.symbol {
+                            return None;
+                        }
+                        let destination = statements[..statement_index]
+                            .iter()
+                            .find_map(|statement| match statement {
+                                StatementNode::LocalData(local)
+                                    if local.symbol == name.symbol && local.is_mutable =>
+                                {
+                                    Some((
+                                        local.symbol,
+                                        program.primitive_type_reference(local.type_reference)?,
+                                    ))
+                                }
+                                _ => None,
+                            })
+                            .or_else(|| {
+                                parameters.iter().find_map(|parameter| {
+                                    (parameter.symbol == name.symbol)
+                                        .then(|| {
+                                            Some((
+                                                parameter.symbol,
+                                                crate::values::mutable_scalar_parameter_type(
+                                                    program, parameter,
+                                                )?,
+                                            ))
+                                        })
+                                        .flatten()
+                                })
+                            })?;
+                        let statement_ordinal = u32::try_from(statement_index).ok()?;
+                        let role = checked_trees::CheckedScalarExpressionRole::AssignmentValue;
+                        let value = if computations
+                            .root_at(state.symbol, statement_ordinal, role)
+                            .is_some()
+                        {
+                            CheckedScalarBindingValue::Computation
+                        } else {
+                            CheckedScalarBindingValue::Expression
+                        };
+                        Some(CheckedScalarBinding {
+                            statement_ordinal,
+                            destination: CheckedScalarBindingDestination::StorageAssign {
+                                symbol: destination.0,
+                            },
+                            primitive_type: destination.1,
+                            value,
+                        })
+                    }
+                    _ => None,
+                }
+            })
+            .collect::<Option<Vec<_>>>()?;
+    Some(bindings)
 }
 
 fn checked_binding_value(

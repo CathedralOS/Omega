@@ -59,31 +59,50 @@ pub(super) fn build(
     for (state_index, state) in states.iter().enumerate() {
         let (structural, scalar) = &signatures[state_index];
         let statements = program.statement_table.statements(state.statement_nodes);
+        let bindings = crate::flow::terminal_scalar::checked_binding_prefix(
+            program,
+            state,
+            &facts.values.scalar_computations,
+        )?;
+        let binding_initializers = prefix_initializers(program, facts, state, &bindings)?;
+        let binding_count = bindings.len();
         let call_count = statements
             .iter()
             .enumerate()
+            .skip(binding_count)
             .take_while(|(ordinal, statement)| {
                 matches!(statement, StatementNode::Call(_))
                     || control::tail_call(program, state, *ordinal).is_some()
             })
             .count();
+        let terminator_index = binding_count.checked_add(call_count)?;
         let flow = state_flow(facts, machine.symbol, state.symbol)?;
-        let body_calls = facts
-            .flow
-            .control
-            .calls
-            .span_or_empty(flow.calls)
-            .iter()
-            .filter(|call| call.statement_index < call_count)
-            .cloned()
-            .collect::<Vec<_>>();
-        let calls = control::outer_calls(program, facts, machine.symbol, state, &body_calls)?;
+        let source_calls = facts.flow.control.calls.span_or_empty(flow.calls);
+        if source_calls
+            .windows(2)
+            .any(|pair| pair[0].statement_index > pair[1].statement_index)
+        {
+            return None;
+        }
+        let first_call = source_calls.partition_point(|call| call.statement_index < binding_count);
+        let after_calls =
+            source_calls.partition_point(|call| call.statement_index < terminator_index);
+        // Computation roots retain handles into this arena. Borrow the original
+        // occurrences so their exact identity survives nested-call validation.
+        let calls = control::outer_calls(
+            program,
+            facts,
+            machine.symbol,
+            state,
+            &source_calls[first_call..after_calls],
+        )?;
         if calls.len() != call_count {
             return None;
         }
         let mut operations = Vec::new();
         for (ordinal, call) in calls.iter().enumerate() {
-            if call.statement_index != ordinal || call.call_ordinal != 0 {
+            if call.statement_index != binding_count.checked_add(ordinal)? || call.call_ordinal != 0
+            {
                 return None;
             }
             let operation = build_call_operation(
@@ -116,7 +135,7 @@ pub(super) fn build(
             }
             operations.push(operation);
         }
-        let ordinal = u32::try_from(call_count).ok()?;
+        let ordinal = u32::try_from(terminator_index).ok()?;
         let edge = |transition, edge_ordinal| {
             successor(
                 program,
@@ -128,7 +147,7 @@ pub(super) fn build(
                 edge_ordinal,
             )
         };
-        let terminator = match &statements[call_count..] {
+        let terminator = match &statements[terminator_index..] {
             [] => CheckedComposedUnitControlTerminatorPlan::ReturnUnit,
             [StatementNode::Transition(transition)]
                 if transition.guard == TransitionGuardNode::Always =>
@@ -166,8 +185,8 @@ pub(super) fn build(
             structural_parameters: structural.clone(),
             scalar_parameters: scalar.clone(),
             entry_claims: Vec::new(),
-            bindings: Vec::new(),
-            binding_initializers: Vec::new(),
+            bindings,
+            binding_initializers,
             operations,
             terminator,
         });
@@ -203,6 +222,66 @@ pub(super) fn build(
         provider_attachment_requirements,
         planned,
     )
+}
+
+fn prefix_initializers(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    state: &typed_trees::state::State,
+    bindings: &[CheckedScalarBinding],
+) -> Option<Vec<CheckedScalarExpression>> {
+    use checked_trees::CheckedScalarBindingDestination;
+
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let mut immutable_ordinal = 0u32;
+    bindings
+        .iter()
+        .map(|binding| {
+            if binding.value != CheckedScalarBindingValue::Expression {
+                return None;
+            }
+            let (role, destination) = match binding.destination {
+                CheckedScalarBindingDestination::Immutable => {
+                    let StatementNode::LocalData(local) =
+                        statements.get(binding.statement_ordinal as usize)?
+                    else {
+                        return None;
+                    };
+                    let role = CheckedScalarExpressionRole::LocalInitializer {
+                        binding_ordinal: immutable_ordinal,
+                    };
+                    immutable_ordinal = immutable_ordinal.checked_add(1)?;
+                    (role, local.symbol)
+                }
+                CheckedScalarBindingDestination::StorageInitialize { symbol } => {
+                    (CheckedScalarExpressionRole::StorageInitializer, symbol)
+                }
+                CheckedScalarBindingDestination::StorageAssign { symbol } => {
+                    (CheckedScalarExpressionRole::AssignmentValue, symbol)
+                }
+            };
+            let expression = match statements.get(binding.statement_ordinal as usize)? {
+                StatementNode::LocalData(local) => local.initial_value,
+                StatementNode::Assignment(assignment) => assignment.value,
+                _ => return None,
+            };
+            let (custody, initializer) = facts.values.scalar_expressions.bound_expression_at(
+                state.symbol,
+                binding.statement_ordinal,
+                role,
+            )?;
+            if custody.expression != expression
+                || custody.destination != destination
+                || crate::values::scalar_expression_type(initializer)
+                    != Some(binding.primitive_type)
+                || matches!(initializer, CheckedScalarExpression::Boolean(boolean)
+                    if checked_boolean_contains_short_circuit(boolean))
+            {
+                return None;
+            }
+            Some(initializer.clone())
+        })
+        .collect()
 }
 
 fn whole_view_arguments(arguments: &[CheckedUnitStructuralArgumentPlan]) -> bool {
@@ -285,20 +364,46 @@ fn successor(
             })
         })
         .collect::<Option<Vec<_>>>()?;
+    let target_parameters = program.state_parameters(target);
     let scalar_arguments = target_scalar
         .iter()
         .enumerate()
         .map(|(target_index, target)| {
-            let source_position = source_position(target.source_position)?;
-            let source_index = source_scalar
-                .iter()
-                .position(|parameter| parameter.source_position as usize == source_position)?;
-            if source_scalar[source_index].primitive_type != target.primitive_type {
+            let argument = *arguments.get(target.source_position as usize)?;
+            let (custody, expression) = facts.values.scalar_expressions.bound_expression_at(
+                source.symbol,
+                ordinal,
+                CheckedScalarExpressionRole::TransitionArgument {
+                    argument_ordinal: target.source_position,
+                },
+            )?;
+            if custody.expression != argument
+                || custody.destination
+                    != target_parameters
+                        .get(target.source_position as usize)?
+                        .symbol
+                || crate::values::scalar_expression_type(expression) != Some(target.primitive_type)
+            {
                 return None;
             }
+            let immutable_source_position = source_position(target.source_position)
+                .filter(|position| !program.state_parameters(source)[*position].is_mutable);
+            let source = if let Some(source_position) = immutable_source_position {
+                let source_index = source_scalar
+                    .iter()
+                    .position(|parameter| parameter.source_position as usize == source_position)?;
+                if source_scalar[source_index].primitive_type != target.primitive_type {
+                    return None;
+                }
+                checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+                    index: u32::try_from(source_index).ok()?,
+                }
+            } else {
+                checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
+            };
             Some(CheckedStructuralScalarArgumentPlan {
                 argument_ordinal: target.source_position,
-                source_scalar_parameter_index: u32::try_from(source_index).ok()?,
+                source,
                 target_scalar_parameter_index: u32::try_from(target_index).ok()?,
                 primitive_type: target.primitive_type,
             })

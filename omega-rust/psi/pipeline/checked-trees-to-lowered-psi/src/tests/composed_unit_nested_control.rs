@@ -515,7 +515,8 @@ fn nested_control_rejects_outer_handoff_and_inner_topology_corruption() {
     else {
         unreachable!()
     };
-    when_true.scalar_arguments[0].source_scalar_parameter_index = 0;
+    when_true.scalar_arguments[0].source =
+        checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 0 };
     rejects(&handoff);
 
     let mut topology = baseline;

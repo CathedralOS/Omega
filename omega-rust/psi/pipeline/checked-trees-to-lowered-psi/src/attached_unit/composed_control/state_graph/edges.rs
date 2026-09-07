@@ -112,20 +112,44 @@ pub(super) fn validate(
         .zip(&edge.scalar_arguments)
         .enumerate()
     {
-        let source = state
-            .scalar_parameters
-            .get(transfer.source_scalar_parameter_index as usize)
-            .ok_or(LoweringError::Unsupported(
-                "Unit graph scalar transfer source missing",
-            ))?;
         if transfer.target_scalar_parameter_index as usize != position
             || transfer.argument_ordinal != target.source_position
-            || source.primitive_type != target.primitive_type
             || transfer.primitive_type != target.primitive_type
         {
             return unsupported("Unit graph scalar transfer type or order drifted");
         }
-        validate_argument(target.source_position, source.source_position)?;
+        match transfer.source {
+            checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index } => {
+                let source = state.scalar_parameters.get(index as usize).ok_or(
+                    LoweringError::Unsupported("Unit graph scalar transfer source missing"),
+                )?;
+                if source.primitive_type != target.primitive_type {
+                    return unsupported("Unit graph scalar transfer source type drifted");
+                }
+                validate_argument(target.source_position, source.source_position)?;
+            }
+            checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression => {
+                let (binding, _) = checked
+                    .facts
+                    .values
+                    .scalar_expressions
+                    .bound_expression_at(
+                        state.state,
+                        edge.statement_ordinal,
+                        CheckedScalarExpressionRole::TransitionArgument {
+                            argument_ordinal: transfer.argument_ordinal,
+                        },
+                    )
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit graph scalar successor has no checked source expression",
+                    ))?;
+                crate::scalar_source_custody::validate_pure(
+                    checked,
+                    binding,
+                    terminal_scalar_type(target.primitive_type)?,
+                )?;
+            }
+        }
     }
     let cleanup = checked
         .facts

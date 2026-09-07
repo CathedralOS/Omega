@@ -271,7 +271,7 @@ pub(super) fn build_structural_unit_control_machine(
                             }
                             Some(CheckedStructuralScalarArgumentPlan {
                                 argument_ordinal,
-                                source_scalar_parameter_index: u32::try_from(source_index).ok()?,
+                                source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: u32::try_from(source_index).ok()? },
                                 target_scalar_parameter_index: u32::try_from(target_index).ok()?,
                                 primitive_type: target.primitive_type,
                             })
@@ -509,8 +509,8 @@ pub(super) fn build_structural_unit_control_machine(
                                     }
                                     Some(CheckedStructuralScalarArgumentPlan {
                                         argument_ordinal,
-                                        source_scalar_parameter_index: u32::try_from(source_index)
-                                            .ok()?,
+                                        source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: u32::try_from(source_index)
+                                            .ok()? },
                                         target_scalar_parameter_index: u32::try_from(target_index)
                                             .ok()?,
                                         primitive_type: target.primitive_type,

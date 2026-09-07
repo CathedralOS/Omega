@@ -46,6 +46,7 @@ pub(super) fn emit(
         validate_direct_parameter_types(&guard, &parameter_types)?;
         let mut operations = OperationBuffer::new(next_operation - 1);
         let mut evaluation = crate::attached_unit::argument_evaluation::Evaluation {
+            scalar_bindings: None,
             structural_parameters: Vec::new(),
             entry: state_ids[index],
             current: state_ids[index],
@@ -207,7 +208,17 @@ fn lower_successor(
         .map(|argument| {
             source_parameters
                 .get(
-                    usize::try_from(argument.source_scalar_parameter_index).map_err(|_| {
+                    usize::try_from(match argument.source {
+                        checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+                            index,
+                        } => index,
+                        checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression => {
+                            return Err(LoweringError::Unsupported(
+                                "specialized scalar successor does not support checked expressions",
+                            ));
+                        }
+                    })
+                    .map_err(|_| {
                         LoweringError::Unsupported("nested scalar source index exceeds usize")
                     })?,
                 )

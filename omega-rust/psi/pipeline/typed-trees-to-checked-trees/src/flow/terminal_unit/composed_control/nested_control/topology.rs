@@ -245,7 +245,9 @@ fn scalar_successor(
             }
             Some(CheckedStructuralScalarArgumentPlan {
                 argument_ordinal,
-                source_scalar_parameter_index: u32::try_from(*position).ok()?,
+                source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+                    index: u32::try_from(*position).ok()?,
+                },
                 target_scalar_parameter_index: u32::try_from(argument_index).ok()?,
                 primitive_type: PrimitiveType::Bool,
             })

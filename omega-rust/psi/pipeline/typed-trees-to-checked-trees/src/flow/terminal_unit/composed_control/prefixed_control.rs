@@ -246,7 +246,9 @@ fn prefix_successor(
         transfers: Vec::new(),
         scalar_arguments: vec![CheckedStructuralScalarArgumentPlan {
             argument_ordinal: 0,
-            source_scalar_parameter_index: 0,
+            source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+                index: 0,
+            },
             target_scalar_parameter_index: 0,
             primitive_type: parameters[0].primitive_type,
         }],

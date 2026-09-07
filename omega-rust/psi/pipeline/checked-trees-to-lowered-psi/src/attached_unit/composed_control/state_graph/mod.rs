@@ -9,6 +9,7 @@ use checked_trees::{
 mod admission;
 mod edges;
 mod emission;
+mod scalars;
 
 pub(in crate::attached_unit) use admission::AdmittedGraph;
 pub(super) use admission::admit;

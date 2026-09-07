@@ -283,12 +283,21 @@ pub(super) fn lower_structural_unit_control_machine(
                 .zip(target_scalar_parameters)
                 .enumerate()
             {
-                let source_index = usize::try_from(argument.source_scalar_parameter_index)
-                    .map_err(|_| {
-                        LoweringError::Unsupported(
-                            "structural Unit scalar successor source exceeds usize",
-                        )
-                    })?;
+                let source_index = usize::try_from(match argument.source {
+                    checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+                        index,
+                    } => index,
+                    checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression => {
+                        return Err(LoweringError::Unsupported(
+                            "specialized scalar successor does not support checked expressions",
+                        ));
+                    }
+                })
+                .map_err(|_| {
+                    LoweringError::Unsupported(
+                        "structural Unit scalar successor source exceeds usize",
+                    )
+                })?;
                 if argument.target_scalar_parameter_index
                     != u32::try_from(target_index).map_err(|_| {
                         LoweringError::Unsupported(
@@ -450,9 +459,12 @@ pub(super) fn lower_structural_unit_control_machine(
                     arguments: scalar_arguments
                         .iter()
                         .map(|argument| {
+                            let checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: source_position } = argument.source else {
+                                return unsupported("specialized scalar successor does not support checked expressions");
+                            };
                             state_scalar_parameters[index]
                                 .get(
-                                    usize::try_from(argument.source_scalar_parameter_index)
+                                    usize::try_from(source_position)
                                         .map_err(|_| {
                                             LoweringError::Unsupported(
                                                 "structural Unit scalar successor source exceeds usize",
@@ -509,11 +521,12 @@ pub(super) fn lower_structural_unit_control_machine(
                                 .scalar_arguments
                                 .iter()
                                 .map(|argument| {
+                                    let checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: source_position } = argument.source else {
+                                        return unsupported("specialized scalar successor does not support checked expressions");
+                                    };
                                     source_scalar_parameters
                                         .get(
-                                            usize::try_from(
-                                                argument.source_scalar_parameter_index,
-                                            )
+                                            usize::try_from(source_position)
                                             .map_err(|_| {
                                                 LoweringError::Unsupported(
                                                     "structural Unit scalar successor source exceeds usize",
@@ -718,8 +731,10 @@ fn lower_ranked_structural_unit_countdown(
         || argument_type != ranked.rank_primitive_type
         || argument_ordinal != rank_parameter_plan.source_position
         || when_true.scalar_arguments[0].argument_ordinal != argument_ordinal
-        || when_true.scalar_arguments[0].source_scalar_parameter_index
-            != source_scalar_parameter_index
+        || when_true.scalar_arguments[0].source
+            != (checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+                index: source_scalar_parameter_index,
+            })
         || when_true.scalar_arguments[0].target_scalar_parameter_index
             != target_scalar_parameter_index
         || when_true.scalar_arguments[0].primitive_type != argument_type
