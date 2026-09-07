@@ -4,9 +4,9 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::TypeReferenceHandle;
 
-/// A selected range requests its collection's element type at the exact window
-/// width. This discovers landing destinations only; ordinary write permissions
-/// and bounds validation remain obligations of the assignment validators.
+/// A selected range requests its collection's element type independently of
+/// runtime length. Reject a statically impossible footprint here, but leave
+/// dynamic footprint and write-permission checks to their assignment owners.
 pub(super) fn admit_assignment_value(
     program: &TypedTrees,
     machine: &Machine,
@@ -26,35 +26,51 @@ pub(super) fn admit_assignment_value(
         else {
             return false;
         };
-        let TypeReferenceNode::FixedArray {
-            element_type,
-            length: FixedArrayLength::Literal(length),
-        } = program.type_reference_table.type_reference(collection_type)
-        else {
-            return false;
-        };
+        let (element_type, length) =
+            match program.type_reference_table.type_reference(collection_type) {
+                TypeReferenceNode::FixedArray {
+                    element_type,
+                    length,
+                } => (
+                    *element_type,
+                    match length {
+                        FixedArrayLength::Literal(length) => Some(*length),
+                        _ => None,
+                    },
+                ),
+                TypeReferenceNode::Slice { element_type } => (*element_type, None),
+                _ => return false,
+            };
         // Constructors retain their own field destinations. Owning a record
         // subtree here would let a rejected element exclude those valid grants.
-        if !has_scalar_array_element_shape(program, *element_type) {
+        if !has_scalar_array_element_shape(program, element_type) {
             return false;
         }
         let start = if range.start.is_valid() {
-            crate::normalize_immutable_integer_bound_to_usize(program, range.start)
+            static_window_bound(program, range.start)
         } else {
-            Some(0)
+            WindowBound::Known(0)
         };
-        let end =
-            crate::normalize_immutable_integer_bound_to_usize(program, range.end).and_then(|end| {
-                if range.end_inclusive {
-                    end.checked_add(1)
-                } else {
-                    Some(end)
-                }
-            });
-        let (Some(start), Some(end)) = (start, end) else {
-            return false;
+        let end = if range.end.is_valid() {
+            match static_window_bound(program, range.end) {
+                WindowBound::Known(end) if range.end_inclusive => end
+                    .checked_add(1)
+                    .map_or(WindowBound::Invalid, WindowBound::Known),
+                bound => bound,
+            }
+        } else {
+            length.map_or(WindowBound::Unknown, WindowBound::Known)
         };
-        if start > end || end > *length {
+        let (start, end) = match (start, end) {
+            (WindowBound::Invalid, _) | (_, WindowBound::Invalid) => return false,
+            (start, end) => (start.value(), end.value()),
+        };
+        if start.zip(end).is_some_and(|(start, end)| start > end)
+            || end.zip(length).is_some_and(|(end, length)| end > length)
+            || start
+                .zip(length)
+                .is_some_and(|(start, length)| start > length)
+        {
             return false;
         }
         let ExpressionNode::ArrayLiteral(elements) = program.expression_table.expression(value)
@@ -62,11 +78,14 @@ pub(super) fn admit_assignment_value(
             return false;
         };
         let elements = program.expression_table.expression_handles(*elements);
-        if elements.len() != end - start {
+        if start
+            .zip(end)
+            .is_some_and(|(start, end)| elements.len() != end - start)
+        {
             return false;
         }
         for element in elements {
-            if !admitted(*element_type, *element) {
+            if !admitted(element_type, *element) {
                 other_elements.push(*element);
             }
         }
@@ -90,11 +109,41 @@ pub(super) fn admit_assignment_value(
     })
 }
 
+enum WindowBound {
+    Known(usize),
+    Unknown,
+    Invalid,
+}
+
+impl WindowBound {
+    fn value(self) -> Option<usize> {
+        match self {
+            Self::Known(value) => Some(value),
+            Self::Unknown | Self::Invalid => None,
+        }
+    }
+}
+
+fn static_window_bound(program: &TypedTrees, expression: ExpressionHandle) -> WindowBound {
+    let Some(expression) = crate::normalize_immutable_integer_bound_expression(program, expression)
+    else {
+        return WindowBound::Unknown;
+    };
+    if !matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Integer(_)
+    ) {
+        return WindowBound::Unknown;
+    }
+    crate::normalize_immutable_integer_bound_to_usize(program, expression)
+        .map_or(WindowBound::Invalid, WindowBound::Known)
+}
+
 fn has_scalar_array_element_shape(
     program: &TypedTrees,
     mut element_type: TypeReferenceHandle,
 ) -> bool {
-    use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
+    use typed_trees::types::TypeReferenceNode;
 
     let mut visited = Vec::new();
     loop {
@@ -107,7 +156,7 @@ fn has_scalar_array_element_shape(
         visited.push(element_type);
         let TypeReferenceNode::FixedArray {
             element_type: nested_element,
-            length: FixedArrayLength::Literal(_),
+            ..
         } = program.type_reference_table.type_reference(element_type)
         else {
             return false;
@@ -131,16 +180,14 @@ pub(super) fn admit_array_elements(
     if let ExpressionNode::ArrayLiteral(elements) = program.expression_table.expression(expression)
         && let TypeReferenceNode::FixedArray {
             element_type,
-            length: FixedArrayLength::Literal(length),
+            length,
         } = program.type_reference_table.type_reference(destination)
-        && (program.primitive_type_reference(*element_type).is_some()
-            || matches!(
-                program.type_reference_table.type_reference(*element_type),
-                TypeReferenceNode::FixedArray { .. }
-            ))
+        && has_scalar_array_element_shape(program, *element_type)
     {
         let elements = program.expression_table.expression_handles(*elements);
-        if elements.len() != *length {
+        if let FixedArrayLength::Literal(length) = length
+            && elements.len() != *length
+        {
             return false;
         }
         for element in elements {

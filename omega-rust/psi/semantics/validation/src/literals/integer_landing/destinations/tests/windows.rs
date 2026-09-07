@@ -1,6 +1,14 @@
 use super::*;
 
 #[test]
+fn omitted_window_ends_still_have_an_integer_element_destination() {
+    let program = typed(&format!(
+        "machine fill(values: &mut [u16; 4]) {{ values[2..] = [{LARGE_ARGUMENT}, 8]; }}"
+    ));
+    assert_eq!(width_grants(&program).len(), 2);
+}
+
+#[test]
 fn projected_window_destinations_report_exact_fractional_origins() {
     for source in [
         "machine fill(values: &write [u16; 4]) { values[1..3] = [0.1 * 70, 7u16 / 2 * 2]; }",
@@ -54,7 +62,7 @@ fn projected_windows_admit_large_leaves_at_the_selected_element_type() {
 }
 
 #[test]
-fn window_landing_requires_directed_known_in_range_bounds_and_matching_width() {
+fn statically_impossible_window_bounds_and_sizes_do_not_grant_integer_widths() {
     for (locals, selection) in [
         ("", "3..1"),
         ("", "3..=1"),
@@ -69,10 +77,6 @@ fn window_landing_requires_directed_known_in_range_bounds_and_matching_width() {
         ("", "-1..1"),
         ("", "1..18446744073709551615"),
         ("", "1..=18446744073709551615"),
-        ("let mut start: usize = 1;", "start..3"),
-        ("let start: usize = 0 + 1;", "start..3"),
-        ("let start: usize = bound;", "start..3"),
-        ("", "bound..3"),
     ] {
         for element in ["0.1 * 70", LARGE_ARGUMENT] {
             let source = format!(
@@ -91,16 +95,9 @@ fn window_landing_requires_directed_known_in_range_bounds_and_matching_width() {
 }
 
 #[test]
-fn windows_require_fixed_collections_and_literal_replacements() {
+fn windows_require_literal_replacements() {
     for source in [
-        format!("machine fill(values: &mut [u16]) {{ values[1..3] = [{LARGE_ARGUMENT}, 8]; }}"),
-        format!(
-            "machine fill<const N: u64>(values: &mut [u16; N]) {{ values[1..3] = [{LARGE_ARGUMENT}, 8]; }}"
-        ),
         format!("machine fill(values: &write [u16; 4]) {{ values[1..3] = {LARGE_ARGUMENT}; }}"),
-        "machine fill(values: &mut [u16]) { values[1..3] = [0.1 * 70, 8]; }".to_owned(),
-        "machine fill<const N: u64>(values: &mut [u16; N]) { values[1..3] = [0.1 * 70, 8]; }"
-            .to_owned(),
         "machine fill(values: &write [u16; 4]) { values[1..3] = 0.1 * 70; }".to_owned(),
     ] {
         let program = typed(&source);
@@ -109,6 +106,49 @@ fn windows_require_fixed_collections_and_literal_replacements() {
             "{source}"
         );
         assert!(width_grants(&program).is_empty(), "{source}");
+    }
+}
+
+#[test]
+fn runtime_and_generic_lengths_preserve_element_widths_and_warnings() {
+    for (generics, collection, locals, selection) in [
+        ("", "[u16]", "", "1..3"),
+        ("<const N: u64>", "[u16; N]", "", "1..3"),
+        ("<const N: u64>", "[u16; N]", "", "2.."),
+        ("", "[u16; 4]", "let mut start: usize = 1;", "start..3"),
+        ("", "[u16; 4]", "let start: usize = 0 + 1;", "start..3"),
+        ("", "[u16; 4]", "let start: usize = bound;", "start..3"),
+        ("", "[u16; 4]", "", "bound..3"),
+        ("", "[u16]", "", "bound.."),
+    ] {
+        let source = |element| {
+            format!(
+                "machine fill{generics}(values: &mut {collection}, bound: usize) {{ {locals} values[{selection}] = [{element}, 8]; }}"
+            )
+        };
+        assert_eq!(width_grants(&typed(&source(LARGE_ARGUMENT))).len(), 2);
+        let warnings = anonymous_integer_landing_warnings(&typed(&source("0.1 * 70")));
+        assert_eq!(warnings.len(), 1, "{}: {warnings:?}", source("0.1 * 70"));
+        assert!(
+            warnings[0]
+                .message
+                .contains("fractional intermediate `1/10`")
+        );
+    }
+}
+
+#[test]
+fn nested_generic_arrays_keep_the_resolved_scalar_element_destination() {
+    for initializer in [format!("[[{LARGE_ARGUMENT}]]"), "[[0.1 * 70]]".to_owned()] {
+        let source = format!(
+            "machine fill<const N: u64>(values: &mut [[u16; N]; 4]) {{ values[1..2] = {initializer}; }}"
+        );
+        let program = typed(&source);
+        if initializer.contains(LARGE_ARGUMENT) {
+            assert_eq!(width_grants(&program).len(), 2);
+        } else {
+            assert_eq!(anonymous_integer_landing_warnings(&program).len(), 1);
+        }
     }
 }
 

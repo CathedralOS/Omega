@@ -826,13 +826,20 @@ expression-only suppression restriction.
 > obligations. Checked interpretation uses the same exact values while preserving
 > element evaluation order and source fuel cost. This does not establish general
 > aggregate Terminal production or proof support.
-> Fixed-array range replacements carry the same element destinations when their
-> exact footprint is known from literal bounds or finite immutable local copies.
-> Mutable and write-only replacements both validate literal elements; write-only
-> permission and non-observation checks remain independent. Checked interpretation
+> Array range replacements carry the same resolved integer element destinations
+> through fixed, generic-length, and runtime-sized collections, including omitted
+> ends and dynamic selectors. Numeric destination discovery retains statically
+> impossible bounds/count rejection but does not require a known footprint.
+> Bounds proofs, replacement counts, and write permissions remain independent
+> obligations; a known element type does not discharge them.
+> Mutable and write-only replacements both validate literal elements. Write-only
+> replacements retain their narrower supported window forms and independent
+> permission and non-observation checks. Checked interpretation
 > replaces only the selected cells or backing bytes, preserving element order and
 > neighbors, and rejects invalid bounds or a mismatched element count rather than
-> clamping the write. Shared record-valued elements retain their own field checks.
+> clamping the write. This includes whole-array loans into slice parameters and
+> inferred generic-length calls, not general borrowed-subslice place execution.
+> Shared record-valued elements retain their own field checks.
 > The destination's arithmetic policy cannot truncate an anonymous fraction or
 > wrap an out-of-range initial value. Successful integral
 > landings report the fractional-intermediate warning through the current
@@ -865,8 +872,8 @@ expression-only suppression restriction.
 > Caller result proofs can also
 > transport a callee's builtin `result == immutable_parameter` guarantee from retained closed
 > fixed-integer operands, without replaying their source expressions. General runtime argument
-> snapshots, generic/evidence-adapted and boundary destination custody, projected
-> array windows with generic/runtime-sized shapes or omitted end bounds,
+> snapshots, generic/evidence-adapted and boundary destination custody,
+> borrowed-subslice places,
 > general aggregate production/proof consumers,
 > remaining mutable parameter carriers and Unit-body storage, numeric policies,
 > remaining float destinations,
