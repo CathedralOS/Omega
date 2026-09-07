@@ -299,7 +299,7 @@ impl<'program> Evaluator<'program> {
         if let (Value::Str(a), Value::Str(b)) = (&left, &right)
             && operator == Add
         {
-            let mut joined = a.borrow().clone();
+            let mut joined = a.borrow().to_vec();
             joined.extend_from_slice(&b.borrow());
             return self.allocate_text(joined);
         }

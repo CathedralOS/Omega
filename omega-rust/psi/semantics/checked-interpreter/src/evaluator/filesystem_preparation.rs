@@ -123,7 +123,7 @@ impl PreparedByteOutput {
 
     pub(super) fn snapshot(&self) -> EvalResult<Vec<u8>> {
         match self {
-            Self::Text { text, .. } => Ok(text.borrow().clone()),
+            Self::Text { text, .. } => Ok(text.borrow().to_vec()),
             Self::Array(cells) => cells.iter().map(prepared_byte).collect(),
         }
     }
@@ -132,7 +132,7 @@ impl PreparedByteOutput {
         check_byte_len(bytes.len())?;
         self.require_capacity(bytes.len())?;
         match self {
-            Self::Text { text, .. } => text.write_prefix(bytes),
+            Self::Text { text, .. } => text.write_prefix(bytes).map_err(Halt::Trap)?,
             Self::Array(cells) => {
                 for (slot, byte) in cells.iter().zip(bytes.iter()) {
                     *slot.borrow_mut() = Value::Int(i64::from(*byte));
@@ -1259,7 +1259,7 @@ impl<'evaluation, 'program, 'arguments, 'frame>
             Value::Str(text) => {
                 let text = text.borrow();
                 check_byte_len(text.len())?;
-                Ok(text.clone())
+                Ok(text.to_vec())
             }
             Value::Array(cells) => {
                 check_byte_len(cells.len())?;
@@ -1327,7 +1327,7 @@ impl<'evaluation, 'program, 'arguments, 'frame>
                 Value::Str(text) => {
                     let text = text.borrow();
                     check_byte_len(text.len())?;
-                    Ok(text.clone())
+                    Ok(text.to_vec())
                 }
                 Value::Array(cells) => {
                     check_byte_len(cells.len())?;

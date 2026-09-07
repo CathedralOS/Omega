@@ -3,7 +3,7 @@ use crate::build_evaluation_sponsor::{
 };
 use std::cell::{Cell as CounterCell, Ref, RefCell};
 use std::collections::BTreeMap;
-use std::ops::Deref;
+use std::ops::{Deref, Range};
 use std::rc::Rc;
 use symbols::SymbolHandle;
 
@@ -118,61 +118,149 @@ impl Drop for LiveCellLease {
 
 /// One shared interpreter Text backing buffer. Aliases share both bytes and
 /// one exact logical-byte lifetime lease; only the final alias releases it.
+/// Bounded views retain their extent and prevent backing length changes.
 #[derive(Clone)]
-pub struct TextBuffer(Rc<TextAllocation>);
+pub struct TextBuffer {
+    allocation: Rc<TextAllocation>,
+    window: Option<Rc<TextWindowLease>>,
+}
 
 #[derive(Debug)]
 struct TextAllocation {
     bytes: RefCell<Vec<u8>>,
     lease: RefCell<Option<LiveTextByteLease>>,
+    live_windows: CounterCell<usize>,
+}
+
+/// Clones share one window lease; nested subslices register their own lease.
+/// Keeping the allocation alive here makes release independent of field order.
+struct TextWindowLease {
+    allocation: Rc<TextAllocation>,
+    extent: Range<usize>,
+}
+
+impl Drop for TextWindowLease {
+    fn drop(&mut self) {
+        let live_windows = self.allocation.live_windows.get();
+        debug_assert!(live_windows > 0);
+        self.allocation.live_windows.set(live_windows - 1);
+    }
 }
 
 impl std::fmt::Debug for TextBuffer {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_tuple("TextBuffer")
-            .field(&self.0.bytes)
-            .finish()
+        let mut debug = formatter.debug_tuple("TextBuffer");
+        match self.allocation.bytes.try_borrow() {
+            Ok(bytes) => debug.field(&&bytes[self.extent(bytes.len())]).finish(),
+            Err(_) => debug.field(&"<borrowed>").finish(),
+        }
     }
 }
 
 impl TextBuffer {
     fn new(bytes: Vec<u8>, lease: Option<LiveTextByteLease>) -> Self {
-        Self(Rc::new(TextAllocation {
-            bytes: RefCell::new(bytes),
-            lease: RefCell::new(lease),
-        }))
+        Self {
+            allocation: Rc::new(TextAllocation {
+                bytes: RefCell::new(bytes),
+                lease: RefCell::new(lease),
+                live_windows: CounterCell::new(0),
+            }),
+            window: None,
+        }
     }
 
-    pub(crate) fn borrow(&self) -> Ref<'_, Vec<u8>> {
-        self.0.bytes.borrow()
+    fn extent(&self, backing_length: usize) -> Range<usize> {
+        match &self.window {
+            Some(window) => window.extent.clone(),
+            None => 0..backing_length,
+        }
     }
 
-    pub(crate) fn write_byte(&self, index: usize, byte: u8) -> Result<(), usize> {
-        let mut bytes = self.0.bytes.borrow_mut();
-        let len = bytes.len();
-        let Some(slot) = bytes.get_mut(index) else {
-            return Err(len);
+    pub(crate) fn borrow(&self) -> Ref<'_, [u8]> {
+        Ref::map(self.allocation.bytes.borrow(), |bytes| {
+            &bytes[self.extent(bytes.len())]
+        })
+    }
+
+    /// Share the exclusive byte range relative to this view. Empty ranges also
+    /// retain the allocation and prevent resizing until their final alias drops.
+    pub(crate) fn subslice(&self, start: usize, end: usize) -> Result<Self, String> {
+        let extent = self.extent(self.allocation.bytes.borrow().len());
+        let length = extent.len();
+        if start > end || end > length {
+            return Err(format!(
+                "Text subslice range {start}..{end} is outside view length {length}"
+            ));
+        }
+        let live_windows = self
+            .allocation
+            .live_windows
+            .get()
+            .checked_add(1)
+            .ok_or_else(|| "Text live-window count overflowed".to_owned())?;
+        // Both offsets are bounded by the existing extent, so adding its start
+        // cannot exceed the original backing length.
+        let window = Rc::new(TextWindowLease {
+            allocation: self.allocation.clone(),
+            extent: extent.start + start..extent.start + end,
+        });
+        self.allocation.live_windows.set(live_windows);
+        Ok(Self {
+            allocation: self.allocation.clone(),
+            window: Some(window),
+        })
+    }
+
+    pub(crate) fn write_byte(&self, byte_index: usize, byte: u8) -> Result<(), usize> {
+        let mut backing = self.allocation.bytes.borrow_mut();
+        let extent = self.extent(backing.len());
+        let length = extent.len();
+        let Some(slot) = backing[extent].get_mut(byte_index) else {
+            return Err(length);
         };
         *slot = byte;
         Ok(())
     }
 
-    pub(crate) fn write_prefix(&self, bytes: &[u8]) {
-        self.0.bytes.borrow_mut()[..bytes.len()].copy_from_slice(bytes);
+    pub(crate) fn write_prefix(&self, bytes: &[u8]) -> Result<(), String> {
+        let mut backing = self.allocation.bytes.borrow_mut();
+        let extent = self.extent(backing.len());
+        let length = extent.len();
+        let Some(prefix) = backing[extent].get_mut(..bytes.len()) else {
+            return Err(format!(
+                "Text prefix length {} exceeds view length {length}",
+                bytes.len()
+            ));
+        };
+        prefix.copy_from_slice(bytes);
+        Ok(())
     }
 
     /// Replace shared backing bytes while preserving aliases and resizing the
     /// exact logical-byte lease before any growth becomes interpreter state.
+    /// A bounded view requires equal-length replacement within its extent;
+    /// full-buffer aliases cannot resize while any bounded view remains live.
     pub(crate) fn replace(&self, bytes: Vec<u8>) -> Result<(), String> {
         // Acquire mutation custody before changing either meter. A conflicting
         // internal borrow may panic, but cannot leave accounting advanced.
-        let mut backing = self.0.bytes.borrow_mut();
+        let mut backing = self.allocation.bytes.borrow_mut();
+        let extent = self.extent(backing.len());
+        if self.allocation.live_windows.get() > 0 {
+            if bytes.len() != extent.len() {
+                return Err(format!(
+                    "cannot replace Text view length {} with {} bytes while bounded views are live",
+                    extent.len(),
+                    bytes.len()
+                ));
+            }
+            backing[extent].copy_from_slice(&bytes);
+            return Ok(());
+        }
         let old_len = u64::try_from(backing.len())
             .map_err(|_| "evaluator live-Text-byte count overflowed".to_owned())?;
         let new_len = u64::try_from(bytes.len())
             .map_err(|_| "evaluator live-Text-byte count overflowed".to_owned())?;
-        let mut lease = self.0.lease.borrow_mut();
+        let mut lease = self.allocation.lease.borrow_mut();
         if let Some(lease) = lease.as_mut()
             && new_len > old_len
         {
@@ -310,8 +398,8 @@ pub enum Value {
     /// BYTES (not a Rust `String`) because Omega text is `&[u8]` -- bytes that need only be
     /// valid Utf8 at domain boundaries, not at every intermediate step. Bytes (vs a UTF-8
     /// String) let a carrier be byte-indexed and byte-WRITTEN (`out[i] = ch`) directly. The
-    /// runtime length is the vec length; a carrier's static capacity `N` is a compile-time
-    /// bound the native side enforces and the interpreter does not need to track.
+    /// runtime length is the visible buffer extent; subslices share bounded windows of
+    /// the original bytes. A carrier's static capacity `N` remains a compile-time bound.
     Str(TextBuffer),
     /// A struct / data record / machine instance. Fields are addressed by name so the
     /// interpreter can resolve `self.field` without depending on backend layout. Each
@@ -461,6 +549,173 @@ impl Value {
 mod tests {
     use super::*;
     use crate::BuildEvaluationSponsorLimits;
+
+    #[test]
+    fn text_subslices_share_nested_writes_and_preserve_neighbors() {
+        let buffer = TextBuffer::new(vec![0, 1, 2, 3, 4, 5], None);
+        let alias = buffer.clone();
+        let window = buffer.subslice(1, 5).expect("bounded window");
+        let nested = window.subslice(1, 3).expect("nested window");
+        assert_eq!(&*window.borrow(), &[1, 2, 3, 4]);
+        assert_eq!(&*nested.borrow(), &[2, 3]);
+        assert_eq!(nested.borrow().as_ptr(), buffer.borrow()[2..].as_ptr());
+
+        nested.write_byte(0, 20).expect("nested byte");
+        assert_eq!(&*alias.borrow(), &[0, 1, 20, 3, 4, 5]);
+        assert_eq!(&*window.borrow(), &[1, 20, 3, 4]);
+        nested.write_prefix(&[21, 30]).expect("nested prefix");
+        window.write_prefix(&[10]).expect("window prefix");
+        alias.write_byte(3, 31).expect("full-buffer alias write");
+        assert_eq!(&*buffer.borrow(), &[0, 10, 21, 31, 4, 5]);
+        assert_eq!(&*nested.borrow(), &[21, 31]);
+        assert_eq!(format!("{nested:?}"), "TextBuffer([21, 31])");
+
+        assert_eq!(nested.write_byte(2, 99), Err(2));
+        assert_eq!(nested.write_byte(usize::MAX, 99), Err(2));
+        assert!(nested.write_prefix(&[90, 91, 92]).is_err());
+        assert_eq!(&*buffer.borrow(), &[0, 10, 21, 31, 4, 5]);
+    }
+
+    #[test]
+    fn text_subslices_reject_invalid_view_relative_ranges() {
+        let buffer = TextBuffer::new(vec![0, 1, 2, 3], None);
+        let window = buffer.subslice(1, 3).expect("bounded window");
+        for (start, end) in [(2, 1), (0, 3), (3, 3), (0, usize::MAX), (usize::MAX, 0)] {
+            assert!(window.subslice(start, end).is_err(), "{start}..{end}");
+        }
+        for position in 0..=2 {
+            let empty = window.subslice(position, position).expect("empty window");
+            assert!(empty.borrow().is_empty());
+            assert_eq!(empty.write_byte(0, 99), Err(0));
+            empty.write_prefix(&[]).expect("empty prefix");
+            assert!(empty.write_prefix(&[99]).is_err());
+            empty.replace(vec![]).expect("empty replacement");
+            assert!(empty.replace(vec![99]).is_err());
+        }
+        drop(window);
+        buffer
+            .replace(vec![9])
+            .expect("invalid ranges did not retain window leases");
+        assert_eq!(&*buffer.borrow(), &[9]);
+    }
+
+    #[test]
+    fn text_view_replacement_preserves_extent_and_blocks_backing_resize() {
+        let buffer = TextBuffer::new(vec![0, 1, 2, 3, 4], None);
+        let alias = buffer.clone();
+        let window = buffer.subslice(1, 4).expect("bounded window");
+        let nested = window.subslice(1, 2).expect("nested window");
+        let original_pointer = buffer.borrow().as_ptr();
+
+        window
+            .replace(vec![10, 20, 30])
+            .expect("window replacement");
+        assert_eq!(&*alias.borrow(), &[0, 10, 20, 30, 4]);
+        assert_eq!(&*nested.borrow(), &[20]);
+        assert!(window.replace(vec![90, 91]).is_err());
+        assert!(window.replace(vec![90, 91, 92, 93]).is_err());
+        assert!(alias.replace(vec![90]).is_err());
+        assert!(buffer.replace(vec![90; 6]).is_err());
+        assert_eq!(&*window.borrow(), &[10, 20, 30]);
+        assert_eq!(&*buffer.borrow(), &[0, 10, 20, 30, 4]);
+
+        alias
+            .replace(vec![5, 6, 7, 8, 9])
+            .expect("equal-length full-buffer replacement");
+        assert_eq!(buffer.borrow().as_ptr(), original_pointer);
+        assert_eq!(&*window.borrow(), &[6, 7, 8]);
+        assert_eq!(&*nested.borrow(), &[7]);
+        drop(window);
+        assert!(buffer.replace(vec![]).is_err());
+        assert_eq!(&*nested.borrow(), &[7]);
+        drop(nested);
+        buffer.replace(vec![11]).expect("resize after final view");
+        assert_eq!(&*alias.borrow(), &[11]);
+    }
+
+    #[test]
+    fn text_window_clones_and_empty_windows_release_resize_protection() {
+        let buffer = TextBuffer::new(vec![0, 1, 2], None);
+        let window = buffer.subslice(0, 3).expect("full-extent bounded window");
+        let alias = window.clone();
+        assert_eq!(buffer.allocation.live_windows.get(), 1);
+        let empty = alias.subslice(3, 3).expect("empty nested window");
+        let empty_alias = empty.clone();
+        assert_eq!(buffer.allocation.live_windows.get(), 2);
+        drop(window);
+        assert!(buffer.replace(vec![9; 4]).is_err());
+        drop(alias);
+        assert_eq!(buffer.allocation.live_windows.get(), 1);
+        assert!(buffer.replace(vec![9; 4]).is_err());
+        drop(empty);
+        assert!(buffer.replace(vec![]).is_err());
+        assert!(empty_alias.borrow().is_empty());
+        drop(empty_alias);
+        assert_eq!(buffer.allocation.live_windows.get(), 0);
+        buffer
+            .replace(vec![9; 4])
+            .expect("all window leases released");
+        assert_eq!(&*buffer.borrow(), &[9; 4]);
+    }
+
+    #[test]
+    fn metered_text_windows_retain_one_original_allocation_lease() {
+        let sponsor = BuildEvaluationSponsor::new(
+            BuildEvaluationSponsorLimits::new(10, 10, 10, 10, 10, 6, 10, 10)
+                .expect("nonzero limits"),
+        );
+        let meter = TextByteMeter::new(Some(sponsor.clone()));
+        let Value::Str(buffer) = meter
+            .allocate(vec![0, 1, 2, 3, 4, 5])
+            .expect("original Text")
+        else {
+            unreachable!()
+        };
+        let window = buffer.subslice(1, 5).expect("window at sponsor limit");
+        let nested = window
+            .subslice(1, 3)
+            .expect("nested window at sponsor limit");
+        let alias = nested.clone();
+        let empty = nested
+            .subslice(2, 2)
+            .expect("empty window at sponsor limit");
+        nested
+            .replace(vec![20, 30])
+            .expect("same-length replacement");
+        assert!(buffer.replace(vec![0; 5]).is_err());
+        assert!(buffer.replace(vec![0; 7]).is_err());
+        assert!(nested.replace(vec![0]).is_err());
+        assert_eq!(&*buffer.borrow(), &[0, 1, 20, 30, 4, 5]);
+        assert_eq!(meter.live(), 6);
+        assert_eq!(meter.peak(), 6);
+        assert_eq!(sponsor.live_text_bytes(), 6);
+        assert_eq!(sponsor.peak_live_text_bytes(), 6);
+
+        drop((buffer, window, nested));
+        assert_eq!(&*alias.borrow(), &[20, 30]);
+        alias
+            .write_byte(1, 31)
+            .expect("view retains writable storage");
+        assert_eq!(&*alias.borrow(), &[20, 31]);
+        assert_eq!(meter.live(), 6);
+        assert_eq!(sponsor.live_text_bytes(), 6);
+        assert!(meter.allocate(vec![99]).is_err());
+        drop(alias);
+        assert!(empty.borrow().is_empty());
+        assert_eq!(meter.live(), 6);
+        assert_eq!(sponsor.live_text_bytes(), 6);
+        drop(empty);
+        assert_eq!(meter.live(), 0);
+        assert_eq!(sponsor.live_text_bytes(), 0);
+        let replacement = meter
+            .allocate(vec![9; 6])
+            .expect("final view released capacity");
+        assert_eq!(meter.peak(), 6);
+        assert_eq!(sponsor.peak_live_text_bytes(), 6);
+        drop(replacement);
+        assert_eq!(meter.live(), 0);
+        assert_eq!(sponsor.live_text_bytes(), 0);
+    }
 
     #[test]
     fn metered_cell_aliases_share_one_lifetime_reservation() {

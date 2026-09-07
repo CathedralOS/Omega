@@ -63,7 +63,7 @@ impl<'program> Evaluator<'program> {
             ));
         };
         let bytes = match self.eval_expression(*text, frame)? {
-            Value::Str(bytes) => bytes.borrow().clone(),
+            Value::Str(bytes) => bytes.borrow().to_vec(),
             Value::Array(cells) => cells
                 .iter()
                 .map(|cell| {

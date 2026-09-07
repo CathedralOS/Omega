@@ -275,7 +275,7 @@ impl<'program> Evaluator<'program> {
                     // Length varint (byte count) then the raw UTF-8 bytes --
                     // the same framing the native text-bytes append emits.
                     let text = match &*raw.borrow() {
-                        Value::Str(text) => text.borrow().clone(),
+                        Value::Str(text) => text.borrow().to_vec(),
                         _ => {
                             return Err(Halt::Trap(format!(
                                 "`{schema_name}::encode` field `{field_name}` is not a String value"
@@ -290,7 +290,7 @@ impl<'program> Evaluator<'program> {
                     // field is text BYTES (`Value::Str`, after the text=bytes model) OR a fixed
                     // array of byte cells; both yield the raw content.
                     let str_bytes = if let Value::Str(text) = &*raw.borrow() {
-                        Some(text.borrow().clone())
+                        Some(text.borrow().to_vec())
                     } else {
                         None
                     };

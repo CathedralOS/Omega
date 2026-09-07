@@ -621,7 +621,8 @@ Owners include
   storage or retain callee-local IDs.
   Complete nonliteral contract arithmetic and callee-result bounds requiring
   caller-specific snapshots beyond immutable scalar formal comparisons, including
-  a callee's borrowed collection length in caller-side requirement proofs; carry
+  a callee's borrowed collection length in caller-side requirement proofs and
+  inline selector-call return ranges in subslice bounds; carry
   those facts into nested exact-cast obligations without rereading arguments.
   Retire the remaining flat guarded-argument call hoisting once these paths use
   the same evaluation graph. Owning area: argument normalization and checked scalar
@@ -669,12 +670,6 @@ Owners include
   follow the guide's boundaries identically before and after optimization.
   Pin the practical alignment case: `(4097 / 4096) * 4096` is 4097 with a
   warning; `(4097u32 / 4096) * 4096` is 4096 without one.
-  Extend checked-interpreter borrowed subslice places beyond scalar indexing:
-  `fill(&mut values[..])` must retain the selected backing window, not evaluate
-  its range as a scalar index. Acceptance: a checked slice-parameter call writes
-  only its borrowed cells, retains exact element landing, and rejects invalid
-  ranges and replacement counts. Whole-array borrowing into a slice parameter
-  is not evidence for this projected-place path.
   Implement [typed integer quotient and remainder](wiki/language_guide/chapter_5_expressions_evaluation.md#typed-integer-quotient-and-remainder)
   across operator resolution, constant evaluation, and proof consumption.
   Close authored const-operator selection before folding: an unrelated
