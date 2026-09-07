@@ -779,3 +779,9 @@ fn unranked_effectful_unit_cycle_is_interpreter_valid() {
     validate_module_for_interpretation(&module)
         .expect("a unit-effect unranked cycle is interpreter-valid");
 }
+
+#[path = "ranked_scc/unranked_frontiers.rs"]
+mod unranked_frontiers;
+
+#[path = "ranked_scc/unranked_return_facts.rs"]
+mod unranked_return_facts;
