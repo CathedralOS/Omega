@@ -64,7 +64,7 @@ fn composes_nested_boolean_control_with_one_scalar_handoff() {
     assert!(matches!(
         when_true.scalar_arguments.as_slice(),
         [argument]
-            if argument.source_scalar_parameter_index == 1
+            if argument.source == (checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 })
                 && argument.target_scalar_parameter_index == 0
     ));
     assert!(matches!(
@@ -274,7 +274,7 @@ fn composes_a_provider_boundary_prefix_with_implicit_self_edges() {
         when_true.scalar_arguments.as_slice(),
         [argument]
             if argument.argument_ordinal == 1
-                && argument.source_scalar_parameter_index == 1
+                && argument.source == (checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 })
                 && argument.target_scalar_parameter_index == 0
     ));
     assert_eq!(plan.provider_attachment_requirements.len(), 2);
@@ -325,8 +325,10 @@ fn composes_three_frontiers_with_recursive_scalar_suffix_handoffs() {
         assert_eq!(when_true.scalar_arguments.len(), expected_arguments);
         for (argument_index, argument) in when_true.scalar_arguments.iter().enumerate() {
             assert_eq!(
-                argument.source_scalar_parameter_index,
-                (argument_index + 1) as u32
+                argument.source,
+                checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+                    index: (argument_index + 1) as u32
+                }
             );
             assert_eq!(
                 argument.target_scalar_parameter_index,
@@ -380,13 +382,13 @@ fn composes_balanced_control_with_a_convergent_leaf() {
     assert!(matches!(
         entry_true.scalar_arguments.as_slice(),
         [argument]
-            if argument.source_scalar_parameter_index == 1
+            if argument.source == (checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 })
                 && argument.target_scalar_parameter_index == 0
     ));
     assert!(matches!(
         entry_false.scalar_arguments.as_slice(),
         [argument]
-            if argument.source_scalar_parameter_index == 2
+            if argument.source == (checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 2 })
                 && argument.target_scalar_parameter_index == 0
     ));
     let (_, left_false) = conditional_successors(left);

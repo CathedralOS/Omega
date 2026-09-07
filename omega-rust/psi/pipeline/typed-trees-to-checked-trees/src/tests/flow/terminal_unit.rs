@@ -21,6 +21,7 @@ mod scalar_boundary_targets;
 mod scalar_sequences;
 mod shared_convergence;
 mod shared_result_borrows;
+mod state_graph_scalars;
 mod tail_calls;
 
 use checked_trees::{

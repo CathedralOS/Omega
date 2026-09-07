@@ -106,14 +106,14 @@ fn callable_composed_targets_survive_direct_and_interleaved_transitive_calls() {
 
 #[test]
 fn missing_transitive_body_prunes_both_catalogs_to_a_joint_fixed_point() {
-    // State-local construction is valid source but outside this graph body
-    // slice. Knowing the callee's source symbol cannot admit its missing body.
+    // A declaration after a call is outside the retained scalar prefix.
+    // Knowing the callee's source symbol cannot admit its missing body.
     let checked = checked(&CHAIN.replace(
         "machine Helper::quiet() {}",
         r#"
         machine Helper::quiet() {
             transition { _ -> done() }
-            state done() { let local: u8 = 1u8; Helper::unrelated(); }
+            state done() { Helper::unrelated(); let local: u8 = 1u8; }
         }
     "#,
     ));
@@ -138,7 +138,7 @@ fn missing_transitive_body_prunes_both_catalogs_to_a_joint_fixed_point() {
 fn unsupported_composed_leaf_prunes_upstream_without_relaxing_body_admission() {
     let checked = checked(&CHAIN.replace(
         "state yes() { Helper::quiet(); }",
-        "state yes() { let local: u8 = 1u8; Helper::quiet(); }",
+        "state yes() { Helper::quiet(); let local: u8 = 1u8; }",
     ));
     let plans = &checked.facts.flow.terminal_unit_effects;
     for name in ["enter", "outer", "middle", "relay", "inner"] {

@@ -127,7 +127,10 @@ fn validate_prefix(
             .trivial_affine_discard_parameter_positions
             .is_empty()
         || argument.argument_ordinal != 0
-        || argument.source_scalar_parameter_index != 0
+        || !matches!(
+            argument.source,
+            checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 0 }
+        )
         || argument.target_scalar_parameter_index != 0
         || argument.primitive_type != PrimitiveType::Bool
     {

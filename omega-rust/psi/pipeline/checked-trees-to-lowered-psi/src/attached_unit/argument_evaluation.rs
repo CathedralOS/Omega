@@ -4,6 +4,9 @@ use super::*;
 use checked_trees::CheckedCallScalarArgument;
 
 pub(crate) struct Evaluation {
+    /// State-local storage has its own namespace; it is not an immutable slot.
+    /// Other callers retain the ordinary dense source-prefix mapping.
+    pub scalar_bindings: Option<crate::scalar_bindings::ScalarBindings>,
     pub structural_parameters: Vec<(u32, StructuralParameterDeclaration)>,
     pub entry: BlockId,
     pub current: BlockId,
@@ -53,6 +56,7 @@ impl Evaluation {
     pub(crate) fn new(next_block: &mut u64) -> Result<Self, LoweringError> {
         let entry = block_id(allocate_dense(next_block)?);
         Ok(Self {
+            scalar_bindings: None,
             structural_parameters: Vec::new(),
             entry,
             current: entry,
@@ -152,7 +156,10 @@ impl Evaluation {
         if source_value_count > values.len() {
             return unsupported("call argument source prefix exceeds its retained values");
         }
-        let source_bindings = crate::scalar_bindings::ScalarBindings::new(source_value_count)
+        let source_bindings = self
+            .scalar_bindings
+            .clone()
+            .unwrap_or_else(|| crate::scalar_bindings::ScalarBindings::new(source_value_count))
             .with_structural_parameters(&self.structural_parameters);
         let (coordinate, arguments, boundary) = match operation {
             CheckedUnitEffectOperationPlan::CallUnit {

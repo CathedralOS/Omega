@@ -187,7 +187,10 @@ fn validate_edge(
             .zip(&target.scalar_parameters)
             .enumerate()
             .all(|(target_index, (argument, target_parameter))| {
-                let source_index = usize::try_from(argument.source_scalar_parameter_index).ok();
+                let source_index = match argument.source {
+                    checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index } => usize::try_from(index).ok(),
+                    checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression => return false,
+                };
                 let expression = checked.facts.values.scalar_expressions.expression_at(
                     source.state,
                     ordinal,

@@ -264,7 +264,7 @@ fn install_structural_unit_control_fixture(checked: &mut CheckedTrees) {
                             scalar_arguments: vec![
                                 checked_trees::CheckedStructuralScalarArgumentPlan {
                                     argument_ordinal: 1,
-                                    source_scalar_parameter_index: 0,
+                                    source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 0 },
                                     target_scalar_parameter_index: 0,
                                     primitive_type: PrimitiveType::I32,
                                 },
@@ -361,7 +361,7 @@ fn install_structural_unit_conditional_fixture(checked: &mut CheckedTrees) {
                                 scalar_arguments: vec![
                                     checked_trees::CheckedStructuralScalarArgumentPlan {
                                         argument_ordinal: 1,
-                                        source_scalar_parameter_index: 1,
+                                        source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 },
                                         target_scalar_parameter_index: 0,
                                         primitive_type: PrimitiveType::I32,
                                     },
@@ -380,7 +380,7 @@ fn install_structural_unit_conditional_fixture(checked: &mut CheckedTrees) {
                                 scalar_arguments: vec![
                                     checked_trees::CheckedStructuralScalarArgumentPlan {
                                         argument_ordinal: 1,
-                                        source_scalar_parameter_index: 1,
+                                        source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 },
                                         target_scalar_parameter_index: 0,
                                         primitive_type: PrimitiveType::I32,
                                     },
@@ -428,13 +428,19 @@ fn install_structural_unit_nonentry_conditional_fixture(checked: &mut CheckedTre
                 scalar_arguments: vec![
                     checked_trees::CheckedStructuralScalarArgumentPlan {
                         argument_ordinal: 2,
-                        source_scalar_parameter_index: 0,
+                        source:
+                            checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+                                index: 0,
+                            },
                         target_scalar_parameter_index: 0,
                         primitive_type: PrimitiveType::Bool,
                     },
                     checked_trees::CheckedStructuralScalarArgumentPlan {
                         argument_ordinal: 3,
-                        source_scalar_parameter_index: 1,
+                        source:
+                            checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+                                index: 1,
+                            },
                         target_scalar_parameter_index: 1,
                         primitive_type: PrimitiveType::I32,
                     },
@@ -473,13 +479,17 @@ fn install_structural_unit_two_conditional_fixture(checked: &mut CheckedTrees) {
     when_true.scalar_arguments = vec![
         checked_trees::CheckedStructuralScalarArgumentPlan {
             argument_ordinal: 1,
-            source_scalar_parameter_index: 0,
+            source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+                index: 0,
+            },
             target_scalar_parameter_index: 0,
             primitive_type: PrimitiveType::Bool,
         },
         checked_trees::CheckedStructuralScalarArgumentPlan {
             argument_ordinal: 2,
-            source_scalar_parameter_index: 1,
+            source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+                index: 1,
+            },
             target_scalar_parameter_index: 1,
             primitive_type: PrimitiveType::I32,
         },
@@ -506,7 +516,9 @@ fn install_structural_unit_two_conditional_fixture(checked: &mut CheckedTrees) {
             }],
             scalar_arguments: vec![checked_trees::CheckedStructuralScalarArgumentPlan {
                 argument_ordinal: 1,
-                source_scalar_parameter_index: 1,
+                source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+                    index: 1,
+                },
                 target_scalar_parameter_index: 0,
                 primitive_type: PrimitiveType::I32,
             }],
@@ -564,7 +576,8 @@ fn install_structural_unit_join_fixture(checked: &mut CheckedTrees) {
         unreachable!()
     };
     when_false.transfers[0].source_parameter_index = 0;
-    when_false.scalar_arguments[0].source_scalar_parameter_index = 2;
+    when_false.scalar_arguments[0].source =
+        checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 2 };
     when_false.trivial_affine_discard_parameter_positions = vec![1];
 
     let join = SymbolHandle::from_arena_index(14);
@@ -578,7 +591,9 @@ fn install_structural_unit_join_fixture(checked: &mut CheckedTrees) {
             }],
             scalar_arguments: vec![checked_trees::CheckedStructuralScalarArgumentPlan {
                 argument_ordinal: 1,
-                source_scalar_parameter_index: 0,
+                source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+                    index: 0,
+                },
                 target_scalar_parameter_index: 0,
                 primitive_type: PrimitiveType::I32,
             }],
@@ -798,7 +813,8 @@ fn structural_unit_conditional_lowers_independent_transfer_cleanup_frontiers() {
     else {
         unreachable!()
     };
-    when_true.scalar_arguments[0].source_scalar_parameter_index = 0;
+    when_true.scalar_arguments[0].source =
+        checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 0 };
     assert!(matches!(
         lower_machine(&checked, "Root::enter"),
         Err(LoweringError::Unsupported(
@@ -1197,7 +1213,8 @@ fn structural_unit_control_fails_closed_on_stale_cleanup_or_signature() {
     else {
         unreachable!()
     };
-    scalar_arguments[0].source_scalar_parameter_index = 1;
+    scalar_arguments[0].source =
+        checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 };
     assert!(matches!(
         lower_machine(&checked, "Root::enter"),
         Err(LoweringError::Unsupported(

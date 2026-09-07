@@ -258,10 +258,11 @@ fn checked_scalar_and_view_edges_reject_other_same_typed_source_parameters() {
             when_true.transfers[0].source_parameter_index = 1;
         } else {
             assert_eq!(
-                when_true.scalar_arguments[0].source_scalar_parameter_index,
-                1
+                when_true.scalar_arguments[0].source,
+                checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 1 }
             );
-            when_true.scalar_arguments[0].source_scalar_parameter_index = 2;
+            when_true.scalar_arguments[0].source =
+                checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 2 };
         }
         rejected(&changed, "not the retained parameter binding");
     }

@@ -400,9 +400,18 @@ pub struct CheckedStructuralScalarArgumentPlan {
     /// Authored target-argument position retained as the checked expression
     /// coordinate.
     pub argument_ordinal: u32,
-    pub source_scalar_parameter_index: u32,
+    pub source: CheckedStructuralScalarArgumentSourcePlan,
     pub target_scalar_parameter_index: u32,
     pub primitive_type: PrimitiveType,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedStructuralScalarArgumentSourcePlan {
+    /// Exact source scalar parameter, including its source-name binding checks.
+    Parameter { index: u32 },
+    /// Existing checked TransitionArgument expression at the enclosing edge's
+    /// statement_ordinal and this argument's argument_ordinal.
+    Expression,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -703,7 +712,7 @@ pub struct CheckedComposedUnitControlStatePlan {
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
     pub scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
     pub entry_claims: Vec<CheckedUnitEntryClaimPlan>,
-    /// Ordered immutable primitive locals evaluated before this state's
+    /// Ordered primitive declarations and storage assignments before this state's
     /// effects and terminator. Initializer expressions remain in the exact
     /// checked scalar-expression table under these statement ordinals.
     pub bindings: Vec<CheckedScalarBinding>,
