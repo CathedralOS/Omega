@@ -6499,6 +6499,31 @@ the semantic wrapper commitment remains distinct from the physical UEFI entry
 commitment. Shell, continuation/provider, reserve, and invocation evidence
 remain outside this rung.
 
+## Borrowed-byte writer composition
+
+The ordinary std `ConsoleNativeProvider::write_line` adapter and its
+`console_write_bytes` helper exercise a selected provider parameter, an
+immutable byte view, and a slice-ranked loop with ordered effects. Their
+`console: Console` parameters have a plain named boundary-trait type, not the
+core routed `Service<R> in Bound` carrier. Extending
+Fused Service signature admission alone cannot realize this source closure.
+
+The executable closure must retain exact provider selection and the borrowed
+view alongside scalar parameters through ordinary calls and state edges.
+Length observation, the guarded head read, and the derived tail descriptor
+must use the selected edge's evaluation order. The emitted byte and optional
+newline precede normal return to the caller. Source slice-decrease checking
+in `validation/src/slice_ranking.rs` already checks the guarded `[1..]` route;
+executable ranking must retain that proof, not substitute a private countdown.
+
+The current ordinary Unit call closure consumes one-state plans. A separate
+multistate plan is insufficient until calls, structural/scalar transfers,
+byte-view operations, effect ordering, and ranking survive Terminal production
+and its independent consumers together. Empty/nonempty raw bytes, both newline
+settings, and caller continuation exercise this contract; an unguarded head
+read or unchanged tail must reject. A Console-specific intrinsic would bypass
+the checked source adapter rather than implement this composition.
+
 ## Implementation queue
 
 [`TASKS.md`](../../../TASKS.md) owns remaining terminal-Psi work. Temporary
