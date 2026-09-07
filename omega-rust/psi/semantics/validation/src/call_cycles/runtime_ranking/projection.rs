@@ -23,12 +23,14 @@ pub(super) struct RankProjection {
     pub(super) order: RankOrder,
     pub(super) parameter: SymbolHandle,
     pub(super) argument_position: usize,
+    pub(super) subject: ExpressionHandle,
+    pub(super) range: ExpressionHandle,
 }
 
 impl RankProjection {
     pub(super) fn resolve(program: &TypedTrees, machine: &Machine) -> Option<Self> {
         let witness = machine.termination_plan.implementation_witness.as_ref()?;
-        if !witness.view_arguments.is_empty() || witness.rank_range.is_some() {
+        if !witness.view_arguments.is_empty() {
             return None;
         }
         // Never rediscover the subject by scanning rendered expressions.
@@ -38,7 +40,8 @@ impl RankProjection {
         };
         if witness.subjects.len() != 1
             || !custody.view_arguments.is_empty()
-            || custody.rank_range.is_some()
+            || witness.rank_range.is_some() != custody.rank_range.is_some()
+            || custody.rank_range.is_some_and(|range| !range.is_valid())
         {
             return None;
         }
@@ -82,9 +85,11 @@ impl RankProjection {
                 order: RankOrder::Natural(primitive),
                 parameter: parameter.symbol,
                 argument_position,
+                subject: *subject,
+                range: custody.rank_range.unwrap_or_default(),
             });
         }
-        if witness.ranking_view.is_valid() {
+        if witness.ranking_view.is_valid() || custody.rank_range.is_some() {
             return None;
         }
         let TypeReferenceNode::Named { symbol: data, .. } = program
@@ -179,6 +184,8 @@ impl RankProjection {
             },
             parameter: parameter.symbol,
             argument_position,
+            subject: *subject,
+            range: ExpressionHandle::invalid(),
         })
     }
 

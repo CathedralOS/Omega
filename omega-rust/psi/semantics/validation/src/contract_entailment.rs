@@ -74,6 +74,9 @@ mod arithmetic_judgment;
 mod exit_coverage;
 mod inductive_judgment;
 mod ranking_range;
+pub(crate) use ranking_range::{
+    RankingRangeCallMember, RankingRangeCallProgress, prove_ranking_range_call,
+};
 
 pub use ranking_range::{
     RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises, RankingRangeState,

@@ -5,8 +5,13 @@ use super::*;
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeConstraintNode, TypeReferenceNode};
 
+mod calls;
 mod lengths;
 mod meanings;
+
+pub(crate) use calls::{
+    RankingRangeCallMember, RankingRangeCallProgress, prove_ranking_range_call,
+};
 
 #[cfg(test)]
 mod tests;
@@ -234,30 +239,7 @@ fn prove_edge(
     }) {
         return None;
     }
-    let mut bindings = Vec::new();
-    for parameter in parameters.iter().filter(|parameter| !parameter.is_self) {
-        let Some(primitive) = exact_integer_parameter(program, parameter.type_reference) else {
-            // Unrelated bool/record payloads need not be polynomials. Any use
-            // of one in the numeric obligation remains unresolved below.
-            continue;
-        };
-        if !parameter.symbol.is_valid() || parameter.is_mutable {
-            return None;
-        }
-        bindings.push(StrictArithmeticSymbolBinding {
-            symbol: parameter.symbol,
-            value: StrictArithmeticBindingValue::Atom {
-                identity: format!("\0ranking:{:?}", parameter.symbol),
-                unsigned: matches!(
-                    primitive,
-                    PrimitiveType::U8
-                        | PrimitiveType::U16
-                        | PrimitiveType::U32
-                        | PrimitiveType::U64
-                ),
-            },
-        });
-    }
+    let mut bindings = integer_bindings(program, state)?;
     if let Some(entry_parameters) = entry_parameters {
         for (parameter, entry_symbol) in parameters
             .iter()
@@ -723,6 +705,40 @@ fn validate_mapping(
     // Ordinary typed arrivals own that check; this query leaves both payload
     // symbols unbound and can prove only the independently numeric rank.
     Some(())
+}
+
+fn integer_bindings(
+    program: &TypedTrees,
+    state: &State,
+) -> Option<Vec<StrictArithmeticSymbolBinding>> {
+    let mut bindings = Vec::new();
+    for parameter in program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+    {
+        let Some(primitive) = exact_integer_parameter(program, parameter.type_reference) else {
+            // Unrelated payloads are never promoted to numeric facts.
+            continue;
+        };
+        if !parameter.symbol.is_valid() || parameter.is_mutable {
+            return None;
+        }
+        bindings.push(StrictArithmeticSymbolBinding {
+            symbol: parameter.symbol,
+            value: StrictArithmeticBindingValue::Atom {
+                identity: format!("\0ranking:{:?}", parameter.symbol),
+                unsigned: matches!(
+                    primitive,
+                    PrimitiveType::U8
+                        | PrimitiveType::U16
+                        | PrimitiveType::U32
+                        | PrimitiveType::U64
+                ),
+            },
+        });
+    }
+    Some(bindings)
 }
 
 fn exact_integer_parameter(

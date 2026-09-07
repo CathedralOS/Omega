@@ -3,6 +3,7 @@ use source::SourceMap;
 use source_files_to_tokens::Lexer;
 
 mod meaning;
+mod ranges;
 
 fn typed(body: &str) -> TypedTrees {
     typed_with_operator(body, "")
@@ -75,10 +76,10 @@ fn unchanged_occurrence_cannot_be_hidden_by_strict_pair_occurrence() {
 
 #[test]
 fn equality_graph_checks_every_cycle_not_only_one_dfs_path() {
-    assert!(equality_edges_are_acyclic(&[vec![1], vec![2], vec![]]));
-    assert!(!equality_edges_are_acyclic(&[vec![1], vec![2], vec![1]]));
-    assert!(!equality_edges_are_acyclic(&[vec![0]]));
-    assert!(!equality_edges_are_acyclic(&[vec![1, 2], vec![2], vec![1]]));
+    assert!(weak_edges_are_acyclic(&[vec![1], vec![2], vec![]]));
+    assert!(!weak_edges_are_acyclic(&[vec![1], vec![2], vec![1]]));
+    assert!(!weak_edges_are_acyclic(&[vec![0]]));
+    assert!(!weak_edges_are_acyclic(&[vec![1, 2], vec![2], vec![1]]));
 }
 
 #[test]
