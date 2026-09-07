@@ -117,6 +117,10 @@ fn production_usage_does_not_advertise_manifest_or_receipt_inputs() {
     assert!(!stderr.contains("manifest.json"), "stderr was: {stderr}");
     assert!(!stderr.contains("receipt.json"), "stderr was: {stderr}");
     assert!(!stderr.contains("lock assemble"), "stderr was: {stderr}");
+    assert!(
+        !stderr.contains("--package-root-policy"),
+        "stderr was: {stderr}"
+    );
 }
 
 #[test]
@@ -168,16 +172,14 @@ fn optimizer_rollback_cli_rejects_check_before_reading_source() {
     assert!(!stderr.contains("failed to read"));
 }
 
-#[test]
-fn package_native_cli_stops_at_missing_explicit_root_policy() {
-    let project = temp_path("package-root-policy");
-    let build_dir = temp_path("package-root-policy-build");
+fn accepted_claim_application() -> PathBuf {
+    let project = temp_path("package-acceptance");
     std::fs::create_dir(&project).expect("create package application");
     std::fs::write(
         project.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.application("cli-policy-probe");
+    builder.application("accepted-claim-app");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }
 "#,
@@ -195,11 +197,137 @@ machine Main::main(&mut self) { }
 "#,
     )
     .expect("write application source");
+    std::fs::canonicalize(project).expect("resolve package application directory")
+}
+
+#[test]
+fn package_native_cli_directs_missing_or_empty_lock_to_update() {
+    let project = accepted_claim_application();
+    let build_dir = temp_path("package-acceptance-build");
     let build_dir_argument = build_dir.to_string_lossy().into_owned();
-    let output = omega_in(
+    for empty_lock in [false, true] {
+        if empty_lock {
+            std::fs::write(project.join("omega.lock"), b"").expect("write empty lock");
+        }
+        let output = omega_in(
+            &project,
+            &[
+                "--output-only",
+                "--target",
+                "linux_x86_64",
+                "--build-dir",
+                &build_dir_argument,
+                "main.omg",
+            ],
+        );
+
+        let diagnostic = String::from_utf8_lossy(&output.stderr);
+        assert_eq!(output.status.code(), Some(1), "{diagnostic}");
+        assert!(diagnostic.contains("run omega update"), "{diagnostic}");
+        assert!(
+            !diagnostic.contains("--package-root-policy"),
+            "{diagnostic}"
+        );
+        if empty_lock {
+            assert!(
+                std::fs::read(project.join("omega.lock"))
+                    .unwrap()
+                    .is_empty()
+            );
+        } else {
+            assert!(!project.join("omega.lock").exists());
+            for expected in ["omega-package-review 1", "baseline none", "end-review"] {
+                assert!(
+                    diagnostic.lines().any(|line| line == expected),
+                    "{diagnostic}"
+                );
+            }
+            assert!(
+                diagnostic
+                    .lines()
+                    .any(|line| line.starts_with("candidate ")),
+                "{diagnostic}"
+            );
+            let package = diagnostic
+                .split("\npackage ")
+                .find(|section| section.starts_with("\"accepted-claim-app\" "))
+                .and_then(|section| section.split_once("\nend-package"))
+                .map(|(package, _)| package)
+                .unwrap_or_else(|| panic!("missing application policy section: {diagnostic}"));
+            assert!(
+                package.lines().any(|line| line == "change callable added"),
+                "{package}"
+            );
+            assert!(
+                package.lines().any(|line| {
+                    line.starts_with("decision row ") && line.ends_with(" pending")
+                }),
+                "{package}"
+            );
+        }
+    }
+    let _ = std::fs::remove_dir_all(project);
+    let _ = std::fs::remove_dir_all(build_dir);
+}
+
+#[test]
+fn package_native_cli_reuses_update_acceptance_before_publication() {
+    let project = accepted_claim_application();
+    let build_dir = temp_path("accepted-package-native-build");
+    let update = omega_in(
+        &project,
+        &["update", "--target", "linux_x86_64", "--offline"],
+    );
+    assert_eq!(
+        update.status.code(),
+        Some(3),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&update.stdout),
+        String::from_utf8_lossy(&update.stderr)
+    );
+    assert!(!project.join("omega.lock").exists());
+    let stdout = String::from_utf8_lossy(&update.stdout);
+    let review_paths: Vec<_> = stdout
+        .lines()
+        .filter_map(|line| line.strip_prefix("review: "))
+        .map(PathBuf::from)
+        .collect();
+    assert_eq!(review_paths.len(), 1, "{stdout}");
+    let review_path = &review_paths[0];
+    assert!(review_path.starts_with(project.join("build/package-manager")));
+    let document = std::fs::read_to_string(review_path).expect("read generated package review");
+    assert!(document.lines().any(|line| line.starts_with("decision ")));
+    // Only the generated review's decision tokens are owner-editable.
+    let accepted = document
+        .lines()
+        .map(|line| {
+            if line.starts_with("decision ") {
+                format!(
+                    "{} accept\n",
+                    line.strip_suffix(" pending")
+                        .expect("fresh pending decision")
+                )
+            } else {
+                format!("{line}\n")
+            }
+        })
+        .collect::<String>();
+    std::fs::write(review_path, accepted).expect("accept generated review decisions");
+    let resumed = omega_in(&project, &["update", "--resume", "--offline"]);
+    assert!(
+        resumed.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&resumed.stdout),
+        String::from_utf8_lossy(&resumed.stderr)
+    );
+    let accepted_lock = std::fs::read(project.join("omega.lock")).expect("read accepted lock");
+    assert!(!accepted_lock.is_empty());
+    let build_dir_argument = build_dir.to_string_lossy().into_owned();
+    let native = omega_in(
         &project,
         &[
             "--output-only",
+            "--offline",
             "--target",
             "linux_x86_64",
             "--build-dir",
@@ -207,44 +335,50 @@ machine Main::main(&mut self) { }
             "main.omg",
         ],
     );
-
-    assert_eq!(output.status.code(), Some(1));
-    assert!(
-        String::from_utf8_lossy(&output.stderr)
-            .contains("blocking rows but no explicit --package-root-policy"),
-        "stderr was: {}",
-        String::from_utf8_lossy(&output.stderr)
+    // TARGET-MATRICES in TASKS_OPTIMIZER.md owns the missing function-validation
+    // evidence producer. Package acceptance must reach that independent gate,
+    // not ask for another approval or weaken publication to make this test pass.
+    assert_eq!(
+        native.status.code(),
+        Some(1),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&native.stdout),
+        String::from_utf8_lossy(&native.stderr)
     );
-    let diagnostic = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        diagnostic.contains("package_name cli-policy-probe"),
-        "{diagnostic}"
+    assert_eq!(
+        String::from_utf8_lossy(&native.stderr).trim(),
+        "native publication requires compiler-function validation evidence"
     );
-    assert!(diagnostic.contains("conflict_begin"), "{diagnostic}");
-    assert!(diagnostic.contains("candidate_closure"), "{diagnostic}");
+    assert!(!String::from_utf8_lossy(&native.stdout).contains("published native output"));
+    assert_eq!(
+        std::fs::read(project.join("omega.lock")).expect("read lock after native build"),
+        accepted_lock,
+        "native compilation changed project acceptance"
+    );
     let _ = std::fs::remove_dir_all(project);
     let _ = std::fs::remove_dir_all(build_dir);
 }
 
 #[test]
-fn package_root_policy_is_not_a_check_or_standalone_input() {
-    let check = omega(&[
-        "--check",
-        "--package-root-policy",
-        "candidate.policy",
-        "missing.omg",
-    ]);
-    assert_eq!(check.status.code(), Some(1));
-    assert!(
-        String::from_utf8_lossy(&check.stderr)
-            .contains("requires native production from a build.omg project")
-    );
-
-    let missing = omega(&["--package-root-policy"]);
-    assert_eq!(missing.status.code(), Some(2));
-    assert!(
-        String::from_utf8_lossy(&missing.stderr).contains("--package-root-policy requires a file")
-    );
+fn obsolete_package_root_policy_is_an_unrecognized_option() {
+    for arguments in [
+        vec!["--package-root-policy"],
+        vec!["--package-root-policy", "candidate.policy", "missing.omg"],
+        vec![
+            "--check",
+            "--package-root-policy",
+            "candidate.policy",
+            "missing.omg",
+        ],
+    ] {
+        let output = omega(&arguments);
+        let diagnostic = String::from_utf8_lossy(&output.stderr);
+        assert_eq!(output.status.code(), Some(2), "{diagnostic}");
+        assert!(
+            diagnostic.contains("unrecognized option `--package-root-policy`"),
+            "{diagnostic}"
+        );
+    }
 }
 
 #[test]
@@ -270,7 +404,7 @@ fn source_audit_requires_an_explicit_supported_adapter() {
 /// with zero artifacts written.
 ///
 /// This drives a real sample on purpose. The synthetic project in
-/// `native_production_requires_an_explicit_package_root_policy` exercises the same
+/// `package_native_cli_directs_missing_or_empty_lock_to_update` exercises the same
 /// route and passes either way, because its machine is shallow enough to fit in a
 /// mebibyte. Deeply nested source does not discriminate either: the parser's own
 /// 1024-level guard is reached identically on both stack sizes. Only a real sample
@@ -294,12 +428,12 @@ fn the_primary_native_route_survives_a_real_sample() {
     assert_eq!(
         output.status.code(),
         Some(1),
-        "expected the package-root-policy diagnostic, stderr was:{}{stderr}",
+        "expected the package acceptance diagnostic, stderr was:{}{stderr}",
         "
 "
     );
     assert!(
-        stderr.contains("blocking rows but no explicit --package-root-policy"),
+        stderr.contains("run omega update"),
         "stderr was:{}{stderr}",
         "
 "

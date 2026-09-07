@@ -31,8 +31,8 @@ fn offline_combines_with_existing_compilation_options() {
             "build directory",
             "--target",
             "linux_x64",
-            "--package-root-policy",
-            "policy.txt",
+            "--disable-optimization",
+            "ControlFlowCleanup",
             "main.omg",
         ]
         .into_iter()
@@ -44,10 +44,8 @@ fn offline_combines_with_existing_compilation_options() {
     assert!(parsed.output_only);
     assert_eq!(parsed.build_dir, Some(PathBuf::from("build directory")));
     assert_eq!(parsed.target_name.as_deref(), Some("linux_x64"));
-    assert_eq!(
-        parsed.package_root_policy,
-        Some(PathBuf::from("policy.txt"))
-    );
+    assert!(!parsed.optimization_rollback.is_empty());
+    assert_eq!(parsed.root_path, PathBuf::from("main.omg"));
 }
 
 #[test]
@@ -70,12 +68,7 @@ fn compilation_rejects_duplicate_offline_and_missing_root() {
 
 #[test]
 fn compilation_never_consumes_offline_as_an_option_value() {
-    for option in [
-        "--build-dir",
-        "--target",
-        "--package-root-policy",
-        "--disable-optimization",
-    ] {
+    for option in ["--build-dir", "--target", "--disable-optimization"] {
         let result = parse_arguments(
             [option, "--offline", "main.omg"]
                 .into_iter()
@@ -83,4 +76,19 @@ fn compilation_never_consumes_offline_as_an_option_value() {
         );
         assert!(matches!(result, Err(error) if error.contains("requires")));
     }
+}
+
+#[test]
+fn compilation_rejects_obsolete_package_root_policy_as_an_unknown_option() {
+    for arguments in [
+        vec!["--package-root-policy"],
+        vec!["--package-root-policy", "policy.txt", "main.omg"],
+        vec!["--check", "main.omg", "--package-root-policy", "policy.txt"],
+    ] {
+        let result = parse_arguments(arguments.iter().map(OsString::from));
+        assert!(
+            matches!(result, Err(error) if error == "unrecognized option `--package-root-policy`")
+        );
+    }
+    assert!(!usage().contains("--package-root-policy"));
 }

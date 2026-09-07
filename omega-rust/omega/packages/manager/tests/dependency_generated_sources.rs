@@ -1,3 +1,6 @@
+#[path = "support/accepted_policy.rs"]
+mod accepted_policy_fixture;
+
 use package_manager::resolution::graph::{
     PackageSourceClosureLimits, ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure,
     resolve_workspace_package_closure_with_storage,
@@ -5,9 +8,8 @@ use package_manager::resolution::graph::{
 use package_manager::resolution::source::ResolvePackageSourceError;
 use package_manager::review::{
     CanonicalPackageReconstructionQuestionLimits, CompileResolvedPackageReviewsError,
-    ReviewOnlyCapabilityConflictLimits, ReviewOnlyRootPolicyDisposition,
-    compare_review_only_initial_capabilities, compile_resolved_package_candidate_for_production,
-    compile_resolved_package_reviews, resolve_review_only_root_policy_decisions,
+    ReviewOnlyCapabilityConflictLimits, compile_resolved_package_candidate_for_production,
+    compile_resolved_package_reviews,
 };
 use package_source::{LocalSourceLimits, SourceLineage, SourceRelativePath, SourceResolverStorage};
 use std::path::{Path, PathBuf};
@@ -164,36 +166,13 @@ fn dependency_generated_source_enters_consumer_without_rerunning_the_dependency_
 
     let target = closure.for_exact_target(target::TargetProfile::WindowsX64);
     let conflict_limits = ReviewOnlyCapabilityConflictLimits::default();
-    let conflicts = compare_review_only_initial_capabilities(&reviews, &target, conflict_limits)
-        .expect("derive exact generated-source review decisions");
-    let decisions = conflicts
-        .packages()
-        .iter()
-        .flat_map(|package| {
-            package
-                .conflicts()
-                .iter()
-                .filter(|conflict| conflict.is_blocking())
-                .map(|conflict| {
-                    package
-                        .root_policy_decision(
-                            conflict,
-                            ReviewOnlyRootPolicyDisposition::AcceptCandidateChange,
-                        )
-                        .expect("bind generated-source decision to its exact package row")
-                })
-        })
-        .collect::<Vec<_>>();
-    let policy = (!decisions.is_empty()).then(|| {
-        resolve_review_only_root_policy_decisions(&conflicts, &decisions)
-            .expect("resolve generated-source blockers")
-    });
+    let policy = accepted_policy_fixture::accepted_policy(&target, &reviews);
     let accepted = accept_ordinary_closure_evidence(
         &target,
         &reviews,
         CanonicalPackageReconstructionQuestionLimits::default(),
         conflict_limits,
-        policy.as_ref(),
+        Some(&policy),
     )
     .expect("source-only acceptance retains generated-source ownership");
     for review in reviews.reviews() {

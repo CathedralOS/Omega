@@ -27,7 +27,7 @@ fn exact_compiler_rows_become_candidate_bound_review_conflicts() {
     let conflicts = candidate_conflicts::derive_and_assert(&scenario);
 
     historical_policy::assert_historical_policy(&scenario, &conflicts);
-    root_policy::assert_persistence_and_recovery(&scenario, &conflicts);
+    root_policy::assert_encoding_and_recovery(&scenario, &conflicts);
     conflict_behavior::assert_comparison_limits_and_risk_classes(&scenario, &conflicts);
     accepted_claims::assert_candidate_binding(&scenario, &conflicts);
     package_lock::assert_complete_lock(&scenario, &conflicts);

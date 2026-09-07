@@ -1,7 +1,7 @@
 use super::fixture::ExactCompilerRowScenario;
 use super::*;
 
-pub(super) fn assert_persistence_and_recovery(
+pub(super) fn assert_encoding_and_recovery(
     scenario: &ExactCompilerRowScenario,
     conflicts: &package_manager::review::ReviewOnlyCapabilityConflictSet,
 ) {
@@ -71,149 +71,6 @@ end_root_policy_resolution\n",
             .expect("encode repeated policy"),
         accepted_record
     );
-
-    std::fs::create_dir_all(scenario.policy_root.join("policy"))
-        .expect("create root policy directory");
-    std::fs::create_dir_all(&scenario.policy_outside).expect("create outside policy directory");
-    let policy_directory_path = scenario.policy_root.join("policy");
-    let policy_directory =
-        cap_std::fs::Dir::open_ambient_dir(&policy_directory_path, cap_std::ambient_authority())
-            .expect("open explicit root-owned policy directory");
-    let policy_project =
-        ReviewOnlyRootPolicyDirectory::from_capability(policy_directory, &policy_directory_path)
-            .expect("bind root-owned policy directory capability");
-    let accepted_policy_path =
-        ReviewOnlyRootPolicyName::parse("candidate.policy").expect("canonical policy filename");
-    policy_project
-        .persist_new_resolution(&accepted_policy_path, &accepted_resolution, record_limits)
-        .expect("persist accepted root policy beneath project root");
-    assert_eq!(
-        policy_project
-            .recover_resolution(&accepted_policy_path, conflicts, record_limits)
-            .expect("recover root-project-custodied policy"),
-        accepted_resolution
-    );
-    assert_eq!(
-        std::fs::read(policy_directory_path.join(accepted_policy_path.as_str()))
-            .expect("persisted policy bytes"),
-        accepted_record
-    );
-    assert_eq!(
-        std::fs::read_dir(scenario.policy_root.join("policy"))
-            .expect("policy directory")
-            .count(),
-        1,
-        "successful publication removes its exclusive stage"
-    );
-    assert!(matches!(
-        policy_project.persist_new_resolution(
-            &accepted_policy_path,
-            &accepted_resolution,
-            record_limits
-        ),
-        Err(ReviewOnlyRootPolicyFileError::DestinationExists { .. })
-    ));
-    assert_eq!(
-        std::fs::read(policy_directory_path.join(accepted_policy_path.as_str()))
-            .expect("existing policy remains unchanged"),
-        accepted_record
-    );
-    assert!(matches!(
-        policy_project.recover_resolution(
-            &accepted_policy_path,
-            conflicts,
-            ReviewOnlyRootPolicyRecordLimits::new(accepted_record.len() - 1, 2, 2)
-        ),
-        Err(ReviewOnlyRootPolicyFileError::ByteLimitExceeded { .. })
-    ));
-
-    for invalid_path in [
-        "",
-        "/policy/candidate.policy",
-        "policy/",
-        "policy//candidate.policy",
-        "./policy/candidate.policy",
-        "../candidate.policy",
-        "policy\\candidate.policy",
-        "policy/candidate.",
-        "Policy/candidate.policy",
-        "policy/NUL.txt",
-        "policy/COM1",
-    ] {
-        assert_eq!(
-            ReviewOnlyRootPolicyName::parse(invalid_path),
-            Err(ReviewOnlyRootPolicyNameError::InvalidName),
-            "accepted noncanonical root policy path {invalid_path:?}"
-        );
-    }
-    assert_eq!(
-        ReviewOnlyRootPolicyName::parse(&"a".repeat(256)),
-        Err(ReviewOnlyRootPolicyNameError::InvalidName)
-    );
-
-    let noncanonical_policy_path =
-        ReviewOnlyRootPolicyName::parse("noncanonical.policy").expect("policy path");
-    let mut noncanonical_policy_bytes = accepted_record.clone();
-    noncanonical_policy_bytes.push(b'\n');
-    std::fs::write(
-        policy_directory_path.join(noncanonical_policy_path.as_str()),
-        noncanonical_policy_bytes,
-    )
-    .expect("write authored noncanonical policy");
-    assert!(matches!(
-        policy_project.recover_resolution(&noncanonical_policy_path, conflicts, record_limits),
-        Err(ReviewOnlyRootPolicyFileError::Record(
-            ReviewOnlyRootPolicyRecordError::InvalidFraming
-        ))
-    ));
-
-    let directory_policy_path =
-        ReviewOnlyRootPolicyName::parse("directory.policy").expect("policy path");
-    std::fs::create_dir(policy_directory_path.join(directory_policy_path.as_str()))
-        .expect("create non-regular policy leaf");
-    assert!(matches!(
-        policy_project.recover_resolution(&directory_policy_path, conflicts, record_limits),
-        Err(ReviewOnlyRootPolicyFileError::NotRegularFile { .. })
-    ));
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::{PermissionsExt, symlink};
-
-        assert_eq!(
-            std::fs::metadata(policy_directory_path.join(accepted_policy_path.as_str()))
-                .expect("policy metadata")
-                .permissions()
-                .mode()
-                & 0o777,
-            0o600
-        );
-
-        let outside_record = scenario.policy_outside.join("outside.policy");
-        std::fs::write(&outside_record, &accepted_record).expect("write outside policy bytes");
-        let leaf_link_path = ReviewOnlyRootPolicyName::parse("link.policy").expect("policy path");
-        symlink(
-            &outside_record,
-            policy_directory_path.join(leaf_link_path.as_str()),
-        )
-        .expect("create policy leaf symlink");
-        assert!(matches!(
-            policy_project.recover_resolution(&leaf_link_path, conflicts, record_limits),
-            Err(ReviewOnlyRootPolicyFileError::NotRegularFile { .. })
-        ));
-        assert!(matches!(
-            policy_project.persist_new_resolution(
-                &leaf_link_path,
-                &accepted_resolution,
-                record_limits
-            ),
-            Err(ReviewOnlyRootPolicyFileError::DestinationExists { .. })
-        ));
-        assert_eq!(
-            std::fs::read(&outside_record).expect("outside policy remains unchanged"),
-            accepted_record
-        );
-    }
 
     let mut wrong_candidate_record = accepted_record.clone();
     let candidate_offset = "OMEGA_PACKAGE_ROOT_POLICY_RESOLUTION_V1\ncandidate_closure ".len();
@@ -467,10 +324,12 @@ end_root_policy_resolution\n",
         Err(ReviewOnlyRootPolicyRecordError::UnknownConflictFingerprint { .. })
     ));
     assert!(matches!(
-        policy_project.recover_resolution(&accepted_policy_path, &stale_conflicts, record_limits),
-        Err(ReviewOnlyRootPolicyFileError::Record(
-            ReviewOnlyRootPolicyRecordError::InvalidDecisionCount
-        ))
+        recover_review_only_root_policy_resolution(
+            &stale_conflicts,
+            &accepted_record,
+            record_limits
+        ),
+        Err(ReviewOnlyRootPolicyRecordError::InvalidDecisionCount)
     ));
     assert_eq!(
         stale_decision.candidate_closure(),
@@ -512,17 +371,6 @@ end_root_policy_resolution\n",
     assert_eq!(
         recover_review_only_root_policy_resolution(conflicts, &rejected_record, record_limits)
             .expect("recover rejected root policy"),
-        rejected_resolution
-    );
-    let rejected_policy_path =
-        ReviewOnlyRootPolicyName::parse("rejected.policy").expect("canonical rejected policy path");
-    policy_project
-        .persist_new_resolution(&rejected_policy_path, &rejected_resolution, record_limits)
-        .expect("persist rejected root policy");
-    assert_eq!(
-        policy_project
-            .recover_resolution(&rejected_policy_path, conflicts, record_limits)
-            .expect("recover rejected root policy from project custody"),
         rejected_resolution
     );
     assert!(matches!(

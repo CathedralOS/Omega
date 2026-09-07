@@ -29,8 +29,8 @@ pub use check_project::{
     CheckPreparedLocalProjectError, PreparedLocalProjectCheckRequest, check_prepared_local_project,
 };
 pub use compile_project::{
-    CompilePreparedLocalProjectNativeError, LocalProjectRootPolicy,
-    PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native,
+    CompilePreparedLocalProjectNativeError, PreparedLocalProjectNativeRequest,
+    compile_prepared_local_project_for_native,
 };
 pub use inspect_packages::{
     PackageInspectionError, PackageInspectionOptions, PackageInspectionOutcome, inspect_packages,

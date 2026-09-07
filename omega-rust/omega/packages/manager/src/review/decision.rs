@@ -4,7 +4,6 @@ mod model;
 mod policy;
 mod record;
 mod resolution;
-mod storage;
 
 pub use model::{ReviewOnlyRootPolicyDecision, ReviewOnlyRootPolicyDisposition};
 pub use policy::{
@@ -19,8 +18,4 @@ pub use record::{
 pub use resolution::{
     ReviewOnlyRootPolicyResolution, ReviewOnlyRootPolicyResolutionCommitment,
     ReviewOnlyRootPolicyResolutionError, resolve_review_only_root_policy_decisions,
-};
-pub use storage::{
-    ReviewOnlyRootPolicyDirectory, ReviewOnlyRootPolicyFileError, ReviewOnlyRootPolicyName,
-    ReviewOnlyRootPolicyNameError,
 };

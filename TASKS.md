@@ -144,30 +144,20 @@ the [Rust Compiler Completion Contract](wiki/pre_migration/releases/rust_compile
   unchanged checked text facts; the console dependencies below are also required.
 
   Work from the actual `cli_mvp` [command and route](samples/cli/basics/cli_mvp/README.md).
-  Windows x64 at `ae33d2b8a7`: `mbx run -p omega -- --target windows_x86_64 --build-dir build/cli-mvp-policy samples/cli/basics/cli_mvp/main.omg`
-  exits 1 at missing root policy. The diagnostic retains exact conflict identities
-  and source locations: std has one blocking `dangerous_authority` row for
-  `FilesystemHost` and four `opaque_blocking` `external_executable_supply` rows
-  for Console `read_line`, `read_byte`, `write_byte`, and `exit_process`.
   The macOS ARM64 outer command
   `CARGO_INCREMENTAL=0 cargo run -p omega -- --target macos_arm64
-  --build-dir build/cli-mvp-ranks samples/cli/basics/cli_mvp/main.omg` exits 1
-  after checked package review: `fresh package review has blocking rows but no
-  explicit --package-root-policy`. Implement
-  [single package acceptance](wiki/pre_migration/design_briefs/build_and_package_model.md#single-package-acceptance):
-  preserve accepted project policy as native preparation's comparison baseline,
-  check its join to fresh native requirements, and remove the duplicate file/flag.
-  A locked one-claim fixture at `09bab8091c` passes ordinary update/resume and
-  audit with unchanged accepted policy, yet native compilation requests a second
-  approval record. Reuse current policy comparison; do not build another acceptance
-  codec or UI. Owners: `packages/manager/src/operations/` and
-  `review/reconstruction/root_policy.rs`. Acceptance: unchanged accepted native
-  builds need no second approval; missing/new requirements use ordinary review;
-  resolution-only updates preserve grants and regeneration cannot invent them;
-  source changes remain visible with equal policy; stale evidence, receiving
-  denial, and unproved contracts still reject. This removes the policy blocker
-  without changing the independent native-lowering requirements. The inner sample
-  harness bypasses this policy route; independent writer work remains actionable.
+  --build-dir build/cli-mvp-ranks samples/cli/basics/cli_mvp/main.omg`
+  requires ordinary project acceptance before native production. Std's filesystem
+  authority and external Console leaves remain review findings, not implicit
+  grants. Do not manufacture acceptance merely to advance the sample. The inner
+  sample harness bypasses this policy route; independent writer work remains
+  actionable.
+
+  Native publication additionally depends on `TARGET-MATRICES` in
+  [TASKS_OPTIMIZER.md](TASKS_OPTIMIZER.md#verification-and-rollout): even the
+  accepted empty-entry package reaches publication without compiler-function
+  validation evidence. Keep this independent gate intact; package acceptance
+  does not provide that evidence.
 
   The macOS ARM64 outer CLI remains prohibitively slow in preliminary package
   validation. With production changes in `dcb670edfd`, the already-built binary

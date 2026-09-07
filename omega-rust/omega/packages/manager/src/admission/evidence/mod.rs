@@ -1,4 +1,4 @@
-//! Exact in-memory ordinary evidence after local replay and root admission.
+//! Exact in-memory ordinary evidence after fresh reconstruction and project-policy comparison.
 
 mod assembly;
 mod model;

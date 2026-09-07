@@ -4195,13 +4195,12 @@ Recorded acceptance is trusted project intent, never proof or permission to
 substitute stale evidence. Receiving-policy denial and unproved contracts still
 reject after package acceptance succeeds.
 
-Implementation status: this is the ratified contract, not implemented behavior.
-The native path still starts from empty policy and requires the duplicate flag.
-The remaining implementation is tracked in [TASKS.md](../../../TASKS.md). Controls
-must cover unchanged accepted native builds without a second approval; missing
-or new acceptance; resolution-only updates preserving grants; regeneration without
-an accepted baseline; source-change visibility with equal policy; and rejection
-of stale/substituted evidence, receiving-policy denial, and unproved contracts.
+The native implementation retains the accepted target during project preparation
+and checks its complete policy against the same fresh reviews used to reconstruct
+native obligations. See the [manager implementation](../../../omega-rust/omega/packages/manager/README.md).
+Regression coverage belongs beside preparation, native compilation, ordinary
+policy comparison, and admission; the CLI exercises update/resume followed by
+native compilation without another approval file.
 
 ### Core and ordinary library packages
 

@@ -1,22 +1,23 @@
-//! Exact in-memory association of fresh package obligations with root policy.
+//! Exact in-memory association of fresh obligations with accepted project policy.
 
 use super::{
     CanonicalPackageReconstructionQuestion, CanonicalPackageReconstructionQuestionError,
     CanonicalPackageReconstructionQuestionLimits, LocallyComposedPackageObligationResults,
 };
+use crate::lock::PackageLockTarget;
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use crate::review::{
-    CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet,
-    ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictError,
-    ReviewOnlyCapabilityConflictLimits, ReviewOnlyCapabilityConflictSet,
-    ReviewOnlyRootPolicyResolution, ReviewOnlyRootPolicyResolutionError,
-    compare_review_only_initial_capabilities, resolve_review_only_root_policy_decisions,
+    CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet, PackagePolicyChangeError,
+    PackagePolicyChangeLimits, PackagePolicyChangeSet, ReviewOnlyCapabilityConflictChange,
+    ReviewOnlyCapabilityConflictError, ReviewOnlyCapabilityConflictLimits,
+    ReviewOnlyCapabilityConflictSet, compare_package_policy_changes,
+    compare_review_only_initial_capabilities, render_package_policy_review,
 };
 use package_evidence::record::{PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk};
 use std::fmt;
 
-/// Freshly reconstructed obligations whose exact blocking review rows have
-/// been accepted by root policy.
+/// Freshly reconstructed obligations checked against the project's accepted
+/// normalized policy without requiring another decision for unchanged requirements.
 ///
 /// This is only an in-memory policy association. It is not complete package
 /// evidence, an accepted lock row, a `PackageInstance`, or permission to
@@ -25,7 +26,7 @@ use std::fmt;
 pub struct FreshPackageRootPolicyAcceptance {
     obligations: LocallyComposedPackageObligationResults,
     conflicts: ReviewOnlyCapabilityConflictSet,
-    root_policy: Option<ReviewOnlyRootPolicyResolution>,
+    policy_changes: PackagePolicyChangeSet,
 }
 
 impl FreshPackageRootPolicyAcceptance {
@@ -37,10 +38,10 @@ impl FreshPackageRootPolicyAcceptance {
         &self.conflicts
     }
 
-    /// Complete policy only when the fresh candidate has blocking rows.
-    /// Audit recommendations alone do not manufacture a policy record.
-    pub const fn root_policy(&self) -> Option<&ReviewOnlyRootPolicyResolution> {
-        self.root_policy.as_ref()
+    /// Fresh comparison against the project's accepted policy, including source
+    /// changes that remain visible even when no new decision is required.
+    pub const fn policy_changes(&self) -> &PackagePolicyChangeSet {
+        &self.policy_changes
     }
 }
 
@@ -48,11 +49,8 @@ impl FreshPackageRootPolicyAcceptance {
 pub enum FreshPackageRootPolicyError {
     Reconstruction(CanonicalPackageReconstructionQuestionError),
     ConflictComparison(ReviewOnlyCapabilityConflictError),
-    MissingRootPolicy,
-    UnexpectedRootPolicy,
-    InvalidRootPolicy(ReviewOnlyRootPolicyResolutionError),
-    RootPolicyReplayMismatch,
-    RejectedBlockingConflict,
+    PolicyComparison(PackagePolicyChangeError),
+    ReviewRequired(PackagePolicyChangeSet),
     UnresolvedLaterDischarge(PackageReviewCanonicalRowKind),
     OpenObligationConflictShapeMismatch(PackageReviewCanonicalRowKind),
     OpenObligationConflictSetMismatch(PackageReviewCanonicalRowKind),
@@ -70,19 +68,22 @@ impl fmt::Display for FreshPackageRootPolicyError {
                 formatter,
                 "fresh package root-policy conflict comparison failed: {error}"
             ),
-            Self::MissingRootPolicy => formatter
-                .write_str("fresh package candidate has blocking rows but no complete root policy"),
-            Self::UnexpectedRootPolicy => formatter.write_str(
-                "fresh package candidate has no blocking rows but was given root policy",
-            ),
-            Self::InvalidRootPolicy(error) => {
-                write!(formatter, "fresh package root policy is invalid: {error}")
+            Self::PolicyComparison(error) => {
+                write!(formatter, "fresh package policy comparison failed: {error}")
             }
-            Self::RootPolicyReplayMismatch => {
-                formatter.write_str("fresh package root policy differs from its canonical replay")
+            Self::ReviewRequired(changes) => {
+                writeln!(
+                    formatter,
+                    "package acceptance is missing or current requirements need review; run omega update --project <project> --target <target> and complete the package review"
+                )?;
+                match render_package_policy_review(changes, 16 * 1024 * 1024) {
+                    Ok(review) => formatter.write_str(&review),
+                    Err(error) => write!(
+                        formatter,
+                        "package review findings could not be rendered: {error}"
+                    ),
+                }
             }
-            Self::RejectedBlockingConflict => formatter
-                .write_str("fresh package root policy rejects at least one exact blocking row"),
             Self::UnresolvedLaterDischarge(kind) => write!(
                 formatter,
                 "fresh {kind:?} obligation requires a concrete later discharge and cannot be admitted by root policy",
@@ -107,11 +108,8 @@ impl std::error::Error for FreshPackageRootPolicyError {
         match self {
             Self::Reconstruction(error) => Some(error),
             Self::ConflictComparison(error) => Some(error),
-            Self::InvalidRootPolicy(error) => Some(error),
-            Self::MissingRootPolicy
-            | Self::UnexpectedRootPolicy
-            | Self::RootPolicyReplayMismatch
-            | Self::RejectedBlockingConflict
+            Self::PolicyComparison(error) => Some(error),
+            Self::ReviewRequired(_)
             | Self::UnresolvedLaterDischarge(_)
             | Self::OpenObligationConflictShapeMismatch(_)
             | Self::OpenObligationConflictSetMismatch(_)
@@ -120,24 +118,24 @@ impl std::error::Error for FreshPackageRootPolicyError {
     }
 }
 
-/// Reconstruct a fresh candidate and bind every exact blocking review row to
-/// the root policy that resolved that same candidate.
+/// Reconstruct a fresh candidate and check its current requirements against
+/// the project's accepted policy.
 ///
 /// The conflict set is deliberately rederived here. A caller cannot pair
-/// obligations from one source closure with decisions displayed for another.
+/// obligations from one source closure with policy compared for another.
 pub fn bind_fresh_package_root_policy(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
     reviews: &CompilerIssuedPackageReviewSet,
     reconstruction_limits: CanonicalPackageReconstructionQuestionLimits,
     conflict_limits: ReviewOnlyCapabilityConflictLimits,
-    root_policy: Option<&ReviewOnlyRootPolicyResolution>,
+    accepted: Option<&PackageLockTarget>,
 ) -> Result<FreshPackageRootPolicyAcceptance, FreshPackageRootPolicyError> {
     bind_root_policy_with_associated_reviews(
         target_closure,
         reviews,
         reconstruction_limits,
         conflict_limits,
-        root_policy,
+        accepted,
     )
     .map(|(acceptance, _)| acceptance)
 }
@@ -149,7 +147,7 @@ pub(crate) fn bind_root_policy_with_associated_reviews<'reviews>(
     reviews: &'reviews CompilerIssuedPackageReviewSet,
     reconstruction_limits: CanonicalPackageReconstructionQuestionLimits,
     conflict_limits: ReviewOnlyCapabilityConflictLimits,
-    root_policy: Option<&ReviewOnlyRootPolicyResolution>,
+    accepted: Option<&PackageLockTarget>,
 ) -> Result<
     (
         FreshPackageRootPolicyAcceptance,
@@ -184,34 +182,25 @@ pub(crate) fn bind_root_policy_with_associated_reviews<'reviews>(
 
     validate_open_obligation_conflicts(&obligations, &conflicts)?;
 
-    let has_blocking_conflicts = conflicts
-        .packages()
-        .iter()
-        .flat_map(|package| package.conflicts())
-        .any(|conflict| conflict.is_blocking());
-    let accepted_policy = match (has_blocking_conflicts, root_policy) {
-        (false, None) => None,
-        (false, Some(_)) => return Err(FreshPackageRootPolicyError::UnexpectedRootPolicy),
-        (true, None) => return Err(FreshPackageRootPolicyError::MissingRootPolicy),
-        (true, Some(policy)) => {
-            let replayed =
-                resolve_review_only_root_policy_decisions(&conflicts, policy.decisions())
-                    .map_err(FreshPackageRootPolicyError::InvalidRootPolicy)?;
-            if &replayed != policy {
-                return Err(FreshPackageRootPolicyError::RootPolicyReplayMismatch);
-            }
-            if !replayed.all_blocking_rows_accepted() {
-                return Err(FreshPackageRootPolicyError::RejectedBlockingConflict);
-            }
-            Some(replayed)
-        }
-    };
+    // Both projections belong to the same immutable compiler-issued reviews.
+    // Initial conflicts witness the obligation bijection only; project intent
+    // comes from the retained complete policy and the ordinary comparison.
+    let policy_changes = compare_package_policy_changes(
+        accepted,
+        reviews,
+        target_closure,
+        PackagePolicyChangeLimits::default(),
+    )
+    .map_err(FreshPackageRootPolicyError::PolicyComparison)?;
+    if accepted.is_none() || policy_changes.requires_decision() {
+        return Err(FreshPackageRootPolicyError::ReviewRequired(policy_changes));
+    }
 
     Ok((
         FreshPackageRootPolicyAcceptance {
             obligations,
             conflicts,
-            root_policy: accepted_policy,
+            policy_changes,
         },
         associated_reviews,
     ))

@@ -2,14 +2,15 @@ use super::{
     AcceptedOrdinaryClosureEvidence, AcceptedOrdinaryEvidenceError,
     AcceptedOrdinaryEvidenceSchemaIdentity, AcceptedOrdinaryPackageEvidence,
 };
+use crate::lock::PackageLockTarget;
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use crate::review::reconstruction::bind_root_policy_with_associated_reviews;
 use crate::review::{
     CanonicalPackageReconstructionQuestionLimits, CompilerIssuedPackageReviewSet,
-    ReviewOnlyCapabilityConflictLimits, ReviewOnlyRootPolicyResolution,
+    ReviewOnlyCapabilityConflictLimits,
 };
 
-/// Assemble the current checked closure with exact root-owned decisions.
+/// Assemble the current checked closure against the project's accepted policy.
 ///
 /// Revalidate live source custody, then share one exact review association
 /// through question, result, policy, and payload assembly. Decoded summaries
@@ -19,7 +20,7 @@ pub fn accept_ordinary_closure_evidence(
     reviews: &CompilerIssuedPackageReviewSet,
     reconstruction_limits: CanonicalPackageReconstructionQuestionLimits,
     conflict_limits: ReviewOnlyCapabilityConflictLimits,
-    root_policy: Option<&ReviewOnlyRootPolicyResolution>,
+    accepted: Option<&PackageLockTarget>,
 ) -> Result<AcceptedOrdinaryClosureEvidence, AcceptedOrdinaryEvidenceError> {
     let closure = target_closure.source_closure();
     super::validation::revalidate_source_custody(closure)?;
@@ -28,7 +29,7 @@ pub fn accept_ordinary_closure_evidence(
         reviews,
         reconstruction_limits,
         conflict_limits,
-        root_policy,
+        accepted,
     )
     .map_err(AcceptedOrdinaryEvidenceError::RootPolicy)?;
 
