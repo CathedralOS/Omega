@@ -382,9 +382,23 @@ pub(super) fn validate_unit_operation_static(
                     && is_structural_call_result(machine, argument.place)
                     && partial_affine_root_type(machine, argument.place).is_some()
             });
+            // Scalar inputs are independent of this result's residual custody.
+            // Only the Jump route validates their transport across cleanup;
+            // retain the separate final-return and parameter-root limits.
+            let scalar_result_continuation = !machine.parameters.is_empty()
+                && result_projection
+                && machine.blocks.iter().any(|block| {
+                    matches!(block.terminator, Terminator::Jump { .. })
+                        && block
+                            .operations
+                            .iter()
+                            .any(|candidate| candidate.id == operation.id)
+                });
             if projected
                 && (machine.result != TerminalMachineResult::Unit
-                    || (!machine.parameters.is_empty() && !exact_exclusive_projection)
+                    || (!machine.parameters.is_empty()
+                        && !exact_exclusive_projection
+                        && !scalar_result_continuation)
                     || (!result_projection && machine.structural_parameters.len() != 1)
                     || structural_arguments.len() != 1
                     || callee.structural_parameters.len() != 1)

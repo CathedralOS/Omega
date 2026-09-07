@@ -5,6 +5,32 @@ pub(super) fn assert_source(
     boundary: bool,
     expected: &[Vec<Vec<StructuralPathSegment>>],
 ) {
+    let ticks = if source.contains("Trace::tick") {
+        vec![integer(17)]
+    } else {
+        Vec::new()
+    };
+    assert_source_with_scalars(source, boundary, expected, &[], &ticks);
+}
+
+fn integer(value: u128) -> terminal_interpreter::TerminalScalarValue {
+    terminal_interpreter::TerminalScalarValue::Integer {
+        scalar_type: semantic_vocabulary::IntegerType::new(
+            semantic_vocabulary::IntegerSign::Unsigned,
+            16,
+        )
+        .unwrap(),
+        value: semantic_vocabulary::IntegerValue::Unsigned(value),
+    }
+}
+
+fn assert_source_with_scalars(
+    source: &str,
+    boundary: bool,
+    expected: &[Vec<Vec<StructuralPathSegment>>],
+    scalar_arguments: &[terminal_interpreter::TerminalScalarValue],
+    expected_ticks: &[terminal_interpreter::TerminalScalarValue],
+) {
     let checked = checked(source);
     let artifact = terminal_production::produce_terminal_artifact(&checked, "Root::enter")
         .unwrap_or_else(|error| panic!("{source}\n{error:?}"));
@@ -92,7 +118,7 @@ pub(super) fn assert_source(
             &semantic,
             &proof,
             &AdmissionProfile::default(),
-            &[],
+            scalar_arguments,
             &arguments,
         )
         .unwrap();
@@ -150,19 +176,7 @@ pub(super) fn assert_source(
         assert_eq!(before, vec![incremental; cleanups.len()]);
         assert_eq!(after, before);
         assert_eq!(factory.calls, if boundary { cleanups.len() } else { 0 });
-        if source.contains("Trace::tick") {
-            assert_eq!(
-                factory.ticks,
-                vec![terminal_interpreter::TerminalScalarValue::Integer {
-                    scalar_type: semantic_vocabulary::IntegerType::new(
-                        semantic_vocabulary::IntegerSign::Unsigned,
-                        16
-                    )
-                    .unwrap(),
-                    value: semantic_vocabulary::IntegerValue::Unsigned(17),
-                }]
-            );
-        }
+        assert_eq!(factory.ticks, expected_ticks);
         assert!(execution.live_affine_frontier().next().is_none());
         assert_eq!(meter.usage().total_units(), certificate.ceiling_units());
         let observed = (execution.effects().to_vec(), meter.usage().clone());
@@ -171,6 +185,148 @@ pub(super) fn assert_source(
         } else {
             reference = Some(observed);
         }
+    }
+}
+
+#[test]
+fn projected_result_continuations_preserve_distinct_entry_scalar_values() {
+    for boundary in [false, true] {
+        for (projection, empty, residuals) in [
+            ("right", false, vec![path(&["left"])]),
+            ("right", true, Vec::new()),
+            (
+                "grid[1]",
+                false,
+                vec![path(&["tail"]), path(&["grid", "0"]), path(&["left"])],
+            ),
+        ] {
+            let nested = projection == "grid[1]";
+            let consumer = if nested { "take_row" } else { "take" };
+            let source = anonymous_source(
+                boundary,
+                nested,
+                &format!("Sink::{consumer}(result.{projection}); Trace::tick(second); Trace::tick(first);"),
+            )
+            .replace("Root::enter(value: Pair) {", "Root::enter(first: u16, second: u16, value: Pair) reaches Trace {")
+            .replace("Root::enter() reaches Factory", "Root::enter(first: u16, second: u16) reaches Factory + Trace");
+            let source = format!(
+                "{source} boundary trait Trace {{ machine tick(value: u16) reaches Trace; }}"
+            );
+            let source = if empty {
+                source.replace("left: Token; right: Token;", "right: Token;")
+            } else {
+                source
+            };
+            for (first, second) in [(0, 65535), (391, 17)] {
+                assert_source_with_scalars(
+                    &source,
+                    boundary,
+                    std::slice::from_ref(&residuals),
+                    &[integer(first), integer(second)],
+                    &[integer(second), integer(first)],
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn scalar_result_continuations_reject_binding_and_cleanup_drift() {
+    let source = anonymous_source(
+        false,
+        false,
+        "Sink::take(result.right); Sink::number(first);",
+    )
+    .replace(
+        "Root::enter(value: Pair)",
+        "Root::enter(first: u16, value: Pair)",
+    );
+    let source = format!("{source} machine Sink::number(value: u16) {{}}");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked(&source), "Root::enter")
+        .expect("valid scalar result continuation before mutations");
+    let original = &lowered.semantic_module;
+    for mutation in 0..6 {
+        let mut changed = original.clone();
+        let caller = changed
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == original.entry)
+            .unwrap();
+        let block = caller
+            .blocks
+            .iter_mut()
+            .find(|block| matches!(block.terminator, Terminator::Jump { .. }))
+            .unwrap();
+        let Terminator::Jump {
+            target,
+            arguments,
+            residual_affine_discards,
+            ..
+        } = &mut block.terminator
+        else {
+            unreachable!()
+        };
+        let target = *target;
+        assert_eq!(arguments.len(), 1);
+        assert_eq!(residual_affine_discards.len(), 1);
+        match mutation {
+            0 => arguments.clear(),
+            1 => arguments[0] = semantic_vocabulary::ValueId::new(99999).unwrap(),
+            2 => residual_affine_discards.clear(),
+            3 => residual_affine_discards[0].path = path(&["right"]),
+            4 => {
+                let result = block
+                    .operations
+                    .iter_mut()
+                    .find_map(|operation| match &mut operation.result {
+                        OperationResult::Structural(result) => Some(result),
+                        _ => None,
+                    })
+                    .unwrap();
+                result.place = caller.structural_parameters[0].place;
+            }
+            5 => {
+                caller
+                    .blocks
+                    .iter_mut()
+                    .find(|block| block.id == target)
+                    .unwrap()
+                    .parameters[0]
+                    .scalar_type = semantic_vocabulary::ScalarType::Boolean;
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            terminal_verifier::verify_module(
+                &changed,
+                &lowered.proof_bundle,
+                &AdmissionProfile::default()
+            )
+            .is_err(),
+            "scalar continuation mutation {mutation} must reject"
+        );
+    }
+}
+
+#[test]
+fn scalar_projection_admission_keeps_parameter_and_final_return_limits() {
+    for body in [
+        "Sink::take(value.right); Sink::number(first);",
+        "Sink::take(Root::forward(value).right);",
+    ] {
+        let source = format!(
+            "data Token {{ value: u64; }} data Pair {{ left: Token; right: Token; }}
+             data Root {{}} data Sink {{}}
+             machine Root::forward(value: Pair) -> Pair {{ value }}
+             machine Sink::take(value: Token) {{}}
+             machine Sink::number(value: u16) {{}}
+             machine Root::enter(first: u16, value: Pair) {{ {body} }}"
+        );
+        assert!(
+            terminal_production::produce_terminal_artifact(&checked(&source), "Root::enter")
+                .is_err(),
+            "only result-root Jump continuations admit scalar callers"
+        );
     }
 }
 

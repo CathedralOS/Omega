@@ -583,7 +583,10 @@ Owners include
   Terminal Jump residual cleanup beyond acyclic Unit fallthrough with ordinary
   direct-register results and parameter roots: scalar bindings, boundary-result
   projections, and cyclic control need their own storage and edge replay without
-  delaying cleanup until final return.
+  delaying cleanup until final return. Preserve incoming scalar values before
+  earlier calls can clobber their ABI registers, and rejoin Jump aliases to
+  their actual parameter or operation-result identity; per-call argument
+  shuffle snapshots do not provide entry-value preservation.
   Extend the
   type-directed record/array complement in
   [Terminal Psi](wiki/architecture/pipeline/terminal_psi.md) to construction-local

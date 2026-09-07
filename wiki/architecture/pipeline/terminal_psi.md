@@ -1737,9 +1737,13 @@ Wider single-state Unit bodies use the ordinary statement sequencer and its
 ordinary/boundary producer, one owned structural argument, and the existing
 empty-body, effect-free Unit disposer. The exact producer expression, statement
 coordinate, result binding, selected transfer, and ordered residual permissions
-rejoin independently before lowering emits the residual `Jump`. Earlier scalar
-locals, later statements, and successive producing statements keep their authored
-order; every temporary dies before the next statement. Even an empty complement
+rejoin independently before lowering emits the residual `Jump`. Scalar caller
+parameters and earlier scalar locals retain their values through ordinary Jump
+bindings; scalar arity, type, and definition checks remain independent of the
+result root's residual custody. This admission applies to result-root Jump
+continuations, not parameter-root projections or partial final returns. Later
+statements and successive producing statements keep their authored order; every
+temporary dies before the next statement. Even an empty complement
 retains its checked continuation entry, while its Terminal jump needs no discard
 rows. Named partial results still use the separate partial-return plan. Multiple
 producers or effects within one consumer's argument list, non-Unit consumers,
