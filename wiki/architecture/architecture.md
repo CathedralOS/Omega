@@ -21,10 +21,9 @@ and its ownership boundaries.
 - [Authority Values And Boundary Evidence](../design_briefs/authority_values_and_boundary_evidence.md):
   transparent runtime authority carriers, routed qualification evidence,
   receipt-backed fact origination, and checked resource transformations.
-- [Terminal Psi, Fuel, And Resource Provisioning](../design_briefs/canonical_ir_fuel_and_resource_provisioning.md):
-  terminal-Psi identity and evidence, deterministic compiler-service budgets,
-  restricted fixed-work certificates, and capability-provisioned spatial
-  resources.
+- [Logical work and response](../spec/resources/logical_work.md) and
+  [provisioned storage](../spec/resources/storage.md): separate accounting,
+  bound-evidence, and concrete storage-authority contracts.
 
 ## Architecture Rule
 

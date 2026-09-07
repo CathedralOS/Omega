@@ -182,7 +182,7 @@ The cleanup is complete when:
 - The result preserves intended contracts, distinguishes unimplemented from
   unspecified behavior, and makes no unsupported formal-verification claim.
 
-Next executable step: consolidate the remaining Terminal operation, proof,
-encoding, and fuel reference into subject owners, deleting displaced
+Next executable step: consolidate the remaining Terminal operation and proof
+reference into subject owners, deleting displaced
 text and repairing its links in the same checkpoint. Do not start another
 planning pass before that replacement.

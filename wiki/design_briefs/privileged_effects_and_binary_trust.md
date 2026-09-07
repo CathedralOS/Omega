@@ -88,7 +88,8 @@ that native bytes refine IR is a different future PCC chain.
 
 Logical IR fuel, restricted fixed-work certificates, and spatial resource
 provisioning are specified in
-[`canonical_ir_fuel_and_resource_provisioning.md`](canonical_ir_fuel_and_resource_provisioning.md).
+[logical work](../spec/resources/logical_work.md) and
+[provisioned storage](../spec/resources/storage.md).
 
 The boundary of that derivation is explicit. Checked assembly cannot omit the
 instruction catalog's stack/control effects. An opaque provider must supply an

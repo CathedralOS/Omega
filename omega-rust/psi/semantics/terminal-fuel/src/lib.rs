@@ -4,8 +4,8 @@
 //!
 //! Logical fuel is deterministic portable work, not native instructions,
 //! cycles, energy, or elapsed time. The executing program cannot inspect this
-//! meter; an interpreter, evaluator, or trusted native realization owns it on
-//! behalf of the execution sponsor.
+//! meter; an interpreter, evaluator, or bounded compiler service owns it.
+//! Native execution has no implicit logical-fuel meter.
 
 use std::collections::BTreeMap;
 

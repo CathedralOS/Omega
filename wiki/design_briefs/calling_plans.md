@@ -1726,7 +1726,7 @@ installed-code context. Segment rows independently replay their exact installed
 occurrence, artifact, and entry stub after carriage without becoming
 whole-entry authority. They remain the implementation precursor to broader
 terminal-Psi maximum-logical-work and safe-point checking in
-[`canonical_ir_fuel_and_resource_provisioning.md`](canonical_ir_fuel_and_resource_provisioning.md),
+[logical work and response](../spec/resources/logical_work.md),
 not a general symbolic cost model. Migration of the remaining
 provider-authored hard-root rows remains.
 

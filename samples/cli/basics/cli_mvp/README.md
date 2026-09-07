@@ -125,7 +125,9 @@ or this native sample executes.
 The next writer acceptance is the actual authored closure through verified
 Terminal execution: empty/nonempty bytes, both newline choices, exact output
 order, and caller continuation. Unguarded head reads and unchanged tails reject.
-The governing contract is [borrowed-byte writer composition](../../../../wiki/architecture/pipeline/terminal_psi.md#borrowed-byte-writer-composition).
+The producer's [writer composition notes](../../../../omega-rust/psi/compiler/terminal-production/README.md#borrowed-byte-writer-composition)
+describe support and acceptance; the [byte-view specification](../../../../wiki/spec/terminal-psi/byte_views.md)
+owns the portable view rules.
 Native byte operations, Windows leaf settlement, receiver provisioning, and
 `read_line` capacity/live-length writeback remain downstream dependencies. These
 are code-inspected gaps, not claims that this sample has reached each failure.
