@@ -124,6 +124,11 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   unchanged checked text facts; the console dependencies below are also required.
 
   Work from the actual `cli_mvp` [command and route](samples/cli/basics/cli_mvp/README.md).
+  Windows x64 at `ae33d2b8a7`: `mbx run -p omega -- --target windows_x86_64 --build-dir build/cli-mvp-policy samples/cli/basics/cli_mvp/main.omg`
+  exits 1 at missing root policy. The diagnostic retains exact conflict identities
+  and source locations: std has one blocking `dangerous_authority` row for
+  `FilesystemHost` and four `opaque_blocking` `external_executable_supply` rows
+  for Console `read_line`, `read_byte`, `write_byte`, and `exit_process`.
   With production sources at `60b02a9fff`, the macOS ARM64 command
   `CARGO_INCREMENTAL=0 cargo run -p omega -- --target macos_arm64
   --build-dir build/cli-mvp-final samples/cli/basics/cli_mvp/main.omg` exits 1
