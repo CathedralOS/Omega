@@ -37,6 +37,16 @@ The encoder is a transparent definition, not a primitive invoking Beta. Its
 error-or-success result makes the root prove admission as well as encoding;
 there is no unchecked well-formed-source premise. Byte comparison, assembler
 agreement, a digest, or a proof of one instruction cannot discharge this root.
+The result is an admission abstraction of Beta's partial assembly relation:
+`Success(T)` must occur exactly for valid bounded source with those exact bytes.
+Keep invalid-source and exhausted-capacity results distinct, but P1 does not
+require replaying an assembler's rejected stdout prefix, process status, or
+diagnostic payload. In particular, the proof need not carry invalid-byte offsets
+through every successful traversal. This does not change D15's exact-offset,
+envelope-before-tokenization compiler behavior or any implementation outcome
+contract; it states which projection this encoding theorem establishes.
+Every raw byte, limit, malformed form, and EOF obligation still belongs to the
+total definitions. No invalid or unexamined source may reach `Success`.
 This is D9's encoding obligation, not a proof that the Beta-written evaluator
 implements Gamma. Equal tapes have identical deterministic Alpha behavior only
 under the same Alpha input and resource profile.

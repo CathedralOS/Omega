@@ -78,10 +78,16 @@ prerequisite to every lower-rung milestone.
   Do not adopt the per-byte Word counter or raise work just enough for the
   identity-fold diagnostic. Continue the bounded
   [connected-component experiment](wiki/design_briefs/bootstrap_cost_review.md#next-experiment-connected-components-not-a-partial-beta-dialect)
-  using the full-subject census to compare the existing balanced-Source route
-  against a coherent larger work/input/allocation provision. Include actual
-  state-dependent fold reuse, collection, ASCII/count, root, and missing encoder
-  costs; neither a no-op fold nor local-key counts select a complete route.
+  by consolidating one complete admission-encoder design and request/work/storage
+  ledger. The [whole-route comparison](wiki/design_briefs/bootstrap_cost_review.md#whole-route-comparison-real-state-and-coherent-provisions)
+  identifies remaining byte-step, collection, ASCII/count, operand/dispatch,
+  assertion, output, and finalization costs. Model the actual encoder state,
+  which need not retain the diagnostic tokenizer's complete token history.
+  P1's admission result need not reproduce rejected process traces or diagnostic
+  payloads; language diagnostics and invalid/exhausted distinctions stay intact.
+  Keep new helper families and provision changes paused until this consolidated
+  comparison supports a plausible complete route; do not substitute more
+  isolated probes. Larger profiles remain a candidate, not an established fit.
   Do not build a full certificate with the current linked-list scan recipe
   under 8 MiB: its traversal records alone exceed that extent. Do not promote
   another permanent helper family without this comparison, call the diagnostic
@@ -89,10 +95,10 @@ prerequisite to every lower-rung milestone.
   Acceptance needs a full-subject estimate with state-sharing assumptions and
   total definition/proof cost, not just a checked small sequence. Keep direct
   counting versus the shape intermediary in that whole-route comparison.
-  Resume evidence against `1b493b1b9d` on macOS arm64: the exact full source's
-  Gamma-produced lexical census exposes reuse for both recipes; the audited
-  linked-list traversal size floor rules out memoization alone at current input
-  provision. This census is an observation, not a checked source proposition.
+  Resume evidence against `efe1898f29` on macOS arm64: applying the existing
+  normalized balanced-fold recipe to source-emitted lexical states yields a
+  partial traversal scenario far above the current work provision. This is a
+  read-only cost census, not an executed full fold or a checked encoding claim.
   Exact identities, costs, and diagnostic invocation are in the cost review;
   this scratch experiment is not a retained repository entrypoint. Factoring
   regresses on the checked literal; its full-certificate cost remains unmeasured.
