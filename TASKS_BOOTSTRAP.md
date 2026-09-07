@@ -49,10 +49,15 @@ a general-purpose proof-system project or an end in itself.
 
 ## Dependencies
 
-P1–P5 group obligations, not a mandatory serial schedule. Proof work can advance
-against existing exact artifacts before Omega is complete. Runnable lower-rung
-development can also proceed under disclosed trust assumptions; it does not
-close a proof edge. Do not redirect all effort to execution merely because the
+P1–P5 below are task-group labels, not owner-question numbers or a mandatory
+serial schedule. P1 is the Gamma checker's proof that the entire selected
+evaluator Beta source encodes to its exact persisted Alpha tape; it is not a
+proof that the evaluator implements Gamma. An empty `OWNER_QUESTIONS.md` means
+there is no unanswered owner decision, not that these implementation tasks pass.
+Skip a task-local pause or blocker and continue independent work on this board.
+Proof work can advance against existing exact artifacts before Omega is complete.
+Runnable lower-rung development can also proceed under disclosed trust assumptions;
+it does not close a proof edge. Do not redirect all effort to execution merely because the
 checker has a longer acceptance path.
 
 Full self-hosting remains dependent on settled exercised Omega behavior, the
@@ -80,10 +85,11 @@ prerequisite to every lower-rung milestone.
   The full numerical request/work/storage ledger remains missing: actual
   equations, integrated proof recipes, and encoder-state sharing have not been
   established. Do not select a larger profile from the partial costs.
-  **Scope pause:** ask the user whether to continue with one complete definition
-  package/integrated recipe as the next unit, or defer this strategy while
-  retaining the open P1 obligation. Until that direction, do not implement more
-  helper families or change provisions. This is not an owner-language blocker.
+  **Strategy pause:** retain the open P1 obligation, but do not add more isolated
+  helper families or change provisions without a defensible integrated cost
+  argument. Complete definitions and an integrated recipe remain the proposed
+  unit for evaluating that route; routine engineering choices do not require
+  an owner question. Continue independent bootstrap work while it is paused.
   Resume evidence against `c727cd624a` on macOS arm64: source/algebra review
   projects 4,494,082 work for the existing repeated output-successor recipe
   alone without cross-fact reuse; this is neither a full proof nor a lower bound.
@@ -96,9 +102,9 @@ prerequisite to every lower-rung milestone.
   may become a premise.
   Acceptance: a bounded simplification/retirement plan and evidence that the
   proposed proof route can plausibly reduce total audit burden, with extrapolated
-  cost distinguished from actual full-subject checks. Return for user direction
-  if the strategy is not justified; do not build an alternative language or
-  delete unreviewed machinery.
+  cost distinguished from actual full-subject checks. If the strategy is not
+  justified, preserve its evidence and continue elsewhere; do not build an
+  alternative language or delete unreviewed machinery.
 
 ## P1 - Gamma checker and first complete encoding proof
 
@@ -132,6 +138,15 @@ prerequisite to every lower-rung milestone.
   Gamma emission. The current Epsilon source plus a diagnostic entry already
   compiles; further optimization needs measured customer or conformance pressure,
   not a standing mandate to improve general transformation costs.
+  Resume evidence: canonical closure SHA-256 `2479e20b073df10c03cb00a22e415246451219ac3242acf53cf2b242449f9176`,
+  macOS arm64: `sh tests/delta/internal-boundary/run.sh` passes 80 observations;
+  `sh tests/delta/frontend-boundary/run.sh` passes 270 controls and 50 repeated
+  accepted compilation/application observations. `sh tests/epsilon/checking/run.sh`
+  reconstructs the unchanged 707,983-byte receipt and passes 60 judgments.
+  The retained argument-count contradiction is covered. Next audit the remaining
+  DCOUT obligations, including declaration metadata assertions in
+  `bootstrap/3_delta/compiler/implementation/checking/types.gamma`; their complete
+  owned-failure coverage is not established by these checks.
   Acceptance: Delta conformance and malformed-source gates pass, the exact
   Epsilon evaluator closure compiles through the selected route, and its
   available entries execute with measured resources and unchanged semantics.

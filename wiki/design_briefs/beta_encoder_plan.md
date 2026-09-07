@@ -1,6 +1,6 @@
 # First complete Beta encoder
 
-**Status: consolidated engineering candidate; not implementation approval or a
+**Status: consolidated engineering candidate; not a
 demonstrated resource fit.** This replaces the sequence of isolated encoder
 experiments as the proposed next integration unit. The customer is P1's entire
 [selected Gamma evaluator source and tape](../../bootstrap/2_gamma/EVALUATOR_PROFILE.md),
@@ -150,7 +150,7 @@ the cost review; a scalar limit edit would not establish containment.
 
 ## Integration boundary and scope decision
 
-If the user elects to continue this approach, use **one complete Beta definition
+When this approach has a defensible continuation, use **one complete Beta definition
 package and integrated recipe** as the next implementation unit, not another
 permanent helper experiment. Within `bootstrap/2_gamma/beta_encoding/`, keep the
 existing theory entrance; the encoder entrance should sequence admission, scan,
@@ -168,9 +168,10 @@ eventual full source-owned certificate and mutation/resource controls still
 determine P1 acceptance; finishing the package alone does not close the edge.
 
 **Disposition:** the algorithm is now concrete, but feasibility remains unproved.
-Pause implementation and request user scope direction: continue with that
-complete integration unit, or defer this proof strategy while preserving the
-open P1 obligation and disclosed trust assumptions. Do not delete existing
-machinery, substitute execution for proof closure, or silently move to another
-language. This is a prioritization checkpoint, not an unresolved language
+Pause isolated helper/provision implementation while assessing that complete
+integration unit; preserve the open P1 obligation and disclosed trust assumptions
+and continue independent actionable bootstrap work. Ordinary engineering choices
+are not owner questions and this pause is not a board-wide stop. Do not delete
+existing machinery, substitute execution for proof closure, or silently move to
+another language. This is a prioritization checkpoint, not an unresolved language
 decision for `OWNER_QUESTIONS.md`.
