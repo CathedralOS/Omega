@@ -95,6 +95,16 @@ fn fixed_array_length_proves_its_declared_return_range() {
 fn delivered_bounds(source: &str) -> Option<Interval> {
     let program = arrival_program(source);
     let machine = &program.machines()[0];
+    let batch = incoming_guard_environments(&program, machine);
+    assert_eq!(batch.len(), program.machine_states(machine).len());
+    for (state, (symbol, environment)) in program.machine_states(machine).iter().zip(&batch) {
+        assert_eq!(*symbol, state.symbol);
+        assert_eq!(
+            *environment,
+            incoming_guard_env(&program, machine, state),
+            "batched arrivals preserve each individual query: {source}",
+        );
+    }
     let state = program
         .machine_states(machine)
         .iter()

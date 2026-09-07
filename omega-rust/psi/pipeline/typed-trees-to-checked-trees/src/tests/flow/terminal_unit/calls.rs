@@ -1595,6 +1595,95 @@ fn retains_static_boundary_scalar_parameter_and_literal_argument() {
 }
 
 #[test]
+fn static_boundary_reaches_keep_every_direct_intrinsic_and_parameter_call() {
+    let original = checked(
+        r#"
+        pub boundary trait Console {
+            machine write_byte(byte: i32) reaches Console;
+            machine exit_process(code: i32) reaches Console;
+            machine unused(code: i32) reaches Console;
+        }
+        pub data ConsoleNativeProvider {}
+        boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+            satisfies Console::write_byte
+            reaches Console;
+        data Root {}
+        machine Root::enter<machine Selected>()
+        where machine Selected satisfies Console::exit_process;
+        reaches Console {
+            ConsoleNativeProvider::write_byte(1);
+            ConsoleNativeProvider::write_byte(2);
+            Console::write_byte(3);
+            Selected(0);
+            Selected(0);
+        }
+        "#,
+    );
+    let definition = original
+        .typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Console")
+        .unwrap();
+    let signatures = original.typed.trait_machine_signatures(definition);
+    let requirement = |name: &str| {
+        signatures
+            .iter()
+            .find(|signature| signature.name.as_str() == name)
+            .unwrap()
+            .symbol
+    };
+    let write = requirement("write_byte");
+    let exit = requirement("exit_process");
+    let unused = requirement("unused");
+    let calls = original
+        .facts
+        .flow
+        .control
+        .calls
+        .iter()
+        .map(|(handle, _)| handle)
+        .collect::<Vec<_>>();
+    assert_eq!(calls.len(), 5);
+    let retained = |plans: &checked_trees::CheckedUnitEffectPlans, symbol| {
+        plans
+            .boundary_machines
+            .iter()
+            .any(|plan| plan.machine == symbol)
+    };
+    let plans = &original.facts.flow.terminal_unit_effects;
+    assert!(retained(plans, write));
+    assert!(retained(plans, exit));
+    assert!(
+        !retained(plans, unused),
+        "uncalled requirements stay absent"
+    );
+    for (call_ordinal, handle) in calls.iter().enumerate() {
+        let mut changed = original.clone();
+        let call = changed.facts.flow.control.calls.get_mut(*handle);
+        let empty = language_semantics::ServiceReachRowTable::EMPTY_ROW;
+        assert_ne!(call.service_reach.transitive, empty);
+        call.service_reach.transitive = empty;
+        let plans =
+            crate::flow::build_checked_unit_effect_plans(&changed.typed, &changed.facts, &[], &[]);
+        let (conflicted, independent) = if call_ordinal < 3 {
+            (write, exit)
+        } else {
+            (exit, write)
+        };
+        assert!(
+            !retained(&plans, conflicted),
+            "call {call_ordinal} must not lose its conflicting reach"
+        );
+        assert!(
+            retained(&plans, independent),
+            "another requirement retains its own evidence"
+        );
+        assert!(!retained(&plans, unused));
+    }
+}
+
+#[test]
 fn selected_console_exit_intrinsic_projects_the_exact_boundary_requirement() {
     let checked = checked(
         r#"
