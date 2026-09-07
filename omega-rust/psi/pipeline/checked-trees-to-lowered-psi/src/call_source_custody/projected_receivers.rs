@@ -9,8 +9,8 @@ use checked_trees::{
 use symbols::SymbolHandle;
 
 pub(crate) struct ReceiverSource {
-    root: SymbolHandle,
-    path: Vec<CheckedUnitStructuralPathSegment>,
+    pub(crate) root: SymbolHandle,
+    pub(crate) path: Vec<CheckedUnitStructuralPathSegment>,
     pub(crate) stamp: SymbolHandle,
 }
 
@@ -19,6 +19,27 @@ pub(crate) fn source(
     caller: SymbolHandle,
     state: SymbolHandle,
     expression: ExpressionHandle,
+) -> Result<ReceiverSource, LoweringError> {
+    resolve_source(checked, caller, state, expression, true)
+}
+
+/// Assignment targets can retain a declared parameter field without stamping
+/// the terminal Member node. Calls still require their captured endpoint stamp.
+pub(crate) fn store_destination(
+    checked: &CheckedTrees,
+    caller: SymbolHandle,
+    state: SymbolHandle,
+    expression: ExpressionHandle,
+) -> Result<ReceiverSource, LoweringError> {
+    resolve_source(checked, caller, state, expression, false)
+}
+
+fn resolve_source(
+    checked: &CheckedTrees,
+    caller: SymbolHandle,
+    state: SymbolHandle,
+    expression: ExpressionHandle,
+    require_endpoint_stamp: bool,
 ) -> Result<ReceiverSource, LoweringError> {
     let (machine, state) = crate::scalar_source_custody::authored_state(checked, state)?;
     if machine.symbol != caller {
@@ -36,7 +57,9 @@ pub(crate) fn source(
         match checked.expression_table.expression(cursor) {
             ExpressionNode::Member(member)
                 if member.case_variant.is_none()
-                    && (cursor != expression || member.member_symbol.is_valid()) =>
+                    && (!require_endpoint_stamp
+                        || cursor != expression
+                        || member.member_symbol.is_valid()) =>
             {
                 let field = validation::exact_self_field(&checked.typed, machine, cursor)
                     .or_else(|| {

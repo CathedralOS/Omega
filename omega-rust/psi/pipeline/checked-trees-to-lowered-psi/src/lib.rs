@@ -137,6 +137,7 @@ mod structural_call_return;
 mod structural_return;
 mod structural_scalar_return;
 mod structural_scalar_store;
+mod structural_scalar_store_source;
 mod structural_types;
 mod structural_unit_control;
 mod suspension_call_plan;

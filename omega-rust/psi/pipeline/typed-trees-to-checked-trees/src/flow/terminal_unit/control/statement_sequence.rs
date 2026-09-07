@@ -55,7 +55,7 @@ pub(super) fn has_statement_shape(
         .enumerate()
         .skip(construction_statement_count)
         .all(|(index, statement)| match statement {
-            StatementNode::Call(_) => true,
+            StatementNode::Call(_) | StatementNode::Assignment(_) => true,
             StatementNode::Expression(_) => {
                 call_occurrences::tail_call(program, state, index).is_some()
             }
@@ -76,6 +76,7 @@ pub(super) fn build(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
     entry_claims: &[CheckedUnitEntryClaimPlan],
     calls: &[&checked_trees::FlowCallFact],
     trivial_affine_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
@@ -92,6 +93,16 @@ pub(super) fn build(
     let mut structural_results = Vec::new();
     let mut call_count = 0_usize;
     let binders = machine_binders(program, machine);
+    let mut stores =
+        super::super::structural_scalar_store::build_structural_scalar_field_store_sequence(
+            program,
+            facts,
+            machine,
+            state,
+            structural_parameters,
+            scalar_parameters,
+        )?
+        .into_iter();
     for (index, statement) in program
         .statement_table
         .statements(state.statement_nodes)
@@ -102,6 +113,16 @@ pub(super) fn build(
         let statement_index = u32::try_from(index).ok()?;
         let mut structural_result = None;
         let result = match statement {
+            StatementNode::Assignment(_) => {
+                let store = stores.next()?;
+                if store.statement_index != statement_index {
+                    return None;
+                }
+                operations.push(CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
+                    store,
+                ));
+                continue;
+            }
             StatementNode::LocalData(local) => {
                 if local.is_mutable
                     || !program
