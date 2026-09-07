@@ -587,60 +587,77 @@ All three have empty stderr. These compiler observations corroborate the
 literal customer and failure order; they are distinct from the Gamma proof.
 The materialized diagnostic compiler is not retained.
 
-Against base `097353987159faefae43292a695a9ddd160fc732`, the ordinary-Gamma
-component proof checks on macOS arm64 with unchanged 655,360-work, 8-MiB request,
-and 16-MiB outer source-frame limits:
+Against base `802320b216f7dfa42cbe87ba44d3b1e47d3bd2e6`, both ordinary-Gamma
+component roots check on macOS arm64 in the same enlarged theory, with unchanged
+655,360-work, 8-MiB request, and 16-MiB outer source-frame limits:
 
 | Connected request | Bytes | Ground terms | Proof rows | Checked work | Seconds |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| All ten component fields | 207,208 | 912 | 1,624 | 24,489 | 11.962 |
+| History-bearing byte transition | 209,484 | 912 | 1,624 | 24,489 | 12.053 |
+| Local transition plus collection | 217,440 | 1,040 | 1,826 | 27,673 | 13.137 |
+| Same factoring without local-row reuse | 218,388 | 1,040 | 1,865 | 28,360 | 13.259 |
 
-The emitted theory is 148,240 bytes (55,100 more than the existing package),
-SHA-256 `5fe4bc413bf6187b8a9950f2051751443ab43296eef118ccc8feb44135877e20`.
-Its composed Gamma producer is 56,547 bytes, SHA-256
-`dc15d0bc1b9098ebd870b0d774bad44e3aacc87d427701462a91a1fcad1b6506`.
+The emitted theory is 150,516 bytes, SHA-256
+`d3a3991993d7a165f8048a856dc4ede533535e977fbc4747a480ada9d02b4a07`.
+Its composed Gamma producer is 61,795 bytes, SHA-256
+`728018a04171b9ce9724e246fdf671cf76062e17bf0bac39ef7bd6decf898f55`.
 The unchanged 63,504-byte checker diagnostic has SHA-256
 `8c91eefacbbd4517fa58e83da2fc96e35adb005bed6fc0f2296858ceb46537ce`.
-Theory formation plus a one-row control checks in 5.629 seconds; emission takes
-1.431 seconds. The unminimized theory retains all prior 57 functions.
+Emission takes 1.470 seconds. The original vocabulary and all 136 prior
+definition records remain byte-identical; seven definitions add 2,276 theory
+bytes and 5,248 composed source bytes. No sort or constructor was added.
 
-Changing owned raw comment bytes, a connected assertion value, or claimed output
-rejects with code 12 at coordinates 207,564, 193,212, and 207,348 respectively
-(12.267, 10.094, and 11.946 seconds). All processes return zero with empty stderr;
-checker rejection is an owned result, not a host failure. Five reused HEXWORD
-controls also match their expected observations against this theory: one digit,
-maximum Word, seventeen zeroes, an invalid trailing digit, and a false parsed
-value. No allocation peak, full-source encoding, or Windows execution is claimed.
+Changing owned raw comment bytes, a connected assertion value, claimed output,
+or the collected history at the second reused step rejects with code 12 at
+coordinates 217,796, 203,444, 217,580, and 196,856 respectively (13.420, 11.239,
+13.097, and 10.082 seconds). All processes return zero with empty stderr;
+checker rejection is an owned result, not a host failure. No allocation peak,
+full-source encoding, or Windows execution is claimed.
 
-Three cumulative prefixes use the same 912-term table; they are not independent
-component benchmarks:
+The cumulative tokenization prefixes retain each recipe's own complete ground
+table, not an identical table across recipes or isolated tokenizer inputs:
 
-| Root through field | Request bytes | Proof rows | Checked work |
+| Root through tokenization | Request bytes | Proof rows | Checked work |
 | --- | ---: | ---: | ---: |
-| Raw ASCII | 173,540 | 134 | 2,609 |
-| Source capacity | 179,068 | 380 | 5,137 |
-| Tokenization | 190,580 | 879 | 14,384 |
+| History-bearing | 192,856 | 879 | 14,384 |
+| Factored | 200,812 | 1,081 | 17,568 |
 
-Tokenization adds 9,247 work in this ordered recipe. Scaling the complete small
+These check in 9.602 and 10.519 seconds. Earlier unchanged ASCII/capacity
+prefixes cost 2,609/5,137 work; original tokenization adds 9,247 in that ordered
+recipe. Scaling the original complete small
 request by `46484/24` gives about 47.43 million work, **only a sample-mix scenario,
 neither measured demand nor a bound**. Fixed formation/root costs, repeated-token
 and arithmetic facts, actual token lengths, and omitted encoder obligations
 prevent this extrapolation from selecting a provision.
 
-The visible sharing problem is that every byte transition takes the full
-completed-token history. Otherwise equal local steps become different closed
-propositions. Next compare a transition over only comment mode and pending
-bytes, returning updated local state and any completed token, with collection
-owned separately. Recheck the same literal token sequence and demonstrate one
-closed transition reused under two different histories. Count extra definitions,
-collection proofs, and root composition: the scanner as a whole still depends
-on history. Then measure actual full-subject reuse with a source-owned census;
-do not assume this factoring or fusion makes the complete certificate fit.
+The alternative reuses the original total byte transition with empty history,
+then prepends its token delta to the actual history. Collection is total for
+arbitrary finite deltas; zero/one token follows from the local transition cases,
+not an unchecked premise. Source case analysis relates ordinary/comment steps
+and separator/semicolon flushing to the original transition; both scanners
+finish with the same function. This is source reasoning, not a checked universal
+theorem. The checked roots establish the literal case and its ten fields.
 
-The reproducible local scratch is retained outside the repository at
-`/tmp/omega-components-probe.zy22J8`: `python3 -B` with `proof.py` checks the root,
-and with `mutations.py` checks the three mutations. It imports unchanged literal
-recipes from the pre-existing `/private/tmp/omega-beta-hexword.qiJde0` worktree.
+The 24 local uses share 21 distinct proofs. In particular, zero-based source
+positions 4 and 20 both consume `r` from empty pending bytes, using the same
+checked row 516 under one-token and four-token histories. Reusing local rows
+saves 687 work versus the uncached factored recipe. Without that reuse, the
+factored recipe costs 3,871 more than the original: a net **3,184-work (13.0%) regression**. Request
+size also grows 7,956 bytes under the same theory. Do not adopt this interface
+merely because local sharing is possible.
+
+Next use a source-owned census of the complete subject to measure local,
+history-bearing, and collection keys before expanding the proof producer.
+Both recipes can reuse repeated bytes while a comment's history is unchanged;
+give both those opportunities. Count collection, fold, ASCII/count, root, and
+missing encoder costs alongside local reuse. Neither this factoring nor fusion
+has established a feasible full certificate or justified a larger provision.
+
+Local continuation material remains outside the repository:
+`/tmp/omega-lexical-factoring.RD0U2V/compare.py` takes `prepare`, `positive`, or
+`mutations`; `controls.py` takes `uncached` or `history` (all with `python3 -B`).
+It reads the previous `/tmp/omega-components-probe.zy22J8` experiment, which
+imports literal recipes from `/private/tmp/omega-beta-hexword.qiJde0`.
 These local paths are continuation material, not portable repository commands
 or accepted artifacts; preserve them until the bounded comparison resolves
 retention. No permanent helper or runtime provision changed at this checkpoint.
