@@ -113,8 +113,9 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   validation yet.
   The ordinary Unit planner in
   `typed-trees-to-checked-trees/src/flow/terminal_unit/control.rs` requires one
-  authored state, and the composed-control routes admit specific acyclic
-  shapes. Producer widening alone cannot close this: general cyclic validation
+  authored state. General acyclic call-only graphs are retained, but state-local
+  construction and writes still need shared body lowering. Producer widening
+  alone cannot close this: general cyclic validation
   and execution remain missing under `GENERAL-CYCLIC-EXECUTION` below.
   Retain the actual state graph, field arithmetic, text initialization, and
   runtime-indexed byte stores; do not synthesize separate one-state machines.
@@ -122,25 +123,27 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   Acceptance remains native execution with the documented exit/output and
   unchanged checked text facts; the console dependencies below are also required.
 
-  Resume the native `cli_mvp` customer at code checkpoint `229540c1ae`.
-  On Windows x64, set `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp` and run
-  `mbx nextest run -p compiler --test samples_compile --no-fail-fast -E 'test(=samples_with_documented_exit_run_correctly)'`.
-  This exits 100 before execution: `InvalidUnitMachinePlan` names
-  `ConsoleNativeProvider::write_line` with a missing checked transitive machine
-  plan. Next retain the free helper's borrowed-view state transfers in the shared call graph for the
+  Resume the native `cli_mvp` customer at code checkpoint `6901c9214c`.
+  On macOS ARM64, `CARGO_INCREMENTAL=0 OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
+  cargo nextest run -p compiler --test samples_compile
+  samples_with_documented_exit_run_correctly --no-fail-fast` exits 100 before
+  execution: `InvalidUnitMachinePlan` names `ConsoleNativeProvider::write_line`
+  with a missing checked transitive machine plan. Next retain state-local scalar
+  construction and selected-edge byte observations for the
   [borrowed-byte writer closure](wiki/architecture/pipeline/terminal_psi.md#borrowed-byte-writer-composition)
   in `typed-trees-to-checked-trees/src/flow/terminal_unit/` and
   `checked-trees-to-lowered-psi/src/attached_unit/`.
-  Three-state scalar callees, including free helpers, use the shared body catalog; extend that path
-  to the writer without splitting authored states into synthetic machines.
+  Extend shared state-body construction and graph emission to the writer without
+  splitting authored states into synthetic machines. Its `let mut output` bodies,
+  computed scalar successor operands, and derived tail views remain unsupported.
   The private writer calls its concrete provider's byte leaf directly; extending
   plain boundary-trait or `Service` forwarding is not a prerequisite.
   The callable plan must retain exact intrinsic settlement, view/scalar transfers,
   length and guarded head/tail observations at selected edges, and
   slice-decrease evidence.
-  Terminal state-edge transfer and repeated-producer descriptor rebinding remain
-  necessary for that loop; native whole-byte-view layout, length, indexed reads,
-  and subslice realization are also still missing.
+  Changing structural state-edge bindings and repeated-producer descriptor
+  rebinding remain necessary for that loop; native whole-byte-view layout,
+  length, indexed reads, and subslice realization are also still missing.
   Acceptance: empty/nonempty bytes and both newline settings preserve exact
   output order and caller continuation; unguarded head reads and unchanged
   tails reject. Re-run the same sample before choosing its next dependency.
