@@ -11,6 +11,31 @@ fn arrival_program(source: &str) -> TypedTrees {
 }
 
 #[test]
+fn a_live_unsigned_ceiling_proves_joint_addition_fits_its_carrier() {
+    let source = "machine sum(left: u64, right: u64, capacity: u64) -> u64
+        requires right <= capacity;
+        { transition left <= capacity - right {
+            true -> (left + right)
+            false -> 0
+        } }";
+    for source in [
+        source.to_owned(),
+        source.replace("left <= capacity - right", "capacity - right >= left"),
+    ] {
+        let result = crate::validate_program(&arrival_program(&source));
+        assert!(result.is_ok(), "{source}: {result:?}");
+    }
+    for source in [
+        source.replace("requires right <= capacity;", ""),
+        source.replace("true -> (left + right)", "true -> (left + right + 1)"),
+        source.replace("left <= capacity - right", "left >= capacity - right"),
+    ] {
+        let result = crate::validate_program(&arrival_program(&source));
+        assert!(result.is_err(), "{source}");
+    }
+}
+
+#[test]
 fn fixed_array_length_proves_its_declared_return_range() {
     for (source, accepted) in [
         (

@@ -598,6 +598,8 @@ pub(super) fn narrow_env_by_condition(
 /// interval. The subtraction is total for unsigned carriers and for signed
 /// carriers when the current path already proves `right >= 0`; the comparison
 /// is then exactly the upper no-overflow condition for `left + right`.
+/// An Exact unsigned ceiling below MAX also suffices when prior facts prove
+/// that its subtraction of `right` is total.
 fn joint_add_upper_guard(
     program: &TypedTrees,
     machine: &Machine,
@@ -647,7 +649,29 @@ fn joint_add_upper_guard(
         }
         _ => false,
     };
-    if !maximum_matches {
+    // A smaller unsigned ceiling suffices too: left <= ceiling - right
+    // proves left + right <= ceiling <= MAX. Admit the subtraction only
+    // when earlier live facts already establish its nonnegative result.
+    let bounded_unsigned_difference =
+        matches!(
+            left_primitive,
+            PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
+        ) && declared_place_type_raw(program, machine, state, subtract.left).is_some_and(
+            |bound_type| {
+                program.primitive_type_reference(bound_type) == Some(left_primitive)
+                    && program.arithmetic_domain_for_type_reference(bound_type)
+                        == ArithmeticDomain::Exact
+            },
+        ) && ordered_values::subtract_floor(
+            program,
+            machine,
+            state,
+            env,
+            subtract.left,
+            subtract.right,
+        )
+        .is_some_and(|floor| floor >= 0);
+    if !maximum_matches && !bounded_unsigned_difference {
         return None;
     }
     Some((place_path(program, left)?, right_path))

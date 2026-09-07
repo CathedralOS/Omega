@@ -15,7 +15,10 @@ pub(super) fn preserves_rank(
     statement: &StatementNode,
     frames: Option<&CallFrameResolver<'_>>,
 ) -> bool {
-    if !matches!(rank.order, RankOrder::Natural(_)) {
+    if !matches!(
+        rank.order,
+        RankOrder::Natural(_) | RankOrder::IncreasingTo(_)
+    ) {
         return false;
     }
     let StatementNode::Assignment(assignment) = statement else {

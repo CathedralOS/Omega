@@ -30,8 +30,20 @@ pub(crate) fn prove_ranking_range_call(
     if caller.machine.symbol == callee.machine.symbol {
         return None;
     }
-    let source = scalar_entry(program, &caller)?;
-    let destination = scalar_entry(program, &callee)?;
+    let (source, source_measure) = scalar_entry(program, &caller)?;
+    let (destination, destination_measure) = scalar_entry(program, &callee)?;
+    if !matches!(
+        (source_measure, destination_measure),
+        (
+            RankingRangeMeasure::Single(_),
+            RankingRangeMeasure::Single(_)
+        ) | (
+            RankingRangeMeasure::IncreasingTo { .. },
+            RankingRangeMeasure::IncreasingTo { .. }
+        )
+    ) {
+        return None;
+    }
     let admit_source =
         |expression| meanings::builtin(program, caller.machine, source, expression, 0);
     let admit_destination =
@@ -55,6 +67,12 @@ pub(crate) fn prove_ranking_range_call(
     ] {
         admit_destination(expression)?;
     }
+    if let RankingRangeMeasure::IncreasingTo { limit, .. } = source_measure {
+        admit_source(limit)?;
+    }
+    if let RankingRangeMeasure::IncreasingTo { limit, .. } = destination_measure {
+        admit_destination(limit)?;
+    }
     for &(guard, _) in guards {
         admit_source(guard)?;
     }
@@ -71,7 +89,11 @@ pub(crate) fn prove_ranking_range_call(
     for &(guard, holds) in guards {
         collect_guard(&mut engine, guard, holds, &mut comparisons, 0)?;
     }
-    let rank = engine.normalize(caller.subject)?;
+    let rank = produced_rank(&mut engine, source_measure)?;
+    let view_bound = match source_measure {
+        RankingRangeMeasure::IncreasingTo { limit, .. } => Some(engine.normalize(limit)?),
+        _ => None,
+    };
     let floor = engine.normalize(source_range.start)?;
     let ceiling = engine.normalize(source_range.end)?;
     if !engine.install_hypotheses(comparisons) {
@@ -102,7 +124,14 @@ pub(crate) fn prove_ranking_range_call(
     if !engine.bind_strict_arguments(&actuals) {
         return None;
     }
-    let next_rank = engine.normalize(callee.subject)?;
+    let next_rank = produced_rank(&mut engine, destination_measure)?;
+    let pinned_view_bound = match (view_bound, destination_measure) {
+        (Some(bound), RankingRangeMeasure::IncreasingTo { limit, .. }) => {
+            Some((bound, engine.normalize(limit)?))
+        }
+        (None, RankingRangeMeasure::Single(_)) => None,
+        _ => return None,
+    };
     let next_floor = engine.normalize(destination_range.start)?;
     let next_ceiling = engine.normalize(destination_range.end)?;
     if engine.requires_unsatisfiable {
@@ -111,6 +140,13 @@ pub(crate) fn prove_ranking_range_call(
     let prove = |polynomial: Polynomial, minimum: i64| {
         engine.prove_at_least(&engine.substituted(&polynomial), &BigInt::from_i64(minimum))
     };
+    // The view bound is independent of the optional authored range ceiling.
+    // Moving it cannot manufacture descent even inside a constant rank range.
+    if let Some((bound, next)) = pinned_view_bound
+        && (!prove(bound.sub(&next), 0) || !prove(next.sub(&bound), 0))
+    {
+        return None;
+    }
     if !prove(rank.clone(), 0)
         || !prove(rank.sub(&floor), 0)
         || !prove(ceiling.sub(&rank), i64::from(!source_range.end_inclusive))
@@ -135,27 +171,59 @@ pub(crate) fn prove_ranking_range_call(
     }
 }
 
+fn produced_rank(engine: &mut Engine<'_>, measure: RankingRangeMeasure) -> Option<Polynomial> {
+    match measure {
+        RankingRangeMeasure::Single(subject) => engine.normalize(subject),
+        // Raw subtraction denotes IncreasingTo's natural rank only on the
+        // branch where the caller and destination membership checks prove it
+        // nonnegative. No clamped after-limit case is assumed here.
+        RankingRangeMeasure::IncreasingTo { subject, limit } => {
+            Some(engine.normalize(limit)?.sub(&engine.normalize(subject)?))
+        }
+        _ => None,
+    }
+}
+
 fn scalar_entry<'program>(
     program: &'program TypedTrees,
     member: &RankingRangeCallMember<'_>,
-) -> Option<&'program State> {
+) -> Option<(&'program State, RankingRangeMeasure)> {
     let machine = program
         .machines()
         .iter()
         .find(|machine| machine.symbol == member.machine.symbol)?;
     let witness = machine.termination_plan.implementation_witness.as_ref()?;
     let custody = program.ranking_expression_custody_for(machine.symbol)?;
-    if witness.ranking_view != language_semantics::RankingViewId::NAT_DESCENDING
-        || Some(witness.view_path.as_str()) != witness.ranking_view.canonical_path()
+    if Some(witness.view_path.as_str()) != witness.ranking_view.canonical_path()
         || witness.subjects.len() != 1
-        || !witness.view_arguments.is_empty()
         || witness.rank_range.is_none()
         || custody.subjects.as_slice() != [member.subject]
         || custody.rank_range != Some(member.range)
-        || !custody.view_arguments.is_empty()
     {
         return None;
     }
+    let measure = match witness.ranking_view {
+        language_semantics::RankingViewId::NAT_DESCENDING
+            if witness.view_arguments.is_empty() && custody.view_arguments.is_empty() =>
+        {
+            RankingRangeMeasure::Single(member.subject)
+        }
+        language_semantics::RankingViewId::NAT_INCREASING_TO
+            if witness.view_arguments.len() == 1 =>
+        {
+            let [limit] = custody.view_arguments.as_slice() else {
+                return None;
+            };
+            if !limit.is_valid() {
+                return None;
+            }
+            RankingRangeMeasure::IncreasingTo {
+                subject: member.subject,
+                limit: *limit,
+            }
+        }
+        _ => return None,
+    };
     let [state] = program.machine_states(machine) else {
         return None;
     };
@@ -195,5 +263,5 @@ fn scalar_entry<'program>(
     {
         return None;
     }
-    Some(state)
+    Some((state, measure))
 }

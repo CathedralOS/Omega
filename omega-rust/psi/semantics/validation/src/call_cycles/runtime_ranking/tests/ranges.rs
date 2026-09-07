@@ -14,7 +14,10 @@ terminates by pending in floor..=ceiling;
     transition pending > floor { true -> self.first(floor, pending - 1, ceiling) false -> pending }
 }";
 
-fn progress(program: &TypedTrees, source_position: usize) -> Option<RankingRangeCallProgress> {
+pub(super) fn progress(
+    program: &TypedTrees,
+    source_position: usize,
+) -> Option<RankingRangeCallProgress> {
     let caller = &program.machines()[source_position];
     let callee = &program.machines()[1 - source_position];
     let source = &program.machine_states(caller)[0];
