@@ -65,8 +65,7 @@ identities; each comma-separated entry is an alternative authorized origin for
 the domain.
 
 The row must resolve to `Prop`. A machine returning `bool` does not become a
-predicate merely because it is written in call shape. Primitive and transparent
-proposition applications retain their exact normalized proposition identity.
+predicate merely because it is written in call shape. Logical expressions retain their exact normalized identity and dependencies.
 Eligible total, pure machine calls may still occur *inside* a proposition as
 denotational value terms under the ordinary fact-position rule; they do not run
 when qualification is checked, and their complete checked meaning remains in
@@ -78,8 +77,7 @@ call itself is not a domain predicate.
 For example, address-range geometry is stated rather than executed:
 
 ```omega
-pub proposition no_wrap(base: addr, length: u64) =
-    embed(base) + embed(length) <= addr::Bound;
+requires embed(base) + embed(length) <= addr::Bound;
 ```
 
 `addr::Bound` is a target-semantic compile-time constant supplied through the

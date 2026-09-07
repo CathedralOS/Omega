@@ -1,25 +1,75 @@
 # Design Brief: Mathematical Proofs
 
-Current as of 2026-08-28. Omega does not introduce a second proof language.
-Proofs use ordinary machines, data, contracts, domains, and ranked recursion;
-proof-only uses erase after checking.
+Settled direction: 2026-09-07; implementation migration remains open. This is
+one proof system expressed through ordinary machines, contracts, data, traits,
+and named conformances. Proof-only uses erase after checking.
 
-The proof language has one dedicated formula declaration. A `proposition`
-names a fact; ordinary proof machines establish it through `ensures` and use it
-through `requires` or proof expressions. Primitive propositions end in `;`,
-witness-bearing propositions publish one carrierless evidence interface as
-fingerprinted proof content, and transparent proposition definitions use `=`.
-The witness-bearing interface follows the proposition signature in an
-`evidence Interface;` clause. See
-[Law-Bearing Relations, Evidence, And Quotients](law_bearing_relations_and_quotients.md)
-for the complete source and evidence model.
+## Contract-first mathematical proofs
 
-Ambient proposition terms are erased and copyable. A one-shot permission or
-other consumable authority is an affine or linear Type carrier, possibly with
-zero runtime layout, and follows ordinary ownership rather than creating a
-second custody calculus for proofs. Resource-sensitive mathematics remains
-expressible as an object logic over user-defined carriers, proposition
-families, and entailment laws.
+Machines establish facts: their parameters bind subjects, their `requires`
+state assumptions, and their `ensures` state conclusions that the body must
+justify. A caller must establish the instantiated assumptions before relying
+on the conclusions. Naming a condition never proves it, and a failed proof
+search is not evidence that the condition is false.
+
+Traits bundle mathematical operations, witnesses, and checked laws. One named
+conformance supplies the bundle instead of threading every witness and law
+separately. Bundling is the chosen evidence-organization approach, not a proof
+that today's trait implementation expresses all mathematics. A bundle's
+available laws follow from its checked contract, not from its name.
+
+No dedicated formula declaration is required by the baseline. Optional naming
+syntax is an [unproven ergonomic candidate](proof_formula_syntax_candidates.md),
+not a prerequisite and not a substitute for general logic. This ruling replaces
+the previous declaration-centered design; it does not remove formulas or proofs
+from the checker. `Prop` may still name an internal logical sort without becoming
+an authored machine result or runtime carrier.
+
+The required mathematical capabilities are independent of that spelling:
+
+- Contracts express universal and existential claims, including nested claims
+  and quantification over arbitrary mathematical functions and predicates.
+  Quantifying only over executable machine declaration symbols is insufficient.
+- Proof-only mathematical values need not be executable. An existence proof
+  need not construct a runtime witness. Constructive witnesses can be bundled;
+  nonconstructive reasoning and any use of choice retain their assumptions.
+- Axioms are explicitly selectable and their transitive dependencies are
+  retained. Proof checking establishes a conclusion under those assumptions;
+  it does not certify their consistency.
+- General mathematics needs a specified account of dependent functions,
+  universes, equality, induction, and quotients. Existing specialized contract
+  automation is not evidence that this foundation is already implemented.
+
+The source spelling for general logical binders, predicate abstraction and
+passing, and noncomputable mathematical values remains to be specified. Support
+for different foundations, rather than different axioms within one foundation,
+requires a separate explicit treatment of universe, equality, computation, and
+proof-irrelevance rules. This ruling does not silently select those rules.
+
+Erased logical facts do not carry consumable authority. A one-shot permission
+is an affine or linear Type carrier, possibly with no runtime layout. Witness
+values retain their own identity, multiplicity, validity scope, and provenance;
+proving equal statements does not identify their chosen witnesses.
+
+## Migration acceptance
+
+Before retiring the implementation's old surface, exercise the replacement on:
+
+1. composition of two witness-and-law bundles, including exact substitution and
+   preservation of distinct witnesses;
+2. a genuinely higher-order theorem over arbitrary mathematical predicates or
+   functions, not an enumeration of executable declarations;
+3. nonconstructive existence under an explicit axiom choice, usable in proofs
+   but rejected as an executable witness without a constructive implementation;
+4. the same theorem checked under accepting and denying axiom policies, with
+   transitive assumptions surviving import, erasure, serialization, and replay;
+5. a Cauchy/quotient proof and its false twins, preserving representative
+   independence and explicit law selection.
+
+Show the actual proof scripts and the checking rules they need. Do not claim
+full mathematical expressivity from a mechanical rewrite or a passing simple
+example. Migration work and its remaining design dependencies live in
+`PROOF-CONTRACT-MIGRATION` in [TASKS.md](../../TASKS.md).
 
 ## Proof machines are ordinary machines
 
@@ -49,7 +99,9 @@ retired rather than treated as proof evidence.
 
 ## Quantification and proof data
 
-- Universal claims use machine parameters checked symbolically.
+- A theorem's machine parameters are checked symbolically. General nested
+  quantification and arbitrary mathematical-function binders remain required
+  beyond this existing mechanism.
 - A generic accepted axiom over `<machine M>` spends one grant on the
   normalized template statement and its required machine contract. Instances
   record the selected machine-contract identity but do not spend another
@@ -62,8 +114,8 @@ retired rather than treated as proof evidence.
   representation.
 
 Proof-only status is structural, not a `[proof]` or `[unbounded]` property.
-Anonymous binder syntax remains optional sugar to consider only if named
-predicates prove too verbose.
+General logical binders are a semantic requirement; their exact spelling and
+optional shorthand remain design work, not an executable-predicate restriction.
 
 Runtime fixed-width integers and addresses enter unbounded proof arithmetic
 through the total `embed(value) -> Int` projection, which also establishes the
@@ -170,6 +222,20 @@ compatibility event.
 
 ## Trust and accepted facts
 
+Selectable axioms are required, not fixed library truths that every project must
+accept. A theorem's published meaning includes its underlying calculus and exact
+transitive assumptions. A dependency cannot grant its own assumptions on behalf
+of its consumer; replay and reuse must respect the consumer's accepted policy.
+An inconsistent axiom set can establish false statements. Checking derivations
+neither detects all such inconsistency nor turns an admitted statement into an
+assumption-free guarantee. Mathematical admissions must not silently become
+runtime-safety or artifact-acceptance authority.
+
+Changing axioms within one calculus is distinct from changing its equality,
+universe, or computation rules. Cross-foundation reuse cannot be inferred from
+matching printed statements. Foundation identity and compatibility need explicit
+design; this is not authorization for an arbitrary checker-plugin mechanism.
+
 Omega has no `assume` or scattered `unsafe` block. Unproved claims enter through
 admission-bearing boundary contracts and root grants, producing explicit trust
 receipts only after owner policy accepts them. A bodyless `boundary machine`
@@ -233,15 +299,15 @@ The useful staging is:
 2. order and algebraic laws through explicit conformances;
 3. signed rational support, `FloatMeaning`, executable operation semantics,
    finite-float embeddings, and error bounds;
-4. proof-side `proposition` families, typed index telescopes, and carrierless
-   evidence;
+4. general proof-side relation expressions, typed index telescopes, and ordinary
+   witness-and-law bundles;
 5. sequence/Cauchy relation evidence, explicit `Equivalence`, quotient
    formation, and explicitly selected ordinary lifting theorems for `Real`; and
 6. approximation theorems connecting `Real` specifications to `f32`/`f64`
    implementations.
 
 Items 4 and 5 are ordered: evidence-bearing quotients cannot land before the
-proposition-family/index-telescope fragment. Relation properties are general
+relation-expression/index-telescope fragment. Relation properties are general
 mathematical conformances rather than quotient-private proof slots. See
 [Law-Bearing Relations, Evidence, And Quotients](law_bearing_relations_and_quotients.md).
 
@@ -249,6 +315,7 @@ mathematical conformances rather than quotient-private proof slots. See
 
 - derivation-record and small-kernel formats;
 - whether reified goal values ever earn a tactic-machine API;
-- binder sugar for one-off relational predicates;
+- general logical binders, predicate naming/passing, and noncomputable values;
+- universe/equality rules and the scope of multiple-foundation support;
 - full polynomial normalization and additional algebraic structures; and
 - the `Real` library corpus and approximation-policy surface.

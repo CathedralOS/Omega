@@ -407,6 +407,31 @@ Owners include
   fact. Acceptance: safe calls discharge every route and mutations to guards,
   substitutions, or sites reject.
 
+- **PROOF-CONTRACT-MIGRATION.** Migrate the proof surface to
+  [ordinary machine contracts and trait bundles](wiki/design_briefs/mathematical_proofs.md#contract-first-mathematical-proofs).
+  Owners: Psi syntax/resolution/typing, contract proof semantics, Terminal
+  evidence/codec/replay, and core mathematical traits. First specify the missing
+  logical binders, arbitrary mathematical function/predicate parameters, and
+  proof-only noncomputable values with worked proofs; do not substitute
+  executable declaration enumeration or an optional-returning decider. Audit
+  universe/equality commitments and selectable-axiom provenance explicitly;
+  multiple-foundation compatibility remains a design dependency, not an assumed
+  property of the current checker.
+
+  Replace the dedicated formula-declaration and hidden-witness call machinery
+  with ordinary contracts and named witness/law bundles, preserving exact
+  substitution, result/path availability, erasure, validity, and transitive
+  assumptions across trait calls and artifacts. This incorporates the former
+  selected-witness and trait-named-witness work; do not widen those old surfaces
+  independently. Retain useful checking rules, not mandatory wrapper syntax.
+
+  Acceptance: the brief's five proof cases and false twins pass through source,
+  Terminal serialization, and independent replay; denying a required axiom
+  rejects and runtime extraction of noncomputable evidence rejects. Migrate core
+  relations, quotients, samples, and tests, remove obsolete parser/carrier/codec
+  routes, and reject retired spellings. Candidate naming syntax is not a
+  prerequisite. Do not claim full mathematical coverage from these controls.
+
 - **PROOF-CERTIFICATION-BRIDGE.** Emit kernel-checkable certificates from
   source automation. Recursive certificates own one SCC and cite ranking and
   well-foundedness evidence once; normalization names exact laws and preserves
@@ -795,17 +820,6 @@ Owners include
   queues, moved custody, linear completion claims, suspension, and provider
   selection. Hung-worker recovery requiring termination must use process
   isolation.
-
-- **SELECTED-WITNESS-EVIDENCE.** Finish executable proof-output calls beyond
-  the unconditional Unit/scalar lane, preserving selected proposition,
-  producer, optional local term, and runtime-call linkage. Acceptance: omitted,
-  reordered, substituted, or unlinked witnesses reject without turning proof
-  terms into runtime values.
-
-- **TRAIT-NAMED-WITNESS-CONTRACTS.** Carry named proof inputs/outputs through
-  trait requirements, conformances, calls, Terminal Psi, and independent
-  verification. Names are public proof API only where declared; satisfier-local
-  aliases remain local.
 
 - **QUOTIENT-THEOREM-LIFT.** Admit explicit representative operation,
   congruence theorem, and optional precondition transport for quotient-owned

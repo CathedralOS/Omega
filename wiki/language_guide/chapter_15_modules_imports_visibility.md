@@ -525,8 +525,6 @@ pub data Player {
     health: i32;
 }
 
-pub proposition valid_damage(amount: i32) = amount >= 0;
-
 measure Tree::Height(node: &Tree) -> Nat;
 
 pub const MAX_DAMAGE: i32 = 100;
@@ -535,7 +533,7 @@ pub machine Player::take_damage(
     &mut self,
     amount: i32
 )
-requires valid_damage(amount)
+requires amount >= 0
 {
     self.health = self.health - amount;
 }
@@ -544,11 +542,10 @@ requires valid_damage(amount)
 Visibility is a source-level API boundary. It does not bypass proof,
 ownership, or boundary checks.
 
-A bodyless `pub proposition related(a: T, b: T);` publishes the proposition
-family's vocabulary. It does not assert any application of that family and
-does not create an admission. Evidence-producing `requires`, `ensures`, and
-boundary edges remain the places where proposition instances are assumed,
-proved, or admitted.
+Publishing a mathematical interface exposes its vocabulary and contracts; it
+does not prove every application or grant its assumptions. Checked machine
+bodies establish conclusions, while accepted boundary claims retain their
+explicit trust dependencies. These rules apply equally to named trait bundles.
 
 Compiler intrinsics are a separate closed selection category. Their
 availability is fixed by the language/toolchain and cannot be acquired by a

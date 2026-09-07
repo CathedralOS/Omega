@@ -1,393 +1,60 @@
 # Chapter 10: Compile-Time Proofs
 
-Compile-time proofs are not a second programming language. A `proposition`
-declares a proof formula. Ordinary machines establish and consume those
-formulas through their contracts; a machine used only to establish facts emits
-no runtime code.
-
-The basic shape is:
+Compile-time proofs use ordinary machines and contracts. A machine used only
+to establish facts emits no runtime code. The basic judgment is:
 
 ```text
 requires + body facts -> ensures
 ```
 
-If the checker can prove that implication, the machine is a proof artifact. If
-it cannot, the contract is only an unchecked promise and must be rejected or
-treated as an explicit boundary.
+The checker checks the body under its declared assumptions. At a call, the
+caller must establish those assumptions for the actual arguments before using
+the conclusions. An unproved conclusion rejects unless it is an explicitly
+accepted boundary claim. An unanswered proof obligation is not a proof of
+falsehood, and returning an optional value is not a replacement for this judgment.
 
-## Proposition declarations
+## Contracts and evidence bundles
 
-`proposition` is the declaration category for a proof formula. It has no
-runtime result, value position, layout, effects, work attribution, termination
-contract, or executable body. Proposition applications appear wherever an
-ordinary contract fact may appear:
+A contract states a formula; a checked proof establishes it. A mathematical
+formula need not have an executable decision procedure. Boolean expressions
+are the decidable special case: a bare Boolean expression in a contract means
+that its value is `true`.
 
-| Declaration | Meaning |
-|---|---|
-| `machine` | named, contracted computation or transition system |
-| `proposition` | proof formula |
-| `domain` | qualification of one carrier |
-| `trait` | requirement and evidence interface |
+Ordinary traits group operations, witnesses, and their laws. A named conformance
+supplies the complete bundle. A proof machine can consume that bundle through
+ordinary generic requirements rather than passing every witness and theorem
+separately. The bundle does not establish laws merely by existing: its
+implementations must satisfy the required contracts.
 
-Internally, proposition families inhabit the proof-only `Prop` universe. A
-proof is evidence inhabiting one proposition application. `requires` and
-`ensures` expose that evidence as erased input and output facts on the
-machine's entry and terminal edges; they do not add runtime parameters or
-result fields.
+For example, the existing pointwise convergence model uses two sequence
+generators, a modulus, and a theorem about values after that modulus. A
+convergence bundle groups that modulus with the theorem. Composing two bundles
+must prove the composed modulus's law. Merely calling a bundle
+`ConvergenceEvidence` establishes nothing.
 
-Erasure does not make proof evidence a runtime carrier. Runtime representation,
-occurrence minting, and carried authority are separate questions: a selected
-opaque representation says how a value's bits move, an authorized operation
-says who may create a valid occurrence, and a proposition or domain records the
-fact that occurrence establishes. None substitutes for another.
+The source forms for general mathematical predicates, logical binders, and
+noncomputable values remain design work. Do not replace them with a Boolean
+decider or require every mathematical function to be an executable declaration.
+The [mathematical proof contract](../design_briefs/mathematical_proofs.md)
+defines the required capability and migration controls; the current Rust
+implementation does not yet implement the whole replacement.
 
-```omega
-proposition rat_equivalent(left: Rat, right: Rat);
+## Evidence identity and validity
 
-machine preserve_equivalence(left: Rat, right: Rat)
-requires
-    rat_equivalent(left, right)
-ensures
-    rat_equivalent(right, left)
-{
-    ...
-}
-```
+Keep the statement, its selected witnesses, and its derivation provenance
+distinct. Two proofs of the same statement do not make different witness
+functions equal. Repeated projection of the same bundle retains the same
+witness; forwarding must preserve that relationship and exact substitutions.
 
-A primitive fact-only proposition ends with `;`. A witness-bearing proposition
-publishes one canonical carrierless interface through an `evidence` clause.
-The interface is owner-authorized public proof content, not an executable body,
-an ordinary generic bound, or the producer implementation. Any conformance
-selected while establishing the proposition must supply that complete
-interface. Different conformances may carry different witnesses without
-changing the proposition's nominal symbol.
+Contract facts and proof-only bundles add no runtime storage or calls merely
+because they are used for proof. Type witnesses retain ordinary multiplicity
+and validity even when erased. Logical facts cannot create or consume authority.
 
-The clause is signature content:
-
-```omega
-proposition converges_together<machine Left, machine Right>(
-    left: CauchySeq<Left>,
-    right: CauchySeq<Right>
-) evidence ConvergenceEvidence<Left, Right>;
-```
-
-Like every independently nameable declaration, a proposition is package-private
-unless marked `pub`. Publishing a bodyless proposition exports the family name
-and signature, not a universally true instance. Trust and admission attach to
-the exact evidence-producing boundary or unchecked `ensures` edge; they never
-attach merely because a proposition family is public.
-
-`evidence` answers one question: what may proof-only code project from a term
-of this proposition? A witness-bearing proposition names exactly one
-interface. The interface is not a result type or ordinary `where` constraint,
-and `=` remains the distinct transparent-alias form. A bare carrier such as a
-modulus machine would not state the laws tying that carrier to this proposition
-application; the interface publishes the carrierless members and their laws as
-one elimination contract.
-
-`evidence` is contextual after a proposition signature; it is not globally
-reserved as an identifier.
-
-The evidence interface is nevertheless normalized and fingerprinted. Revising
-it is a breaking proof-interface change even though the proposition retains its
-name. Runtime extraction of a witness requires an ordinary `Type`-level package;
-proof evidence cannot be opened into runtime computation merely because its
-representation erases.
-
-A transparent proposition definition uses `=`:
-
-```omega
-proposition cauchy<machine Sequence>(value: CauchySeq<Sequence>) =
-    converges_together<Sequence, Sequence>(value, value);
-```
-
-The right side is an existing proof expression and must be eligible in a fact
-position. The alias expands before semantic normalization, creates no new
-proposition identity, and inherits the expansion's requirements, trust,
-fact-or-witness classification, and evidence interface. Its source name remains
-available for diagnostics and debug maps.
-
-Generic proposition parameters use the same category explicitly:
-
-```omega
-trait Reflexive<C, proposition Relation>
-where
-    proposition Relation(left: C, right: C);
-```
-
-This is distinct from a resultless operation requirement such as
-`where machine Visit(item: &T);`, which describes an executable procedure.
-Applications of either a `bool`-returning machine or a proposition are facts in
-`requires` and `ensures`; the proposition form additionally permits facts with
-no decision procedure. A bare Boolean expression in a fact position means that
-it is `true`, so `decides(a, b)` and `decides(a, b) == true` normalize to the
-same fact. No Boolean-to-proposition bridge operation is required.
-
-Fact-only versus witness-bearing is part of normalized proposition identity.
-Transparent aliases do not enter fingerprinted terminal Psi; primitive
-proposition symbols, their binders, classification, and normalized evidence
-interface do.
-
-Evidence retains validity scope and trust provenance. A retained proof term is
-always copyable: consumable authority belongs to an affine or linear `Type`
-carrier, which may have zero runtime layout, rather than to `Prop`. Copyability
-does not make a proof timeless. A term may still be borrow-scoped,
-entry-scoped, invalidated by a write, or tied to a live lease; all copies share
-that validity and expire together. Admission marks the evidence chain, not the
-proposition name, so two proofs of the same formula may carry different hidden
-witnesses and trust, and a deployment profile may accept one and reject the
-other.
-
-## Named evidence terms
-
-Every checked `ensures P` establishes an erased proof term for `P`. A
-witness-bearing proposition additionally gives that term projectable members.
-Naming a `requires` clause binds the exact incoming term; naming an `ensures`
-clause declares an exact outgoing term:
-
-```omega
-machine transitive<machine First, machine Middle, machine Last>(
-    first: CauchySeq<First>,
-    middle: CauchySeq<Middle>,
-    last: CauchySeq<Last>
-)
-requires
-    left_evidence: converges_together(first, middle)
-    right_evidence: converges_together(middle, last)
-ensures
-    result_evidence: converges_together(first, last)
-{
-    result_evidence = ComposedEvidence<
-        left_evidence.modulus,
-        right_evidence.modulus
-    >;
-}
-```
-
-An unnamed `requires P` asks only that `P` be established. A named
-`requires proof: P` additionally retains one exact proof term so the body may
-project or forward its hidden witness. Naming therefore changes the public
-proof-call surface and is a breaking API revision even though the proposition
-required is unchanged.
-
-The incoming names are local aliases over positional erased proof parameters.
-A caller supplies them in clause order after the call's `;` separator; no
-visible-fact search, conformance search, or name matching occurs. The separator
-marks the boundary between ordinary `Type` arguments and `Prop` inhabitants.
-It is omitted when the proof lane is empty. An evidence-only call retains the
-separator, as `callee(; proof)`, so a proof term cannot be confused with an
-ordinary argument:
-
-```omega
-let (;
-    result_evidence: combined_evidence
-) = transitive(
-    first,
-    middle,
-    last;
-    first_evidence,
-    second_evidence
-);
-```
-
-Projection is ordinary member syntax. Repeating `left_evidence.modulus`
-projects the same opaque symbol because both expressions use the same retained
-term. Forwarding the binding preserves that term. Separate introductions may
-carry different terms even when they inhabit the same nominal proposition.
-No `open` form or ambient producer inference exists.
-
-A named `ensures` binding is definitely assigned exactly once on every exit
-whose outcome guard makes that clause applicable. Assignment selects a named
-complete producer conformance privately in the proof body. The checker still
-checks the nominal proposition and the producer's complete normalized evidence
-rows. The checked frontend accepts this introduction directly for a concrete
-subjectless conformance alias and retains its exact conformance, trait,
-canonical instantiated argument identities, and realization rows. Thus an
-application whose evidence declaration is `Evidence<T>` selects
-`Evidence<i32>` only when its exact proposition binder argument is `i32`;
-another argument and an unresolved open endpoint both reject.
-Forwarding instead uses ordinary assignment:
-
-```omega
-result_evidence = existing_evidence;
-```
-
-This form is an erased identity binding, not a runtime load/store and not a new
-proof introduction. The target must be a named `ensures` term of the current
-machine, the source must be an exact named `requires` term of that machine, and
-their normalized proposition application and evidence interface must match.
-The outgoing slot then denotes the incoming term itself. A visible matching
-fact cannot replace the source assignment. Checked lowering already enforces
-that every named output is assigned exactly once on every ordinary outcome of
-the finite named-state graph. Assignment is ordered at its source statement and
-carried across named transitions; assigning twice rejects, while a crash-only
-outcome produces no outgoing proof lane and need not assign it.
-
-An outcome guard is declared as one group keyed by an exact case of the
-machine's declared result sum:
-
-```omega
-machine Search::find(items: &[Item], target: Item) -> SearchResult
-ensures
-    SearchResult::Found -> {
-        in_bounds: result.index < items.len;
-        items[result.index] == target;
-    }
-{
-    ...
-}
-```
-
-At most one authored group names a case in one declaration layer. Named
-selectors remain unique across the complete machine contract. The case path is
-resolved only in the declared result type and normalizes to the exact nominal
-case; it is not inferred from the proposition, visible facts, assignment sites,
-or body shape. A non-sum result, unknown case, duplicate case group, Boolean
-guard, or duplicate selector rejects. Moving a guarantee to another case and
-renaming a public selector are breaking proof-interface revisions; reordering
-groups or rows and renaming a caller-local term are not.
-
-Named and unnamed rows have the same path coverage and different producer
-discharge forms. On every ordinary exit producing the guarded case, a named row
-is assigned one exact evidence term, while an unnamed row is proved from that
-exit's path facts after substituting the concrete result payload. A proof at a
-shared join covers the row only when all qualifying incoming paths establish
-it. Other result cases neither assign nor prove the group, and a crash-only exit
-produces no result case. The braces are contract organization only: no source or
-artifact aggregate, package, group value, projection, multiplicity, or group
-identity exists.
-
-Name a `requires` clause only when its body projects or forwards the term.
-Changing `requires P` to `requires proof: P` adds an explicit erased input and
-is a breaking call-interface revision. Named `ensures` labels are public output
-selectors. Renaming one breaks callers that select it. Adding a named guarantee
-does not break existing callers: an unselected proof term is not retained, while
-the proposition still enters the caller's fact catalog.
-
-## Evidence output lanes
-
-Calls keep `Type` results and `Prop` evidence in separate output lanes, mirroring
-the input-side `;` separator. A call never constructs a source-visible aggregate
-containing both universes. The ordinary form binds only the declared runtime
-result and retains no projectable outgoing witness:
-
-```omega
-let quotient = divide(numerator, denominator);
-```
-
-Every applicable `ensures` proposition still enters the caller's fact catalog.
-When the caller needs the exact witness for projection or forwarding, it names
-that public `ensures` slot after `;`:
-
-```omega
-let (
-    quotient;
-    nonzero_evidence: proof
-) = divide(numerator, denominator);
-```
-
-The slot name is public API; the name after `:` is the caller-local term.
-Selected evidence outputs are named rather than positional because capture is
-optional and selective. An omitted slot contributes its fact but creates no
-caller-local term. A same-name shorthand may omit `: local_name`. Proposition
-terms are copyable, so capturing or omitting one adds no runtime operation,
-storage, cleanup, or fuel.
-
-An evidence-only call leaves the `Type` lane empty:
-
-```omega
-let (;
-    result_evidence: combined_evidence
-) = prove_result();
-```
-
-The call still executes exactly once. Its runtime effects, crashes, and fuel are
-those of the ordinary call and callee body. There is no generated output type,
-reserved `value` field, package projection, partial package move, or package
-identity. Runtime results retain their declared Type and ordinary multiplicity;
-captured proof terms retain their proposition, exact witness identity, validity
-scope, and derivation provenance independently.
-
-Outcome-guarded evidence is selectable only in the applicable outcome arm. The
-same separator divides the case's runtime payload from its proof bindings:
-
-```omega
-transition allocate(size) {
-    Success {
-        extent;
-        granted_evidence: grant
-    } -> use(extent; grant)
-
-    Error { error } -> report(error)
-}
-```
-
-The proof slot does not exist on inapplicable paths. Definite assignment remains
-per outcome: the producer assigns each named `ensures` term exactly once on each
-exit where its guard applies. A caller may select any subset of applicable proof
-outputs, and adding another guarantee does not force existing patterns to grow.
-
-Every named or unnamed proposition in the guarded group enters the caller fact
-catalog only after flow establishes that exact result case. Omitting a named
-selector omits only the caller-local evidence term; it does not make the fact
-unconditional and does not leak it into sibling arms. An unnamed row likewise
-mints no caller-local term. The guarantee validity scope is the intersection of
-the result occurrence, every normalized value occurrence referenced by its
-proposition, and any scope retained by its evidence interface. A fact over
-borrowed content is borrow-scoped and invalidated by an intersecting write; a
-fact solely about an owned immutable result may remain timeless even when the
-implementation originally computed that result from borrowed input.
-
-Requirement guarantees are inherited by a satisfying machine. The satisfier's
-authored case group adds rows; omission never removes or weakens inherited rows,
-and an exact restatement rejects as redundant. The effective concrete contract
-merges the pinned requirement rows with the additions. Calls through the
-requirement see its published surface, while direct calls may use the stronger
-concrete surface.
-
-Trait machine requirements may publish named `requires` and `ensures` lanes.
-They use the same syntax and call separator as concrete machines; there is no
-trait-specific proof package or forwarding form. The requirement owns the
-ordered input propositions, evidence interfaces, and public output selectors.
-Incoming binding names remain callee-local aliases and a satisfier may rename
-them without changing the requirement application. Outgoing selector names are
-part of the requirement's public proof API; a satisfier cannot rename, omit, or
-replace them, and changing one is a breaking revision.
-
-Every proposition application in a requirement lane must close over subjects
-bound by that requirement's ordinary parameters, result, static telescope, or
-declared proposition parameters. A named lane does not bind a hidden runtime
-subject or carry an otherwise expired occurrence between calls. Evidence over a
-borrowed or revisioned subject retains the ordinary intersection of validity
-scopes.
-
-A satisfying machine proves and assigns the inherited lanes under the same path
-coverage rules as a concrete declaration. Its private producer conformance and
-additional direct-call guarantees remain implementation content. A default
-realization obeys the same rule. Static and dynamic requirement calls expose
-only the requirement-owned witness: dynamic selection may establish the opaque
-witness promised by the requirement, but no satisfier-private evidence term,
-producer identity, or varying projection becomes public. The proposition's
-declared evidence interface is the complete elimination surface.
-
-The artifact keeps proposition identity, evidence-term identity, and
-derivation provenance separate. The first names the claim, the second preserves
-the exact hidden witness across projection and forwarding, and the third records
-how the claim was established and which admitted premises it trusts. Terminal
-Psi already carries forwarded terms as dense source-handle-free vocabulary
-identities over the exact proposition application and a structured carrierless
-interface; the application and term interface must agree, and forwarding
-contributes one row. Canonical positional rows for the selected terminal
-machine's named `requires` and `ensures` lanes now refer to that exact ID, and a
-forwarded pair shares one ID. A selected producer instead carries a separate
-canonical proof-bundle provenance identity keyed to its fresh ensured term and
-retaining its exact conformance, evidence trait, and normalized rows. That
-provenance changes proof identity, not semantic identity or runtime behavior.
-Each ensured realization pipeline retains its public output selector beside the exact
-term ID. A call-site capture row binds a selected callee lane to one fresh
-caller-local term; omitted lanes mint no term. The ordinary result remains on
-the canonical runtime `Call` operation, and proof rows add no executable work.
-Projection of the complete conformance surface remains unfinished.
+A conclusion applies only on the paths and result cases for which it was proved.
+A statement about borrowed or revisioned data expires with its relevant scope
+or an invalidating write. Trait satisfaction, call substitution, serialization,
+and independent replay must preserve these conditions and the transitive
+assumptions. Bundling must not erase them.
 
 ## Explicit relevance
 
@@ -568,13 +235,10 @@ and contracts do not execute.
 
 A domain `requires` row must resolve to `Prop`. A machine returning `bool` is a
 value term, not an implicit proposition and not a validator invocation hidden
-inside qualification. Transparent proposition bodies may contain eligible total
-pure machine calls as denotational terms under the fact-call rule above. When a
-transparent proposition projects one of its parameters, substituting a call
-result for that parameter retains the exact call-and-projection eligibility
-certificate rather than hiding the call behind the proposition name. The call's
-contracts and validity scopes remain in the proof, while no runtime call is
-emitted merely because the proposition is used.
+inside qualification. Logical expressions may contain eligible total
+machine calls. Substitution retains the exact called machine, argument terms,
+and checked operational eligibility; an abbreviation cannot hide those
+dependencies. No runtime call is emitted merely because a term occurs in a proof.
 
 Use an explicit proof view when a contract needs unbounded mathematics:
 
@@ -763,19 +427,12 @@ all modulus thresholds used by the premises and conclusion, and the actual
 application member places preserve the selected generator during citation
 substitution; a positivity fact about another generator does not alias it.
 
-The pointwise corpus supplies the mathematical kernel for the quotient below.
-The remaining language layer packages an existential modulus plus its universal
-law as carrierless proof evidence. A named convergence term projects one stable
-opaque modulus symbol characterized by its law; it does not run a convergence
-decider or expose the selected conformance in runtime layout. Repeating the
-projection on that term yields the same symbol, while distinct evidence terms
-may carry distinct witnesses without changing proposition or quotient
-identity.
-
-The ordered implementation dependency is explicit: proof-side proposition
-families and typed index telescopes land before evidence-bearing quotient
-formation. See
-[Law-Bearing Relations, Evidence, And Quotients](../design_briefs/law_bearing_relations_and_quotients.md).
+The pointwise corpus supplies laws that a convergence bundle must establish.
+The remaining proof-language work packages a modulus with its universal law
+and supports existential claims without demanding executable witness extraction.
+These are distinct capabilities. The required general relation expressions,
+typed index telescopes, and bundle contracts precede full quotient formation.
+See [Law-Bearing Relations, Evidence, And Quotients](../design_briefs/law_bearing_relations_and_quotients.md).
 
 A quotient coarsens a type: sort its values into buckets of things a
 proven equivalence calls interchangeable, and the buckets become the
@@ -796,23 +453,12 @@ different generator indices while sharing the same family identity. Rat is the
 same model with an empty index telescope. Quotient carrier matching never
 admits an instance of a different family.
 
-The proposition's evidence is a retained term produced by a privately selected
-conformance and projected entirely in the proof stratum:
-
-```text
-ConvergenceEvidence<A, B>
-|- modulus(precision: Nat) -> Nat       opaque proof symbol
-`- close_after(...)                    checked universal law
-```
-
-The mathematical name `ConvergesTogether(a, b)` is a witness-bearing
-proposition whose declaration names the carrierless evidence interface.
-Ordinary signatures do not expose the underlying selected conformance.
-Convenience names such as `Cauchy(s)` may be transparent proposition aliases.
-Because the entire evidence term has no runtime carrier, its named input and
-output bindings need no storage owner, table, allocation, or cleanup. Merely
-having no runtime table slots would not suffice for an ordinary runtime
-instance.
+A constructive convergence bundle groups a modulus with a checked universal
+closeness law. It is ordinary mathematical evidence organization, not a
+mandatory wrapper around every statement. General nonconstructive existence
+must also be expressible under explicit assumptions. The source spelling for
+naming the general relation remains to be specified; the quotient examples here
+use mathematical schematic names, not an implicit executable decider.
 
 Relation properties are ordinary explicit conformances. `Reflexive`,
 `Symmetric`, and `Transitive` are independent requirements;
@@ -949,32 +595,12 @@ reject. An older verifier must reject an unknown role tag rather than skip a
 newer proof obligation. Current structural `define` has no transport role, and
 no reverse role is reserved.
 
-Implementation status: `%` formation now requires the exact proposition
-relation and explicitly named, sealed `Equivalence` conformance shown above.
-Its closed Reflexive, Symmetric, and Transitive rows must state the canonical
-contracts and depend transitively only on checked proof machines; generic
-relation binders are matched by exact category and order. There is no Boolean
-relation, structural law-discovery, authored `Equivalence` lookalike, ambient
-selection, or admitted/boundary proof fallback.
-
-The checked operation boundary recognizes only the sealed wrapper spelling and
-retains the exact resolved `F`, exact named theorem, and lift/define kind. It
-does not yet admit or execute the request: exact theorem-contract validation,
-contract correspondence, and normalized result flow remain required. Bare
-calls on representatives or quotient values cannot discover a structurally
-similar proof machine.
-
-For the narrow total direct `define` shape, a separate proof-only preparation
-API can now erase the completed validation evidence into source-free canonical
-correspondence. `TerminalModule` retains the complete extracted batch in
-canonical identity order, its codec binds every certificate and rederives its
-identity, and normal representation validation independently reconstructs and
-replays each row. The explicit producer attachment is not an ordinary machine-
-lowering path. This is not executable admission: the rows name no Terminal
-machine or operation, normal validation still rejects the request, and no
-representative call is lowered. General `lift` implementation—including the
-settled explicit transport lane for membership and opaque proposition
-families—and checked executable Terminal lowering remain open.
+Implementation remains incomplete. Full formation and executable lifting must
+preserve the exact relation, selected law conformance, theorem applications,
+contract correspondence, and result flow through Terminal Psi and replay.
+Unsupported cases reject; a matching name or shape cannot supply missing proof.
+The implementation migration is tracked in `PROOF-CONTRACT-MIGRATION`, with
+executable lifting tracked by `QUOTIENT-THEOREM-LIFT`.
 
 A quotient may retain an arbitrary representative unchanged at runtime and may
 therefore share its ABI without performing normalization. The representative
@@ -1019,8 +645,9 @@ Transparent non-dependent products lift recursively. Dependent fields lift in
 dependency order: facts established for earlier left/right fields determine
 whether later proposition applications coincide or require an authored
 transport theorem. The quotient owner discharges transport required by its
-chosen relation; the proposition owner controls the laws available for opaque
-propositions. A relation depending on erased `Type` content remains proof-only
+chosen relation; its published mathematical interface determines which laws
+are available, not the name of a hidden implementation. A relation depending
+on erased `Type` content remains proof-only
 unless checked evidence shows that content is determined by the runtime
 projection, in which case a runtime decider may be derived.
 
@@ -1031,20 +658,17 @@ of proof-only data. Copyable runtime carriers may receive pure executable
 quotient operations through the same sealed lifting gate; the representative
 still never becomes source-visible.
 
-A boundary axiom may be cited as an environmental assumption elsewhere, but
-cannot admit either an equivalence conformance or a selected operation theorem
-for a checked quotient. Both require checked proof machines. A false quotient
-equality propagates by substitution without the containment boundary available
-to an admitted resource claim.
+Checked quotient formation and lifting require proofs of their exact laws.
+Any admitted premises remain in those proofs' transitive assumption closure.
+A policy requiring assumption-free quotient safety cannot accept a proof that
+depends on such premises. General mathematical reasoning under selected axioms
+must not be confused with an unconditional artifact guarantee.
 
 A literally bodyless free machine is not a theorem. Checked theorem machines
 have bodies, including an empty `{ }` body when their conclusions follow from
-entry facts. An accepted axiom is an explicit bodyless `boundary machine` and
-retains admitted provenance. A proof machine that ensures a witness-bearing
-proposition must supply its declared evidence; the formula cannot be retained
-without the witness that its eliminators require. An `Equivalence` conformance
-or selected operation theorem depending on admitted evidence never licenses a
-quotient formation or lift.
+entry facts. An accepted axiom is an explicit boundary claim and retains
+admitted provenance. Neither a bundle name nor an unavailable witness can
+establish an otherwise unproved conclusion.
 
 ## Proof Views
 
@@ -1140,13 +764,18 @@ Bag(items) stays equal to the explicit before value
 
 ## Quantified Facts
 
-> **Quantifiers are not keywords.** Universal claims over
-> all values are machine parameters (a theorem over `(n: u64)` is checked
-> symbolically once). Element-wise facts are element types and window facts
-> (chapter 7). Relational facts over sequences are **predicate machines** plus
-> one extraction lemma each. Existentials are witness-carrying out-params.
-> `forall`/`exists` remain parse errors; the quantified shape lives in the
-> engine, not the surface.
+Universal claims at the outer level of a theorem use parameters checked
+symbolically. That does not express every nested universal/existential claim.
+General contracts must also quantify over arbitrary mathematical functions and
+predicates. Their source syntax is not yet specified; the present parser and
+bounded automation do not define the long-term limit of the proof language.
+
+Constructive existence may supply a witness and law bundle. Nonconstructive
+existence under explicitly admitted axioms need not produce an executable value.
+Proof-local reasoning and runtime extraction are separate judgments.
+
+The following is an executable-predicate example of bounded sequence reasoning,
+not a recipe that replaces all quantified mathematics.
 
 A relational property is defined by an ordinary measured machine:
 
@@ -1414,10 +1043,12 @@ not a proved theorem, and remains one disclosed trust row until an ordinary
 proof-machine body replaces it. Consumers then swap admission for checked
 import.
 
-Core ships classical logic itself this way: excluded middle is a boundary
-machine, granted like anything else — nothing is granted by default, not
-even logic (project templates carry the line). A build that never grants it
-is constructive, and its trust report says so.
+Classical principles such as excluded middle are selectable assumptions, not
+automatic truths supplied by a compiler or imported package. The complete
+transitive assumption closure must be available to the consumer's policy.
+Absence of one named axiom alone does not certify constructivity: the underlying
+calculus and all other assumptions matter too. General axiom selection and its
+proof-library surface remain migration work, not an implemented-core claim.
 
 ## Automation And Boundary
 

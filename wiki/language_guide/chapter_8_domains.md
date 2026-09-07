@@ -84,8 +84,8 @@ domain Player::Alive
 `self` is the value being classified. A domain's `requires` clause states its
 predicate obligations. They do not create fields and they do not execute at
 runtime. Each row must resolve to `Prop`; an ordinary machine returning `bool`
-is not implicitly a predicate. Primitive or transparent proposition
-applications are ordinary proof formulas. A total pure machine call may occur
+is not implicitly a predicate. Logical conditions are ordinary proof formulas;
+naming a condition does not supply evidence or a decision procedure. A total pure machine call may occur
 inside such a formula only as a denotational fact term under Chapter 10's
 rules—it does not execute while qualification is established.
 

@@ -60,7 +60,7 @@ runtime data or control.
 
 The Rust source checker recognizes the exact compiler-installed `embed` symbol,
 not a library machine declaration or a same-spelled package call. It admits
-the term in proof facts, transparent propositions, computed proof machines,
+the term in proof facts, logical expressions, computed proof machines,
 and checked content projections; executable uses reject. Boolean comparison
 results and noninteger carriers do not acquire integer meaning from their
 operands. Content algebras require the explicit Exact `as Nat` boundary.
@@ -97,8 +97,7 @@ address carrier's exclusive one-past bound, and range geometry is stated
 transparently:
 
 ```omega
-pub proposition no_wrap(base: addr, length: u64) =
-    embed(base) + embed(length) <= addr::Bound;
+requires embed(base) + embed(length) <= addr::Bound;
 ```
 
 The observation may fold after target closure, but its exact target dependency

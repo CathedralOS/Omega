@@ -55,9 +55,8 @@ Must own:
   not lose a call merely because its receiver was bound by a pattern.
 - Enough value/type information for checked trees to build durable facts without
   reverse-engineering source syntax.
-- Typed machine contracts retain the optional named evidence binding separately
-  from the proposition fact it names; this stage does not infer or select the
-  evidence producer.
+- Typed machine contracts preserve logical subjects, dependencies, and
+  mathematical bundle interfaces without selecting proofs implicitly.
 - Typed reach custody preserves the resolved owner, every authored keyword
   occurrence, and every exact target-symbol/span pair. The semantic row remains
   normalized separately, allowing package projection to distinguish authored
@@ -72,8 +71,8 @@ Must own:
   present explicitly; ordinary lifetime constraints remain available for the
   checker to resolve. The expected evidence binder supplies a compatibility
   target, never omitted conformance arguments.
-- Typed named transitions retain their erased evidence-identifier lane without
-  assigning it a runtime argument type or storage position.
+- Typed transitions preserve ordinary arrival-contract subjects and erased
+  bundle relevance without inventing runtime storage for proof-only data.
 - Authored nominal type spellings retain their exact resolved declaration in
   the package-agnostic selection ledger. The lowering context classifies public
   data, domain, machine-head, trait, and wire positions separately from private

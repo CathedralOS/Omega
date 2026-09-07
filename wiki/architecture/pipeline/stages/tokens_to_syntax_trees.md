@@ -78,19 +78,13 @@ The Psi product role owns this stage; its hosted source belongs under
   explicit empty publication from omission without reparsing source text.
   Every authored `suspends` and `blocks` keyword is likewise retained on
   ordinary machines, trait requirements, and structural machine signatures;
-  generated or omitted clauses do not acquire a synthetic authored span. A
-  machine `requires` or `ensures` clause may retain one explicit
-  evidence-term binding (`name: proposition`); a named clause contains exactly
-  one proposition. An `ensures` section also admits one
-  `ExactResultCase -> { guarantees }` group per declared result case. Group
-  entries are ordinary named or unnamed guarantee rows; the braces have no
-  expression, aggregate, package, or group-value node. `=>`, `when`, and an
-  unseparated case literal are not alternate guard spellings.
-  `parser/statement.rs` also recognizes the separated
-  proof-output binding `let (value; public_output: local_term) = call()` and its
-  evidence-only form. Erased call arguments, evidence assignment, producer
-  selection, and proof-output validation belong to later stages. `via` is
-  terminal and mutually exclusive with an executable body.
+  generated or omitted clauses do not acquire a synthetic authored span. An
+  `ensures` section may retain an `ExactResultCase -> { guarantees }` group.
+  Those rows are logical conditions, not a constructed package or aggregate.
+  Parsing retains their source shape; proof checking and result-path coverage
+  belong to later stages. General contract binders and bundle syntax follow
+  the mathematical-proof migration rather than parser-private conventions.
+  `via` is terminal and mutually exclusive with an executable body.
   Standalone `decreases` and the old termination block diagnose their current
   `terminates by ...` replacement rather than entering the syntax tree.
 - `parser/transition.rs` owns transition block assembly.

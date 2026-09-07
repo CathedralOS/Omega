@@ -1418,137 +1418,35 @@ projections or backend physical effect footprints. Terminal retains explicit
 checked bridges when a particular carrier or operation relates those notions;
 it never identifies them by shape.
 
-Nominal proposition declarations retain their binder telescopes,
-fact-only/witness-bearing classification, and any normalized carrierless
-evidence interface in this fingerprinted vocabulary. Changing that interface
-is a semantic proof-API revision even though the proposition keeps its nominal
-symbol. Transparent proposition definitions expand before terminal production,
-have no independent semantic identity, and retain their source names only in
-debug maps.
+Normalized logical expressions retain exact binders, subjects, substitutions,
+and dependencies. Presentation names do not define truth or authorize proof
+reuse. Ordinary trait/conformance bundles retain their complete mathematical
+interface separately from the statement and its derivation provenance.
 
-Witness-bearing declarations use the contextual
-`proposition P(...) evidence Interface;` form. The normalized evidence
-interface enters terminal proposition identity.
+The contract/bundle migration must carry exact witness identity through
+forwarding and repeated projection. Different witnesses proving the same
+statement do not become one value. Closed conformance selection retains its
+complete telescope, trait application, and normalized row map; no expected
+shape, display name, or visible-fact search selects a missing implementation.
 
-Witness-bearing facts additionally retain an evidence-term identity and a
-separate derivation-provenance identity. Proposition terms are copyable;
-consumable authority is represented by an affine or linear Type carrier.
-Named `requires` inputs refer to exact positional erased terms; named `ensures`
-outputs contribute public selectors to the erased proof-output lane. The
-ordinary result remains on its declared Type and canonical runtime call;
-outcome guards control which selectors are available in each arm. Producer
-conformances remain inside proof construction and do not enter proposition or
-output-lane identity.
-Each guarded guarantee row carries the exact nominal case of the declared
-result sum. Named rows additionally carry the public selector and evidence-term
-identity; unnamed rows carry the proposition and derivation but no selectable
-term. The source braces have no terminal row or identity. Verification requires
-every ordinary exit producing the case to discharge the row by exact assignment
-when named or by proposition proof when unnamed, rejects any discharge on a
-different case, and requires caller fact import and selected term binding to be
-dominated by the matching case refinement. The retained validity descriptor is
-the intersection of the result occurrence, normalized referenced occurrences,
-and evidence-interface scopes; codec replay preserves that descriptor and
-write-invalidation coordinates independently from the case identity.
-The bounded caller-side executable carrier preserves fact-only omission. A
-zero-input `CallStructural` over a direct unrestricted, unqualified,
-claim-free payloadless producer imports each guarded row as a case-membership
-implication after exact result-place substitution. It imports neither a raw
-conclusion nor a case-membership fact; structural return rebases the complete
-implication to the caller result. A canonical selected-evidence vector may now
-retain any selected subset, with each row carrying the exact guarded case, row
-position, obligation, public selector, exact callee and caller proposition
-applications, callee term/interface, distinct caller-local term, and result-root
-validity intersection. Format 37 / vocabulary 40 encode the vector and its
-coordinates. One bounded substitution row may replace the callee's complete
-structural-result argument with the caller call-result place; it retains the
-argument position and both exact places rather than trusting display strings.
-Validation requires strict guarded-row order, each exact named callee row and
-producer provenance, and rejects duplicate rows/outputs,
-identity/interface/dependency drift, or unconditional/projection reuse.
-Omission remains fact-only, and selected bindings still import no raw
-conclusion or case fact. The bounded call rejects
-ordinary contract lanes, crash rows, custody transfers, and callee evidence
-contract lanes. Terminal interpretation transports the exact payloadless case,
-fixed fuel composes to four units, and the binding adds no operation or charge.
-The matching checked/source carrier accepts one attached zero-input direct
-caller and producer over the same exact attachment. The caller captures the
-call once in an immutable local and every exhaustive payloadless case arm
-returns that saved result unchanged. Checked planning replays the exact flow
-coordinate, target/receiver, symbol-root association, case coverage, and
-result-root validity; a selected proposition may either be closed or contain
-the complete saved call result as its sole ordinary argument. Any subset of
-named rows may be selected, while
-omission stays fact-only. Lowering canonicalizes those selections by guarded
-callee-row coordinate, emits the exact two-machine closure, retains sibling
-guarded rows and producer provenance on the callee, and rejoins each selected
-row to a distinct caller-local term without changing the four-unit runtime.
-The next bounded rung permits one, two, three, four, five, six, seven, eight,
-nine, ten, eleven, twelve, thirteen, fourteen, or fifteen distinct selected
-whole-result guarded terms to be used once each as dense ordered named
-`requires` inputs of one direct tail state in the matching payloadless arm.
-Terminal retains that tail as an independently resolvable third machine with
-one structural parameter,
-the exact ordered requirements, and an identity structural return, while one
-selected-use row per term binds its machine, input position, proposition
-applications, evidence terms, and caller/target places. Format 42 / vocabulary
-45 reject omission, duplication, reordering, redirection, interface drift, and
-tail-shape drift. The tail remains outside the runtime entry graph, so
-interpretation and fixed fuel retain the existing four-unit saved-result path.
-Payload projections, multiple or partial-result substitutions, sixteen-or-more
-evidence arguments, repeated term use, later invalidation, erased proof-output
-linkage, wider structural calls, and tagged-sum target lowering remain outside
-this bounded source rung.
-The current producer serializes forwarded terms as dense module-local
-identities over the exact proposition application and a structured canonical
-carrierless interface; the verifier requires each witness application to carry
-that interface and each term row to agree with it. A forwarded output
-contributes only its source vocabulary identity. Canonical positional rows for
-the selected terminal machine's named `requires` and `ensures` lanes reference
-those exact IDs, and forwarding places the same ID at both endpoints. The
-verifier requires known machine/term IDs, dense positions per lane kind, and no
-orphan term rows. A fresh ensured term is accepted only when the proof bundle
-contains one canonical provenance row keyed to that exact term. The row has its
-own proof identity and retains the selected conformance, evidence trait, and
-complete normalized realization rows without source handles. Missing, unused,
-malformed, reordered, or interface-mismatched provenance rejects. The row
-changes the proof fingerprint, not terminal semantic identity, runtime, or
-fuel. Each ensured lane also retains its public output selector beside the
-exact `EvidenceTermId`; required lanes have no output selector, and missing or
-duplicate names reject. The ordinary runtime result remains on its separate
-`Call` operation. The retained carrierless interface includes its complete
-direct
-and inherited requirement surface, including each declaring trait's normalized
-argument pack. A proof-static projection carries the canonical evidence-term
-ID plus the exact declaring-trait application and requirement-overload
-identity. Forwarding is canonicalized before applications are serialized, so
-input and output aliases project the same opaque identity while separate terms
-remain distinct. The verifier requires the term and exact row to exist in the
-retained interface; diagnostic display spelling is never an identity oracle.
-A dense invocation table retains the canonical caller and ordinal, normalized
-callee-machine identity, explicit erased input lanes, and the selected
-proof-output lanes in callee order. Each input names its target position,
-formal proposition, exact caller source term, and call-substituted proposition.
-Each output independently retains its formal and substituted propositions.
-A producer-backed selector binds a distinct caller-local term and retains its
-callee producer term. A selector that directly forwards one input instead
-names that input position and aliases the exact supplied witness; it does not
-invent producer provenance. Omitted selectors mint no caller term but their
-substituted propositions still enter the caller's fact catalog. Repeated calls
-share formal lanes and producers while retaining invocation-specific
-substitution. Source coordinates and caller-local display names erase. The
-execution shape is explicit: an erased proof-only row has no
-runtime operation or fuel; a Unit-runtime row links one canonical `CallUnit`;
-a scalar-runtime row retains its scalar result type and links one canonical
-`Call`. The verifier requires each linked operation to occur in the declared
-caller, have the declared result shape, and call the linked callee; a missing,
-spurious, unknown, wrong-kind, wrong-caller, or mismatched-callee link rejects.
-For a generic callee, the target-machine identity composes the checked
-specialization report fingerprint and its strong identity, including every
-concrete type, `const`, static-machine, and closed conformance selection. The
-proof row therefore cannot alias another application that happens to retain the
-same post-specialization callable shape. The proof row adds no operation or
-fuel beyond that ordinary call.
+Guarantees remain path-sensitive. Every ordinary exit must establish its
+applicable conclusions. Caller import requires the matching result case and
+the exact argument/result substitution. Validity is the intersection of
+referenced occurrence and bundle scopes; intersecting writes invalidate
+borrowed or revisioned facts. A bundle cannot make a conditional fact available
+unconditionally.
+
+Proof-only data adds no runtime storage, call, or fuel. Evidence accompanying
+an executable call must remain bound to that exact operation and callee, result
+shape, and specialization, not a second inferred invocation. Independent replay
+rejects missing laws, orphan witnesses, changed substitutions, stale scopes,
+or runtime links that do not match. Transitive assumptions remain separate
+from the proved statement and subject to the receiving policy.
+
+These are the target preservation requirements, not a claim that the current
+codec implements the replacement. `PROOF-CONTRACT-MIGRATION` in
+[TASKS.md](../../../TASKS.md) owns the source, representation, codec, and replay
+migration under the [mathematical proof contract](../../design_briefs/mathematical_proofs.md).
 
 Omega task activation applies the same authority split after checking.
 `TaskRuntime::{start,try_start}` retains its compact specialization value only
@@ -1559,73 +1457,12 @@ machine-contract commitment. The task runtime receipt binding carries both
 values but derives invocation identity from the strong commitment alone, so
 compact equality never authorizes a different specialization.
 
-For the first bounded static trait-requirement proof calls, the public target
-is the requirement's normalized callable identity rather than the concrete machine.
-A separate private dispatch row retains the caller-owned closed-conformance
-application, its domain-separated commitment, exact declaring trait/
-requirement/realization row, and emitted
-runtime callee. The bounded result is Unit, exact signed 32-bit scalar, or
-Boolean; the
-scalar form is receiverless, zero-ordinary-argument, and selected from a free
-caller. The selected output has no satisfier callee-term or forwarding
-coordinate: its requirement proposition and public selector authorize one
-fresh caller-local opaque term. Representation validation rejoins the public
-identity to the canonical row, the row to the owner-scoped application, and
-the private realization to the ordinary `CallUnit` or scalar `Call`; it rejects missing
-dispatch, identity, commitment, or report-fingerprint drift, private
-forwarding/provenance leakage, and reuse of an input or prior output term. Codec
-format 53 / vocabulary 56 preserve this split and serialize the application
-and dispatch commitments. Terminal validation recomputes the application
-commitment from its complete source-free structure, selects dispatch by owner
-plus that commitment, and then replays the exact row. The compact fingerprint
-is named a report fingerprint and remains report/index data only. Erasing the
-proof rows leaves runtime parameter/result shape, storage, operations, and fixed
-fuel unchanged. Scalar type, operation ID/kind, runtime callee, and dispatch
-realization drift reject independently, including a coordinated `i32`/Boolean
-runtime retarget while the source-derived callable result class remains rooted.
-
-Independent Terminal replay rejoins the closed conformance row to its retained
-source realization identity and the artifact-local realization machine ID to
-the exact ordinary call. For the bounded static Unit/exact-`i32`/exact-Boolean
-named-witness cohort, the owning application additionally retains an ordered canonical map
-with exactly one entry from realization checked callable identity to exact
-Terminal `MachineId` and matched source requirement/realization result class;
-the sole mapped row retains only an optional
-callable-identity reference, and the dispatch retains that identity
-independently. Producer lowering derives the
-registry from the checked source-machine closure separately from the selected
-row reference. The verifier requires a global registry bijection, exact row
-resolution, no duplicate, unused, unconsumed, or plural entries/mapped rows,
-and an exact join among application, registry, row, callable identity, result
-class, machine, operation, and runtime callee. The application report fingerprint and strong
-commitment cover registry and row reference. Nonstatic applications and rows
-remain map-free. This is standalone
-replay for the existing bounded carrier, not a module-wide callable registry or
-broader dispatch admission; broader source-callable maps remain an engineering
-extension.
-
-The registry is a canonical artifact assertion, not a value derived from
-machine bytes. Mutating the registry itself changes Terminal/artifact identity
-and rejects only when replay is rooted in an externally expected identity.
-
-Static-requirement evidence does not select the executable lowering family.
-Checked-to-Terminal dispatch first selects the exact retained structural,
-cleanup, attached-Unit, or scalar plan and returns that route as typed data.
-Only an actually selected attached-Unit route or the exact bounded scalar route
-may use static dispatch evidence when reconstructing its source-machine
-closure. A proof row therefore cannot
-preempt a more specific executable plan or redirect its operations.
-
-Outcome
-guards expose selectors only in applicable arms.
-A selected generic conformance is already closed before Terminal Psi: its
-identity retains the declared package-scoped name, complete normalized
-telescope including any resolved elided lifetimes, instantiated subject and
-trait application, and complete normalized row map. The terminal verifier
-replays that exact application and rejects an open telescope, missing argument,
-shape mismatch, or redirected row. Runtime Type results retain their ordinary
-multiplicity independently of the proof lane; conformance selection adds no
-runtime value, operation, or fuel.
+Trait requirement calls retain the public callable contract separately from
+the selected private realization. Replaying the closed conformance must join
+that exact public requirement, owner-scoped application, realization identity,
+and ordinary call. A private strengthening cannot become a public guarantee.
+Evidence must not select a different executable lowering family or replace
+independent validation of the call and its result.
 
 Relation applications retain their independently bound left and right carrier
 index packs; no global carrier-parameter role is serialized. Selected
@@ -6319,9 +6156,10 @@ APIs retain their existing crate-root contract. Root-level producer regressions
 are a small shared-fixture parent over isolated Unit-cleanup, scalar-graph,
 content-ledger, structural-control, attached-Unit, and structural-return
 families rather than a second responsibility embedded in the production root.
-Proposition vocabulary, evidence-term identity, contract lanes, proof-output
-invocations, and producer provenance likewise share one evidence-publication
-module behind a single parent-facing installation API.
+Logical vocabulary, witness identity, contract/call evidence, and derivation
+provenance belong to one evidence-publication responsibility with a single
+parent-facing installation API. The contract/bundle migration replaces its
+source-specific payloads without spreading publication across coordinators.
 native machine emission keeps its byte/width/policy regression corpus
 in the separately compiled `machine-emission/src/tests.rs`;
 the production root does not embed that second responsibility.

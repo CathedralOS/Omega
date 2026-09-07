@@ -907,9 +907,10 @@ The six source operations are named separately because Omega does not infer
 ownership polymorphism. Borrowed rejection ends the source loan and returns
 the moved custody value `C`. Owned rejection returns
 `PlacementReturn<Extent in Granted, C>`, so neither the extent nor custody can
-disappear. Type and Prop are not packaged together: ordinary outcome payloads
-stay before `;`, and selected evidence outputs use the separate proof-output
-lane from chapter 10.
+disappear. Proof-only
+bundles and contract facts do not add runtime payloads. Runtime outcomes retain
+ordinary ownership dispositions; erased Type witnesses still obey their own
+multiplicity and validity. See chapter 10's contract/bundle model.
 
 Every formal input has an explicit disposition on every outcome:
 

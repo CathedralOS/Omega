@@ -1,8 +1,12 @@
 # Omega Package Evidence Schema
 
 The canonical review schema is version 130 and row schema version 88. This file
-records the exact closed vocabulary whose details would otherwise obscure the
-crate's architectural entrance.
+records the closed vocabulary whose details would otherwise obscure the
+crate's architectural entrance. Proof-interface sections follow the
+[contract/bundle direction](../../../../../wiki/design_briefs/mathematical_proofs.md)
+and require encoding migration; they are not a claim that replacement proof
+rows already exist in version 130. The source/codec changes and exact-version
+rejection controls belong to `PROOF-CONTRACT-MIGRATION`.
 
 This describes the existing encoding and its historical revisions, not a
 requirement to certify installation. The ratified lock records pins, the graph,
@@ -39,7 +43,7 @@ full-review schema or any compiler validator.
 
 `OMEGA-PACKAGE-POLICY` version 1 composes the full inert package baseline under
 those same aggregate ceilings. Its field order is package, target, public API
-(traits, conformances, domains, propositions, consts, operators, data), callables,
+(traits, conformances, domains, consts, operators, data), callables,
 selected providers, terminal permissions, representation, external supplies,
 dangerous capabilities, slack, semantic dependencies, and D29 applications
 (symbolic demands, closed realizations). Child components share the enclosing
@@ -140,7 +144,7 @@ declarations, binder symbols, categories, and ordinals. Equal demands
 deduplicate only with all authored locations retained. The row is blocking
 composition input and grants no provider selection, realization, coverage,
 Terminal custody, native execution, package admission, or audit claim. Private
-callables, nested symbolic types, consts, lifetimes, machines, propositions,
+callables, nested symbolic types, consts, lifetimes, machines,
 fixed-token uses, and statement uses remain absent or fail closed. Recovery
 v21 adds only the closed `BoundaryApplicationDemand` row-kind tag.
 
@@ -266,7 +270,7 @@ equal applications deduplicate only at semantic review. Replay independently
 reconstructs the application, template identity, specialization commitment,
 and checked realization contract. Open, missing, duplicate, substituted,
 stale, or category/carrier-changing rows reject. Unsupported fixed-token
-shapes, unproven local call forms, lifetime, static-machine, proposition,
+shapes, unproven local call forms, lifetime, static-machine,
 external generic, symbolic cross-artifact, unsupported Terminal continuation,
 and native physical coverage remain closed.
 
@@ -283,7 +287,7 @@ realization edge defines the ordinal relation, so binder spelling is not
 identity and no duplicate mapping is encoded. Categories and const carriers
 remain exact. Provider type-property requirements may weaken the requirement
 telescope but never strengthen it. Arity, parameter, and result drift reject.
-Lifetime, static-machine, proposition, and external generic realizations remain
+Lifetime, static-machine, and external generic realizations remain
 closed. This declaration evidence alone grants no generic application
 coverage; v117 adds the first exact selected checked-body application join,
 including supported local fixed-token type/const uses.
@@ -331,7 +335,7 @@ top-level requirement signatures. Each side retains the exact const carrier;
 authored binder names alpha-normalize out of callable carrier identity, while
 positional const use in fixed-array lengths is revalidated against the exact
 requirement-to-provider binder relation. Post-check carrier substitution and
-inapplicable type-property bounds reject. Static-machine, proposition, and
+inapplicable type-property bounds reject. Static-machine and
 conformance-bound external forms remain fail-closed.
 
 Schema v108 / row v66 replaces the external realization's static-parameter
@@ -341,7 +345,7 @@ currently admitted ordinary type parameter retains its exact multiplicity and
 carry-property bounds on both sides. Bounded realizations are revalidated
 against the requirement from retained typed custody; a provider that gains a
 stronger bound rejects, while an accepted weakening still preserves both exact
-telescopes and changes external-supply identity. Const, machine, proposition,
+telescopes and changes external-supply identity. Const, machine,
 and conformance-bound static forms remain fail-closed.
 
 Schema v107 / row v65 admits unselected external executable-supply disclosure
@@ -372,7 +376,7 @@ replays that encoding against the resolved carrier, and compares the complete
 reclosed application with the exact checked call occurrence. Const names and
 diagnostic display never become value identity; missing, malformed, private,
 substituted, or post-check-drifted values reject. Lifetime, machine, and
-proposition parameters remain fail-closed in this lane.
+general mathematical parameters remain fail-closed in this lane.
 
 Schema v104 / row v62 admits caller const binders in the existing exact
 closed-conformance contract-argument lane. Projection requires the selected
@@ -381,7 +385,7 @@ binder ordinal, and still compares the complete compiler-retained application
 to the independently reclosed authored occurrence. Renaming a binder therefore
 preserves review identity while selecting another binder or substituting the
 retained occurrence changes or rejects it. Named and structured const values,
-lifetime, machine, and proposition parameters remain fail-closed in this lane.
+lifetime and machine parameters remain fail-closed in this lane.
 
 Schema v103 / row v61 extends the exact closed-conformance contract-argument
 lane to declaration telescopes containing parser-canonical integer-literal
@@ -389,7 +393,8 @@ const arguments. The portable row retains each const in declaration order and
 the checked occurrence still rejoins the complete closed application, so
 `FieldOrder<Card, 7>` and `FieldOrder<Card, 8>` cannot share review identity.
 Forwarded const binders, named or structured const values, lifetime, machine,
-and proposition parameters remain fail-closed. The target-trait telescope
+and general mathematical parameters remain fail-closed. The target-trait
+telescope
 remains type-only; this revision does not relabel const target arguments as
 types or add a generic conformance surface.
 
@@ -592,12 +597,10 @@ compiler-intrinsic execution remains fenced pending its closed catalog. The
 new requirement tag is schema v95 / row v53; canonical-row recovery remains
 v14.
 
-Evidence-bearing calls accepted inside public callable contract expressions
-retain each erased lane as an exact source-to-callee-parameter binding. The
-checked producer keys custody by semantic proof-fact owner, exact proof fact,
-and expression-call occurrence, then substitutes ordinary call arguments into
-the callee proposition before accepting the source term. Package projection
-rejoins that occurrence and emits only package-qualified term owners, contract
-kinds, and lane ordinals; local evidence aliases, symbols, and arena handles
-are excluded. Missing, duplicate, redirected, rebound, or lane-drifted custody
-rejects. This is schema v96 / row v54; canonical-row recovery remains v14.
+Contract/bundle migration must bind evidence used by a public contract call to
+that exact checked occurrence, complete argument substitution, and law/member
+selection. Projection retains package-qualified subjects and normalized binders,
+not local aliases or compiler arena handles. Missing or redirected witness
+custody rejects. Replacement encoding and versioning are part of
+`PROOF-CONTRACT-MIGRATION`; these requirements do not claim a new codec has
+already landed.

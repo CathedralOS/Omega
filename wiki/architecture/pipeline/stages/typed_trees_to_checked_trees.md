@@ -512,9 +512,8 @@ Must own:
   position. Later executable plans may use dense scalar carrier indices, but
   they must rejoin this source-position coordinate rather than renumbering it.
 - A durable checked-flow representation of calls and transitions.
-- Exact positional binding from each named-transition evidence identifier to
-  the target state's witness-bearing arrival requirement after ordinary
-  transition-argument substitution; enclosing machine evidence stays live.
+- Exact arrival-contract substitution at every transition, preserving the
+  scope and identity of any mathematical witnesses.
 - Closed generic-conformance applications keyed by their declared
   package-scoped symbol, with the complete normalized telescope, instantiated
   subject and trait application, and selected row map. Non-lifetime arguments
@@ -582,7 +581,7 @@ Must own:
   enclosing typed binders, but that row is symbolic demand only. Provider-plan
   selection, final substitution, role-specific realization checking, and
   physical-plan coverage occur in later owners and cannot be inferred here.
-  Lifetime, static-machine, and proposition operator applications remain
+  Lifetime and static-machine operator applications remain
   explicit fences.
 
   The implemented first cohort is narrower than the completed D29 contract:
@@ -927,7 +926,7 @@ Current ownership is:
   zero-size targets, open/unresolved or mixed/recursive/custom-canonical
   structured-const, lifetime-generic arrays, shapes deeper than two lifetime
   shells, or malformed/nonphantom lifetime applications,
-  machine/proposition generic instances,
+  generic machine instances,
   invariant-bearing/erased/cased records, and other indexed recasts stay fenced
   because an element path cannot represent their complete target footprint.
   `checks/borrows/persistent.rs` admits borrow-carrying writes backed only by
@@ -1709,64 +1708,15 @@ Current ownership is:
 - `checked-trees/src/proof/` owns proof-facing checked facts:
   `obligations.rs` owns explicit proof obligations, `contracts.rs` owns
   contract proof facts/call/exit indexes, and `roots.rs` owns the grouped
-  `ProofFacts` arena root and constructor. A named machine `requires` or
-  `ensures` must normalize to one witness-bearing proposition. The checker
-  mints a distinct erased evidence-term arena identity for each binding and
-  retains its label, requires/ensures lane position, exact normalized
-  proposition application, and carrierless evidence interface. The term
-  identity is deliberately separate from proposition identity and producer
-  provenance. Bare-name forwarding retains the exact incoming term. A concrete
-  subjectless producer assignment instead retains the exact conformance,
-  evidence-trait symbol, complete normalized lifetime/type/const/static-machine
-  telescope, and complete normalized realization rows. Expected subject/trait
-  shape validates rather than fills non-lifetime arguments; wrong arguments,
-  ambiguous lifetimes, and unresolved open evidence endpoints reject. The
-  terminal producer consumes forwarded checked
-  terms into dense source-handle-free vocabulary identities with an exact
-  proposition application and structured interface; the verifier requires the
-  application and term rows to agree, and forwarding contributes one row.
-  Canonical positional rows connect the selected terminal machine's named
-  requires/ensures lanes to exact term IDs, with one shared ID across a
-  forwarded pair. A selected producer emits a separate canonical proof-bundle
-  provenance identity keyed to its ensured term, retaining the exact
-  conformance, evidence trait, and normalized realization rows without source
-  handles. The verifier admits an ensures-only term exactly through that row;
-  provenance affects proof identity, never terminal semantic identity or
-  execution. A pure Unit proof producer erases; if that producer contains
-  runtime body work, typed lowering retains one ordinary Unit call and checked
-  proof facts bind the output row to its exact call coordinate. Argumented
-  proof-output calls apply the ordinary call-contract substitution to every
-  input and output proposition. Explicit erased inputs retain exact target
-  position and caller source term; an ensured term forwarded from one of those
-  inputs preserves that witness identity, while a producer-backed result stays
-  distinct. A generic proof-output target is accepted only after ordinary
-  specialization has closed its static telescope; its checked specialization
-  fingerprint retains the complete conformance application independently of
-  the callable's post-specialization name. Each ensured
-  realization pipeline retains the public proof-output
-  selector beside its exact term ID; required lanes have no output selector. A
-  concrete non-generic trait satisfier now checks its inherited named lanes
-  against the requirement before lowering. Incoming aliases remain local, but
-  lane cardinality/order, normalized proposition, and evidence interface stay
-  exact; outgoing selectors are pinned, with authored strengthening appended
-  after the inherited prefix. The inherited machine-state facts point to the
-  satisfier's exact checked terms and lane positions. The first static
-  requirement-call carrier is deliberately narrower than general dispatch:
-  specialization of an attached caller's explicit proof-static conformance
-  binder retains one
-  call-local closed application and its exact public-requirement/private-
-  realization row. The admitted requirement and realization are concrete,
-  non-generic, one-state Unit callables, and the requirement owns one
-  subjectless named input plus one subjectless unconditional named output.
-  Checked contract-call facts and proof-output terms are sourced from the
-  requirement signature, not the satisfier. The ordinary call still targets
-  the concrete realization, while a captured output mints a distinct
-  caller-local requirement witness even when the satisfier forwards a private
-  input. Concrete strengthening stays visible only to direct concrete calls.
-  Generic substitution on the public trait/requirement/satisfier surface,
-  inherited rows, defaults, scalar results, subject-bearing or wider public
-  lanes, direct named-conformance calls, and dynamic named-witness dispatch
-  remain conservative fences. The separate contract-free dynamic scalar lane
+  `ProofFacts` arena root and constructor. Contract/bundle migration must retain
+  exact statement, witness, and derivation identities independently. Conformance
+  selection is explicit and closed; call substitution checks every declared
+  law against the exact arguments/results and scope. An erased bundle adds no
+  runtime argument, storage, or call, and evidence attached to an executable
+  call remains linked to that exact operation. Outcome facts become available
+  only after the matching case is established. The migration acceptance lives in
+  [Mathematical Proofs](../../../design_briefs/mathematical_proofs.md).
+  The separate contract-free dynamic scalar lane
   admits one attached Unit caller, one exact closed conformance row, one
   borrowed field source, and an exact `bool` or `i32` result. It retains either
   one never-rebound selection or an initializer plus one reassignment and
@@ -1793,25 +1743,12 @@ Current ownership is:
   also retained when the outer transfer rejoins one bare parameter of
   identical access and the helper's sole statement is that Unit requirement
   call. The plan keeps both call coordinates and the parameter identity.
-  Every Terminal/native carrier remains a later boundary. A
-  proof-static `term.member` binder argument resolves in its named-contract
-  scope to the exact checked evidence-term handle and one unambiguous direct or
-  inherited requirement row. The row retains the declaring trait's normalized
-  argument pack; unknown and ambiguous members reject, and the erased
-  projection cannot select an executable machine parameter. Boolean,
-  membership, fact-only, or non-nominal bindings reject.
-- Result-case guarantee groups resolve their source path only against the
-  machine's declared result sum and retain one exact nominal case identity on
-  every checked row. A declaration layer admits at most one group per case;
-  public named selectors stay machine-wide unique. Producer coverage is
-  path-sensitive: named rows require exactly one evidence assignment on every
-  ordinary exit producing the case, while unnamed rows require one proved
-  proposition on every such path and retain no source-bindable term. Other
-  cases and crash exits discharge neither. Caller fact import and named capture
-  occur only after the matching case refinement. Each imported row derives its
-  validity from the result occurrence, normalized referenced occurrences, and
-  evidence-interface scopes, so intersecting writes invalidate borrowed or
-  revision-scoped guarantees rather than leaving stale sibling facts.
+  Every Terminal/native carrier remains a later boundary.
+- Result-case guarantees retain the exact nominal case of the declared result.
+  Every ordinary exit producing that case must prove its conclusions; other
+  cases and crash exits do not establish them. Caller import requires the
+  matching refinement and exact substitution. Validity follows the referenced
+  occurrences and bundle scopes, so writes invalidate stale guarantees.
 - `checked-trees/src/admissibility/` owns checked operation acceptance
   views. These views do not re-run proof, borrow, or effect checks; they gather
   the already-accepted evidence behind state, statement, call, and exit query

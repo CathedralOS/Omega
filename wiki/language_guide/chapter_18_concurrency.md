@@ -602,7 +602,7 @@ Working rules:
   These legality judgments are normalized proposition applications (for
   example, `valid_store_order(order)`), so a generic atomic helper may carry
   the same fact through `requires` or `ensures`. See
-  [Chapter 10](chapter_10_compile_time_proofs.md#proposition-declarations).
+  [Chapter 10](chapter_10_compile_time_proofs.md#contracts-and-evidence-bundles).
 - The operation set is load, store, swap, `compare_exchange` (with separate
   success/failure orderings), and the fetch-and-modify family.
 - The implemented load/store/fetch_add/fetch_sub/fetch_xor/fetch_or/fetch_and/swap/

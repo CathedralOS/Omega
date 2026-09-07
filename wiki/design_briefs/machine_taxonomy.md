@@ -29,13 +29,12 @@ theorem; the same body may also be called at runtime. Evaluation context may
 change lowering or erase the execution entirely, but it may not change the
 contract's meaning.
 
-A `proposition` is the adjacent proof-formula category, not another machine
-supply or consumption mode. It declares something a machine contract may
-require or ensure; it never denotes an operation or transition system. Proof
-machines remain ordinary machines: their checked contracts establish
-proposition applications, and fact-only invocations erase. The dedicated
-category also keeps a resultless machine requirement such as
-`where machine Visit(item: &T);` unambiguously operational.
+Contracts state logical conditions; ordinary proof machines establish their
+conclusions. Mathematical operations, witnesses, and laws are organized through
+traits and named conformances. A condition is not an operation or a decision
+procedure. General mathematical function/predicate abstraction and logical
+binders remain required without becoming new executable machine supply modes.
+The [mathematical proof direction](mathematical_proofs.md) governs that work.
 
 ## The substitutable contract
 
@@ -138,13 +137,9 @@ boundary machine Kernel32::write_file(handle: WinHandle, bytes: &[u8]) -> WriteR
     via WindowsBindings::write_file();
 ```
 
-Proposition declarations have their own non-executable forms: `;` introduces a
-primitive fact, a witness-bearing declaration publishes one canonical
-carrierless evidence interface, and `=` defines a transparent logical
-expansion. The witness-bearing form uses an `evidence Interface;` clause after
-the proposition signature. None is a machine body or machine supply mode.
-Compiler-owned fact-position term formers such as `embed(value)` likewise have
-canonical proof semantics and are not fake bodyless boundary machines.
+Logical expressions have proof semantics, not executable machine supply modes.
+Compiler-owned fact-position term formers such as `embed(value)` likewise
+have canonical proof semantics and are not fake bodyless boundary machines.
 
 The legacy core inventory is migrated by meaning, not mechanically:
 
@@ -153,11 +148,10 @@ The legacy core inventory is migrated by meaning, not mechanically:
   requirements;
 - `PlacedField::read/take/write` remain external realizations because their
   exact trait requirements are already named by `satisfies`;
-- `no_wrap` becomes its transparent proposition formula;
+- address-range validity is expressed directly by its total contract formula;
 - `embed` becomes only the canonical compiler-owned proof term former; and
-- N5's temporary claim-free `Real` symbols disappear with the constructive
-  quotient, while its bodyless law claims remain disclosed axioms until checked
-  proof bodies replace them.
+- temporary mathematical symbols migrate to the general proof-only function
+  model, while admitted law claims retain their exact transitive assumptions.
 
 A bodyless declaration carrying `ensures` is not a theorem merely because of
 its name. Without a checked body it is an admission-bearing claim.

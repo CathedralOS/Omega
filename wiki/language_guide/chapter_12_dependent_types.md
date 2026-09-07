@@ -374,22 +374,12 @@ invariant is its own signature, so a mutation that invalidates the invariant
 must be followed by a guard or other proof that re-establishes it before the
 back-edge:
 
-A witness-bearing arrival requirement may bind its evidence term. Each named
-transition supplies those state-local terms explicitly, in clause order, after
-the same `;` separator used by ordinary calls:
-
-```omega
-state ready(value: i32)
-requires proof: carries(value);
-{
-    transition { _ -> next(value; proof) }
-}
-```
-
-An internal transition does not retransmit the enclosing machine's named
-`requires` package; those terms remain in scope throughout that machine
-invocation. Missing, extra, unknown, or proposition-mismatched state-arrival
-terms reject before execution, and evidence contributes no runtime argument.
+A state may consume an ordinary proof-only witness bundle when its contract
+needs the bundle's laws. Every in-edge must establish the target's complete
+arrival contract with exact substitutions and still-valid subjects. Proof-only
+arguments erase without changing runtime state transfer. The general bundle
+migration is tracked in `PROOF-CONTRACT-MIGRATION`; no separate hidden-witness
+transition syntax is required by this design.
 
 ```omega
 state fill(&mut self, i: u64)
@@ -480,24 +470,19 @@ The implemented systems fragment in this chapter is intentionally narrow:
 - **No runtime proof objects.** Runtime dependent data acquires no hidden proof
   field, layout, or cleanup.
 
-The proof stratum now has an internal `Prop` universe for formulas, distinct
-from runtime `Type` and from effectful machine computation. A dedicated
-`proposition R(left: C, right: C);` declaration introduces a nominal family,
-and `R(left, right)` applies it in a fact position. Proof inhabitants are
-erased, copyable, and cannot contribute runtime storage, be inspected by
-runtime code, or participate in machine layout. Explicit `[erased]` bindings
-may retain them in typed data for proof, validity, and provenance checking while
-lowering omits those bindings. An explicitly erased Type ghost instead retains
-ordinary Type multiplicity and conservation. The current source fragment
-exposes proposition-valued families over representative values with typed
-proof-static index telescopes and
-carrierless evidence; it does not yet expose `Prop` itself as an arbitrary
-first-class source value or admit value-to-runtime-`Type` computation. It must
-land before evidence-bearing quotients and is specified in
-[Law-Bearing Relations, Evidence, And Quotients](../design_briefs/law_bearing_relations_and_quotients.md).
-The small-kernel endgame
-([proof_engine_north_star.md](../design_briefs/proof_engine_north_star.md))
-layers under both surfaces.
+The proof stratum distinguishes formulas, mathematical values, and effectful
+computation. Contracts state formulas; machines establish them; ordinary named
+trait/conformance bundles organize witnesses and laws. Erased Type witnesses
+retain their ordinary multiplicity and conservation. Logical evidence cannot
+be inspected by runtime code or contribute layout.
+
+General proof-side dependency must support arbitrary mathematical functions
+and predicates, nested quantification, and noncomputable values. The first-order
+systems restrictions above do not constrain that mathematical language.
+Universes, equality, and foundation compatibility need explicit design; the
+current specialized checker is not a complete implementation. See
+[Mathematical Proofs](../design_briefs/mathematical_proofs.md) and the
+[proof-engine direction](../design_briefs/proof_engine_north_star.md).
 
 ## Relationship To Other Chapters
 
@@ -510,7 +495,7 @@ layers under both surfaces.
 - Chapter 10 owns proof machines and evidence; a dependent contract may cite
   a theorem — a fact justified by a proof machine, instantiated at the
   operands — including refinement facts equating a runtime place with a pure
-  machine's result. It also owns the proof-only proposition-family extension;
+  machine's result. It also owns general proof-side relations and witness bundles;
   this chapter does not generalize that extension into runtime dependent
   types.
 - Chapter 13 owns the static lowering; const parameters are witnesses the

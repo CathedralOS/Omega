@@ -77,12 +77,11 @@ Must own:
   return types, after their receiver children have lowered.
 - Keeping source names available for diagnostics without letting strings become
   semantic identity.
-- Preserving an explicit named `requires`/`ensures` evidence binding while its
-  proposition references acquire ordinary resolved identity. Selection of a
-  producer conformance remains a checked proof concern.
-- Resolving every nominal and proposition-local binder leaf in a transparent
-  proposition's proof-only `zero_value<T>()` target. The expression retains the
-  exact type graph; this stage does not decide what all-zero storage denotes.
+- Resolving contract subjects and mathematical bundle selections without
+  inventing evidence or choosing a producer from visible names.
+- Resolving every nominal and bound type leaf in a contract's proof-only
+  `zero_value<T>()` target. The expression retains the exact type graph;
+  this stage does not decide what all-zero storage denotes.
 - Resolving the declared package-scoped conformance symbol in a nested generic
   application while preserving that application's own argument pack separately
   from the enclosing machine telescope. This stage does not infer missing
