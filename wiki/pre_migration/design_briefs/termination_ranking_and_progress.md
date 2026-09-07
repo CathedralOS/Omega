@@ -199,7 +199,7 @@ The caller checks the exact projection, type, access, lifetime, and relationship
 to the enclosing object through ordinary borrow/call evidence. The callee need
 not know the enclosing nominal type or receive a second reference to it. The
 same original referent must survive backedges and return under the
-[structural borrow identity contract](core_multiplicity_and_linearity.md#structural-borrow-identity-at-native-calls).
+[structural borrow identity contract](../../spec/terminal-psi/structural_access.md).
 While the subloan is live, conflicting access through the parent rejects.
 Keeping both a parent and a subloan is not inherently illegal, but their loan
 relationship must be represented and overlapping access restricted; this case

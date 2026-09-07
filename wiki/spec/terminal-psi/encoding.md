@@ -88,6 +88,6 @@ Emitted operations and return edges retain semantic site, operation ordinal,
 function-relative offset, and byte count. Metadata-only settlement rows have
 zero-byte intervals. This is replay/analysis provenance, not native instruction
 cost or runtime charging. Structural call placement must preserve the
-[borrow identity contract](../../pre_migration/design_briefs/core_multiplicity_and_linearity.md#structural-borrow-identity-at-native-calls);
+[borrow identity contract](structural_access.md);
 it cannot stage every borrowed parameter as an owned copy merely because the
 installation record can describe one.
