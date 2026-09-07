@@ -36,6 +36,22 @@ priority. If another session owns the next change, do not duplicate it. When
 continuity is unavailable, choose from the boards and state the customer once.
 Do not switch lanes merely because another helper is easier to finish.
 
+### Work from a should-be-working example
+
+Use the customer's actual command as the outer loop, including the shipped CLI,
+package preparation, publication, and execution. A compiler-library test is a
+useful inner loop but may bypass those dependencies. Trace backward from the
+expected output and exit through the real producer/consumer route. Keep the
+route in the sample's existing README or owning design document, with the
+current first failure on its existing board item; do not add a parallel tracker.
+
+Distinguish the first observed failure from downstream gaps found by reading
+code. Record which command reached which boundary and where it left artifacts.
+After each milestone, rerun the outer command when its inputs changed and report
+whether its failure moved. A passing helper with an unchanged customer failure
+is dependency progress, not a working example. Never simplify the customer's
+program or bypass checking merely to move the marker.
+
 Use existing failure logs and board evidence to rank useful work. Do not start
 an unfiltered corpus run just to choose a task. If evidence is stale, probe one
 representative fixture. Prefer a bounded improvement with observable acceptance
