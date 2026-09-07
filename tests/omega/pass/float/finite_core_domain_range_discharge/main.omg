@@ -15,7 +15,7 @@ machine Main::main(&mut self) {
     // Writes are an invariant window: transient poison and an out-of-range
     // intermediate are legal because both places are repaired before the
     // transition consumes state.
-    self.direct = 0.0 / 0.0;
+    self.direct = 0.0f64 / 0.0;
     self.direct = 2.5;
     self.ranged = 2.0;
     self.ranged = 0.5;

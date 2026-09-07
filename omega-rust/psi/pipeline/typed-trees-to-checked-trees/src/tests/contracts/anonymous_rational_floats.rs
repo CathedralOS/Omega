@@ -154,8 +154,16 @@ fn assert_delivered_bits(
 }
 
 #[test]
-fn anonymous_integer_arithmetic_retains_float_bits_at_each_declared_destination() {
+fn anonymous_numeric_arithmetic_retains_float_bits_at_each_declared_destination() {
     for (expression, binary32, binary64) in [
+        ("7 / 2.0 / 2", 0x3fe0_0000, 0x3ffc_0000_0000_0000),
+        ("7.0 / 2 * 2", 0x40e0_0000, 0x401c_0000_0000_0000),
+        ("(0 - 7.0) / 2 / 2", 0xbfe0_0000, 0xbffc_0000_0000_0000),
+        (
+            "7 / (0 - 2.0) * (0.0 - 2)",
+            0x40e0_0000,
+            0x401c_0000_0000_0000,
+        ),
         ("7 / 2 / 2", 0x3fe0_0000, 0x3ffc_0000_0000_0000),
         ("7 / 2 * 2", 0x40e0_0000, 0x401c_0000_0000_0000),
         ("(0 - 7) / 2 / 2", 0xbfe0_0000, 0xbffc_0000_0000_0000),
@@ -174,8 +182,10 @@ fn anonymous_integer_arithmetic_retains_float_bits_at_each_declared_destination(
 }
 
 #[test]
-fn f32_destinations_round_exact_integer_trees_once_without_an_f64_intermediate() {
+fn f32_destinations_round_exact_numeric_trees_once_without_an_f64_intermediate() {
     for (expression, bits) in [
+        ("16777217 / 2.0 + 1 / 18014398509481984", 0x4b00_0001),
+        ("16777217.0 - 16777216", 0x3f80_0000),
         // Just above the midpoint 8388608.5: f64 first would erase the tiny addend.
         ("16777217 / 2 + 1 / 18014398509481984", 0x4b00_0001),
         // Just below 8388609.5: rounding that midpoint would instead give 8388610.
@@ -194,11 +204,55 @@ fn f32_destinations_round_exact_integer_trees_once_without_an_f64_intermediate()
 #[test]
 fn anonymous_zero_divisors_cannot_land_at_float_destinations() {
     for target in ["f32", "f64"] {
-        for expression in ["1 / 0", "7 / (2 - 2)", "(1 / 0) * 0"] {
+        for expression in [
+            "1 / 0",
+            "7 / (2 - 2)",
+            "(1 / 0) * 0",
+            "1 / 0.0",
+            "7.0 / (2 - 2.0)",
+            "(1.0 / 0) * 0",
+            "0.0 / 0.0",
+            "1.0 / -0.0",
+        ] {
             for destination in DESTINATIONS {
                 rejects(&source(destination, target, expression));
             }
         }
+    }
+}
+
+#[test]
+fn typed_float_operands_keep_ieee_division_and_anonymous_peer_boundaries() {
+    for target in ["f32", "f64"] {
+        for expression in [format!("0.0{target} / 0.0"), format!("1.0{target} / 0")] {
+            for destination in DESTINATIONS {
+                accepts(&source(destination, target, &expression));
+            }
+        }
+        for expression in [
+            format!("1.0{target} + (1.0 / 0)"),
+            "runtime + (1 / 0.0)".into(),
+        ] {
+            rejects(&format!(
+                "machine value(runtime: {target}) -> {target} {{ {expression} }}"
+            ));
+        }
+    }
+}
+
+#[test]
+fn anonymous_mixed_comparisons_use_exact_values() {
+    for (expression, expected) in [
+        ("7 / 2.0 > 3", true),
+        ("7.0 / 2 == 3", false),
+        ("9007199254740993.0 - 9007199254740992 == 1", true),
+    ] {
+        let checked = accepts(&format!("machine value() -> bool {{ {expression} }}"));
+        let returned = delivered_expression(&checked, Destination::Return);
+        assert!(
+            matches!(checked.expression_table.expression(returned), ExpressionNode::Boolean(value) if *value == expected),
+            "{expression}"
+        );
     }
 }
 

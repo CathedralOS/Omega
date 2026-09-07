@@ -2,7 +2,7 @@ use omega::language::core::float_operations;
 
 // RUN CANARY (exit 77, differential) -- F2e anonymous float const evaluation.
 // Anonymous decimal arithmetic stays exact Rat until its destination requests
-// a format, then rounds once. Three faces:
+// a format, then rounds once. The following faces include a typed IEEE check:
 //   1. exact 0.1 + 0.2 lands as the same f64 as literal 0.3 (an f64 op does not),
 //   2. a double-rounding-sensitive spelling inside an expression lands directly
 //      at f32 instead of passing through f64 operand immediates, and
@@ -11,7 +11,9 @@ use omega::language::core::float_operations;
 //   4. an explicit cast requests the format across its operand tree,
 //   5. fixed-array element destinations request their element format,
 //   6. a wholly anonymous comparison evaluates in Rat, and
-//   7. exact division by zero produces the format's NaN special.
+//   7. an explicitly typed f64 operand selects quiet IEEE division, producing NaN,
+//   8. mixed integer/decimal arithmetic rounds once at f32, and
+//   9. a typed float peer requests the whole anonymous operand's exact value.
 use omega_language_std::console;
 
 data Main { console: Console; exact: f64; values: [f64; 1]; }
@@ -63,10 +65,26 @@ machine Main::main(&mut self) {
     }
 
     state special_face(&mut self) {
-        let nan: f64 = 0.0 / 0.0;
+        let nan: f64 = 0.0f64 / 0.0;
         transition nan != nan {
-            true -> good()
+            true -> mixed_face()
             _ -> bad(84)
+        }
+    }
+
+    state mixed_face(&mut self) {
+        let narrow: f32 = 16777217 / 2.0 + 1 / 18014398509481984;
+        transition narrow == 8388609.0 {
+            true -> typed_peer_face()
+            _ -> bad(85)
+        }
+    }
+
+    state typed_peer_face(&mut self) {
+        let combined: f32 = 1.0f32 + (16777217.0 - 16777216);
+        transition combined == 2.0 {
+            true -> good()
+            _ -> bad(86)
         }
     }
 

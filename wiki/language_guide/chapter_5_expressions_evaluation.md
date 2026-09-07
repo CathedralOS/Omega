@@ -821,11 +821,14 @@ expression-only suppression restriction.
 > successful integer landing retains fractional-intermediate warnings. Facts
 > with potentially authored operators remain for typed declaration selection,
 > not builtin evaluation by spelling. At supported declared `f32`/`f64`
-> destinations, wholly anonymous integer-literal arithmetic uses the same exact
-> rational value and rounds once, without an integer-landing warning. Retained
-> but unused operands do not impose runtime integer-width limits after this
+> destinations, wholly anonymous integer, decimal, and mixed literal arithmetic
+> retains an exact rational value and rounds once, without an integer-landing
+> warning. Retained but unused operands do not impose runtime integer-width limits after this
 > folding; another executable use still has its own width obligation.
-> Decimal-float folding and comparisons also require builtin operator meaning;
+> Mixed literal comparisons also use exact values without requesting a float
+> format. Anonymous division by zero rejects, including inside comparisons or
+> anonymous operands of typed operations; explicitly typed float division keeps
+> its IEEE semantics. All these folds require builtin operator meaning;
 > authored operations retain their nodes and independently chosen operand
 > destinations for checked selection, rather than inheriting the result format.
 > Caller result proofs can also
@@ -833,7 +836,8 @@ expression-only suppression restriction.
 > fixed-integer operands, without replaying their source expressions. General runtime argument
 > snapshots, generic/evidence-adapted and boundary destination custody, aggregate
 > elements, remaining mutable parameter carriers and Unit-body storage, numeric policies,
-> mixed integer/decimal anonymous trees and remaining float destinations,
+> mixed integer/decimal trees at remaining integer and constant destinations,
+> remaining float destinations,
 > remaining authored-operator/const-proof consumers, and ordinary warning
 > suppression/report transport remain on [the execution board](../../TASKS.md).
 
@@ -1085,7 +1089,7 @@ production, not overflow into wraparound:
 - **`in Trapping`**: producing a non-finite value traps.
 - **`in Saturating`**: overflow clamps to the format's largest finite
   magnitude — **overflow only**: division by zero and
-  invalid operations (`0.0/0.0`, `inf - inf`, `sqrt` of a negative) still
+  invalid typed operations (`0.0f64 / 0.0`, `inf - inf`, `sqrt` of a negative) still
   produce non-finite values; those routes remain `Finite` obligations.
   `Finite & Saturating` is therefore the ergonomic pairing: magnitude
   proofs vanish into the clamp, wellness stays proven via the cheap
@@ -1137,7 +1141,7 @@ Comparison results in value position (`let ok: bool = a > b`) use the same
 lowering as guards and are pinned for ordinary values — including negative
 operands, where a bit-pattern comparison would invert the order — by
 `arithmetic/runtime_float_compare_bool_exit`. NaN-operand differential legs
-are now pinnable (runtime `0.0 / 0.0` under the quiet default constructs
+are now pinnable (runtime `0.0f64 / 0.0` under the quiet default constructs
 NaN portably).
 
 NaN payload bits are absent from the base arithmetic promise and never

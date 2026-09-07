@@ -86,7 +86,7 @@ machine x86_baseline_float_twin_code() -> u64 {
     let maximum64: f64 = 1.7976931348623157e308;
     let negative_zero64: f64 = F64::negate(0.0);
     let infinity64: f64 = maximum64 + maximum64;
-    let nan64: f64 = 0.0 / 0.0;
+    let nan64: f64 = 0.0f64 / 0.0;
     let minimum_nan_first64: f64 = F64::minimum(nan64, one64);
     let minimum_nan_second64: f64 = F64::minimum(one64, nan64);
     let maximum_nan_first64: f64 = F64::maximum(nan64, one64);

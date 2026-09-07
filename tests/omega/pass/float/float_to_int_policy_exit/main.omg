@@ -21,7 +21,7 @@ data Main {
 machine Main::main(&mut self) {
     self.huge = 100000000000000000000.0;
     self.negative = 0.0 - self.huge;
-    self.nan = 0.0 / 0.0;
+    self.nan = 0.0f64 / 0.0;
     self.si8 = (self.huge as i8 in Saturating) as i8;
     self.su8 = (self.huge as u8 in Saturating) as u8;
     self.si32 = (self.huge as i32 in Saturating) as i32;

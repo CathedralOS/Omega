@@ -6,7 +6,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    self.value = 0.0 / 0.0;
+    self.value = 0.0f64 / 0.0;
     transition { _ -> consume() }
 
     state consume(&self) { self.console.exit_process(77); }

@@ -3420,9 +3420,9 @@ fn f32_per_operation_rounding_canary_runs() {
 
 #[test]
 fn anonymous_exact_rat_const_canary_runs() {
-    // F2e: anonymous decimal trees evaluate as exact rationals, then round
-    // once at a destination or guard-context format. Specials are produced
-    // before landing and rendered at the same format on both engines.
+    // Anonymous integer/decimal trees evaluate as exact rationals, then round
+    // once at a destination or guard-context format. The special-value leg
+    // uses an explicitly typed operand to select IEEE division on both engines.
     let canary = pass_canary(fixture_roster::ANONYMOUS_EXACT_RAT_CONST_EXIT);
     let main_path = canary.join("main.omg");
 
