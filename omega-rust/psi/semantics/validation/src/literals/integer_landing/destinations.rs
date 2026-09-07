@@ -7,7 +7,7 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 use typed_trees::types::TypeReferenceHandle;
 
 mod array_elements;
-use array_elements::admit_array_elements;
+use array_elements::{admit_array_elements, admit_assignment_value};
 
 /// Query only after successful validation: warnings do not participate in the
 /// admission diagnostic count. The fractional source occurrence survives even
@@ -296,26 +296,15 @@ fn collect_destination_trees(
                     }
                     StatementNode::Assignment(assignment) => {
                         other_roots.push(assignment.target);
-                        let destination = crate::places::declared_place_type_raw(
+                        if admit_assignment_value(
                             program,
                             machine,
-                            Some(state),
+                            state,
                             assignment.target,
-                        )
-                        .or_else(|| {
-                            crate::places::declared_indexed_projection_type_raw(
-                                program,
-                                machine,
-                                Some(state),
-                                assignment.target,
-                            )
-                        });
-                        if destination.is_some_and(|destination| {
-                            admitted(
-                                crate::places::assignment_value_type(program, destination),
-                                assignment.value,
-                            )
-                        }) {
+                            assignment.value,
+                            &mut admitted,
+                            other_roots,
+                        ) {
                             append_tree(program, assignment.value, owned);
                         } else {
                             other_roots.push(assignment.value);
@@ -518,6 +507,7 @@ mod tests {
     use super::*;
 
     mod arrays;
+    mod windows;
 
     fn typed(source_text: &str) -> TypedTrees {
         let tokens = source_files_to_tokens::Lexer::new(source_text)

@@ -18,6 +18,9 @@ use typed_trees::types::PrimitiveType;
 
 mod construction_bounds;
 mod field_obligations;
+mod window_elements;
+
+pub(crate) use window_elements::validate_array_window_elements;
 
 use construction_bounds::validate_literal_default_domain;
 use field_obligations::enforce_construction_field_obligations;

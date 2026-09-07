@@ -9,25 +9,38 @@ impl Evaluator<'_> {
         destination: TypeReferenceHandle,
         frame: &Frame,
     ) -> EvalResult<Value> {
-        if let ExpressionNode::ArrayLiteral(elements) =
+        if let ExpressionNode::ArrayLiteral(_) =
             self.program.expression_table.expression(expression)
             && let TypeReferenceNode::FixedArray { element_type, .. } = self
                 .program
                 .type_reference_table
                 .type_reference(destination)
         {
-            let element_type = *element_type;
-            let elements = *elements;
-            self.tick()?;
-            let mut values = Vec::new();
-            for element in self.program.expression_table.expression_handles(elements) {
-                let value = self.eval_expression_at_type(*element, element_type, frame)?;
-                values.push(self.allocate_cell(value)?);
-            }
-            return Ok(Value::Array(values));
+            return self.eval_array_literal_at_element_type(expression, *element_type, frame);
         }
         let primitive = self.program.primitive_type_reference(destination);
         self.eval_expression_with_destination(expression, primitive, frame)
+    }
+
+    pub(super) fn eval_array_literal_at_element_type(
+        &mut self,
+        expression: ExpressionHandle,
+        element_type: TypeReferenceHandle,
+        frame: &Frame,
+    ) -> EvalResult<Value> {
+        let ExpressionNode::ArrayLiteral(elements) =
+            self.program.expression_table.expression(expression)
+        else {
+            return unsupported("array element destination requires an array literal");
+        };
+        let elements = *elements;
+        self.tick()?;
+        let mut values = Vec::new();
+        for element in self.program.expression_table.expression_handles(elements) {
+            let value = self.eval_expression_at_type(*element, element_type, frame)?;
+            values.push(self.allocate_cell(value)?);
+        }
+        Ok(Value::Array(values))
     }
 
     /// Use the compiler's exact anonymous value at the actual destination.

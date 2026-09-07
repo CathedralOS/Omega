@@ -1308,6 +1308,8 @@ struct Evaluator<'program> {
     guard_depth: u32,
 }
 
+#[path = "evaluator/array_windows.rs"]
+mod array_windows;
 #[path = "evaluator/boundary_console.rs"]
 mod boundary_console;
 #[path = "evaluator/build_paths.rs"]
