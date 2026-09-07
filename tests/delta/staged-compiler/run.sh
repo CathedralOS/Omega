@@ -220,6 +220,8 @@ if evaluate(compiler, identity) != (0, identity + b"\n"):
 for fixture, expected_result in (
     ("scalar_recursive.delta", b"\x0f"),
     ("scalar_surface.delta", b"\x15"),
+    ("nested_match.delta", b"\x09"),
+    ("tail_recursive.delta", b"\x01"),
 ):
     scalar_source = Path(os.environ["GATE_DIR"], fixture).read_bytes()
     scalar_status, scalar_receipt = evaluate(compiler, scalar_source)

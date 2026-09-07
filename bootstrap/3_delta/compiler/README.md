@@ -367,8 +367,9 @@ Run `sh tests/delta/staged-compiler/run.sh` for lowering and generated execution
 `sh tests/delta/resource-boundary/run.sh` for authored resource boundaries,
 `sh tests/delta/frontend-boundary/run.sh` for exact frontend outcomes, and
 `sh tests/gamma/composed-artifact.sh` for composed identity and publication.
-The downgraded full compiler remains separate under
-[`../bootstrap/concatenative-compiler/`](../bootstrap/concatenative-compiler/).
+The [concatenative predecessor retirement](../../../wiki/design_briefs/bootstrap_cost_review.md#concatenative-delta-compiler-slice)
+preserves its useful conformance assertions in selected gates, not a second
+Delta compiler or its materialization helper.
 
 ## Measurements
 

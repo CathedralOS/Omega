@@ -16,7 +16,7 @@ evidence, not successive authorization to add more helpers.
 | Delta name construction | Shared-prefix cursors save 275,352 pairs/11,014,080 bytes over root-rebuilding seeks on the current Epsilon subject; both produce the same complete receipt. | Retain the existing implementation without expansion. Customer capacity alone does not require it; preserve separate conformance obligations before considering removal. |
 | Generic Gamma checker | Capacity checks at 547,817 work; the normalized forward state-fold recipe costs another 681,724 even with identity byte steps. | Separate capacity and scanner passes do not fit the current provision. Cost the combined encoder and a coherent resource provision before adopting either representation. |
 | Partial Beta theory | Lexical and word helpers exist; full encoder, independent owner root, and source-owned certificate producer do not. | Do not treat helper completion as full-proof feasibility or trust reduction. |
-| Retained concatenative route | Eleven bootstrap files, 236,347 bytes; eight remaining test entrypoints after experiment retirement below. | Candidate for further retirement, not dead code. Map unique coverage and preserve useful findings before coordinated removal. |
+| Retained concatenative Gamma route | Nine bootstrap files, 169,376 bytes; seven remaining test entrypoints after experiment retirement below. | Candidate for further retirement, not dead code. Map unique coverage and preserve useful findings before coordinated removal. |
 
 The resource follow-through below changes one private checker limit after an
 allocation audit; no language contract, evaluator capacity, or trusted assumption
@@ -800,18 +800,16 @@ emerges, apply the scope pause before expanding into permanent helper families.
 
 ## Legacy route: retirement must follow its consumers
 
-`bootstrap/2_gamma/bootstrap/concatenative/` and
-`bootstrap/3_delta/bootstrap/concatenative-compiler/` retain four language-source/
-receipt files totaling 6,658 lines/195,831 bytes, one 26,674-byte tape, and six docs.
+`bootstrap/2_gamma/bootstrap/concatenative/` retains three language-source/
+receipt files totaling 4,968 lines/129,149 bytes, one 26,674-byte tape, and five docs.
 These are outside the selected execution route; their size is maintenance and
 review-discovery cost, not automatically additional trusted chain material.
 
 The six remaining Gamma entrypoints are `evaluator-slice.sh`, `evaluator-reconstruction.sh`,
 `compiler-fixed-point.sh`, `state-machine-customer.sh`, and the `run.sh` files in
 `gamma1-augmentation-experiment/` and `gamma-to-beta-experiment/`.
-The two remaining Delta entrypoints are the `run.sh` files in `compiler-slice/`
-and `state-machine-experiment/`.
-The role registry, two artifact helpers, and
+The remaining Delta entrypoint is `state-machine-experiment/run.sh`.
+The role registry, the Gamma artifact helper, and
 chain-hygiene gate also retain the old route. Searches must include helper calls
 and role variables, not only literal directory names.
 
@@ -932,3 +930,49 @@ All three remaining fixture bindings resolve to byte-identical pre-move sources;
 shell syntax, consumer searches, documentation links, and chain hygiene were
 checked. Full legacy/capacity suites and Windows execution were not rerun for
 these fixture moves; production source and artifact inputs are unchanged.
+
+### Concatenative Delta compiler slice
+
+The selected Delta gate now supersedes `tests/delta/compiler-slice/` without
+requiring the full Delta proof edge to be closed. The old gate's schema-specific
+elaborator and interpreted/native comparison of an unselected compiler are not
+additional proof premises. Its old tape hashes and concatenative formatting
+expectations do not constrain the selected functional Gamma receipt.
+
+At review base `bc4c68a7bbfbe3fefcd39d95b3bc34b5c356efcd`, the directory contained
+17 files, 1,325 lines, and 60,572 bytes. Four source/receipt files move unchanged
+to their surviving owners; 13 files totaling 1,158 lines and 52,819 bytes retire.
+All removed material remains recoverable from that revision.
+
+| Former assertion | Selected coverage or disposition |
+| --- | --- |
+| Scalar recursion, operators, lexical bindings, forward/nested calls, thirteen ordered arguments | Existing `staged-compiler/scalar_recursive.delta` and `scalar_surface.delta`. Frontend coverage executes a 200-argument call; fourteen was not a semantic limit. |
+| Payload Option, recursive List, exhaustive matches | Existing staged `payload_match`, `recursive_match`, `list_match`, and their exact receipts; frontend wrong-owner, arity, duplicate, and missing-arm controls. |
+| Inner and outer match binders used together | Move `nested_match.delta` into the staged gate, retaining result 9. |
+| 100,000 mutually recursive tail calls | Move `tail_recursive.delta` into the staged gate, retaining result 1; the existing proper-tail case also exercises lets and matches. |
+| Five Bytes operations, typed lets/calls/branches, sibling scope reuse | Existing staged `bytes_core`, `sibling_locals`, byte extrema, rope, and trap controls. |
+| Checked arithmetic and byte-operation traps | Existing staged arithmetic/Bytes controls; canonical application checks retain status 249 and empty output. |
+| Missing names, malformed structure, scope/type/arity failures | Existing staged malformed cases and canonical frontend exact-frame controls; schema-specific binder renaming adds no distinct semantics. |
+| Schema-only 65,536 start ceiling, negative scalar main masked to `ff`, old label widening | Not selected-language obligations. Selected signed Int semantics, generic scalar observation, and source-level binding identities replace those implementation facts. |
+| Old interpreted/native equality and tape identities | Retire with the unselected comparison, except the two receipts still read by `gamma-to-beta-experiment/run.sh`. |
+
+That Gamma comparison now owns the unchanged recursive and scalar-surface
+receipts as `delta_recursive.gamma` and `delta_surface.gamma`, including its
+existing exact byte/hash expectations. The removed gate was also the final
+executable consumer of `bootstrap/3_delta/bootstrap/concatenative-compiler/` and
+`tools/bootstrap/delta/artifact_env.sh`. Their compiler, README, and helper add
+1,746 lines/68,549 bytes to the retirement, along with their path roles and the
+hygiene gate's obsolete source-list entry. The total is 16 deleted files,
+2,904 lines/121,368 bytes, separate from the four unchanged moves and prose edits.
+Shared concatenative Gamma artifacts and helpers remain because the seven
+other entrypoints still use them. No admitted seed or obligation to prove the
+selected Delta implementation correct is removed.
+
+Validation on macOS arm64: the complete selected staged gate passes with both
+moved Delta fixtures; all four moved files match their pre-retirement bytes.
+Source-closure, composed-artifact, and all ten archive/checkout topology controls
+pass. Searches include hidden files, helper names, role variables, and old tape
+identities, not only literal directories. The Gamma comparison's two source pins
+are unchanged; its expensive legacy/capacity executions and Windows runtime were
+not rerun for these byte-identical relocations. No selected compiler source,
+evaluator, seed, or emitted receipt expectation changes.
