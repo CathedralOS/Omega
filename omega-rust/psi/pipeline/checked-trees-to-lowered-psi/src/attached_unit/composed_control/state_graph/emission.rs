@@ -136,16 +136,13 @@ pub(in crate::attached_unit::composed_control) fn emit(
         let mut next_value = catalogs.next_value;
         let mut next_block = catalogs.next_block;
         let mut next_edge = catalogs.next_edge;
-        let current_rank =
-            if let Some(parameter_position) = ranking::parameter_position(plan, state) {
-                Some(crate::operation_emission::emit_byte_length(
-                    state_parameters[parameter_position].place,
-                    &mut next_value,
-                    &mut operations,
-                ))
-            } else {
-                None
-            };
+        let current_rank = ranking::parameter_position(plan, state).map(|parameter_position| {
+            crate::operation_emission::emit_byte_length(
+                state_parameters[parameter_position].place,
+                &mut next_value,
+                &mut operations,
+            )
+        });
         let bindings = scalars::emit_prefix(
             checked,
             state,
@@ -307,17 +304,13 @@ pub(in crate::attached_unit::composed_control) fn emit(
                     ));
                 }
                 let arriving_rank = if current_rank.is_some() {
-                    if let Some(parameter_position) =
-                        ranking::parameter_position(plan, target_state)
-                    {
-                        Some(crate::operation_emission::emit_byte_length(
+                    ranking::parameter_position(plan, target_state).map(|parameter_position| {
+                        crate::operation_emission::emit_byte_length(
                             structural_arguments[parameter_position].place,
                             &mut next_value,
                             &mut operations,
-                        ))
-                    } else {
-                        None
-                    }
+                        )
+                    })
                 } else {
                     None
                 };

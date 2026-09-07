@@ -809,3 +809,6 @@ mod unranked_views;
 
 #[path = "ranked_scc/natural_stale_observations.rs"]
 mod natural_stale_observations;
+
+#[path = "ranked_scc/natural_topology.rs"]
+mod natural_topology;
