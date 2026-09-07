@@ -659,17 +659,38 @@ fn attached_unit_borrowed_self_roots_an_ordinary_field_argument_beside_provider_
                     [StructuralPathSegment::Field(field)] if field == "pause"
                 )
     ));
-    // The projected byte carrier is not yet admissible to the Terminal
-    // verifier: `resolve_structural_path` walks only `Structural` fields and
-    // `pause` is a `ByteSequence` field. An owned `self` stops at the same
-    // site. Pinned so the flip is noticed when the verifier admits it.
-    assert!(matches!(
-        lower_machine(&checked, "Main::main"),
-        Err(LoweringError::InvalidTerminalModule(
-            terminal_verifier::ModuleError::InvalidStructuralArgumentPath {
-                argument_index: 0,
-                ..
-            }
-        ))
-    ));
+    lower_machine(&checked, "Main::main")
+        .expect("the boundary presentation retains the exact bounded buffer field");
+    let bytes = terminal_codec::encode_module(&lowered.semantic_module)
+        .expect("the buffer presentation has a canonical encoding");
+    let decoded = terminal_codec::decode_module(&bytes).expect("decode exact buffer custody");
+    assert_eq!(decoded, lowered.semantic_module);
+    terminal_verifier::validate_module(&decoded).expect("decoded buffer presentation verifies");
+    let mut changed = decoded.clone();
+    let declaration = changed
+        .structural_types
+        .iter_mut()
+        .find(|declaration| declaration.id == attachment)
+        .unwrap();
+    let terminal_psi::StructuralTypeShape::Record { fields } = &mut declaration.shape else {
+        unreachable!()
+    };
+    let field = fields
+        .iter_mut()
+        .find(|field| field.identity == "pause")
+        .unwrap();
+    assert_eq!(
+        field.field_type,
+        terminal_psi::StructuralFieldType::ByteSequence(
+            terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity: 16 }
+        )
+    );
+    field.field_type = terminal_psi::StructuralFieldType::ByteSequence(
+        terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity: 17 },
+    );
+    assert_ne!(
+        terminal_codec::semantic_fingerprint(&decoded).unwrap(),
+        terminal_codec::semantic_fingerprint(&changed).unwrap(),
+        "the parameter view cannot erase the caller's inline capacity"
+    );
 }

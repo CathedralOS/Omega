@@ -1,8 +1,77 @@
 //! Exact call-composition policy rows.
 
-use terminal_psi::OperationKind;
+use semantic_vocabulary::StructuralTypeId;
+use terminal_psi::{
+    ByteSequenceCarrier, OperationKind, StructuralAccess, StructuralArgument, StructuralFieldType,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeShape, TerminalModule,
+};
 
 use super::{OperationSemanticError, OperationSemanticTag};
+
+/// Resolve the inline capacity presented to a boundary's mutable byte parameter.
+/// The operand retains its owning field; this establishes neither type equality
+/// with a view nor a descriptor, qualification, or runtime writeback. Callers must
+/// separately validate source access, multiplicity, aliasing, and boundary custody.
+pub fn boundary_buffer_capacity(
+    module: &TerminalModule,
+    mut root_type: StructuralTypeId,
+    argument: &StructuralArgument,
+    expected: &StructuralParameterDeclaration,
+) -> Option<u64> {
+    if argument.access != StructuralAccess::MutableBorrow
+        || expected.access != StructuralAccess::MutableBorrow
+        || !expected.qualifications.is_empty()
+        || !expected.projected_qualifications.is_empty()
+        || !module.structural_types.iter().any(|declaration| {
+            declaration.id == expected.structural_type
+                && declaration.shape
+                    == StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+        })
+    {
+        return None;
+    }
+    let (StructuralPathSegment::Field(identity), prefix) = argument.path.split_last()? else {
+        return None;
+    };
+    for segment in prefix {
+        let declaration = module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == root_type)?;
+        root_type = match (segment, &declaration.shape) {
+            (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields }) => {
+                let field = fields
+                    .iter()
+                    .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+                let StructuralFieldType::Structural(next) = field.field_type else {
+                    return None;
+                };
+                next
+            }
+            (
+                StructuralPathSegment::FixedIndex(index),
+                StructuralTypeShape::FixedArray { element, length },
+            ) if index < length => *element,
+            _ => return None,
+        };
+    }
+    let declaration = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == root_type)?;
+    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return None;
+    };
+    let field = fields
+        .iter()
+        .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+    match field.field_type {
+        StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) => {
+            Some(capacity)
+        }
+        _ => None,
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CallTargetRule {

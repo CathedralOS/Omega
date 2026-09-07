@@ -22,6 +22,15 @@ Borrowed arguments retain the caller's referent across completion. Only owned
 arguments transfer custody; eventual owner cleanup remains separate even when
 another argument in that call is consumed.
 
+A boundary's unqualified mutable byte-view parameter may receive an inline
+bounded-owned byte field through its exact non-erased record/fixed-array path.
+The operand retains the caller's owner and capacity; this is a boundary
+presentation, not equality between inline storage and a borrowed descriptor.
+Source access, multiplicity, disjointness, and completion checks still apply.
+It grants neither view qualifications nor ordinary-call conversion. Runtime
+realization must preserve capacity and live-length writeback on that exact
+field; canonical transport alone establishes no interpreter or native support.
+
 Trait requirements and explicit top-level boundary requirements have distinct
 canonical kinds. A top-level requirement retains its package-qualified operation,
 static telescope, signature, contract, and visibility. A bodyless implementation,
