@@ -20,7 +20,7 @@ fn omega_rebases_projected_provider_claims_and_preserves_sibling_sources() {
     let selected = selected("second-plan", "SecondProvider", "SecondProvider::emit");
     let installation = admit_provider_installation(&plan, &semantic, &proof, &profile, &selected)
         .expect("projected structural provider installation");
-    let [first, second] = installation.installed_unit_calls() else {
+    let [first, second] = installation.installed_calls() else {
         panic!("two installed projected provider calls")
     };
     assert_eq!(

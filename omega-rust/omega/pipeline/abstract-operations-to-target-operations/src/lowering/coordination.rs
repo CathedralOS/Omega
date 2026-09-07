@@ -156,7 +156,7 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
             if installation.psi() != plan.psi {
                 return Err(LoweringError::ProviderInstallationIdentityMismatch);
             }
-            Ok(installation.installed_provider_unit_calls())
+            Ok(installation.installed_provider_calls())
         })
         .transpose()?
         .unwrap_or_default();
@@ -219,6 +219,7 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
             })
             .collect::<Vec<_>>();
         if !result.is_unit()
+            || !matches!(installed.result, terminal_psi::OperationResult::Unit)
             || installed.scalar_arguments != *arguments
             || installed.structural_arguments != *structural_arguments
             || installed.completion_claim_sources != exact_sources

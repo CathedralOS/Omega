@@ -25,7 +25,7 @@ pub use optimization::{
     VerifiedPsiOptimizationUnitBuildError, build_verified_psi_optimization_unit,
 };
 pub use provider_installation::{
-    AdmittedInstalledProviderUnitCall, AdmittedProviderInstallation, ProviderInstallationError,
+    AdmittedInstalledProviderCall, AdmittedProviderInstallation, ProviderInstallationError,
     SelectedProviderAdapter, admit_provider_installation,
     admit_provider_installation_for_optimization,
 };

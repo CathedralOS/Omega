@@ -17,7 +17,7 @@ pub enum ProviderInstallationError {
     },
     PsiAdmission(terminal_interpreter::ProviderInstallationError),
     TerminalIdentityMismatch,
-    InstalledUnitCallReplayMismatch {
+    InstalledCallReplayMismatch {
         caller: MachineId,
         operation: OperationId,
         boundary: semantic_vocabulary::BoundaryMachineId,

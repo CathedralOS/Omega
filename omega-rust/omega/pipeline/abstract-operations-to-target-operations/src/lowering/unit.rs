@@ -36,7 +36,7 @@ pub(super) fn lower_unit_function(
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
     installed_calls: &BTreeMap<
         (MachineId, OperationId, BoundaryMachineId),
-        InstalledProviderUnitCallEvidence,
+        InstalledProviderCallEvidence,
     >,
     fixed_integer_scalar_abis: &BTreeMap<MachineId, FixedIntegerScalarFunctionAbi>,
     ieee_float_fma: &BTreeMap<OperationId, TargetX86ScalarFmaSettlement>,

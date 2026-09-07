@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
     AbstractFunction, AbstractFunctionResult, AbstractOperation, BoundaryMachineId, CallSignature,
-    CallingPolicy, InstalledProviderUnitCallEvidence, KnownUnitInteger, LoweringError, MachineId,
+    CallingPolicy, InstalledProviderCallEvidence, KnownUnitInteger, LoweringError, MachineId,
     NativeTarget, OperationId, PlaceId, ScalarType, StructuralTypeDeclaration, StructuralTypeId,
     TargetStructuralArgument, TargetStructuralParameter, TargetUnitOperation,
     TargetUnitScalarCallArgument, TerminalPsiProvenance, ValueId, ValueShape, evaluate_call_plan,
@@ -21,7 +21,7 @@ pub(super) fn try_lower(
     boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
     installed_calls: &BTreeMap<
         (MachineId, OperationId, BoundaryMachineId),
-        InstalledProviderUnitCallEvidence,
+        InstalledProviderCallEvidence,
     >,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
@@ -58,6 +58,7 @@ pub(super) fn try_lower(
         .ok_or(LoweringError::UnknownBoundarySettlement(*boundary))?;
     let has_scalar_argument = !arguments.is_empty();
     if !result.is_unit()
+        || !matches!(installed.result, terminal_psi::OperationResult::Unit)
         || callee.result != AbstractFunctionResult::Unit
         || arguments.len() != callee.parameters.len()
         || arguments.len() != declaration.scalar_parameters.len()

@@ -258,9 +258,17 @@ affine identity-return plans, attachment and result types, and exact source-to-
 Terminal machine mapping; they are not converted to Unit bodies. A partial-result
 caller can move its sole whole owned input into either an ordinary or boundary
 producer, then consume projected results and discard only the residual complement.
-Omega installation-call admission and native boundary result storage still
-require their own result-aware extensions; source and Terminal admission do not
-authorize those later stages.
+Omega installation-call admission independently replays the canonical artifact
+and abstract plan, selects the exact provider row, and joins Unit or plain affine
+structural results across the boundary and candidate signatures. Its existing
+call record retains the caller's complete operation result, including its exact
+place; the candidate's result place stays scoped to the candidate machine.
+Read-only installation evidence preserves that result without a second signature
+or wire format. Named and anonymous partial-result consumers keep their existing
+cleanup and fuel behavior through the sealed Psi installation.
+Native installed-provider calls still require Unit results in both the actual
+call and installation evidence. Structural provider-result storage and projected
+native copies require their own extension; admission alone cannot authorize them.
 
 For a target-selected attached `ProgramEntry`, the compiler now retains the
 first Fused root-establishment receipt beside Terminal. It derives one row per

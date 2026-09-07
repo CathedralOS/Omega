@@ -44,7 +44,7 @@ pub(super) fn lower(
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
     installed_calls: &BTreeMap<
         (MachineId, OperationId, BoundaryMachineId),
-        InstalledProviderUnitCallEvidence,
+        InstalledProviderCallEvidence,
     >,
     native_callbacks: &BTreeMap<OperationId, target_operations::TargetNativeCallbackArgument>,
     parameters: &[TargetStructuralParameter],
@@ -332,7 +332,7 @@ fn lower_arm(
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
     installed_calls: &BTreeMap<
         (MachineId, OperationId, BoundaryMachineId),
-        InstalledProviderUnitCallEvidence,
+        InstalledProviderCallEvidence,
     >,
     native_callbacks: &BTreeMap<OperationId, target_operations::TargetNativeCallbackArgument>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
