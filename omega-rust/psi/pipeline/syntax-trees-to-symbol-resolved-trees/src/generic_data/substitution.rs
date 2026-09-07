@@ -12,6 +12,7 @@ pub(in crate::generic_data) fn substitute_member(
     member: DataMember,
     substitution: &HashMap<String, TypeReferenceHandle>,
     const_values: &HashMap<String, i128>,
+    warnings: &mut Vec<Diagnostic>,
 ) -> DataMember {
     match member {
         DataMember::Field(field) => DataMember::Field(substitute_data_field(
@@ -19,6 +20,7 @@ pub(in crate::generic_data) fn substitute_member(
             field,
             substitution,
             const_values,
+            warnings,
         )),
         DataMember::Variant(mut variant) => {
             let payload = syntax
@@ -29,7 +31,8 @@ pub(in crate::generic_data) fn substitute_member(
             let mut first = Handle::invalid();
             let mut count = 0u32;
             for field in payload {
-                let field = substitute_data_field(syntax, field, substitution, const_values);
+                let field =
+                    substitute_data_field(syntax, field, substitution, const_values, warnings);
                 let handle = syntax.tables.items.append_data_payload_field(field);
                 if count == 0 {
                     first = handle;
@@ -50,9 +53,15 @@ pub(in crate::generic_data) fn substitute_data_field(
     mut field: syntax_trees::item::DataField,
     substitution: &HashMap<String, TypeReferenceHandle>,
     const_values: &HashMap<String, i128>,
+    warnings: &mut Vec<Diagnostic>,
 ) -> syntax_trees::item::DataField {
-    field.type_reference =
-        substitute_type_reference(syntax, field.type_reference, substitution, const_values);
+    field.type_reference = substitute_type_reference(
+        syntax,
+        field.type_reference,
+        substitution,
+        const_values,
+        warnings,
+    );
     field
 }
 
@@ -61,6 +70,7 @@ pub(in crate::generic_data) fn substitute_type_reference(
     type_reference: TypeReferenceHandle,
     substitution: &HashMap<String, TypeReferenceHandle>,
     const_values: &HashMap<String, i128>,
+    warnings: &mut Vec<Diagnostic>,
 ) -> TypeReferenceHandle {
     let node = syntax
         .tables
@@ -106,6 +116,7 @@ pub(in crate::generic_data) fn substitute_type_reference(
                         substitution.get(name.as_str()).copied().unwrap_or(argument)
                     }
                     TypeReferenceNode::ConstExpression(expression) => {
+                        let warning_watermark = warnings.len();
                         match evaluate_const_argument_expression(
                             syntax,
                             expression,
@@ -113,6 +124,7 @@ pub(in crate::generic_data) fn substitute_type_reference(
                             &const_bindings,
                             &HashSet::new(),
                             integer_types.get(index).copied().flatten(),
+                            warnings,
                         )
                         .and_then(EvaluatedConst::into_concrete)
                         {
@@ -120,10 +132,19 @@ pub(in crate::generic_data) fn substitute_type_reference(
                                 .tables
                                 .type_references
                                 .insert_named(Identifier::generated(value.to_string())),
-                            Err(_) => argument,
+                            Err(_) => {
+                                warnings.truncate(warning_watermark);
+                                argument
+                            }
                         }
                     }
-                    _ => substitute_type_reference(syntax, argument, substitution, const_values),
+                    _ => substitute_type_reference(
+                        syntax,
+                        argument,
+                        substitution,
+                        const_values,
+                        warnings,
+                    ),
                 };
                 substituted_arguments.push(substituted);
             }
@@ -144,8 +165,13 @@ pub(in crate::generic_data) fn substitute_type_reference(
             element_type,
             length,
         } => {
-            let substituted_element =
-                substitute_type_reference(syntax, element_type, substitution, const_values);
+            let substituted_element = substitute_type_reference(
+                syntax,
+                element_type,
+                substitution,
+                const_values,
+                warnings,
+            );
             let substituted_length = match length {
                 FixedArrayLength::ConstParameter(name) => substitution
                     .get(name.as_str())
@@ -172,7 +198,8 @@ pub(in crate::generic_data) fn substitute_type_reference(
             access,
             lifetime,
         } => {
-            let referee = substitute_type_reference(syntax, referee, substitution, const_values);
+            let referee =
+                substitute_type_reference(syntax, referee, substitution, const_values, warnings);
             syntax
                 .tables
                 .type_references
@@ -183,8 +210,13 @@ pub(in crate::generic_data) fn substitute_type_reference(
                 })
         }
         TypeReferenceNode::Slice { element_type } => {
-            let element_type =
-                substitute_type_reference(syntax, element_type, substitution, const_values);
+            let element_type = substitute_type_reference(
+                syntax,
+                element_type,
+                substitution,
+                const_values,
+                warnings,
+            );
             syntax
                 .tables
                 .type_references

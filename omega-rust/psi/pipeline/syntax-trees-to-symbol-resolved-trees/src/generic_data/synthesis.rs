@@ -4,6 +4,7 @@ use super::*;
 
 pub(in crate::generic_data) fn desugar_generic_data_instances(
     syntax: &mut SyntaxTrees,
+    warnings: &mut Vec<Diagnostic>,
 ) -> Result<(), Vec<Diagnostic>> {
     // Index generic data definitions by name (only those with type parameters;
     // a non-generic `Base<..>` is either plan-laid or an existing error path).
@@ -191,7 +192,7 @@ pub(in crate::generic_data) fn desugar_generic_data_instances(
         })
         .collect();
 
-    canonicalize_closed_domain_indices(syntax, &const_definitions, &const_values)
+    canonicalize_closed_domain_indices(syntax, &const_definitions, &const_values, warnings)
         .map_err(|diagnostic| vec![diagnostic])?;
 
     if generic_data.is_empty() {
@@ -222,6 +223,7 @@ pub(in crate::generic_data) fn desugar_generic_data_instances(
                 position,
                 &mut rewrites,
                 &mut instantiations,
+                warnings,
             )
             .map_err(|diagnostic| vec![diagnostic])?;
         }
@@ -390,7 +392,8 @@ pub(in crate::generic_data) fn desugar_generic_data_instances(
             let mut first: Handle<DataMember> = Handle::invalid();
             let mut count = 0u32;
             for member in members {
-                let substituted = substitute_member(syntax, member, &substitution, &const_values);
+                let substituted =
+                    substitute_member(syntax, member, &substitution, &const_values, warnings);
                 let handle = syntax.tables.items.append_data_member(substituted);
                 if count == 0 {
                     first = handle;
@@ -549,7 +552,7 @@ pub(in crate::generic_data) fn desugar_generic_data_instances(
         .collect();
     relabel_unique_closed_sum_paths(syntax, &unique_sum_instances);
 
-    normalize_generic_template_const_expressions(syntax, &const_values)
+    normalize_generic_template_const_expressions(syntax, &const_values, warnings)
         .map_err(|diagnostic| vec![diagnostic])?;
     Ok(())
 }

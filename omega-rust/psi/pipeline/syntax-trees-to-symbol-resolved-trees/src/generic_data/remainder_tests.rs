@@ -8,6 +8,21 @@ fn normalize(source: &str) -> Result<SyntaxTrees, Vec<Diagnostic>> {
 }
 
 #[test]
+fn const_argument_anonymous_division_retains_its_exact_value() {
+    let syntax = normalize(
+        "data Buffer<const N: u64> { values: [u8; N]; }
+        data Main { value: Buffer<7 / 2 * 2>; }",
+    )
+    .expect("integral exact result");
+    assert!(
+        syntax.root_items().any(|item| matches!(item,
+            Item::Data(definition) if definition.name.as_str() == "Buffer<7>"
+        )),
+        "anonymous quotient was truncated before multiplication"
+    );
+}
+
+#[test]
 fn anonymous_remainder_const_arguments_reject_before_folding() {
     for value in ["7 % 2", "8 % 2", "7 + 8 % 2", "7u64 + 8 % 2"] {
         let source = format!(

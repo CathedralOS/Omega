@@ -29,6 +29,8 @@ mod synthesis;
 mod uses;
 
 #[cfg(test)]
+mod division_tests;
+#[cfg(test)]
 mod remainder_tests;
 
 use arguments::*;
@@ -73,7 +75,41 @@ pub(crate) fn canonicalize_declared_const_definition(
 ///
 /// Taking ownership prevents orchestration code from retaining an unnormalized
 /// sibling or reaching into the elaborator as an in-place syntax mutator.
-pub fn normalize_generic_data(mut syntax: SyntaxTrees) -> Result<SyntaxTrees, Vec<Diagnostic>> {
-    desugar_generic_data_instances(&mut syntax)?;
+pub fn normalize_generic_data(syntax: SyntaxTrees) -> Result<SyntaxTrees, Vec<Diagnostic>> {
+    let (syntax, warnings) = normalize_generic_data_with_warnings(syntax)?;
+    for warning in warnings {
+        eprintln!("{warning}");
+    }
     Ok(syntax)
+}
+
+fn normalize_generic_data_with_warnings(
+    mut syntax: SyntaxTrees,
+) -> Result<(SyntaxTrees, Vec<Diagnostic>), Vec<Diagnostic>> {
+    let mut warnings = Vec::new();
+    desugar_generic_data_instances(&mut syntax, &mut warnings)?;
+    deduplicate_generic_warnings(&mut warnings);
+    Ok((syntax, warnings))
+}
+
+fn deduplicate_generic_warnings(warnings: &mut Vec<Diagnostic>) {
+    let mut origins = Vec::new();
+    warnings.retain(|warning| {
+        let Some(origin) = warning.source_span else {
+            return true;
+        };
+        if warning.is_error()
+            || origin.source_id.0 == usize::MAX
+            || origin.span.start >= origin.span.end
+        {
+            return true;
+        }
+        // Generic clones retain the same authored origin. Missing or invalid
+        // spans do not establish that two diagnostics describe the same site.
+        if origins.contains(&origin) {
+            return false;
+        }
+        origins.push(origin);
+        true
+    });
 }

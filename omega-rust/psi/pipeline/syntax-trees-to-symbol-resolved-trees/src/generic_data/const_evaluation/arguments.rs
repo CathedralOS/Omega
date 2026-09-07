@@ -16,6 +16,7 @@ pub(in crate::generic_data) fn consider_generic_spelling(
     type_reference: TypeReferenceHandle,
     rewrites: &mut Vec<PendingRewrite>,
     instantiations: &mut Vec<Instantiation>,
+    warnings: &mut Vec<Diagnostic>,
 ) -> Result<(), Diagnostic> {
     let (base_name, lifetime_arguments, arguments) =
         match syntax.tables.type_references.type_reference(type_reference) {
@@ -103,6 +104,8 @@ pub(in crate::generic_data) fn consider_generic_spelling(
                 );
             }
             TypeReferenceNode::ConstExpression(expression) => {
+                let destination =
+                    syntax_type_identity(syntax, parameter_type).map_err(Diagnostic::error)?;
                 let value = evaluate_const_argument_expression(
                     syntax,
                     expression,
@@ -110,13 +113,18 @@ pub(in crate::generic_data) fn consider_generic_spelling(
                     &HashMap::new(),
                     &HashSet::new(),
                     const_integer_type(syntax, parameter_type),
+                    warnings,
                 )
                 .and_then(EvaluatedConst::into_concrete)
                 .map_err(|reason| {
                     Diagnostic::error(format!(
-                        "const argument expression for `{base}` is invalid: {reason}"
-                    ))
+                        "const argument expression for `{base}` is invalid for `{destination}`: {reason}"
+                    )).with_source_span(syntax.expressions.source_span(expression))
                 })?;
+                if let Some(integer_type) = const_integer_type(syntax, parameter_type) {
+                    validate_syntax_integer_range(integer_type.name, value)
+                        .map_err(Diagnostic::error)?;
+                }
                 syntax.tables.type_references.replace_type_reference(
                     *argument,
                     TypeReferenceNode::Named(Identifier::generated(value.to_string())),
@@ -212,9 +220,10 @@ pub(in crate::generic_data) fn const_arguments_fit_declarations(
 
 /// Evaluate the symbolic integer subset retained in a const-generic argument.
 /// Names resolve to literal scoped const declarations collected above.
-/// Arithmetic deliberately matches the closed-expression parser fold over the
-/// current signed/unsigned 64-bit envelope. Shifts and bitwise operations use
-/// the matched const parameter's declared width and signedness.
+/// Anonymous arithmetic retains rational intermediates until its integer
+/// landing. Already-typed arithmetic keeps the current signed/unsigned 64-bit
+/// envelope. Shifts and bitwise operations use the matched const parameter's
+/// declared width and signedness.
 pub(in crate::generic_data) fn evaluate_const_argument_expression(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
@@ -222,7 +231,13 @@ pub(in crate::generic_data) fn evaluate_const_argument_expression(
     parameter_values: &HashMap<String, i128>,
     symbolic_parameters: &HashSet<String>,
     integer_type: Option<ConstIntegerType>,
+    warnings: &mut Vec<Diagnostic>,
 ) -> Result<EvaluatedConst, String> {
+    if let Some(value) =
+        super::anonymous::evaluate_anonymous_integer_argument(syntax, expression, warnings)?
+    {
+        return Ok(EvaluatedConst::Concrete(value));
+    }
     match syntax.expressions.expression(expression) {
         ExpressionNode::Integer(value) => integer_literal_value(value)
             .map(EvaluatedConst::Concrete)
@@ -257,6 +272,7 @@ pub(in crate::generic_data) fn evaluate_const_argument_expression(
                 parameter_values,
                 symbolic_parameters,
                 integer_type,
+                warnings,
             )?;
             let right = evaluate_const_argument_expression(
                 syntax,
@@ -265,6 +281,7 @@ pub(in crate::generic_data) fn evaluate_const_argument_expression(
                 parameter_values,
                 symbolic_parameters,
                 integer_type,
+                warnings,
             )?;
             match (binary.operator, &right) {
                 (BinaryOperator::Divide | BinaryOperator::Modulo, EvaluatedConst::Concrete(0)) => {

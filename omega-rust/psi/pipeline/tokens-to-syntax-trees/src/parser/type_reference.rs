@@ -193,11 +193,17 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
             // is canonical.
             let (argument, rest) = if input.at_integer()
                 || input.at_punctuation(PunctuationKind::Minus)
+                || (input.at_punctuation(PunctuationKind::LeftParen)
+                    && input
+                        .take_punctuation(PunctuationKind::LeftParen, "(")
+                        .is_ok_and(|rest| !rest.at_punctuation(PunctuationKind::RightParen)))
             {
                 let expression_start = input;
                 let (expression, rest) =
                     parse_const_integer_expression_handle(syntax_trees, input)?;
-                if const_expression_requires_semantic_admission(syntax_trees, expression) {
+                if const_expression_requires_semantic_admission(syntax_trees, expression)
+                    || const_expression_contains_name(syntax_trees, expression)
+                {
                     (
                         syntax_trees
                             .type_references
@@ -351,12 +357,15 @@ fn const_expression_requires_semantic_admission(
     syntax_trees: &SyntaxTrees,
     expression: syntax_trees::expression::ExpressionHandle,
 ) -> bool {
+    // Division needs operand-directed meaning and exact anonymous intermediates;
+    // the parser must not choose truncation from a const destination.
     let ExpressionNode::Binary(binary) = syntax_trees.expressions.expression(expression) else {
         return false;
     };
     matches!(
         binary.operator,
-        BinaryOperator::Modulo
+        BinaryOperator::Divide
+            | BinaryOperator::Modulo
             | BinaryOperator::ShiftLeft
             | BinaryOperator::ShiftRight
             | BinaryOperator::BitwiseAnd
