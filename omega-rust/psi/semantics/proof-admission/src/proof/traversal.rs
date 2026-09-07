@@ -137,6 +137,13 @@ fn schedule_children<'proof>(
         ProofRule::EqualitySymmetry { equality } => {
             pending.push(Action::Enter(equality));
         }
+        ProofRule::IntegerSubtractOrder {
+            difference,
+            positive,
+        } => {
+            pending.push(Action::Enter(positive));
+            pending.push(Action::Enter(difference));
+        }
         ProofRule::IntegerOrderWeakening { relation }
         | ProofRule::IntegerOrderDiscreteness { relation } => {
             pending.push(Action::Enter(relation));

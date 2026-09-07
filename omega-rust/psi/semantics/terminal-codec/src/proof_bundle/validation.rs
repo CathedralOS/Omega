@@ -120,6 +120,13 @@ fn validate_proof_node(node: &ProofNode, depth: usize) -> Result<(), ProofCodecE
             }
             Ok(())
         }
+        ProofRule::IntegerSubtractOrder {
+            difference,
+            positive,
+        } => {
+            validate_proof_node(difference, depth + 1)?;
+            validate_proof_node(positive, depth + 1)
+        }
         ProofRule::ImplicationElimination {
             implication,
             premise,

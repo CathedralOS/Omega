@@ -55,7 +55,7 @@ fn versioned_order_substitution_keeps_tag_and_exact_strictness() {
             }],
         };
         let bytes = encode_proof_bundle(&bundle).unwrap();
-        assert_eq!(&bytes[8..10], &28_u16.to_le_bytes());
+        assert_eq!(&bytes[8..10], &29_u16.to_le_bytes());
         assert_eq!(
             bytes[60], 11,
             "order substitution retains its versioned payload tag"

@@ -89,6 +89,13 @@ const TERMINAL_CALL_COMPOSITION_SOURCE: &[u8] =
     include_bytes!("../../terminal-semantics/src/call_composition.rs");
 const TERMINAL_STRUCTURAL_EFFECT_SOURCE: &[u8] =
     include_bytes!("../../terminal-semantics/src/structural_effect.rs");
+const TERMINAL_BYTE_EXTENT_SOURCE: &[u8] =
+    include_bytes!("../../terminal-semantics/src/structural_effect/byte_extent.rs");
+const PROOF_ADMISSION_SUBTRACT_ORDER_SOURCE: &[u8] =
+    include_bytes!("../../proof-admission/src/proof/subtract_order.rs");
+const BYTE_EXTENT_RECONSTRUCTION_SOURCE: &[u8] = include_bytes!(
+    "../../terminal-verifier/src/verification/reconstruction/operation_facts/byte_extent.rs"
+);
 const BYTE_SUBSLICE_VALIDATION_SOURCE: &[u8] =
     include_bytes!("../../terminal-verifier/src/validation/byte_sequence_subslice.rs");
 const BYTE_VIEW_DOMINANCE_SOURCE: &[u8] =
@@ -488,7 +495,7 @@ mod tests {
             .iter()
             .find(|node| node.identity() == "implementation:rust-proof-admission")
             .expect("current Rust proof admission checker");
-        assert_eq!(rust_admission.version(), "rust-proof-admission-v11");
+        assert_eq!(rust_admission.version(), "rust-proof-admission-v12");
         assert!(
             rust_admission
                 .dependencies()

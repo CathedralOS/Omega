@@ -43,7 +43,7 @@ fn fixture() -> (PropositionContext, Proposition, ProofBundle) {
 fn scalar_symmetry_roundtrips_both_directions_without_canonicalizing_proof_citations() {
     let (context, premise, bundle) = fixture();
     let bytes = encode_proof_bundle(&bundle).unwrap();
-    assert_eq!(&bytes[8..10], &28_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &29_u16.to_le_bytes());
     let decoded = decode_proof_bundle(&bytes).unwrap();
     assert_eq!(decoded, bundle);
     let EvidenceRoute::CertificateDerived(certificate) = &decoded.evidence[0].route else {
@@ -86,10 +86,10 @@ fn symmetry_codec_rejects_truncation_unknown_rule_and_previous_calculus_marker()
     // Header/envelope use 33 bytes; the Boolean Value equality uses 21.
     assert_eq!(bytes[54], 17);
     let mut unknown = bytes.clone();
-    unknown[54] = 20;
+    unknown[54] = 21;
     assert_eq!(
         decode_proof_bundle(&unknown),
-        Err(ProofCodecError::InvalidTag("ProofRule", 20))
+        Err(ProofCodecError::InvalidTag("ProofRule", 21))
     );
     for length in 0..bytes.len() {
         assert!(

@@ -36,7 +36,7 @@ fn integer_carrier_bound_certificate_roundtrips_without_assumptions() {
         ..ProofBundle::default()
     };
     let bytes = encode_proof_bundle(&bundle).unwrap();
-    assert_eq!(&bytes[8..10], &28_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &29_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes).unwrap(), bundle);
     let mut stale = bytes.clone();
     stale[8..10].copy_from_slice(&27_u16.to_le_bytes());
