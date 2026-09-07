@@ -88,7 +88,7 @@ pub(super) fn prove<'program>(
 
 /// Only identity edges choose a telescope. Arithmetic edges may use a target
 /// already discovered elsewhere, but cannot invent which subject it ranks.
-/// Each state receives one finite permutation and enters the worklist once.
+/// Each state receives one finite correspondence and enters the worklist once.
 /// Conflicting identity arrivals reject even after a target was processed.
 fn discover_mappings(
     program: &TypedTrees,
@@ -141,7 +141,8 @@ fn discover_mappings(
 }
 
 /// Compose destination formal ordinal -> exact source parameter -> entry
-/// subject. Renames do not matter; missing, repeated, or foreign symbols do.
+/// subject. States may drop or repeat unrelated parameters. The arithmetic
+/// query independently requires an unambiguous slot for every rank input.
 fn identity_mapping(
     program: &TypedTrees,
     source: &State,
@@ -154,8 +155,7 @@ fn identity_mapping(
         .iter()
         .filter(|parameter| !parameter.is_self)
         .collect::<Vec<_>>();
-    if arguments.len() != source_parameters.len()
-        || source_mapping.len() != source_parameters.len()
+    if source_mapping.len() != source_parameters.len()
         || arguments.len()
             != program
                 .state_parameters(target)
@@ -177,9 +177,6 @@ fn identity_mapping(
             parameter.symbol == name.symbol && !parameter.is_mutable && !parameter.is_const
         })?;
         let entry_symbol = source_mapping[source_position];
-        if parameters.contains(&entry_symbol) {
-            return None;
-        }
         parameters.push(entry_symbol);
     }
     Some(parameters)

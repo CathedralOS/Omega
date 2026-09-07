@@ -53,6 +53,8 @@ pub fn prove_ranking_range_edge(
 
 /// An exact state telescope over the entry witness. The parameter list follows
 /// non-self formal order and names the entry symbol represented by each slot.
+/// Entry parameters may be absent or repeated; neither supplies an arithmetic
+/// alias. Every input needed by the rank and its bounds must remain unambiguous.
 #[derive(Clone, Copy)]
 pub struct RankingRangeState<'program> {
     pub state: &'program State,
@@ -243,6 +245,17 @@ fn prove_edge(
             .filter(|parameter| !parameter.is_self)
             .zip(entry_parameters)
         {
+            if entry_parameters
+                .iter()
+                .filter(|candidate| *candidate == entry_symbol)
+                .take(2)
+                .count()
+                != 1
+            {
+                // The two current slots remain independent. Do not choose a
+                // copy or infer equality from their shared entry ancestry.
+                continue;
+            }
             let Some(binding) = bindings
                 .iter()
                 .find(|binding| binding.symbol == parameter.symbol)
@@ -358,12 +371,6 @@ fn prove_edge(
     if !engine.install_hypotheses(comparisons) {
         return None;
     }
-    if engine.requires_unsatisfiable {
-        return Some(RankingRangeEdgeProof {
-            membership_and_pinning: true,
-            strictly_decreases: true,
-        });
-    }
     // For distance views raw subtraction represents the produced natural rank
     // only on this proved branch. The caller retains the separate clamped
     // interval tier for entries where subject <= limit is not established.
@@ -377,7 +384,7 @@ fn prove_edge(
     };
     let Some(arguments) = arguments else {
         return Some(RankingRangeEdgeProof {
-            membership_and_pinning: entry_membership,
+            membership_and_pinning: entry_membership || engine.requires_unsatisfiable,
             strictly_decreases: false,
         });
     };
@@ -395,6 +402,19 @@ fn prove_edge(
         let source_symbol = destination.map_or(parameter.symbol, |destination| {
             destination.entry_parameters[position]
         });
+        if destination.is_some_and(|destination| {
+            destination
+                .entry_parameters
+                .iter()
+                .filter(|candidate| **candidate == source_symbol)
+                .take(2)
+                .count()
+                != 1
+        }) {
+            // No first/last-wins substitution for duplicated destinations.
+            // apply_argument_map rejects an omitted atom if the proof uses it.
+            continue;
+        }
         let Some(binding) = bindings
             .iter()
             .find(|binding| binding.symbol == source_symbol)
@@ -417,6 +437,14 @@ fn prove_edge(
         }
         RankingRangeMeasure::Single(_) | RankingRangeMeasure::Distance { .. } => None,
     };
+    // Even unreachable arrivals retain exact rank-input coverage. Vacuity
+    // discharges comparisons, not missing or ambiguous substitutions.
+    if engine.requires_unsatisfiable {
+        return Some(RankingRangeEdgeProof {
+            membership_and_pinning: true,
+            strictly_decreases: true,
+        });
+    }
     let prove = |difference: Polynomial, minimum: i64| {
         engine.prove_at_least(&engine.substituted(&difference), &BigInt::from_i64(minimum))
     };
@@ -468,26 +496,19 @@ fn validate_mapping(
             .iter()
             .filter(|parameter| !parameter.is_self)
             .count()
-        || entry_parameters.len()
-            != root_parameters
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-                .count()
     {
         return None;
     }
-    for (position, (parameter, entry_symbol)) in parameters
+    for (parameter, entry_symbol) in parameters
         .iter()
         .filter(|parameter| !parameter.is_self)
         .zip(entry_parameters)
-        .enumerate()
     {
         let entry = root_parameters
             .iter()
             .find(|entry| !entry.is_self && entry.symbol == *entry_symbol)?;
         if !entry.symbol.is_valid()
             || !parameter.symbol.is_valid()
-            || entry_parameters[..position].contains(entry_symbol)
             || entry.is_mutable
             || entry.is_const
             || parameter.is_mutable
