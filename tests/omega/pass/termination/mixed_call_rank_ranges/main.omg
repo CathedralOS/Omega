@@ -9,7 +9,7 @@ requires floor <= remaining && remaining <= ceiling;
 terminates by remaining in floor..=ceiling;
 -> u64 {
     transition remaining > floor {
-        true -> self.second(ceiling, remaining, floor)
+        true -> self.second(ceiling + 0, remaining, floor)
         false -> remaining
     }
 }
@@ -19,7 +19,7 @@ requires lower <= pending && pending <= upper;
 terminates by pending;
 -> u64 {
     transition pending > lower {
-        true -> self.first(lower, pending - 1, upper)
+        true -> self.first(lower, pending - 1, upper * 1)
         false -> pending
     }
 }

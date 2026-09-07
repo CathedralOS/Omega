@@ -308,10 +308,27 @@ fn mixed_call_range_endpoint_transport_keeps_duplicate_copies_as_alternatives() 
         )
         .replace("lower, pending - 1, upper)", "lower, pending - 1, spare)");
     prove(&source);
-    reject(&source.replace(
-        "ceiling, remaining, floor, ceiling)",
-        "ceiling, remaining, floor, ceiling + 1)",
-    ));
+    let changed_copy = source
+        .replace(
+            "requires floor <= remaining",
+            "requires ceiling < 100 && floor <= remaining",
+        )
+        .replace(
+            "requires upper == spare",
+            "requires upper < 100 && upper == spare",
+        )
+        .replace(
+            "ceiling, remaining, floor, ceiling)",
+            "ceiling, remaining, floor, ceiling + 1)",
+        );
+    let diagnostics = lower_typed_trees(typed(&changed_copy)).expect_err(&changed_copy);
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .to_lowercase()
+            .contains("cannot prove requires")),
+        "{changed_copy}\n{diagnostics:#?}"
+    );
 }
 
 #[test]
@@ -348,4 +365,55 @@ fn mixed_call_range_pins_survive_multiple_unranged_members_and_parallel_edges() 
             "transition amount > bottom { true -> self.first(bottom, amount - 1, top) false -> self.second(top, amount, bottom) }",
         );
     reject(&hidden_weak_cycle);
+}
+
+#[test]
+fn mixed_call_range_endpoint_inputs_accept_checked_arithmetic_identity() {
+    let source = PAIR.replace(" in lower..=upper", "");
+    prove(&source.replace(
+        "ceiling, remaining, floor)",
+        "ceiling + 0, remaining, floor)",
+    ));
+    reject(&source.replace(
+        "ceiling, remaining, floor)",
+        "ceiling + 1, remaining, floor)",
+    ));
+    reject(&format!(
+        "operator + u64::add(left: u64, right: u64) -> u64; {}",
+        source.replace(
+            "ceiling, remaining, floor)",
+            "ceiling + 0, remaining, floor)"
+        )
+    ));
+}
+
+#[test]
+fn mixed_endpoint_arithmetic_equality_uses_only_live_caller_premises() {
+    let source = PAIR
+        .replace(" in lower..=upper", "")
+        .replace("ceiling: u64)", "ceiling: u64, shift: u64)")
+        .replace(
+            "ceiling, remaining, floor)",
+            "ceiling + shift, remaining, floor)",
+        )
+        .replace(
+            "lower, pending - 1, upper)",
+            "lower, pending - 1, upper, 0)",
+        );
+    let required = source.replace(
+        "requires floor <= remaining",
+        "requires shift == 0 && floor <= remaining",
+    );
+    prove(&required);
+    let guarded = source.replace(
+        "transition remaining > floor",
+        "transition remaining > floor && shift == 0",
+    );
+    prove(&guarded);
+    reject(&guarded.replace("shift == 0", "shift != 0"));
+    reject(&source);
+    reject(&required.replace("shift: u64", "mut shift: u64").replace(
+        "    transition remaining > floor",
+        "    shift = 1; transition remaining > floor",
+    ));
 }

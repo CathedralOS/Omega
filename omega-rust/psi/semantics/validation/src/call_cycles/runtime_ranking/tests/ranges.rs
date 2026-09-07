@@ -14,6 +14,26 @@ terminates by pending in floor..=ceiling;
     transition pending > floor { true -> self.first(floor, pending - 1, ceiling) false -> pending }
 }";
 
+#[test]
+fn mixed_endpoint_transport_proves_computed_equality_without_inventing_a_pin() {
+    let source = RANGED.replace(" in floor..=ceiling", "");
+    for endpoint in ["upper + 0", "upper + (lower - lower)"] {
+        let program = typed_source(&source.replace(
+            "upper, remaining, lower)",
+            &format!("{endpoint}, remaining, lower)"),
+        ));
+        assert_eq!(admitted(&program).len(), 1, "{endpoint}");
+    }
+    let changed =
+        typed_source(&source.replace("upper, remaining, lower)", "upper + 1, remaining, lower)"));
+    assert!(admitted(&changed).is_empty());
+    let selected = typed_source(&format!(
+        "operator + u64::add(left: u64, right: u64) -> u64; {}",
+        source.replace("upper, remaining, lower)", "upper + 0, remaining, lower)")
+    ));
+    assert!(admitted(&selected).is_empty());
+}
+
 pub(super) fn progress(
     program: &TypedTrees,
     source_position: usize,

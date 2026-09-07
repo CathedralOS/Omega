@@ -194,13 +194,6 @@ pub(super) fn check_component(
                     else {
                         continue;
                     };
-                    if mixed_ranges {
-                        range_edges.push(RankingRangeCallEdge {
-                            source: position,
-                            destination: callee_position,
-                            arguments,
-                        });
-                    }
                     let parameters = program.state_parameters(entry);
                     if arguments.len()
                         != parameters
@@ -258,6 +251,14 @@ pub(super) fn check_component(
                                 );
                             }
                         }
+                    }
+                    if mixed_ranges {
+                        range_edges.push(RankingRangeCallEdge {
+                            source: position,
+                            destination: callee_position,
+                            arguments,
+                            guards: site_guards,
+                        });
                     }
                 }
                 TransitionTargetNode::Value(value)
