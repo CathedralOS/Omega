@@ -772,8 +772,9 @@ There are distinct engineering choices, not a language prohibition:
 **Current decision:** the [consolidated encoder plan](beta_encoder_plan.md)
 specifies a complete token-at-a-time algorithm and one ledger of its cost owners.
 A full numerical estimate remains unavailable without the actual equations and
-integrated recipe. Request user scope direction before that implementation unit;
-keep helper and provision changes paused. Same calculus plus a larger profile
+integrated recipe. Keep isolated helper and provision changes paused while
+assessing that unit; continue independent bootstrap work without asking the
+user to select routine engineering steps. Same calculus plus a larger profile
 remains a candidate, not a demonstrated fit. Do not replace that decision with
 another no-op traversal or a succession of small passing probes. This is an
 engineering/scope review, not an owner-language blocker.
