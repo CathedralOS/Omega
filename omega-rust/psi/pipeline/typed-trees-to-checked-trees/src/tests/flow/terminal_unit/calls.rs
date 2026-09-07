@@ -455,7 +455,7 @@ fn rejects_the_whole_composed_control_plan_when_one_leaf_is_unsupported() {
         machine Root::enter(flag: bool) {
             transition flag { true -> yes() _ -> no() }
             state yes() { Host::exit(1); }
-            state no() { Helper::touch(); Helper::touch(); }
+            state no() { let local: u8 = 1u8; Helper::touch(); }
         }
         "#,
     );
@@ -468,6 +468,42 @@ fn rejects_the_whole_composed_control_plan_when_one_leaf_is_unsupported() {
             .is_none(),
         "one unsupported leaf must remove the composed plan atomically"
     );
+}
+
+#[test]
+fn retains_multiple_calls_in_a_composed_leaf_beside_a_boundary_leaf() {
+    let checked = checked(
+        r#"
+        boundary trait Host { machine exit(code: i32); }
+        data Helper {}
+        machine Helper::touch() {}
+        data Root {}
+        machine Root::enter(flag: bool) {
+            transition flag { true -> yes() _ -> no() }
+            state yes() { Host::exit(1); }
+            state no() { Helper::touch(); Helper::touch(); }
+        }
+        "#,
+    );
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let plan = plans
+        .composed_for_machine(machine_named(&checked, "enter"))
+        .expect("both authored call-only leaves are supported");
+    let [_, when_true, when_false] = plan.states.as_slice() else {
+        panic!("all three authored states are retained");
+    };
+    assert!(matches!(
+        when_true.operations.as_slice(),
+        [CheckedUnitEffectOperationPlan::BoundaryCall { .. }]
+    ));
+    let touch = machine_named(&checked, "touch");
+    assert!(plans.for_machine(touch).is_some());
+    assert_eq!(when_false.operations.len(), 2);
+    for (ordinal, operation) in when_false.operations.iter().enumerate() {
+        assert!(matches!(operation,
+            CheckedUnitEffectOperationPlan::CallUnit { coordinate, target_machine, .. }
+                if *target_machine == touch && coordinate.statement_index as usize == ordinal));
+    }
 }
 
 #[test]

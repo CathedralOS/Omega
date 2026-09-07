@@ -565,7 +565,6 @@ fn nested_control_deduplicates_one_internal_target_with_disjoint_root_blocks() {
         .collect::<Vec<_>>();
     block_ids.sort_unstable();
     assert_eq!(block_ids, vec![1, 2, 3, 4, 5, 6]);
-    assert_eq!(target.blocks[0].id.get(), 1);
     assert_eq!(root.entry, root.blocks[0].id);
     for leaf in &root.blocks[2..] {
         assert!(matches!(

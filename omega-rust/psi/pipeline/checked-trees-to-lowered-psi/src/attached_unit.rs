@@ -474,7 +474,7 @@ fn assemble_unit_closure(
         let body = UnitBody::find(plans, *machine_symbol)?;
         if let UnitBody::Composed(plan) = body {
             let admitted = composed_control::admit_callable(checked, plan)?;
-            for (boundary, _) in &admitted.boundaries {
+            for (boundary, _) in admitted.boundaries() {
                 retain_exact_unit_boundary(
                     checked,
                     plans,

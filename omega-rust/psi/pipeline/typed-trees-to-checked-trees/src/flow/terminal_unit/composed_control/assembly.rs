@@ -17,6 +17,7 @@ pub(in crate::flow::terminal_unit) fn build_all(
                 .or_else(|| build(program, facts, shapes, boundaries, machine))
                 .or_else(|| prefixed_control::build(program, facts, shapes, boundaries, machine))
                 .or_else(|| nested_control::build(program, facts, shapes, boundaries, machine))
+                .or_else(|| super::super::state_graph::build(program, facts, shapes, machine))
         })
         .collect()
 }
@@ -100,7 +101,7 @@ pub(super) fn build(
     )
 }
 
-pub(super) fn finish(
+pub(in crate::flow::terminal_unit) fn finish(
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     attachment_type_identity: Option<String>,

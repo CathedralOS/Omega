@@ -67,6 +67,7 @@ mod scalar_targets;
 mod selected_ieee_float;
 pub(super) mod selected_operator;
 pub(crate) mod shared_convergence;
+mod state_graph;
 mod structural_scalar_store;
 pub(super) mod types;
 

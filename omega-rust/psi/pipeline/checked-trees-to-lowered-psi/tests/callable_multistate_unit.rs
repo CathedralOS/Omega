@@ -40,6 +40,12 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
 #[test]
 fn ordinary_calls_retain_multistate_branches_and_return_to_caller() {
     let checked = checked(SOURCE);
+    assert_eq!(
+        checked.facts.flow.terminal_unit_effects.composed_machines[0]
+            .attachment_type_identity
+            .as_deref(),
+        Some("named(name(Writer))")
+    );
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
         .expect("ordinary caller retains its multistate helper");
     assert_eq!(lowered.semantic_module.machines.len(), 3);
@@ -217,7 +223,7 @@ fn missing_or_duplicate_composed_callee_is_rejected() {
 
 #[test]
 fn callable_composed_guard_edges_contract_and_call_operands_rejoin_checked_source() {
-    for mutation in 0..6 {
+    for mutation in 0..7 {
         let mut checked = checked(SOURCE);
         let callee = &mut checked.facts.flow.terminal_unit_effects.composed_machines[0];
         match mutation {
@@ -264,6 +270,7 @@ fn callable_composed_guard_edges_contract_and_call_operands_rejoin_checked_sourc
                 coordinate.statement_index += 1;
             }
             5 => callee.attachment_type_identity = Some("named(name(Root))".to_owned()),
+            6 => callee.attachment_type_identity = None,
             _ => unreachable!(),
         }
         assert!(

@@ -9,8 +9,9 @@ mod guards;
 mod leaves;
 mod nested_control;
 mod prefixed_control;
-mod topology;
+pub(super) mod topology;
 
 pub(super) use assembly::build_all as build_checked_composed_unit_control_machines;
+pub(super) use assembly::finish as finish_state_graph;
 pub(super) use dynamic_join::{DynamicJoinControlTopology, admit_dynamic_join_control_topology};
 pub(crate) use dynamic_result::build as build_direct_dynamic_unit_continuation;

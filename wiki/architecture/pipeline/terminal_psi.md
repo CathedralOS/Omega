@@ -3650,19 +3650,24 @@ The exact source-to-machine map survives dispatch, so callee suspension,
 conformance, and float-source metadata are selected with their actual owners
 rather than treating the composed root as the entire source closure.
 
-Ordinary callers can also invoke the existing three-state composed Unit family.
+Ordinary callers can also invoke composed Unit bodies.
 Both checked body catalogs are pruned together to a complete call graph; a
 missing transitive body removes upstream callers from either catalog. Lowering
 borrows each body's actual entry signature and operations, allocates shared
-machine/header identities, then emits each authored body once. A composed callee
-uses the same three-state emitter as a composed root and returns normally to its
-caller; states are not converted into synthetic machines. Nested ordinary and
+machine/header identities, then emits each authored body once. Composed callees
+and roots share emission and return normally to their callers; states are not
+converted into synthetic machines. Nested ordinary and
 composed calls share scalar helper identities and proof obligations. Whole-root
 linear arguments retain their call transfer, state-entry claim aliases, and
 selected boundary settlement. Calls from composed leaves still require
-scalar-only targets without runtime entry requirements. Larger composed shapes
-remain supported only through their existing root routes; this integration does
-not widen state-edge operands, borrowed-view custody, or loop ranking.
+scalar-only targets without runtime entry requirements. Claim-free acyclic graphs
+with scalar parameters and unchanged shared byte views use general state traversal
+for both free and attached bodies, including branches, joins, and empty states.
+Qualification, owned-frontier, implicit-receiver, and closed-sum cases retain their
+specialized routes. Once the general route is selected, a failed source check
+does not fall back to a shape matcher. Computed state-edge operands, changing
+borrowed descriptors, and loop ranking remain unfinished; see
+[borrowed-byte writer composition](#borrowed-byte-writer-composition).
 
 Closed-sum continuations retain the structural-result boundary and its exact
 case/payload transfer independently of their ordinary callees. Calls within a
@@ -6648,12 +6653,20 @@ caller substitution are not yet represented in Terminal. A contracted source
 Do not inject a body SSA value into the parameter-only contract scope or add
 an unrelated length parameter as a replacement for the view's actual extent.
 
-The Unit call closure includes ordinary bodies and the existing three-state
-composed family, including free scalar-parameter helpers. Free helpers retain no
-attachment; attached helpers rejoin their exact authored owner. The writer still
-needs borrowed-view state transfers and its slice-ranked body admitted through
-that shared catalog. A separate
-multistate plan is insufficient until calls, structural/scalar transfers,
+The shared Unit call catalog includes acyclic free and attached state graphs
+with scalar parameters, unchanged immutable byte views, and ordered Unit calls.
+State construction and emission traverse the authored roster rather than match
+a particular number of states. Scalar successor bindings become simultaneous
+block arguments. Whole borrowed views retain their invocation identity through
+branches and joins; a join selecting different descriptors rejects until its
+structural bindings can be represented. Source-state identity, call order,
+guard facts, successor operands, and cleanup facts are checked before emission.
+These graphs can call byte boundaries and scalar-only Unit helpers; general
+structural helper calls and state-local value construction remain unfinished.
+
+The writer still needs selected-edge length/head/tail evaluation, descriptor
+rebinding, and its slice-ranked body admitted through that shared catalog. A
+separate multistate plan is insufficient until calls, structural/scalar transfers,
 byte-view operations, effect ordering, and ranking survive Terminal production
 and its independent consumers together. Empty/nonempty raw bytes, both newline
 settings, and caller continuation exercise this contract; an unguarded head
