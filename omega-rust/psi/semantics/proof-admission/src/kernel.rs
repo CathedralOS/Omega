@@ -4,6 +4,9 @@ use semantic_vocabulary::{
 };
 pub use terminal_psi::PrimitiveJudgment;
 
+#[cfg(test)]
+mod carrier_bounds;
+
 pub fn decide_primitive(
     context: &PropositionContext,
     proposition: &Proposition,
@@ -14,6 +17,9 @@ pub fn decide_primitive(
         .map_err(KernelError::MalformedProposition)?;
     let accepted = match (judgment, proposition) {
         (PrimitiveJudgment::Truth, Proposition::Truth) => true,
+        (PrimitiveJudgment::IntegerCarrierBound, Proposition::LessOrEqual(left, right)) => {
+            integer_carrier_bound(left, right)
+        }
         (PrimitiveJudgment::ReflexiveEquality, Proposition::Equal(left, right)) => left == right,
         (PrimitiveJudgment::ReflexiveEquality, Proposition::IntegerMathEqual(left, right)) => {
             left == right
@@ -46,6 +52,37 @@ pub fn decide_primitive(
     accepted
         .then_some(())
         .ok_or(KernelError::JudgmentDoesNotEstablishGoal { judgment })
+}
+
+fn integer_carrier_bound(left: &ScalarTerm, right: &ScalarTerm) -> bool {
+    use semantic_vocabulary::{IntegerCarrier, ScalarType};
+    let (literal, value, lower) = match (left, right) {
+        (literal @ ScalarTerm::Integer { .. }, value @ ScalarTerm::Value { .. }) => {
+            (literal, value, true)
+        }
+        (value @ ScalarTerm::Value { .. }, literal @ ScalarTerm::Integer { .. }) => {
+            (literal, value, false)
+        }
+        _ => return false,
+    };
+    let ScalarTerm::Value {
+        scalar_type: ScalarType::Integer(integer_type),
+        ..
+    } = value
+    else {
+        return false;
+    };
+    let Some((literal_type, literal_value)) = literal.integer_value() else {
+        return false;
+    };
+    integer_type.carrier() == IntegerCarrier::Fixed
+        && literal_type == *integer_type
+        && literal_value
+            == if lower {
+                integer_type.minimum_value()
+            } else {
+                integer_type.maximum_value()
+            }
 }
 
 fn compare_integer_math_terms(

@@ -2,6 +2,7 @@
 
 use super::*;
 
+mod byte_subslice;
 mod result_arguments;
 mod service_forward;
 
@@ -747,6 +748,21 @@ pub(super) fn build_call_operation(
                 byte_sequence_literal_argument(program, parameter.type_reference, *argument)
             {
                 structural_arguments.push(literal);
+                continue;
+            }
+            if let Some(subslice) = byte_subslice::argument(
+                program,
+                facts,
+                machine,
+                state,
+                caller_parameters,
+                parameter.type_reference,
+                *argument,
+                call.statement_index,
+                call.call_ordinal,
+                structural_arguments.len(),
+            ) {
+                structural_arguments.push(subslice);
                 continue;
             }
 
@@ -1830,6 +1846,7 @@ pub(super) fn structural_call_arguments(
             .count();
     let mut explicit_index = 0usize;
     let mut output = Vec::new();
+    let mut structural_argument_ordinal = 0usize;
 
     for target in target_parameters {
         if program
@@ -1842,6 +1859,10 @@ pub(super) fn structural_call_arguments(
             explicit_arguments.get(explicit_index)?;
             explicit_index = explicit_index.checked_add(1)?;
             continue;
+        }
+        let argument_ordinal = structural_argument_ordinal;
+        if !target.is_self || explicit_self {
+            structural_argument_ordinal = structural_argument_ordinal.checked_add(1)?;
         }
         let authored_place = if target.is_self {
             if is_reference(program, target.type_reference) {
@@ -1879,6 +1900,24 @@ pub(super) fn structural_call_arguments(
                     byte_sequence_literal_argument(program, target.type_reference, expression)
             {
                 output.push(literal);
+                continue;
+            }
+            if target_machine.supply_mode == MachineSupplyMode::CheckedBody
+                && is_unit(program, target_state.return_type)
+                && let Some(subslice) = byte_subslice::argument(
+                    program,
+                    facts,
+                    caller_machine,
+                    caller_state,
+                    caller_parameters,
+                    target.type_reference,
+                    expression,
+                    statement_index,
+                    call.call_ordinal,
+                    argument_ordinal,
+                )
+            {
+                output.push(subslice);
                 continue;
             }
             crate::flow::canonical_place_from_expression_in_state(
@@ -2508,8 +2547,14 @@ pub(super) fn call_claim_transfers(
         .collect::<Vec<_>>();
     let mut output = Vec::new();
     for (argument_index, argument) in arguments.iter().enumerate() {
-        if argument.byte_sequence_literal().is_some() {
-            if !argument.path.is_empty() {
+        if argument.byte_sequence_literal().is_some()
+            || matches!(
+                argument.source,
+                CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
+            )
+        {
+            if !argument.path.is_empty() || argument.access != CheckedStructuralAccess::SharedBorrow
+            {
                 return None;
             }
             continue;

@@ -2,6 +2,7 @@ use super::*;
 use checked_trees::{CheckedScalarBindingValue, CheckedValueStatementRole};
 
 mod bitwise_integer_bounds;
+mod byte_subslice_arguments;
 mod call_computations;
 mod call_result_relations;
 mod guard_boolean_custody;

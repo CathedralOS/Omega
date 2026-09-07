@@ -89,6 +89,54 @@ pub(super) fn locate(
     let selected = match (authored, role) {
         (
             _,
+            CheckedScalarExpressionRole::ByteSequenceSubsliceStart {
+                call_ordinal,
+                argument_ordinal,
+            }
+            | CheckedScalarExpressionRole::ByteSequenceSubsliceEnd {
+                call_ordinal,
+                argument_ordinal,
+            },
+        ) => {
+            let call = crate::call_source_custody::authored::locate_source(
+                checked,
+                state.symbol,
+                checked_trees::CheckedUnitCallCoordinate {
+                    statement_index: statement,
+                    call_ordinal,
+                },
+            )?;
+            call.structural_arguments
+                .get(argument_ordinal as usize)
+                .and_then(|(_, expression)| {
+                    let ExpressionNode::Indexed(indexed) =
+                        program.expression_table.expression(*expression)
+                    else {
+                        return None;
+                    };
+                    let ExpressionNode::Range(range) =
+                        program.expression_table.expression(indexed.index)
+                    else {
+                        return None;
+                    };
+                    if range.end_inclusive {
+                        return None;
+                    }
+                    let endpoint = if matches!(
+                        role,
+                        CheckedScalarExpressionRole::ByteSequenceSubsliceStart { .. }
+                    ) {
+                        range.start
+                    } else {
+                        range.end
+                    };
+                    endpoint
+                        .is_valid()
+                        .then_some((endpoint, absent, PrimitiveType::U64))
+                })
+        }
+        (
+            _,
             CheckedScalarExpressionRole::BoundaryCallArgument {
                 call_ordinal,
                 argument_ordinal,

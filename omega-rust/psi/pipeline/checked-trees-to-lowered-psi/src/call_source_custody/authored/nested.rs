@@ -184,10 +184,23 @@ pub(crate) fn authored_postorder(
                 None
             }
             ExpressionNode::Indexed(indexed)
-                if matches!(table.expression(indexed.index), ExpressionNode::Integer(_)) =>
+                if matches!(table.expression(indexed.index), ExpressionNode::Integer(_))
+                    || (direct_argument
+                        && matches!(table.expression(indexed.index), ExpressionNode::Range(range) if !range.end_inclusive)) =>
             {
                 children.push((indexed.collection, direct_argument, None));
                 children.push((indexed.index, false, None));
+                None
+            }
+            ExpressionNode::Range(range) if !range.end_inclusive => {
+                // This walk retains occurrence order only. The subslice
+                // emitter separately rejoins the exact source and endpoints.
+                children.extend(
+                    [range.start, range.end]
+                        .into_iter()
+                        .filter(|endpoint| endpoint.is_valid())
+                        .map(|endpoint| (endpoint, false, None)),
+                );
                 None
             }
             ExpressionNode::Name(_)

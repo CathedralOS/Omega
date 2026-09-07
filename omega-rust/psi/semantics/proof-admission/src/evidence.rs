@@ -165,6 +165,7 @@ fn primitive_derivation(
         PrimitiveJudgment::Truth,
         PrimitiveJudgment::ReflexiveEquality,
         PrimitiveJudgment::ClosedIntegerRelation,
+        PrimitiveJudgment::IntegerCarrierBound,
     ]
     .into_iter()
     .find(|judgment| decide_primitive(context, proposition, *judgment).is_ok())

@@ -7,6 +7,7 @@ pub(super) enum Step {
     Ordinary(usize),
     Begin,
     Argument { operation: usize, ordinal: usize },
+    Subslice { operation: usize, ordinal: usize },
     Call(usize),
     End,
 }
@@ -19,6 +20,24 @@ pub(super) fn build(
     let mut steps = Vec::new();
     let mut index = 0;
     while index < operations.len() {
+        if byte_subslices::contains(&operations[index])
+            && !matches!(&operations[index], CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate, .. }
+                if coordinate.call_ordinal != 0)
+        {
+            steps.push(Step::Begin);
+            append(
+                checked,
+                plan,
+                index..index + 1,
+                index,
+                &mut Vec::new(),
+                &mut Vec::new(),
+                &mut steps,
+            )?;
+            steps.push(Step::End);
+            index += 1;
+            continue;
+        }
         let (CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. }
         | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate, .. }) =
             &operations[index]
@@ -149,6 +168,19 @@ fn append(
             .ok_or(LoweringError::Unsupported(
                 "nested structural argument has no authored position",
             ))?;
+        let structural_ordinal = authored
+            .structural_arguments
+            .iter()
+            .position(|(formal, _)| *formal as usize == position)
+            .ok_or(LoweringError::Unsupported(
+                "subslice argument has no structural ordinal",
+            ))?;
+        if byte_subslices::arguments(&plan.operations[index]).get(structural_ordinal).is_some_and(|argument| {
+            matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. })
+        }) {
+            steps.push(Step::Subslice { operation: index, ordinal: structural_ordinal });
+            continue;
+        }
         let Some(expression) = parameters::expression_producer(checked, expression) else {
             continue;
         };

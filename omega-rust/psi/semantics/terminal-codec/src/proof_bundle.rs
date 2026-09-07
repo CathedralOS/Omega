@@ -29,7 +29,7 @@ use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
-pub(crate) const FORMAT_MARKER: u16 = 27;
+pub(crate) const FORMAT_MARKER: u16 = 28;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -1247,6 +1247,7 @@ fn encode_primitive(writer: &mut Writer, judgment: PrimitiveJudgment) {
         PrimitiveJudgment::Truth => 1,
         PrimitiveJudgment::ReflexiveEquality => 2,
         PrimitiveJudgment::ClosedIntegerRelation => 3,
+        PrimitiveJudgment::IntegerCarrierBound => 4,
     });
 }
 
@@ -2098,6 +2099,7 @@ fn decode_primitive(reader: &mut Reader<'_>) -> Result<PrimitiveJudgment, ProofC
         1 => Ok(PrimitiveJudgment::Truth),
         2 => Ok(PrimitiveJudgment::ReflexiveEquality),
         3 => Ok(PrimitiveJudgment::ClosedIntegerRelation),
+        4 => Ok(PrimitiveJudgment::IntegerCarrierBound),
         tag => Err(ProofCodecError::InvalidTag("PrimitiveJudgment", tag)),
     }
 }

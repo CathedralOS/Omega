@@ -10,6 +10,7 @@ use crate::scalar_call_closure::callee::{CheckedScalarCallee, PreparedScalarCall
 
 pub(crate) mod argument_evaluation;
 mod argument_schedule;
+mod byte_subslices;
 mod call_closure;
 mod catalog;
 mod claims;
@@ -1314,6 +1315,8 @@ fn assemble_unit_closure(
             .map(|(source, parameter)| (source.position, parameter.clone()))
             .collect();
         let mut staged_arguments = vec![Vec::<usize>::new(); plan.operations.len()];
+        let mut staged_subslices = vec![Vec::<(usize, PlaceId)>::new(); plan.operations.len()];
+        let mut subslice_places = Vec::new();
         let mut retained_scalar_prefix = None;
         let mut staged_scalar_result = None;
         for step in argument_schedule::build(checked, plan)? {
@@ -1373,6 +1376,33 @@ fn assemble_unit_closure(
                     next_call_obligation = scalar_calls.next_obligation_identity;
                     staged_arguments[operation].push(scalar_result_values.len());
                     scalar_result_values.push(value);
+                    continue;
+                }
+                argument_schedule::Step::Subslice { operation, ordinal } => {
+                    let source_value_count = retained_scalar_prefix.ok_or(
+                        LoweringError::Unsupported("subslice staging has no source prefix"),
+                    )?;
+                    if staged_subslices[operation]
+                        .iter()
+                        .any(|(prior, _)| *prior == ordinal)
+                    {
+                        return unsupported("subslice argument is evaluated more than once");
+                    }
+                    let place = byte_subslices::emit(
+                        checked,
+                        plan,
+                        &plan.operations[operation],
+                        ordinal,
+                        parameters,
+                        &evaluation.structural_parameters,
+                        &scalar_result_values[..source_value_count],
+                        &type_ids,
+                        &mut next_place,
+                        &mut next_value_identity,
+                        &mut operations,
+                    )?;
+                    staged_subslices[operation].push((ordinal, place.id));
+                    subslice_places.push(place);
                     continue;
                 }
                 argument_schedule::Step::Call(index) if retained_scalar_prefix.is_some() => {
@@ -1602,10 +1632,11 @@ fn assemble_unit_closure(
                             .map(|claim| claim.parameter_index)
                             .collect::<Vec<_>>(),
                     )?;
-                    let call_literal_places = literal_argument_places(
+                    let call_byte_places = byte_subslices::argument_places(
                         structural_arguments,
                         &literal_places,
                         &mut next_literal_argument,
+                        &staged_subslices[operation_index],
                     )?;
                     let terminal_arguments = lower_structural_arguments(
                         structural_arguments,
@@ -1613,7 +1644,7 @@ fn assemble_unit_closure(
                         &local_places,
                         &affine_scalar_record_places,
                         &structural_result_places,
-                        &call_literal_places,
+                        &call_byte_places,
                     )?;
                     let target_parameters = lowered_machine_parameters
                         .iter()
@@ -1692,9 +1723,9 @@ fn assemble_unit_closure(
                                 parameter.place,
                                 (
                                     argument.place,
-                                    if call_literal_places.contains(&argument.place) {
+                                    if call_byte_places.contains(&argument.place) {
                                         // Transfer validation already required the exact whole
-                                        // immutable literal. Its canonical path has no segments.
+                                        // immutable byte view. Its canonical path has no segments.
                                         Vec::new()
                                     } else {
                                         structural_crash_route_argument_prefix(
@@ -2447,10 +2478,11 @@ fn assemble_unit_closure(
                     .iter()
                     .map(|value| value.id)
                     .collect();
-                    let call_literal_places = literal_argument_places(
+                    let call_byte_places = byte_subslices::argument_places(
                         structural_arguments,
                         &literal_places,
                         &mut next_literal_argument,
+                        &staged_subslices[operation_index],
                     )?;
                     OperationKind::BoundaryCall {
                         boundary: *boundary,
@@ -2461,7 +2493,7 @@ fn assemble_unit_closure(
                             &[],
                             &[],
                             &structural_result_places,
-                            &call_literal_places,
+                            &call_byte_places,
                         )?,
                         completion_receipts: completion_receipts
                             .iter()
@@ -2560,10 +2592,11 @@ fn assemble_unit_closure(
                     .iter()
                     .map(|value| value.id)
                     .collect();
-                    let call_literal_places = literal_argument_places(
+                    let call_byte_places = byte_subslices::argument_places(
                         structural_arguments,
                         &literal_places,
                         &mut next_literal_argument,
+                        &staged_subslices[operation_index],
                     )?;
                     let kind = OperationKind::BoundaryCall {
                         boundary: *boundary,
@@ -2574,7 +2607,7 @@ fn assemble_unit_closure(
                             &[],
                             &[],
                             &structural_result_places,
-                            &call_literal_places,
+                            &call_byte_places,
                         )?,
                         completion_receipts: completion_receipts
                             .iter()
@@ -2732,10 +2765,11 @@ fn assemble_unit_closure(
                     .iter()
                     .map(|value| value.id)
                     .collect();
-                    let call_literal_places = literal_argument_places(
+                    let call_byte_places = byte_subslices::argument_places(
                         structural_arguments,
                         &literal_places,
                         &mut next_literal_argument,
+                        &staged_subslices[operation_index],
                     )?;
                     let kind = OperationKind::BoundaryCall {
                         boundary: *boundary,
@@ -2746,7 +2780,7 @@ fn assemble_unit_closure(
                             &[],
                             &[],
                             &structural_result_places,
-                            &call_literal_places,
+                            &call_byte_places,
                         )?,
                         completion_receipts: completion_receipts
                             .iter()
@@ -3117,6 +3151,25 @@ fn assemble_unit_closure(
         } = operations;
         source_call_occurrences.extend(source_calls);
         selected_ieee_float_fma_occurrences.extend(selected_ieee_float_fmas);
+        let mut structural_places = parameters
+            .iter()
+            .map(|parameter| StructuralPlaceDeclaration {
+                id: parameter.place,
+                kind: StructuralPlaceKind::Parameter {
+                    position: parameter.position,
+                    is_self: parameter.is_self,
+                },
+            })
+            .chain(provider_places.iter().copied())
+            .chain(local_places.iter().copied())
+            .chain(affine_scalar_record_places.iter().copied())
+            .chain(literal_places.iter().copied())
+            .chain(subslice_places.iter().copied())
+            .chain(structural_result_places.iter().map(|(place, _)| *place))
+            .collect::<Vec<_>>();
+        // Argument-time view producers interleave with reserved call results.
+        // Declaration order is canonical identity order, not execution order.
+        structural_places.sort_by_key(|place| place.id);
         machines.push(TerminalMachine {
             id: terminal_machine,
             attachment,
@@ -3124,21 +3177,7 @@ fn assemble_unit_closure(
             structural_parameters: parameters.clone(),
             ranked_scc: None,
             result: TerminalMachineResult::Unit,
-            structural_places: parameters
-                .iter()
-                .map(|parameter| StructuralPlaceDeclaration {
-                    id: parameter.place,
-                    kind: StructuralPlaceKind::Parameter {
-                        position: parameter.position,
-                        is_self: parameter.is_self,
-                    },
-                })
-                .chain(provider_places.iter().cloned())
-                .chain(local_places.iter().cloned())
-                .chain(affine_scalar_record_places.iter().cloned())
-                .chain(literal_places.iter().cloned())
-                .chain(structural_result_places.iter().map(|(place, _)| *place))
-                .collect(),
+            structural_places,
             entry_claims: entry_claims.clone(),
             published_service_ceiling: if let Some(provider) = provider_candidate_plans
                 .iter()
