@@ -492,9 +492,10 @@ fn mixed_member_integer_boolean_cleanup_remains_outside_the_supported_source_sha
     assert!(
         matches!(
             checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main"),
-            Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
-                "attached Unit closure is missing a checked transitive machine plan"
-            ))
+            Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan {
+                machine, reason,
+            }) if machine == "Main::main"
+                && reason == "attached Unit closure is missing a checked transitive machine plan"
         ),
         "unsupported source shape rejects before Terminal construction"
     );

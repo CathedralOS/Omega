@@ -111,7 +111,15 @@ pub(super) fn checked_unit_provider_candidates(
         for machine in candidates {
             let body = match &boundary.result {
                 checked_trees::CheckedBoundaryMachineResultPlan::Unit => {
-                    unique_unit_machine(plans, machine.symbol)?;
+                    unique_unit_machine(plans, machine.symbol).map_err(|error| match error {
+                        LoweringError::Unsupported(reason) => {
+                            LoweringError::InvalidUnitMachinePlan {
+                                machine: machine.name.as_str().to_owned(),
+                                reason,
+                            }
+                        }
+                        error => error,
+                    })?;
                     ProviderBody::Unit
                 }
                 checked_trees::CheckedBoundaryMachineResultPlan::Structural {

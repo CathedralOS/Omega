@@ -163,7 +163,7 @@ fn transitive_internal_target_rejects_nested_identity_and_plan_corruption() {
     let rejects = |checked: &CheckedTrees| {
         assert!(matches!(
             lower_machine(checked, "Root::enter"),
-            Err(LoweringError::Unsupported(_))
+            Err(LoweringError::Unsupported(_) | LoweringError::InvalidUnitMachinePlan { .. })
         ));
     };
 

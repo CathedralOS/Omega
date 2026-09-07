@@ -457,11 +457,43 @@ fn attached_unit_hard_root_fails_closed_on_missing_transitive_member() {
         .machines
         .retain(|machine| machine.machine != helper);
 
+    let result = lower_machine(&checked, "Root::enter");
+    assert!(format!("{result:?}").contains("Helper::run"), "{result:?}");
+    assert!(matches!(
+        result,
+        Err(LoweringError::InvalidUnitMachinePlan { machine, reason })
+            if machine == "Helper::run"
+                && reason == "attached Unit closure is missing a checked transitive machine plan"
+    ));
+}
+
+#[test]
+fn attached_unit_duplicate_plan_names_the_ambiguous_helper() {
+    let mut checked = hard_root_checked_fixture();
+    let helper = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Helper::run")
+        .expect("authored helper")
+        .symbol;
+    let duplicate = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(helper)
+        .expect("helper plan")
+        .clone();
+    checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .push(duplicate);
     assert!(matches!(
         lower_machine(&checked, "Root::enter"),
-        Err(LoweringError::Unsupported(
-            "attached Unit closure is missing a checked transitive machine plan"
-        ))
+        Err(LoweringError::InvalidUnitMachinePlan { machine, reason })
+            if machine == "Helper::run"
+                && reason == "attached Unit closure contains duplicate checked machine plans"
     ));
 }
 

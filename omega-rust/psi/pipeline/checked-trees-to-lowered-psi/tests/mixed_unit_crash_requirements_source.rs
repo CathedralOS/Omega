@@ -565,9 +565,10 @@ fn structural_divisor_keeps_whole_root_requirements_and_rejects_partial_cleanup(
             // inputs and an effectful callee. Do not erase the live spare.
             assert!(matches!(
                 checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main"),
-                Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
-                    "attached Unit closure is missing a checked transitive machine plan"
-                ))
+                Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan {
+                    machine, reason,
+                }) if machine == "Main::main"
+                    && reason == "attached Unit closure is missing a checked transitive machine plan"
             ));
         } else {
             roundtrip(&checked);
