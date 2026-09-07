@@ -3,9 +3,10 @@
 [Envelope](REQUEST.md) | [Calculus and full subject](../../../wiki/architecture/bootstrap_chain/derivation_calculus.md)
 
 This is the concrete inner encoding, not an accepted checker or certificate.
-The [layout admission](LAYOUT.md) traverses physical fields; semantic indexing,
-formation, the complete resource profile, and the whole-Beta certificate remain
-unfinished.
+The [layout admission](LAYOUT.md) traverses physical fields and
+[theory formation](FORMATION.md) checks conservative definitions. Ground-term
+validation, explicit proof checking, the complete resource profile, and the
+whole-Beta certificate remain unfinished.
 
 ## Common physical representation
 
@@ -227,7 +228,8 @@ clauses, substituted environments, wrong final roots, and failures after valid
 prefixes. Every published resource needs exact and adjacent controls with no
 acceptance on exhaustion. These are full-checker implementation requirements,
 not recorded semantic test results. The outer and layout gates establish only
-their respective physical-input contracts.
+their respective physical-input contracts; the formation gate establishes the
+theory contract, not a ground equality proof.
 
 ### Hand-worked field-layout example
 
@@ -256,5 +258,6 @@ Each displayed integer is one encoded word; parentheses here expand with
 The clause and function payload lengths are 6 and 13 words. Section lengths
 are 100, 72, and 32 bytes, making a 228-byte outer request. The intended root is
 `identity(next(zero)) = next(zero)`; the one unfolding row substitutes owner
-term 2 for slot 0. This is a field-layout calculation, not an observed checker
-pass or a substitute for the full Beta encoding certificate.
+term 2 for slot 0. The formation gate checks this theory but does not validate
+the unfolding row or accept the equality. It cannot substitute for the full
+Beta encoding certificate.

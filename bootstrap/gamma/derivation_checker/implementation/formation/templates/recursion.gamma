@@ -1,0 +1,23 @@
+(def formation_self_decrease ((record Int) (context Int)) Int
+  (if (eq (layout_word (+ record 4)) 1) 0
+    (let function Int (formation_clause_function context)
+      (if (eq (layout_word (+ record 8)) (formation_function_identity function))
+        (let declaration Int (formation_function_record function)
+          (let field Int (+ (+ record 16) (* (formation_selected declaration) 4))
+            (let child Int
+              (formation_index_lookup (formation_clause_templates context)
+                (layout_word field))
+              (if (eq (layout_word (+ child 4)) 0)
+                (formation_child_slot field (layout_word (+ child 8))
+                  declaration (formation_clause_constructor context))
+                (layout_failure field)))))
+        0))))
+
+(def formation_child_slot ((field Int) (slot Int) (function Int)
+  (constructor Int)) Int
+  (let arity Int (formation_arity function)
+    (if (lt slot arity)
+      (layout_failure field)
+      (if (lt (- slot arity) (formation_arity constructor))
+        0
+        (layout_failure field)))))

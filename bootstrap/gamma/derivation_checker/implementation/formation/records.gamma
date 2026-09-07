@@ -1,0 +1,27 @@
+; These offsets are used only after complete layout admission.
+(def formation_record_next ((record Int)) Int
+  (+ (+ record 4) (* (layout_word record) 4)))
+
+(def formation_arity ((record Int)) Int
+  (layout_word (+ record 8)))
+
+(def formation_result_sort ((record Int)) Int
+  (layout_word (+ record 4)))
+
+(def formation_argument_sort ((record Int) (position Int)) Int
+  (layout_word (+ (+ record 12) (* position 4))))
+
+(def formation_mode_field ((record Int)) Int
+  (+ (+ record 12) (* (formation_arity record) 4)))
+
+(def formation_mode ((record Int)) Int
+  (layout_word (formation_mode_field record)))
+
+(def formation_selected ((record Int)) Int
+  (layout_word (+ (formation_mode_field record) 4)))
+
+(def formation_clause_count_field ((record Int)) Int
+  (+ (formation_mode_field record) 8))
+
+(def formation_rejection ((failure Int)) Int
+  (admission_rejected 7 (- (- 0 failure) 1)))

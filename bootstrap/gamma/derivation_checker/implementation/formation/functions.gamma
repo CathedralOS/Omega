@@ -1,0 +1,50 @@
+(def formation_functions ((cursor Int) (identity Int) (remaining Int)
+  (theory Int)) Int
+  (if (eq remaining 0) 0
+    (let context Int (formation_function_context identity cursor theory)
+      (let checked Int (formation_function_clauses context)
+        (if (lt checked 0) checked
+          (formation_functions (formation_record_next cursor)
+            (+ identity 1) (- remaining 1) theory))))))
+
+(def formation_function_clauses ((context Int)) Int
+  (let record Int (formation_function_record context)
+    (let count_field Int (formation_clause_count_field record)
+      (let selected Int (formation_selected record)
+        (if (eq (formation_mode record) 0)
+          (if (eq selected 0)
+            (if (eq (layout_word count_field) 1)
+              (formation_variable_clause context (+ count_field 4))
+              (layout_failure count_field))
+            (layout_failure (- count_field 4)))
+          (if (lt selected (formation_arity record))
+            (let constructors Int (first (formation_function_theory context))
+              (formation_case_clauses context
+                (formation_index_lookup constructors 1) 1 (first constructors)
+                (+ count_field 4) (layout_word count_field)
+                (formation_argument_sort record selected)))
+            (layout_failure (- count_field 4))))))))
+
+(def formation_variable_clause ((context Int) (clause Int)) Int
+  (if (eq (layout_word (+ clause 4)) 0)
+    (formation_clause context 0 clause)
+    (layout_failure (+ clause 4))))
+
+; One catalog scan per case function. Check each matched body before continuing.
+(def formation_case_clauses ((context Int) (constructor Int) (identity Int)
+  (remaining Int) (clause Int) (clauses Int) (selected_sort Int)) Int
+  (if (eq remaining 0)
+    (if (eq clauses 0) 0 (layout_failure (+ clause 4)))
+    (if (eq (formation_result_sort constructor) selected_sort)
+      (if (eq clauses 0)
+        (layout_failure
+          (formation_clause_count_field (formation_function_record context)))
+        (if (eq (layout_word (+ clause 4)) identity)
+          (let checked Int (formation_clause context constructor clause)
+            (if (lt checked 0) checked
+              (formation_case_clauses context (formation_record_next constructor)
+                (+ identity 1) (- remaining 1) (formation_record_next clause)
+                (- clauses 1) selected_sort)))
+          (layout_failure (+ clause 4))))
+      (formation_case_clauses context (formation_record_next constructor)
+        (+ identity 1) (- remaining 1) clause clauses selected_sort))))

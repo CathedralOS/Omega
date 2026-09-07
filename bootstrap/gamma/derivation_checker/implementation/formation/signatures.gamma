@@ -1,0 +1,27 @@
+(def formation_signatures ((context Int) (sorts Int)) Int
+  (let constructors Int (first context)
+    (let checked Int
+      (formation_signature_rows (formation_index_lookup constructors 1)
+        (first constructors) sorts)
+      (if (lt checked 0) checked
+        (let functions Int (second context)
+          (formation_signature_rows (formation_index_lookup functions 1)
+            (first functions) sorts))))))
+
+(def formation_signature_rows ((cursor Int) (remaining Int) (sorts Int)) Int
+  (if (eq remaining 0) 0
+    (let checked Int
+      (formation_sort_fields (+ cursor 4) 1 sorts)
+      (if (lt checked 0) checked
+        (let arguments Int
+          (formation_sort_fields (+ cursor 12) (formation_arity cursor) sorts)
+          (if (lt arguments 0) arguments
+            (formation_signature_rows (formation_record_next cursor)
+              (- remaining 1) sorts)))))))
+
+(def formation_sort_fields ((cursor Int) (remaining Int) (sorts Int)) Int
+  (if (eq remaining 0) 0
+    (let sort Int (layout_word cursor)
+      (if (if (lt sort 1) 1 (lt sorts sort))
+        (layout_failure cursor)
+        (formation_sort_fields (+ cursor 4) (- remaining 1) sorts)))))

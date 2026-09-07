@@ -1,0 +1,27 @@
+; Zero denotes an unbound slot; admitted sort identities are positive.
+(def formation_slot_sort ((slot Int) (context Int)) Int
+  (let function Int (formation_function_record (formation_clause_function context))
+    (let arity Int (formation_arity function)
+      (if (lt slot arity)
+        (if (if (eq (formation_mode function) 1)
+          (eq slot (formation_selected function)) 0)
+          0
+          (formation_argument_sort function slot))
+        (let constructor Int (formation_clause_constructor context)
+          (if (eq constructor 0) 0
+            (if (lt (- slot arity) (formation_arity constructor))
+              (formation_argument_sort constructor (- slot arity))
+              0)))))))
+
+(def formation_template_symbol ((record Int) (context Int)) Int
+  (let theory Int (formation_function_theory (formation_clause_function context))
+    (formation_index_lookup
+      (if (eq (layout_word (+ record 4)) 1) (first theory) (second theory))
+      (layout_word (+ record 8)))))
+
+; Only previously checked rows or the checked final body reach this helper.
+; The symbol result sort is independent of its already validated children.
+(def formation_template_sort ((record Int) (context Int)) Int
+  (if (eq (layout_word (+ record 4)) 0)
+    (formation_slot_sort (layout_word (+ record 8)) context)
+    (formation_result_sort (formation_template_symbol record context))))
