@@ -69,7 +69,7 @@ the example. Native proof, provider, and receiving-permission checks remain
 independent requirements.
 
 The compiler-library sample test bypasses project acceptance and stops later at
-structural-argument path validation in Terminal production. Neither package
+native ranked-module admission after Terminal production. Neither package
 acceptance nor that failing probe establishes native execution. Current commands,
 tested revisions, and the next implementation step remain on the execution board.
 
@@ -99,10 +99,14 @@ native production, and execution.
 | Entry storage and providers | [`native_artifact.rs`](../../../../omega-rust/omega/compiler/native-realization/src/realization/native_artifact.rs) rejects an executable entry retaining unprovisioned `self`. `Main` needs real storage, including its 256-byte buffer, and a loan from the entry bridge. [`compiler_intrinsic.rs`](../../../../omega-rust/omega/build/selected-dispatch/src/compiler_intrinsic.rs) must supply closed identities for the selected Windows output, input, and exit leaves; declarations alone are not native implementations. |
 | Native image and publication | [`object.rs`](../../../../omega-rust/omega/compiler/native-realization/src/realization/object.rs) sequences physical lowering and emission. PE image support exists. [`compilation-report`](../../../../omega-rust/omega/compiler/compilation-report/src/lib.rs) validates the retained artifact and requires compiler-text/function evidence before publishing exact bytes. Preserve these gates. |
 
-The observed compiler-library failure at `4e90b46d56` on macOS ARM64 is
-`InvalidStructuralArgumentPath { operation: OperationId(5), argument_index: 0 }`.
-Trace the exact operand through Terminal structural validation before assigning
-it to one of the downstream gaps below. Terminal production uses the validated
+The observed compiler-library failure with production checkpoint `b1c823eadd`
+on macOS ARM64 is `Verification(Module(NonExecutableRankedScc(MachineId(3))))`.
+Terminal transport retains the exact `pause` field and inline capacity when
+presented to the boundary's mutable byte parameter. Native admission currently
+routes every ranked module to the restricted unsigned-countdown implementation;
+the writer needs natural slice-decrease control and native byte-view realization.
+Do not replace its evidence with a countdown or silently fall back to ordinary
+admission. Terminal production uses the validated
 boundary-call source view; direct selected-adapter calls belong to interpreter
 dispatch, while native adapter selection remains on the Omega side. Source
 custody and structural validation must not be bypassed.
