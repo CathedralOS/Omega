@@ -23,6 +23,38 @@ Call validation proves concrete signature, clause, substitution, movement,
 outcome, crash, and lifetime conditions before reconstruction imports guarantees.
 Do not duplicate those policies in operation-specific verifier branches.
 
+## Call and crash reconstruction
+
+Contracts: [call substitution](../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#call-contracts)
+and [entry facts](../../../../wiki/spec/terminal-psi/verification.md#entry-facts-and-crash-coverage).
+[entry_requirements.rs](src/validation/crash/entry_requirements.rs) proves a
+same-cause published union from caller entry requirements. It supplies no CFG
+facts or current body values, preserves exact callee continuations, and shares
+4,096 search steps and depth 64 across one proof rather than resetting per route.
+Checked discreteness/weakening and explicit equality symmetry connect existing
+integer encodings without recanonicalizing the obligation.
+
+[site_truth.rs](src/validation/crash/site_truth.rs) separately checks each direct
+site against independent pre-terminator facts. The private path reconstruction
+retains raw branch polarities and bounded alternatives through joins; every path
+must prove the guard or contradiction. Its limits are 4,096 block visits and
+4,096 generated/copied facts per machine. Exhaustion rejects, never discards
+unvisited paths. Crash-only raw facts do not enter ordinary proof reconstruction.
+Ranked-site checking remains entry-only until invariant custody is available.
+
+Nonliteral Boolean operations retain their equation followed by both polarity
+implications, derived from typed denotation without caller hypotheses. The
+ordinary producer cites those implications and proves their premises. Private
+crash-path copies keep the original equations without duplicating auxiliary
+implications; authored guarantees remain retained. Bounded implication search
+does not make a cycle into a premise.
+
+Unversioned structural entry observations require exact shared-borrow roots;
+owned/mutable body reads cannot claim to be entry snapshots. Their scalar read
+results may still establish executable branch predicates. General mutable-origin
+transport, arithmetic/float entry coverage, and case-qualified entry paths need
+further work. The latter require canonical case identity, not a guessed field.
+
 ## Cyclic control
 
 Contract: [control flow and ranking](../../../../wiki/spec/terminal-psi/control_flow.md).

@@ -104,6 +104,33 @@ capture-free positional substitution, pre/post versions, moves and reborrows,
 outcome guards, crash routes, and evidence lifetime. Missing a clause and
 substituting the wrong caller term are distinct failures.
 
+### Entry facts and crash coverage
+
+Entry hypotheses bind exact invocation formals or structural entry paths, with
+their retained types and access. Current body values are not entry snapshots.
+Named-state requirements do not become ambient invocation-entry assumptions.
+A block parameter is a forwarded formal only when every incoming edge proves
+the same typed origin; unknown, conflicting, or unestablished cyclic origins
+supply no such equality.
+
+Direct crash-site checking proves every asserted guard from independently
+established entry and pre-terminator facts on every incoming path. A checked
+contradiction may close an impossible path. Neither the site guard nor supplied
+producer evidence becomes an assumption. All-crash bodies still retain their
+entry contracts.
+
+Entry-only call-ceiling coverage proves the same-cause union of published
+alternatives without claiming an individual disjunct is true. Disjunction
+elimination checks each branch under only its own alternative and discharges
+that assumption. Semantic operation facts do not occupy requirement slots.
+
+Boolean denotation and polarity consequences derive from the exact selected
+operation, not its spelling or a desired callee requirement. Caller operands
+keep caller operator meaning under substitution. Equality transport and integer
+strict/inclusive conversions require their checked rules; proof traversal does
+not silently reorder a canonical goal. Comparison-only normalization for crash
+coverage does not change the codec's canonical ordering.
+
 ## Acceptance and trust
 
 Every accepted fact must be re-decided by a specified total kernel judgment,
