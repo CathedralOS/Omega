@@ -13,6 +13,7 @@ pub(crate) fn check_machine_termination(
     program: &typed_trees::TypedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    let ranked_call_components = validation::validated_runtime_recursive_components(program);
 
     // The use-site subtraction spelling `terminates by upper - lower` is retired:
     // the ranked subjects are spelled as the argumented tuple
@@ -61,6 +62,18 @@ pub(crate) fn check_machine_termination(
                  (decision 23)",
                 machine_name(program, machine.symbol)
             )));
+            continue;
+        }
+
+        // The whole-component judgment already proves these members' ranges
+        // and every internal call. It admits only single-entry bodies without
+        // local-state loops; do not reinterpret its clamped call ranks through
+        // the separate local-state induction rule. External progress and
+        // ordinary contracts remain obligations of their existing checks.
+        if ranked_call_components
+            .iter()
+            .any(|members| members.contains(&machine.symbol))
+        {
             continue;
         }
 

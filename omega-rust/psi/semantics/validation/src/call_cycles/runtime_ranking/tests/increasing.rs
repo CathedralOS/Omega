@@ -53,7 +53,6 @@ fn a_constant_rank_range_cannot_hide_a_moving_view_bound() {
 #[test]
 fn increasing_calls_reject_unproved_arrivals_and_weak_cycles() {
     for source in [
-        INCREASING.replace("position + 1", "position + 2"),
         INCREASING.replace("position + 1", "position"),
         INCREASING.replace("&& limit <= capacity", ""),
         INCREASING.replace(
@@ -63,6 +62,17 @@ fn increasing_calls_reject_unproved_arrivals_and_weak_cycles() {
     ] {
         assert!(admitted(&typed_source(&source)).is_empty(), "{source}");
     }
+}
+
+#[test]
+fn positive_source_rank_can_strictly_drop_to_the_zero_plateau() {
+    let program = typed_source(&INCREASING.replace("position + 1", "position + 2"));
+    // This is a ranking judgment, not executable addition formation or the
+    // destination's separate authored arrival-requirement judgment.
+    assert_eq!(
+        progress(&program, 1),
+        Some(RankingRangeCallProgress::Strict)
+    );
 }
 
 #[test]

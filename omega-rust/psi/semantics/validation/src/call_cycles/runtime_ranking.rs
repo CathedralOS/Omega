@@ -18,6 +18,7 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 
 use crate::contract_entailment::{
     RankingRangeCallMember, RankingRangeCallProgress, prove_ranking_range_call,
+    prove_ranking_range_call_entry,
 };
 use comparison::Comparison;
 use projection::RankProjection;
@@ -90,13 +91,14 @@ pub(super) fn check_component(
     for (rank, index) in ranks.iter().zip(component) {
         if rank.range.is_valid() {
             let machine = &program.machines()[*index];
-            let Some(entry) = program.machine_states(machine).first() else {
-                return Err("a ranged member has no entry");
-            };
-            let Some(measure) = rank.range_measure() else {
-                return Err("a ranged member lacks its exact produced-rank projection");
-            };
-            if !crate::prove_ranking_range_entry(program, machine, entry, rank.range, measure) {
+            if !prove_ranking_range_call_entry(
+                program,
+                RankingRangeCallMember {
+                    machine,
+                    subject: rank.subject,
+                    range: rank.range,
+                },
+            ) {
                 return Err("a member's initial rank range is unproven");
             }
         }

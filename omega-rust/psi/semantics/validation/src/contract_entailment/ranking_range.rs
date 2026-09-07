@@ -11,6 +11,7 @@ mod meanings;
 
 pub(crate) use calls::{
     RankingRangeCallMember, RankingRangeCallProgress, prove_ranking_range_call,
+    prove_ranking_range_call_entry,
 };
 
 #[cfg(test)]

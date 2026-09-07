@@ -26,7 +26,6 @@ pub(super) struct RankProjection {
     pub(super) argument_position: usize,
     pub(super) subject: ExpressionHandle,
     pub(super) range: ExpressionHandle,
-    view_bound: ExpressionHandle,
 }
 
 impl RankProjection {
@@ -69,7 +68,7 @@ impl RankProjection {
         ) && Some(witness.view_path.as_str()) == witness.ranking_view.canonical_path()
         {
             let increasing = witness.ranking_view == RankingViewId::NAT_INCREASING_TO;
-            let view_bound = if increasing {
+            if increasing {
                 let [bound] = custody.view_arguments.as_slice() else {
                     return None;
                 };
@@ -79,13 +78,9 @@ impl RankProjection {
                 {
                     return None;
                 }
-                *bound
-            } else {
-                if !witness.view_arguments.is_empty() || !custody.view_arguments.is_empty() {
-                    return None;
-                }
-                ExpressionHandle::invalid()
-            };
+            } else if !witness.view_arguments.is_empty() || !custody.view_arguments.is_empty() {
+                return None;
+            }
             let mut reference = parameter.type_reference;
             while let TypeReferenceNode::Constrained { base_type, .. } =
                 program.type_reference_table.type_reference(reference)
@@ -109,7 +104,6 @@ impl RankProjection {
                 argument_position,
                 subject: *subject,
                 range: custody.rank_range.unwrap_or_default(),
-                view_bound,
             });
         }
         if witness.ranking_view.is_valid()
@@ -213,25 +207,11 @@ impl RankProjection {
             argument_position,
             subject: *subject,
             range: ExpressionHandle::invalid(),
-            view_bound: ExpressionHandle::invalid(),
         })
     }
 
     pub(super) fn same_order(&self, other: &Self) -> bool {
         self.order == other.order
-    }
-
-    pub(super) fn range_measure(&self) -> Option<crate::RankingRangeMeasure> {
-        match self.order {
-            RankOrder::Natural(_) => Some(crate::RankingRangeMeasure::Single(self.subject)),
-            RankOrder::IncreasingTo(_) if self.view_bound.is_valid() => {
-                Some(crate::RankingRangeMeasure::IncreasingTo {
-                    subject: self.subject,
-                    limit: self.view_bound,
-                })
-            }
-            _ => None,
-        }
     }
 
     pub(super) fn is_subject(&self, program: &TypedTrees, expression: ExpressionHandle) -> bool {

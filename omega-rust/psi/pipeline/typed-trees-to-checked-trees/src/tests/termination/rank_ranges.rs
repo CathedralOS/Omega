@@ -3,6 +3,7 @@ use super::{
 };
 
 mod call_components;
+mod clamped_calls;
 mod entry_reentry;
 mod increasing_calls;
 mod named_states;
