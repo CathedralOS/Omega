@@ -422,6 +422,7 @@ pub(crate) fn validate_transfer_shape(
         if argument.byte_sequence_literal().is_some() {
             if !argument.path.is_empty()
                 || argument.type_identity != target.type_identity
+                || argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
                 || argument.access != target.access
                 || target.multiplicity != Multiplicity::Unrestricted
                 || !target.qualifications.is_empty()
@@ -617,6 +618,32 @@ fn checked_access_can_supply(
             presented == CheckedStructuralAccess::WriteOnlyBorrow
         }
     }
+}
+
+pub(crate) fn literal_argument_places(
+    arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
+    literals: &[StructuralPlaceDeclaration],
+    next_literal: &mut usize,
+) -> Result<Vec<PlaceId>, LoweringError> {
+    let count = arguments
+        .iter()
+        .filter(|argument| argument.byte_sequence_literal().is_some())
+        .count();
+    let end = next_literal
+        .checked_add(count)
+        .ok_or(LoweringError::Unsupported(
+            "byte-sequence literal argument count overflows usize",
+        ))?;
+    let places = literals
+        .get(*next_literal..end)
+        .ok_or(LoweringError::Unsupported(
+            "byte-sequence literal argument place is absent",
+        ))?
+        .iter()
+        .map(|place| place.id)
+        .collect();
+    *next_literal = end;
+    Ok(places)
 }
 
 pub(crate) fn lower_structural_arguments(

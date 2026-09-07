@@ -291,9 +291,10 @@ pub enum TerminalEffect {
         boundary: BoundaryMachineId,
         arguments: Vec<TerminalScalarValue>,
         structural_arguments: Vec<TerminalStructuralValue>,
-        /// Exact byte payload aligned with `structural_arguments`. Only a
-        /// first-class byte-sequence literal contributes `Some`; opaque host
-        /// structural arguments remain `None`.
+        /// Exact byte payload aligned with `structural_arguments`. Whole
+        /// immutable literals and forwarded views contribute `Some`; other
+        /// structural types contribute `None`. A byte view without executable
+        /// contents rejects before invoking the handler.
         byte_sequence_arguments: Vec<Option<Vec<u8>>>,
         completion_receipts: Vec<CompletionReceipt>,
         result: BoundaryMachineResult,
@@ -487,10 +488,10 @@ pub struct TerminalExecution {
     /// projected call observes the same field without native layout claims.
     structural_scalar_fields: BTreeMap<StructuralScalarRuntimeField, TerminalScalarValue>,
     payloadless_case_values: BTreeMap<PlaceId, TerminalPayloadlessCaseValue>,
-    /// Immutable exact literal payloads keyed by invocation-independent
-    /// terminal machine/place identity. Literal operations are canonical and
-    /// idempotently establish the same bytes on every invocation.
-    byte_sequence_literals: BTreeMap<(MachineId, PlaceId), Vec<u8>>,
+    /// Immutable exact bytes owned by this invocation, including borrowed
+    /// arguments rebound to its parameter places. Opaque identities do not
+    /// determine byte contents.
+    byte_sequence_values: BTreeMap<PlaceId, Vec<u8>>,
     /// Exact claim-free affine ownership frontier. Opaque structural storage is
     /// root-addressed, so projected moves must be represented here rather than
     /// by unsoundly deleting their containing root.
@@ -522,6 +523,7 @@ struct SuspendedCall {
     values: BTreeMap<ValueId, TerminalScalarValue>,
     structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
     payloadless_case_values: BTreeMap<PlaceId, TerminalPayloadlessCaseValue>,
+    byte_sequence_values: BTreeMap<PlaceId, Vec<u8>>,
     live_affine_frontier: BTreeSet<StructuralAffineDiscard>,
     live_claims: BTreeMap<ClaimId, LiveClaim>,
     dynamic_parameters: BTreeMap<u32, RuntimeDynamicDescriptor>,
@@ -927,7 +929,7 @@ impl TerminalExecution {
             structural_primitive_entry_places,
             structural_scalar_fields: structural_boolean_fields,
             payloadless_case_values: BTreeMap::new(),
-            byte_sequence_literals: BTreeMap::new(),
+            byte_sequence_values: BTreeMap::new(),
             live_affine_frontier,
             live_claims,
             current_machine: module.entry,
@@ -1047,6 +1049,51 @@ impl TerminalExecution {
         Ok(resolved)
     }
 
+    /// Rebind exact immutable byte payloads by structural argument position.
+    /// Only whole borrowed views have executable contents in this lane.
+    fn bind_byte_sequence_arguments(
+        &self,
+        parameters: &[StructuralParameterDeclaration],
+        arguments: &[StructuralArgument],
+        resolved_arguments: &[TerminalStructuralValue],
+    ) -> Result<BTreeMap<PlaceId, Vec<u8>>, TerminalInterpretError> {
+        if parameters.len() != arguments.len() || parameters.len() != resolved_arguments.len() {
+            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+        }
+        let mut values = BTreeMap::new();
+        for ((parameter, argument), resolved) in
+            parameters.iter().zip(arguments).zip(resolved_arguments)
+        {
+            let declaration = self
+                .structural_types
+                .get(&parameter.structural_type)
+                .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+            let StructuralTypeShape::ByteSequence(carrier) = &declaration.shape else {
+                continue;
+            };
+            if *carrier != terminal_psi::ByteSequenceCarrier::BorrowedView
+                || parameter.structural_type != resolved.structural_type
+                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                || parameter.access != StructuralAccess::SharedBorrow
+                || argument.access != StructuralAccess::SharedBorrow
+                || !parameter.qualifications.is_empty()
+                || !parameter.projected_qualifications.is_empty()
+                || !resolved.qualifications.is_empty()
+                || !argument.path.is_empty()
+                || !resolved.path.is_empty()
+            {
+                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            }
+            let bytes = self.byte_sequence_values.get(&argument.place).ok_or(
+                TerminalInterpretError::VerifiedStructuralPlaceMissing(argument.place),
+            )?;
+            if values.insert(parameter.place, bytes.clone()).is_some() {
+                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            }
+        }
+        Ok(values)
+    }
+
     /// Enter one structural Unit callee after the operation-specific argument
     /// checks have succeeded. Ordinary calls and admitted provider dispatch
     /// share this exact ownership and continuation transition.
@@ -1070,6 +1117,11 @@ impl TerminalExecution {
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
         let structural_values =
             bind_structural_arguments(&callee.structural_parameters, resolved_arguments)?;
+        let byte_sequence_values = self.bind_byte_sequence_arguments(
+            &callee.structural_parameters,
+            structural_arguments,
+            resolved_arguments,
+        )?;
         let callee_affine_frontier =
             bind_affine_frontier(&callee.structural_parameters, &structural_values)?;
         let (remaining_claims, live_claims) = transfer_claims(
@@ -1119,6 +1171,7 @@ impl TerminalExecution {
             blocks: std::mem::take(&mut self.blocks),
             values: std::mem::take(&mut self.values),
             structural_values: caller_structural_values,
+            byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
             payloadless_case_values: std::mem::take(&mut self.payloadless_case_values),
             live_affine_frontier: caller_affine_frontier,
             live_claims: std::mem::take(&mut self.live_claims),
@@ -1131,6 +1184,7 @@ impl TerminalExecution {
         self.blocks = callee.blocks;
         self.values = values;
         self.structural_values = structural_values;
+        self.byte_sequence_values = byte_sequence_values;
         self.live_affine_frontier = callee_affine_frontier;
         self.live_claims = live_claims;
         self.dynamic_parameters = dynamic_parameters;
@@ -1165,6 +1219,11 @@ impl TerminalExecution {
         )?;
         let structural_values =
             bind_structural_arguments(&callee.structural_parameters, &arguments)?;
+        let byte_sequence_values = self.bind_byte_sequence_arguments(
+            &callee.structural_parameters,
+            structural_arguments,
+            &arguments,
+        )?;
         let callee_affine_frontier =
             bind_affine_frontier(&callee.structural_parameters, &structural_values)?;
         let (remaining_claims, live_claims) = transfer_claims(
@@ -1214,6 +1273,7 @@ impl TerminalExecution {
             blocks: std::mem::take(&mut self.blocks),
             values: std::mem::take(&mut self.values),
             structural_values: caller_structural_values,
+            byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
             payloadless_case_values: std::mem::take(&mut self.payloadless_case_values),
             live_affine_frontier: caller_affine_frontier,
             live_claims: std::mem::take(&mut self.live_claims),
@@ -1226,6 +1286,7 @@ impl TerminalExecution {
         self.blocks = callee.blocks;
         self.values = values;
         self.structural_values = structural_values;
+        self.byte_sequence_values = byte_sequence_values;
         self.live_affine_frontier = callee_affine_frontier;
         self.live_claims = live_claims;
         self.dynamic_parameters = dynamic_parameters;
@@ -1284,6 +1345,11 @@ impl TerminalExecution {
         )?;
         let structural_values =
             bind_structural_arguments(&callee.structural_parameters, &arguments)?;
+        let byte_sequence_values = self.bind_byte_sequence_arguments(
+            &callee.structural_parameters,
+            structural_arguments,
+            &arguments,
+        )?;
         let callee_affine_frontier =
             bind_affine_frontier(&callee.structural_parameters, &structural_values)?;
         let (remaining_claims, live_claims) = transfer_claims(
@@ -1334,6 +1400,7 @@ impl TerminalExecution {
             blocks: std::mem::take(&mut self.blocks),
             values: std::mem::take(&mut self.values),
             structural_values: caller_structural_values,
+            byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
             payloadless_case_values: std::mem::take(&mut self.payloadless_case_values),
             live_affine_frontier: caller_affine_frontier,
             live_claims: remaining_claims,
@@ -1349,6 +1416,7 @@ impl TerminalExecution {
         self.blocks = callee.blocks;
         self.values = values;
         self.structural_values = structural_values;
+        self.byte_sequence_values = byte_sequence_values;
         self.live_affine_frontier = callee_affine_frontier;
         self.live_claims = live_claims;
         self.dynamic_parameters = BTreeMap::new();
@@ -1384,6 +1452,7 @@ impl TerminalExecution {
             blocks: std::mem::take(&mut self.blocks),
             values: std::mem::take(&mut self.values),
             structural_values: std::mem::take(&mut self.structural_values),
+            byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
             payloadless_case_values: std::mem::take(&mut self.payloadless_case_values),
             live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
             live_claims: std::mem::take(&mut self.live_claims),
@@ -1430,6 +1499,7 @@ impl TerminalExecution {
             blocks: std::mem::take(&mut self.blocks),
             values: std::mem::take(&mut self.values),
             structural_values: std::mem::take(&mut self.structural_values),
+            byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
             payloadless_case_values: std::mem::take(&mut self.payloadless_case_values),
             live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
             live_claims: std::mem::take(&mut self.live_claims),
@@ -1542,11 +1612,10 @@ impl TerminalExecution {
                         else {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         };
-                        let key = (self.current_machine, destination);
                         if self
-                            .byte_sequence_literals
-                            .insert(key, bytes.clone())
-                            .is_some_and(|previous| previous != bytes)
+                            .byte_sequence_values
+                            .insert(destination, bytes)
+                            .is_some()
                         {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         }
@@ -1951,24 +2020,20 @@ impl TerminalExecution {
                             &completion_receipts,
                             &boundary_declaration.structural_parameters,
                         )?;
+                        let mut byte_sequence_values = self.bind_byte_sequence_arguments(
+                            &boundary_declaration.structural_parameters,
+                            &structural_arguments,
+                            &arguments,
+                        )?;
                         let effect = TerminalEffect::BoundaryCall {
                             operation: operation.id,
                             boundary,
                             arguments: scalar_arguments,
                             structural_arguments: arguments,
-                            byte_sequence_arguments: structural_arguments
+                            byte_sequence_arguments: boundary_declaration
+                                .structural_parameters
                                 .iter()
-                                .map(|argument| {
-                                    argument
-                                        .path
-                                        .is_empty()
-                                        .then(|| {
-                                            self.byte_sequence_literals
-                                                .get(&(self.current_machine, argument.place))
-                                                .cloned()
-                                        })
-                                        .flatten()
-                                })
+                                .map(|parameter| byte_sequence_values.remove(&parameter.place))
                                 .collect(),
                             completion_receipts,
                             result: boundary_declaration.result.clone(),
@@ -2064,6 +2129,7 @@ impl TerminalExecution {
                             blocks: std::mem::take(&mut self.blocks),
                             values: std::mem::take(&mut self.values),
                             structural_values: std::mem::take(&mut self.structural_values),
+                            byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
                             payloadless_case_values: std::mem::take(
                                 &mut self.payloadless_case_values,
                             ),
@@ -2931,6 +2997,7 @@ impl TerminalExecution {
                         blocks: std::mem::take(&mut self.blocks),
                         values: std::mem::take(&mut self.values),
                         structural_values: std::mem::take(&mut self.structural_values),
+                        byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
                         payloadless_case_values: std::mem::take(&mut self.payloadless_case_values),
                         live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
                         live_claims: std::mem::take(&mut self.live_claims),
@@ -3036,6 +3103,7 @@ impl TerminalExecution {
                         self.values = caller.values;
                         self.structural_values = caller.structural_values;
                         self.payloadless_case_values = caller.payloadless_case_values;
+                        self.byte_sequence_values = caller.byte_sequence_values;
                         self.live_affine_frontier = caller.live_affine_frontier;
                         self.live_claims = caller.live_claims;
                         self.dynamic_parameters = caller.dynamic_parameters;
@@ -3202,6 +3270,12 @@ impl TerminalExecution {
                     }) {
                         self.structural_values.remove(&parameter.place);
                     }
+                    // Immutable byte views end with this invocation and carry
+                    // no affine cleanup, including locally established literals.
+                    for place in self.byte_sequence_values.keys() {
+                        self.structural_values.remove(place);
+                    }
+                    self.byte_sequence_values.clear();
                     let cleanups = commit_cleanup_actions(
                         &self.structural_types,
                         &self.machines,
@@ -3221,6 +3295,7 @@ impl TerminalExecution {
                             blocks: std::mem::take(&mut self.blocks),
                             values: std::mem::take(&mut self.values),
                             structural_values: std::mem::take(&mut self.structural_values),
+                            byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
                             payloadless_case_values: std::mem::take(
                                 &mut self.payloadless_case_values,
                             ),
@@ -3256,6 +3331,7 @@ impl TerminalExecution {
                         self.values.insert(result_value, result);
                         self.structural_values = caller.structural_values;
                         self.payloadless_case_values = caller.payloadless_case_values;
+                        self.byte_sequence_values = caller.byte_sequence_values;
                         self.live_affine_frontier = caller.live_affine_frontier;
                         self.live_claims = caller.live_claims;
                         self.dynamic_parameters = caller.dynamic_parameters;
@@ -3297,6 +3373,7 @@ impl TerminalExecution {
                         self.values = caller.values;
                         self.structural_values = caller.structural_values;
                         self.payloadless_case_values = caller.payloadless_case_values;
+                        self.byte_sequence_values = caller.byte_sequence_values;
                         self.live_affine_frontier = caller.live_affine_frontier;
                         self.live_claims = caller.live_claims;
                         self.dynamic_parameters = caller.dynamic_parameters;
@@ -3335,6 +3412,9 @@ impl TerminalExecution {
                                         values: std::mem::take(&mut self.values),
                                         structural_values: std::mem::take(
                                             &mut self.structural_values,
+                                        ),
+                                        byte_sequence_values: std::mem::take(
+                                            &mut self.byte_sequence_values,
                                         ),
                                         payloadless_case_values: std::mem::take(
                                             &mut self.payloadless_case_values,
@@ -3383,6 +3463,7 @@ impl TerminalExecution {
                                     self.values.insert(result_value, returned);
                                     self.structural_values = caller.structural_values;
                                     self.payloadless_case_values = caller.payloadless_case_values;
+                                    self.byte_sequence_values = caller.byte_sequence_values;
                                     self.live_affine_frontier = caller.live_affine_frontier;
                                     self.live_claims = caller.live_claims;
                                     self.dynamic_parameters = caller.dynamic_parameters;
@@ -3484,6 +3565,7 @@ impl TerminalExecution {
                             self.values = caller.values;
                             self.structural_values = caller.structural_values;
                             self.payloadless_case_values = caller.payloadless_case_values;
+                            self.byte_sequence_values = caller.byte_sequence_values;
                             if self
                                 .payloadless_case_values
                                 .insert(result.place, value)
@@ -3600,6 +3682,7 @@ impl TerminalExecution {
                         self.values = caller.values;
                         self.structural_values = caller.structural_values;
                         self.payloadless_case_values = caller.payloadless_case_values;
+                        self.byte_sequence_values = caller.byte_sequence_values;
                         if self.structural_values.insert(result.place, value).is_some() {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         }

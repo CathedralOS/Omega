@@ -158,8 +158,18 @@ an exact raw-octet literal establishment, and that local literal as a structural
 argument to a bodyless boundary. The codec, verifier, and interpreter preserve
 all bytes, including non-UTF-8 payloads. Psi syntax, resolved, typed, and checked
 trees own that exact payload, and checked-to-terminal lowering establishes its
-borrowed place before passing the same place to the bodyless call. In-module and
-nonliteral forwarding remain fenced.
+borrowed place before use. Ordinary Unit helpers also accept whole immutable
+literals and forward incoming views through the existing structural argument
+lane. Exact type and shared access remain required; a literal cannot supply an
+owned or mutable argument, and its establishment must precede every use.
+
+Interpretation binds exact bytes to each invocation's parameter places and
+restores the caller's byte storage on return. Nested and repeated calls retain
+their own payloads, including empty sequences, independently of opaque host
+identities. An opaque incoming value without byte contents cannot execute a
+byte-consuming call. Projected views, owned byte storage, byte observation and
+subslicing operations, and native whole-byte-view argument layout remain
+outside this executable forwarding path.
 
 Vocabulary 27 also closes the O0 provider-backed attachment specialization. The
 machine retains `attachment: Some(Main)`, its relevant `console` field retains

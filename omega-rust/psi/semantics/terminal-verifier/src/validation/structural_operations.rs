@@ -1133,7 +1133,8 @@ pub(super) enum StructuralArgumentSourcePolicy {
     /// but not construction-local establishments.
     ParametersOrBoundaryActuals,
     /// Unit and scalar-result calls retain construction locals and whole
-    /// ordinary and boundary affine results.
+    /// ordinary and boundary affine results. Unit calls also admit whole
+    /// immutable byte literals.
     ParametersOrAffineLocalsAndCallResults,
     /// Whole record establishments and claim-free affine call results.
     /// Frontier validation separately requires their producer to have run.
@@ -1162,15 +1163,14 @@ pub(super) fn validate_structural_arguments(
     allow_projected: bool,
     source_policy: StructuralArgumentSourcePolicy,
 ) -> Result<(), ModuleError> {
-    let result_projection = allow_projected
-        && caller
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
-            .any(|candidate| {
-                candidate.id == operation
-                    && matches!(candidate.kind, OperationKind::CallUnit { .. })
-            });
+    let unit_call = caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .any(|candidate| {
+            candidate.id == operation && matches!(candidate.kind, OperationKind::CallUnit { .. })
+        });
+    let result_projection = allow_projected && unit_call;
     if arguments.len() != expected.len() {
         return Err(ModuleError::StructuralArgumentArityMismatch {
             operation,
@@ -1206,13 +1206,15 @@ pub(super) fn validate_structural_arguments(
                     match place.kind {
                         StructuralPlaceKind::ByteSequenceLiteral {
                             structural_type, ..
-                        } if source_policy
-                            == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals =>
+                        } if argument.path.is_empty()
+                            && argument.access == StructuralAccess::SharedBorrow
+                            && (source_policy == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
+                                || (unit_call && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults)) =>
                         {
                             Some((
                                 structural_type,
                                 StructuralMultiplicity::Unrestricted,
-                                StructuralAccess::Owned,
+                                StructuralAccess::SharedBorrow,
                                 &[][..],
                                 &[][..],
                             ))
