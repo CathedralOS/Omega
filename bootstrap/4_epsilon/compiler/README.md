@@ -28,7 +28,7 @@ normative Epsilon request or observation envelope.
 | Storage | [`execution/storage/homes.delta`](execution/storage/homes.delta) owns runtime roots, reads, writes, and reclamation. [`places.delta`](execution/storage/places.delta) walks projection paths; [`children.delta`](execution/storage/children.delta) selects record-field or indexed-array access. [`arrays.delta`](execution/storage/arrays.delta) validates array extents and delegates to [`arrays/lookup.delta`](execution/storage/arrays/lookup.delta) and [`arrays/updates.delta`](execution/storage/arrays/updates.delta). [`liveness.delta`](execution/storage/liveness.delta) retains backing roots needed by surviving state views. |
 | Console | [`execution/console.delta`](execution/console.delta) sequences argument effects and selects the operation. [`console/input.delta`](execution/console/input.delta) advances sealed input; [`console/output.delta`](execution/console/output.delta) owns byte/line output and exit. |
 | Runtime operations | [`execution/statements.delta`](execution/statements.delta) applies statements. `scalars/` and `control/` own scalar operations and block/state control. |
-| Shared representations | [`representations/`](representations/) groups syntax, parsing outcomes, checked facts, diagnostics, and execution values by concept. |
+| Shared representations | [`representations/`](representations) groups syntax, parsing outcomes, checked facts, diagnostics, and execution values by concept. |
 
 The 87 authoring members have at most 450 lines each; the root entrance has 26.
 Files end at complete top-level Delta forms. They are not independent Delta

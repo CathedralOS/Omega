@@ -21,24 +21,24 @@ Their prototypes are not maintained as alternate implementations. Selected
 recursive-data, malformed-source, proper-tail, scale, and reordered-match
 coverage belongs to `staged-compiler/`; the selected evaluator and augmentation
 route are checked under `tests/gamma/`. See the
-[retirement boundary](../../wiki/design_briefs/bootstrap_cost_review.md#completed-topology-discriminators)
+[retirement boundary](../../wiki/pre_migration/design_briefs/bootstrap_cost_review.md#completed-topology-discriminators)
 for the coverage mapping and remaining legacy dependencies.
 
 The owner-retired Forth-Gamma experiment and its unused symbolic-label resolver
 are also removed. D93/D94 retain its historical comparison; the
-[Forth retirement review](../../wiki/design_briefs/bootstrap_cost_review.md#forth-experiment)
+[Forth retirement review](../../wiki/pre_migration/design_briefs/bootstrap_cost_review.md#forth-experiment)
 maps useful behavior to the selected tests without retaining the alternate dialect.
 
 The scalar direct-Alpha and streaming compiler prototypes are retired as well:
 D80/D82/D88 retain their architectural findings, and their shared recursive and
 scalar-surface sources now belong to `staged-compiler/`. See the
-[scalar retirement review](../../wiki/design_briefs/bootstrap_cost_review.md#scalar-compiler-experiments)
+[scalar retirement review](../../wiki/pre_migration/design_briefs/bootstrap_cost_review.md#scalar-compiler-experiments)
 for coverage and the remaining concatenative dependencies.
 
 The concatenative compiler-slice gate and schema-specific elaborator are retired.
 Its mutual-tail and nested-match sources run in `staged-compiler/`; the two
 concatenative receipts still used by the Gamma-to-Beta comparison now live with
-that consumer. The [slice retirement review](../../wiki/design_briefs/bootstrap_cost_review.md#concatenative-delta-compiler-slice)
+that consumer. The [slice retirement review](../../wiki/pre_migration/design_briefs/bootstrap_cost_review.md#concatenative-delta-compiler-slice)
 maps the remaining assertions. The now-unconsumed concatenative Delta compiler
 and helper retire with that gate; legacy Gamma compiler/evaluator tools still
 have other consumers.

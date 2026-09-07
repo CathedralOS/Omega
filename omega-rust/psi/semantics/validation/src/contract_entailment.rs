@@ -5,7 +5,7 @@
 //! guarantees. This module judges each ensures fact as PROVEN, REFUTED, or
 //! UNKNOWN, and -- when the whole contract lies inside the engine's language --
 //! rejects anything it cannot prove, so a false theorem can no longer pass
-//! `--check` silently (see `wiki/proof_engine_roadmap.md`).
+//! `--check` silently (see `wiki/pre_migration/proof_engine_roadmap.md`).
 //!
 //! Ladder rung L7 extends the same judgment to INDUCTIVE theorems: a machine
 //! whose body is a chain of guarded value/tail-recursion transitions (the

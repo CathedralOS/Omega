@@ -2,13 +2,13 @@
 
 This directory owns the first full Omega compiler implementation, D. D is
 written in Epsilon and executed by the sibling
-[`../epsilon/`](../4_epsilon/) evaluator. It compiles the final Omega-written
-Psi/Omega closure under [`../../source/`](../../source/) for the ordinary
+[`../epsilon/`](../4_epsilon) evaluator. It compiles the final Omega-written
+Psi/Omega closure under [`../../source/`](../../source) for the ordinary
 `alpha_bootstrap` target.
 
 The product compiler has two exact source implementations. This directory owns
-D; [`../../source/psi/`](../../source/psi/) and
-[`../../source/omega/`](../../source/omega/) own C.
+D; [`../../source/psi/`](../../source/psi) and
+[`../../source/omega/`](../../source/omega) own C.
 
 ```text
 Epsilon evaluator + Epsilon source D + Omega source C + alpha_bootstrap → omega₀
@@ -27,10 +27,10 @@ Alpha serialization an Epsilon concern.
 ## Ownership
 
 - this root — the manifested Epsilon source closure D;
-- [`../../source/`](../../source/) — final Omega-written Psi/Omega closure C;
-- [`../../omega-rust/`](../../omega-rust/) — maintained Rust implementation and
+- [`../../source/`](../../source) — final Omega-written Psi/Omega closure C;
+- [`../../omega-rust/`](../../omega-rust) — maintained Rust implementation and
   differential comparator, never bootstrap authority;
-- [`../epsilon/`](../4_epsilon/) — final lower-rung evaluator that executes D.
+- [`../epsilon/`](../4_epsilon) — final lower-rung evaluator that executes D.
 
 That source choice does not define a dialect or restrict programs the resulting
 compiler accepts. Standalone viewers, interpreters, REPLs, and proof
@@ -47,7 +47,7 @@ closure is tracked in [`../../TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md).
 | `compiler/*.epsilon` | Six members of `D`, separated into representations, request/UTF-8 validation, lexical classification, lexing, parsing, and Alpha tape construction. | Replace a completed component only atomically with an equally complete final Epsilon implementation and synchronized manifest identity. |
 
 Target identity is an exact immutable compiler-invocation input. `build.omg`
-under [`../../source/omega/`](../../source/omega/) does not declare a support
+under [`../../source/omega/`](../../source/omega) does not declare a support
 list or repeat target host/boundary policy; exact
 multi-target requests fan out into independently checked child compilations.
 

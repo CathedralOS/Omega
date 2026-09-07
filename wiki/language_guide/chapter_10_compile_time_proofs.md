@@ -35,7 +35,7 @@ must prove the composed modulus's law. Merely calling a bundle
 The source forms for general mathematical predicates, logical binders, and
 noncomputable values remain design work. Do not replace them with a Boolean
 decider or require every mathematical function to be an executable declaration.
-The [mathematical proof contract](../design_briefs/mathematical_proofs.md)
+The [mathematical proof contract](../pre_migration/design_briefs/mathematical_proofs.md)
 defines the required capability and migration controls; the current Rust
 implementation does not yet implement the whole replacement.
 
@@ -285,7 +285,7 @@ site. A specification occurrence creates no crash edge. Authored `crashes`
 routes are total may-ceilings, and coverage checks each derived guard `D`
 against the authored alternatives `C_i` by requiring
 `D implies (C_1 or ... or C_n)`. See
-[Total Specification Arithmetic](../design_briefs/total_specification_arithmetic.md)
+[Total Specification Arithmetic](../pre_migration/design_briefs/total_specification_arithmetic.md)
 for the complete policy bridges and Terminal-Psi rules.
 
 ## Proof-Only Data
@@ -432,7 +432,7 @@ The remaining proof-language work packages a modulus with its universal law
 and supports existential claims without demanding executable witness extraction.
 These are distinct capabilities. The required general relation expressions,
 typed index telescopes, and bundle contracts precede full quotient formation.
-See [Law-Bearing Relations, Evidence, And Quotients](../design_briefs/law_bearing_relations_and_quotients.md).
+See [Law-Bearing Relations, Evidence, And Quotients](../pre_migration/design_briefs/law_bearing_relations_and_quotients.md).
 
 A quotient coarsens a type: sort its values into buckets of things a
 proven equivalence calls interchangeable, and the buckets become the
@@ -881,7 +881,7 @@ stratum and is rejected if runtime lowering is requested.
 The normalized artifact separates the public termination guarantee from the
 private ranking witness. A witness change invalidates its provider proof cache,
 not caller or external requirement-binding identity. See chapter 9 and
-[Termination, Ranking, And Progress](../design_briefs/termination_ranking_and_progress.md).
+[Termination, Ranking, And Progress](../pre_migration/design_briefs/termination_ranking_and_progress.md).
 
 ## Citing Proofs
 

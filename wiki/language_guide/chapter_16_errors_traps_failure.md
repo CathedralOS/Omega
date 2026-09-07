@@ -167,7 +167,7 @@ primitive's trap condition with explicit total denotations such as
 `embed(value)` for fixed integers and addresses or `Float::meaning32(value)`
 for `f32`; the executable body remains the sole source of the derived crash
 site. See
-[Total Specification Arithmetic](../design_briefs/total_specification_arithmetic.md).
+[Total Specification Arithmetic](../pre_migration/design_briefs/total_specification_arithmetic.md).
 
 One cause appears per clause. The formatter renders one route per line and
 starts routes below the cause. A clause with no routes is unconditional.

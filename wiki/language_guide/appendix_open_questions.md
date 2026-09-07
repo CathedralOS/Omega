@@ -56,7 +56,7 @@ Last pruned: 2026-09-07.
 - Extend sequence-wide text proofs beyond validate-once plus preservation
   lemmas when richer inductive invariants have a concrete customer.
 - Specify general logical binders, predicate abstraction/passing, and proof-only
-  noncomputable values for the [contract-first proof direction](../design_briefs/mathematical_proofs.md).
+  noncomputable values for the [contract-first proof direction](../pre_migration/design_briefs/mathematical_proofs.md).
   Quantification and selectable axioms are required; their absence in the
   current checker is not a language restriction to preserve.
 - Specify universe/equality rules and distinguish selectable axioms within one
@@ -65,7 +65,7 @@ Last pruned: 2026-09-07.
 
 ## Candidate proof ergonomics
 
-[Named proof-formula syntax](../design_briefs/proof_formula_syntax_candidates.md)
+[Named proof-formula syntax](../pre_migration/design_briefs/proof_formula_syntax_candidates.md)
 is an unproven ergonomic augmentation, not planned implementation or a prerequisite.
 Compare substantial proofs against ordinary contracts and named trait bundles
 before proposing it. The migration task is separate from this candidate.

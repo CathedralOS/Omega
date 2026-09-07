@@ -4311,7 +4311,7 @@ struct PendingCanary {
 // empty-body proof machines whose contracts lie inside the engine's language
 // are now PROVED or REJECTED, never silently accepted. The pass/proofs/
 // ladder pins the proving side; the rungs map to engine increments in
-// wiki/proof_engine_roadmap.md.
+// wiki/pre_migration/proof_engine_roadmap.md.
 //
 // case_payload_native_construction was promoted to pass/data/ when native case
 // payload codegen landed (tag-prefix write + payload field writes + tag-only

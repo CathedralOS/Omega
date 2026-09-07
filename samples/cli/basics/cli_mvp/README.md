@@ -68,7 +68,7 @@ locations. On Windows, std contributes `FilesystemHost` authority and four
 external Console leaves: `read_line`, `read_byte`, `write_byte`, and
 `exit_process`. These are review findings, not accepted permissions.
 
-The settled [single package-acceptance rule](../../../../wiki/design_briefs/build_and_package_model.md#single-package-acceptance)
+The settled [single package-acceptance rule](../../../../wiki/pre_migration/design_briefs/build_and_package_model.md#single-package-acceptance)
 removes the duplicate approval workflow. Implementation is still pending: the
 current native route requires a second candidate-bound file even when ordinary
 package review already accepted unchanged policy. Std has no implicit authority;

@@ -17,7 +17,7 @@ for finite arbitrary-field data, including recursive nominal fields and
 exhaustive matching through right-nested immutable pairs. The complete Delta
 edge remains open. The former concatenative compiler and its redundant slice
 gate are retired after mapping their useful assertions to selected coverage;
-see the [retirement review](../../wiki/design_briefs/bootstrap_cost_review.md#concatenative-delta-compiler-slice).
+see the [retirement review](../../wiki/pre_migration/design_briefs/bootstrap_cost_review.md#concatenative-delta-compiler-slice).
 Current staged-bootstrap experiments remain under `tests/delta/`.
 
 The Delta compiler may know only Gamma, Delta, and its exact application

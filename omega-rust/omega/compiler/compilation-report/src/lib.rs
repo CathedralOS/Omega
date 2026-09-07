@@ -75,7 +75,7 @@
 //! @Incomplete: publication currently installs flat executables only.
 //! Whole macOS application packages require the executable, plist, and exact
 //! directory shape to be validated together, as specified in
-//! `wiki/design_briefs/macos_application_publication.md`. A second executable
+//! `wiki/pre_migration/design_briefs/macos_application_publication.md`. A second executable
 //! receipt would not establish that contract.
 
 use sha2::{Digest, Sha256};

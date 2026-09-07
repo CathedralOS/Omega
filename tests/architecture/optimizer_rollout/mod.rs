@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 mod inventory;
 mod promotion;
 
-const RELEASE_NOTES: &str = "wiki/releases/optimizer_exact_rules_v1.md";
-const PROMOTION_ROOT: &str = "wiki/releases/optimizer_promotions";
+const RELEASE_NOTES: &str = "wiki/pre_migration/releases/optimizer_exact_rules_v1.md";
+const PROMOTION_ROOT: &str = "wiki/pre_migration/releases/optimizer_promotions";
 
 struct Audit {
     repository: PathBuf,

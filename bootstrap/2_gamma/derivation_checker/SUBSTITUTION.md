@@ -1,6 +1,6 @@
 # Checked template substitution
 
-[Comparison](COMPARISON.md) | [Inner format](FORMAT.md) | [Calculus](../../../wiki/architecture/bootstrap_chain/derivation_calculus.md)
+[Comparison](COMPARISON.md) | [Inner format](FORMAT.md) | [Calculus](../../../wiki/pre_migration/architecture/bootstrap_chain/derivation_calculus.md)
 
 `compare_unfolded_terms(session, left, right, clause, left_coordinate,
 right_coordinate, clause_coordinate)` checks one stated definition unfolding.

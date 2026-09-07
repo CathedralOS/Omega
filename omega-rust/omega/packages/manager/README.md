@@ -310,6 +310,6 @@ and project-file checks. Review-file loading/resume is command-owned.
 
 Return to the [package subsystem map](../README.md), or consult:
 
-- [Scope and workflow](../../../../wiki/design_briefs/package_manager_first_draft.md)
-- [`build_and_package_model.md`](../../../../wiki/design_briefs/build_and_package_model.md)
+- [Scope and workflow](../../../../wiki/pre_migration/design_briefs/package_manager_first_draft.md)
+- [`build_and_package_model.md`](../../../../wiki/pre_migration/design_briefs/build_and_package_model.md)
 - [`TASKS.md`](../../../../TASKS.md)

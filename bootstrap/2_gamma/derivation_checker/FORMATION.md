@@ -1,6 +1,6 @@
 # Conservative theory formation
 
-[Inner format](FORMAT.md) | [Layout](LAYOUT.md) | [Soundness argument](../../../wiki/architecture/bootstrap_chain/derivation_calculus.md#terms-and-conservative-definitions)
+[Inner format](FORMAT.md) | [Layout](LAYOUT.md) | [Soundness argument](../../../wiki/pre_migration/architecture/bootstrap_chain/derivation_calculus.md#terms-and-conservative-definitions)
 
 `form_derivation_theory()` checks the owner-supplied constructor and function
 definitions after physical layout admission. It does not validate the ground

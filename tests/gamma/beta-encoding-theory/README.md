@@ -24,7 +24,7 @@ spines require `4*N+13` work: index3, two row checks, two comparisons costing
 `4*N+4`, and four final-root transitions. These expectations are derived before
 execution, not learned from output. This measures one full-size prerequisite,
 not certificate production, Beta semantics, or full encoding-proof feasibility.
-See the [cost review](../../../wiki/design_briefs/bootstrap_cost_review.md).
+See the [cost review](../../../wiki/pre_migration/design_briefs/bootstrap_cost_review.md).
 
 `sh tests/gamma/beta-encoding-theory/run.sh --counter-cost` selects the separate
 [counter recipe probe](counter_cost.py). It reuses the existing literal successor
@@ -235,4 +235,4 @@ size or runtime. This gate proves only these finite equations under the fixed
 partial theory. Token scanning, word parsing, opcodes, source/output accounting, full
 Beta reconstruction, and accepted artifact custody remain outside its claim.
 It does not close the complete obligation in the
-[derivation calculus](../../../wiki/architecture/bootstrap_chain/derivation_calculus.md).
+[derivation calculus](../../../wiki/pre_migration/architecture/bootstrap_chain/derivation_calculus.md).

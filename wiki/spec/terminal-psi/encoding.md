@@ -3,7 +3,7 @@
 [Portable product](product.md) | [Observations](observations.md)
 
 This is the canonical encoding contract. Individual operation/proof payload
-definitions remain in the [vocabulary reference](../../architecture/pipeline/terminal_psi.md)
+definitions remain in the [vocabulary reference](../../pre_migration/architecture/pipeline/terminal_psi.md)
 until consolidated. This is not a claim that prose alone supplies a complete
 byte-level decoder specification.
 
@@ -86,6 +86,6 @@ Emitted operations and return edges retain semantic site, operation ordinal,
 function-relative offset, and byte count. Metadata-only settlement rows have
 zero-byte intervals. This is replay/analysis provenance, not native instruction
 cost or runtime charging. Structural call placement must preserve the
-[borrow identity contract](../../design_briefs/core_multiplicity_and_linearity.md#structural-borrow-identity-at-native-calls);
+[borrow identity contract](../../pre_migration/design_briefs/core_multiplicity_and_linearity.md#structural-borrow-identity-at-native-calls);
 it cannot stage every borrowed parameter as an owned copy merely because the
 installation record can describe one.

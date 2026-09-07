@@ -1,6 +1,6 @@
 # Ground equality inner format
 
-[Envelope](REQUEST.md) | [Calculus and full subject](../../../wiki/architecture/bootstrap_chain/derivation_calculus.md)
+[Envelope](REQUEST.md) | [Calculus and full subject](../../../wiki/pre_migration/architecture/bootstrap_chain/derivation_calculus.md)
 
 This is the concrete inner encoding, not an accepted checker or certificate.
 The [layout admission](LAYOUT.md) traverses physical fields and
@@ -113,7 +113,7 @@ one of this clause's immediate constructor-child slots of the selected sort.
 A smaller template row number is not evidence of structural decrease. Calls
 above `f`, self-calls in mode 0, and reconstructed or computed selected values
 reject. These checks apply to unused template rows too. The
-[formation argument](../../../wiki/architecture/bootstrap_chain/derivation_calculus.md#terms-and-conservative-definitions)
+[formation argument](../../../wiki/pre_migration/architecture/bootstrap_chain/derivation_calculus.md#terms-and-conservative-definitions)
 also requires declared sorts and their finite inhabitation; physical decoding
 alone does not admit the theory.
 

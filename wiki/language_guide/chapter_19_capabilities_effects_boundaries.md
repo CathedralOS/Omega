@@ -3,7 +3,7 @@
 Omega models host and compiler boundaries explicitly.
 
 > **Service and operational contract model
-> ([effects_authority_and_observation.md](../design_briefs/effects_authority_and_observation.md)).**
+> ([effects_authority_and_observation.md](../pre_migration/design_briefs/effects_authority_and_observation.md)).**
 > `reaches` contains boundary-service reach only. Independent `suspends`,
 > `blocks`, and guarded `crashes` clauses publish operational may-ceilings;
 > `terminates` remains a
@@ -634,7 +634,7 @@ conservative union of every facet those flags can enable. Splitting the service
 surface improves precision only when the selected lowering also pins or proves
 the narrower argument contract.
 
-The [filesystem control/lifecycle policy](../design_briefs/effects_authority_and_observation.md#portable-filesystem-control-and-lifecycle-authority)
+The [filesystem control/lifecycle policy](../pre_migration/design_briefs/effects_authority_and_observation.md#portable-filesystem-control-and-lifecycle-authority)
 classifies `read_link` as metadata query. Durability-only sync, ordinary locking,
 position/alias operations, and recognized error-state queries receive explicit
 empty sets under their accepted mechanism contracts. An ordinary close is empty
@@ -1569,7 +1569,7 @@ nested continuation/provider, and reserve terms remain separately fenced.
 
 The reusable extent, placed-view, checked-assembly, materialization, and root
 ledger model is specified in
-[`os_memory_and_hardware_foundation.md`](../design_briefs/os_memory_and_hardware_foundation.md).
+[`os_memory_and_hardware_foundation.md`](../pre_migration/design_briefs/os_memory_and_hardware_foundation.md).
 Exact carrier APIs and validators remain open there; no separate interrupt or
 MMIO grammar is implied.
 
@@ -1825,7 +1825,7 @@ Routed qualifications name their exact authorized trait requirements in the
 domain declaration. Obligation-free domains may be qualified directly with
 `as`; predicates must be proved, and routed provenance cannot be fabricated.
 See
-[`authority_values_and_boundary_evidence.md`](../design_briefs/authority_values_and_boundary_evidence.md).
+[`authority_values_and_boundary_evidence.md`](../pre_migration/design_briefs/authority_values_and_boundary_evidence.md).
 
 A boundary call checks each structural `requires` row against the exact domain
 qualifications already carried by the corresponding argument. The check is set

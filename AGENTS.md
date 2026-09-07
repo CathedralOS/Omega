@@ -89,7 +89,7 @@ Validation scope, including relevant integration/bootstrap checks. If a full-bas
 evidence, environment, or input dependencies are uncertain, use `--full`. For
 routine work without that evidence, select and report scoped checks explicitly;
 do not describe them as a verified full baseline. See
-[local testing](wiki/testing.md) for the exact coverage contract and examples.
+[local testing](wiki/pre_migration/testing.md) for the exact coverage contract and examples.
 
 ### Developer platform support
 
@@ -212,7 +212,7 @@ the whole chain.
 
 ### Slow builds
 
-Use [test-cycle measurements](wiki/testing_performance.md) to distinguish
+Use [test-cycle measurements](wiki/pre_migration/testing_performance.md) to distinguish
 compilation, test execution, and repeated landing validation. The Windows
 measurements did not establish a stable universal test-thread cap or a full-suite
 speedup from nextest alone; avoid unrelated test execution using the selector above.
@@ -224,8 +224,8 @@ crate. `cargo clean` fixes it.
 
 ## Architecture
 
-Full breakdown: [architecture.md](wiki/architecture/architecture.md) and
-[repository_layout.md](wiki/architecture/repository_layout.md).
+Full breakdown: [architecture.md](wiki/pre_migration/architecture/architecture.md) and
+[repository_layout.md](wiki/pre_migration/architecture/repository_layout.md).
 
 ### The Psi/Omega ownership firewall
 
@@ -435,7 +435,7 @@ test is not by itself a reason to retain machinery. Test the premise itself:
 does this obligation serve the long-term goal, is the stated dependency real,
 and is the proposed implementation necessary? Do not merely optimize the way
 an unjustified task is executed. For bootstrap work, apply
-[whole-chain minimization](wiki/design_briefs/bootstrap_minimization.md), counting
+[whole-chain minimization](wiki/pre_migration/design_briefs/bootstrap_minimization.md), counting
 source, profiles, proofs, tests, and host plumbing together. Human-auditable
 proof closure is a first-class customer alongside execution; the checker design
 must earn its complexity too. Neither a runnable chain without required evidence
@@ -619,9 +619,9 @@ what you mean. When a literal phrase is available, use it.
 ## Design references
 
 - [Omega Language Guide](wiki/language_guide/language_guide.md)
-- [Architecture](wiki/architecture/architecture.md)
+- [Architecture](wiki/pre_migration/architecture/architecture.md)
 - [Documentation index](wiki/README.md)
 - [Terminal Psi product contract](wiki/spec/terminal-psi/product.md)
-- [Remaining Terminal vocabulary](wiki/architecture/pipeline/terminal_psi.md)
-- [Optimization Phases](wiki/architecture/pipeline/optimization_phases.md)
-- [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_contract.md)
+- [Remaining Terminal vocabulary](wiki/pre_migration/architecture/pipeline/terminal_psi.md)
+- [Optimization Phases](wiki/pre_migration/architecture/pipeline/optimization_phases.md)
+- [Rust Compiler Completion Contract](wiki/pre_migration/releases/rust_compiler_completion_contract.md)

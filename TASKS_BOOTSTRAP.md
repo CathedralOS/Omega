@@ -4,8 +4,8 @@ Build the smallest **human-auditable proof chain to self-hosted Omega**.
 Runnable compilers and checked edge evidence are both required; neither replaces
 the other. Minimize the total human audit burden of semantics, admitted seeds,
 implementations, checker rules, certificates, profiles, and permanent tooling.
-The governing contracts are [bootstrap minimization](wiki/design_briefs/bootstrap_minimization.md)
-and the [derivation checker](wiki/architecture/bootstrap_chain/proof_kernel.md).
+The governing contracts are [bootstrap minimization](wiki/pre_migration/design_briefs/bootstrap_minimization.md)
+and the [derivation checker](wiki/pre_migration/architecture/bootstrap_chain/proof_kernel.md).
 
 The currently selected construction route is:
 
@@ -61,7 +61,7 @@ it does not close a proof edge. Do not redirect all effort to execution merely b
 checker has a longer acceptance path.
 
 Full self-hosting remains dependent on settled exercised Omega behavior, the
-[Rust product completion contract](wiki/releases/rust_compiler_completion_contract.md),
+[Rust product completion contract](wiki/pre_migration/releases/rust_compiler_completion_contract.md),
 complete D, and `OMEGA-PRODUCT-COMPILER-SOURCE` in [TASKS.md](TASKS.md).
 Rust remains a comparator, not bootstrap authority. Optimization matters where
 measured execution or audit feasibility requires it, not as an unbounded
@@ -70,7 +70,7 @@ prerequisite to every lower-rung milestone.
 ## Next decision - measured complexity follow-through
 
 - **BOOTSTRAP-COMPLEXITY-REVIEW.** Finish the decisions identified by the
-  [measured cost review](wiki/design_briefs/bootstrap_cost_review.md) before
+  [measured cost review](wiki/pre_migration/design_briefs/bootstrap_cost_review.md) before
   expanding infrastructure. Owners remain Delta normalization,
   Gamma evaluator/checker/Beta definitions, and the retained comparison routes.
   Current Epsilon demand does not justify more depth machinery; retain deep-source
@@ -78,7 +78,7 @@ prerequisite to every lower-rung milestone.
   Map unique legacy assertions to selected gates before removing the old
   execution routes and their adapters together.
   For P1 in `bootstrap/2_gamma/beta_encoding/`, use the consolidated
-  [complete encoder candidate](wiki/design_briefs/beta_encoder_plan.md), not
+  [complete encoder candidate](wiki/pre_migration/design_briefs/beta_encoder_plan.md), not
   another isolated helper probe. It removes completed-token/output histories
   from incoming state and accounts explicitly for fragment composition, exact
   emission counts, all Beta cases, limits, failures, EOF, and owner custody.
@@ -111,7 +111,7 @@ prerequisite to every lower-rung milestone.
 - **GAMMA-DERIVATION-CHECKER.** Close the first artifact-specific proof using
   the ordinary-Gamma [checker](bootstrap/2_gamma/derivation_checker/CHECKING.md)
   and [Beta definitions](bootstrap/2_gamma/beta_encoding/README.md), following the
-  [ground equality design](wiki/architecture/bootstrap_chain/derivation_calculus.md).
+  [ground equality design](wiki/pre_migration/architecture/bootstrap_chain/derivation_calculus.md).
   Remaining work: complete error-valued Beta encoding definitions, independently
   reconstruct the owner-fixed proposition, and produce the untrusted explicit
   certificate through the selected source-owned route.

@@ -10,7 +10,7 @@
 >
 > This fills the trust-root gap the bootstrap-chain design flagged: "you cannot audit the binary
 > against a spec that does not exist." See
-> [bootstrap_chain rungs/alpha.md](../../wiki/architecture/bootstrap_chain/rungs/alpha.md).
+> [bootstrap_chain rungs/alpha.md](../../wiki/pre_migration/architecture/bootstrap_chain/rungs/alpha.md).
 
 Alpha is **role #1, an executor** (bootstrap-chain overview, "Five roles"). It is not a
 type system, checker, or proof kernel — only a deterministic register machine

@@ -2,7 +2,7 @@
 
 This is the optimizer execution board, not its history. Architecture and
 rationale live in
-[`wiki/design_briefs/optimizer_architecture.md`](wiki/design_briefs/optimizer_architecture.md),
+[`wiki/pre_migration/design_briefs/optimizer_architecture.md`](wiki/pre_migration/design_briefs/optimizer_architecture.md),
 and landed milestones live in Git. Remove work from this file when its
 acceptance condition passes.
 
@@ -14,7 +14,7 @@ needed for independent replay through publication.
 ## Pipeline cleanup follow-ups
 
 These are separately schedulable follow-ups, not an ongoing cleanup run.
-The [ownership contract](wiki/architecture/pipeline/ownership_cleanup.md)
+The [ownership contract](wiki/pre_migration/architecture/pipeline/ownership_cleanup.md)
 governs all three: replace obstructive implementations, preserve semantics and
 independent validation, and keep empty/nonempty optimization selections on one
 physical route. Unsupported cases reject rather than restoring a fallback.
@@ -107,7 +107,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   and structured finite-work failures.
 
   First bounded call-composition milestone: implement the
-  [ranked callee on a projected receiver](wiki/design_briefs/termination_ranking_and_progress.md#ranked-callees-on-projected-receivers),
+  [ranked callee on a projected receiver](wiki/pre_migration/design_briefs/termination_ranking_and_progress.md#ranked-callees-on-projected-receivers),
   beyond the current whole-entry-only admission. Acceptance: an ordinary caller
   borrows a nested field, its ranked callee preserves that referent across
   backedges, and the caller observes writes after return. Conflicting parent

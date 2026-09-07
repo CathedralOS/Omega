@@ -61,7 +61,7 @@ and charged template traversal. The [checking contract](CHECKING.md) specifies
 proof rules, final-root enforcement, soundness under the formed theory, and the
 combined generic resource profile. Artifact-specific measurements and acceptance
 remain unfinished.
-The [implementation design](../../../wiki/architecture/bootstrap_chain/derivation_calculus.md)
+The [implementation design](../../../wiki/pre_migration/architecture/bootstrap_chain/derivation_calculus.md)
 owns conservative definition formation, explicit derivation checks, exact-root
 comparison, and a complete certificate for the selected Gamma evaluator's
 Beta-source-to-Alpha-tape encoding. Small admission or rule tests cannot replace

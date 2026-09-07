@@ -1,5 +1,5 @@
 //! STR1 — the semantic-taxonomy INVENTORY PINS (staged migration rung 1;
-//! record: wiki/architecture/semantic_taxonomy_representation.md).
+//! record: wiki/pre_migration/architecture/semantic_taxonomy_representation.md).
 //!
 //! Each test DESTRUCTURES one of the current representation-loss shapes so
 //! the migration (STR2+) cannot change a shape without consciously updating

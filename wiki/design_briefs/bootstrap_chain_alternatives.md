@@ -1,5 +1,8 @@
 # Bootstrap chain alternatives
 
+> **Needs porting.** This document remains here to preserve a link from the
+> protected bootstrap decision record. See the [migration index](../pre_migration/README.md).
+
 > **Status: concatenative Gamma selected after implementation measurement.** The live
 > direction is `Alpha -> Beta -> Gamma -> Delta -> Epsilon -> Omega`. Alpha
 > remains the portable tape machine. Beta is the trusted imperative tape-
