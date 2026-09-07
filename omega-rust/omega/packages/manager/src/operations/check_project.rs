@@ -111,7 +111,6 @@ pub fn check_prepared_local_project(
         false,
         CompileOutputKind::CheckOnly,
         None,
-        None,
     )
     .map(|report| report.with_trust_admission_settlement(settlement))
     .map_err(CheckPreparedLocalProjectError::Report)

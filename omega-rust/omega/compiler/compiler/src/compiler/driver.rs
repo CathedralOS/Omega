@@ -190,7 +190,6 @@ fn checked_report(
         false,
         super::CompileOutputKind::CheckOnly,
         None,
-        None,
     )
     .map_err(|message| vec![Diagnostic::error(message)])
 }

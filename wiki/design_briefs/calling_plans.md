@@ -1320,10 +1320,10 @@ so the outward report cannot attest merely to a validated temporary file.
 The [macOS application publication contract](macos_application_publication.md)
 supersedes the former flat-plus-optional-bundle-copy design. Current publication
 writes a flat executable even for macOS GUI output; std requests activation.
-The optional bundle-copy carrier has no producer and is scheduled for removal,
-not restoration as evidence of a complete application. Its flat-receipt and
-general report checks remain required. Flat installation v1 retains its fixed
-`0` destination tag and byte-identical digests after the enum is removed.
+There is no optional bundle-copy carrier: a second executable receipt would
+not establish a complete application. Flat-receipt and general report checks
+remain required. Flat installation v1 retains its fixed `0` destination tag
+and byte-identical digests without a destination enum.
 
 The replacement publishes one complete `.app` for a selected macOS GUI
 application, using the post-compilation product-publication owner. It validates
@@ -1981,7 +1981,6 @@ reconstruction; the strict source index preserves the same unique-owner count.
 
 Authored-root value-call, dispatch, loop, cast, slice-length, and sleep consumers
 use that checked-report launch boundary. Preserve their exact source/status
-oracles and the independent flat-receipt tampering checks when deleting mixed
-bundle-copy tests. Production callers of a validator do not establish test
+oracles and the independent flat-receipt tampering checks. Production callers of a validator do not establish test
 coverage by themselves. For bundled output, the same executable-path accessor
 must return the verified inner executable, not a guessed flat sibling.

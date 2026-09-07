@@ -87,9 +87,8 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
 - **MACOS-APPLICATION-PUBLICATION.** Implement the
   [settled publication contract](wiki/design_briefs/macos_application_publication.md)
   in build evaluation/realization inputs, Mach-O signing, command publication,
-  and compilation reports. Retire the unproduced bundle-copy slot/helpers/tests
-  and stale Rust module notes without removing flat/report validation or changing
-  flat v1 digests. Specify the identifier field in ordinary build vocabulary,
+  and compilation reports. Preserve flat/report validation and flat v1 digests.
+  Specify the identifier field in ordinary build vocabulary,
   preserve portable GUI intent separately from PE integers, and bind native
   signing identity before emission. Publish one whole validated `.app` with
   distinct checked package-root and inner-executable accessors.

@@ -3,11 +3,9 @@
 //!
 //! A `CompileReport` is one of five products - `CheckOnly`, `TerminalArtifact`,
 //! `RetainedNativeArtifact`, `NativeExecutable`, `ObjectContainer` - and each
-//! kind fixes exactly which of the report's six payload slots may be occupied.
-//! `has_consistent_executable_publication_custody` is that table written out.
-//! `NativeExecutable` is the only kind whose arm does not require
-//! `app_bundle_publication` to be `None`, which is the entire reason the bundle
-//! slot can exist at all; every other kind rejects it outright.
+//! kind fixes which payload slots may be occupied.
+//! `has_consistent_executable_publication_custody` checks that cardinality and
+//! validates the retained artifact or flat executable receipt.
 //!
 //! Four SHA-256 domains carry the chain, each prefix NUL-terminated so no
 //! prefix can be a prefix of another, and each carrying a `.v1` suffix that
@@ -53,17 +51,6 @@
 //! plausible digest that nothing will ever reproduce. Four types make that a
 //! type error, and the macro is what keeps the cost to four lines.
 //!
-//! `executable_publication_pair_matches` ends in an inequality, which reads
-//! like a mistake and is not. Twelve fields must be equal across the flat
-//! receipt and its app-bundle copy - certificate, inventory, both validation
-//! digests, publication evidence, artifact identity, container - and
-//! `installation_evidence_digest` must DIFFER. The installation digest mixes in
-//! the destination tag and the output path, so two receipts for the same bytes
-//! at two paths cannot agree there. Requiring full equality, the obvious
-//! reading of "the same executable in two places", would accept a bundle
-//! receipt that was a copy of the flat one instead of a receipt for a second
-//! installation that actually happened.
-//!
 //! Publication is a consuming method that returns a new report, not a compiler
 //! request kind. Compilation is over by the time `publish_retained_native_artifact`
 //! runs; path selection and filesystem mutation are a product operation, and
@@ -77,26 +64,19 @@
 //! `omega/src/command/output.rs:12` is the only production caller of
 //! `publish_retained_native_artifact`; nine canary tests call it too.
 //! `compiler/src/compiler/native_checked.rs:23` calls the custody check.
-//! Custody tests reject rollback on check-only products and cross-copy drift
-//! in executable publication. Terminal rollback additionally rejoins the
+//! Custody tests reject rollback on check-only products and receipt drift
+//! in flat executable publication. Terminal rollback additionally rejoins the
 //! effective selection to the published Psi execution and pending proposal.
 //!
 //! `ProductionCompilationSubject::from_checked` is `pub` and `#[doc(hidden)]`
 //! rather than `pub(crate)` because its only caller lives in another crate, at
 //! `compiler/src/pipeline/reporting/production_subject.rs:36`.
 //!
-//! @Incomplete: nothing produces an app-bundle receipt.
-//! `publish_retained_native_artifact` hardcodes `app_bundle_publication: None`,
-//! and the only construction of `ExecutablePublicationDestination::MacOsAppBundle`
-//! outside its declaration is in this crate's test module. The producer was
-//! deleted with the legacy StateGraph route in `f6b3e65350` (2026-08-28), so the
-//! pair validator above takes its `bundle: None` early return on every real
-//! compilation and returns `true` without comparing anything. The contract it
-//! validates is still specified in the present tense in
-//! `wiki/design_briefs/calling_plans.md`. The macOS GUI publication destination
-//! question in `OWNER_QUESTIONS.md` asks
-//! whether the compiler publishes bundles or the brief is amended; do not
-//! resolve it by deleting the slot.
+//! @Incomplete: publication currently installs flat executables only.
+//! Whole macOS application packages require the executable, plist, and exact
+//! directory shape to be validated together, as specified in
+//! `wiki/design_briefs/macos_application_publication.md`. A second executable
+//! receipt would not establish that contract.
 
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
@@ -129,12 +109,6 @@ pub enum CompileOutputKind {
     ObjectContainer,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ExecutablePublicationDestination {
-    FlatOutput,
-    MacOsAppBundle,
-}
-
 macro_rules! publication_digest {
     ($name:ident) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -157,40 +131,7 @@ publication_digest!(NativePublicationEvidenceDigest);
 publication_digest!(ExecutableContainerDigest);
 publication_digest!(ExecutableInstallationEvidenceDigest);
 
-pub fn macos_app_bundle_name(root_path: &std::path::Path) -> String {
-    root_path
-        .parent()
-        .and_then(|parent| parent.file_name())
-        .and_then(|name| name.to_str())
-        .unwrap_or("omega-program")
-        .chars()
-        .map(|character| {
-            if character.is_ascii_alphanumeric() || matches!(character, '_' | '.' | ' ' | '-') {
-                character
-            } else {
-                '-'
-            }
-        })
-        .collect()
-}
-
-pub fn expected_macos_app_bundle_executable_path(
-    root_path: &std::path::Path,
-    flat_output_path: &std::path::Path,
-) -> Option<PathBuf> {
-    let build_dir = flat_output_path.parent()?;
-    let executable_name = flat_output_path.file_name()?;
-    Some(
-        build_dir
-            .join(format!("{}.app", macos_app_bundle_name(root_path)))
-            .join("Contents")
-            .join("MacOS")
-            .join(executable_name),
-    )
-}
-
 pub fn executable_installation_evidence_digest(
-    destination: ExecutablePublicationDestination,
     publication_evidence_digest: NativePublicationEvidenceDigest,
     callback_placement_identity_report_fingerprint: u64,
     output_path: &std::path::Path,
@@ -201,48 +142,14 @@ pub fn executable_installation_evidence_digest(
     digest.update(b"omega.installed-executable-publication-evidence.sha256.v1\0");
     digest.update(publication_evidence_digest.as_bytes());
     digest.update(callback_placement_identity_report_fingerprint.to_le_bytes());
-    digest.update([match destination {
-        ExecutablePublicationDestination::FlatOutput => 0,
-        ExecutablePublicationDestination::MacOsAppBundle => 1,
-    }]);
+    // The fixed v1 flat-destination tag preserves existing installation digests.
+    digest.update([0]);
     let path = output_path.as_os_str().as_encoded_bytes();
     digest.update((path.len() as u64).to_le_bytes());
     digest.update(path);
     digest.update((container_byte_count as u64).to_le_bytes());
     digest.update(container_digest.as_bytes());
     ExecutableInstallationEvidenceDigest::from_digest(digest.finalize().into())
-}
-
-pub fn executable_publication_pair_matches(
-    root_path: &std::path::Path,
-    flat: &ExecutablePublicationReceipt,
-    bundle: Option<&ExecutablePublicationReceipt>,
-) -> bool {
-    if !flat.has_consistent_installation_identity() {
-        return false;
-    }
-    let Some(bundle) = bundle else {
-        return true;
-    };
-    bundle.destination == ExecutablePublicationDestination::MacOsAppBundle
-        && bundle.has_consistent_installation_identity()
-        && expected_macos_app_bundle_executable_path(root_path, &flat.output_path).as_deref()
-            == Some(bundle.output_path.as_path())
-        && flat.certificate_digest == bundle.certificate_digest
-        && flat.callback_placement_identity_report_fingerprint
-            == bundle.callback_placement_identity_report_fingerprint
-        && flat.boundary_contract_report_fingerprint == bundle.boundary_contract_report_fingerprint
-        && flat.inventory_digest == bundle.inventory_digest
-        && flat.inventory_report_fingerprint == bundle.inventory_report_fingerprint
-        && flat.compiler_text_validation_digest == bundle.compiler_text_validation_digest
-        && flat.compiler_function_validation_digest == bundle.compiler_function_validation_digest
-        && flat.compiler_function_validation_report_fingerprint
-            == bundle.compiler_function_validation_report_fingerprint
-        && flat.publication_evidence_digest == bundle.publication_evidence_digest
-        && flat.native_artifact_identity == bundle.native_artifact_identity
-        && flat.container_byte_count == bundle.container_byte_count
-        && flat.container_digest == bundle.container_digest
-        && flat.installation_evidence_digest != bundle.installation_evidence_digest
 }
 
 fn publication_boundary_contract_report_fingerprint(
@@ -398,7 +305,6 @@ fn make_executable(_path: &std::path::Path) -> Result<(), String> {
 /// installation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutablePublicationReceipt {
-    destination: ExecutablePublicationDestination,
     output_path: PathBuf,
     native_artifact_identity: [u8; 32],
     certificate_digest: NativePublicationCertificateDigest,
@@ -426,7 +332,6 @@ pub struct ExecutablePublicationReceipt {
 
 impl ExecutablePublicationReceipt {
     pub fn new(
-        destination: ExecutablePublicationDestination,
         output_path: PathBuf,
         native_artifact_identity: [u8; 32],
         certificate_digest: NativePublicationCertificateDigest,
@@ -443,7 +348,6 @@ impl ExecutablePublicationReceipt {
         installation_evidence_digest: ExecutableInstallationEvidenceDigest,
     ) -> Self {
         Self {
-            destination,
             output_path,
             native_artifact_identity,
             certificate_digest,
@@ -459,10 +363,6 @@ impl ExecutablePublicationReceipt {
             container_digest,
             installation_evidence_digest,
         }
-    }
-
-    pub const fn destination(&self) -> ExecutablePublicationDestination {
-        self.destination
     }
 
     pub fn output_path(&self) -> &std::path::Path {
@@ -539,7 +439,6 @@ impl ExecutablePublicationReceipt {
             )
             && self.installation_evidence_digest
                 == executable_installation_evidence_digest(
-                    self.destination,
                     self.publication_evidence_digest,
                     self.callback_placement_identity_report_fingerprint,
                     &self.output_path,
@@ -567,10 +466,6 @@ pub struct CompileReport {
     /// Exact checked publication receipt for a native executable image.
     /// Object-container fallbacks and check-only compilations retain `None`.
     executable_publication: Option<ExecutablePublicationReceipt>,
-    /// Exact checked publication receipt for the executable copied into an
-    /// optional macOS application bundle. Non-GUI/non-Mach-O builds retain
-    /// `None`; this remains distinct from the flat executable receipt.
-    app_bundle_publication: Option<ExecutablePublicationReceipt>,
     /// Exact subtractive release overlay applied after build selection and
     /// before native realization. Ordinary requests retain `None`.
     optimization_rollback: Option<OptimizationRollbackReceipt>,
@@ -589,7 +484,6 @@ impl CompileReport {
         wrote_output: bool,
         output_kind: CompileOutputKind,
         executable_publication: Option<ExecutablePublicationReceipt>,
-        app_bundle_publication: Option<ExecutablePublicationReceipt>,
     ) -> Result<Self, &'static str> {
         let report = Self {
             root_path,
@@ -599,7 +493,6 @@ impl CompileReport {
             retained_native_artifact: None,
             artifact: None,
             executable_publication,
-            app_bundle_publication,
             optimization_rollback: None,
             production_manifest: None,
             trust_admission_settlement: Default::default(),
@@ -632,7 +525,6 @@ impl CompileReport {
             retained_native_artifact: Some(artifact),
             artifact: None,
             executable_publication: None,
-            app_bundle_publication: None,
             optimization_rollback,
             production_manifest,
             trust_admission_settlement: Default::default(),
@@ -657,7 +549,6 @@ impl CompileReport {
             || self.wrote_output
             || self.artifact.is_some()
             || self.executable_publication.is_some()
-            || self.app_bundle_publication.is_some()
         {
             return Err(
                 "native publication requires exactly one retained native artifact".to_owned(),
@@ -732,7 +623,6 @@ impl CompileReport {
             container_digest,
         );
         let installation_evidence_digest = executable_installation_evidence_digest(
-            ExecutablePublicationDestination::FlatOutput,
             publication_evidence_digest,
             output.callback_placement_identity_report_fingerprint,
             &output_path,
@@ -740,7 +630,6 @@ impl CompileReport {
             container_digest,
         );
         let receipt = ExecutablePublicationReceipt::new(
-            ExecutablePublicationDestination::FlatOutput,
             output_path,
             native_artifact_identity,
             certificate_digest,
@@ -768,7 +657,6 @@ impl CompileReport {
             retained_native_artifact: None,
             artifact: None,
             executable_publication: Some(receipt),
-            app_bundle_publication: None,
             optimization_rollback: self.optimization_rollback,
             production_manifest: self.production_manifest,
             trust_admission_settlement: self.trust_admission_settlement,
@@ -865,7 +753,6 @@ impl CompileReport {
             retained_native_artifact: None,
             artifact: Some(artifact),
             executable_publication: None,
-            app_bundle_publication: None,
             optimization_rollback: None,
             production_manifest,
             trust_admission_settlement: Default::default(),
@@ -932,10 +819,6 @@ impl CompileReport {
         self.executable_publication.as_ref()
     }
 
-    pub fn app_bundle_publication(&self) -> Option<&ExecutablePublicationReceipt> {
-        self.app_bundle_publication.as_ref()
-    }
-
     /// Returns the exact installed flat executable only after independently
     /// replaying the complete report custody checks. Object/check-only reports
     /// and any internally drifted receipt graph fail closed.
@@ -951,8 +834,8 @@ impl CompileReport {
     }
 
     /// Replays exact output-product cardinality. A retained native artifact is
-    /// mutually exclusive with publication, legacy output checks the flat
-    /// executable and optional app-bundle copy, and terminal output replays
+    /// mutually exclusive with publication, native output checks the flat
+    /// executable receipt, and terminal output replays
     /// the retained installation/image/file join.
     pub fn has_consistent_executable_publication_custody(&self) -> bool {
         let rollback_matches_kind = match self.output_kind {
@@ -993,13 +876,12 @@ impl CompileReport {
         {
             return false;
         }
-        let cardinality_matches_kind = match self.output_kind {
+        match self.output_kind {
             CompileOutputKind::CheckOnly => {
                 !self.wrote_output
                     && self.artifact.is_none()
                     && self.retained_native_artifact.is_none()
                     && self.executable_publication.is_none()
-                    && self.app_bundle_publication.is_none()
             }
             CompileOutputKind::TerminalArtifact => {
                 !self.wrote_output
@@ -1009,7 +891,6 @@ impl CompileReport {
                         .as_ref()
                         .is_some_and(|artifact| artifact.validate().is_ok())
                     && self.executable_publication.is_none()
-                    && self.app_bundle_publication.is_none()
                     && self.production_manifest.as_ref().is_none_or(|manifest| {
                         self.artifact
                             .as_ref()
@@ -1034,7 +915,6 @@ impl CompileReport {
                         .as_ref()
                         .is_some_and(|artifact| artifact.validate().is_ok())
                     && self.executable_publication.is_none()
-                    && self.app_bundle_publication.is_none()
                     && self.production_manifest.as_ref().is_none_or(|manifest| {
                         self.retained_native_artifact
                             .as_ref()
@@ -1046,8 +926,7 @@ impl CompileReport {
                     && self.artifact.is_none()
                     && self.retained_native_artifact.is_none()
                     && self.executable_publication.as_ref().is_some_and(|receipt| {
-                        receipt.destination == ExecutablePublicationDestination::FlatOutput
-                            && receipt.has_consistent_installation_identity()
+                        receipt.has_consistent_installation_identity()
                     })
                     && self.production_manifest.as_ref().is_none_or(|manifest| {
                         matches!(manifest.artifact(), ProductionArtifactIdentity::Native(identity)
@@ -1059,20 +938,6 @@ impl CompileReport {
                     && self.artifact.is_none()
                     && self.retained_native_artifact.is_none()
                     && self.executable_publication.is_none()
-                    && self.app_bundle_publication.is_none()
-            }
-        };
-        if !cardinality_matches_kind {
-            return false;
-        }
-        match (
-            self.executable_publication.as_ref(),
-            self.app_bundle_publication.as_ref(),
-        ) {
-            (None, None) => true,
-            (None, Some(_)) => false,
-            (Some(flat), bundle) => {
-                executable_publication_pair_matches(&self.root_path, flat, bundle)
             }
         }
     }
@@ -1089,10 +954,7 @@ impl CompileReport {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        CompileOutputKind, CompileReport, ExecutablePublicationDestination,
-        ExecutablePublicationReceipt,
-    };
+    use super::{CompileOutputKind, CompileReport, ExecutablePublicationReceipt};
 
     fn function_validation_digest(
         validation_report_fingerprint: u64,
@@ -1117,10 +979,7 @@ mod tests {
         .evidence_digest()
     }
 
-    fn receipt(
-        destination: ExecutablePublicationDestination,
-        path: &str,
-    ) -> ExecutablePublicationReceipt {
+    fn receipt(path: &str) -> ExecutablePublicationReceipt {
         let path: std::path::PathBuf = path.into();
         let certificate = super::NativePublicationCertificateDigest::from_digest([1; 32]);
         let text_validation = image::CompilerTextDerivationDigest::from_digest([3; 32]);
@@ -1140,16 +999,9 @@ mod tests {
             6,
             container,
         );
-        let installation = super::executable_installation_evidence_digest(
-            destination,
-            publication,
-            8,
-            &path,
-            6,
-            container,
-        );
+        let installation =
+            super::executable_installation_evidence_digest(publication, 8, &path, 6, container);
         ExecutablePublicationReceipt::new(
-            destination,
             path,
             native_artifact_identity,
             certificate,
@@ -1171,7 +1023,6 @@ mod tests {
         wrote_output: bool,
         output_kind: CompileOutputKind,
         flat: Option<ExecutablePublicationReceipt>,
-        bundle: Option<ExecutablePublicationReceipt>,
     ) -> CompileReport {
         CompileReport {
             root_path: "Main/main.omg".into(),
@@ -1181,10 +1032,71 @@ mod tests {
             retained_native_artifact: None,
             artifact: None,
             executable_publication: flat,
-            app_bundle_publication: bundle,
             optimization_rollback: None,
             production_manifest: None,
             trust_admission_settlement: Default::default(),
+        }
+    }
+
+    #[test]
+    fn flat_installation_v1_digest_is_byte_identical() {
+        let digest = super::executable_installation_evidence_digest(
+            super::NativePublicationEvidenceDigest::from_digest([1; 32]),
+            8,
+            std::path::Path::new("build/main"),
+            6,
+            super::ExecutableContainerDigest::from_digest([7; 32]),
+        );
+        assert_eq!(
+            digest.as_bytes(),
+            &[
+                67, 169, 237, 176, 22, 91, 25, 36, 38, 178, 255, 56, 96, 186, 99, 95, 193, 42, 167,
+                158, 31, 5, 40, 172, 217, 194, 16, 200, 66, 170, 145, 45,
+            ]
+        );
+    }
+
+    #[test]
+    fn flat_publication_rejects_evidence_drift() {
+        let mutations: &[fn(&mut ExecutablePublicationReceipt)] = &[
+            |receipt| receipt.native_artifact_identity[0] ^= 1,
+            |receipt| {
+                receipt.certificate_digest =
+                    super::NativePublicationCertificateDigest::from_digest([99; 32])
+            },
+            |receipt| receipt.callback_placement_identity_report_fingerprint ^= 1,
+            |receipt| {
+                receipt.inventory_digest =
+                    image::PlacedExecutableRegionInventoryDigest::from_digest([99; 32])
+            },
+            |receipt| receipt.inventory_report_fingerprint ^= 1,
+            |receipt| {
+                receipt.compiler_text_validation_digest =
+                    image::CompilerTextDerivationDigest::from_digest([99; 32])
+            },
+            |receipt| receipt.compiler_function_validation_digest = function_validation_digest(99),
+            |receipt| receipt.compiler_function_validation_report_fingerprint ^= 1,
+            |receipt| {
+                receipt.publication_evidence_digest =
+                    super::NativePublicationEvidenceDigest::from_digest([99; 32])
+            },
+            |receipt| receipt.container_byte_count += 1,
+            |receipt| {
+                receipt.container_digest = super::ExecutableContainerDigest::from_digest([99; 32])
+            },
+        ];
+        for (index, mutate) in mutations.iter().enumerate() {
+            let mut changed = receipt("build/main");
+            mutate(&mut changed);
+            let changed = report(true, CompileOutputKind::NativeExecutable, Some(changed));
+            assert!(
+                !changed.has_consistent_executable_publication_custody(),
+                "mutation {index}"
+            );
+            assert!(
+                changed.checked_native_executable_path().is_none(),
+                "mutation {index}"
+            );
         }
     }
 
@@ -1199,34 +1111,24 @@ mod tests {
         let mut native = report(
             true,
             CompileOutputKind::NativeExecutable,
-            Some(receipt(
-                ExecutablePublicationDestination::FlatOutput,
-                "build/main",
-            )),
-            None,
+            Some(receipt("build/main")),
         );
         native.optimization_rollback = Some(rollback.clone());
         assert!(native.has_consistent_executable_publication_custody());
 
-        let mut check = report(false, CompileOutputKind::CheckOnly, None, None);
+        let mut check = report(false, CompileOutputKind::CheckOnly, None);
         check.optimization_rollback = Some(rollback);
         assert!(!check.has_consistent_executable_publication_custody());
     }
 
     #[test]
-    fn executable_publication_pair_rejects_every_cross_copy_drift() {
-        let flat = receipt(ExecutablePublicationDestination::FlatOutput, "build/main");
-        let bundle = receipt(
-            ExecutablePublicationDestination::MacOsAppBundle,
-            "build/Main.app/Contents/MacOS/main",
-        );
+    fn flat_publication_rejects_receipt_and_output_kind_drift() {
+        let flat = receipt("build/main");
         assert!(flat.has_consistent_installation_identity());
-        assert!(bundle.has_consistent_installation_identity());
         let native = report(
             true,
             CompileOutputKind::NativeExecutable,
             Some(flat.clone()),
-            Some(bundle.clone()),
         );
         assert!(native.has_consistent_executable_publication_custody());
         assert_eq!(
@@ -1237,24 +1139,18 @@ mod tests {
             true,
             CompileOutputKind::NativeExecutable,
             Some(flat.clone()),
-            Some(bundle.clone()),
         );
         changed_kind.output_kind = CompileOutputKind::ObjectContainer;
         assert!(changed_kind.checked_native_executable_path().is_none());
-        let check_only = report(false, CompileOutputKind::CheckOnly, None, None);
+        let check_only = report(false, CompileOutputKind::CheckOnly, None);
         assert!(check_only.has_consistent_executable_publication_custody());
         assert!(check_only.checked_native_executable_path().is_none());
-        let object = report(true, CompileOutputKind::ObjectContainer, None, None);
+        let object = report(true, CompileOutputKind::ObjectContainer, None);
         assert!(object.has_consistent_executable_publication_custody());
         assert!(object.checked_native_executable_path().is_none());
         assert!(
-            !report(
-                false,
-                CompileOutputKind::CheckOnly,
-                Some(flat.clone()),
-                None,
-            )
-            .has_consistent_executable_publication_custody()
+            !report(false, CompileOutputKind::CheckOnly, Some(flat.clone()),)
+                .has_consistent_executable_publication_custody()
         );
         assert!(
             CompileReport::checked(
@@ -1263,11 +1159,10 @@ mod tests {
                 false,
                 CompileOutputKind::CheckOnly,
                 Some(flat.clone()),
-                None,
             )
             .is_err()
         );
-        let missing_native_receipt = report(true, CompileOutputKind::NativeExecutable, None, None);
+        let missing_native_receipt = report(true, CompileOutputKind::NativeExecutable, None);
         assert!(!missing_native_receipt.has_consistent_executable_publication_custody());
         assert!(
             missing_native_receipt
@@ -1278,48 +1173,27 @@ mod tests {
             false,
             CompileOutputKind::NativeExecutable,
             Some(flat.clone()),
-            None,
         );
         assert!(!dropped_output.has_consistent_executable_publication_custody());
         assert!(dropped_output.checked_native_executable_path().is_none());
         assert!(
-            !report(
-                true,
-                CompileOutputKind::ObjectContainer,
-                Some(flat.clone()),
-                None,
-            )
-            .has_consistent_executable_publication_custody()
+            !report(true, CompileOutputKind::ObjectContainer, Some(flat.clone()),)
+                .has_consistent_executable_publication_custody()
         );
         let mut changed = flat.clone();
         changed.installation_evidence_digest =
             super::ExecutableInstallationEvidenceDigest::from_digest([99; 32]);
-        let changed = report(
-            true,
-            CompileOutputKind::NativeExecutable,
-            Some(changed),
-            None,
-        );
+        let changed = report(true, CompileOutputKind::NativeExecutable, Some(changed));
         assert!(!changed.has_consistent_executable_publication_custody());
         assert!(changed.checked_native_executable_path().is_none());
         let mut changed = flat.clone();
         changed.output_path = "build/redirected-main".into();
-        let changed = report(
-            true,
-            CompileOutputKind::NativeExecutable,
-            Some(changed),
-            None,
-        );
+        let changed = report(true, CompileOutputKind::NativeExecutable, Some(changed));
         assert!(!changed.has_consistent_executable_publication_custody());
         assert!(changed.checked_native_executable_path().is_none());
         let mut changed = flat.clone();
         changed.compiler_function_validation_report_fingerprint ^= 1;
-        let changed = report(
-            true,
-            CompileOutputKind::NativeExecutable,
-            Some(changed),
-            Some(bundle.clone()),
-        );
+        let changed = report(true, CompileOutputKind::NativeExecutable, Some(changed));
         assert!(!changed.has_consistent_executable_publication_custody());
         assert!(changed.checked_native_executable_path().is_none());
         let mut compact_collision = flat.clone();
@@ -1333,7 +1207,6 @@ mod tests {
             true,
             CompileOutputKind::NativeExecutable,
             Some(compact_collision),
-            None,
         );
         assert!(
             !compact_collision.has_consistent_executable_publication_custody(),
@@ -1344,170 +1217,10 @@ mod tests {
             true,
             CompileOutputKind::NativeExecutable,
             Some(flat.clone()),
-            Some(bundle.clone()),
         );
         assert!(retained.wrote_output());
         assert_eq!(retained.root_path(), std::path::Path::new("Main/main.omg"));
         assert_eq!(retained.output_kind(), CompileOutputKind::NativeExecutable);
         assert_eq!(retained.executable_publication(), Some(&flat));
-        assert_eq!(retained.app_bundle_publication(), Some(&bundle));
-        let missing_flat = report(
-            true,
-            CompileOutputKind::NativeExecutable,
-            None,
-            Some(bundle.clone()),
-        );
-        assert!(!missing_flat.has_consistent_executable_publication_custody());
-        assert!(missing_flat.checked_native_executable_path().is_none());
-        let self_aliased = report(
-            true,
-            CompileOutputKind::NativeExecutable,
-            Some(flat.clone()),
-            Some(flat.clone()),
-        );
-        assert!(!self_aliased.has_consistent_executable_publication_custody());
-        assert!(self_aliased.checked_native_executable_path().is_none());
-        let swapped_roles = report(
-            true,
-            CompileOutputKind::NativeExecutable,
-            Some(bundle.clone()),
-            Some(flat.clone()),
-        );
-        assert!(!swapped_roles.has_consistent_executable_publication_custody());
-        assert!(swapped_roles.checked_native_executable_path().is_none());
-        let mut changed = bundle.clone();
-        changed.output_path = "build/Other.app/Contents/MacOS/main".into();
-        let changed = report(
-            true,
-            CompileOutputKind::NativeExecutable,
-            Some(flat.clone()),
-            Some(changed),
-        );
-        assert!(!changed.has_consistent_executable_publication_custody());
-        assert!(changed.checked_native_executable_path().is_none());
-
-        let mut changed = bundle.clone();
-        changed.certificate_digest =
-            super::NativePublicationCertificateDigest::from_digest([99; 32]);
-        let changed = report(
-            true,
-            CompileOutputKind::NativeExecutable,
-            Some(flat.clone()),
-            Some(changed),
-        );
-        assert!(!changed.has_consistent_executable_publication_custody());
-        assert!(changed.checked_native_executable_path().is_none());
-        let mut changed = bundle.clone();
-        changed.callback_placement_identity_report_fingerprint ^= 1;
-        let changed = report(
-            true,
-            CompileOutputKind::NativeExecutable,
-            Some(flat.clone()),
-            Some(changed),
-        );
-        assert!(!changed.has_consistent_executable_publication_custody());
-        assert!(changed.checked_native_executable_path().is_none());
-        let mut changed = bundle.clone();
-        changed.boundary_contract_report_fingerprint = Some(99);
-        let changed = report(
-            true,
-            CompileOutputKind::NativeExecutable,
-            Some(flat.clone()),
-            Some(changed),
-        );
-        assert!(!changed.has_consistent_executable_publication_custody());
-        assert!(changed.checked_native_executable_path().is_none());
-        let mut changed = bundle.clone();
-        changed.inventory_report_fingerprint ^= 1;
-        let changed = report(
-            true,
-            CompileOutputKind::NativeExecutable,
-            Some(flat.clone()),
-            Some(changed),
-        );
-        assert!(!changed.has_consistent_executable_publication_custody());
-        assert!(changed.checked_native_executable_path().is_none());
-        let mut compact_equal_inventory_substitution = bundle.clone();
-        compact_equal_inventory_substitution.inventory_digest =
-            image::PlacedExecutableRegionInventoryDigest::from_digest([99; 32]);
-        assert_eq!(
-            compact_equal_inventory_substitution.inventory_report_fingerprint,
-            bundle.inventory_report_fingerprint,
-            "the adversary preserves the compact inventory report coordinate",
-        );
-        let changed = report(
-            true,
-            CompileOutputKind::NativeExecutable,
-            Some(flat.clone()),
-            Some(compact_equal_inventory_substitution),
-        );
-        assert!(
-            !changed.has_consistent_executable_publication_custody(),
-            "strong inventory drift must reject even with a collision-equal report fingerprint",
-        );
-        assert!(changed.checked_native_executable_path().is_none());
-        let mut changed = bundle.clone();
-        changed.compiler_text_validation_digest =
-            image::CompilerTextDerivationDigest::from_digest([99; 32]);
-        let changed = report(
-            true,
-            CompileOutputKind::NativeExecutable,
-            Some(flat.clone()),
-            Some(changed),
-        );
-        assert!(!changed.has_consistent_executable_publication_custody());
-        assert!(changed.checked_native_executable_path().is_none());
-        let mut changed = bundle.clone();
-        changed.compiler_function_validation_report_fingerprint ^= 1;
-        assert!(
-            !report(
-                true,
-                CompileOutputKind::NativeExecutable,
-                Some(flat.clone()),
-                Some(changed),
-            )
-            .has_consistent_executable_publication_custody()
-        );
-        let mut changed = bundle.clone();
-        changed.publication_evidence_digest =
-            super::NativePublicationEvidenceDigest::from_digest([99; 32]);
-        let changed = report(
-            true,
-            CompileOutputKind::NativeExecutable,
-            Some(flat.clone()),
-            Some(changed),
-        );
-        assert!(!changed.has_consistent_executable_publication_custody());
-        assert!(changed.checked_native_executable_path().is_none());
-        let mut changed = bundle.clone();
-        changed.container_byte_count += 1;
-        let changed = report(
-            true,
-            CompileOutputKind::NativeExecutable,
-            Some(flat.clone()),
-            Some(changed),
-        );
-        assert!(!changed.has_consistent_executable_publication_custody());
-        assert!(changed.checked_native_executable_path().is_none());
-        let mut changed = bundle.clone();
-        changed.container_digest = super::ExecutableContainerDigest::from_digest([99; 32]);
-        let changed = report(
-            true,
-            CompileOutputKind::NativeExecutable,
-            Some(flat.clone()),
-            Some(changed),
-        );
-        assert!(!changed.has_consistent_executable_publication_custody());
-        assert!(changed.checked_native_executable_path().is_none());
-        let mut changed = bundle;
-        changed.installation_evidence_digest = flat.installation_evidence_digest;
-        let changed = report(
-            true,
-            CompileOutputKind::NativeExecutable,
-            Some(flat),
-            Some(changed),
-        );
-        assert!(!changed.has_consistent_executable_publication_custody());
-        assert!(changed.checked_native_executable_path().is_none());
     }
 }
