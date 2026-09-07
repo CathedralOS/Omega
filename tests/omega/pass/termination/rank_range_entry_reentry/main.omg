@@ -1,0 +1,20 @@
+data Main {}
+
+machine Main::main() -> u32 {
+    transition { _ -> self.walk(5) }
+}
+
+machine Main::walk(remaining: u32 [0..=5])
+terminates by remaining in 0..=5;
+-> u32 {
+    transition remaining > 0 {
+        true -> step(remaining - 1)
+        false -> remaining
+    }
+    state step(pending: u32 [0..=5]) {
+        transition pending > 0 {
+            true -> walk(pending - 1)
+            false -> pending
+        }
+    }
+}

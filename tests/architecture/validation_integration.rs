@@ -6068,9 +6068,9 @@ fn refutes_inductive_false_twin_on_the_base_arm() {
 
 #[test]
 fn rejects_inductive_step_false_twin_on_the_recursive_arm() {
-    // Base case true, step false: the instantiated hypothesis misses the
-    // goal, every fact is in-language and the decrease IS discharged, so the
-    // recursive arm's unproven obligation rejects.
+    // Base case true, step false: the instantiated hypothesis differs from
+    // the goal by two. Adding the residual to that exact hypothesis proves
+    // the negation, while the recursive decrease remains discharged.
     let diagnostics = validate_contract_source(
         r#"
     data Main {
@@ -6095,9 +6095,9 @@ fn rejects_inductive_step_false_twin_on_the_recursive_arm() {
     .expect_err("the step-false inductive twin must be rejected on its recursive arm");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
-            "cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 3` on the transition arm guarded by `n > 0 == true`"
+            "ensures contract proof fact `result * 2 == acc * 2 + n * n + 3` is disproved on the transition arm guarded by `n > 0 == true`: the arm's facts entail its negation"
         )),
-        "expected recursive-arm cannot-prove diagnostic, got {diagnostics:#?}"
+        "expected recursive-arm refutation diagnostic, got {diagnostics:#?}"
     );
 }
 

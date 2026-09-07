@@ -24,6 +24,18 @@ pub enum RankingRangeMeasure {
     },
 }
 
+/// Edge premises for a complete checked state graph. EntryInvariant must be
+/// checked on every edge; InitialEntry is the non-reentered-root exception to
+/// RankInvariant. Entry facts are never automatically renewed at reentry.
+#[derive(Clone, Copy)]
+pub enum RankingRangePremises {
+    RankInvariant,
+    EntryInvariant,
+    /// Entry facts can support the first transfer without surviving it, but
+    /// only when no local transition can return to this root state.
+    InitialEntry,
+}
+
 /// Prove current and next rank membership, with invocation-fixed endpoints.
 /// This query neither mutates source/evidence nor admits an unknown judgment.
 /// The caller must provide an exact root self-edge and its live guard facts;
@@ -34,6 +46,7 @@ pub fn prove_ranking_range_edge(
     state: &State,
     range: ExpressionHandle,
     measure: RankingRangeMeasure,
+    premises: RankingRangePremises,
     guards: &[(ExpressionHandle, bool)],
     evaluated_prefix: &[ExpressionHandle],
     arguments: &[ExpressionHandle],
@@ -44,6 +57,7 @@ pub fn prove_ranking_range_edge(
         state,
         range,
         measure,
+        premises,
         guards,
         evaluated_prefix,
         Some(arguments),
@@ -62,8 +76,8 @@ pub struct RankingRangeState<'program> {
 }
 
 /// Check one state transition under independently established source and target
-/// telescopes. Named sources reuse only rank membership, not machine requires
-/// or declared ranges. Every destination formal receives its exact actual in
+/// telescopes. Each source uses the selected graph-wide invariant, including
+/// reentered roots. Every destination formal receives its exact actual in
 /// one simultaneous substitution; graph ownership decides whether strict
 /// decrease is additionally required for this edge.
 pub fn prove_ranking_range_transition(
@@ -71,6 +85,7 @@ pub fn prove_ranking_range_transition(
     machine: &Machine,
     range: ExpressionHandle,
     measure: RankingRangeMeasure,
+    premises: RankingRangePremises,
     source: RankingRangeState<'_>,
     destination: RankingRangeState<'_>,
     guards: &[(ExpressionHandle, bool)],
@@ -83,6 +98,7 @@ pub fn prove_ranking_range_transition(
         source.state,
         range,
         measure,
+        premises,
         guards,
         evaluated_prefix,
         Some(arguments),
@@ -123,6 +139,7 @@ pub fn prove_ranking_range_entry(
         state,
         range,
         measure,
+        RankingRangePremises::EntryInvariant,
         &[],
         &[],
         None,
@@ -137,6 +154,7 @@ fn prove_edge(
     state: &State,
     range: ExpressionHandle,
     measure: RankingRangeMeasure,
+    premises: RankingRangePremises,
     guards: &[(ExpressionHandle, bool)],
     evaluated_prefix: &[ExpressionHandle],
     arguments: Option<&[ExpressionHandle]>,
@@ -148,6 +166,11 @@ fn prove_edge(
         .iter()
         .any(|candidate| candidate.symbol == state.symbol)
         || (matches!(context, EdgeContext::Root) && root.symbol != state.symbol)
+    {
+        return None;
+    }
+    if matches!(premises, RankingRangePremises::InitialEntry)
+        && (state.symbol != root.symbol || root_has_incoming_transition(program, machine, root))
     {
         return None;
     }
@@ -164,15 +187,9 @@ fn prove_edge(
                 destination.state,
                 destination.entry_parameters,
             )?;
-            // A named-state return to entry needs proof of the entry requires;
-            // the present invariant does not establish those arbitrary facts.
-            if state.symbol != root.symbol && destination.state.symbol == root.symbol {
-                return None;
-            }
             (Some(*source_parameters), Some(*destination))
         }
     };
-    let entry_hypotheses = state.symbol == root.symbol;
     let ExpressionNode::Range(range) = program.expression_table.expression(range) else {
         return None;
     };
@@ -276,63 +293,13 @@ fn prove_edge(
     if !engine.strict_symbol_bindings_are_valid() {
         return None;
     }
-    let mut comparisons = Vec::new();
-    for contract in program
-        .machine_contracts(machine)
-        .iter()
-        .filter(|_| entry_hypotheses)
-    {
-        if contract.kind != SignatureContractKind::Requires {
-            continue;
-        }
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
-            // Unread hypotheses cannot strengthen this positive-only query.
-            if let ProofFact::Expression(expression) = fact {
-                admit(*expression)?;
-                collect_guard(&mut engine, *expression, true, &mut comparisons, 0)?;
-            }
-        }
-    }
-    // Declared ranges are enforced at arrivals. Read the exact endpoints, not
-    // their display text or the ordinary engine's name-keyed range shortcut.
-    for parameter in parameters
-        .iter()
-        .filter(|parameter| entry_hypotheses && !parameter.is_self)
-    {
-        let Some(binding) = bindings
-            .iter()
-            .find(|binding| binding.symbol == parameter.symbol)
-        else {
-            continue;
+    let auxiliary =
+        if arguments.is_none() || !matches!(premises, RankingRangePremises::RankInvariant) {
+            entry_comparisons(program, machine, root, &mut engine, &bindings)?
+        } else {
+            Vec::new()
         };
-        let StrictArithmeticBindingValue::Atom { identity, .. } = &binding.value else {
-            return None;
-        };
-        let mut reference = parameter.type_reference;
-        while let TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } = program.type_reference_table.type_reference(reference)
-        {
-            for constraint in program.type_reference_table.constraints(*constraints) {
-                if let TypeConstraintNode::Range { minimum, maximum } = constraint {
-                    admit(*minimum)?;
-                    admit(*maximum)?;
-                    comparisons.push((
-                        BinaryOperator::GreaterOrEqual,
-                        Polynomial::atom(identity.clone()),
-                        engine.normalize(*minimum)?,
-                    ));
-                    comparisons.push((
-                        BinaryOperator::LessOrEqual,
-                        Polynomial::atom(identity.clone()),
-                        engine.normalize(*maximum)?,
-                    ));
-                }
-            }
-            reference = *base_type;
-        }
-    }
+    let mut comparisons = auxiliary.clone();
     for &(guard, holds) in guards {
         collect_guard(&mut engine, guard, holds, &mut comparisons, 0)?;
     }
@@ -347,9 +314,9 @@ fn prove_edge(
             limit: upper,
         } => engine.normalize(upper)?.sub(&engine.normalize(lower)?),
     };
-    if !entry_hypotheses {
-        // This is the sole induction hypothesis: entry establishes it, and
-        // every state transition re-establishes it with pinned endpoints.
+    if arguments.is_some() {
+        // Every edge, including a root edge, consumes the established rank
+        // invariant. Entry-only premises never silently reappear at reentry.
         comparisons.extend([
             (
                 BinaryOperator::GreaterOrEqual,
@@ -437,6 +404,18 @@ fn prove_edge(
         }
         RankingRangeMeasure::Single(_) | RankingRangeMeasure::Distance { .. } => None,
     };
+    for (operator, left, right) in auxiliary
+        .iter()
+        .filter(|_| matches!(premises, RankingRangePremises::EntryInvariant))
+    {
+        let next_left = inductive_judgment::apply_argument_map(left, &substitutions)?;
+        let next_right = inductive_judgment::apply_argument_map(right, &substitutions)?;
+        if !engine.requires_unsatisfiable
+            && !comparison_proven(&engine, *operator, &next_left, &next_right)
+        {
+            return None;
+        }
+    }
     // Even unreachable arrivals retain exact rank-input coverage. Vacuity
     // discharges comparisons, not missing or ambiguous substitutions.
     if engine.requires_unsatisfiable {
@@ -472,6 +451,127 @@ fn prove_edge(
     Some(RankingRangeEdgeProof {
         membership_and_pinning,
         strictly_decreases,
+    })
+}
+
+/// Read entry facts in the root template, even when their current aliases
+/// belong to a named state. Nothing here derives a fact from a state spelling.
+fn entry_comparisons(
+    program: &TypedTrees,
+    machine: &Machine,
+    root: &State,
+    engine: &mut Engine<'_>,
+    bindings: &[StrictArithmeticSymbolBinding],
+) -> Option<Vec<Comparison>> {
+    let admit = |expression| meanings::builtin(program, machine, root, expression, 0);
+    let mut comparisons = Vec::new();
+    for contract in program.machine_contracts(machine) {
+        if contract.kind != SignatureContractKind::Requires {
+            continue;
+        }
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            // Membership and proposition facts remain outside this arithmetic
+            // projection. They are neither assumed nor claimed re-established.
+            if let ProofFact::Expression(expression) = fact {
+                admit(*expression)?;
+                collect_guard(engine, *expression, true, &mut comparisons, 0)?;
+            }
+        }
+    }
+    for parameter in program
+        .state_parameters(root)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+    {
+        if exact_integer_parameter(program, parameter.type_reference).is_none() {
+            continue;
+        }
+        let mut reference = parameter.type_reference;
+        while let TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } = program.type_reference_table.type_reference(reference)
+        {
+            for constraint in program.type_reference_table.constraints(*constraints) {
+                let TypeConstraintNode::Range { minimum, maximum } = constraint else {
+                    continue;
+                };
+                // Missing or ambiguous aliases cannot contribute an auxiliary
+                // invariant, even when another premise makes the edge dead.
+                let binding = bindings
+                    .iter()
+                    .find(|binding| binding.symbol == parameter.symbol)?;
+                let StrictArithmeticBindingValue::Atom { identity, .. } = &binding.value else {
+                    return None;
+                };
+                admit(*minimum)?;
+                admit(*maximum)?;
+                comparisons.push((
+                    BinaryOperator::GreaterOrEqual,
+                    Polynomial::atom(identity.clone()),
+                    engine.normalize(*minimum)?,
+                ));
+                comparisons.push((
+                    BinaryOperator::LessOrEqual,
+                    Polynomial::atom(identity.clone()),
+                    engine.normalize(*maximum)?,
+                ));
+            }
+            reference = *base_type;
+        }
+    }
+    Some(comparisons)
+}
+
+fn comparison_proven(
+    engine: &Engine<'_>,
+    operator: BinaryOperator,
+    left: &Polynomial,
+    right: &Polynomial,
+) -> bool {
+    let prove = |difference: Polynomial, minimum: i64| {
+        engine.prove_at_least(&engine.substituted(&difference), &BigInt::from_i64(minimum))
+    };
+    match operator {
+        BinaryOperator::Less => prove(right.sub(left), 1),
+        BinaryOperator::LessOrEqual => prove(right.sub(left), 0),
+        BinaryOperator::Greater => prove(left.sub(right), 1),
+        BinaryOperator::GreaterOrEqual => prove(left.sub(right), 0),
+        BinaryOperator::Equal => prove(left.sub(right), 0) && prove(right.sub(left), 0),
+        BinaryOperator::NotEqual => prove(left.sub(right), 1) || prove(right.sub(left), 1),
+        _ => false,
+    }
+}
+
+/// Initial-entry precision is safe only when no local edge can revisit the
+/// root. Check exact primary and continuation targets, including `self`.
+fn root_has_incoming_transition(program: &TypedTrees, machine: &Machine, root: &State) -> bool {
+    use typed_trees::statement::{StatementNode, TransitionTargetNode};
+
+    program.machine_states(machine).iter().any(|state| {
+        program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .any(|statement| {
+                let StatementNode::Transition(transition) = statement else {
+                    return false;
+                };
+                [transition.target, transition.continuation]
+                    .into_iter()
+                    .any(|target| {
+                        if !target.is_valid() {
+                            return false;
+                        }
+                        match program.statement_table.transition_target(target) {
+                            TransitionTargetNode::Named { path, .. } => {
+                                path.symbol == root.symbol || path.symbol == machine.symbol
+                            }
+                            TransitionTargetNode::SelfTarget => state.symbol == root.symbol,
+                            _ => false,
+                        }
+                    })
+            })
     })
 }
 

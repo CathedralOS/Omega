@@ -751,9 +751,21 @@ impl<'program> Engine<'program> {
         }
     }
 
-    /// Prove `polynomial >= bound` via the difference-bound matrix or the
-    /// interval evaluator.
+    /// Prove a lower bound directly or by adding one stored lower bound to
+    /// a residual established by the existing nonrecursive judgment.
     pub(super) fn prove_at_least(&self, polynomial: &Polynomial, bound: &BigInt) -> bool {
+        if self.prove_base_lower_bound(polynomial, bound) {
+            return true;
+        }
+        self.bounds.iter().any(|(stored, stored_bound)| {
+            // P >= b and goal - P >= requested - b imply goal >= requested.
+            // Do not recursively search combinations of stored hypotheses.
+            self.prove_base_lower_bound(&polynomial.sub(stored), &bound.sub(stored_bound))
+        })
+    }
+
+    /// Difference bounds, exact hypotheses, and independent intervals only.
+    fn prove_base_lower_bound(&self, polynomial: &Polynomial, bound: &BigInt) -> bool {
         if let Some((positive, negative, constant)) = polynomial.as_atom_difference()
             && let Some(best) = self.matrix_bound(&positive, &negative)
             && best.add(&constant) >= *bound
@@ -1289,6 +1301,9 @@ fn polynomial_display(polynomial: &Polynomial) -> String {
         parts.join(" + ")
     }
 }
+
+#[cfg(test)]
+mod tests;
 
 #[cfg(test)]
 mod embedding_tests {

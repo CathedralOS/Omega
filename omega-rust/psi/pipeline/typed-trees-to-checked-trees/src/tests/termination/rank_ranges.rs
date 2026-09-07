@@ -2,6 +2,7 @@ use super::{
     Lexer, lower_symbol_resolved_trees, lower_syntax_trees, lower_typed_trees, parse_syntax_trees,
 };
 
+mod entry_reentry;
 mod named_states;
 mod payloads;
 mod relational;
