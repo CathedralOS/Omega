@@ -441,6 +441,7 @@ pub struct BoundedTransitionArgumentObligation {
     pub machine: Identifier,
     pub state_symbol: SymbolHandle,
     pub state: Identifier,
+    pub statement_index: usize,
     pub parameter_symbol: SymbolHandle,
     pub parameter: Identifier,
     pub argument: ExpressionHandle,
@@ -1030,14 +1031,14 @@ fn collect_bounded_transition_argument_obligations(
     };
     // Prior EXIT transitions in this state whose guards control reaching
     // this statement refutes (see the obligation field's doc).
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let Some(statement_index) = statements.iter().position(|statement| {
+        table_statement.is_some_and(|current| std::ptr::eq(statement, current))
+    }) else {
+        return;
+    };
     let mut refuted_exit_guards = Vec::new();
-    for statement in program.statement_table.statements(state.statement_nodes) {
-        if std::ptr::eq(
-            statement as *const StatementNode,
-            table_statement.map_or(std::ptr::null(), |statement| statement as *const _),
-        ) {
-            break;
-        }
+    for statement in &statements[..statement_index] {
         let StatementNode::Transition(prior) = statement else {
             continue;
         };
@@ -1106,6 +1107,7 @@ fn collect_bounded_transition_argument_obligations(
                 machine: machine.name.clone(),
                 state_symbol: state.symbol,
                 state: state.name.clone(),
+                statement_index,
                 parameter_symbol: parameter.symbol,
                 parameter: parameter.name.clone(),
                 argument,

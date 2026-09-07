@@ -7,8 +7,12 @@ use crate::CallFrameResolver;
 use symbols::SymbolHandle;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
+mod transition_arguments;
+
 /// Bound one exact terminal expression using every arrival and the effects of
-/// its state prefix. Authored requirements are assumptions of body checking;
+/// its state prefix, or a named target-arm argument under its co-located guard.
+/// The latter uses declared bounds only, without inherited arrival facts.
+/// Authored requirements are assumptions of body checking;
 /// call/transition validation must independently discharge those requirements.
 pub fn arrival_integer_expression_bounds(
     program: &TypedTrees,
@@ -26,6 +30,11 @@ pub fn arrival_integer_expression_bounds(
         .iter()
         .find(|state| state.symbol == state_symbol)?;
     let statements = program.statement_table.statements(state.statement_nodes);
+    if let Some(StatementNode::Transition(transition)) = statements.get(statement_index) {
+        return transition_arguments::integer_bounds(
+            program, machine, state, transition, expression,
+        );
+    }
     if !matches!(statements.get(statement_index), Some(StatementNode::Expression(value)) if *value == expression)
     {
         return None;

@@ -463,11 +463,26 @@ fn check_bounded_transition_argument(
         if argument_range.minimum < target_range.minimum
             || argument_range.maximum > target_range.maximum
         {
-            diagnostics.push(cannot_prove_bounded_transition_integer(
-                proof_plan,
-                obligation,
-                target_range,
-            ));
+            // Use the shared arithmetic owner for this exact occurrence.
+            // Named/dependent constraints remain independent checks below.
+            let arrival_fits = validation::arrival_integer_expression_bounds(
+                proof_plan.program,
+                obligation.machine_symbol,
+                obligation.state_symbol,
+                obligation.statement_index,
+                obligation.argument,
+            )
+            .is_some_and(|(minimum, maximum)| {
+                BigInt::from_i64(minimum) >= target_range.minimum
+                    && BigInt::from_i64(maximum) <= target_range.maximum
+            });
+            if !arrival_fits {
+                diagnostics.push(cannot_prove_bounded_transition_integer(
+                    proof_plan,
+                    obligation,
+                    target_range,
+                ));
+            }
         }
     }
 

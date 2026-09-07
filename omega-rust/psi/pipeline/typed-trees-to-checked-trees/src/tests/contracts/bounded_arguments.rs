@@ -1,5 +1,184 @@
 use super::{lower_typed_trees, parse_typed_trees};
 
+#[test]
+fn named_transition_refolds_nonliteral_operands_under_its_own_guard() {
+    for (guard, value, range) in [
+        ("pending > 0", "pending - step", "0..=4"),
+        ("!(pending <= 0)", "pending - step", "0..=4"),
+        ("pending < 5", "pending + step", "1..=5"),
+        ("pending > 0 && pending < 5", "pending * step", "1..=4"),
+    ] {
+        let source = format!(
+            "machine run(pending: u32 [0..=5], step: u32 [1..=1]) -> u32 {{
+                transition {guard} {{ true -> accept({value}) false -> 0 }}
+                state accept(delivered: u32 [{range}]) -> u32 {{ delivered }}
+            }}"
+        );
+        lower_typed_trees(parse_typed_trees(&source))
+            .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
+    }
+}
+
+#[test]
+fn named_transition_nonliteral_bounds_reject_insufficient_or_unrelated_guards() {
+    for (guard, step_range) in [
+        ("pending >= 0", "1..=1"),
+        ("pending > 0", "1..=2"),
+        ("other > 0", "1..=1"),
+        ("!(pending > 0)", "1..=1"),
+        ("pending > 0 || other > 0", "1..=1"),
+    ] {
+        let source = format!(
+            "machine run(pending: u32 [0..=5], step: u32 [{step_range}], other: u32) -> u32 {{
+                transition {guard} {{ true -> accept(pending - step) false -> 0 }}
+                state accept(delivered: u32 [0..=4]) -> u32 {{ delivered }}
+            }}"
+        );
+        let program = parse_typed_trees(&source);
+        let plan = proof::obligations::build_proof_plan(&program);
+        assert!(proof::checker::check_proof_plan(&plan).is_err(), "{source}");
+    }
+}
+
+#[test]
+fn named_transition_arithmetic_query_rejects_selected_and_effectful_trees() {
+    for (declarations, guard, first, delivered) in [
+        (
+            "operator - u32::custom(left: u32, right: u32) -> u32;",
+            "pending > 0",
+            "0",
+            "pending - step",
+        ),
+        (
+            "operator > u32::custom(left: u32, right: u32) -> bool;",
+            "pending > 0",
+            "0",
+            "pending - step",
+        ),
+        (
+            "operator + u32::custom(left: u32, right: u32) -> u32;",
+            "pending > 0",
+            "pending + step",
+            "pending - step",
+        ),
+        (
+            "machine zero(target: &mut u32) -> u32 { target = 0; 0 }",
+            "pending > 0",
+            "zero(&mut pending)",
+            "pending - step",
+        ),
+        (
+            "",
+            "pending > 0",
+            "0",
+            "((pending as u32 in Wrapping) - step) as u32",
+        ),
+    ] {
+        let source = format!(
+            "{declarations}
+            machine run(input: u32 [0..=5], step: u32 [1..=1]) -> u32 {{
+                let mut pending: u32 = input;
+                transition {guard} {{ true -> accept({first}, {delivered}) false -> 0 }}
+                state accept(first: u32, delivered: u32 [0..=4]) -> u32 {{ delivered }}
+            }}"
+        );
+        let program = parse_typed_trees(&source);
+        let plan = proof::obligations::build_proof_plan(&program);
+        let obligation = plan
+            .obligations
+            .iter()
+            .find_map(|(_, obligation)| match obligation {
+                proof::obligations::ProofObligation::BoundedTransitionArgument(argument)
+                    if argument.parameter.as_str() == "delivered" =>
+                {
+                    Some(argument)
+                }
+                _ => None,
+            })
+            .expect("bounded argument occurrence");
+        assert_eq!(
+            validation::arrival_integer_expression_bounds(
+                &program,
+                obligation.machine_symbol,
+                obligation.state_symbol,
+                obligation.statement_index,
+                obligation.argument,
+            ),
+            None,
+            "{source}"
+        );
+    }
+}
+
+#[test]
+fn named_transition_range_evidence_belongs_to_its_exact_occurrence() {
+    let program = parse_typed_trees(
+        "machine run(pending: u32 [0..=5], step: u32 [1..=1]) -> u32 {
+            transition pending > 0 { true -> accept(pending - step) false -> 0 }
+            state accept(delivered: u32 [0..=4]) -> u32 { delivered }
+        }",
+    );
+    let plan = proof::obligations::build_proof_plan(&program);
+    let obligation = plan
+        .obligations
+        .iter()
+        .find_map(|(_, obligation)| match obligation {
+            proof::obligations::ProofObligation::BoundedTransitionArgument(argument) => {
+                Some(argument)
+            }
+            _ => None,
+        })
+        .expect("bounded argument occurrence");
+    let query = |statement_index, expression| {
+        validation::arrival_integer_expression_bounds(
+            &program,
+            obligation.machine_symbol,
+            obligation.state_symbol,
+            statement_index,
+            expression,
+        )
+    };
+    assert_eq!(
+        query(obligation.statement_index, obligation.argument),
+        Some((0, 4))
+    );
+    assert_eq!(query(usize::MAX, obligation.argument), None);
+    assert_eq!(
+        query(
+            obligation.statement_index,
+            typed_trees::expression::ExpressionHandle::invalid()
+        ),
+        None
+    );
+}
+
+#[test]
+fn named_transition_integer_query_does_not_truncate_anonymous_division() {
+    let program = parse_typed_trees(
+        "machine run() -> i32 {
+            transition { _ -> finish(7 / 2 * 2) }
+            state finish(delivered: i32 [6..=6]) -> i32 { delivered }
+        }",
+    );
+    let plan = proof::obligations::build_proof_plan(&program);
+    for (_, obligation) in plan.obligations.iter() {
+        if let proof::obligations::ProofObligation::BoundedTransitionArgument(argument) = obligation
+        {
+            assert_eq!(
+                validation::arrival_integer_expression_bounds(
+                    &program,
+                    argument.machine_symbol,
+                    argument.state_symbol,
+                    argument.statement_index,
+                    argument.argument,
+                ),
+                None
+            );
+        }
+    }
+    assert!(proof::checker::check_proof_plan(&plan).is_err());
+}
+
 fn rejects_range(source: &str) {
     let diagnostics = match lower_typed_trees(parse_typed_trees(source)) {
         Ok(_) => panic!("out-of-range argument was accepted"),
