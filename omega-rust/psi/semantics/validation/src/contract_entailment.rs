@@ -76,7 +76,8 @@ mod inductive_judgment;
 mod ranking_range;
 
 pub use ranking_range::{
-    RankingRangeEdgeProof, RankingRangeMeasure, prove_ranking_range_edge, prove_ranking_range_entry,
+    RankingRangeEdgeProof, RankingRangeMeasure, prove_ranking_range_edge,
+    prove_ranking_range_entry, prove_ranking_range_named_state_edge,
 };
 mod law_conformance;
 mod quotient_congruence;

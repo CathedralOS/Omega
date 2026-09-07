@@ -3,6 +3,8 @@
 use super::super::*;
 use typed_trees::statement::{StatementNode, TransitionGuardNode};
 
+mod named_states;
+
 pub(super) fn prove(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -46,14 +48,12 @@ pub(super) fn prove(
     };
     // The entry obligation is independent of every edge's guards. In
     // particular, an acyclic body cannot pass vacuously through an empty SCC.
-    if states.len() != 1
-        || !validation::prove_ranking_range_entry(program, machine, root, range, measure)
-    {
+    if !validation::prove_ranking_range_entry(program, machine, root, range, measure) {
         return false;
     }
     let frames = validation::CallFrameResolver::new(program);
     let edges = patterns::edges_to_state(program, root, root.symbol);
-    if edges.is_empty() && graph::machine_has_cycle(program, machine) {
+    if edges.is_empty() && states.len() == 1 && graph::machine_has_cycle(program, machine) {
         return false;
     }
     for edge in edges {
@@ -87,7 +87,7 @@ pub(super) fn prove(
             return false;
         }
     }
-    true
+    states.len() == 1 || named_states::prove(program, machine, range, measure, frames.as_ref())
 }
 
 fn preserved_entry_prefix<'program>(
