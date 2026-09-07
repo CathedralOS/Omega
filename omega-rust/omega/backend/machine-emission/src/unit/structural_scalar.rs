@@ -402,6 +402,7 @@ pub(super) fn emit_structural_scalar_field_store(
 pub(super) fn emit_unit_result_call(
     operation: &AssignedUnitOperation,
     caller_scalar_parameters: &[target_operations::ScalarAbiValue],
+    entry_register_spills: &[assigned_target_operations::EntryRegisterSpill],
     target: NativeTarget,
     functions: &[AssignedFunction],
     preceding_operations: &[AssignedUnitOperation],
@@ -499,6 +500,7 @@ pub(super) fn emit_unit_result_call(
             scalar_arguments,
             transport,
             caller_scalar_parameters,
+            entry_register_spills,
             copies,
             preceding_operations,
             x86_homes,
@@ -513,6 +515,7 @@ pub(super) fn emit_unit_result_call(
             scalar_arguments,
             transport,
             caller_scalar_parameters,
+            entry_register_spills,
             copies,
             preceding_operations,
             aarch64_homes,
@@ -566,6 +569,7 @@ pub(super) fn emit_unit_result_call(
 pub(super) fn emit_structural_scalar_call(
     operation: &AssignedUnitOperation,
     caller_scalar_parameters: &[target_operations::ScalarAbiValue],
+    entry_register_spills: &[assigned_target_operations::EntryRegisterSpill],
     target: NativeTarget,
     functions: &[AssignedFunction],
     preceding_operations: &[AssignedUnitOperation],
@@ -680,6 +684,7 @@ pub(super) fn emit_structural_scalar_call(
             scalar_arguments,
             transport,
             caller_scalar_parameters,
+            entry_register_spills,
             copies,
             preceding_operations,
             x86_homes,
@@ -694,6 +699,7 @@ pub(super) fn emit_structural_scalar_call(
             scalar_arguments,
             transport,
             caller_scalar_parameters,
+            entry_register_spills,
             copies,
             preceding_operations,
             aarch64_homes,
@@ -748,6 +754,7 @@ pub(super) fn emit_structural_scalar_call(
 pub(super) fn emit_structural_result_call(
     operation: &AssignedUnitOperation,
     caller_scalar_parameters: &[target_operations::ScalarAbiValue],
+    entry_register_spills: &[assigned_target_operations::EntryRegisterSpill],
     target: NativeTarget,
     functions: &[AssignedFunction],
     preceding_operations: &[AssignedUnitOperation],
@@ -900,6 +907,7 @@ pub(super) fn emit_structural_result_call(
             scalar_arguments,
             transport,
             caller_scalar_parameters,
+            entry_register_spills,
             copies,
             preceding_operations,
             x86_homes,
@@ -914,6 +922,7 @@ pub(super) fn emit_structural_result_call(
             scalar_arguments,
             transport,
             caller_scalar_parameters,
+            entry_register_spills,
             copies,
             preceding_operations,
             aarch64_homes,
@@ -1084,6 +1093,7 @@ fn emit_x86_64_mixed_call(
     scalar_arguments: &[assigned_target_operations::AssignedUnitScalarCallArgument],
     transport: &UnitScalarTransportPlan,
     caller_scalar_parameters: &[target_operations::ScalarAbiValue],
+    entry_register_spills: &[assigned_target_operations::EntryRegisterSpill],
     copies: &[assigned_target_operations::AssignedAggregateCopy],
     preceding_operations: &[AssignedUnitOperation],
     homes: &[X86UnitStructuralHome],
@@ -1103,6 +1113,7 @@ fn emit_x86_64_mixed_call(
             argument,
             call_plan,
             caller_scalar_parameters,
+            entry_register_spills,
             preceding_operations,
         )
         .map_err(|_| EmissionError::InvalidStructuralScalarCallCustody(psi_operation))?;
@@ -1202,6 +1213,7 @@ fn emit_aarch64_mixed_call(
     scalar_arguments: &[assigned_target_operations::AssignedUnitScalarCallArgument],
     transport: &UnitScalarTransportPlan,
     caller_scalar_parameters: &[target_operations::ScalarAbiValue],
+    entry_register_spills: &[assigned_target_operations::EntryRegisterSpill],
     copies: &[assigned_target_operations::AssignedAggregateCopy],
     preceding_operations: &[AssignedUnitOperation],
     homes: &[Aarch64UnitStructuralHome],
@@ -1221,6 +1233,7 @@ fn emit_aarch64_mixed_call(
             argument,
             call_plan,
             caller_scalar_parameters,
+            entry_register_spills,
             preceding_operations,
         )
         .map_err(|_| EmissionError::InvalidStructuralScalarCallCustody(psi_operation))?;

@@ -89,22 +89,35 @@ pub(crate) fn expected_store_bytes(
 pub(crate) fn parameter_storage_end(
     target: NativeTarget,
     parameter_homes: &[UnitParameterHomeRecord],
+    scalar_abi: Option<&machine_code::UnitScalarFunctionAbiRecord>,
 ) -> Option<u32> {
+    let scalar_parameters = scalar_abi.map_or(&[][..], |abi| abi.parameters.as_slice());
+    let scalar_shapes = scalar_parameters
+        .iter()
+        .map(|parameter| {
+            let shape = crate::unit_scalar_call_custody::scalar_home_shape(parameter.scalar_type)?;
+            (parameter.placement.shape == shape).then_some(shape)
+        })
+        .collect::<Option<Vec<_>>>()?;
     let Ok(caller_plan) = calling_conventions::evaluate_call_plan(
         calling_conventions::CallingPolicy::native_for_target(target),
         &calling_conventions::CallSignature {
-            parameters: parameter_homes
-                .iter()
-                .map(|parameter| parameter.shape)
+            parameters: scalar_shapes
+                .into_iter()
+                .chain(parameter_homes.iter().map(|parameter| parameter.shape))
                 .collect(),
             result: None,
         },
     ) else {
         return None;
     };
-    if caller_plan.parameters.len() != parameter_homes.len()
-        || caller_plan
-            .parameters
+    if caller_plan.parameters.len() != scalar_parameters.len() + parameter_homes.len()
+        || scalar_abi.is_some_and(|abi| abi.call_plan != caller_plan)
+        || scalar_parameters
+            .iter()
+            .zip(&caller_plan.parameters)
+            .any(|(parameter, placement)| parameter.placement != *placement)
+        || caller_plan.parameters[scalar_parameters.len()..]
             .iter()
             .zip(parameter_homes)
             .any(|(placement, parameter)| {
@@ -162,9 +175,19 @@ pub(crate) fn exact_storage(
     frame_bytes: u32,
     parameter_homes: &[UnitParameterHomeRecord],
     scalar_homes: &[UnitScalarHomeRecord],
+    scalar_abi: Option<&machine_code::UnitScalarFunctionAbiRecord>,
     return_link: Option<u32>,
+    has_continuations: bool,
 ) -> bool {
-    if parameter_storage_end(target, parameter_homes).is_none() || !scalar_homes.is_empty() {
+    let Some(entry_end) = crate::unit_scalar_call_custody::entry_spills::storage_end(
+        target,
+        parameter_homes,
+        scalar_abi,
+        has_continuations,
+    ) else {
+        return false;
+    };
+    if !scalar_homes.is_empty() {
         return false;
     }
     let Some(result) = &call.structural_result else {
@@ -203,7 +226,7 @@ pub(crate) fn exact_storage(
     let Some(parameter_end) = parameter_end else {
         return false;
     };
-    let mut result_end = parameter_end.iter().copied().max().unwrap_or(0);
+    let mut result_end = entry_end;
     let mut found = false;
     let mut previous_ordinal = None;
     for producer in calls {

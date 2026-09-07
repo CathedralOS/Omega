@@ -1,7 +1,7 @@
 use super::*;
 use StructuralPathSegment::{Field, FixedIndex};
 use assigned_target_operations::AssignedAggregateCopy;
-use calling_conventions::ValueShape;
+use calling_conventions::{ValueLocation, ValueShape};
 use semantic_vocabulary::{EdgeId, OperationId, StructuralFieldId};
 use target_operations::{TargetStructuralParameter, TerminalPsiProvenance};
 use terminal_psi::{
@@ -64,6 +64,7 @@ fn fixture(
     .unwrap();
     let place = PlaceId::new(1).unwrap();
     let mut body = AssignedUnitBody {
+        entry_register_spills: Vec::new(),
         structural_types: declarations.clone(),
         call_plan: root_plan.clone(),
         scalar_parameters: Vec::new(),
@@ -125,6 +126,7 @@ fn fixture(
                 edges: vec![EdgeId::new(1).unwrap()],
             },
             operation: AssignedOperation::UnitBody(AssignedUnitBody {
+                entry_register_spills: Vec::new(),
                 structural_types: declarations.clone(),
                 call_plan: call_plan.clone(),
                 scalar_parameters: Vec::new(),
@@ -210,6 +212,7 @@ fn continuation_fixture(target: NativeTarget) -> (AssignedUnitBody, Vec<Assigned
         unreachable!()
     };
     body.operations.push(AssignedUnitOperation::Continue {
+        bindings: Vec::new(),
         psi_edge,
         source_block: semantic_vocabulary::BlockId::new(70_001).unwrap(),
         target_block: semantic_vocabulary::BlockId::new(70_002).unwrap(),
@@ -327,6 +330,90 @@ fn continuation_cleanup_rejects_forged_edge_residuals_and_retired_uses() {
             .is_err(),
             "mutation={mutation}"
         );
+    }
+}
+
+#[test]
+fn continuation_cleanup_rejoins_scalar_prefixed_incoming_structural_placement() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let (mut body, functions) = continuation_fixture(target);
+        let original_source = body.parameters[0].placement.clone();
+        let scalar_type = semantic_vocabulary::ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .unwrap(),
+        );
+        let source_value = semantic_vocabulary::ValueId::new(70_010).unwrap();
+        let call_plan = evaluate_call_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: vec![ValueShape::integer(8, 8), body.parameters[0].shape],
+                result: None,
+            },
+        )
+        .unwrap();
+        body.scalar_parameters
+            .push(target_operations::ScalarAbiValue {
+                value: source_value,
+                scalar_type,
+                placement: call_plan.parameters[0].clone(),
+            });
+        body.parameters[0].placement = call_plan.parameters[1].clone();
+        let [ValueLocation::Register { register, .. }] =
+            call_plan.parameters[0].locations.as_slice()
+        else {
+            unreachable!();
+        };
+        let structural_extent = if matches!(
+            body.parameters[0].placement.locations.as_slice(),
+            [ValueLocation::Indirect { .. }]
+        ) {
+            8
+        } else {
+            u32::from(body.parameters[0].shape.byte_size)
+        };
+        body.entry_register_spills
+            .push(assigned_target_operations::EntryRegisterSpill {
+                source_value,
+                parameter_index: 0,
+                register: *register,
+                byte_offset: structural_extent.next_multiple_of(8),
+            });
+        body.call_plan = call_plan;
+        let AssignedUnitOperation::Call { copies, .. } = &mut body.operations[0] else {
+            unreachable!();
+        };
+        copies[0].source = body.parameters[0].placement.clone();
+        super::super::emit_unit_body(
+            &body,
+            Some(MachineId::new(1).unwrap()),
+            None,
+            target,
+            &functions,
+            &[],
+        )
+        .unwrap();
+        let AssignedUnitOperation::Call { copies, .. } = &mut body.operations[0] else {
+            unreachable!();
+        };
+        if copies[0].source != original_source {
+            copies[0].source = original_source;
+            assert!(
+                super::super::emit_unit_body(
+                    &body,
+                    Some(MachineId::new(1).unwrap()),
+                    None,
+                    target,
+                    &functions,
+                    &[]
+                )
+                .is_err()
+            );
+        }
     }
 }
 

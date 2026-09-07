@@ -139,7 +139,8 @@ pub(crate) fn completed_roots(
             || owners.contains(&call.owner)
             || call.result.is_some()
             || call.semantic_result.is_some()
-            || !call.scalar_arguments.is_empty()
+            || (!call.scalar_arguments.is_empty()
+                && (!call.arguments.is_empty() || call.structural_result.is_some()))
             || !call.claim_transfers.is_empty()
             || previous_end.is_some_and(|end| end != call.code_offset)
         {
@@ -373,6 +374,13 @@ pub(crate) fn validate_function(
 ) -> Result<Vec<PlaceId>, crate::ObjectError> {
     let invalid = || crate::ObjectError::InvalidUnitAffineCleanupEvidence(function.machine);
     if function.unit_continuations.is_empty() {
+        if function
+            .unit_scalar_abi
+            .as_ref()
+            .is_some_and(|abi| !abi.entry_register_spills.is_empty())
+        {
+            return Err(invalid());
+        }
         // An unrecorded zero-byte edge may not be mistaken for a return.
         if function.unit_stack.is_some()
             && !exact_attribution(
@@ -394,7 +402,10 @@ pub(crate) fn validate_function(
         || function.scalar_affine_cleanup.is_some()
         || !function.scalar_control_affine_cleanups.is_empty()
         || function.structural_call_scalar_return.is_some()
-        || function.unit_scalar_abi.is_some()
+        || !exact_scalar_bindings(
+            function.unit_scalar_abi.as_ref(),
+            &function.unit_continuations,
+        )
         || !function.boundary_settlements.is_empty()
         || !function.foreign_calls.is_empty()
         || !function.unit_scalar_homes.is_empty()
@@ -459,4 +470,40 @@ pub(crate) fn validate_function(
         return Err(invalid());
     }
     Ok(completed)
+}
+
+/// Source-to-target validation owns the authored alias use. This source-free
+/// boundary independently checks retained definitions and simultaneous types;
+/// canonical call sources still rejoin the original ABI parameter separately.
+pub(crate) fn exact_scalar_bindings(
+    abi: Option<&machine_code::UnitScalarFunctionAbiRecord>,
+    continuations: &[UnitContinuationRecord],
+) -> bool {
+    let mut values = std::collections::BTreeMap::new();
+    if let Some(abi) = abi {
+        for parameter in &abi.parameters {
+            if !matches!(parameter.scalar_type, semantic_vocabulary::ScalarType::Integer(integer)
+                if crate::unit_scalar_call_custody::integer_shape(integer).is_some())
+                || values
+                    .insert(parameter.value, parameter.scalar_type)
+                    .is_some()
+            {
+                return false;
+            }
+        }
+    }
+    for continuation in continuations {
+        let mut destinations = std::collections::BTreeSet::new();
+        if continuation.bindings.iter().any(|binding| {
+            values.get(&binding.argument) != Some(&binding.scalar_type)
+                || values.contains_key(&binding.parameter)
+                || !destinations.insert(binding.parameter)
+        }) {
+            return false;
+        }
+        for binding in &continuation.bindings {
+            values.insert(binding.parameter, binding.scalar_type);
+        }
+    }
+    true
 }

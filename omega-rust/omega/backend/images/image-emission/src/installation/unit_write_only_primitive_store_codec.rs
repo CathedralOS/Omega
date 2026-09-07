@@ -145,6 +145,10 @@ fn encode_source(
                     bytes.extend_from_slice(&[1, 0, 0, 0]);
                     push_u32(bytes, byte_offset);
                 }
+                UnitScalarParameterLocationRecord::FrameSpill { byte_offset } => {
+                    bytes.extend_from_slice(&[2, 0, 0, 0]);
+                    push_u32(bytes, byte_offset);
+                }
             }
         }
         UnitWriteOnlyPrimitiveStoreSourceRecord::IntegerImmediate {
@@ -275,6 +279,9 @@ fn decode_source(
                 }
                 1 if register_tag_byte == 0 => {
                     UnitScalarParameterLocationRecord::IncomingStack { byte_offset }
+                }
+                2 if register_tag_byte == 0 => {
+                    UnitScalarParameterLocationRecord::FrameSpill { byte_offset }
                 }
                 _ => {
                     return Err(InstallationError::InvalidInstalledScalarSourceTag(

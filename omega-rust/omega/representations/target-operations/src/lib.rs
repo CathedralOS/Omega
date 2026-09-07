@@ -6,4 +6,5 @@
 //! subordinate control, value, call, storage, and evidence owners.
 
 pub mod target_operations;
+pub use abstract_operations::ValueBinding;
 pub use target_operations::*;

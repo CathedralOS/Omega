@@ -27,6 +27,7 @@ mod affine_cleanup;
 mod continuations;
 mod dynamic;
 mod dynamic_argument;
+mod entry_register_spills;
 mod installed_provider;
 mod packed_fragments;
 mod projected_copy;
@@ -68,6 +69,7 @@ type EstablishedAffineScalarRecords = std::collections::BTreeMap<
 >;
 
 pub(super) struct UnitEmission {
+    pub(super) entry_register_spills: Vec<machine_code::UnitEntryRegisterSpillRecord>,
     pub(super) bytes: Vec<u8>,
     pub(super) internal_calls: Vec<InternalCallRelocation>,
     pub(super) foreign_calls: Vec<ForeignCallRelocation>,
@@ -599,6 +601,7 @@ pub(super) fn emit_unit_body(
         .map(unit_scalar_home_record)
         .collect::<Vec<_>>();
     let parameter_homes;
+    let mut entry_register_spills = Vec::new();
     match target.architecture {
         Architecture::X86_64 => {
             (x86_homes, x86_frame_bytes) = x86_unit_parameter_homes(body, target)?;
@@ -645,6 +648,8 @@ pub(super) fn emit_unit_body(
                 let offset = bytes.len();
                 emit_x86_64_adjust_sp(&mut bytes, x86_frame_bytes, false);
                 frame_allocation = Some((offset, bytes.len() - offset));
+                entry_register_spills =
+                    entry_register_spills::emit(&mut bytes, target, &body.entry_register_spills)?;
                 emit_x86_64_stage_unit_parameters(&mut bytes, &x86_homes, x86_frame_bytes)?;
             }
             if let Some((saved, canonical)) = floating_control_offsets {
@@ -718,6 +723,10 @@ pub(super) fn emit_unit_body(
             frame_allocation = Some((0, 4));
             aarch64_link_store = Some(4);
             instructions.push(aarch64_unit_stack_access(0xf900_0000, 30, lr_offset, 8)?);
+            append_aarch64_instructions(&mut bytes, instructions);
+            entry_register_spills =
+                entry_register_spills::emit(&mut bytes, target, &body.entry_register_spills)?;
+            let mut instructions = Vec::new();
             emit_aarch64_stage_unit_parameters(&mut instructions, &aarch64_homes, frame_bytes)?;
             append_aarch64_instructions(&mut bytes, instructions);
         }
@@ -1077,6 +1086,7 @@ pub(super) fn emit_unit_body(
                     internal_unit_calls.push(emit_unit_result_call(
                         call_operation,
                         &body.scalar_parameters,
+                        &body.entry_register_spills,
                         target,
                         functions,
                         &body.operations[..operation_ordinal],
@@ -1190,6 +1200,7 @@ pub(super) fn emit_unit_body(
                     arguments,
                     transport,
                     &body.scalar_parameters,
+                    &body.entry_register_spills,
                     match target.architecture {
                         Architecture::X86_64 => x86_frame_bytes,
                         Architecture::Aarch64 => aarch64_frame_bytes,
@@ -1215,6 +1226,7 @@ pub(super) fn emit_unit_body(
                 internal_unit_calls.push(emit_structural_scalar_call(
                     operation,
                     &body.scalar_parameters,
+                    &body.entry_register_spills,
                     target,
                     functions,
                     &body.operations[..operation_ordinal],
@@ -1233,6 +1245,7 @@ pub(super) fn emit_unit_body(
                 internal_unit_calls.push(emit_structural_result_call(
                     operation,
                     &body.scalar_parameters,
+                    &body.entry_register_spills,
                     target,
                     functions,
                     &body.operations[..operation_ordinal],
@@ -2443,6 +2456,7 @@ pub(super) fn emit_unit_body(
         return Err(EmissionError::UnitFunctionHasNoReturn);
     }
     Ok(UnitEmission {
+        entry_register_spills,
         continuations: unit_continuations,
         bytes,
         internal_calls,
@@ -3134,6 +3148,7 @@ fn validate_assigned_unit_frame(
     body: &AssignedUnitBody,
     target: NativeTarget,
 ) -> Result<(), EmissionError> {
+    entry_register_spills::validate(cursor, body, target)?;
     let mut stored_descriptors = Vec::new();
     for operation in &body.operations {
         let home = match operation {

@@ -97,6 +97,7 @@ pub fn build_function_fragment_object_artifact(
                 machine_code::UnitScalarFunctionAbiRecord {
                     call_plan: body.call_plan.clone(),
                     parameters: body.scalar_parameters.clone(),
+                    entry_register_spills: Vec::new(),
                 }
             }),
             provenance: provenance.clone(),

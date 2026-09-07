@@ -120,6 +120,25 @@ pub(super) fn assign(
             .iter()
             .map(|argument| {
                 let source = match argument.source {
+                    source @ TargetUnitScalarArgumentSource::Parameter { .. }
+                        if body.operations.iter().any(|operation| {
+                            matches!(operation, TargetUnitOperation::Continue { .. })
+                        }) =>
+                    {
+                        if argument.placement.shape
+                            != body
+                                .scalar_parameters
+                                .iter()
+                                .find(|parameter| parameter.value == source.source_value())
+                                .ok_or_else(invalid)?
+                                .placement
+                                .shape
+                        {
+                            return Err(invalid());
+                        }
+                        super::super::entry_register_spills::parameter_source(body, target, source)
+                            .ok_or_else(invalid)?
+                    }
                     TargetUnitScalarArgumentSource::Parameter {
                         parameter_index,
                         source_value,

@@ -7,6 +7,7 @@
 mod continuation;
 mod dynamic;
 mod dynamic_argument;
+mod entry_register_spills;
 mod foreign_call;
 mod installed_provider;
 mod operation;
@@ -29,10 +30,11 @@ pub(super) fn assign(
     let TargetOperation::UnitBody(body) = operation else {
         unreachable!("Unit assignment receives a Unit body");
     };
-    continuation::validate(body, function)?;
+    continuation::validate(body, function, target)?;
     let mut assigned_scalar_homes = BTreeMap::new();
     let mut assigned_structural_homes = BTreeMap::new();
     let mut next_frame_home = scalar_call::unit_scalar_home_start(body, target)?;
+    let entry_register_spills = entry_register_spills::assign(body, target, &mut next_frame_home)?;
     let mut operations = Vec::with_capacity(body.operations.len());
     for (operation_index, operation) in body.operations.iter().enumerate() {
         let native_callback = match operation {
@@ -61,6 +63,7 @@ pub(super) fn assign(
         structural_types: body.structural_types.clone(),
         call_plan: body.call_plan.clone(),
         scalar_parameters: body.scalar_parameters.clone(),
+        entry_register_spills,
         parameters: body.parameters.clone(),
         operations,
     }))

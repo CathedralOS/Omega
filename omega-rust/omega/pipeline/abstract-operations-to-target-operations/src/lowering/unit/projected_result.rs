@@ -110,7 +110,7 @@ pub(super) fn validate_cleanup(
         .find(|parameter| parameter.place == input.place)?;
     let (home, placement) = source(operations, result.place)?;
     if consumers.is_empty()
-        || !function.parameters.is_empty()
+        || (!function.parameters.is_empty() && !super::continuation::has_shape(function))
         || !function.entry_claims.is_empty()
         || !function.published_service_ceiling.is_empty()
         || authored_parameter.place != parameter.place

@@ -6,6 +6,7 @@
 //! emits relocations or executable bytes.
 
 mod packed_fragment;
+pub(crate) mod parameter_staging;
 mod projected_copy;
 pub(crate) mod result_home;
 
@@ -1211,10 +1212,12 @@ fn validate_mixed_argument_bytes_and_order(
                 function_stack.frame_bytes,
                 &function.unit_parameter_homes,
                 &function.unit_scalar_homes,
+                function.unit_scalar_abi.as_ref(),
                 function
                     .unit_stack
                     .and_then(|stack| stack.aarch64_return_link)
                     .map(|link| link.frame_byte_offset),
+                !function.unit_continuations.is_empty(),
             )
         {
             return Err(invalid());

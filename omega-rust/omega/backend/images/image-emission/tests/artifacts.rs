@@ -2377,7 +2377,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "fb9188ca6bc74023ff224e4205d63a98748c3631aeccaad3bc54e3ab19cc4da2"
+        "24c7ff8f027b57b446458aa99ab8b885719bc82587caaf68fca8c5e6ada49b64"
     );
     // Format 82 adds an explicit continuation count to every function row,
     // including these empty rosters. Changing only the header is not a

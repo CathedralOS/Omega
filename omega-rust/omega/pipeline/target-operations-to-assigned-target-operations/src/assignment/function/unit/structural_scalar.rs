@@ -315,6 +315,9 @@ pub(super) fn assign_call(
                 preceding_operations,
                 assigned_scalar_homes,
             )
+            .or_else(|| {
+                super::entry_register_spills::parameter_source(body, target, argument.source)
+            })
             .ok_or_else(invalid)?;
             Ok(AssignedUnitScalarCallArgument {
                 parameter_index: argument.parameter_index,

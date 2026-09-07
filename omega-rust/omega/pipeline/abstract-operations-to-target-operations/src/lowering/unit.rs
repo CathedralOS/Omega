@@ -13,6 +13,7 @@ mod preflight;
 mod projected_argument;
 mod projected_result;
 mod return_unit;
+mod scalar_bindings;
 mod scalar_call;
 mod scalar_definitions;
 mod setup;

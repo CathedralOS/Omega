@@ -10,6 +10,15 @@ pub(super) struct PreparedUnitFunction {
     pub(super) parameters: Vec<TargetStructuralParameter>,
 }
 
+pub(super) fn parameters_by_place(
+    parameters: &[TargetStructuralParameter],
+) -> BTreeMap<PlaceId, &TargetStructuralParameter> {
+    parameters
+        .iter()
+        .map(|parameter| (parameter.place, parameter))
+        .collect()
+}
+
 pub(super) fn prepare_unit_function(
     function: &AbstractFunction,
     target: NativeTarget,

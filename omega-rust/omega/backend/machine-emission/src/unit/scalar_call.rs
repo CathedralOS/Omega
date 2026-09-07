@@ -35,6 +35,7 @@ pub(super) fn emit_unit_scalar_call(
     arguments: &[AssignedUnitScalarCallArgument],
     transport: &UnitScalarTransportPlan,
     caller_parameters: &[target_operations::ScalarAbiValue],
+    entry_register_spills: &[assigned_target_operations::EntryRegisterSpill],
     frame_bytes: u32,
     preceding_operations: &[AssignedUnitOperation],
     operation_ordinal: usize,
@@ -76,6 +77,7 @@ pub(super) fn emit_unit_scalar_call(
             arguments,
             transport,
             caller_parameters,
+            entry_register_spills,
             frame_bytes,
             preceding_operations,
             internal_calls,
@@ -89,6 +91,7 @@ pub(super) fn emit_unit_scalar_call(
             arguments,
             transport,
             caller_parameters,
+            entry_register_spills,
             frame_bytes,
             preceding_operations,
             internal_calls,
@@ -117,6 +120,7 @@ fn emit_x86_64_unit_scalar_call(
     arguments: &[AssignedUnitScalarCallArgument],
     transport: &UnitScalarTransportPlan,
     caller_parameters: &[target_operations::ScalarAbiValue],
+    entry_register_spills: &[assigned_target_operations::EntryRegisterSpill],
     frame_bytes: u32,
     preceding_operations: &[AssignedUnitOperation],
     internal_calls: &mut Vec<InternalCallRelocation>,
@@ -153,6 +157,7 @@ fn emit_x86_64_unit_scalar_call(
             argument,
             call_plan,
             caller_parameters,
+            entry_register_spills,
             preceding_operations,
         )?;
         let code_offset = bytes.len();
@@ -216,6 +221,7 @@ fn emit_aarch64_unit_scalar_call(
     arguments: &[AssignedUnitScalarCallArgument],
     transport: &UnitScalarTransportPlan,
     caller_parameters: &[target_operations::ScalarAbiValue],
+    entry_register_spills: &[assigned_target_operations::EntryRegisterSpill],
     frame_bytes: u32,
     preceding_operations: &[AssignedUnitOperation],
     internal_calls: &mut Vec<InternalCallRelocation>,
@@ -243,6 +249,7 @@ fn emit_aarch64_unit_scalar_call(
             argument,
             call_plan,
             caller_parameters,
+            entry_register_spills,
             preceding_operations,
         )?;
         let code_offset = bytes.len();
@@ -302,6 +309,7 @@ pub(super) fn validate_unit_scalar_argument(
     argument: &AssignedUnitScalarCallArgument,
     call_plan: &calling_conventions::CallPlan,
     caller_parameters: &[target_operations::ScalarAbiValue],
+    entry_register_spills: &[assigned_target_operations::EntryRegisterSpill],
     preceding_operations: &[AssignedUnitOperation],
 ) -> Result<(), EmissionError> {
     let Some(placement) = call_plan.parameters.get(parameter_index) else {
@@ -336,9 +344,16 @@ pub(super) fn validate_unit_scalar_argument(
                     value_byte_offset: 0,
                     byte_size,
                 },
-            ] if *byte_size == parameter.placement.shape.byte_size => {
-                assigned_target_operations::AssignedScalarLocation::Register(*register)
-            }
+            ] if *byte_size == parameter.placement.shape.byte_size => entry_register_spills
+                .iter()
+                .find(|spill| spill.parameter_index == index)
+                .filter(|spill| spill.source_value == source_value && spill.register == *register)
+                .map_or(
+                    assigned_target_operations::AssignedScalarLocation::Register(*register),
+                    |spill| assigned_target_operations::AssignedScalarLocation::FrameSpill {
+                        byte_offset: spill.byte_offset,
+                    },
+                ),
             [
                 ValueLocation::Stack {
                     stack_byte_offset,
@@ -473,8 +488,8 @@ pub(super) fn unit_scalar_argument_source_record(
                 assigned_target_operations::AssignedScalarLocation::IncomingStack {
                     byte_offset,
                 } => machine_code::UnitScalarParameterLocationRecord::IncomingStack { byte_offset },
-                assigned_target_operations::AssignedScalarLocation::FrameSpill { .. } => {
-                    unreachable!()
+                assigned_target_operations::AssignedScalarLocation::FrameSpill { byte_offset } => {
+                    machine_code::UnitScalarParameterLocationRecord::FrameSpill { byte_offset }
                 }
             },
         }),
@@ -692,8 +707,11 @@ pub(super) fn emit_x86_64_unit_scalar_argument(
                     byte_size,
                 )?;
             }
-            assigned_target_operations::AssignedScalarLocation::FrameSpill { .. } => {
-                return Err(EmissionError::UnsupportedUnitScalarType(source_value));
+            assigned_target_operations::AssignedScalarLocation::FrameSpill { byte_offset } => {
+                let offset = call_stack_bytes
+                    .checked_add(byte_offset)
+                    .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+                emit_x86_64_stack_load_width(bytes, destination_register, offset, 8)?;
             }
         },
         AssignedUnitScalarArgumentSource::IntegerImmediate {
@@ -778,8 +796,16 @@ pub(super) fn emit_aarch64_unit_scalar_argument(
                     byte_size,
                 )?);
             }
-            assigned_target_operations::AssignedScalarLocation::FrameSpill { .. } => {
-                return Err(EmissionError::UnsupportedUnitScalarType(source_value));
+            assigned_target_operations::AssignedScalarLocation::FrameSpill { byte_offset } => {
+                let offset = call_stack_bytes
+                    .checked_add(byte_offset)
+                    .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+                instructions.push(aarch64_unit_stack_access(
+                    aarch64_load_base(8)?,
+                    destination_register,
+                    offset,
+                    8,
+                )?);
             }
         },
         AssignedUnitScalarArgumentSource::IntegerImmediate {

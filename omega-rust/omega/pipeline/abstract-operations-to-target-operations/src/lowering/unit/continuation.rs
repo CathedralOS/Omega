@@ -13,11 +13,13 @@ pub(super) fn lower(
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     provenance: &mut TerminalPsiProvenance,
+    scalar_aliases: &mut BTreeMap<ValueId, ValueId>,
 ) -> Result<(), LoweringError> {
     let AbstractOperation::Jump {
         psi_edge,
         target,
         residual_affine_discards,
+        bindings,
         ..
     } = operation
     else {
@@ -36,6 +38,7 @@ pub(super) fn lower(
         psi_edge: *psi_edge,
         source_block,
         target_block: *target,
+        bindings: bindings.clone(),
         cleanup_actions: residual_affine_discards
             .iter()
             .cloned()
@@ -54,12 +57,21 @@ pub(super) fn lower(
         edge: *psi_edge,
     })?;
     provenance.edges.push(*psi_edge);
+    super::scalar_bindings::bind(function, *target, bindings, scalar_aliases).ok_or(
+        LoweringError::UnsupportedPartialAffineContinuation {
+            machine: function.machine,
+            edge: *psi_edge,
+        },
+    )?;
     Ok(())
 }
 
 pub(crate) fn has_shape(function: &AbstractFunction) -> bool {
     if function.result != AbstractFunctionResult::Unit
-        || !function.parameters.is_empty()
+        || function
+            .parameters
+            .iter()
+            .any(|parameter| !super::scalar_bindings::supported(parameter.scalar_type))
         || !function.entry_claims.is_empty()
         || !function.published_service_ceiling.is_empty()
         || function.block_entries.len() < 2
@@ -72,8 +84,17 @@ pub(crate) fn has_shape(function: &AbstractFunction) -> bool {
     }
     let mut blocks = BTreeSet::new();
     let mut edges = BTreeSet::new();
+    let mut aliases = function
+        .parameters
+        .iter()
+        .map(|parameter| (parameter.value, parameter.value))
+        .collect::<BTreeMap<_, _>>();
     for (position, entry) in function.block_entries.iter().enumerate() {
-        if !blocks.insert(entry.block) || !entry.parameters.is_empty() {
+        if !blocks.insert(entry.block)
+            || (position == 0
+                && !entry.parameters.is_empty()
+                && entry.parameters != function.parameters)
+        {
             return false;
         }
         let end = function
@@ -105,7 +126,8 @@ pub(crate) fn has_shape(function: &AbstractFunction) -> bool {
                 },
                 Some(next),
             ) if *target == next.block
-                && bindings.is_empty()
+                && super::scalar_bindings::bind(function, *target, bindings, &mut aliases)
+                    .is_some()
                 && trivial_affine_discards.is_empty()
                 && edges.insert(*psi_edge) => {}
             (AbstractOperation::ReturnUnit { psi_edge, .. }, None) if edges.insert(*psi_edge) => {}
@@ -171,7 +193,6 @@ pub(super) fn live_roots(
             } => {
                 if arguments.is_empty() {
                     if segment_start.is_some()
-                        || !scalar_arguments.is_empty()
                         || !claim_transfers.is_empty()
                         || !requirement_obligations.is_empty()
                         || !crash_continuations.is_empty()
@@ -179,6 +200,9 @@ pub(super) fn live_roots(
                         return None;
                     }
                     continue;
+                }
+                if !scalar_arguments.is_empty() {
+                    return None;
                 }
                 let [argument] = arguments.as_slice() else {
                     return None;
@@ -197,6 +221,7 @@ pub(super) fn live_roots(
                 source_block,
                 target_block,
                 cleanup_actions,
+                ..
             } => {
                 if source_block == target_block
                     || !edges.insert(*psi_edge)

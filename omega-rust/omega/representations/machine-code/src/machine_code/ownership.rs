@@ -29,6 +29,7 @@ pub struct UnitContinuationRecord {
     pub successor_operation_ordinal: usize,
     pub source_block: BlockId,
     pub target_block: BlockId,
+    pub bindings: Vec<abstract_operations::ValueBinding>,
     /// Exact zero-byte cleanup boundary before the successor's first operation.
     /// Final return cleanup remains a separate record.
     pub cleanup: UnitAffineCleanupRecord,

@@ -77,6 +77,7 @@ fn assigned_direct_plan(target: NativeTarget) -> AssignedOperationPlan {
                 mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance::default(),
                 operation: AssignedOperation::UnitBody(AssignedUnitBody {
+                    entry_register_spills: Vec::new(),
                     structural_types: vec![
                         StructuralTypeDeclaration {
                             id: root_type,

@@ -43,10 +43,7 @@ pub(super) fn lower_unit_body(
     scalar_parameters: &[ScalarAbiValue],
     parameters: &[TargetStructuralParameter],
 ) -> Result<LoweredUnitBody, LoweringError> {
-    let parameters_by_place = parameters
-        .iter()
-        .map(|parameter| (parameter.place, parameter))
-        .collect::<BTreeMap<_, _>>();
+    let parameters_by_place = super::setup::parameters_by_place(parameters);
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
     let mut operations = Vec::with_capacity(function.operations.len());
@@ -85,6 +82,7 @@ pub(super) fn lower_unit_body(
         })
         .collect::<Result<BTreeMap<ValueId, KnownUnitInteger>, LoweringError>>()?;
     let mut nonreturning_boundary = false;
+    let mut scalar_aliases = super::scalar_bindings::initial(function);
 
     for (operation_index, operation) in function.operations.iter().enumerate() {
         if returned {
@@ -101,6 +99,7 @@ pub(super) fn lower_unit_body(
                     structural_types,
                     functions,
                     &mut provenance,
+                    &mut scalar_aliases,
                 )?
             }
             AbstractOperation::DynamicDescriptorParameter { .. } => {}
@@ -300,6 +299,7 @@ pub(super) fn lower_unit_body(
                 &parameters_by_place,
                 &established_affine_local_sources,
                 &scalar_values,
+                &scalar_aliases,
                 &boolean_constants,
                 &mut shape_cache,
                 &mut active,

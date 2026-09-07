@@ -493,10 +493,12 @@ pub(super) fn assign(
             source_block,
             target_block,
             cleanup_actions,
+            bindings,
         } => AssignedUnitOperation::Continue {
             psi_edge: *psi_edge,
             source_block: *source_block,
             target_block: *target_block,
+            bindings: bindings.clone(),
             cleanup_actions: cleanup_actions.clone(),
         },
         TargetUnitOperation::Return {

@@ -10,27 +10,31 @@ use terminal_psi::{
 };
 
 /// Select this source family without trusting the supplied target carrier.
-/// Scalar bindings and other Unit control families retain their own validators.
+/// Other Unit control families retain their own validators.
 pub(super) fn is_candidate(source: &AbstractFunction) -> bool {
     source.result == AbstractFunctionResult::Unit
-        && source.parameters.is_empty()
-        && source.block_entries.len() > 1
         && source
-            .block_entries
+            .parameters
             .iter()
-            .all(|entry| entry.parameters.is_empty())
+            .all(|parameter| super::unit_continuation_scalars::supported(parameter.scalar_type))
+        && source.block_entries.len() > 1
+        && source.block_entries.iter().all(|entry| {
+            entry
+                .parameters
+                .iter()
+                .all(|parameter| super::unit_continuation_scalars::supported(parameter.scalar_type))
+        })
         && source
             .operations
             .iter()
             .any(|operation| matches!(operation, AbstractOperation::Jump { .. }))
         && source.operations.iter().all(|operation| match operation {
-            AbstractOperation::CallUnit { arguments, .. }
-            | AbstractOperation::CallStructural { arguments, .. } => arguments.is_empty(),
+            AbstractOperation::CallUnit { .. } => true,
+            AbstractOperation::CallStructural { arguments, .. } => arguments.is_empty(),
             AbstractOperation::Jump {
-                bindings,
                 trivial_affine_discards,
                 ..
-            } => bindings.is_empty() && trivial_affine_discards.is_empty(),
+            } => trivial_affine_discards.is_empty(),
             AbstractOperation::ReturnUnit { .. } => true,
             _ => false,
         })
@@ -45,8 +49,6 @@ pub(super) fn validate(
         return None;
     };
     if source.result != AbstractFunctionResult::Unit
-        || !source.parameters.is_empty()
-        || !body.scalar_parameters.is_empty()
         || !source.entry_claims.is_empty()
         || !source.published_service_ceiling.is_empty()
         || source.operations.len() != body.operations.len()
@@ -58,6 +60,7 @@ pub(super) fn validate(
     {
         return None;
     }
+    let mut scalar_aliases = super::unit_continuation_scalars::initial(source, body)?;
     let types = declarations
         .iter()
         .map(|declaration| (declaration.id, declaration))
@@ -79,7 +82,11 @@ pub(super) fn validate(
     let mut edges = Vec::new();
     let mut operation_ids = Vec::new();
     for (block_position, entry) in source.block_entries.iter().enumerate() {
-        if !entry.parameters.is_empty() || !blocks.insert(entry.block) {
+        if !blocks.insert(entry.block)
+            || (block_position == 0
+                && !entry.parameters.is_empty()
+                && entry.parameters != source.parameters)
+        {
             return None;
         }
         let next = source.block_entries.get(block_position + 1);
@@ -183,8 +190,6 @@ pub(super) fn validate(
                 ) if !is_last => {
                     if psi_operation != actual_operation
                         || callee != actual_callee
-                        || !arguments.is_empty()
-                        || !scalar_arguments.is_empty()
                         || !claim_transfers.is_empty()
                         || !requirement_obligations.is_empty()
                         || !crash_continuations.is_empty()
@@ -192,9 +197,18 @@ pub(super) fn validate(
                     {
                         return None;
                     }
+                    super::unit_continuation_scalars::arguments(
+                        arguments,
+                        scalar_arguments,
+                        &scalar_aliases,
+                        body,
+                    )?;
                     match (structural_arguments.as_slice(), actual_arguments.as_slice()) {
                         ([], []) if partial_root.is_none() => {}
                         ([argument], [actual]) => {
+                            if !arguments.is_empty() {
+                                return None;
+                            }
                             let (_, root_type) =
                                 live.iter().find(|(place, _)| *place == argument.place)?;
                             if argument.access != StructuralAccess::Owned
@@ -228,13 +242,15 @@ pub(super) fn validate(
                         source_block,
                         target_block,
                         cleanup_actions,
+                        bindings: actual_bindings,
                     },
                 ) if is_last => {
-                    if next?.block != *successor || !bindings.is_empty() || !trivial_affine_discards.is_empty()
+                    if next?.block != *successor || bindings != actual_bindings || !trivial_affine_discards.is_empty()
                         || psi_edge != actual_edge || *source_block != entry.block || successor != target_block
                         || edges.contains(psi_edge) || cleanup_actions.len() != residual_affine_discards.len()
                         || !cleanup_actions.iter().zip(residual_affine_discards).all(|(action, discard)|
                             matches!(action, TerminalAffineCleanupAction::DiscardResidual(actual) if actual == discard)) { return None; }
+                    super::unit_continuation_scalars::bind(next?, bindings, &mut scalar_aliases)?;
                     if let Some((root, root_type)) = partial_root.take() {
                         let expected =
                             crate::affine_cleanup_partition::expected_maximal_residual_subtrees(
