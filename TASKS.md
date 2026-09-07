@@ -169,14 +169,24 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   without changing the independent native-lowering requirements. The inner sample
   harness bypasses this policy route; independent writer work remains actionable.
 
-  The downstream native `cli_mvp` probe at `6773132220` remains red after ranked graph admission.
-  On macOS ARM64, `CARGO_INCREMENTAL=0 OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
+  A fresh macOS CLI recheck at `25dba13583`, using the command above with
+  `--build-dir build/cli-mvp-call-owner`, was interrupted after 90.29 seconds
+  (11.99 seconds building Rust), before review/native diagnostics. A one-second
+  host stack sample places active work in preliminary package validation's
+  `arithmetic_domains/guard_narrowing/arrivals.rs` incoming environments and
+  requirement-owner checks. Profile and eliminate redundant guard replay there;
+  preserve identical checks and rejection behavior. Acceptance: the unchanged
+  CLI reaches its next real diagnostic promptly, with before/after timings.
+
+  The downstream native `cli_mvp` probe at `6a72c58124` remains red.
+  On macOS ARM64, `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
   samples_with_documented_exit_run_correctly --no-fail-fast` exits 100 before
-  execution: `call source custody disagrees with its authored caller or target`.
-  Locate the disagreeing call and reconcile its exact authored and selected
-  identities in `checked-trees-to-lowered-psi/src/call_source_custody/authored.rs`
-  and the owning checked call plan; do not relax the identity check. Complete the
+  execution: `InvalidStructuralArgumentPath { operation: OperationId(5), argument_index: 0 }`.
+  Trace that exact argument through `terminal-verifier/src/validation/structural_operations.rs`
+  and its checked/lowered structural operand; preserve source and type custody.
+  Terminal production retains authored boundary calls; native provider selection
+  owns adapter realization, independently of interpreter dispatch. Complete the
   [borrowed-byte writer closure](wiki/architecture/pipeline/terminal_psi.md#borrowed-byte-writer-composition)
   in `typed-trees-to-checked-trees/src/flow/terminal_unit/` and
   `checked-trees-to-lowered-psi/src/attached_unit/`.
