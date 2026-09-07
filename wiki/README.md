@@ -8,7 +8,8 @@ overrides a current contract.
 - [Language guide](language_guide/language_guide.md): explanations and examples.
 - Specification: [Terminal product](spec/terminal-psi/product.md),
   [boundary calls and realization](spec/terminal-psi/boundary_calls.md), and
-  [immutable byte views](spec/terminal-psi/byte_views.md).
+  [immutable byte views](spec/terminal-psi/byte_views.md), and
+  [observations](spec/terminal-psi/observations.md).
 - Proposals: substantive designs will move to `proposals/`; the
   [owner-question inbox](../OWNER_QUESTIONS.md) holds unresolved decisions.
 - [Work plan](work/documentation_cleanup.md) and [execution board](../TASKS.md):
@@ -17,12 +18,12 @@ overrides a current contract.
 ## Subjects still awaiting consolidation
 
 These remain the current references for their unmigrated subjects, not competing
-owners of the three Terminal subjects listed above:
+owners of the migrated Terminal subjects listed above:
 
 - The [guide](language_guide/language_guide.md) still carries language rules
   awaiting extraction into the specification.
 - [Terminal vocabulary and verification](architecture/pipeline/terminal_psi.md)
-  retains the remaining operation, proof, encoding, and observation contracts.
+  retains the remaining operation, proof, encoding, and accounting contracts.
 - [Fuel and provisioning](design_briefs/canonical_ir_fuel_and_resource_provisioning.md),
   [build/package behavior](design_briefs/build_and_package_model.md), and
   [calling plans](design_briefs/calling_plans.md) retain their respective contracts.

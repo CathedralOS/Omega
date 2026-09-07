@@ -40,4 +40,41 @@ displaced. Await an owner decision; a task or prototype is not approval.
 
 Last pruned: 2026-09-07.
 
-No open owner questions.
+## Q1 — Terminal external-completion declarations
+
+### Context
+
+The [Terminal observation contract](wiki/spec/terminal-psi/observations.md#successful-external-termination-source-form-undetermined)
+distinguishes successful external termination from return, crash, and divergence.
+`never` cannot make that distinction. The current Unit `exit_process` boundary
+and a provider-selected nonreturning syscall do not establish the source fact.
+CLI process exit is the concrete customer: its verified trace must retain the
+declared completion and exact arguments, independent of selected target code.
+
+### Problem
+
+Which authored boundary declaration states external completion, and who owns
+and resolves its stable effect identity? The old Terminal reference explicitly
+left these rules design-blocked but had no corresponding open owner question.
+The trace semantics and requirement for an explicit checked completion are not
+being reopened.
+
+### Proposed direction, not yet adopted
+
+Declare completion on the boundary requirement, carry it through checking into
+a closed Terminal terminal-transfer form, and derive its public effect identity
+from the exact canonical requirement rather than a second free-form name.
+Provider selection must preserve it. Settle the authored annotation and whether
+requirement identity alone distinguishes every required completion before
+implementing the route.
+
+### Alternatives
+
+An explicitly declared, separately named effect identity is viable if a concrete
+case needs several requirements to denote one terminal effect; its ownership and
+resolution rules would also need specification. Inferring completion from the
+name `exit_process`, a `never` result, a provider name, or a syscall is wrong:
+each loses the source-semantic distinction the observer must verify.
+
+Until answered, the specification marks the source form and identity ownership
+undetermined, and terminal-external rows remain unsupported rather than guessed.

@@ -3,7 +3,8 @@
 This is the current portable-product contract, independent of the implementation
 language. The [remaining vocabulary reference](../../architecture/pipeline/terminal_psi.md)
 still owns operation and verification details not yet consolidated here.
-[Boundary calls](boundary_calls.md) and [byte views](byte_views.md) have their
+[Boundary calls](boundary_calls.md), [byte views](byte_views.md), and
+[observations](observations.md) have their
 own subject references. Implementation coverage is not implied by a specified
 contract; unfinished integration belongs on the [execution board](../../../TASKS.md).
 
