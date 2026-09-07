@@ -56,20 +56,11 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
     }
 }
 impl StagedOptimizedVerifiedPhysicalPipeline {
-    pub fn function_relative_layout_mut_for_test(
+    pub fn fixed_frame_mut_for_test(
         &mut self,
-    ) -> Option<&mut machine_emission::StagedFunctionRelativeLayoutOptimizationRealization> {
+    ) -> Option<&mut machine_emission::StagedFixedFrameFunctionRelativeRealization> {
         match self.source.replay_mut() {
-            FunctionFragmentReplayInputs::X86Rel8Direct(realization) => Some(realization),
-            _ => None,
-        }
-    }
-
-    pub fn into_function_relative_layout_for_test(
-        self,
-    ) -> Option<machine_emission::StagedFunctionRelativeLayoutOptimizationRealization> {
-        match self.source.into_replay_for_test() {
-            FunctionFragmentReplayInputs::X86Rel8Direct(realization) => Some(*realization),
+            FunctionFragmentReplayInputs::FixedFrame(realization) => Some(realization),
             _ => None,
         }
     }

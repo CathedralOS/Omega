@@ -150,6 +150,12 @@ impl StagedOptimizedFixedFrameTextSection {
         self.custody.frame_application =
             FunctionFragmentFrameApplicationIdentity::from_bytes([0xa5; 32]);
     }
+
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn corrupt_custody_manifest_for_test(&mut self) {
+        self.custody.manifest =
+            FunctionFragmentTextSectionManifestIdentity::from_canonical_bytes(b"corrupt");
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -4,8 +4,7 @@ use optimization_core::{Optimization, OptimizationExecutionPhase};
 use crate::{
     AllocationReplayError, OptimizedAllocationLegalityCustodyError,
     OptimizedPostSelectedLoweringHomeCustodyError, OptimizedRegisterHomeCustodyError,
-    RetainedAllocation, stage_optimized_allocation_legality,
-    stage_optimized_allocation_legality_for_frameless_leaf, stage_optimized_register_homes,
+    RetainedAllocation, stage_optimized_allocation_legality, stage_optimized_register_homes,
     stage_optimized_register_homes_after_selected_lowering,
 };
 
@@ -49,18 +48,8 @@ pub fn stage_register_allocation(
             _ => Err(RegisterAllocationError::UnsupportedComposition),
         };
     }
-    // Function-relative branch relaxation currently admits a frameless
-    // leaf. That allocation contract belongs here, not in a second
-    // compiler-owned allocator invocation selected by the layout route.
-    let frameless = !selections
-        .for_phase(OptimizationExecutionPhase::FunctionRelativeLayout)
-        .is_empty();
-    let legality = if frameless {
-        stage_optimized_allocation_legality_for_frameless_leaf(ranges)
-    } else {
-        stage_optimized_allocation_legality(ranges)
-    }
-    .map_err(RegisterAllocationError::Legality)?;
+    let legality =
+        stage_optimized_allocation_legality(ranges).map_err(RegisterAllocationError::Legality)?;
     let homes = stage_optimized_register_homes(legality).map_err(RegisterAllocationError::Homes)?;
     RetainedAllocation::try_from(homes).map_err(RegisterAllocationError::Replay)
 }

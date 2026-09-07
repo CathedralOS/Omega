@@ -449,7 +449,7 @@ fn text_publication_records_and_codec_belong_to_the_representation() {
         assert!(data.contains(declaration));
     }
     let codec = rust_source(&representation.with_extension(""));
-    assert!(codec.contains("const MANIFEST_VERSION: u32 = 12;"));
+    assert!(codec.contains("const MANIFEST_VERSION: u32 = 13;"));
     for forbidden in [
         "native_realization::",
         "machine_emission::",
@@ -1141,8 +1141,8 @@ fn fragment_publication_data_and_codec_do_not_depend_on_admission() {
         );
     }
     let codec = rust_source(&representation.with_extension(""));
-    assert!(codec.contains("omega.function-fragment-emission-manifest.v11"));
-    assert!(!coordinator.contains("omega.function-fragment-emission-manifest.v11"));
+    assert!(codec.contains("omega.function-fragment-emission-manifest.v12"));
+    assert!(!coordinator.contains("omega.function-fragment-emission-manifest.v12"));
     assert!(!pipeline.join("manifest.rs").exists());
     assert!(!pipeline.join("statistics.rs").exists());
     for forbidden in [
@@ -1181,8 +1181,8 @@ fn applied_frame_data_and_target_mechanics_have_separate_owners() {
         assert!(data.contains(&declaration), "missing representation {name}");
         assert!(!pipeline.contains(&declaration), "pipeline owns {name}");
     }
-    assert!(data.contains("omega.function-fragment-frame-application.v2"));
-    assert!(!pipeline.contains("omega.function-fragment-frame-application.v2"));
+    assert!(data.contains("omega.function-fragment-frame-application.v3"));
+    assert!(!pipeline.contains("omega.function-fragment-frame-application.v3"));
     let coordinator = root
         .join("omega-rust/omega/backend/machine-emission/src/fragment_emission/frame_application");
     for retired in [
@@ -1468,7 +1468,7 @@ fn allocation_has_one_phase_owner_and_machine_consumers_ignore_history() {
 }
 
 #[test]
-fn fixed_frame_consumes_current_allocation_and_retains_baseline_receipt_role() {
+fn fixed_frame_consumes_current_allocation_and_retains_exact_receipt_role() {
     let root =
         repository().join("omega-rust/omega/backend/machine-emission/src/function_realization");
     let route = std::fs::read_to_string(root.join("routes/fixed_frame.rs")).unwrap();
@@ -1476,8 +1476,10 @@ fn fixed_frame_consumes_current_allocation_and_retains_baseline_receipt_role() {
     let compact_route = route.split_whitespace().collect::<String>();
     assert!(compact_route.contains("staged.allocation.replay_allocation()"));
     let assembly = std::fs::read_to_string(root.join("assembly/fixed_frame.rs")).unwrap();
-    let roles = std::fs::read_to_string(root.join("assembly/allocation.rs")).unwrap();
-    assert!(roles.contains("AllocationEvidence::RegisterHomes(source) => Ok(*source)"));
+    assert!(route.contains("let source = current.evidence().clone()"));
+    assert!(assembly.contains("AllocationEvidence::RegisterHomes(_)"));
+    assert!(assembly.contains("AllocationEvidence::FixedViewCopies(receipt)"));
+    assert!(assembly.contains("AllocationEvidence::ActiveResidentRematerialization(receipt)"));
     for source in [&route, &assembly] {
         for forbidden in [
             "legality_stage()",
@@ -1553,9 +1555,10 @@ fn unit_realization_and_identity_routing_consume_current_allocation() {
             );
         }
     }
-    let route =
-        std::fs::read_to_string(root.join("native_pipeline/physical_pipeline/routes/identity.rs"))
-            .unwrap();
+    let route = std::fs::read_to_string(
+        root.join("native_pipeline/physical_pipeline/routes/current_allocation.rs"),
+    )
+    .unwrap();
     assert!(route.contains("allocation: RetainedAllocation"));
     assert!(!route.contains("RetainedAllocation::try_from("));
     assert!(!route.contains("stage_register_allocation("));
@@ -1644,7 +1647,7 @@ fn physical_coordination_shares_selection_and_does_not_fork_machine_rules_by_his
             .count(),
         1
     );
-    for route in ["routes/identity.rs", "routes/selected_phases.rs"] {
+    for route in ["routes/current_allocation.rs", "routes/selected_phases.rs"] {
         let source = std::fs::read_to_string(root.join(route)).unwrap();
         assert!(!source.contains("::stage_optimized_instruction_selection("));
         assert!(!source.contains("stage_optimized_liveness("));
@@ -1688,7 +1691,7 @@ fn physical_coordination_shares_selection_and_does_not_fork_machine_rules_by_his
     let selected_source = rust_source(&selected_stage.join("src"));
     assert!(selected_source.contains("run_selected_lowering_optimizations(legality)"));
     assert!(!selected_source.contains("pub fn assign_register_homes("));
-    let realization = std::fs::read_to_string(root.join("routes/identity.rs")).unwrap();
+    let realization = std::fs::read_to_string(root.join("routes/current_allocation.rs")).unwrap();
     assert_eq!(
         entrance
             .matches("::stage_optimized_post_allocation_machine_plan(")

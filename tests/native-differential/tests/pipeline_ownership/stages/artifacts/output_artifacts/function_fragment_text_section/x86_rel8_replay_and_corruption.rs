@@ -22,19 +22,20 @@ fn relocation_free_rel8_text_section_replays_bytes_manifest_and_custody() {
     )
     .unwrap();
     let realization = (physical)
-        .into_function_relative_layout_for_test()
+        .into_fixed_frame_for_test()
         .unwrap_or_else(|| panic!("rel8 must complete its direct function-relative realization"));
     let emitted = stage_optimized_function_fragment_emission(
-        FunctionFragmentReplayInputs::X86Rel8Direct(Box::new(realization)).into(),
+        FunctionFragmentReplayInputs::FixedFrame(Box::new(realization)).into(),
     )
     .unwrap();
-    let source_fragments = emitted.fragments().identity;
-    let source_bytes = emitted.fragments().functions[0].bytes.clone();
-    let mut placed = stage_optimized_relocation_free_text_section(emitted).unwrap();
-    crate::tests::text_placement_checks::direct(&placed);
+    let applied = stage_function_fragment_frame_application(emitted).unwrap();
+    let source_fragments = applied.fragments().identity;
+    let source_bytes = applied.fragments().functions[0].bytes.clone();
+    let mut placed = stage_optimized_fixed_frame_text_section(applied).unwrap();
+    crate::tests::text_placement_checks::fixed(&placed);
 
     assert_eq!(
-        validate_optimized_relocation_free_text_section(&placed).unwrap(),
+        validate_optimized_fixed_frame_text_section(&placed).unwrap(),
         placed.custody()
     );
     let section = placed.text_section();
@@ -66,7 +67,7 @@ fn relocation_free_rel8_text_section_replays_bytes_manifest_and_custody() {
     let record = placed.manifest().record();
     assert_eq!(
         record.source_fragment_manifest,
-        placed.source().manifest().record().identity
+        placed.source().source().manifest().record().identity
     );
     assert_eq!(record.fragments, source_fragments);
     assert_eq!(record.text_section, section.identity);
@@ -111,14 +112,14 @@ fn relocation_free_rel8_text_section_replays_bytes_manifest_and_custody() {
     let corrupted_identity = placed.text_section().recomputed_identity();
     placed.text_section_mut().identity = corrupted_identity;
     assert_eq!(
-        validate_optimized_relocation_free_text_section(&placed),
+        validate_optimized_fixed_frame_text_section(&placed),
         Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch)
     );
     placed.text_section_mut().bytes[0] = original_byte;
     let restored_identity = placed.text_section().recomputed_identity();
     placed.text_section_mut().identity = restored_identity;
     assert_eq!(
-        validate_optimized_relocation_free_text_section(&placed).unwrap(),
+        validate_optimized_fixed_frame_text_section(&placed).unwrap(),
         placed.custody()
     );
 
@@ -127,17 +128,17 @@ fn relocation_free_rel8_text_section_replays_bytes_manifest_and_custody() {
     let corrupted_manifest = placed.manifest().record().recomputed_identity();
     placed.manifest_mut().record_mut().identity = corrupted_manifest;
     assert_eq!(
-        validate_optimized_relocation_free_text_section(&placed),
+        validate_optimized_fixed_frame_text_section(&placed),
         Err(RelocationFreeTextSectionPlacementError::ManifestMismatch)
     );
     *placed.manifest_mut().record_mut() = original_manifest;
     assert_eq!(
-        validate_optimized_relocation_free_text_section(&placed).unwrap(),
+        validate_optimized_fixed_frame_text_section(&placed).unwrap(),
         placed.custody()
     );
     placed.corrupt_custody_manifest_for_test();
     assert_eq!(
-        validate_optimized_relocation_free_text_section(&placed),
+        validate_optimized_fixed_frame_text_section(&placed),
         Err(RelocationFreeTextSectionPlacementError::ReceiptMismatch)
     );
     let current = placed.shared_text_section();

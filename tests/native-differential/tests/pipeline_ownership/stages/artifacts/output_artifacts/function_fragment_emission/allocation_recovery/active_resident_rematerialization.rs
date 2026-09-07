@@ -100,7 +100,7 @@ fn active_resident_rematerialization_emits_relocation_free_fragments_on_both_arc
 
         let record = emitted.manifest().record();
         let encoded = record.encode();
-        assert_eq!(&encoded[8..12], &11_u32.to_le_bytes());
+        assert_eq!(&encoded[8..12], &12_u32.to_le_bytes());
         assert_eq!(encoded[45], 7);
         assert_eq!(
             FunctionFragmentEmissionManifest::decode(&encoded),
@@ -168,7 +168,7 @@ fn active_resident_rematerialization_emits_relocation_free_fragments_on_both_arc
             FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1
         );
         let text_encoded = placed.manifest().record().encode();
-        assert_eq!(&text_encoded[8..12], &12_u32.to_le_bytes());
+        assert_eq!(&text_encoded[8..12], &13_u32.to_le_bytes());
         assert_eq!(text_encoded[44], 2);
         assert_eq!(text_encoded[45], 2);
         assert_eq!(text_encoded[78], 7);

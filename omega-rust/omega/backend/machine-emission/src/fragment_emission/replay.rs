@@ -3,7 +3,6 @@ use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use crate::{
     StagedFixedFrameFunctionRelativeRealization,
-    StagedFunctionRelativeLayoutOptimizationRealization,
     StagedOptimizedStructuralUnitFunctionRelativeRealization,
     StagedOptimizedUnitFunctionRelativeRealization,
     StagedPostAllocationMachineFunctionRelativeRealization,
@@ -14,7 +13,6 @@ use crate::{
 /// Retained inputs for independently replaying the completed realization.
 /// These roles are replay inputs only. Current program data are retained separately.
 pub enum FunctionFragmentReplayInputs {
-    X86Rel8Direct(Box<StagedFunctionRelativeLayoutOptimizationRealization>),
     SelectedLowering(Box<StagedSelectedLoweringFunctionRelativeRealization>),
     PostAllocationMachine(Box<StagedPostAllocationMachineFunctionRelativeRealization>),
     UnitBaseline(Box<StagedOptimizedUnitFunctionRelativeRealization>),
@@ -25,7 +23,6 @@ pub enum FunctionFragmentReplayInputs {
 impl FunctionFragmentReplayInputs {
     fn allocation(&self) -> &selected_instructions_to_register_homes::RetainedAllocation {
         match self {
-            Self::X86Rel8Direct(realization) => realization.allocation(),
             Self::SelectedLowering(realization) => realization.allocation(),
             Self::PostAllocationMachine(realization) => realization.allocation(),
             Self::UnitBaseline(realization) => realization.allocation(),
@@ -36,7 +33,6 @@ impl FunctionFragmentReplayInputs {
 
     pub fn source_kind(&self) -> FunctionFragmentEmissionSourceKind {
         match self {
-            Self::X86Rel8Direct(_) => FunctionFragmentEmissionSourceKind::X86Rel8V1,
             Self::SelectedLowering(_) => FunctionFragmentEmissionSourceKind::SelectedLoweringV1,
             Self::PostAllocationMachine(realization) => {
                 FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
@@ -59,7 +55,6 @@ impl FunctionFragmentReplayInputs {
             Self::StructuralUnit(realization) => realization.machine(),
             Self::FixedFrame(realization) => realization.machine(),
             Self::PostAllocationMachine(realization) => realization.machine(),
-            Self::X86Rel8Direct(realization) => realization.machine(),
             Self::SelectedLowering(realization) => realization.machine(),
         }
     }
@@ -76,7 +71,6 @@ impl FunctionFragmentReplayInputs {
             Self::StructuralUnit(realization) => realization.layout_optimization(),
             Self::FixedFrame(realization) => realization.layout_optimization(),
             Self::PostAllocationMachine(realization) => realization.layout_optimization(),
-            Self::X86Rel8Direct(realization) => realization.layout_optimization(),
             Self::SelectedLowering(realization) => realization.layout_optimization(),
         }
     }
@@ -135,7 +129,6 @@ impl FunctionFragmentReplayInputs {
 
     pub const fn exit_contract(&self) -> &crate::ValidatedWholeFunctionExitContract {
         match self {
-            Self::X86Rel8Direct(realization) => realization.exit_contract(),
             Self::SelectedLowering(realization) => realization.exit_contract(),
             Self::PostAllocationMachine(realization) => realization.exit_contract(),
             Self::UnitBaseline(realization) => realization.exit_contract(),
@@ -148,7 +141,6 @@ impl FunctionFragmentReplayInputs {
         &self,
     ) -> &crate::ValidatedFunctionRelativeOptimizationRealizationManifest {
         match self {
-            Self::X86Rel8Direct(realization) => realization.manifest(),
             Self::SelectedLowering(realization) => realization.manifest(),
             Self::PostAllocationMachine(realization) => realization.manifest(),
             Self::UnitBaseline(realization) => realization.manifest(),
@@ -186,7 +178,6 @@ impl FunctionFragmentReplayInputs {
     ) -> &post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding
     {
         match self {
-            Self::X86Rel8Direct(realization) => realization.encoding(),
             Self::SelectedLowering(realization) => realization.encoding(),
             Self::PostAllocationMachine(realization) => realization.encoding(),
             Self::UnitBaseline(realization) => realization.encoding(),

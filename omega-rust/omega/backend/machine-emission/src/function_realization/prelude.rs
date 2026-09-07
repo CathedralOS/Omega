@@ -58,12 +58,9 @@ pub(super) use selected_form_encoding_to_resolved_layout::{
     stage_optimized_resolved_selected_form_layout,
     validate_optimized_resolved_selected_form_layout,
 };
+pub(super) use selected_instructions_to_register_homes::StagedOptimizedPostSelectedLoweringHomeCustodyReceipt;
 pub(super) use selected_instructions_to_register_homes::{
     AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedRequirementPolicy,
     ValidatedAllocatedCalleeSavedRequirements, stage_allocated_callee_saved_requirements,
     validate_allocated_callee_saved_requirements,
-};
-pub(super) use selected_instructions_to_register_homes::{
-    StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
-    StagedOptimizedRegisterHomeCustodyReceipt,
 };

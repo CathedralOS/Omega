@@ -90,7 +90,8 @@ fn layout_phase_replays_exact_selection_current_and_evidence() {
     );
     let alternate = super::fixture::alternate_direct_realization();
     let mut substituted_evidence = relaxed.clone();
-    *substituted_evidence.relaxation_mut_for_test().unwrap() = alternate.relaxation().clone();
+    *substituted_evidence.relaxation_mut_for_test().unwrap() =
+        alternate.relaxation().unwrap().clone();
     assert!(replay(&enabled, &substituted_evidence).is_err());
 
     let retained_identity = identity.shared_layout();

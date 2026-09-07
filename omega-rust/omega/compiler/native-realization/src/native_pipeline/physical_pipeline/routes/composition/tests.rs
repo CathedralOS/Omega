@@ -66,7 +66,7 @@ fn expected_pair(
         return ExpectedDisposition::AllocationRecoveryComposition;
     }
     if allocation_recovery == 1 {
-        if selected_lowering + function_relative != 0 {
+        if selected_lowering != 0 {
             return ExpectedDisposition::UnsupportedPhysicalComposition;
         }
         if post_allocation == 1 {
@@ -143,13 +143,27 @@ fn expected_pair(
                 actual: architecture,
             };
         }
+        if allocation_recovery == 1 {
+            let rule = pair
+                .into_iter()
+                .find(|optimization| {
+                    optimization.execution_phase() == OptimizationExecutionPhase::AllocationRecovery
+                })
+                .unwrap();
+            return ExpectedDisposition::Route(
+                ResolvedPhysicalPhaseComposition::AllocationRecovery {
+                    rule,
+                    post_allocation: None,
+                },
+            );
+        }
         if selected_lowering != 0 {
             return ExpectedDisposition::Route(ResolvedPhysicalPhaseComposition::Realization(
                 ResolvedRealizationPlan::SelectedLowering,
             ));
         }
         return ExpectedDisposition::Route(ResolvedPhysicalPhaseComposition::Realization(
-            ResolvedRealizationPlan::FunctionRelativeLayout,
+            ResolvedRealizationPlan::CurrentAllocation,
         ));
     }
 
@@ -171,7 +185,7 @@ fn expected_pair(
         ));
     }
     ExpectedDisposition::Route(ResolvedPhysicalPhaseComposition::Realization(
-        ResolvedRealizationPlan::Identity,
+        ResolvedRealizationPlan::CurrentAllocation,
     ))
 }
 
@@ -256,6 +270,41 @@ fn every_exact_rule_pair_has_a_typed_physical_composition_disposition() {
 
     assert_eq!(cells, 182);
     assert_eq!(accepted + unsupported + wrong_target, cells);
+}
+
+#[test]
+fn recovery_then_layout_uses_current_allocation_but_machine_layout_stays_rejected() {
+    for recovery in [
+        Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
+        Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+    ] {
+        let selections = physical_phases(
+            OptimizationSelections::new([
+                recovery,
+                Optimization::X86RelaxConditionalBranchesToRel8V1,
+            ])
+            .unwrap(),
+        );
+        assert_eq!(
+            resolve_physical_phase_composition(&selections, Architecture::X86_64).unwrap(),
+            ResolvedPhysicalPhaseComposition::AllocationRecovery {
+                rule: recovery,
+                post_allocation: None,
+            }
+        );
+        let selections = physical_phases(
+            OptimizationSelections::new([
+                recovery,
+                Optimization::X86SelectXorZeroI64MaterializationV1,
+                Optimization::X86RelaxConditionalBranchesToRel8V1,
+            ])
+            .unwrap(),
+        );
+        assert!(matches!(
+            resolve_physical_phase_composition(&selections, Architecture::X86_64),
+            Err(OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition)
+        ));
+    }
 }
 
 #[test]

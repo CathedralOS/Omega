@@ -32,13 +32,16 @@ fn relocation_free_rel8_object_container_reconstructs_replays_and_rejects_corrup
     )
     .unwrap();
     let realization = (physical)
-        .into_function_relative_layout_for_test()
+        .into_fixed_frame_for_test()
         .unwrap_or_else(|| panic!("rel8 must complete its direct function-relative realization"));
     let emitted = stage_optimized_function_fragment_emission(
-        FunctionFragmentReplayInputs::X86Rel8Direct(Box::new(realization)).into(),
+        FunctionFragmentReplayInputs::FixedFrame(Box::new(realization)).into(),
     )
     .unwrap();
-    let placed = stage_optimized_relocation_free_text_section(emitted).unwrap();
+    let placed = stage_optimized_fixed_frame_text_section(
+        stage_function_fragment_frame_application(emitted).unwrap(),
+    )
+    .unwrap();
     let mut staged = stage_optimized_relocation_free_object_container(placed).unwrap();
 
     assert_eq!(

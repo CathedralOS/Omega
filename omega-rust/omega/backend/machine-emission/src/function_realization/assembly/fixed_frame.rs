@@ -12,7 +12,8 @@ pub(in crate::function_realization) fn expected_fixed_frame_manifest(
     allocation: &AllocationOutput<'_>,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     encoding: &StagedOptimizedSelectedFormEncoding,
-    layout: &ResolvedMachineLayout,
+    baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
+    layout_optimization: &ResolvedLayoutOptimization,
     frame: &ValidatedTargetFrameLayout,
     protocol: &ValidatedTargetFrameProtocolEncoding,
     exit_contract: &ValidatedWholeFunctionExitContract,
@@ -21,6 +22,23 @@ pub(in crate::function_realization) fn expected_fixed_frame_manifest(
     FunctionRelativeOptimizationRealizationError,
 > {
     let selections = allocation.selections();
+    super::rel8::validate_layout_optimization_manifest_roots(
+        baseline_layout,
+        layout_optimization,
+        selections,
+    )?;
+    let layout = layout_optimization.layout();
+    let relaxation = layout_optimization
+        .relaxation()
+        .map(|relaxation| relaxation.identity());
+    let layout_custody = match relaxation {
+        Some(relaxation) => {
+            machine_code::WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
+                relaxation,
+            }
+        }
+        None => machine_code::WholeFunctionExitLayoutCustody::BaselineNearLayoutV1,
+    };
     let selected_lowering = selections.for_phase(OptimizationExecutionPhase::SelectedLowering);
     let allocation_recovery = selections.for_phase(OptimizationExecutionPhase::AllocationRecovery);
     let post_allocation = selections.for_phase(OptimizationExecutionPhase::PostAllocationMachine);
@@ -51,7 +69,6 @@ pub(in crate::function_realization) fn expected_fixed_frame_manifest(
         .identity;
     if !selected_lowering.is_empty()
         || !post_allocation.is_empty()
-        || !function_relative.is_empty()
         || post.pre_physical != pre_physical
         || post.selected_transformations != expected_transformations
         || post.selected_lowering_completion.is_some()
@@ -60,6 +77,9 @@ pub(in crate::function_realization) fn expected_fixed_frame_manifest(
         || machine.machine().receipt().selected() != selected
         || encoding.selected() != selected
         || encoding.machine() != machine.machine().receipt().identity()
+        || baseline_layout.selected() != selected
+        || baseline_layout.machine() != machine.machine().receipt().identity()
+        || baseline_layout.pre_layout() != encoding.identity()
         || layout.selected() != selected
         || layout.machine() != machine.machine().receipt().identity()
         || layout.pre_layout() != encoding.identity()
@@ -71,6 +91,7 @@ pub(in crate::function_realization) fn expected_fixed_frame_manifest(
             != machine.machine().receipt().identity()
         || exit_contract.contract().pre_layout != encoding.identity()
         || exit_contract.contract().resolved_layout != layout.identity()
+        || exit_contract.contract().layout_custody != layout_custody
         || exit_contract.contract().frame
             != (machine_code::WholeFunctionFrameDisposition::CanonicalFixedFrameV1 {
                 layout: frame.receipt().identity(),
@@ -99,9 +120,9 @@ pub(in crate::function_realization) fn expected_fixed_frame_manifest(
         post_allocation_machine: machine.machine().receipt().identity(),
         baseline_pre_layout: encoding.identity(),
         pre_layout: encoding.identity(),
-        baseline_resolved_layout: layout.identity(),
+        baseline_resolved_layout: baseline_layout.identity(),
         resolved_layout: layout.identity(),
-        x86_branch_relaxation: None,
+        x86_branch_relaxation: relaxation,
         post_allocation_machine_optimization: None,
         whole_function_exit_contract: exit_contract.identity(),
         target: layout.target(),

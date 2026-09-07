@@ -31,15 +31,21 @@ pub(super) fn staged_object_artifact(
         let source = (physical).into_function_fragment_emission_source();
         assert!(matches!(
             source.replay_for_test(),
-            FunctionFragmentReplayInputs::X86Rel8Direct(_)
+            FunctionFragmentReplayInputs::FixedFrame(_)
                 | FunctionFragmentReplayInputs::PostAllocationMachine(_)
                 | FunctionFragmentReplayInputs::SelectedLowering(_)
         ));
         source
     };
     let fragments = stage_optimized_function_fragment_emission(source).unwrap();
-    let text = stage_optimized_relocation_free_text_section(fragments).unwrap();
-    let object = stage_optimized_relocation_free_object_container(text).unwrap();
+    let object = if fragments.source().frame_layout().is_some() {
+        let applied = stage_function_fragment_frame_application(fragments).unwrap();
+        let text = stage_optimized_fixed_frame_text_section(applied).unwrap();
+        stage_optimized_relocation_free_object_container(text).unwrap()
+    } else {
+        let text = stage_optimized_relocation_free_text_section(fragments).unwrap();
+        stage_optimized_relocation_free_object_container(text).unwrap()
+    };
     stage_validated_optimized_object_artifact(canonical_artifact(&semantic, &proof), object)
         .unwrap()
 }

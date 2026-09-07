@@ -2,7 +2,7 @@ use sha2::{Digest, Sha256};
 
 use super::{FunctionFragmentFrameApplication, FunctionFragmentFrameApplicationIdentity};
 
-const SCHEMA: &[u8] = b"omega.function-fragment-frame-application.v2";
+const SCHEMA: &[u8] = b"omega.function-fragment-frame-application.v3";
 
 pub fn function_fragment_frame_application_identity(
     application: &FunctionFragmentFrameApplication,

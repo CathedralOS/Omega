@@ -8,16 +8,17 @@ use crate::tests::*;
 fn every_direct_function_relative_receipt_field_rejects() {
     let donor = super::fixture::alternate_direct_realization();
     for field in [
-        FunctionRelativeLayoutPublicationCustodyFieldForTest::Source,
-        FunctionRelativeLayoutPublicationCustodyFieldForTest::Machine,
-        FunctionRelativeLayoutPublicationCustodyFieldForTest::Relaxation,
-        FunctionRelativeLayoutPublicationCustodyFieldForTest::ExitContract,
-        FunctionRelativeLayoutPublicationCustodyFieldForTest::Realization,
+        FixedFramePublicationCustodyFieldForTest::Source,
+        FixedFramePublicationCustodyFieldForTest::Machine,
+        FixedFramePublicationCustodyFieldForTest::Frame,
+        FixedFramePublicationCustodyFieldForTest::Protocol,
+        FixedFramePublicationCustodyFieldForTest::ExitContract,
+        FixedFramePublicationCustodyFieldForTest::Realization,
     ] {
         let mut realization = super::fixture::direct_realization();
         realization.corrupt_publication_custody_for_test(field, &donor);
         assert_eq!(
-            validate_function_relative_layout_optimization_realization_custody(&realization),
+            validate_fixed_frame_function_relative_realization(&realization),
             Err(FunctionRelativeOptimizationRealizationError::ReceiptMismatch),
             "the public validator must reject the {field:?} receipt substitution",
         );
@@ -37,8 +38,8 @@ fn every_rel8_specific_manifest_boundary_rejects_after_reauthentication() {
             "the {field:?} mutation must retain a valid manifest envelope",
         );
         assert_eq!(
-            validate_function_relative_layout_optimization_realization_custody(&realization),
-            Err(FunctionRelativeOptimizationRealizationError::RootMismatch),
+            validate_fixed_frame_function_relative_realization(&realization),
+            Err(FunctionRelativeOptimizationRealizationError::ReceiptMismatch),
             "independent replay must reject the authenticated {field:?} mutation",
         );
     }
@@ -63,7 +64,7 @@ fn every_rel8_specific_exit_boundary_rejects_after_reauthentication() {
             Ok(record.clone()),
         );
         assert_eq!(
-            validate_function_relative_layout_optimization_realization_custody(&realization),
+            validate_fixed_frame_function_relative_realization(&realization),
             Err(FunctionRelativeOptimizationRealizationError::ExitContract(
                 WholeFunctionExitContractError::ArtifactMismatch,
             )),

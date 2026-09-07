@@ -138,8 +138,8 @@ fn every_representable_direct_manifest_field_rejects_after_reauthentication() {
             "reauthenticated {field} mutation must retain a valid V9 envelope",
         );
         assert_eq!(
-            validate_function_relative_layout_optimization_realization_custody(&staged),
-            Err(FunctionRelativeOptimizationRealizationError::RootMismatch),
+            validate_fixed_frame_function_relative_realization(&staged),
+            Err(FunctionRelativeOptimizationRealizationError::ReceiptMismatch),
             "independent replay must reject reauthenticated {field}",
         );
     }
@@ -148,8 +148,8 @@ fn every_representable_direct_manifest_field_rejects_after_reauthentication() {
     staged.manifest_mut().record_mut().identity =
         FunctionRelativeOptimizationRealizationManifestIdentity::from_bytes([0xc2; 32]);
     assert_eq!(
-        validate_function_relative_layout_optimization_realization_custody(&staged),
-        Err(FunctionRelativeOptimizationRealizationError::RootMismatch),
+        validate_fixed_frame_function_relative_realization(&staged),
+        Err(FunctionRelativeOptimizationRealizationError::ReceiptMismatch),
     );
 }
 

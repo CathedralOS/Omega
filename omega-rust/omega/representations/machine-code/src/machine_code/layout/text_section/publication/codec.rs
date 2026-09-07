@@ -23,11 +23,11 @@ use super::{
 };
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGTSP\0\0";
-const MANIFEST_VERSION: u32 = 12;
+const MANIFEST_VERSION: u32 = 13;
 
 impl FunctionFragmentTextSectionManifest {
     pub fn recomputed_identity(&self) -> FunctionFragmentTextSectionManifestIdentity {
-        let mut canonical = b"omega.function-fragment-text-section-manifest.v12\0".to_vec();
+        let mut canonical = b"omega.function-fragment-text-section-manifest.v13\0".to_vec();
         canonical.extend_from_slice(&encode_manifest_content(self));
         FunctionFragmentTextSectionManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -73,7 +73,6 @@ impl FunctionFragmentTextSectionManifest {
             }
         };
         let source_kind = match cursor.byte()? {
-            1 => FunctionFragmentEmissionSourceKind::X86Rel8V1,
             2 => FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
                 optimization: decode_post_allocation_optimization(cursor.byte()?)?,
             },
@@ -89,8 +88,7 @@ impl FunctionFragmentTextSectionManifest {
             (
                 FunctionFragmentTextSectionStage::ValidatedRelocationFreeTextSectionPlacementV1,
                 FunctionFragmentTextSectionSourceCustody::DirectFragmentEmissionV1,
-                FunctionFragmentEmissionSourceKind::X86Rel8V1
-                | FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 { .. }
+                FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 { .. }
                 | FunctionFragmentEmissionSourceKind::UnitBaselineV1
                 | FunctionFragmentEmissionSourceKind::StructuralUnitV1
                 | FunctionFragmentEmissionSourceKind::SelectedLoweringV1,
@@ -236,7 +234,6 @@ fn encode_manifest_content(record: &FunctionFragmentTextSectionManifest) -> Vec<
         }
     }
     match record.source_kind {
-        FunctionFragmentEmissionSourceKind::X86Rel8V1 => bytes.push(1),
         FunctionFragmentEmissionSourceKind::SelectedLoweringV1 => bytes.push(6),
         FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
             optimization,

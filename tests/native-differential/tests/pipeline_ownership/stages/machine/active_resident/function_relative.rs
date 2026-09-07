@@ -202,7 +202,7 @@ fn active_resident_function_relative_realization_rejects_corrupt_or_detached_cus
 }
 
 #[test]
-fn active_resident_function_relative_realization_rejects_unexecuted_later_phase_selections() {
+fn active_resident_function_relative_realization_executes_layout_and_rejects_unexecuted_phases() {
     for later in [
         Optimization::SelectedIncomingU12ExactAddImmediate,
         Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
@@ -233,12 +233,23 @@ fn active_resident_function_relative_realization_rejects_unexecuted_later_phase_
             ));
             continue;
         }
+        let realized = stage_fixed_frame_function_relative_realization(
+            allocation.unwrap(),
+            machine,
+            selected_lowering_budget(),
+        );
+        if later == Optimization::X86RelaxConditionalBranchesToRel8V1 {
+            let realized = realized.expect("layout must compose with retained allocation recovery");
+            assert!(realized.relaxation().is_some());
+            assert_eq!(
+                realized.custody().source(),
+                realized.allocation().current().evidence()
+            );
+            validate_fixed_frame_function_relative_realization(&realized).unwrap();
+            continue;
+        }
         assert!(matches!(
-            stage_fixed_frame_function_relative_realization(
-                allocation.unwrap(),
-                machine,
-                selected_lowering_budget()
-            ),
+            realized,
             Err(FunctionRelativeOptimizationRealizationError::RootMismatch)
         ));
     }

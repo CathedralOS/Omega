@@ -24,7 +24,7 @@ pub fn stage_fixed_frame_function_relative_realization(
     let encoding =
         stage_optimized_layout_independent_selected_form_encoding(selected, &machine, physical)
             .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
-    let layout =
+    let baseline_layout =
         stage_optimized_resolved_selected_form_layout(selected, &machine, physical, &encoding)
             .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
     let layout_optimization = execute_resolved_layout_optimization(
@@ -33,7 +33,7 @@ pub fn stage_fixed_frame_function_relative_realization(
         physical,
         &encoding,
         None,
-        &layout,
+        &baseline_layout,
         &current
             .selections()
             .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout),
@@ -52,7 +52,7 @@ pub fn stage_fixed_frame_function_relative_realization(
         physical,
         &encoding,
         None,
-        &layout,
+        &baseline_layout,
         &layout_optimization,
         Some((frame.layout(), frame.protocol())),
     )
@@ -61,7 +61,8 @@ pub fn stage_fixed_frame_function_relative_realization(
         &current,
         &machine,
         &encoding,
-        layout_optimization.layout(),
+        &baseline_layout,
+        &layout_optimization,
         frame.layout(),
         frame.protocol(),
         &exit_contract,
@@ -80,7 +81,7 @@ pub fn stage_fixed_frame_function_relative_realization(
         allocation,
         machine,
         encoding,
-        layout,
+        baseline_layout,
         layout_optimization,
         frame,
         exit_contract,
@@ -121,7 +122,7 @@ pub fn validate_fixed_frame_function_relative_realization(
         physical,
         &staged.encoding,
         None,
-        &staged.layout,
+        &staged.baseline_layout,
         &current
             .selections()
             .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout),
@@ -141,7 +142,7 @@ pub fn validate_fixed_frame_function_relative_realization(
         physical,
         &staged.encoding,
         None,
-        &staged.layout,
+        &staged.baseline_layout,
         &staged.layout_optimization,
         Some((frame.layout(), frame.protocol())),
         &staged.exit_contract,
@@ -151,7 +152,8 @@ pub fn validate_fixed_frame_function_relative_realization(
         &current,
         &staged.machine,
         &staged.encoding,
-        staged.layout(),
+        &staged.baseline_layout,
+        &staged.layout_optimization,
         frame.layout(),
         frame.protocol(),
         &staged.exit_contract,

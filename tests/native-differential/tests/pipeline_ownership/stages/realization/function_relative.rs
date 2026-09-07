@@ -29,16 +29,14 @@ fn function_relative_only_rel8_suite_shrinks_and_replays_without_selected_loweri
             .function_relative()
             .is_some()
     );
-    let realization = (staged)
-        .function_relative_layout_mut_for_test()
-        .unwrap_or_else(|| {
-            panic!("the exact function-relative phase must use its direct realization route")
-        });
+    let realization = (staged).fixed_frame_mut_for_test().unwrap_or_else(|| {
+        panic!("the exact function-relative phase must use its direct realization route")
+    });
     assert_eq!(
-        validate_function_relative_layout_optimization_realization_custody(realization).unwrap(),
+        validate_fixed_frame_function_relative_realization(realization).unwrap(),
         *realization.custody()
     );
-    assert_eq!(realization.relaxation().actions().len(), 1);
+    assert_eq!(realization.relaxation().unwrap().actions().len(), 1);
     assert_eq!(
         realization
             .baseline_layout()
@@ -82,24 +80,24 @@ fn function_relative_only_rel8_suite_shrinks_and_replays_without_selected_loweri
     assert_eq!(manifest.resolved_layout, realization.layout().identity());
     assert_eq!(
         manifest.x86_branch_relaxation,
-        Some(realization.relaxation().identity())
+        Some(realization.relaxation().unwrap().identity())
     );
     assert!(matches!(
         realization.exit_contract().contract().layout_custody,
         WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
             relaxation
-        } if relaxation == realization.relaxation().identity()
+        } if relaxation == realization.relaxation().unwrap().identity()
     ));
     let original = realization.manifest().record().resolved_layout;
     realization.manifest_mut().record_mut().resolved_layout =
         realization.baseline_layout().identity();
     assert_eq!(
-        validate_function_relative_layout_optimization_realization_custody(realization),
-        Err(FunctionRelativeOptimizationRealizationError::RootMismatch)
+        validate_fixed_frame_function_relative_realization(realization),
+        Err(FunctionRelativeOptimizationRealizationError::ReceiptMismatch)
     );
     realization.manifest_mut().record_mut().resolved_layout = original;
     assert_eq!(
-        validate_function_relative_layout_optimization_realization_custody(realization).unwrap(),
+        validate_fixed_frame_function_relative_realization(realization).unwrap(),
         *realization.custody()
     );
 }
@@ -170,10 +168,10 @@ fn relocation_free_rel8_fragment_emission_retains_bytes_fuel_and_manifest_custod
         stage_optimized_verified_physical_pipeline_with_provider_executions(optimized, target, &[])
             .unwrap();
     let realization = (physical)
-        .into_function_relative_layout_for_test()
+        .into_fixed_frame_for_test()
         .unwrap_or_else(|| panic!("rel8 must complete its direct function-relative realization"));
     let mut emitted = stage_optimized_function_fragment_emission(
-        FunctionFragmentReplayInputs::X86Rel8Direct(Box::new(realization)).into(),
+        FunctionFragmentReplayInputs::FixedFrame(Box::new(realization)).into(),
     )
     .unwrap();
     assert_eq!(
@@ -210,7 +208,7 @@ fn relocation_free_rel8_fragment_emission_retains_bytes_fuel_and_manifest_custod
     let record = emitted.manifest().record();
     assert_eq!(
         record.source_kind,
-        FunctionFragmentEmissionSourceKind::X86Rel8V1
+        FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1
     );
     assert_eq!(record.fragments, fragments.identity);
     assert_eq!(record.statistics.zero_byte_instruction_spans, 0);
@@ -356,7 +354,7 @@ fn relocation_free_cbnz_fragment_emission_retains_the_elided_compare_span() {
         }
     );
     let encoded = emitted.manifest().record().encode();
-    assert_eq!(&encoded[8..12], &11_u32.to_le_bytes());
+    assert_eq!(&encoded[8..12], &12_u32.to_le_bytes());
     assert_eq!(encoded[45], 2);
     assert_eq!(
         encoded[46],
@@ -538,7 +536,7 @@ fn aarch64_movn_reaches_fragments_text_object_artifact_and_callable_for_both_rou
                 );
                 let fragment_manifest = emitted.manifest().record().clone();
                 let fragment_encoded = fragment_manifest.encode();
-                assert_eq!(&fragment_encoded[8..12], &11_u32.to_le_bytes());
+                assert_eq!(&fragment_encoded[8..12], &12_u32.to_le_bytes());
                 assert_eq!(fragment_encoded[45], 2);
                 assert_eq!(
                     fragment_encoded[46],
@@ -650,7 +648,7 @@ fn aarch64_movn_reaches_fragments_text_object_artifact_and_callable_for_both_rou
                 assert_eq!(text.manifest().record().statistics.relocation_requirements, 0);
                 let text_manifest = text.manifest().record().clone();
                 let text_encoded = text_manifest.encode();
-                assert_eq!(&text_encoded[8..12], &12_u32.to_le_bytes());
+                assert_eq!(&text_encoded[8..12], &13_u32.to_le_bytes());
                 assert_eq!(text_encoded[45], 1);
                 assert_eq!(text_encoded[46], 2);
                 assert_eq!(

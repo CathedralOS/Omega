@@ -260,7 +260,8 @@ errors, and sealed validation receipts remain in the selected X-to-X stage;
 constructing or hashing a raw plan grants no validation authority.
 Allocation consumes that result and owns assignment and pressure recovery.
 Required frameless contracts are explicit in the analysis for their consuming
-rewrite or layout policy. Function-relative realization consumes the same
+rewrite. Layout selection never changes allocation's frame policy.
+Function-relative realization consumes the same
 allocation and machine outputs and independently checks their join. It cannot
 rerun either earlier stage or substitute a machine from another allocation.
 Optional later layout execution is read from its phase
@@ -488,7 +489,20 @@ coordinate at the next instruction. Both retain their one semantic conditional
 ordinal. Recovery allocations use the same canonical fixed-frame realization
 as ordinary allocations. The retained recovery evidence is checked at allocation,
 and actual calls and preservation writes determine frame storage and protocol;
-recovery history does not select a frameless publisher. Microsoft-x64 frames
+recovery history does not select a frameless publisher. Optional x86 branch
+relaxation uses that same frame realization, including call-bearing and
+recovery-allocated functions. Its baseline layout, final layout and relaxation
+evidence remain distinct and independently checked; selecting relaxation neither
+restricts the allocator to frameless leaves nor selects a separate publisher.
+Frame application preserves short branches that still fit after inserting the
+prologue and return epilogues. It widens overflowing short conditionals to near
+branches, updating subsequent coordinates and call fixups to a bounded fixed
+point. Independent replay checks both the required widths and the final bytes;
+the earlier relaxation result is evidence, not a promise that frame insertion
+cannot change a displacement.
+Combining post-allocation machine rewrites with relaxation remains rejected
+until the relaxation checker can consume that phase's exact output evidence.
+Microsoft-x64 frames
 reserve the outgoing ABI home area separately from save and link storage. The
 public request surface uses the closed post-Terminal selection type, so this
 transitional branch cannot reopen an earlier phase. Ranked-countdown native
