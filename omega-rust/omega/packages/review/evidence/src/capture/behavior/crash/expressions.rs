@@ -106,6 +106,7 @@ fn project_scalar_expression(
     Some(match expression {
         CheckedScalarExpression::IntegerTrappingCast { .. }
         | CheckedScalarExpression::IntegerWrappingCast { .. }
+        | CheckedScalarExpression::StructuralParameterByteLength { .. }
         | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => return None,
         CheckedScalarExpression::StorageRead { .. } => {
             unreachable!("checked structural crash requirements cannot read local storage")

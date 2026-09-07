@@ -93,7 +93,7 @@ pub(crate) fn project_crash(
                     .collect::<Option<Vec<_>>>()
                     .ok_or_else(|| {
                         vec![Diagnostic::error(
-                            "package crash review cannot project a trapping scalar conversion",
+                            "package crash review cannot project an unsupported scalar expression",
                         )]
                     })
             })
