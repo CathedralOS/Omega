@@ -1520,6 +1520,10 @@ pub enum LoweringError {
     InvalidFloatMeaningProjection(FloatMeaningProjectionLoweringError),
     InvalidQuotientCorrespondence(Vec<String>),
     OperationProofUnavailable(ObligationId),
+    InvalidUnitMachinePlan {
+        machine: String,
+        reason: &'static str,
+    },
     Unsupported(&'static str),
     InvalidPsiIntegerType,
     UnlandedIntegerLiteral,

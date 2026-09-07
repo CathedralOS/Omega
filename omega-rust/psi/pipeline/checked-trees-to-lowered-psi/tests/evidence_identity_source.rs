@@ -2912,7 +2912,9 @@ fn ordinary_attached_scalar_machine_remains_outside_the_scalar_entry_lane() {
     );
     assert!(matches!(
         checked_trees_to_lowered_psi::lower_machine(&checked, &selection.name),
-        Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
+        Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan { machine, reason })
+            if machine == "Root::f"
+                && reason == "attached Unit closure is missing a checked transitive machine plan"
     ));
 }
 

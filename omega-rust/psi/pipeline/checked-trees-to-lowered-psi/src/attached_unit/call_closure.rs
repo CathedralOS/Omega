@@ -18,8 +18,14 @@ pub(crate) fn checked_unit_call_closure_including(
     let mut next = 0_usize;
     while let Some(machine_symbol) = closure.get(next).copied() {
         next += 1;
-        checked_terminal_machine_name(checked, machine_symbol)?;
-        let machine = unique_unit_machine(plans, machine_symbol)?;
+        let name = checked_terminal_machine_name(checked, machine_symbol)?;
+        let machine = unique_unit_machine(plans, machine_symbol).map_err(|error| match error {
+            LoweringError::Unsupported(reason) => LoweringError::InvalidUnitMachinePlan {
+                machine: name.to_owned(),
+                reason,
+            },
+            error => error,
+        })?;
         for target in machine
             .operations
             .iter()
