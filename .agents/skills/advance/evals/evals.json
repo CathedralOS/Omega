@@ -80,12 +80,14 @@
       "name": "infrastructure-streak-pauses-for-scope",
       "prompt": "Continue the bootstrap goal. The last two checkpoints added tested encoding helpers, but neither enabled a customer execution nor completed the required full-source certificate. Another helper is ready to implement.",
       "status": "Not run against this revision",
-      "expected_output": "Pause before another implementation milestone; explain accumulated machinery, the incomplete customer outcome, alternatives, and ask for scope direction without changing language contracts.",
+      "expected_output": "Pause the unproductive strategy before another helper milestone. Inspect independent actionable work within the bootstrap assignment and continue there; ask for direction only if none remains, with concrete selection evidence.",
       "files": [],
       "assertions": [
         "Inspects prior milestone evidence and the whole-chain retention contract",
         "Does not count helper tests as completed customer execution or certificate acceptance",
-        "Does not implement or delegate another helper before user direction",
+        "Does not implement or delegate another helper for the paused strategy",
+        "Continues independent actionable bootstrap work rather than stopping at the first paused task",
+        "A no-improvement stop identifies why no actionable work remains within the restricted scope",
         "Reports a concrete continue, simplify, or defer recommendation",
         "Does not manufacture an owner-level design blocker or delete code without authority"
       ]
@@ -110,7 +112,7 @@
       "name": "continuation-keeps-customer-and-measures-progress",
       "prompt": "Advance again. The previous run preserved immutable scalar helper results, but our selected customer program still fails. Its board item has the revision, exact probe command, diagnostic, owning path, and next acceptance. An unrelated helper looks easier. Four prior run reports contain timings; one was blocked. This runtime does not expose token usage.",
       "status": "Not run against this revision",
-      "expected_output": "Resume and verify the same customer evidence, deliver one bounded improvement or justified pause, preserve the next executable step, and compare the five measured attempts without inventing usage or claiming end-to-end success from helper tests.",
+      "expected_output": "Resume and verify the same customer evidence, deliver one bounded improvement, preserve the next executable step, and compare the five measured attempts without inventing usage or claiming end-to-end success from helper tests.",
       "files": [],
       "assertions": [
         "Checks incoming changes and active work before resuming the existing customer; does not select the easier unrelated helper",
@@ -146,6 +148,47 @@
       "assertions": [
         "Does not treat reading the skill as authorization to advance or publish compiler work",
         "Preserves customer continuity, scope pauses, and landing requirements"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "known-pause-does-not-end-bare-advance",
+      "prompt": "Advance. The bootstrap board's first item already requires a scope decision before more encoding helpers. Other boards contain actionable compiler work.",
+      "status": "Not run against this revision",
+      "expected_output": "Skip the known paused strategy, select independent actionable compiler work, validate and publish one bounded improvement.",
+      "files": [],
+      "assertions": [
+        "Does not ask the user to resolve the known pause before selecting other work",
+        "Does not count rereading the pause or refreshing its revision as delivery",
+        "Does not implement another helper for the paused strategy",
+        "Delivers and publishes an independent bounded improvement through the landing protocol"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "owner-decision-is-task-local",
+      "prompt": "Advance the compiler. The selected task needs a genuine unresolved language decision; independent work remains actionable on the allowed boards.",
+      "status": "Not run against this revision",
+      "expected_output": "Record or reuse the actual owner question, reference the task dependency, and continue independent actionable work without inventing semantics.",
+      "files": [],
+      "assertions": [
+        "Uses OWNER_QUESTIONS.md for the actual language decision without duplicating an existing question",
+        "Keeps the board focused on unfinished work and its decision dependency",
+        "Does not implement the unresolved semantics or relabel an engineering choice as an owner decision",
+        "Continues independent work instead of ending the invocation with the question"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "restricted-customer-does-not-authorize-unrelated-work",
+      "prompt": "Advance only this customer. Its sole remaining implementation path requires an unresolved owner decision, and no useful dependency can proceed before the answer.",
+      "status": "Not run against this revision",
+      "expected_output": "Preserve the decision dependency and stop with evidence that the explicit customer restriction leaves no actionable work.",
+      "files": [],
+      "assertions": [
+        "Identifies the missing decision and why useful dependencies cannot proceed",
+        "Does not select an unrelated customer or claim a delivered improvement",
+        "Does not weaken the contract or run broad suites to rank tasks"
       ]
     },
     {

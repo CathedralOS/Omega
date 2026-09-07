@@ -9,9 +9,10 @@ description: >-
 
 # Advance the Omega compiler
 
-One invocation delivers a bounded compiler improvement through publication, or
-an evidence-backed scope pause. Reconfirming a known blocker is verification-only,
-not a completed advance. Follow [AGENTS.md](../../../AGENTS.md) for repository
+One invocation delivers a bounded compiler improvement through publication.
+A blocked or paused task does not end an unrestricted invocation: select other
+actionable work. Reconfirming a known blocker is verification-only, not a
+completed advance. Follow [AGENTS.md](../../../AGENTS.md) for repository
 ownership, validation, scope checkpoints, board hygiene, and publication.
 
 ## Choose the next customer outcome
@@ -26,7 +27,13 @@ obligation until acceptance passes, a real dependency blocks it, a scope checkpo
 requires a pause, or the user changes priority. Do not duplicate another session's
 active change or switch to an easier unrelated helper. Without prior continuity,
 choose from `TASKS.md`, `TASKS_BOOTSTRAP.md`, or `TASKS_OPTIMIZER.md`; honor a named
-board. State the customer, missing dependencies, and bounded acceptance condition.
+board. Skip already-blocked or paused tasks during fresh selection. If a selected
+customer becomes blocked or its strategy requires a pause, preserve its resume
+evidence and select independent actionable work within the user's allowed scope.
+Do not resume the paused strategy under another helper name. A named board limits
+selection to that board; an explicitly named customer limits it to that customer
+and its useful dependencies. State the customer, missing dependencies, and bounded
+acceptance condition.
 
 Read the owning design and [completion contract](../../../wiki/releases/rust_compiler_completion_contract.md).
 For bootstrap work, also read [whole-chain minimization](../../../wiki/design_briefs/bootstrap_minimization.md).
@@ -159,8 +166,9 @@ progress, elapsed/validation time, and available usage before proposing another
 workflow change. Include blocked and paused attempts so the comparison does not
 count only successes. Use existing reports; if earlier records are unavailable,
 state the smaller sample. Do not claim a savings percentage without comparable
-baseline measurements. A scheduled invocation uses this same skill and its scope
-pauses; scheduling alone does not authorize a new lane or override a pause.
+baseline measurements. A scheduled invocation uses this same skill and its
+task-local pauses; scheduling alone does not override a pause or expand the
+user's allowed scope. Independent task selection within that scope remains required.
 
 ## When the slice cannot close
 
@@ -171,11 +179,20 @@ Engineering difficulty alone is not an owner decision.
 
 For a blocker, name the attempted slice, missing contract or unavailable dependency,
 why existing mechanisms cannot deliver acceptance, and the next executable step.
-For a scope pause, cite the applicable AGENTS.md checkpoint and ask for
-prioritization with concrete continue, simplify, or defer alternatives. Preserve
-useful work; do not evade the pause by changing helpers or manufacturing an owner
-question. Actual language/architecture decisions follow `OWNER_QUESTIONS.md` and
-the ratified decision process.
+For a scope pause, cite the applicable AGENTS.md checkpoint, preserve useful work,
+and record why that strategy cannot continue. Do not evade it by changing helpers
+or manufacturing an owner question. Actual language/architecture decisions follow
+`OWNER_QUESTIONS.md` and the ratified decision process; reference the dependency
+on the owning task and continue with independent actionable work. Ordinary
+engineering choices remain the agent's responsibility.
+
+Stop without an improvement only when no actionable work remains within the user's
+allowed scope or an unavailable operational prerequisite prevents proceeding.
+Report the candidates considered, concrete blockers, and next input needed; one
+blocked task or a reread of an existing pause is not sufficient evidence. Do not
+run broad suites merely to establish this selection result. For a restricted
+assignment, explain the restriction rather than silently choosing another board
+or customer. A task-local pause is not a veto on independent work.
 
 Report customer behavior, added or removed complexity, commit/publication state,
 checks actually run, remaining dependencies, and unrelated failures. Include the
