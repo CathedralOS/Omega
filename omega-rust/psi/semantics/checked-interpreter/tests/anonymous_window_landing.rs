@@ -149,3 +149,78 @@ fn exact_window_elements_preserve_source_fuel_cost() {
     assert_eq!(typed.exit_code, 6);
     assert_eq!(anonymous.usage.fuel_units(), typed.usage.fuel_units());
 }
+
+#[test]
+fn omitted_and_dynamic_windows_keep_exact_values_at_runtime() {
+    for (parameters, requirements, selection, arguments) in [
+        ("", "", "1..", ""),
+        (
+            ", start: u64, end: u64",
+            "requires start <= end && end <= 4;",
+            "start..end",
+            ", 1, 4",
+        ),
+        (
+            ", start: u64, end: u64",
+            "requires start <= end && end < 4;",
+            "start..=end",
+            ", 1, 3",
+        ),
+    ] {
+        for expression in [
+            "0.1 * 70",
+            "18446744073709551616 / 3 * 3 - 18446744073709551609",
+        ] {
+            assert_seven(&format!(
+                "machine fill(values: &mut [i32; 4]{parameters}) {requirements} {{
+                    values[{selection}] = [{expression}, 7i32 / 2 * 2, 22];
+                }}
+                machine main() -> i32 {{
+                    let mut values: [i32; 4] = [11, 0, 0, 0];
+                    fill(&mut values{arguments});
+                    transition values[0] == 11 && values[1] == 7 && values[2] == 6 && values[3] == 22 {{ true -> 7 false -> 0 }}
+                }}"
+            ));
+        }
+    }
+}
+
+#[test]
+fn slice_and_generic_windows_keep_the_integer_element_destination() {
+    for (generics, collection, argument) in [
+        ("", "[i32]", "&mut values"),
+        ("<const N: u64>", "[i32; N]", "&mut values"),
+    ] {
+        assert_seven(&format!(
+            "machine fill{generics}(values: &mut {collection}) {{
+                values[..] = [18446744073709551616 / 3 * 3 - 18446744073709551609, 7i32 / 2 * 2];
+            }}
+            machine main() -> i32 {{
+                let mut values: [i32; 2] = [0, 0];
+                fill({argument});
+                transition values[0] == 7 && values[1] == 6 {{ true -> 7 false -> 0 }}
+            }}"
+        ));
+    }
+}
+
+#[test]
+fn dynamic_window_execution_still_rejects_a_mismatched_count() {
+    let outcome = execute(
+        "machine fill(values: &mut [i32; 4], start: u64, end: u64)
+         requires start <= end && end <= 4;
+         { values[start..end] = [0.1 * 70, 8]; }
+         machine main() -> i32 {
+             let mut values: [i32; 4] = [0, 0, 0, 0];
+             fill(&mut values, 0, 4);
+             7
+         }",
+    );
+    assert!(
+        outcome
+            .error
+            .as_ref()
+            .is_some_and(|error| error.contains("different element count")),
+        "{outcome:?}"
+    );
+}

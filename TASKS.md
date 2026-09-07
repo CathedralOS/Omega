@@ -617,7 +617,8 @@ Owners include
   computed-argument routes against caller formal ceilings; do not reread caller
   storage or retain callee-local IDs.
   Complete nonliteral contract arithmetic and callee-result bounds requiring
-  caller-specific snapshots beyond immutable scalar formal comparisons; carry
+  caller-specific snapshots beyond immutable scalar formal comparisons, including
+  a callee's borrowed collection length in caller-side requirement proofs; carry
   those facts into nested exact-cast obligations without rereading arguments.
   Retire the remaining flat guarded-argument call hoisting once these paths use
   the same evaluation graph. Owning area: argument normalization and checked scalar
@@ -626,8 +627,7 @@ Owners include
   calls serialize, independently verify, and execute with their exact guards.
   Extend guarded scalar control to longer dispatches. Complete
   anonymous integer landing, width custody, and warnings for generic/evidence-adapted
-  calls, boundary calls, and remaining projected-array destinations (generic or
-  runtime-sized windows and omitted end bounds), plus the remaining
+  calls and boundary calls, plus the remaining
   numeric operator/policy surface, so proof and execution
   consume the same values without rereading changed operands.
   Extend mutable owned parameter execution to the remaining scalar carriers and
@@ -653,7 +653,7 @@ Owners include
   beyond entry requirements using independently checked all-path invariants;
   ignored-backedge first-pass facts must never authorize a loop crash guard.
   Complete [exact anonymous division and landing](wiki/language_guide/chapter_5_expressions_evaluation.md#exact-anonymous-division-and-landing)
-  for the remaining parameter and generic/runtime-sized or omitted-end projected-array destinations,
+  for the remaining parameter destinations,
   general aggregate production and proof consumers, numeric policies,
   remaining float destinations,
   remaining constant-argument destinations and policies, and their proof
@@ -666,6 +666,12 @@ Owners include
   follow the guide's boundaries identically before and after optimization.
   Pin the practical alignment case: `(4097 / 4096) * 4096` is 4097 with a
   warning; `(4097u32 / 4096) * 4096` is 4096 without one.
+  Extend checked-interpreter borrowed subslice places beyond scalar indexing:
+  `fill(&mut values[..])` must retain the selected backing window, not evaluate
+  its range as a scalar index. Acceptance: a checked slice-parameter call writes
+  only its borrowed cells, retains exact element landing, and rejects invalid
+  ranges and replacement counts. Whole-array borrowing into a slice parameter
+  is not evidence for this projected-place path.
   Implement [typed integer quotient and remainder](wiki/language_guide/chapter_5_expressions_evaluation.md#typed-integer-quotient-and-remainder)
   across operator resolution, constant evaluation, and proof consumption.
   Close authored const-operator selection before folding: an unrelated
