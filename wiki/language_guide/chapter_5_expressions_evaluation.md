@@ -826,6 +826,13 @@ expression-only suppression restriction.
 > obligations. Checked interpretation uses the same exact values while preserving
 > element evaluation order and source fuel cost. This does not establish general
 > aggregate Terminal production or proof support.
+> Fixed-array range replacements carry the same element destinations when their
+> exact footprint is known from literal bounds or finite immutable local copies.
+> Mutable and write-only replacements both validate literal elements; write-only
+> permission and non-observation checks remain independent. Checked interpretation
+> replaces only the selected cells or backing bytes, preserving element order and
+> neighbors, and rejects invalid bounds or a mismatched element count rather than
+> clamping the write. Shared record-valued elements retain their own field checks.
 > The destination's arithmetic policy cannot truncate an anonymous fraction or
 > wrap an out-of-range initial value. Successful integral
 > landings report the fractional-intermediate warning through the current
@@ -859,7 +866,8 @@ expression-only suppression restriction.
 > transport a callee's builtin `result == immutable_parameter` guarantee from retained closed
 > fixed-integer operands, without replaying their source expressions. General runtime argument
 > snapshots, generic/evidence-adapted and boundary destination custody, projected
-> array windows, general aggregate production/proof consumers,
+> array windows with generic/runtime-sized shapes or omitted end bounds,
+> general aggregate production/proof consumers,
 > remaining mutable parameter carriers and Unit-body storage, numeric policies,
 > remaining float destinations,
 > remaining authored-operator/const-proof consumers, and ordinary warning

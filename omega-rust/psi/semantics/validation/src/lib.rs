@@ -1029,6 +1029,16 @@ fn validate_state_statement_node(
                     });
             let assignment_target_primitive =
                 assignment_target_type.and_then(|handle| program.primitive_type_reference(handle));
+            if let Some(state) = current_state {
+                struct_literals::validate_array_window_elements(
+                    program,
+                    machine,
+                    state,
+                    assignment.target,
+                    assignment.value,
+                    diagnostics,
+                );
+            }
             // An array-literal RHS into a `[T; N]` target: check each element's
             // class + narrowing against T. The scalar guards below skip a non-
             // primitive (array) target, so this is the element-level complement.

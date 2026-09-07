@@ -12,15 +12,19 @@ enum Destination {
     Argument,
     Return,
     TransitionReturn,
+    Window,
+    MutableWindow,
 }
 
-const DESTINATIONS: [Destination; 6] = [
+const DESTINATIONS: [Destination; 8] = [
     Destination::Local,
     Destination::RecordField,
     Destination::Assignment,
     Destination::Argument,
     Destination::Return,
     Destination::TransitionReturn,
+    Destination::Window,
+    Destination::MutableWindow,
 ];
 const EXACT_SEVEN: [&str; 3] = ["7 / 2 * 2", "7 / 2.0 * 2", "0.1 * 70"];
 const LARGE_SEVEN: [&str; 3] = [
@@ -58,6 +62,12 @@ fn source(destination: Destination, nested: bool, expression: &str) -> String {
         }
         Destination::TransitionReturn => format!(
             "machine construct() -> {array_type} {{ transition {{ _ -> ({initializer}) }} }}"
+        ),
+        Destination::Window => format!(
+            "machine construct(values: &write {array_type}) {{ values[0..1] = {initializer}; }}"
+        ),
+        Destination::MutableWindow => format!(
+            "machine construct(values: &mut {array_type}) {{ values[0..1] = {initializer}; }}"
         ),
     }
 }
@@ -160,7 +170,11 @@ fn local_and_record_arrays_accept_exact_seven_with_intact_element_expressions() 
 
 #[test]
 fn assigned_and_argument_arrays_accept_exact_integral_elements() {
-    for destination in [Destination::Assignment, Destination::Argument] {
+    for destination in [
+        Destination::Assignment,
+        Destination::Argument,
+        Destination::Window,
+    ] {
         for nested in [false, true] {
             for expression in EXACT_SEVEN {
                 accepts(&source(destination, nested, expression));

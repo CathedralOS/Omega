@@ -12,6 +12,9 @@ impl<'program> Evaluator<'program> {
             // evaluation in either interpreter or native execution.
             StatementNode::AssemblyFact(_) => Ok(()),
             StatementNode::Assignment(assignment) => {
+                if self.assign_array_window(assignment.target, assignment.value, frame)? {
+                    return Ok(());
+                }
                 // Atomic RMW source syntax is carried as an opaque expression so
                 // native instruction selection can replace the whole assignment
                 // with one instruction. The interpreter executes serially, but it
