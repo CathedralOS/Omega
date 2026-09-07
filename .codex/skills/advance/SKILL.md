@@ -13,13 +13,22 @@ behavior, and land it. Repository-wide health is a separate job. Follow
 
 ## Choose a useful slice
 
-Record the starting checkout path and branch. Fetch main and inspect status;
+Record the start time, starting checkout path, and branch. Fetch main and inspect
+status;
 when that checkout is clean and on main, run `git merge --ff-only origin/main`
 before reading its boards. Fetch alone does not update checked-out files.
 Otherwise preserve it and read the boards from an isolated worktree based on
 fetched `origin/main`. Inspect recent commits in the relevant lane. An unnamed
 invocation may choose from `TASKS.md`, `TASKS_BOOTSTRAP.md`, and
 `TASKS_OPTIMIZER.md`. Leave other sessions' work alone.
+
+For an unnamed continuation, resume the previous concrete customer program or
+required proof obligation from the conversation and its owning board item.
+Keep that customer across invocations until its acceptance passes, a real
+dependency blocks it, the scope checkpoint requires a pause, or the user changes
+priority. If another session owns the next change, do not duplicate it. When
+continuity is unavailable, choose from the boards and state the customer once.
+Do not switch lanes merely because another helper is easier to finish.
 
 Use existing failure logs and board evidence to rank useful work. Do not start
 an unfiltered corpus run just to choose a task. If evidence is stale, probe one
@@ -53,9 +62,10 @@ Use an isolated worktree with a short path on Windows. Generated linker paths
 can exceed MAX_PATH even when the source path looks reasonable. Measure the
 failing path before blaming mbx or changing compiler architecture.
 
-A single bounded fix normally needs one agent. For independent useful work,
-follow the delegation steps below. Avoid concurrent builds on the same host
-and duplicate full validation passes; check for existing runs and reuse valid
+A single bounded fix normally needs one agent. Delegate only when independent
+useful work can shorten the critical path enough to justify briefing, review,
+and integration; follow the delegation steps below. Avoid concurrent builds on
+the same host and duplicate full validation passes; check for existing runs and reuse valid
 results before launching another check.
 
 Trace the shared implementation and its callers, then make the smallest change
@@ -141,6 +151,15 @@ to main through `tools/landing.py`. Keep unrelated fixes out of the checkpoint.
 Update the owning board only for remaining execution state; remove completed
 acceptance conditions without adding a test-count or history log.
 
+Before landing, rerun the selected customer probe when its inputs changed.
+If customer acceptance remains open, replace its next-step evidence in the
+owning board item with the tested revision, repository-relative command (with
+any required environment settings and host), observed diagnostic or result,
+owning implementation path, and next acceptance condition. Keep this compact;
+link existing design detail instead of copying it. A passing helper test does
+not establish customer acceptance. If the next probe was not run, say so rather
+than inventing the next failure. This is current resume state, not a run history.
+
 Prepare and validate before entering the landing queue. Use the local FIFO wait,
 claim the nonrenewable lease, and rebase onto its returned base. Inspect incoming
 changes and rerun only checks whose inputs or acceptance evidence changed. An
@@ -171,6 +190,26 @@ Report the resulting behavior, commit, checks actually run, remaining limitation
 and any unrelated failures. Do not imply a scoped pass establishes whole-repository
 health. Stop after the bounded improvement lands; broader validation and unrelated
 repairs require a separate task.
+
+## Measure the cycle
+
+Record the start time before orientation and include one compact measurement
+line in the final report: customer, starting and resulting revisions, acceptance
+before/after, elapsed seconds, validation wall time, and agents actually used.
+Use tool timestamps and command durations; identify overlapping checks rather
+than summing them as wall time. Include run-attributable tokens or cost only when
+the runtime exposes them, including delegated usage or explicitly labeling its
+absence. Unavailable measurements are unknown, not zero; account-wide usage is
+not this run's cost. Keep these records in the conversation's run reports, not
+the execution boards or a new telemetry service.
+
+After five measured advances in the continuing conversation, compare customer
+progress, elapsed/validation time, and available usage before proposing another
+workflow change. Include blocked and paused attempts so the comparison does not
+count only successes. Use existing reports; if earlier records are unavailable,
+state the smaller sample. Do not claim a savings percentage without comparable
+baseline measurements. A scheduled invocation uses this same skill and its scope
+pauses; scheduling alone does not authorize a new lane or override a pause.
 
 ## When the slice cannot close
 

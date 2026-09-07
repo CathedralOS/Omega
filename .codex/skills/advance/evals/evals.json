@@ -104,6 +104,24 @@
         "Does not add generic language features or weaken admission to avoid the limit",
         "Does not claim an unexecuted capacity experiment or end-to-end bootstrap pass"
       ]
+    },
+    {
+      "id": 5,
+      "name": "continuation-keeps-customer-and-measures-progress",
+      "prompt": "Advance again. The previous run preserved immutable scalar helper results, but our selected customer program still fails. Its board item has the revision, exact probe command, diagnostic, owning path, and next acceptance. An unrelated helper looks easier. Four prior run reports contain timings; one was blocked. This runtime does not expose token usage.",
+      "status": "Not run",
+      "expected_output": "Resume and verify the same customer evidence, deliver one bounded improvement or justified pause, preserve the next executable step, and compare the five measured attempts without inventing usage or claiming end-to-end success from helper tests.",
+      "files": [],
+      "assertions": [
+        "Checks incoming changes and active work before resuming the existing customer; does not select the easier unrelated helper",
+        "Uses the recorded focused probe and distinguishes its outcome from helper regression coverage",
+        "Updates only current next-step evidence on the owning board, including revision, command, environment/host, result, owning path, and acceptance; labels an unrun probe explicitly",
+        "Uses one agent unless independent work justifies delegation overhead, preserving AGENTS.md model routing",
+        "Reports elapsed and validation wall time from recorded evidence, actual agents, and before/after customer acceptance",
+        "Reports token usage as unavailable rather than zero or account-wide usage",
+        "Includes the blocked attempt in the five-attempt review and avoids unmatched savings claims",
+        "Preserves scope pauses, scoped validation, and exact-candidate landing requirements"
+      ]
     }
   ]
 }
