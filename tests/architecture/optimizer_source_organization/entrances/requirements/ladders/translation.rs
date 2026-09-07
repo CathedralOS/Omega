@@ -35,7 +35,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation/catalog/dispatch/structural.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation/structural_call_return/mod.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation/structural_call_return/model.rs",
-            "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation/structural_call_return/layout.rs",
+            "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation/structural_shapes.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation/structural_call_return/source.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation/structural_call_return/target.rs",
             "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation/structural_call_return/local/mod.rs",

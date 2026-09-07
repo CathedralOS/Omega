@@ -146,13 +146,13 @@ pub(super) fn structural_parameter_shape(
     referent: ValueShape,
     access: StructuralAccess,
 ) -> ValueShape {
-    if matches!(
-        access,
-        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-    ) {
-        ValueShape::borrowed_reference(referent.byte_size, referent.alignment)
-    } else {
-        referent
+    match access {
+        StructuralAccess::Owned => referent,
+        StructuralAccess::SharedBorrow
+        | StructuralAccess::MutableBorrow
+        | StructuralAccess::WriteOnlyBorrow => {
+            ValueShape::borrowed_reference(referent.byte_size, referent.alignment)
+        }
     }
 }
 

@@ -13,6 +13,7 @@ mod ranked_countdown;
 mod scalar;
 mod scalar_abi;
 mod structural_and_cleanup;
+mod structural_borrows;
 mod support;
 mod translation_validation;
 mod translation_validation_boolean;

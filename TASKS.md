@@ -563,11 +563,11 @@ Owners include
 
 - **STRUCTURAL-BORROW-IDENTITY.** Enforce the settled
   [structural borrow identity contract](wiki/spec/terminal-psi/structural_access.md)
-  through structural-signature construction, call argument preparation, and
-  native validation/replay. All borrowed access modes use one classifier and
-  the existing `BorrowedReference` tag; only owned inputs use value-shape ABI
-  selection. Structural producers must require the derived signature result,
-  while generic scalar ABI construction stays available. Acceptance: caller-
+  through call argument preparation and native validation/replay. Extend the
+  [target signature checks](omega-rust/omega/pipeline/abstract-operations-to-target-operations/README.md)
+  to embedded callee plans, projected argument/home identity, and standalone
+  receiving entrances. All borrowed access modes retain `BorrowedReference`;
+  shared physical shape cannot authorize access substitution. Acceptance: caller-
   visible writes, forwarded references, legal synchronized shared observations,
   write-only non-reading, and register/stack pointer passing work on both Linux
   targets. Independently formed or substituted access/shape/placement pairs

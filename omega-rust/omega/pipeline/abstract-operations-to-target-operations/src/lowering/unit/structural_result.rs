@@ -3,6 +3,7 @@
 use super::super::shared::*;
 use super::super::structural::require_direct_structural_fragments;
 use super::super::structural_layout::structural_shape;
+use super::super::structural_signature::StructuralCallSignature;
 use super::scalar_call::KnownUnitInteger;
 
 #[allow(clippy::too_many_arguments)]
@@ -182,18 +183,18 @@ pub(super) fn lower_structural_result_call(
             function.machine,
         ));
     }
-    let call_plan = evaluate_call_plan(
-        CallingPolicy::native_for_target(target),
-        &CallSignature {
-            parameters: scalar
-                .iter()
-                .map(|(_, _, shape)| *shape)
-                .chain(std::iter::once(aggregate_shape))
-                .collect(),
-            result: Some(aggregate_shape),
-        },
-    )
-    .map_err(LoweringError::AbiPlan)?;
+    let call_plan = StructuralCallSignature::derive(
+        &scalar
+            .iter()
+            .map(|(_, _, shape)| *shape)
+            .collect::<Vec<_>>(),
+        &callee_function.structural_parameters,
+        Some(aggregate_shape),
+        structural_types,
+        shape_cache,
+        active,
+    )?
+    .plan(target)?;
     let source_index = usize::from(scalar.is_some());
     if call_plan.parameters.len() != source_index + 1 {
         return Err(LoweringError::AbiParameterCountMismatch {

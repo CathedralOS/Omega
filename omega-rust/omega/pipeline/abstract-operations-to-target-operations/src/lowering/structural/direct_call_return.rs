@@ -2,10 +2,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::lowering::structural_signature::StructuralCallSignature;
 use abstract_operations::{AbstractFunction, AbstractOperation};
-use calling_conventions::{
-    CallPlan, CallSignature, CallingPolicy, ValueClass, ValueShape, evaluate_call_plan,
-};
+use calling_conventions::ValueClass;
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 use target::NativeTarget;
 use target_operations::{
@@ -164,8 +163,24 @@ pub(in crate::lowering) fn lower_direct_return(
             byte_size: shape.byte_size,
         });
     }
-    let caller_plan = direct_plan(target, shape)?;
-    let callee_plan = direct_plan(target, shape)?;
+    let caller_plan = StructuralCallSignature::derive(
+        &[],
+        &function.structural_parameters,
+        Some(shape),
+        structural_types,
+        &mut cache,
+        &mut active,
+    )?
+    .plan(target)?;
+    let callee_plan = StructuralCallSignature::derive(
+        &[],
+        &callee_function.structural_parameters,
+        Some(shape),
+        structural_types,
+        &mut cache,
+        &mut active,
+    )?
+    .plan(target)?;
     let source_placement = caller_plan.parameters.first().cloned().ok_or(
         LoweringError::AbiParameterCountMismatch {
             expected: 1,
@@ -245,15 +260,4 @@ pub(in crate::lowering) fn lower_direct_return(
             crash_continuations: crash_continuations.clone(),
         },
     }))
-}
-
-fn direct_plan(target: NativeTarget, shape: ValueShape) -> Result<CallPlan, LoweringError> {
-    evaluate_call_plan(
-        CallingPolicy::native_for_target(target),
-        &CallSignature {
-            parameters: vec![shape],
-            result: Some(shape),
-        },
-    )
-    .map_err(LoweringError::AbiPlan)
 }

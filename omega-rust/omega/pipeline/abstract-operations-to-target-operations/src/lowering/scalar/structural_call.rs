@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::{AbstractFunction, AbstractOperation, AbstractResult};
-use calling_conventions::{CallPlan, CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+use calling_conventions::{CallPlan, ValueShape};
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 use target::NativeTarget;
 use target_operations::{
@@ -12,7 +12,8 @@ use target_operations::{
 };
 use terminal_psi::StructuralTypeDeclaration;
 
-use super::{LoweringError, scalar_shape, structural_shape};
+use super::{LoweringError, scalar_shape};
+use crate::lowering::structural_signature::StructuralCallSignature;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_direct_return(
@@ -77,30 +78,20 @@ pub(super) fn lower_direct_return(
             function.machine,
         ));
     }
-    let callee_shapes = callee_function
-        .structural_parameters
-        .iter()
-        .map(|parameter| {
-            structural_shape(
-                parameter.structural_type,
-                structural_types,
-                shape_cache,
-                active,
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let callee_plan = evaluate_call_plan(
-        CallingPolicy::native_for_target(target),
-        &CallSignature {
-            parameters: callee_shapes.clone(),
-            result: Some(scalar_shape(
-                callee_result.value,
-                callee_result.scalar_type,
-                false,
-            )?),
-        },
-    )
-    .map_err(LoweringError::AbiPlan)?;
+    let signature = StructuralCallSignature::derive(
+        &[],
+        &callee_function.structural_parameters,
+        Some(scalar_shape(
+            callee_result.value,
+            callee_result.scalar_type,
+            false,
+        )?),
+        structural_types,
+        shape_cache,
+        active,
+    )?;
+    let callee_shapes = signature.structural_shapes();
+    let callee_plan = signature.plan(target)?;
     let parameters_by_place = target_structural_parameters
         .iter()
         .map(|parameter| (parameter.place, parameter))
@@ -108,7 +99,7 @@ pub(super) fn lower_direct_return(
     let arguments = structural_arguments
         .iter()
         .zip(&callee_function.structural_parameters)
-        .zip(callee_shapes)
+        .zip(callee_shapes.iter().copied())
         .zip(&callee_plan.parameters)
         .map(|(((argument, callee_parameter), shape), destination)| {
             let source = parameters_by_place.get(&argument.place).copied().ok_or(
@@ -117,7 +108,10 @@ pub(super) fn lower_direct_return(
                     place: argument.place,
                 },
             )?;
-            if source.structural_type != callee_parameter.structural_type || source.shape != shape {
+            if source.structural_type != callee_parameter.structural_type
+                || source.shape != shape
+                || argument.access != callee_parameter.access
+            {
                 return Err(LoweringError::StructuralCallArgumentTypeMismatch {
                     callee: *callee,
                     place: argument.place,

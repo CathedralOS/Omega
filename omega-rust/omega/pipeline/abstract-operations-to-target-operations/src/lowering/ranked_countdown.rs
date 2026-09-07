@@ -2,7 +2,7 @@
 
 use super::scalar::scalar_shape;
 use super::shared::*;
-use super::structural_layout::{structural_parameter_shape, structural_shape};
+use super::structural_signature::StructuralCallSignature;
 
 pub(super) fn lower(
     ranked: &RankedNativeAbstractOperationPlan,
@@ -274,27 +274,16 @@ pub(super) fn lower(
         .collect::<BTreeMap<_, _>>();
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
-    let structural_shapes = function
-        .structural_parameters
-        .iter()
-        .map(|parameter| {
-            let referent = structural_shape(
-                parameter.structural_type,
-                &structural_types,
-                &mut shape_cache,
-                &mut active,
-            )?;
-            Ok::<ValueShape, LoweringError>(structural_parameter_shape(referent, parameter.access))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let signature = CallSignature {
-        parameters: std::iter::once(scalar_shape(initial.value, initial.scalar_type, true)?)
-            .chain(structural_shapes.iter().copied())
-            .collect(),
-        result: None,
-    };
-    let call_plan = evaluate_call_plan(CallingPolicy::native_for_target(target), &signature)
-        .map_err(LoweringError::AbiPlan)?;
+    let signature = StructuralCallSignature::derive(
+        &[scalar_shape(initial.value, initial.scalar_type, true)?],
+        &function.structural_parameters,
+        None,
+        &structural_types,
+        &mut shape_cache,
+        &mut active,
+    )?;
+    let structural_shapes = signature.structural_shapes();
+    let call_plan = signature.plan(target)?;
     if call_plan.parameters.len() != 1 + function.structural_parameters.len() {
         return Err(LoweringError::AbiParameterCountMismatch {
             expected: 1 + function.structural_parameters.len(),
@@ -304,7 +293,7 @@ pub(super) fn lower(
     let structural_parameters = function
         .structural_parameters
         .iter()
-        .zip(structural_shapes)
+        .zip(structural_shapes.iter().copied())
         .zip(&call_plan.parameters[1..])
         .map(
             |((parameter, shape), placement)| TargetStructuralParameter {

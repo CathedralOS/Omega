@@ -1,7 +1,7 @@
 //! Shared lowering for one field-projected structural call argument.
 
 use super::super::shared::*;
-use super::super::structural_layout::resolve_structural_field_path;
+use super::super::structural_layout::{resolve_structural_field_path, structural_parameter_shape};
 use terminal_psi::{StructuralArgument, StructuralParameterDeclaration};
 
 #[allow(clippy::too_many_arguments)]
@@ -44,8 +44,10 @@ pub(super) fn lower(
         callee,
         place: argument.place,
     })?;
+    let parameter_shape = structural_parameter_shape(projected_shape, callee_parameter.access);
     if projected_type != callee_parameter.structural_type
-        || projected_shape != destination.shape
+        || argument.access != callee_parameter.access
+        || parameter_shape != destination.shape
         || u32::from(projected_shape.byte_size)
             .checked_add(source_byte_offset)
             .is_none_or(|end| end > u32::from(source.shape.byte_size))
@@ -61,7 +63,7 @@ pub(super) fn lower(
         path: argument.path.clone(),
         root_structural_type: source.structural_type,
         structural_type: projected_type,
-        shape: projected_shape,
+        shape: parameter_shape,
         source_byte_offset,
         fixed_array_length: None,
         element_stride: None,

@@ -3,7 +3,7 @@
 use abstract_operations::{AbstractOperation, AbstractOperationPlan};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 
-use super::layout;
+use super::super::structural_shapes as layout;
 use super::model::{
     StructuralCallReturnProjectedQualificationValidationError as Error,
     StructuralCallReturnRosterLocation as Location, StructuralCallReturnSource, is_canonical,

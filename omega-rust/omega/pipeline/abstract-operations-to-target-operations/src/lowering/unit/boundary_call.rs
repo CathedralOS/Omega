@@ -3,7 +3,7 @@
 use super::super::boundary_settlements::claim_completion_only_boundary_is_exact;
 use super::super::scalar_abi::fixed_native_integer_shape;
 use super::super::shared::*;
-use super::super::structural_layout::{structural_shape, structural_sum_layout};
+use super::super::structural_layout::structural_sum_layout;
 use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
 
 mod installed_provider;
