@@ -614,6 +614,9 @@ fn validate_program_internal(
             }
         }
 
+        // Arrival analysis covers the entire immutable machine. State-local
+        // statement validation borrows that batch and mutates only its clone.
+        let mut incoming_environments = None;
         for (state_index, state) in program.machine_states(machine).iter().enumerate() {
             // A state that DECLARES a return type but has an EMPTY body can
             // never produce the value -- callers would silently bind 0 (ZII),
@@ -684,7 +687,15 @@ fn validate_program_internal(
                 // their common facts and widest admitted interval; call,
                 // continuation, and self-loop entries remain conservative
                 // fences.
-                arithmetic_domains::incoming_guard_env(program, machine, state)
+                incoming_environments
+                    .get_or_insert_with(|| {
+                        arithmetic_domains::incoming_guard_environments(program, machine)
+                    })
+                    .iter()
+                    .find_map(|(symbol, environment)| {
+                        (*symbol == state.symbol).then(|| environment.clone())
+                    })
+                    .unwrap_or_default()
             };
             for (statement_index, (statement_handle, statement)) in program
                 .statement_table

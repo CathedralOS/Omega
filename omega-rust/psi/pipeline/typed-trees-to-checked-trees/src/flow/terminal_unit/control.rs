@@ -742,6 +742,7 @@ pub(super) fn build_static_boundary_requirements(
     shapes: &mut ShapeCollector<'_>,
 ) -> Vec<CheckedBoundaryMachinePlan> {
     let mut plans = Vec::new();
+    let mut call_target_requirements = None;
     for definition in program.traits().iter().filter(|definition| {
         definition.is_boundary && program.trait_type_parameters(definition).is_empty()
     }) {
@@ -861,6 +862,25 @@ pub(super) fn build_static_boundary_requirements(
             else {
                 continue;
             };
+            // Target classification is invariant across boundary signatures.
+            // Resolve each distinct target once, only if a supported boundary
+            // actually needs call evidence. Keep every call's reach below.
+            let requirements = call_target_requirements
+                .get_or_insert_with(|| static_boundary_call_targets(program, facts));
+            let signature_key = (
+                signature.symbol.arena_index(),
+                signature.symbol.generation(),
+            );
+            let first_target = requirements.partition_point(|(requirement, _)| {
+                (requirement.arena_index(), requirement.generation()) < signature_key
+            });
+            let after_targets = requirements.partition_point(|(requirement, _)| {
+                (requirement.arena_index(), requirement.generation()) <= signature_key
+            });
+            let targets = &requirements[first_target..after_targets];
+            if targets.is_empty() {
+                continue;
+            }
             let call_reaches = facts
                 .flow
                 .control
@@ -868,15 +888,15 @@ pub(super) fn build_static_boundary_requirements(
                 .iter()
                 .map(|(_, call)| call)
                 .filter(|call| {
-                    call.target_symbol == signature.symbol
-                        || exact_compiler_intrinsic_boundary_requirement(
-                            program,
-                            call.target_symbol,
+                    targets
+                        .binary_search_by_key(
+                            &(
+                                call.target_symbol.arena_index(),
+                                call.target_symbol.generation(),
+                            ),
+                            |(_, target)| (target.arena_index(), target.generation()),
                         )
-                        .is_some_and(|(requirement, _)| requirement == signature.symbol)
-                        || program
-                            .machine_parameter_signature(call.target_symbol)
-                            .is_some_and(|(_, requirement)| requirement.symbol == signature.symbol)
+                        .is_ok()
                 })
                 .map(|call| call.service_reach.transitive)
                 .collect::<Vec<_>>();
@@ -927,6 +947,46 @@ pub(super) fn build_static_boundary_requirements(
     plans.sort_by_key(|plan| (plan.machine.arena_index(), plan.machine.generation()));
     plans.dedup_by_key(|plan| plan.machine);
     plans
+}
+
+/// A target can denote its own requirement and project to another one. Retain
+/// the union of exact identities, not a preferred classification. This sorted
+/// scratch index belongs only to the current immutable program and call facts.
+fn static_boundary_call_targets(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+) -> Vec<(SymbolHandle, SymbolHandle)> {
+    let mut targets = facts
+        .flow
+        .control
+        .calls
+        .iter()
+        .map(|(_, call)| call.target_symbol)
+        .collect::<Vec<_>>();
+    targets.sort_unstable_by_key(|target| (target.arena_index(), target.generation()));
+    targets.dedup();
+    let mut requirements = Vec::new();
+    for target in targets {
+        requirements.push((target, target));
+        if let Some((requirement, _)) =
+            exact_compiler_intrinsic_boundary_requirement(program, target)
+        {
+            requirements.push((requirement, target));
+        }
+        if let Some((_, requirement)) = program.machine_parameter_signature(target) {
+            requirements.push((requirement.symbol, target));
+        }
+    }
+    requirements.sort_unstable_by_key(|(requirement, target)| {
+        (
+            requirement.arena_index(),
+            requirement.generation(),
+            target.arena_index(),
+            target.generation(),
+        )
+    });
+    requirements.dedup();
+    requirements
 }
 
 fn boundary_result_plan(

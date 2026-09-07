@@ -1147,6 +1147,22 @@ fn seed_ensures_conjunct(
 }
 
 /// Join the evaluated arguments and stable facts of every incoming path.
+pub(crate) fn incoming_guard_environments(
+    program: &TypedTrees,
+    machine: &Machine,
+) -> Vec<(symbols::SymbolHandle, ValueEnv)> {
+    let mut environments = arrivals::incoming_environments(program, machine);
+    for (state, (_, environment)) in program
+        .machine_states(machine)
+        .iter()
+        .zip(&mut environments)
+    {
+        arrivals::seed_state_requirements(program, machine, state, environment);
+    }
+    environments
+}
+
+/// Query one state without retaining a whole-machine validation batch.
 pub(crate) fn incoming_guard_env(
     program: &TypedTrees,
     machine: &Machine,
