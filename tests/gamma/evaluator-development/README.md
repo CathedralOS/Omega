@@ -24,10 +24,9 @@ emits no Gamma or Alpha code.
 ```
 
 The selected Beta compiler assembles that canonical Beta directly; this gate
-pins the Beta and tape hashes and executes the retained tape. The adjacent
-81-line label resolver remains only for nonauthoritative
-experiments elsewhere under `tests/`; it does not reconstruct or participate in
-the selected evaluator.
+pins the Beta and tape hashes and executes the retained tape. No symbolic-label
+resolver participates in this route; the test-owned resolver was removed with
+its last experimental consumer.
 
 For comparison, the current Gamma route above the common Beta compiler contains:
 

@@ -11,7 +11,7 @@ The objective remains the [smallest human-auditable chain](bootstrap_minimizatio
 | Delta height normalization | Current Epsilon customer lowers to height 69; normalization adds no helpers. | Freeze expansion. Do not raise Gamma depth for this customer. Resolve deep-source conformance before deleting the transform. |
 | Generic Gamma checker | Entire raw source/tape lists can be checked, but separately represented copies cost 229 seconds before any encoding derivation. | Keep the narrow checker; require a costed, shared certificate strategy before further encoder helper families. |
 | Partial Beta theory | Lexical and word helpers exist; full encoder, independent owner root, and source-owned certificate producer do not. | Do not treat helper completion as full-proof feasibility or trust reduction. |
-| Retained concatenative route | Eleven bootstrap files, 236,347 bytes; eleven remaining test entrypoints after completed-discriminator retirement below. | Candidate for further retirement, not dead code. Map unique coverage and preserve useful findings before coordinated removal. |
+| Retained concatenative route | Eleven bootstrap files, 236,347 bytes; ten remaining test entrypoints after experiment retirement below. | Candidate for further retirement, not dead code. Map unique coverage and preserve useful findings before coordinated removal. |
 
 No production implementation, private capacity, language contract, or trusted
 assumption changed in this review. It adds one optional diagnostic alongside the
@@ -245,9 +245,9 @@ review-discovery cost, not automatically additional trusted chain material.
 The six remaining Gamma entrypoints are `evaluator-slice.sh`, `evaluator-reconstruction.sh`,
 `compiler-fixed-point.sh`, `state-machine-customer.sh`, and the `run.sh` files in
 `gamma1-augmentation-experiment/` and `gamma-to-beta-experiment/`.
-The five remaining Delta entrypoints are the `run.sh` files in `compiler-slice/`,
+The four remaining Delta entrypoints are the `run.sh` files in `compiler-slice/`,
 `state-machine-experiment/`, `functional-compiler-experiment/`,
-`forth-gamma-experiment/`, and `streaming-compiler-experiment/`.
+and `streaming-compiler-experiment/`.
 The role registry, two artifact helpers, and
 chain-hygiene gate also retain the old route. Searches must include helper calls
 and role variables, not only literal directory names.
@@ -297,7 +297,39 @@ also reproduced its exact receipt and result 42. Checks ran on macOS arm64;
 Windows execution was unavailable. The selected source, artifacts, and permanent
 tests were not changed to make retirement pass.
 
-No shared resolver, concatenative compiler, artifact helper, fixture, or hygiene
-requirement was removed: their other consumers remain. This retires completed
-comparison work without pretending that the complete Gamma-to-Delta edge has
-closed or that every retained experiment is equally disposable.
+At that checkpoint, no shared resolver, concatenative compiler, artifact helper,
+fixture, or hygiene requirement was removed: their other consumers remained.
+This retired completed comparison work without claiming the complete
+Gamma-to-Delta edge had closed or every retained experiment was disposable.
+
+### Forth experiment
+
+The owner subsequently directed retirement of
+`tests/delta/forth-gamma-experiment/`, rather than extending it into a statically
+checked replacement language. D93/D94 retain the comparison and its limitations:
+the smaller interpreter came with 555 compiler words, absent whole-program
+name/stack-effect checks, and a 3,001-function case exceeding 600 seconds.
+Those historical decisions are unchanged; the prototype is no longer maintained.
+
+The eight experiment files and their now-unused
+`tests/gamma/evaluator-development/resolve.py` total 3,006 lines/101,739 bytes.
+They are recoverable at `284559298ec7dc0a7c3de029026918e112dfc197`.
+A repository-wide consumer search found no remaining executable dependency on
+these files or symbolic Beta inputs. Shared fixtures, the concatenative route,
+artifact helpers, and hygiene requirements still have other consumers and stay.
+
+Nat/List/rope, 100,000-node tails, and function-scale behavior map to the selected
+controls above (the selected scale case uses 3,001 functions, versus Forth's 301).
+The selected `staged-compiler/run.sh` also owns missing payload argument/binder
+rejections and empty-rope traps. The Forth-only `value`/`text` rules, its acceptance
+of unreachable unknown words, and its private receipt/size pins retire with the
+dialect. Reordered exhaustive arms must remain accepted under current Delta;
+the contrary Forth rejection is not a regression to preserve.
+
+At the Forth retirement base above, focused macOS arm64 checks rejected all four
+mapped malformed sources without output, reproduced the exact rope receipt and
+result `B`, compiled an empty-rope lookup that trapped without output, and ran
+the former 301-function source to 99 through selected Gamma/Delta. Earlier
+selected-route tail and 3,001-function results above have unchanged inputs.
+Chain hygiene and remaining-consumer checks passed; Windows was unavailable.
+No selected compiler, evaluator, artifact, or permanent control changed.

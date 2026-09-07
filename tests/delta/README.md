@@ -8,7 +8,6 @@ that led to typed scalar/effect Gamma. The selected Delta compiler remains open.
 | `staged-compiler/` | Exercises selected source-envelope, lexical-atom, global-census, recursive multi-field, rope, exhaustive-match, malformed-source, and scale stages through the selected Gamma evaluator. | Extend with each admitted Delta stage and replace with complete Delta conformance. |
 | `emission/` | Compares source-owned Gamma-plan extents, cached unary publication, fallback, ordering, and capture reconstruction against exact bytes. | Retain while the selected compiler owns this private serialization cache; replace when complete conformance directly covers the same invariants. |
 | `internal-boundary/` | Exercises retained typing-continuation contradictions through actual dispatch and canonical failure publication, with valid and malformed companions. | Replace when complete compiler invariant conformance directly covers these owned internal rows. |
-| `forth-gamma-experiment/` | Compares a fixed interpreted Forth-Gamma plus Forth-authored Delta compiler against selected functional Gamma, including named values, readable text emission, recursive data, malformed cases, tails, and scale. | Delete after a statically checked Forth profile either displaces functional Gamma or fails its final earned-rung test. |
 | `compiler-slice/` | Reconstructs and executes the downgraded concatenative-Gamma-written Delta compiler across its retained surface. | Delete after the selected staged Delta edge supersedes its evidence. |
 | `streaming-compiler-experiment/` | Tests declaration-only retention, validation by rescan, direct Gamma emission, and inherited tail position on the Functional scalar surface. | Delete after Gamma augmentation or a replacement Delta architecture resolves its auditability finding. |
 | `state-machine-experiment/` | Exercises the speculative source-owned typed state-machine compiler across nominal data, fixed storage, states, exhaustive transitions, calls, and direct Alpha emission. | Delete after its evidence is superseded by a representative canonical Delta compiler comparison. |
@@ -27,3 +26,8 @@ coverage belongs to `staged-compiler/`; the selected evaluator and augmentation
 route are checked under `tests/gamma/`. See the
 [retirement boundary](../../wiki/design_briefs/bootstrap_cost_review.md#completed-topology-discriminators)
 for the coverage mapping and remaining legacy dependencies.
+
+The owner-retired Forth-Gamma experiment and its unused symbolic-label resolver
+are also removed. D93/D94 retain its historical comparison; the
+[Forth retirement review](../../wiki/design_briefs/bootstrap_cost_review.md#forth-experiment)
+maps useful behavior to the selected tests without retaining the alternate dialect.
