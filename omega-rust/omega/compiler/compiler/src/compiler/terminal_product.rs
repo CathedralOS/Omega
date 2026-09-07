@@ -32,9 +32,10 @@ pub(super) fn produce_retained_terminal_artifact(
         checked.selected_provider_provenance(),
     )?;
     let psi_optimizations = selections.project_psi();
+    let terminal_trees = checked.terminal_production_trees()?;
     let produced =
         terminal_production::produce_terminal_artifact_with_callback_custody_and_optimizations(
-            checked,
+            &terminal_trees,
             &entry_machine,
             callback_placements,
             psi_optimizations.selections().clone(),

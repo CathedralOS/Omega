@@ -33,8 +33,9 @@ pub(super) fn prepare_terminal_artifact(
 ) -> Result<PreparedTerminalNativeArtifact, Vec<Diagnostic>> {
     let entry_machine = admission.program_entry.machine_name().to_owned();
     let psi_optimizations = optimization_selections.project_psi();
+    let terminal_trees = checked.terminal_production_trees()?;
     let produced = terminal_production::produce_program_entry_terminal_artifact_with_optimizations(
-        checked,
+        &terminal_trees,
         &entry_machine,
         admission
             .program_entry
