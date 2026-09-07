@@ -6,7 +6,7 @@
 Current direction: 2026-09-07. Relations are mathematical conditions, not
 necessarily executable decisions. Proofs use ordinary machine contracts and
 named trait/conformance bundles under the
-[mathematical proof contract](mathematical_proofs.md).
+[mathematical proof contract](../../spec/proofs/contracts.md).
 General predicate naming and parameter syntax remain to be specified. The
 schematic relation names below describe mathematical requirements, not a new
 source declaration. Implementation migration remains open.

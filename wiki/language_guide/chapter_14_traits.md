@@ -964,7 +964,7 @@ General predicate parameters, logical binders, and noncomputable mathematical
 values remain to be specified. A Boolean accessor is appropriate for a
 decidable property but cannot replace an arbitrary mathematical predicate.
 See [chapter 10](chapter_10_compile_time_proofs.md#contracts-and-evidence-bundles)
-and the [mathematical proof contract](../pre_migration/design_briefs/mathematical_proofs.md).
+and the [mathematical proof contract](../spec/proofs/contracts.md).
 The migration must demonstrate these bundles through calls, serialization,
 and independent replay; this section does not claim full implementation.
 

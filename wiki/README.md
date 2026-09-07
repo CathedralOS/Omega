@@ -14,6 +14,7 @@ beside code; completed work belongs in Git, not current reference material.
 
 ## Current specification subjects
 
+- Mathematical proofs: [contracts, bundles, normalization, and trust](spec/proofs/contracts.md).
 - Terminal Psi: [product](spec/terminal-psi/product.md),
   [calls and outcomes](spec/terminal-psi/calls_and_outcomes.md),
   [boundary calls](spec/terminal-psi/boundary_calls.md),
