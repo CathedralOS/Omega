@@ -25,6 +25,15 @@ pub(super) fn validate(
     }
     match (&actual.kind, &node.operation) {
         (
+            LegalizedScalarInstructionKind::ByteSequenceLength {
+                source,
+                length_byte_offset: 8,
+            },
+            AbstractOperation::ByteSequenceLength {
+                source: expected, ..
+            },
+        ) if source == expected => {}
+        (
             LegalizedScalarInstructionKind::BooleanNot { operand },
             AbstractOperation::BooleanNot {
                 operand: source, ..

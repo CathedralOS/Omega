@@ -6,6 +6,13 @@ pub(in crate::legalization) fn instruction(
     node: &OptimizationNode,
 ) -> Option<(OperationId, ValueId)> {
     match &node.operation {
+        AbstractOperation::ByteSequenceLength {
+            psi_operation,
+            result,
+            ..
+        } if result.scalar_type == ScalarType::Integer(u64_type()) => {
+            Some((*psi_operation, result.value))
+        }
         AbstractOperation::IntegerConstant {
             psi_operation,
             result,
@@ -119,6 +126,16 @@ pub(super) fn validate(
             return Err(invalid);
         }
         let expected_type = match &node.operation {
+            AbstractOperation::ByteSequenceLength { source, .. } => {
+                if !optimized
+                    .structural_parameters
+                    .iter()
+                    .any(|parameter| parameter.place == *source)
+                {
+                    return Err(invalid);
+                }
+                ScalarType::Integer(u64_type())
+            }
             AbstractOperation::IntegerConstant { scalar_type, .. }
             | AbstractOperation::Call { scalar_type, .. } => *scalar_type,
             AbstractOperation::ExactIntegerAdd { scalar_type, .. }

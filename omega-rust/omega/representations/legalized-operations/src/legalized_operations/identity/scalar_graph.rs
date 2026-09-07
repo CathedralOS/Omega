@@ -70,6 +70,14 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 None => bytes.push(0),
             }
             match &instruction.kind {
+                LegalizedScalarInstructionKind::ByteSequenceLength {
+                    source,
+                    length_byte_offset,
+                } => {
+                    bytes.push(7);
+                    bytes.extend_from_slice(&source.get().to_le_bytes());
+                    bytes.extend_from_slice(&length_byte_offset.to_le_bytes());
+                }
                 LegalizedScalarInstructionKind::BooleanNot { operand } => {
                     bytes.push(4);
                     bytes.extend_from_slice(&operand.get().to_le_bytes());

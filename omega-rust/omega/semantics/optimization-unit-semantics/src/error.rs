@@ -133,6 +133,11 @@ pub enum OptimizationUnitValidationError {
         block: BlockId,
         node: u32,
     },
+    InvalidByteSequenceLength {
+        machine: MachineId,
+        block: BlockId,
+        node: u32,
+    },
     InvalidIntegerStructuralField {
         machine: MachineId,
         block: BlockId,

@@ -20,6 +20,12 @@ use terminal_psi::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractOperation {
+    /// Observe the byte count of one verifier-approved immutable view.
+    ByteSequenceLength {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        source: PlaceId,
+    },
     /// Zero-code declaration of one existential descriptor in the current
     /// function's runtime interface. Keeping the complete Terminal row in the
     /// entry block prevents an unused parameter from disappearing before a

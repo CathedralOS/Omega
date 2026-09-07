@@ -83,24 +83,38 @@ pub(super) fn entry(
         &source.call_plan,
         &parameters,
         &signature.structural_types,
+    ) && !crate::structural_unit_input::accepts_borrowed_view(
+        &source.call_plan,
+        &parameters,
+        &signature.structural_types,
     ) {
         return Err(SelectedInstructionError::UnsupportedSourceShape { function });
     }
     for (parameter_index, parameter) in signature.parameters.iter().enumerate() {
         let place = parameter.semantic.place;
-        let used = source.blocks.iter().flat_map(|block| &block.instructions).any(|row| matches!(&row.kind,
-            LegalizedScalarInstructionKind::Call(call) if call.arguments.iter().any(|argument| matches!(argument,LegalizedScalarArgument::Structural {semantic,..} if semantic.place == place))));
+        let used = source.blocks.iter().flat_map(|block| &block.instructions).any(|row| match &row.kind {
+            LegalizedScalarInstructionKind::ByteSequenceLength { source, .. } => *source == place,
+            LegalizedScalarInstructionKind::Call(call) => call.arguments.iter().any(|argument| matches!(argument,LegalizedScalarArgument::Structural {semantic,..} if semantic.place == place)),
+            _ => false,
+        });
         if !used {
             continue;
         }
-        let [
-            ValueLocation::Indirect {
-                pointer: IndirectPointerLocation::Register(pointer),
-                ..
-            },
-        ] = parameter.target.placement.locations.as_slice()
-        else {
-            return Err(invalid());
+        let pointer = match parameter.target.placement.locations.as_slice() {
+            [
+                ValueLocation::Indirect {
+                    pointer: IndirectPointerLocation::Register(pointer),
+                    ..
+                },
+            ] => pointer,
+            [
+                ValueLocation::Register {
+                    register,
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+            ] if parameter.semantic.access == StructuralAccess::SharedBorrow => register,
+            _ => return Err(invalid()),
         };
         let fixed = environment
             .fixed_register_view(*pointer)
@@ -334,6 +348,54 @@ fn row_constraint<'a>(
 ) -> Result<&'a register_model::RegisterInstructionConstraint, SelectedInstructionError> {
     crate::selection::constraints::row(builder.catalog, key)
 }
+pub(super) fn byte_sequence_length(
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    source: PlaceId,
+    length_byte_offset: u32,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let result = row.result.ok_or_else(|| invalid())?;
+    if length_byte_offset != 8
+        || result.scalar_type
+            != ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
+            )
+    {
+        return Err(invalid());
+    }
+    let input = builder
+        .transport
+        .pointers
+        .iter()
+        .find(|(place, _)| *place == source)
+        .map(|(_, register)| *register)
+        .ok_or_else(|| invalid())?;
+    let output = builder.register(result.value, result.definition_site, result.scalar_type)?;
+    memory(
+        builder,
+        row,
+        source,
+        length_byte_offset,
+        8,
+        SelectedMemoryAccessRole::ReadPlace,
+    )?;
+    let provenance = SelectedInstructionProvenance {
+        operations: vec![row.operation],
+        values: vec![result.value],
+        fuel: row.fuel.clone(),
+        ..Default::default()
+    };
+    builder.emit(
+        SelectedInstructionKind::Load64 {
+            byte_offset: length_byte_offset,
+        },
+        builder.constraints.keys.load64.ok_or_else(|| invalid())?,
+        &[input, output],
+        provenance,
+    )?;
+    Ok(output)
+}
+
 fn provenance(row: &LegalizedScalarInstruction) -> SelectedInstructionProvenance {
     SelectedInstructionProvenance {
         operations: vec![row.operation],

@@ -64,6 +64,21 @@ pub(in crate::lowering) fn prepare_scalar_lowering(
             // enter this scalar lane only when that same boundary call carries
             // their claim toward provider custody.
             let carries_boundary_custody = boundary_custody_places.contains(&parameter.place);
+            let shared_byte_view = !parameter.is_self
+                && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                && parameter.access == StructuralAccess::SharedBorrow
+                && parameter.qualifications.is_empty()
+                && parameter.projected_qualifications.is_empty()
+                && structural_types
+                    .get(&parameter.structural_type)
+                    .is_some_and(|declaration| {
+                        matches!(
+                            declaration.shape,
+                            StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BorrowedView
+                            )
+                        )
+                    });
             let direct_borrowed_self = parameter.is_self
                 && matches!(
                     parameter.multiplicity,
@@ -87,7 +102,7 @@ pub(in crate::lowering) fn prepare_scalar_lowering(
                     && parameter.multiplicity != terminal_psi::StructuralMultiplicity::Linear)
                     || carries_boundary_custody);
             if usize::try_from(parameter.position) != Ok(position)
-                || (!direct_borrowed_self && !custody_bearing_parameter)
+                || (!direct_borrowed_self && !custody_bearing_parameter && !shared_byte_view)
             {
                 return Err(LoweringError::UnsupportedOperationInScalarFunction(
                     function.machine,
@@ -100,10 +115,12 @@ pub(in crate::lowering) fn prepare_scalar_lowering(
                 &mut active,
             )?;
             Ok(
-                if matches!(
-                    parameter.access,
-                    terminal_psi::StructuralAccess::MutableBorrow
-                ) {
+                if shared_byte_view
+                    || matches!(
+                        parameter.access,
+                        terminal_psi::StructuralAccess::MutableBorrow
+                    )
+                {
                     ValueShape::borrowed_reference(shape.byte_size, shape.alignment)
                 } else {
                     shape

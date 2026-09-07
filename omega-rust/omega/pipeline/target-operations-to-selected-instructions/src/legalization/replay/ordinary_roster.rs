@@ -43,18 +43,16 @@ pub(super) fn replay_remaining(
         let [graph] = graphs.as_slice() else {
             return Err(Error::NonCanonicalLegalizedPlan);
         };
-        let count = if graph.structural.is_some() && graph.ranked.is_none() {
-            replay_structural_unit_function(
-                index,
-                target_function,
-                abstracted,
-                optimized,
-                graph,
-                target,
-                abstract_plan,
-                unit,
-            )?
-        } else {
+        let count = if crate::legalization::scalar_graph_input::match_input(
+            target_function,
+            abstracted,
+            optimized,
+            target,
+            abstract_plan,
+            unit,
+        )
+        .is_ok()
+        {
             super::scalar_graph::replay(
                 target_function,
                 abstracted,
@@ -66,6 +64,17 @@ pub(super) fn replay_remaining(
                 graph,
             )?;
             0
+        } else {
+            replay_structural_unit_function(
+                index,
+                target_function,
+                abstracted,
+                optimized,
+                graph,
+                target,
+                abstract_plan,
+                unit,
+            )?
         };
         decomposition_count = decomposition_count
             .checked_add(count)

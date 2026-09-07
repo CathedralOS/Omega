@@ -83,7 +83,7 @@ pub(super) fn selected_environment_keys(
 pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedConstraintKeys> {
     match (target.architecture, target.object_format) {
         (Architecture::X86_64, ObjectFormat::Elf) => Some(SelectedConstraintKeys {
-            load64: None,
+            load64: Some(isa_x86_64::X86_64_LOAD64),
             store64: None,
             frame_address: None,
             call_unit: None,
@@ -121,7 +121,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             return_unit: X86_64_MICROSOFT_RETURN_UNIT,
         }),
         (Architecture::Aarch64, ObjectFormat::Elf) => Some(SelectedConstraintKeys {
-            load64: None,
+            load64: Some(isa_aarch64::AARCH64_LOAD64),
             store64: None,
             frame_address: None,
             call_unit: None,
@@ -140,7 +140,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             return_unit: AARCH64_AAPCS64_RETURN_UNIT,
         }),
         (Architecture::Aarch64, ObjectFormat::MachO) => Some(SelectedConstraintKeys {
-            load64: None,
+            load64: Some(isa_aarch64::AARCH64_LOAD64),
             store64: None,
             frame_address: None,
             call_unit: None,

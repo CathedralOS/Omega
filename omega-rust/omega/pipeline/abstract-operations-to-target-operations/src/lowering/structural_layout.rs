@@ -58,6 +58,12 @@ pub(crate) fn structural_shape(
             StructuralTypeShape::PrimitiveScalar(ScalarType::IeeeFloat(
                 IeeeFloatFormat::Binary64,
             )) => Ok(ValueShape::float(8)),
+            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView) => {
+                byte_sequence_shape(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView,
+                    structural_type,
+                )
+            }
             StructuralTypeShape::ByteSequence(_) => Err(
                 LoweringError::UnsupportedStructuralByteSequence(structural_type),
             ),

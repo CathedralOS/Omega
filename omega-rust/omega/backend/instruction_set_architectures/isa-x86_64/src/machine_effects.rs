@@ -111,7 +111,7 @@ fn selected_keys(
         }
     };
     Ok(SelectedConstraintKeys {
-        load64: (target.object_format == ObjectFormat::Coff).then_some(crate::X86_64_LOAD64),
+        load64: Some(crate::X86_64_LOAD64),
         store64: (target.object_format == ObjectFormat::Coff).then_some(crate::X86_64_STORE64),
         frame_address: (target.object_format == ObjectFormat::Coff)
             .then_some(crate::X86_64_FRAME_ADDRESS),
@@ -620,9 +620,27 @@ mod tests {
                         .declarations
                         .iter()
                         .any(|row| row.semantic == semantic),
-                    target.object_format == ObjectFormat::Coff
+                    semantic == MachineSemanticKind::Load64
+                        || target.object_format == ObjectFormat::Coff
                 );
             }
+            let load = ordinary
+                .declarations
+                .iter()
+                .find(|row| row.semantic == MachineSemanticKind::Load64)
+                .unwrap();
+            assert_eq!(load.memory, MachineMemoryEffect::ReadPointerV1);
+            assert_eq!(
+                load.alternatives[0].encoded.memory,
+                MachineEncodedMemoryEffect::ReadPointerV1 {
+                    pointer_operand: 0,
+                    byte_count: 8
+                }
+            );
+            assert_eq!(
+                load.alternatives[0].encoded.trap,
+                MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+            );
         }
     }
 

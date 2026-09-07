@@ -32,7 +32,9 @@ pub(super) fn encode_row(
         kind @ (SelectedInstructionKind::Load64 { .. }
         | SelectedInstructionKind::Store64 { .. }
         | SelectedInstructionKind::FrameAddress { .. }) => {
-            if target != NativeTarget::windows_x64() {
+            if !matches!(kind, SelectedInstructionKind::Load64 { .. })
+                && target != NativeTarget::windows_x64()
+            {
                 return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
             }
             let address = address.ok_or(OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
@@ -41,35 +43,68 @@ pub(super) fn encode_row(
                 .iter()
                 .map(|operand| operand.view)
                 .collect::<Vec<_>>();
-            let encoded = isa_x86_64::encode_x86_64_selected_memory_form(
-                physical,
-                kind,
-                alternative,
-                &views,
-                address.displacement,
-            )
-            .map_err(OptimizedSelectedFormEncodingError::X86_64)?;
-            let footprint = encoded.footprint();
-            validate_operand_footprint(
-                selected.id,
-                machine,
-                &footprint.encoded,
-                &footprint.register_reads,
-                &footprint.register_writes,
-            )?;
-            if footprint.encoded != machine.alternative.encoded {
-                return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-            }
-            validate_size(selected.id, machine.alternative.size, encoded.bytes().len())?;
-            SelectedFormEncodingState::Encoded {
-                bytes: encoded.bytes().to_vec(),
-                footprint: Box::new(SelectedFormDecodedFootprint {
-                    register_reads: footprint.register_reads.clone(),
-                    register_writes: footprint.register_writes.clone(),
-                    implicit_defs: footprint.encoded.implicit_unit_defs.clone(),
-                    implicit_clobbers: footprint.encoded.implicit_unit_clobbers.clone(),
-                    encoded: footprint.encoded.clone(),
-                }),
+            if architecture == Architecture::Aarch64 {
+                let encoded = isa_aarch64::encode_aarch64_selected_memory_form(
+                    physical,
+                    kind,
+                    alternative,
+                    &views,
+                    address.displacement,
+                )
+                .map_err(OptimizedSelectedFormEncodingError::Aarch64)?;
+                let footprint = encoded.footprint();
+                validate_operand_footprint(
+                    selected.id,
+                    machine,
+                    &footprint.encoded,
+                    &footprint.register_reads,
+                    &footprint.register_writes,
+                )?;
+                if footprint.encoded != machine.alternative.encoded {
+                    return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+                }
+                validate_size(selected.id, machine.alternative.size, encoded.bytes().len())?;
+                SelectedFormEncodingState::Encoded {
+                    bytes: encoded.bytes().to_vec(),
+                    footprint: Box::new(SelectedFormDecodedFootprint {
+                        register_reads: footprint.register_reads.clone(),
+                        register_writes: footprint.register_writes.clone(),
+                        implicit_defs: footprint.encoded.implicit_unit_defs.clone(),
+                        implicit_clobbers: footprint.encoded.implicit_unit_clobbers.clone(),
+                        encoded: footprint.encoded.clone(),
+                    }),
+                }
+            } else {
+                let encoded = isa_x86_64::encode_x86_64_selected_memory_form(
+                    physical,
+                    kind,
+                    alternative,
+                    &views,
+                    address.displacement,
+                )
+                .map_err(OptimizedSelectedFormEncodingError::X86_64)?;
+                let footprint = encoded.footprint();
+                validate_operand_footprint(
+                    selected.id,
+                    machine,
+                    &footprint.encoded,
+                    &footprint.register_reads,
+                    &footprint.register_writes,
+                )?;
+                if footprint.encoded != machine.alternative.encoded {
+                    return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+                }
+                validate_size(selected.id, machine.alternative.size, encoded.bytes().len())?;
+                SelectedFormEncodingState::Encoded {
+                    bytes: encoded.bytes().to_vec(),
+                    footprint: Box::new(SelectedFormDecodedFootprint {
+                        register_reads: footprint.register_reads.clone(),
+                        register_writes: footprint.register_writes.clone(),
+                        implicit_defs: footprint.encoded.implicit_unit_defs.clone(),
+                        implicit_clobbers: footprint.encoded.implicit_unit_clobbers.clone(),
+                        encoded: footprint.encoded.clone(),
+                    }),
+                }
             }
         }
         kind @ (SelectedInstructionKind::CallI64 { .. }

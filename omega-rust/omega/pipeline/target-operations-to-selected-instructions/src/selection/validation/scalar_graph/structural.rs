@@ -92,22 +92,34 @@ pub(super) fn entry(
         &source.call_plan,
         &parameters,
         &signature.structural_types,
+    ) && !crate::structural_unit_input::accepts_borrowed_view(
+        &source.call_plan,
+        &parameters,
+        &signature.structural_types,
     ) {
         return Err(replay.invalid());
     }
     for (parameter_index, parameter) in signature.parameters.iter().enumerate() {
         let place = parameter.semantic.place;
         if !source.blocks.iter().flat_map(|block|&block.instructions).any(|row| match &row.kind {
+            LegalizedScalarInstructionKind::ByteSequenceLength { source, .. } => *source == place,
             LegalizedScalarInstructionKind::Call(call)=>call.arguments.iter().any(|argument|matches!(argument,LegalizedScalarArgument::Structural {semantic,..} if semantic.place==place)),_=>false,
         }) {continue;}
-        let [
-            ValueLocation::Indirect {
-                pointer: IndirectPointerLocation::Register(pointer),
-                ..
-            },
-        ] = parameter.target.placement.locations.as_slice()
-        else {
-            return Err(replay.invalid());
+        let pointer = match parameter.target.placement.locations.as_slice() {
+            [
+                ValueLocation::Indirect {
+                    pointer: IndirectPointerLocation::Register(pointer),
+                    ..
+                },
+            ] => pointer,
+            [
+                ValueLocation::Register {
+                    register,
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+            ] if parameter.semantic.access == StructuralAccess::SharedBorrow => register,
+            _ => return Err(replay.invalid()),
         };
         let fixed = environment
             .fixed_register_view(*pointer)
@@ -341,6 +353,59 @@ pub(super) fn operation(
     )?;
     Ok(true)
 }
+pub(super) fn byte_sequence_length(
+    replay: &mut Replay<'_>,
+    row: &LegalizedScalarInstruction,
+    source: PlaceId,
+    length_byte_offset: u32,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let result = row.result.ok_or_else(|| replay.invalid())?;
+    if length_byte_offset != 8
+        || result.scalar_type
+            != ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| replay.invalid())?,
+            )
+    {
+        return Err(replay.invalid());
+    }
+    let input = replay
+        .transport
+        .pointers
+        .iter()
+        .find(|(place, _)| *place == source)
+        .map(|(_, register)| *register)
+        .ok_or_else(|| replay.invalid())?;
+    let output =
+        replay.result_register(result.value, result.definition_site, result.scalar_type)?;
+    memory(
+        replay,
+        row,
+        source,
+        length_byte_offset,
+        8,
+        SelectedMemoryAccessRole::ReadPlace,
+    )?;
+    let provenance = SelectedInstructionProvenance {
+        operations: vec![row.operation],
+        values: vec![result.value],
+        fuel: row.fuel.clone(),
+        ..Default::default()
+    };
+    replay.check_instruction(
+        SelectedInstructionKind::Load64 {
+            byte_offset: length_byte_offset,
+        },
+        replay
+            .constraints
+            .keys
+            .load64
+            .ok_or_else(|| replay.invalid())?,
+        &[input, output],
+        &provenance,
+    )?;
+    Ok(output)
+}
+
 fn provenance(row: &LegalizedScalarInstruction) -> SelectedInstructionProvenance {
     SelectedInstructionProvenance {
         operations: vec![row.operation],

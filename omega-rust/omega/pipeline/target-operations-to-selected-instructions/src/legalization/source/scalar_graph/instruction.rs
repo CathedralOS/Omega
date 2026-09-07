@@ -9,6 +9,12 @@ pub(super) fn project(
     let (operation, result) =
         scalar_graph_input::instruction(node).ok_or(Error::SourceCustodyMismatch)?;
     let kind = match &node.operation {
+        AbstractOperation::ByteSequenceLength { source, .. } => {
+            LegalizedScalarInstructionKind::ByteSequenceLength {
+                source: *source,
+                length_byte_offset: 8,
+            }
+        }
         AbstractOperation::BooleanNot { operand, .. } => {
             LegalizedScalarInstructionKind::BooleanNot { operand: *operand }
         }

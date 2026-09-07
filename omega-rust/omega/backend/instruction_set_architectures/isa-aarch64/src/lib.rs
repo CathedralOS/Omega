@@ -28,6 +28,7 @@ pub use post_handoff_writer::{
 pub use preservation_storage::{
     Aarch64PreservationStorageCatalogError, aarch64_preservation_storage_catalog,
 };
+pub use register_model::AARCH64_LOAD64;
 pub use register_model::aarch64_aapcs64_register_call_keys;
 pub use register_model::aarch64_darwin_register_call_keys;
 pub use register_model::{
@@ -61,6 +62,9 @@ pub use selected_form_encoding::{
     validate_aarch64_selected_scalar_call_template,
     validate_aarch64_selected_u64_less_than_branch_form,
     validate_aarch64_shortest_movn_materialization,
+};
+pub use selected_form_encoding::{
+    encode_aarch64_selected_memory_form, validate_aarch64_selected_memory_form,
 };
 
 use diagnostics::Diagnostic;

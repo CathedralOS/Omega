@@ -429,7 +429,8 @@ pub(super) fn conditional_provenance(
     let mut provenance = TerminalPsiProvenance::default();
     for operation in &function.operations {
         let psi_operation = match operation {
-            AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }
+            AbstractOperation::ByteSequenceLength { psi_operation, .. }
+            | AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }
             | AbstractOperation::StructuralScalarFieldStore { psi_operation, .. }
             | AbstractOperation::StoreDynamicDescriptor { psi_operation, .. }
             | AbstractOperation::EstablishPayloadlessCase { psi_operation, .. }

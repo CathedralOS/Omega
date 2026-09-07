@@ -43,6 +43,7 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }
         | O::BooleanConstant { .. }
         | O::BooleanStructuralField { .. }
+        | O::ByteSequenceLength { .. }
         | O::IntegerStructuralField { .. }
         | O::BooleanNot { .. }
         | O::BooleanEqual { .. }

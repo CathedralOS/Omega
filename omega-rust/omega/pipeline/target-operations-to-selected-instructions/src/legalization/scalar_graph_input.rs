@@ -17,9 +17,36 @@ mod boolean;
 mod control;
 mod custody;
 pub(super) use custody::validate_unit_custody;
+mod byte_views;
 mod header;
 mod ranked;
-pub(super) use ranked::structural_contract;
+pub(super) fn structural_contract(
+    target: &TargetFunction,
+    abstracted: &AbstractFunction,
+    optimized: &PsiOptimizationFunction,
+    plan: &AbstractOperationPlan,
+) -> Option<legalized_operations::LegalizedStructuralContract> {
+    if let Some(abi) = &target.mixed_structural_scalar_abi {
+        return Some(legalized_operations::LegalizedStructuralContract {
+            structural_types: plan.structural_types.clone(),
+            parameters: abstracted
+                .structural_parameters
+                .iter()
+                .zip(&abi.structural_parameters)
+                .map(
+                    |(semantic, target)| legalized_operations::LegalizedCallUnitParameter {
+                        semantic: semantic.clone(),
+                        target: target.clone(),
+                    },
+                )
+                .collect(),
+            structural_places: optimized.structural_places.clone(),
+            entry_claims: abstracted.entry_claims.clone(),
+            published_service_ceiling: abstracted.published_service_ceiling.clone(),
+        });
+    }
+    ranked::structural_contract(target, abstracted, optimized)
+}
 mod nodes;
 mod target;
 use header::function_abi;
@@ -67,6 +94,8 @@ pub(super) fn match_input(
     let ranked = matches!(target.operation, TargetOperation::RankedU32Countdown(_));
     let call_plan = if ranked {
         ranked::validate(target, abstracted, optimized, native, plan, unit)?
+    } else if target.mixed_structural_scalar_abi.is_some() {
+        byte_views::validate(target, abstracted, optimized, native.target, plan)?
     } else {
         function_abi(native.target, target, abstracted, optimized)?
     };

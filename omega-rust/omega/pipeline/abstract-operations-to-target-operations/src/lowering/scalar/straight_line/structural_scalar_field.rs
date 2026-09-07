@@ -154,6 +154,66 @@ pub(super) fn lower(
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
     match operation {
+        AbstractOperation::ByteSequenceLength {
+            psi_operation,
+            result,
+            source,
+        } => {
+            let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
+            let semantic = function
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == *source)
+                .filter(|parameter| {
+                    !parameter.is_self
+                        && parameter.access == StructuralAccess::SharedBorrow
+                        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                        && parameter.qualifications.is_empty()
+                        && parameter.projected_qualifications.is_empty()
+                })
+                .ok_or_else(invalid)?;
+            let declaration = structural_types
+                .get(&semantic.structural_type)
+                .ok_or_else(invalid)?;
+            if !matches!(
+                declaration.shape,
+                StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView)
+            ) {
+                return Err(invalid());
+            }
+            let ScalarType::Integer(scalar_type) = result.scalar_type else {
+                return Err(invalid());
+            };
+            if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != 64 {
+                return Err(invalid());
+            }
+            let parameter = target_structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == *source)
+                .filter(|parameter| {
+                    parameter.structural_type == semantic.structural_type
+                        && parameter.access == semantic.access
+                        && parameter.multiplicity == semantic.multiplicity
+                        && parameter.projected_qualifications == semantic.projected_qualifications
+                        && parameter.shape == ValueShape::borrowed_reference(16, 8)
+                })
+                .ok_or_else(invalid)?;
+            insert_value(
+                values,
+                result.value,
+                KnownScalar::Integer {
+                    scalar_type,
+                    value: KnownInteger::Runtime(TargetIntegerExpression::ByteSequenceLength {
+                        psi_operation: *psi_operation,
+                        source_value: result.value,
+                        source: *source,
+                        source_placement: parameter.placement.clone(),
+                        length_byte_offset: 8,
+                    }),
+                },
+            )?;
+            provenance.operations.push(*psi_operation);
+        }
         AbstractOperation::BooleanStructuralField {
             psi_operation,
             result,

@@ -13,6 +13,47 @@ pub(crate) struct Parameter<'a> {
     pub target: &'a target_operations::TargetStructuralParameter,
 }
 
+/// An immutable byte descriptor is borrowed through one native pointer.
+pub(crate) fn accepts_borrowed_view(
+    call_plan: &CallPlan,
+    parameters: &[Parameter<'_>],
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
+) -> bool {
+    let [parameter] = parameters else {
+        return false;
+    };
+    let expected = calling_conventions::evaluate_call_plan(
+        call_plan.policy,
+        &calling_conventions::CallSignature {
+            parameters: vec![calling_conventions::ValueShape::borrowed_reference(16, 8)],
+            result: Some(calling_conventions::ValueShape::integer(8, 8)),
+        },
+    );
+    expected
+        .as_ref()
+        .is_ok_and(|expected| expected == call_plan)
+        && parameter.semantic.position == 0
+        && !parameter.semantic.is_self
+        && parameter.semantic.access == StructuralAccess::SharedBorrow
+        && parameter.semantic.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+        && parameter.semantic.qualifications.is_empty()
+        && parameter.semantic.projected_qualifications.is_empty()
+        && parameter.target.place == parameter.semantic.place
+        && parameter.target.structural_type == parameter.semantic.structural_type
+        && parameter.target.access == parameter.semantic.access
+        && parameter.target.projected_qualifications.is_empty()
+        && parameter.target.multiplicity == parameter.semantic.multiplicity
+        && parameter.target.shape == calling_conventions::ValueShape::borrowed_reference(16, 8)
+        && parameter.target.placement == call_plan.parameters[0]
+        && structural_types.iter().any(|declaration| {
+            declaration.id == parameter.semantic.structural_type
+                && declaration.shape
+                    == StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView,
+                    )
+        })
+}
+
 pub(crate) fn accepts(
     call_plan: &CallPlan,
     parameters: &[Parameter<'_>],

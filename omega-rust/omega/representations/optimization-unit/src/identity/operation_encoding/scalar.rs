@@ -6,6 +6,16 @@ use super::*;
 pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
     match operation {
+        O::ByteSequenceLength {
+            psi_operation,
+            result,
+            source,
+        } => {
+            bytes.u8(62);
+            bytes.id(*psi_operation);
+            encode_abstract_result(bytes, *result);
+            bytes.id(*source);
+        }
         O::IntegerConstant {
             psi_operation,
             result,

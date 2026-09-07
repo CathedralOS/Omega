@@ -19,8 +19,8 @@ pub enum LoweringError {
     /// Psi preserves exact byte-sequence literals, but native realization is
     /// deliberately fenced until the selected boundary has a byte-view ABI.
     UnsupportedByteSequenceLiteral(semantic_vocabulary::OperationId),
-    /// Exact byte-view length is executable in Terminal; native descriptor observation is not yet realized.
-    UnsupportedByteSequenceLength(semantic_vocabulary::OperationId),
+    /// The length observation did not retain its exact scalar u64 result.
+    InvalidByteSequenceLength(semantic_vocabulary::OperationId),
     UnsupportedByteSequenceRead(semantic_vocabulary::OperationId),
     UnsupportedByteSequenceSubslice(semantic_vocabulary::OperationId),
     /// Independent Terminal-to-Omega projection could not rejoin one exact

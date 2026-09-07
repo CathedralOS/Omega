@@ -419,6 +419,7 @@ fn operation_observations(
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishAffineScalarRecord { .. }
         | O::BooleanStructuralField { .. }
+        | O::ByteSequenceLength { .. }
         | O::IntegerStructuralField { .. } => (vec![event(C::StructuralState)], No, No),
         O::CallUnit { .. }
         | O::CallUnitWithDynamicArguments { .. }

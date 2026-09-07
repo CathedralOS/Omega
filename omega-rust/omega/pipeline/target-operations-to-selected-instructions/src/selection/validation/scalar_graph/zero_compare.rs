@@ -42,6 +42,7 @@ pub(super) fn folded_zero<'a>(
             }
             let uses = match &instruction.kind {
                 LegalizedScalarInstructionKind::Constant(_)
+                | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
                 | LegalizedScalarInstructionKind::BoundarySettlement(_) => false,
                 LegalizedScalarInstructionKind::BooleanNot { operand }
                 | LegalizedScalarInstructionKind::IntegerWiden { operand, .. } => {
