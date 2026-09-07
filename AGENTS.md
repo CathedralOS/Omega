@@ -625,6 +625,5 @@ what you mean. When a literal phrase is available, use it.
 - [Architecture](wiki/pre_migration/architecture/architecture.md)
 - [Documentation index](wiki/README.md)
 - [Terminal Psi product contract](wiki/spec/terminal-psi/product.md)
-- [Remaining Terminal vocabulary](wiki/pre_migration/architecture/pipeline/terminal_psi.md)
 - [Optimization Phases](wiki/pre_migration/architecture/pipeline/optimization_phases.md)
 - [Rust Compiler Completion Contract](wiki/pre_migration/releases/rust_compiler_completion_contract.md)

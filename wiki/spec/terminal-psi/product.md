@@ -1,13 +1,13 @@
 # Terminal Psi product
 
 This is the current portable-product contract, independent of the implementation
-language. The [remaining vocabulary reference](../../pre_migration/architecture/pipeline/terminal_psi.md)
-still carries operation-specific details not yet consolidated here.
+language. The [documentation index](../../README.md) lists its vocabulary subjects.
 [Boundary calls](boundary_calls.md), [byte views](byte_views.md), and
 [observations](observations.md), [calls and outcomes](calls_and_outcomes.md), and
 [verification](verification.md) have their
 own references. [Mathematical proof values](mathematical_values.md) and
 [integer certificates](integer_certificates.md) define their proof vocabulary.
+[Structural predicates](structural_predicates.md) defines path and aggregate terms.
 Implementation coverage is not implied by a specified
 contract; unfinished integration belongs on the [execution board](../../../TASKS.md).
 

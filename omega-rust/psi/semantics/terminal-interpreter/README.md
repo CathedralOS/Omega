@@ -14,6 +14,16 @@ checks exact subtraction before creating resumable state. This interpreter
 acceptance grants no native, fixed-fuel, provider-installation, or mixed-work
 authority.
 
+## Calls and work
+
+The interpreter charges a call before entering its owned frame. Exhaustion inside
+the callee resumes without paying or invoking that call again. A callee crash
+retains its original site and edge charge, with no fabricated caller crash.
+Ordinary recursive call graphs remain fenced until their tail/ranking evidence
+is admitted; cyclic block execution has its separate verified route above.
+Fixed-work composition distinguishes normal return bounds from crash bounds:
+only a normal return composes the caller's remaining work.
+
 ## Boundary responses
 
 [effect_results.rs](src/effect_results.rs) distinguishes Unit, scalar, and opaque

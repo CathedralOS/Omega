@@ -377,9 +377,10 @@ Owners include
 - **PSIIR.** Extend Terminal Psi only in complete vertical slices through
   canonical encoding, independent reconstruction, verification,
   interpretation, resource analysis, native lowering, artifact custody, and
-  installation. The detailed vocabulary lives in
-  `wiki/pre_migration/architecture/pipeline/terminal_psi.md`; this task records no operation
-  ledger. Acceptance: source and producer state can be discarded before an
+  installation. [Terminal specification subjects](wiki/README.md#current-specification-subjects)
+  own the vocabulary; complete operation/proof-node byte tables remain required
+  by the [encoding contract](wiki/spec/terminal-psi/encoding.md).
+  Acceptance: source and producer state can be discarded before an
   independent verifier reconstructs every obligation and executes or lowers
   the same artifact.
 
@@ -391,7 +392,7 @@ Owners include
   `TRANSLATION-VALIDATION` in `TASKS_OPTIMIZER.md`.
 
 - **GENERAL-CYCLIC-EXECUTION.** Implement the
-  [settled cyclic control contract](wiki/pre_migration/architecture/pipeline/terminal_psi.md)
+  [settled cyclic control contract](wiki/spec/terminal-psi/control_flow.md)
   and [separate safety/progress rules](wiki/pre_migration/design_briefs/termination_ranking_and_progress.md)
   for the actual effectful state graphs used by `print_squares` and the
   Console writer. Reuse blocks, `Jump`, `Conditional`, successor arguments,
@@ -747,7 +748,7 @@ Owners include
   calls.
   Extend the
   type-directed record/array complement in
-  [Terminal Psi](wiki/pre_migration/architecture/pipeline/terminal_psi.md) to construction-local
+  [ownership contract](wiki/spec/terminal-psi/ownership.md) to construction-local
   roots and mixed dying-root schedules, preserving maximal untouched subtrees,
   empty complements, and reverse establishment order without runtime liveness
   flags. Entry-parameter cleanup alone cannot dispose a temporary's remainder.

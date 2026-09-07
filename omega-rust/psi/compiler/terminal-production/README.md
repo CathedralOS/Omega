@@ -145,6 +145,28 @@ proof-only clause. It does not establish general callee or nested-result support
 Missing correspondence is an integration gap, not permission to invent a source
 identity or a new meaning for the proof-value carrier.
 
+## Structural predicate production
+
+Contract: [structural predicates](../../../../wiki/spec/terminal-psi/structural_predicates.md).
+Current production admits bounded acyclic relevant record/sum expansion, including
+an enclosing record chain around one mixed common-field/case occurrence. This is
+not arbitrary recursive depth, multiple mixed siblings, a mixed value inside
+another mixed shape, or projected runtime sum support. Preserve every prefix
+identity; extending depth is implementation work, not another equality rule.
+
+Supported leaves are Boolean, fixed integer, IEEE, and byte-sequence carriers.
+Address and erased leaf equality, all-erased records, written equality bodies,
+text literals/direct text inequality, and general sum-bearing projected calls
+remain outside this source family. A predicate may be serialized even though the
+interpreter lacks the runtime sum inspection needed to execute its source use.
+
+Whole-root/all-field-projected integer predicates preserve selected bitwise and
+arithmetic terms. Runtime divisor/count and Exact value bounds need complete
+checked requirement packages and independent caller proofs. Case-payload numeric
+paths, imported crash capsules, and ownership/content effects do not acquire
+support from these scalar-predicate paths. Source rejection must not erase a
+retained contract or reinterpret unsupported operands as another scalar type.
+
 ## Structural access and stores
 
 The [access contract](../../../../wiki/spec/terminal-psi/structural_access.md)

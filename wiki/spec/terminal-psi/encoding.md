@@ -3,11 +3,11 @@
 [Portable product](product.md) | [Observations](observations.md)
 
 This is the canonical encoding contract, not yet a complete byte-level decoder
-specification. Operation payload details remain in the
-[vocabulary reference](../../pre_migration/architecture/pipeline/terminal_psi.md).
+specification. The [documentation index](../../README.md) lists operation subjects.
 [Proof values](mathematical_values.md) and [certificate rules](integer_certificates.md)
 define semantics; complete per-operation and proof-node physical tables still
-need consolidation. The implementation's codec is not a substitute for those tables.
+need specification under PSIIR on the [execution board](../../../TASKS.md).
+The implementation's codec is not a substitute for those tables.
 
 ## Canonical form
 
