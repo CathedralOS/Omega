@@ -227,6 +227,11 @@ enum LoweredDirectExpression {
         source: PlaceId,
         scalar_type: ScalarType,
     },
+    ByteSequenceRead {
+        source: PlaceId,
+        index: Box<LoweredDirectExpression>,
+        scalar_type: ScalarType,
+    },
     Parameter {
         position: usize,
         scalar_type: ScalarType,
@@ -270,6 +275,7 @@ impl LoweredDirectExpression {
         match self {
             Self::Parameter { scalar_type, .. }
             | Self::ByteSequenceLength { scalar_type, .. }
+            | Self::ByteSequenceRead { scalar_type, .. }
             | Self::Local { scalar_type, .. }
             | Self::IntegerLiteral { scalar_type, .. }
             | Self::IntegerBinary { scalar_type, .. }
@@ -510,6 +516,8 @@ const TERMINAL_UNIT_CALL_OBLIGATION_BASE: u64 = 1_u64 << 63;
 struct OperationBuffer {
     next_identity: u64,
     operations: Vec<Operation>,
+    /// Temporary observations available on the current emission path only.
+    byte_lengths: Vec<(PlaceId, ValueId)>,
     source_calls: Vec<LoweredSourceCallOccurrence>,
     selected_ieee_float_fmas: Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
 }
@@ -521,6 +529,7 @@ impl OperationBuffer {
                 .checked_add(1)
                 .expect("operation identity base admits one-based identities"),
             operations: Vec::new(),
+            byte_lengths: Vec::new(),
             source_calls: Vec::new(),
             selected_ieee_float_fmas: Vec::new(),
         }

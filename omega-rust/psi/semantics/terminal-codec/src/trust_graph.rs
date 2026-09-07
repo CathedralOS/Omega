@@ -53,6 +53,8 @@ const PROOF_ADMISSION_EVIDENCE_SOURCE: &[u8] =
 const PROOF_ADMISSION_JUDGMENT_SOURCE: &[u8] =
     include_bytes!("../../proof-admission/src/kernel.rs");
 const PROOF_ADMISSION_PROOF_SOURCE: &[u8] = include_bytes!("../../proof-admission/src/proof.rs");
+const PROOF_ADMISSION_ORDER_DISCRETENESS_SOURCE: &[u8] =
+    include_bytes!("../../proof-admission/src/proof/order_discreteness.rs");
 const PROOF_ADMISSION_TRAVERSAL_SOURCE: &[u8] =
     include_bytes!("../../proof-admission/src/proof/traversal.rs");
 const PROOF_ADMISSION_INTEGER_AFFINE_SOURCE: &[u8] =
@@ -87,6 +89,14 @@ const TERMINAL_CALL_COMPOSITION_SOURCE: &[u8] =
     include_bytes!("../../terminal-semantics/src/call_composition.rs");
 const TERMINAL_STRUCTURAL_EFFECT_SOURCE: &[u8] =
     include_bytes!("../../terminal-semantics/src/structural_effect.rs");
+const BYTE_READ_VALIDATION_SOURCE: &[u8] =
+    include_bytes!("../../terminal-verifier/src/validation/byte_sequence_read.rs");
+const BYTE_VIEW_VALIDATION_SOURCE: &[u8] =
+    include_bytes!("../../terminal-verifier/src/validation/byte_sequence_length.rs");
+const OPERATION_FACTS_SOURCE: &[u8] =
+    include_bytes!("../../terminal-verifier/src/verification/reconstruction/operation_facts.rs");
+const MACHINE_RECONSTRUCTION_CONTEXT_SOURCE: &[u8] =
+    include_bytes!("../../terminal-verifier/src/verification/reconstruction/machine_context.rs");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TrustDependencyKind {
@@ -470,7 +480,7 @@ mod tests {
             .iter()
             .find(|node| node.identity() == "implementation:rust-proof-admission")
             .expect("current Rust proof admission checker");
-        assert_eq!(rust_admission.version(), "rust-proof-admission-v9");
+        assert_eq!(rust_admission.version(), "rust-proof-admission-v10");
         assert!(
             rust_admission
                 .dependencies()
@@ -524,7 +534,7 @@ mod tests {
                 .iter()
                 .filter(|node| node.kind() == TrustDependencyKind::StructuralEffectSchema)
                 .count(),
-            10
+            11
         );
         assert_eq!(
             graph
@@ -534,7 +544,7 @@ mod tests {
                 .count(),
             10
         );
-        assert_eq!(OperationSemanticRow::ALL.len(), 55);
+        assert_eq!(OperationSemanticRow::ALL.len(), 56);
         let descriptor_store = OperationSemanticRow::ALL
             .iter()
             .find(|row| row.tag() == OperationSemanticTag::StoreDynamicDescriptor)
@@ -564,7 +574,7 @@ mod tests {
                 .iter()
                 .filter(|row| row.custody() == OperationSemanticCustody::LeafDenotation)
                 .count(),
-            45
+            46
         );
         assert_eq!(
             OperationSemanticRow::ALL

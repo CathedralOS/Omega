@@ -422,6 +422,7 @@ fn shared_integer_runtime_parameters_with_shells(
     match expression {
         LoweredDirectExpression::IntegerLiteral { .. } => Some(BTreeSet::new()),
         LoweredDirectExpression::IeeeFloatLiteral { .. }
+        | LoweredDirectExpression::ByteSequenceRead { .. }
         | LoweredDirectExpression::ByteSequenceLength { .. } => None,
         LoweredDirectExpression::Parameter {
             position,

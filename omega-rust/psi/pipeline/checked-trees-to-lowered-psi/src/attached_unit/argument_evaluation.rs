@@ -291,6 +291,7 @@ impl Evaluation {
                 &mut self.blocks,
             )?;
         }
+        operations.byte_lengths.clear();
         let result = completion_parameters[source_types.len()..].to_vec();
         *values = completion_parameters[..source_types.len()].to_vec();
         self.current = completion;
@@ -346,6 +347,9 @@ fn emit_state(
     calls: &mut CallEmissionContext<'_>,
     blocks: &mut Vec<Block>,
 ) -> Result<(), LoweringError> {
+    // Expansion-state order is not dominance order. Only observations made
+    // within this state's path may be reused while emitting its decisions.
+    operations.byte_lengths.clear();
     let mut values = parameters.to_vec();
     let mut block_parameters = parameters.to_vec();
     let mut operation_start = operations.len();

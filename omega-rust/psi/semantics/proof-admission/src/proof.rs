@@ -32,6 +32,7 @@ pub enum AcceptedProofRule {
     EqualityTransitivity,
     EqualitySymmetry,
     IntegerOrderWeakening,
+    IntegerOrderDiscreteness,
     IntegerLessOrEqualTransitivity,
     IntegerOrderSubstitution,
     IntegerAffineBound,
@@ -187,6 +188,7 @@ pub fn accept_certificate_with_machine_parameters(
     Ok(acceptance.finish())
 }
 
+mod order_discreteness;
 mod traversal;
 use traversal::check_node;
 
@@ -425,6 +427,12 @@ fn check_node_locally(
                 }
                 _ => Err(ProofError::RulePremiseMismatch("equality transitivity")),
             }
+        }
+        ProofRule::IntegerOrderDiscreteness { relation } => {
+            acceptance
+                .rules
+                .insert(AcceptedProofRule::IntegerOrderDiscreteness);
+            order_discreteness::check(&relation.conclusion, &proof.conclusion)
         }
         ProofRule::IntegerOrderWeakening { relation } => {
             acceptance

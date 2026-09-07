@@ -860,6 +860,21 @@ fn validate_operation_foundation(
     operation: &Operation,
 ) -> Result<(), CodecError> {
     match &operation.kind {
+        OperationKind::ByteSequenceRead { .. } => {
+            let expected = ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 8)
+                    .expect("u8 is valid"),
+            );
+            if operation
+                .result
+                .scalar()
+                .is_none_or(|result| result.scalar_type != expected)
+            {
+                return malformed("byte-sequence read requires an unsigned 8-bit scalar result");
+            }
+            // Full module validation checks direct length provenance, custody,
+            // operand types and dominance before encoding or after decoding.
+        }
         OperationKind::ByteSequenceLength { .. } => {
             let expected = ScalarType::Integer(
                 semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64)

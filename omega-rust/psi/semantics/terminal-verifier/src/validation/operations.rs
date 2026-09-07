@@ -11,6 +11,22 @@ pub(super) fn validate_operation_operands(
     value_types: &BTreeMap<ValueId, ScalarType>,
     defined: &BTreeSet<ValueId>,
 ) -> Result<(), ModuleError> {
+    if let OperationKind::ByteSequenceRead { index, length, .. } = operation.kind {
+        let expected =
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"));
+        for operand in [index, length] {
+            require_defined(operand, value_types, defined)?;
+            let actual = value_types[&operand];
+            if actual != expected {
+                return Err(ModuleError::ByteSequenceReadOperandTypeMismatch {
+                    operation: operation.id,
+                    operand,
+                    actual,
+                });
+            }
+        }
+        return Ok(());
+    }
     if let OperationKind::NearestIeeeFloatFusedMultiplyAdd {
         left,
         right,
@@ -571,6 +587,7 @@ pub(super) fn validate_operation_operands(
         | OperationKind::BooleanStructuralField { .. }
         | OperationKind::IntegerStructuralField { .. }
         | OperationKind::ByteSequenceLength { .. }
+        | OperationKind::ByteSequenceRead { .. }
         | OperationKind::BooleanNot { .. }
         | OperationKind::BooleanEqual { .. }
         | OperationKind::IntegerEqual { .. }

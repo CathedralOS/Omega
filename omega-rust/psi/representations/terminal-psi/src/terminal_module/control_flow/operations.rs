@@ -166,6 +166,14 @@ pub enum OperationKind {
     ByteSequenceLength {
         source: PlaceId,
     },
+    /// Read one byte using the exact source's dominating length observation.
+    /// The independent verifier reconstructs and checks index < length.
+    ByteSequenceRead {
+        source: PlaceId,
+        index: ValueId,
+        length: ValueId,
+        obligation: ObligationId,
+    },
     /// Establish one whole, claim-free affine empty-record local. This is a
     /// semantic ownership event, not an ABI input or a target storage choice.
     EstablishTrivialAffineLocal {

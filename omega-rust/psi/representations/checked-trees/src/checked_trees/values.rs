@@ -284,6 +284,7 @@ pub enum CheckedScalarExpression {
         primitive_type: typed_trees::types::PrimitiveType,
     },
     /// Selected builtin element read from current structural parameter storage.
+    /// An empty path selects the whole parameter, not a nominal field.
     /// The index remains an evaluated dependency, not a fixed field projection.
     StructuralParameterIndexedRead {
         parameter_position: u32,

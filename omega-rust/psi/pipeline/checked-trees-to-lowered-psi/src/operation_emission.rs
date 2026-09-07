@@ -588,6 +588,23 @@ fn emit_scalar_leaf(
     id
 }
 
+fn emit_byte_length(
+    source: PlaceId,
+    next_value_identity: &mut u64,
+    operations: &mut OperationBuffer,
+) -> ValueId {
+    let scalar_type =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"));
+    let value = emit_scalar_leaf(
+        OperationKind::ByteSequenceLength { source },
+        scalar_type,
+        next_value_identity,
+        operations,
+    );
+    operations.byte_lengths.push((source, value));
+    value
+}
+
 pub(super) fn emit_direct_expression(
     expression: &LoweredDirectExpression,
     parameters: &[ValueDeclaration],
@@ -603,15 +620,42 @@ pub(super) fn emit_direct_expression(
             next_value_identity,
             operations,
         ),
-        LoweredDirectExpression::ByteSequenceLength {
+        LoweredDirectExpression::ByteSequenceLength { source, .. } => {
+            emit_byte_length(*source, next_value_identity, operations)
+        }
+        LoweredDirectExpression::ByteSequenceRead {
             source,
+            index,
             scalar_type,
-        } => emit_scalar_leaf(
-            OperationKind::ByteSequenceLength { source: *source },
-            *scalar_type,
-            next_value_identity,
-            operations,
-        ),
+        } => {
+            let index = emit_direct_expression(index, parameters, next_value_identity, operations);
+            let length = operations
+                .byte_lengths
+                .iter()
+                .rev()
+                .find_map(|(place, value)| (*place == *source).then_some(*value))
+                .unwrap_or_else(|| emit_byte_length(*source, next_value_identity, operations));
+            // A missing dominating observation may still form a valid read
+            // shape. Its canonical bounds certificate must then be produced;
+            // constructing a fresh length does not prove the read is in bounds.
+            let obligation = obligation_id(
+                operations
+                    .next_identity
+                    .checked_add(1)
+                    .expect("read obligation follows its operation identity"),
+            );
+            emit_scalar_leaf(
+                OperationKind::ByteSequenceRead {
+                    source: *source,
+                    index,
+                    length,
+                    obligation,
+                },
+                *scalar_type,
+                next_value_identity,
+                operations,
+            )
+        }
         LoweredDirectExpression::IeeeFloatLiteral { value } => emit_scalar_leaf(
             OperationKind::IeeeFloatConstant { value: *value },
             ScalarType::IeeeFloat(value.format()),

@@ -57,6 +57,11 @@ pub enum ProofRule {
     IntegerOrderWeakening {
         relation: Box<ProofNode>,
     },
+    /// Convert a fixed-integer nonstrict bound to strict order by moving one
+    /// literal endpoint outward by exactly one representable integer.
+    IntegerOrderDiscreteness {
+        relation: Box<ProofNode>,
+    },
     IntegerLessOrEqualTransitivity {
         left_less_or_equal_middle: Box<ProofNode>,
         middle_less_or_equal_right: Box<ProofNode>,

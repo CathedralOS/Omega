@@ -28,6 +28,9 @@ pub(super) fn lower(
     lowered_byte_sequence_literals: &mut usize,
 ) -> Result<AbstractOperation, LoweringError> {
     match &operation.kind {
+        OperationKind::ByteSequenceRead { .. } => Err(
+            crate::lowering::LoweringError::UnsupportedByteSequenceRead(operation.id),
+        ),
         OperationKind::ByteSequenceLength { .. } => {
             Err(crate::lowering::LoweringError::UnsupportedByteSequenceLength(operation.id))
         }

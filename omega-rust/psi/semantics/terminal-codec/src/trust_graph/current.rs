@@ -1,15 +1,17 @@
 //! Exact source-bound construction of the current migration trust graph.
 
 use super::{
-    BOOLEAN_POLARITY_RECONSTRUCTION_SOURCE, CODEC_SOURCE, CURRENT_ENTRY,
-    EVIDENCE_PROVENANCE_SOURCE, MIGRATION_POLICY_DESCRIPTOR, OBLIGATION_LEDGER_CODEC_SOURCE,
-    PREDICATE_DENOTATION_BUDGET_SOURCE, PREDICATE_DENOTATION_SOURCE,
-    PROOF_ADMISSION_EVIDENCE_SOURCE, PROOF_ADMISSION_INTEGER_AFFINE_SOURCE,
-    PROOF_ADMISSION_INTEGER_CAST_SOURCE, PROOF_ADMISSION_INTEGER_FORBIDDEN_ROOT_SOURCE,
-    PROOF_ADMISSION_JUDGMENT_SOURCE, PROOF_ADMISSION_LIB_SOURCE, PROOF_ADMISSION_PROOF_SOURCE,
-    PROOF_ADMISSION_TRAVERSAL_SOURCE, PROOF_BUNDLE_SOURCE, PROOF_CODEC_SOURCE, PROPOSITION_SOURCE,
-    PROPOSITION_VALUE_IDS_SOURCE, RECONSTRUCTION_SOURCE, SUBSTITUTION_SOURCE,
-    TERMINAL_CALL_COMPOSITION_SOURCE, TERMINAL_CANONICAL_SCALAR_GOAL_SOURCE,
+    BOOLEAN_POLARITY_RECONSTRUCTION_SOURCE, BYTE_READ_VALIDATION_SOURCE,
+    BYTE_VIEW_VALIDATION_SOURCE, CODEC_SOURCE, CURRENT_ENTRY, EVIDENCE_PROVENANCE_SOURCE,
+    MACHINE_RECONSTRUCTION_CONTEXT_SOURCE, MIGRATION_POLICY_DESCRIPTOR,
+    OBLIGATION_LEDGER_CODEC_SOURCE, OPERATION_FACTS_SOURCE, PREDICATE_DENOTATION_BUDGET_SOURCE,
+    PREDICATE_DENOTATION_SOURCE, PROOF_ADMISSION_EVIDENCE_SOURCE,
+    PROOF_ADMISSION_INTEGER_AFFINE_SOURCE, PROOF_ADMISSION_INTEGER_CAST_SOURCE,
+    PROOF_ADMISSION_INTEGER_FORBIDDEN_ROOT_SOURCE, PROOF_ADMISSION_JUDGMENT_SOURCE,
+    PROOF_ADMISSION_LIB_SOURCE, PROOF_ADMISSION_ORDER_DISCRETENESS_SOURCE,
+    PROOF_ADMISSION_PROOF_SOURCE, PROOF_ADMISSION_TRAVERSAL_SOURCE, PROOF_BUNDLE_SOURCE,
+    PROOF_CODEC_SOURCE, PROPOSITION_SOURCE, PROPOSITION_VALUE_IDS_SOURCE, RECONSTRUCTION_SOURCE,
+    SUBSTITUTION_SOURCE, TERMINAL_CALL_COMPOSITION_SOURCE, TERMINAL_CANONICAL_SCALAR_GOAL_SOURCE,
     TERMINAL_PROOF_BEARING_SCALAR_SOURCE, TERMINAL_REPRESENTATION_SOURCE_CLOSURE,
     TERMINAL_SEMANTICS_SOURCE, TERMINAL_STRUCTURAL_EFFECT_SOURCE, TrustAcceptingPolicy,
     TrustDependencyKind, TrustDependencyNode, TrustDependencyStatus, TrustGraphError,
@@ -34,7 +36,7 @@ fn terminal_vocabulary_version() -> String {
 }
 
 fn canonical_terminal_bytes_identity() -> &'static str {
-    "root:canonical-terminal-bytes-format-77-vocabulary-81"
+    "root:canonical-terminal-bytes-format-77-vocabulary-82"
 }
 
 fn canonical_terminal_bytes_version() -> String {
@@ -45,7 +47,7 @@ fn canonical_terminal_bytes_version() -> String {
 }
 
 fn canonical_proof_calculus_identity() -> &'static str {
-    "root:canonical-proof-calculus-format-26"
+    "root:canonical-proof-calculus-format-27"
 }
 
 fn canonical_proof_calculus_version() -> String {
@@ -123,6 +125,10 @@ fn registered_roots() -> Vec<TrustDependencyNode> {
                 ("proof-admission/lib.rs", PROOF_ADMISSION_LIB_SOURCE),
                 ("proof-admission/proof.rs", PROOF_ADMISSION_PROOF_SOURCE),
                 (
+                    "proof-admission/proof/order_discreteness.rs",
+                    PROOF_ADMISSION_ORDER_DISCRETENESS_SOURCE,
+                ),
+                (
                     "proof-admission/proof/traversal.rs",
                     PROOF_ADMISSION_TRAVERSAL_SOURCE,
                 ),
@@ -167,7 +173,7 @@ fn proof_admission_node() -> TrustDependencyNode {
         TrustDependencyKind::TrustedImplementation,
         TrustDependencyStatus::TrustedJudgment,
         "Rust product-local proof admission and judgment checker",
-        "rust-proof-admission-v9",
+        "rust-proof-admission-v10",
         "proof-admission",
         "portable proof bundle acceptance",
         "The current Rust admission checker remains trusted until the independent low-rung checker closes the diamond.",
@@ -196,6 +202,10 @@ fn proof_admission_node() -> TrustDependencyNode {
                 PROOF_ADMISSION_INTEGER_FORBIDDEN_ROOT_SOURCE,
             ),
             ("proof-admission/proof.rs", PROOF_ADMISSION_PROOF_SOURCE),
+            (
+                "proof-admission/proof/order_discreteness.rs",
+                PROOF_ADMISSION_ORDER_DISCRETENESS_SOURCE,
+            ),
             (
                 "proof-admission/proof/traversal.rs",
                 PROOF_ADMISSION_TRAVERSAL_SOURCE,
@@ -364,7 +374,7 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                     ),
                     "terminal-structural-effect-v1-unproved",
                     "one closed terminal-Psi structural/effect schema row",
-                    "The Rust structural/effect row is trusted until its place custody, effect, fuel, and frontier theorem is accepted.",
+                    "The Rust structural/effect row is trusted until its place custody, canonical obligation, effect, fuel, and frontier theorem is accepted.",
                 ),
                 OperationSemanticCustody::LeafDenotation if proof_bearing_scalar.is_some() => (
                     TrustDependencyKind::DenotationSchema,
@@ -424,6 +434,14 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                     "terminal-semantics/structural_effect.rs",
                     TERMINAL_STRUCTURAL_EFFECT_SOURCE,
                 ));
+            }
+            if row.tag() == terminal_semantics::OperationSemanticTag::ByteSequenceRead {
+                exact_sources.extend([
+                    ("terminal-verifier/validation/byte_sequence_read.rs", BYTE_READ_VALIDATION_SOURCE),
+                    ("terminal-verifier/validation/byte_sequence_length.rs", BYTE_VIEW_VALIDATION_SOURCE),
+                    ("terminal-verifier/verification/reconstruction/operation_facts.rs", OPERATION_FACTS_SOURCE),
+                    ("terminal-verifier/verification/reconstruction/machine_context.rs", MACHINE_RECONSTRUCTION_CONTEXT_SOURCE),
+                ]);
             }
             if proof_bearing_scalar.is_some() {
                 exact_sources.push((

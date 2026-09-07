@@ -11,6 +11,7 @@ pub enum LoweringError {
     UnsupportedByteSequenceLiteral(semantic_vocabulary::OperationId),
     /// Exact byte-view length is executable in Terminal; native descriptor observation is not yet realized.
     UnsupportedByteSequenceLength(semantic_vocabulary::OperationId),
+    UnsupportedByteSequenceRead(semantic_vocabulary::OperationId),
     /// Independent Terminal-to-Omega projection could not rejoin one exact
     /// descriptor, its initializer/latest selections, and its indirect row.
     InvalidDynamicCall(semantic_vocabulary::OperationId),

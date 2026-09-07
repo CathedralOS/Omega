@@ -8,10 +8,6 @@ pub(super) fn validate(
     operation: &terminal_psi::Operation,
     source: PlaceId,
 ) -> Result<(), ModuleError> {
-    let invalid = || ModuleError::InvalidByteSequenceLengthSource {
-        operation: operation.id,
-        source,
-    };
     let expected =
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"));
     if operation
@@ -23,11 +19,27 @@ pub(super) fn validate(
             operation.id,
         ));
     }
+    validate_source(module, machine, operation, source, || {
+        ModuleError::InvalidByteSequenceLengthSource {
+            operation: operation.id,
+            source,
+        }
+    })
+}
+
+/// Whole immutable views retain one exact source for every observation.
+pub(super) fn validate_source(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+    source: PlaceId,
+    invalid: impl Fn() -> ModuleError,
+) -> Result<(), ModuleError> {
     let place = machine
         .structural_places
         .iter()
         .find(|place| place.id == source)
-        .ok_or_else(invalid)?;
+        .ok_or_else(&invalid)?;
     let structural_type = match place.kind {
         StructuralPlaceKind::Parameter { position, is_self } => {
             let parameter = machine
@@ -38,7 +50,7 @@ pub(super) fn validate(
                         && parameter.position == position
                         && parameter.is_self == is_self
                 })
-                .ok_or_else(invalid)?;
+                .ok_or_else(&invalid)?;
             if parameter.access != StructuralAccess::SharedBorrow
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted
                 || !parameter.qualifications.is_empty()
@@ -60,7 +72,7 @@ pub(super) fn validate(
                 .operations
                 .iter()
                 .position(|candidate| candidate.id == operation.id)
-                .ok_or_else(invalid)?;
+                .ok_or_else(&invalid)?;
             let established = block.operations[..position].iter().any(|candidate| {
                 matches!(candidate.kind, OperationKind::EstablishByteSequenceLiteral { destination, .. } if destination == source)
             });

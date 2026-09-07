@@ -787,27 +787,34 @@ pub(super) fn lower_checked_scalar_expression(
     lower_checked_scalar_expression_with_parameters(expression, &[])
 }
 
+fn immutable_byte_parameter(
+    position: u32,
+    parameters: &[(u32, StructuralParameterDeclaration)],
+) -> Result<PlaceId, LoweringError> {
+    let parameter = parameters
+        .iter()
+        .find_map(|(source_position, parameter)| {
+            (*source_position == position).then_some(parameter)
+        })
+        .ok_or(LoweringError::Unsupported(
+            "byte observation has no exact structural parameter",
+        ))?;
+    if parameter.access != StructuralAccess::SharedBorrow
+        || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+    {
+        return unsupported("byte observation requires a whole immutable view parameter");
+    }
+    Ok(parameter.place)
+}
+
 pub(super) fn lower_checked_scalar_expression_with_parameters(
     expression: &CheckedScalarExpression,
     structural_parameters: &[(u32, StructuralParameterDeclaration)],
 ) -> Result<LoweredDirectExpression, LoweringError> {
     match expression {
         CheckedScalarExpression::StructuralParameterByteLength { parameter_position } => {
-            let parameter = structural_parameters
-                .iter()
-                .find_map(|(source_position, parameter)| {
-                    (*source_position == *parameter_position).then_some(parameter)
-                })
-                .ok_or(LoweringError::Unsupported(
-                    "byte length has no exact structural parameter",
-                ))?;
-            if parameter.access != StructuralAccess::SharedBorrow
-                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-            {
-                return unsupported("byte length requires a whole immutable view parameter");
-            }
             Ok(LoweredDirectExpression::ByteSequenceLength {
-                source: parameter.place,
+                source: immutable_byte_parameter(*parameter_position, structural_parameters)?,
                 scalar_type: terminal_scalar_type(PrimitiveType::U64)?,
             })
         }
@@ -927,8 +934,26 @@ pub(super) fn lower_checked_scalar_expression_with_parameters(
                 structural_parameters,
             )?),
         }),
-        CheckedScalarExpression::StructuralParameterIndexedRead { .. } => {
-            unsupported("indexed structural scalar reads require runtime realization")
+        CheckedScalarExpression::StructuralParameterIndexedRead {
+            parameter_position,
+            path,
+            index,
+            primitive_type,
+        } => {
+            if !path.is_empty() || *primitive_type != PrimitiveType::U8 {
+                return unsupported("indexed reads require a whole byte-view parameter");
+            }
+            let source = immutable_byte_parameter(*parameter_position, structural_parameters)?;
+            let index =
+                lower_checked_scalar_expression_with_parameters(index, structural_parameters)?;
+            if index.scalar_type() != terminal_scalar_type(PrimitiveType::U64)? {
+                return unsupported("byte-view indexed reads require an exact u64 index");
+            }
+            Ok(LoweredDirectExpression::ByteSequenceRead {
+                source,
+                index: Box::new(index),
+                scalar_type: terminal_scalar_type(PrimitiveType::U8)?,
+            })
         }
         CheckedScalarExpression::IntegerWrappingCast { .. } => {
             unsupported("checked wrapping conversion requires runtime policy realization")
@@ -1124,6 +1149,9 @@ pub(super) fn validate_direct_parameter_types(
         LoweredDirectExpression::IntegerLiteral { .. }
         | LoweredDirectExpression::IeeeFloatLiteral { .. }
         | LoweredDirectExpression::ByteSequenceLength { .. } => Ok(()),
+        LoweredDirectExpression::ByteSequenceRead { index, .. } => {
+            validate_direct_parameter_types(index, parameter_types)
+        }
         LoweredDirectExpression::IntegerBinary { left, right, .. } => {
             validate_direct_parameter_types(left, parameter_types)?;
             validate_direct_parameter_types(right, parameter_types)
@@ -1260,6 +1288,7 @@ fn evaluate_direct_expression(
             Some(KnownDirectScalar::Integer(*value))
         }
         LoweredDirectExpression::IeeeFloatLiteral { .. }
+        | LoweredDirectExpression::ByteSequenceRead { .. }
         | LoweredDirectExpression::ByteSequenceLength { .. } => None,
         LoweredDirectExpression::IntegerBinary {
             kind,

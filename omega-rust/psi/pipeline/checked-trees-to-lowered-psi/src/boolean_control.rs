@@ -179,7 +179,8 @@ fn emit_reserved_boolean_guard_decision_blocks(
     all_operations: &mut OperationBuffer,
     blocks: &mut Vec<Option<Block>>,
 ) -> LoweredBooleanDecisionTarget {
-    match decision {
+    let incoming_lengths = all_operations.byte_lengths.len();
+    let target = match decision {
         LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant { value: true }) => {
             when_true_target.clone()
         }
@@ -266,7 +267,9 @@ fn emit_reserved_boolean_guard_decision_blocks(
                 arguments: Vec::new(),
             }
         }
-    }
+    };
+    all_operations.byte_lengths.truncate(incoming_lengths);
+    target
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -281,6 +284,7 @@ fn emit_reserved_boolean_value_blocks(
     all_operations: &mut OperationBuffer,
     blocks: &mut Vec<Option<Block>>,
 ) -> BlockId {
+    let incoming_lengths = all_operations.byte_lengths.len();
     let block_index = blocks.len();
     let block = block_id(
         first_block_identity
@@ -385,6 +389,7 @@ fn emit_reserved_boolean_value_blocks(
         operations: all_operations[operation_start..operation_end].to_vec(),
         terminator,
     });
+    all_operations.byte_lengths.truncate(incoming_lengths);
     block
 }
 
@@ -482,6 +487,7 @@ pub(super) fn emit_reserved_boolean_tuple_stage_blocks(
     all_operations: &mut OperationBuffer,
     blocks: &mut Vec<Option<Block>>,
 ) -> BlockId {
+    let incoming_lengths = all_operations.byte_lengths.len();
     let block_index = blocks.len();
     let block = block_id(
         first_block_identity
@@ -585,6 +591,7 @@ pub(super) fn emit_reserved_boolean_tuple_stage_blocks(
         operations: all_operations[operation_start..operation_end].to_vec(),
         terminator,
     });
+    all_operations.byte_lengths.truncate(incoming_lengths);
     block
 }
 
@@ -615,6 +622,7 @@ pub(super) fn build_scalar_conditional_target(
             },
             LoweredDirectExpression::IntegerLiteral { .. }
             | LoweredDirectExpression::ByteSequenceLength { .. }
+            | LoweredDirectExpression::ByteSequenceRead { .. }
             | LoweredDirectExpression::IeeeFloatLiteral { .. }
             | LoweredDirectExpression::IntegerBinary { .. }
             | LoweredDirectExpression::IntegerBitwiseNot { .. }
