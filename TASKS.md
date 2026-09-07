@@ -117,20 +117,21 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   Acceptance remains native execution with the documented exit/output and
   unchanged checked text facts; the console dependencies below are also required.
 
-  Resume the native `cli_mvp` customer at code checkpoint `36ed30ba47`.
+  Resume the native `cli_mvp` customer at code checkpoint `02eaef0e38`.
   On macOS ARM64, `CARGO_INCREMENTAL=0 OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
   samples_with_documented_exit_run_correctly --no-fail-fast` exits 100 before
   execution: `InvalidUnitMachinePlan` names
-  `ConsoleNativeProvider::write_line`. Next implement tail views and callable
-  slice-ranked state composition for the
+  `ConsoleNativeProvider::write_line`. Next retain and emit source subslice
+  operands and callable slice-ranked state composition for the
   [borrowed-byte writer closure](wiki/architecture/pipeline/terminal_psi.md#borrowed-byte-writer-composition)
   in `typed-trees-to-checked-trees/src/flow/terminal_unit/` and
-  `checked-trees-to-lowered-psi/src/attached_unit/`, then its Terminal consumers.
+  `checked-trees-to-lowered-psi/src/attached_unit/`.
   The callable multistate plan must retain provider/view/scalar transfers,
-  length observations at the selected state edges, and slice-decrease evidence;
-  native whole-byte-view layout, length, and indexed-read realization are also
-  still missing.
+  length observations at the selected state edges, and slice-decrease evidence.
+  Terminal state-edge transfer and repeated-producer descriptor rebinding remain
+  necessary for that loop; native whole-byte-view layout, length, indexed reads,
+  and subslice realization are also still missing.
   Acceptance: empty/nonempty bytes and both newline settings preserve exact
   output order and caller continuation; unguarded head reads and unchanged
   tails reject. Re-run the same sample before choosing its next dependency.
