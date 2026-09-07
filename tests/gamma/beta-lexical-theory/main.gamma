@@ -1,0 +1,7 @@
+; Fixed diagnostic producer; extra input cannot publish a theory.
+(def $application () Int 1)
+(def main () Int
+  (if (eq (input) 0)
+    (let emitted Int (beta_lexical_theory)
+      (pair 0 1))
+    (pair 1 0)))

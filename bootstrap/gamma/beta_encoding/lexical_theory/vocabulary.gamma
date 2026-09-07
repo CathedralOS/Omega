@@ -1,0 +1,16 @@
+; Sorts: Byte=1, Bool=2, Nibble=3, HexResult=4.
+; Byte constructors 1..256 denote values 0..255; their IDs are not arithmetic.
+; False=257, True=258, nibble values 0..15=259..274, NoHex=275, Hex=276.
+(def beta_lexical_vocabulary () Int
+  (let count Int (beta_theory_word 276)
+    (let bytes Int (beta_scalar_constructors 1 256)
+      (let booleans Int (beta_scalar_constructors 2 2)
+        (let nibbles Int (beta_scalar_constructors 3 16)
+          (let no_hex Int (beta_scalar_constructors 4 1)
+            (let hex_header Int (beta_theory_fields3 3 4 1)
+              (beta_theory_word 3))))))))
+
+(def beta_scalar_constructors ((sort Int) (remaining Int)) Int
+  (if (eq remaining 0) 0
+    (let declaration Int (beta_theory_fields3 2 sort 0)
+      (beta_scalar_constructors sort (- remaining 1)))))

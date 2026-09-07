@@ -37,4 +37,5 @@ chain obligations.
 | `evaluator/gamma_evaluator.beta` | Readable immediate-prior-rung implementation. | Replace with a smaller or more complete Beta implementation. |
 | `evaluator/gamma_evaluator_bytecode.tape` | Platform-independent executable derived from the Beta source. | Regenerate atomically when the evaluator source changes. |
 | `derivation_checker/` | Ordinary-Gamma ground-equality checker: conservative formation, explicit rules, and owner-root checking under one resource ledger. The full Beta encoding certificate and artifact admission remain open. | Replace only while retaining bounded input custody, checked premises, and independently owned subjects. |
+| `beta_encoding/` | Source-owned artifact-specific Beta definitions, starting with four total byte classifiers. | Replace only with a faithful complete Beta theory and independently reconstructed encoding root. |
 | `bootstrap/concatenative/` | Downgraded former Gamma implementation and receipts. | Delete after the new Gamma-to-Delta bootstrap edge supersedes its remaining evidence. |

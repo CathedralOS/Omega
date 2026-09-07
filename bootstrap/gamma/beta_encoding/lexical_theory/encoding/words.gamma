@@ -1,0 +1,13 @@
+; Fixed, source-owned administrative fields, all in the u31 wire domain.
+(def beta_theory_word ((value Int)) Int
+  (beta_theory_word_bytes value 4))
+
+(def beta_theory_word_bytes ((value Int) (remaining Int)) Int
+  (if (eq remaining 0) 0
+    (let emitted Int (write (% value 256))
+      (beta_theory_word_bytes (/ value 256) (- remaining 1)))))
+
+(def beta_theory_fields3 ((first_word Int) (second_word Int) (third_word Int)) Int
+  (let first_emitted Int (beta_theory_word first_word)
+    (let second_emitted Int (beta_theory_word second_word)
+      (beta_theory_word third_word))))

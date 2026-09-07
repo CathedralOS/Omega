@@ -6,7 +6,9 @@ equation to match the owner root. Its `derivation/` helpers own indexed premise
 custody, individual rules, and final-root checking. One comparison session carries
 all post-admission work through the request. `Checked` establishes only that
 supplied ground equality under the supplied theory, not artifact authority.
-The full Beta definition package and encoding certificate remain unfinished.
+The full Beta definition package and encoding certificate remain unfinished;
+the separate [lexical theory](../beta_encoding/README.md) supplies the initial
+artifact-specific definitions without extending the generic checker.
 
 [ground.gamma](implementation/ground.gamma) is the ground-term entrance:
 form the theory, check owner terms and root sorts, then check witness terms.
