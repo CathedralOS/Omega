@@ -15,6 +15,7 @@ beside code; completed work belongs in Git, not current reference material.
 ## Current specification subjects
 
 - Terminal Psi: [product](spec/terminal-psi/product.md),
+  [calls and outcomes](spec/terminal-psi/calls_and_outcomes.md),
   [boundary calls](spec/terminal-psi/boundary_calls.md),
   [byte views](spec/terminal-psi/byte_views.md),
   [observations](spec/terminal-psi/observations.md), and

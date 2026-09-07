@@ -116,3 +116,36 @@ equality/projection, owner, format, and sealed operation before erasing the
 proof-only clause. It does not establish general callee or nested-result support.
 Missing correspondence is an integration gap, not permission to invent a source
 identity or a new meaning for the proof-value carrier.
+
+## Structural results and suspension
+
+The [call/outcome contract](../../../../wiki/spec/terminal-psi/calls_and_outcomes.md)
+owns result identity, argument order, cleanup, and park/resume semantics.
+Source production still admits structural results through bounded families:
+whole linear passthrough and claim-free owned-affine producers, their ordinary
+call closure, and explicit temporary-result transfer/cleanup schedules.
+
+Use one stored-owned type classifier before referent-oriented normalization.
+Reference/slice fields, erased carriers, projected linear obligations, and field
+qualifications cannot acquire a plain-owned route by losing their storage role.
+Whole-result support does not imply general projected, borrowed, qualified, or
+linear result support. Native eligibility is separately checked by lowering;
+historical one-fragment publication routes are not architectural alternatives.
+
+One statement/argument sequencer preserves authored positions across scalar
+locals, structural initializers, nested producers, and calls. Scalar and
+structural binding ordinals remain separate from statement coordinates and
+private argument slots. Source correspondence must reject replacement by a
+different same-typed live result even if Terminal ownership alone permits it.
+
+The first suspension retention path covers receiver-free direct scalar calls
+with checked primitive liveness and empty claim rosters. Receiver/threaded-local,
+persistent, structural, claim-bearing, Unit, boundary, and dynamic frontiers
+need further producer support. Preserve checked places and claims when adding
+them; do not infer liveness from Terminal block shape.
+
+Current site/plan validation catches an individually missing or changed plan,
+but paired rows cannot detect coordinated deletion of both. Bind an independently
+established possibly-suspending crossing roster into the call-side contract before
+claiming arbitrary rewritten modules are demand-complete. This remains part of
+the task/activation work on the [execution board](../../../../TASKS.md).
