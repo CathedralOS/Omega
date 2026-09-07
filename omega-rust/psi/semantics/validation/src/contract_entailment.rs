@@ -75,8 +75,8 @@ mod exit_coverage;
 mod inductive_judgment;
 mod ranking_range;
 pub(crate) use ranking_range::{
-    RankingRangeCallMember, RankingRangeCallProgress, prove_ranking_range_call,
-    prove_ranking_range_call_entry,
+    RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress,
+    mixed_call_endpoints_are_pinned, prove_ranking_range_call, prove_ranking_range_call_entry,
 };
 
 pub use ranking_range::{

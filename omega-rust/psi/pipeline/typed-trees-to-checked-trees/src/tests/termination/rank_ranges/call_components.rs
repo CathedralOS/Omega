@@ -251,3 +251,101 @@ fn unrelated_boolean_guards_do_not_block_unranged_natural_call_progress() {
         );
     prove(&source);
 }
+
+#[test]
+fn mixed_call_ranges_preserve_dependent_endpoints_in_both_directions() {
+    for omitted in [" in floor..=ceiling", " in lower..=upper"] {
+        let source = PAIR.replace(omitted, "");
+        prove(&source);
+        prove(&source.replace("floor..=ceiling", "(floor + 0)..=(ceiling + 0)"));
+        prove(&source.replace(
+            "    transition remaining > floor",
+            "    self.observed = remaining; transition remaining > floor",
+        ));
+        for changed in [
+            source.replace(
+                "ceiling, remaining, floor)",
+                "ceiling + 1, remaining, floor)",
+            ),
+            source.replace(
+                "lower, pending - 1, upper)",
+                "lower, pending - 1, upper - 1)",
+            ),
+            source.replace("pending - 1", "pending"),
+            source.replace("pending - 1", "pending - 2"),
+        ] {
+            reject(&changed);
+        }
+    }
+}
+
+#[test]
+fn mixed_call_ranges_cannot_assume_entry_or_arrival_membership() {
+    let source = PAIR.replace(" in lower..=upper", "");
+    reject(&source.replace("requires floor <= remaining && remaining <= ceiling;", ""));
+    reject(&source.replace("requires lower <= pending && pending <= upper;", ""));
+    reject(&source.replace("pending > lower", "pending >= lower"));
+    for declaration in [
+        "operator - u64::subtract(left: u64, right: u64) -> u64;",
+        "operator > u64::greater(left: u64, right: u64) -> bool;",
+    ] {
+        reject(&format!("{declaration} {source}"));
+    }
+}
+
+#[test]
+fn mixed_call_range_endpoint_transport_keeps_duplicate_copies_as_alternatives() {
+    let source = PAIR
+        .replace(" in lower..=upper", "")
+        .replace("lower: u64)", "lower: u64, spare: u64)")
+        .replace(
+            "requires lower <= pending",
+            "requires upper == spare && lower <= pending",
+        )
+        .replace(
+            "ceiling, remaining, floor)",
+            "ceiling, remaining, floor, ceiling)",
+        )
+        .replace("lower, pending - 1, upper)", "lower, pending - 1, spare)");
+    prove(&source);
+    reject(&source.replace(
+        "ceiling, remaining, floor, ceiling)",
+        "ceiling, remaining, floor, ceiling + 1)",
+    ));
+}
+
+#[test]
+fn mixed_call_range_pins_survive_multiple_unranged_members_and_parallel_edges() {
+    let source = format!(
+        "{}\n{}",
+        PAIR.replace(" in lower..=upper", "").replace(
+            "self.first(lower, pending - 1, upper)",
+            "self.third(pending - 1, lower, upper)",
+        ),
+        r#"
+        machine Main::third(&mut self, amount: u64, bottom: u64, top: u64)
+        requires bottom <= amount && amount <= top;
+        terminates by amount;
+        -> u64 {
+            transition { _ -> self.first(bottom, amount, top) }
+        }
+        "#,
+    );
+    prove(&source);
+    reject(&source.replace(
+        "self.first(bottom, amount, top)",
+        "self.first(bottom, amount, top + 1)",
+    ));
+    reject(&source.replace(
+        "false -> pending",
+        "false -> self.third(pending, lower, upper)",
+    ));
+    let hidden_weak_cycle = source
+        .replace("transition pending > lower", "transition true")
+        .replace("self.third(pending - 1, lower, upper)", "self.third(pending, lower, upper)")
+        .replace(
+            "transition { _ -> self.first(bottom, amount, top) }",
+            "transition amount > bottom { true -> self.first(bottom, amount - 1, top) false -> self.second(top, amount, bottom) }",
+        );
+    reject(&hidden_weak_cycle);
+}

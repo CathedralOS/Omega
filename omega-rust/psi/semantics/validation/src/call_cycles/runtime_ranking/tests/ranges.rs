@@ -123,9 +123,35 @@ fn ranged_call_cycles_need_strict_progress_and_complete_range_evidence() {
     let preserving = RANGED.replace("pending - 1", "pending");
     assert!(admitted(&typed_source(&preserving)).is_empty());
     let mixed = RANGED.replace(" by pending in floor..=ceiling", " by pending");
-    assert!(admitted(&typed_source(&mixed)).is_empty());
+    assert_eq!(admitted(&typed_source(&mixed)).len(), 1);
     let missing_entry = RANGED.replace("requires lower <= remaining && remaining <= upper;", "");
     assert!(admitted(&typed_source(&missing_entry)).is_empty());
+}
+
+#[test]
+fn mixed_calls_prove_each_authored_membership_without_assuming_the_missing_range() {
+    for omitted in [" in lower..=upper", " in floor..=ceiling"] {
+        let source = RANGED.replace(omitted, "");
+        let program = typed_source(&source);
+        assert_eq!(
+            progress(&program, 0),
+            Some(RankingRangeCallProgress::NonIncreasing)
+        );
+        assert_eq!(
+            progress(&program, 1),
+            Some(RankingRangeCallProgress::Strict)
+        );
+        assert_eq!(admitted(&program).len(), 1);
+        assert!(admitted(&typed_source(&source.replace("pending - 1", "pending"))).is_empty());
+        assert!(admitted(&typed_source(&source.replace("pending - 1", "pending - 2"))).is_empty());
+        // Membership can still hold after widening this ceiling. Only the
+        // component-wide endpoint conservation exposes its changed identity.
+        let changed = source.replace(
+            "floor, pending - 1, ceiling)",
+            "floor, pending - 1, ceiling + 1)",
+        );
+        assert!(admitted(&typed_source(&changed)).is_empty());
+    }
 }
 
 #[test]
