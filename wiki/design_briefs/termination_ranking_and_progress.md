@@ -512,6 +512,16 @@ contract, not in the hidden ranking witness.
 11. Swapping a provider's valid ranking witness revalidates that provider only;
     caller and requirement contract identities remain unchanged.
 
+The checked-source regression for computed named-state arrivals, duplicated rank
+inputs, and positive variable steps is:
+
+```bash
+mbx run -p omega -- --check tests/omega/pass/termination/rank_range_named_state/main.omg
+```
+
+This checks range preservation and termination, not native execution. Its
+arithmetic actuals do not authorize selecting a different ranking witness.
+
 ## Deferred, explicitly
 
 - Source spelling for joint rankings across differently shaped mutual-cycle

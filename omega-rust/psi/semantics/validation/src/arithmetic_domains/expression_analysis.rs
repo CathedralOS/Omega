@@ -534,13 +534,15 @@ pub(super) fn analyze(
                 numerics::integer_policy::integer_policy_bridge(primitive, effective_domain)
             });
             let mut exact_result_proven = false;
+            // A relational representability proof adds a carrier bound; it
+            // must not discard tighter bounds already proved for the result.
             if effective_domain == ArithmeticDomain::Exact
                 && operator == BinaryOperator::Add
                 && (env.proves_joint_add_upper_bound(program, binary.left, binary.right)
                     || env.proves_joint_add_lower_bound(program, binary.left, binary.right))
                 && let Some(range) = primitive.and_then(primitive_range)
             {
-                interval = range;
+                interval = interval.intersect(range);
                 exact_result_proven = true;
             }
             if effective_domain == ArithmeticDomain::Exact
@@ -558,7 +560,7 @@ pub(super) fn analyze(
                     ))
                 && let Some(range) = primitive.and_then(primitive_range)
             {
-                interval = range;
+                interval = interval.intersect(range);
                 exact_result_proven = true;
             }
             if effective_domain == ArithmeticDomain::Exact
@@ -579,7 +581,7 @@ pub(super) fn analyze(
                     ))
                 && let Some(range) = primitive.and_then(primitive_range)
             {
-                interval = range;
+                interval = interval.intersect(range);
                 exact_result_proven = true;
             }
             if effective_domain == ArithmeticDomain::Exact
@@ -588,7 +590,7 @@ pub(super) fn analyze(
                 && u64_exact_shift_left_fits(left.interval, right.interval)
                 && let Some(range) = primitive_range(PrimitiveType::U64)
             {
-                interval = range;
+                interval = interval.intersect(range);
                 exact_result_proven = true;
             }
             // Abort-as-effect follow-up (owner 2026-07-18): a TRAPPING op

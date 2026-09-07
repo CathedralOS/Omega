@@ -1,6 +1,32 @@
 use super::{lower_typed_trees, parse_typed_trees};
 
 #[test]
+fn carrier_safety_proofs_preserve_tighter_argument_bounds() {
+    for (carrier, guard, value, maximum) in [
+        ("u32", "left <= 4294967295 - right", "left + right", 7),
+        ("u32", "left >= right", "left - right", 4),
+        ("u32", "left <= 4294967295 / right", "left * right", 10),
+        ("u64", "true", "left << right", 20),
+    ] {
+        let source = format!(
+            "machine run(left: {carrier} [0..=5], right: {carrier} [1..=2]) -> {carrier} {{
+                transition {guard} {{ true -> accept({value}) false -> 0 }}
+                state accept(delivered: {carrier} [0..={maximum}]) -> {carrier} {{ delivered }}
+            }}"
+        );
+        lower_typed_trees(parse_typed_trees(&source))
+            .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
+        assert!(
+            lower_typed_trees(parse_typed_trees(
+                &source.replace(&format!("0..={maximum}"), &format!("0..={}", maximum - 1)),
+            ))
+            .is_err(),
+            "a tighter-than-proved target accepted: {source}"
+        );
+    }
+}
+
+#[test]
 fn named_transition_refolds_nonliteral_operands_under_its_own_guard() {
     for (guard, value, range) in [
         ("pending > 0", "pending - step", "0..=4"),

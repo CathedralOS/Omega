@@ -222,13 +222,15 @@ fn computed_increasing_arrivals_preserve_reordered_bound_slots() {
 }
 
 #[test]
-fn multiple_current_parameters_do_not_invent_one_computed_rank_subject() {
+fn auxiliary_dependencies_do_not_replace_the_authored_rank_subject() {
     let source = ALTERNATING
         .replace("remaining: u32 [0..=5]", "remaining: u32 [0..=5], other: u32 [0..=5]")
         .replace("transition remaining > 2 {\n        true -> first(remaining)\n        false -> second(remaining)\n    }",
             "transition { _ -> first(remaining + (other - other)) }");
-    reject(&source);
+    prove(&source);
     reject(&source.replace("remaining + (other - other)", "0"));
+    reject(&source.replace("remaining + (other - other)", "other"));
+    reject(&source.replace("remaining + (other - other)", "remaining - other"));
 
     // Copying a root subject into two current slots does not make arithmetic
     // over both slots a single-current-parameter computation.
@@ -245,6 +247,104 @@ fn multiple_current_parameters_do_not_invent_one_computed_rank_subject() {
         }
     "#,
     );
+}
+
+#[test]
+fn computed_arrivals_use_the_authored_rank_among_auxiliary_parameters() {
+    let source = r#"
+        machine walk(step: u32 [1..=2], remaining: u32 [0..=5])
+        terminates by remaining in 0..=5;
+        -> u32 {
+            transition remaining >= step {
+                true -> iterate(step, remaining - step)
+                false -> remaining
+            }
+            state iterate(stride: u32 [1..=2], pending: u32 [0..=5]) {
+                transition pending >= stride {
+                    true -> iterate(stride, pending - stride)
+                    false -> pending
+                }
+            }
+        }
+    "#;
+    prove(source);
+    reject(&source.replace("1..=2", "0..=2"));
+    reject(&source.replace("remaining >= step", "remaining > 0"));
+    reject(&source.replace("pending >= stride", "pending > 0"));
+    reject(&source.replace("pending - stride", "pending"));
+    reject(&format!(
+        "operator - u32::custom(left: u32, right: u32) -> u32; {source}"
+    ));
+}
+
+#[test]
+fn nested_auxiliary_computations_keep_one_current_rank_representative() {
+    let source = r#"
+        machine walk(remaining: u32 [0..=5], step: u32 [1..=1], extra: u32 [1..=1])
+        terminates by remaining in 0..=5;
+        -> u32 {
+            transition remaining >= step + extra {
+                true -> iterate(remaining - (step + extra), step, extra)
+                false -> remaining
+            }
+            state iterate(pending: u32 [0..=5], stride: u32 [1..=1], offset: u32 [1..=1]) {
+                transition pending >= stride + offset {
+                    true -> iterate(pending - (stride + offset), stride, offset)
+                    false -> pending
+                }
+            }
+        }
+    "#;
+    prove(source);
+    reject(&source.replace("pending - (stride + offset)", "pending"));
+}
+
+#[test]
+fn computed_arrivals_cannot_choose_between_two_current_rank_copies() {
+    reject(
+        r#"
+        machine walk(remaining: u32 [0..=5])
+        terminates by remaining in 0..=5;
+        -> u32 {
+            transition { _ -> prepare(remaining, remaining) }
+            state prepare(left: u32 [0..=5], right: u32 [0..=5]) {
+                transition { _ -> finish(left + (right - right)) }
+            }
+            state finish(result: u32 [0..=5]) { result }
+        }
+    "#,
+    );
+}
+
+#[test]
+fn computed_increasing_arrivals_keep_auxiliary_steps_separate_from_pinned_bounds() {
+    let source = r#"
+        machine climb(limit: u32 [0..=5], step: u32 [1..=1], index: u32 [0..=5])
+        requires index <= limit;
+        terminates by index -> Nat::IncreasingTo(limit) in 0..=5;
+        -> u32 {
+            transition index < limit {
+                true -> iterate(index + step, step, limit)
+                false -> index
+            }
+            state iterate(cursor: u32 [0..=5], stride: u32 [1..=1], ceiling: u32 [0..=5]) {
+                transition cursor < ceiling {
+                    true -> iterate(cursor + stride, stride, ceiling)
+                    false -> cursor
+                }
+            }
+        }
+    "#;
+    prove(source);
+    reject(&source.replace(
+        "index + step, step, limit",
+        "index + step, step, limit + step",
+    ));
+    reject(&source.replace(
+        "cursor + stride, stride, ceiling",
+        "cursor + stride, stride, ceiling + stride",
+    ));
+    reject(&source.replace("cursor + stride", "cursor"));
 }
 
 #[test]
