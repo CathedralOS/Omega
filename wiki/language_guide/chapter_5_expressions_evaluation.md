@@ -859,7 +859,7 @@ expression-only suppression restriction.
 > transport a callee's builtin `result == immutable_parameter` guarantee from retained closed
 > fixed-integer operands, without replaying their source expressions. General runtime argument
 > snapshots, generic/evidence-adapted and boundary destination custody, projected
-> array windows, default field values, general aggregate production/proof consumers,
+> array windows, general aggregate production/proof consumers,
 > remaining mutable parameter carriers and Unit-body storage, numeric policies,
 > remaining float destinations,
 > remaining authored-operator/const-proof consumers, and ordinary warning
