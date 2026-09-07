@@ -117,3 +117,8 @@ the schedule. [Logical work](../resources/logical_work.md) and
 Executable publication stages and replays retained image bytes. Installation
 is a further authority-bearing operation. Neither native lowering nor the
 portable companion silently performs deployment admission.
+See [native products and component publication](../build/component_publication.md)
+for installed provider/progress closure, runtime custody, and transactional
+publication. [Content custody](../resources/content_custody.md) defines installed
+root accounting and conservation; [placed access](../resources/placed_access.md)
+defines resident occurrences.

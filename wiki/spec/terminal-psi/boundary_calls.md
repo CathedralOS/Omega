@@ -4,6 +4,9 @@
 
 These are semantic and evidence requirements, not a claim that every described
 native route is implemented. Unsupported routes reject at their owning consumer.
+Boundary [content conservation](../resources/content_custody.md#call-conservation)
+and [installed component publication](../build/component_publication.md) have
+separate contracts; selecting a provider does not establish either by itself.
 
 ## Call and requirement identity
 

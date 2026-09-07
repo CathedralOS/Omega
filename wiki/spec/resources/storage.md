@@ -64,13 +64,11 @@ a selected constant family. Ordinary invocation must supply an existing root;
 calling the requirement again cannot reset the account. No additional provision
 declaration or data annotation establishes capacity.
 
-The portable verifier reconstructs introduction schemas, not producer summaries.
-Installation supplies the exact finite occurrence set and derives the aggregate
-for one installed artifact instance and lifecycle epoch. System admission
-composes verified totals across concurrently live components and replacement
-eras. A shared assembly cap is one parent root divided among children. A
-machine-lifetime cap persists across epochs; it cannot be recreated as fresh
-local authority.
+[Content custody](content_custody.md#installed-introduction-schemas) defines
+reconstructed introduction schemas, finite installed occurrence sets, and
+cross-era aggregate accounting. A shared assembly cap is one parent root divided
+among children. A machine-lifetime cap persists across epochs; it cannot be
+recreated as fresh local authority.
 
 ## Capacity is not placement
 
