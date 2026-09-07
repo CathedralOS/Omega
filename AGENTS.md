@@ -453,14 +453,25 @@ was added or removed, and whether the remaining plan still makes sense. After
 two consecutive milestones that only add supporting machinery without advancing
 customer behavior, reducing human audit burden, or establishing measured
 feasibility/completion of a named proof obligation, pause implementation
-before a third: summarize the accumulated cost and propose continuing,
-simplifying, or deferring for the user's direction. Successful helper tests do
-not reset this checkpoint. Apply the same pause immediately when the required
+before a third on that strategy: summarize the accumulated cost and assess
+continuing, simplifying, or deferring. Successful helper tests do not reset this
+checkpoint. Apply the same pause immediately when the required
 customer or downstream contract is absent and work would become speculative.
 This applies across commits, agent handoffs, and automatic goal continuations.
 
-Scope/prioritization questions belong in the conversation; only actual owner
-language/architecture decisions belong in `OWNER_QUESTIONS.md`. A pause does not
+Pauses and blockers apply to the affected task or strategy, not independent work.
+During `advance`, skip already-paused or blocked tasks and continue selecting
+actionable work within the user's allowed scope. Do not present a known pause as
+a delivered advance or ask the user to choose ordinary engineering steps. Retain
+customer continuity while a defensible path remains; switching tasks must not
+restart the paused strategy under a different helper name.
+
+Actual owner language/architecture decisions belong in `OWNER_QUESTIONS.md`, with
+the dependency referenced on the owning task; continue elsewhere while awaiting
+the answer. Ask for scope/prioritization direction only when no actionable work
+remains within the user's allowed scope, reporting the candidates and blockers,
+or when the user's explicit restriction prevents proceeding. An unavailable
+operational prerequisite may also require a stop with evidence. A pause does not
 authorize deletion, abandoning required proofs, or rewriting settled decisions.
 
 A compelling case for a new bootstrap language, replacement rung, or alternate

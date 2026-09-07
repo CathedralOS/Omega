@@ -6,8 +6,11 @@ full workspace run. Current scenarios have not been executed against this revisi
 
 ## Review without executing compiler work
 
-Check that an advance request retains its customer and produces one bounded
-improvement or a justified pause. Check nearby non-invocations too: a named bug,
+Check that an advance request retains its customer while actionable and produces
+one bounded improvement. A task-local pause requires independent selection within
+the user's allowed scope, not an automatic stop. A no-improvement stop needs
+evidence that the allowed scope has no actionable work or an operational
+prerequisite prevents proceeding. Check nearby non-invocations too: a named bug,
 a code explanation, and an edit to this skill must not independently select board
 work or authorize publication. Use the assertions as outcome criteria, not required
 wording. Existing AGENTS.md requirements are controls, not evidence of a skill win.
