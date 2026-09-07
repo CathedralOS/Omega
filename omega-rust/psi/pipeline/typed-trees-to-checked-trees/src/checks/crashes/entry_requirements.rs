@@ -121,7 +121,7 @@ fn has_exact_entry_meaning(
     // This strict owner checks Boolean-only operands, exact entry symbols,
     // builtin operation meanings and an acyclic live expression tree. Numeric
     // clauses retain their independent totality/proof owner.
-    if crate::values::lower_machine_entry_scalar_contract_expression(
+    if crate::values::lower_machine_entry_crash_contract_expression(
         program,
         operators,
         machine,
@@ -137,30 +137,14 @@ fn has_exact_entry_meaning(
     };
     let parameters = program.state_parameters(entry);
     // The canonical identity encoder uses names for parameter ordinals.
-    // Require agreement with the already checked exact symbols before use.
-    let mut pending = vec![expression];
-    while let Some(expression) = pending.pop() {
-        match program.expression_table.expression(expression) {
-            ExpressionNode::Name(path) => {
-                let members = program.expression_table.name_path_members(path.members);
-                let ordinal = members.first().and_then(|name| {
-                    parameter_names
-                        .iter()
-                        .position(|candidate| candidate == name.as_str())
-                });
-                if ordinal
-                    .and_then(|ordinal| parameters.get(ordinal))
-                    .is_none_or(|parameter| parameter.symbol != path.symbol)
-                {
-                    return false;
-                }
-            }
-            ExpressionNode::Binary(binary) => pending.extend([binary.left, binary.right]),
-            ExpressionNode::Unary(unary) => pending.push(unary.operand),
-            _ => {}
-        }
-    }
-    true
+    // The strict reader has already joined every observed root and field to
+    // exact symbols. Require the encoder's entire authored namespace to agree,
+    // including unread structural operands and the explicit receiver slot.
+    parameter_names.len() == parameters.len()
+        && parameter_names
+            .iter()
+            .zip(parameters)
+            .all(|(name, parameter)| name == parameter.name.as_str())
 }
 
 #[cfg(test)]
@@ -216,6 +200,30 @@ mod tests {
                 .is_empty()
         );
         assert!(requirements(&program, &[]).consequences.is_empty());
+    }
+
+    #[test]
+    fn structural_entry_facts_keep_the_complete_authored_parameter_namespace() {
+        for access in ["", "&", "&mut "] {
+            let program = typed(&format!(
+                "data Record {{ enabled: bool; }}\n\
+                 machine value(record: {access}Record, other: {access}Record) -> bool\n\
+                 requires record.enabled\n{{ true }}"
+            ));
+            assert!(
+                !requirements(&program, &["record", "other"])
+                    .consequences
+                    .is_empty(),
+                "{access} declared requirement"
+            );
+            for names in [
+                vec!["other", "record"],
+                vec!["record"],
+                vec!["record", "record"],
+            ] {
+                assert!(requirements(&program, &names).consequences.is_empty());
+            }
+        }
     }
 
     #[test]

@@ -14,7 +14,10 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::statement::TableCall;
-use typed_trees::types::TypeReferenceNode;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+#[cfg(test)]
+mod tests;
 
 /// Recognition is deliberately broader than signature selection: even an
 /// invalid prefix or ambiguous member on a cached trait receiver must not
@@ -24,11 +27,15 @@ pub(super) fn receiver_requires_boundary_frame(
     symbols: &TopLevelSymbols<'_>,
     receiver: &[String],
 ) -> bool {
-    receiver
-        .last()
-        .and_then(|name| machine_symbols.callable_field_type(name))
-        .and_then(|name| symbols.trait_definition(name))
-        .is_some()
+    receiver.last().is_some_and(|name| {
+        machine_symbols
+            .callable_field_type(name)
+            .and_then(|name| symbols.trait_definition(name))
+            .is_some()
+            || symbols
+                .trait_definition(name)
+                .is_some_and(|definition| definition.is_boundary)
+    })
 }
 
 /// The boundary-trait signature a call statement resolves to (`self.fw.
@@ -69,6 +76,30 @@ pub(super) fn boundary_trait_signature_for_parts<'program>(
     target: &str,
     site: CallerWriteSite<'_>,
 ) -> Option<&'program typed_trees::signature::StateSignature> {
+    boundary_trait_signature_and_receiver(
+        program,
+        current_machine,
+        machine_symbols,
+        symbols,
+        receiver_members,
+        target,
+        site,
+    )
+    .map(|(signature, _)| signature)
+}
+
+/// The Boolean records actual runtime receiver storage, not a trait qualifier.
+/// Both static and receiver calls keep the same exact signature selection and
+/// exclusive-argument origin rules.
+fn boundary_trait_signature_and_receiver<'program>(
+    program: &'program TypedTrees,
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'program>,
+    receiver_members: &[String],
+    target: &str,
+    site: CallerWriteSite<'_>,
+) -> Option<(&'program typed_trees::signature::StateSignature, bool)> {
     let (receiver_symbol, target_symbol) = match site {
         CallerWriteSite::Call(call) => (call.receiver_symbol, call.target_symbol),
         CallerWriteSite::Expression(expression) => {
@@ -84,24 +115,42 @@ pub(super) fn boundary_trait_signature_for_parts<'program>(
         }
         CallerWriteSite::Statement(_) => return None,
     };
-    let trait_definition = match receiver_members {
+    let (trait_definition, has_runtime_receiver) = match receiver_members {
         [receiver] => {
             if !receiver_symbol.is_valid() {
                 return None;
             }
             let (state, _, _) = caller_statement_at_site(program, current_machine, site)?;
-            let parameter = program.state_parameters(state).iter().find(|parameter| {
+            if let Some(parameter) = program.state_parameters(state).iter().find(|parameter| {
                 parameter.symbol == receiver_symbol && parameter.name.as_str() == receiver
-            })?;
-            let receiver_type = receiver_type_symbol(program, parameter.type_reference);
-            program
-                .traits()
-                .iter()
-                .find(|definition| definition.symbol == receiver_type)?
+            }) {
+                let receiver_type = receiver_type_symbol(program, parameter.type_reference);
+                (
+                    program
+                        .traits()
+                        .iter()
+                        .find(|definition| definition.symbol == receiver_type)?,
+                    true,
+                )
+            } else {
+                // A qualified static call names the trait declaration itself;
+                // that qualifier is not reachable caller storage.
+                let mut definitions = program.traits().iter().filter(|definition| {
+                    definition.symbol == receiver_symbol && definition.name.as_str() == receiver
+                });
+                let definition = definitions.next()?;
+                if definitions.next().is_some()
+                    || program.symbols.get(receiver_symbol).kind != symbols::SymbolKind::Trait
+                    || program.symbols.name(receiver_symbol) != definition.name.as_str()
+                {
+                    return None;
+                }
+                (definition, false)
+            }
         }
         [root, receiver] if root == "self" => {
             let receiver_type = machine_symbols.callable_field_type(receiver)?;
-            symbols.trait_definition(receiver_type)?
+            (symbols.trait_definition(receiver_type)?, true)
         }
         _ => return None,
     };
@@ -116,8 +165,17 @@ pub(super) fn boundary_trait_signature_for_parts<'program>(
     (signatures.next().is_none()
         && signature.type_parameters.is_empty()
         && target_symbol.is_valid()
-        && signature.symbol == target_symbol)
-        .then_some(signature)
+        && signature.symbol == target_symbol
+        && (has_runtime_receiver
+            || (program.symbols.get(target_symbol).kind == symbols::SymbolKind::State
+                && program.symbols.get(target_symbol).parent == trait_definition.symbol
+                && program.symbols.name(target_symbol) == signature.name.as_str()))
+        && (has_runtime_receiver
+            || !program
+                .state_signature_parameters(signature)
+                .iter()
+                .any(|parameter| parameter.is_self)))
+    .then_some((signature, has_runtime_receiver))
 }
 
 fn receiver_type_symbol(
@@ -197,7 +255,7 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
     arguments: &[ExpressionHandle],
     inference: &mut FrameInference,
 ) -> Option<Vec<String>> {
-    let signature = boundary_trait_signature_for_parts(
+    let (signature, has_runtime_receiver) = boundary_trait_signature_and_receiver(
         program,
         current_machine,
         machine_symbols,
@@ -206,7 +264,11 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
         target,
         site,
     )?;
-    let mut written = vec![receiver.join(".")];
+    let mut written = if has_runtime_receiver {
+        vec![receiver.join(".")]
+    } else {
+        Vec::new()
+    };
     let parameters = program
         .state_signature_parameters(signature)
         .iter()
@@ -217,15 +279,7 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
     }
 
     for (parameter, argument) in parameters.into_iter().zip(arguments) {
-        let mut parameter_type = parameter.type_reference;
-        while let TypeReferenceNode::Constrained { base_type, .. } =
-            program.type_reference_table.type_reference(parameter_type)
-        {
-            parameter_type = *base_type;
-        }
-        if !parameter_type.is_valid() {
-            return None;
-        }
+        let parameter_type = live_unconstrained_type(program, parameter.type_reference)?;
         let TypeReferenceNode::Reference {
             access, referee, ..
         } = program.type_reference_table.type_reference(parameter_type)
@@ -257,4 +311,26 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
     }
 
     Some(written)
+}
+
+/// A stale nonzero handle resolves to dummy Unit, not an effect-free formal.
+/// An acyclic chain visits at most the number of stored type nodes, so this
+/// bound rejects cycles without imposing a smaller depth limit on valid types.
+fn live_unconstrained_type(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    for _ in 0..program.type_reference_table.type_reference_count() {
+        if !program
+            .type_reference_table
+            .contains_type_reference(reference)
+        {
+            return None;
+        }
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            _ => return Some(reference),
+        }
+    }
+    None
 }

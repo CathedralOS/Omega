@@ -21,7 +21,7 @@ mod call_arguments;
 mod computations;
 mod structural_fields;
 pub(crate) use structural_fields::resolve_structural_parameter_path;
-use structural_fields::structural_parameter_field_path;
+use structural_fields::{structural_data, structural_parameter_field_path};
 mod contract_entry;
 mod result_contract;
 pub(crate) use call_arguments::{
@@ -29,7 +29,8 @@ pub(crate) use call_arguments::{
 };
 pub(crate) use computations::build_checked_scalar_computation_plans;
 pub(crate) use contract_entry::{
-    lower_machine_entry_boolean_expression, lower_machine_entry_scalar_contract_expression,
+    lower_machine_entry_boolean_expression, lower_machine_entry_crash_contract_expression,
+    lower_machine_entry_scalar_contract_expression,
 };
 pub(crate) use result_contract::{
     lower_integer_contract_predicate, lower_integer_parameter_range_requirements,
@@ -1043,34 +1044,20 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
     ) -> Option<CheckedBooleanExpression> {
         fn field_type(
             program: &TypedTrees,
-            mut receiver: TypeReferenceHandle,
+            receiver: TypeReferenceHandle,
             identity: &str,
         ) -> Option<TypeReferenceHandle> {
-            loop {
-                match program.type_reference_table.type_reference(receiver) {
-                    TypeReferenceNode::Reference { referee, .. }
-                    | TypeReferenceNode::Constrained {
-                        base_type: referee, ..
-                    } => receiver = *referee,
-                    TypeReferenceNode::Named { symbol, name }
-                    | TypeReferenceNode::Generic {
-                        base_symbol: symbol,
-                        base_name: name,
-                        ..
-                    } => {
-                        let data = program.data_definitions().iter().find(|data| {
-                            (symbol.is_valid() && data.symbol == *symbol) || data.name == *name
-                        })?;
-                        return program.data_members(data).iter().find_map(|member| {
-                            let typed_trees::data::DataMember::Field(field) = member else {
-                                return None;
-                            };
-                            (field.name.as_str() == identity).then_some(field.type_reference)
-                        });
-                    }
-                    _ => return None,
-                }
-            }
+            let declaration = structural_data(program, receiver)?;
+            program.data_members(declaration).iter().find_map(|member| {
+                let typed_trees::data::DataMember::Field(field) = member else {
+                    return None;
+                };
+                let matches_identity = match field.identity {
+                    Some(field_identity) => identity == format!("#{field_identity}"),
+                    None => field.name.as_str() == identity,
+                };
+                matches_identity.then_some(field.type_reference)
+            })
         }
 
         fn path_type_reference(
@@ -1136,31 +1123,6 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                 parameter_position,
                 path,
             )?)
-        }
-
-        fn structural_data(
-            program: &TypedTrees,
-            mut type_reference: TypeReferenceHandle,
-        ) -> Option<&typed_trees::data::DataDefinition> {
-            let (symbol, name) = loop {
-                match program.type_reference_table.type_reference(type_reference) {
-                    TypeReferenceNode::Reference { referee, .. }
-                    | TypeReferenceNode::Constrained {
-                        base_type: referee, ..
-                    } => type_reference = *referee,
-                    TypeReferenceNode::Named { symbol, name }
-                    | TypeReferenceNode::Generic {
-                        base_symbol: symbol,
-                        base_name: name,
-                        ..
-                    } => break (*symbol, name),
-                    _ => return None,
-                }
-            };
-            program
-                .data_definitions()
-                .iter()
-                .find(|data| (symbol.is_valid() && data.symbol == symbol) || data.name == *name)
         }
 
         fn structural_record_fields(

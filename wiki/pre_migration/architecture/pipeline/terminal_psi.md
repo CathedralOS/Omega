@@ -3133,6 +3133,23 @@ identities; checked scalar operands count only preceding primitive parameters.
 Mutable formal reads in this contract namespace rebind to that scalar entry
 position, independently of the execution support for the enclosing body.
 
+Structural entry hypotheses use a separate strict Boolean reader, not the
+closed-scalar result-contract fallback. Plain Boolean field paths rejoin each
+selection through its retained live field symbol, exact nominal receiver, and
+declared field type. The root retains its authored parameter ordinal; nested
+selections cannot borrow a same-spelled field from another owner. Declared
+requirements describe invocation entry for owned, shared-borrow, and
+mutable-borrow roots. This does not admit current body reads as snapshots.
+Authored parameter names must agree with the complete ordered entry namespace
+before canonical crash identity encoding. Numeric operands retain their separate
+totality owner rather than becoming Boolean-field evidence.
+The explicit receiver rejoins the producer's exact machine-owned `Self` alias
+to the attached nominal declaration and original field identity. Guarded Unit
+crash contracts retain that receiver even when the executable body alone could
+omit it; contextual cleanup requirements keep their receipt-bound environment.
+Runtime field lookup shares the structural nominal resolver and preserves
+explicit numbered field identities.
+
 Independent call-ceiling validation proves the union of a same-cause bucket's
 published alternatives from caller requirements. It reuses the checked Boolean
 predicate-denotation conversion and certificate search used for direct sites,
@@ -3177,8 +3194,9 @@ runtime requirements and structural root/path checks. This logical budget does
 not replace arithmetic-subtree, structural-path, or sum-case checks.
 
 Boolean implication beyond structural common consequences, exact entry crash
-hypotheses over structural predicates, and numeric entry coverage remain
-implementation work.
+hypotheses beyond plain Boolean field paths, and numeric entry coverage remain
+implementation work. Case-qualified payload paths need their case identity in
+the canonical crash predicate before they can supply exact entry hypotheses.
 
 Direct crash-site validation independently proves every asserted guard from
 invocation-entry requirements and facts reconstructed before that terminator.

@@ -3,6 +3,9 @@
 
 use super::*;
 
+mod crash_entry;
+pub(crate) use crash_entry::lower_machine_entry_crash_contract_expression;
+
 /// Requires-only fallback for scalar Boolean formals in an exact entry namespace.
 /// Unlike the shared structural crash reader, this boundary cannot recover a source name
 /// from its spelling or introduce a result/body-local namespace.
@@ -13,6 +16,25 @@ pub(crate) fn lower_machine_entry_scalar_contract_expression(
     expression: ExpressionHandle,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<CheckedBooleanExpression> {
+    let parameters = entry_parameters(program, machine)?;
+    let entry = program.machine_states(machine).first()?;
+    lower_scalar_entry_expression(
+        program,
+        operators,
+        machine,
+        entry,
+        parameters,
+        expression,
+        exact_integer_casts,
+    )
+}
+
+/// Both readers use the same exact invocation namespace; their admitted leaf
+/// kinds remain separate because closed scalar contracts cannot carry fields.
+fn entry_parameters<'program>(
+    program: &'program TypedTrees,
+    machine: &typed_trees::machine::Machine,
+) -> Option<&'program [StateParameter]> {
     if !machine.symbol.is_valid()
         || program.symbols.get(machine.symbol).kind != symbols::SymbolKind::Machine
         || !program.machine_type_parameters(machine).is_empty()
@@ -65,6 +87,18 @@ pub(crate) fn lower_machine_entry_scalar_contract_expression(
             return None;
         }
     }
+    Some(parameters)
+}
+
+fn lower_scalar_entry_expression(
+    program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
+    machine: &typed_trees::machine::Machine,
+    entry: &typed_trees::state::State,
+    parameters: &[StateParameter],
+    expression: ExpressionHandle,
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
+) -> Option<CheckedBooleanExpression> {
     // Check the handle graph before invoking recursive semantic queries.
     let mut pending = vec![(expression, false)];
     let mut active = Vec::new();
