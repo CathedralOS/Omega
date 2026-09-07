@@ -30,6 +30,45 @@ Epsilon evaluator.
   hypothetical reuse are not acceptance conditions.
 - Every retained feature must cite a current evaluator, compiler, checker, or
   edge-verification customer.
+- Apply the [scope checkpoints](AGENTS.md#scope-checkpoints) and
+  [whole-chain retention test](wiki/design_briefs/bootstrap_minimization.md)
+  before expanding a rung. Helper completion alone is not chain progress.
+
+## Scheduling and current dependencies
+
+The sections below group obligations; they are not a serial instruction to
+finish every checker helper before advancing evaluator execution. P1 is proof
+closure, not a prerequisite for developing the selected runnable Delta/Epsilon
+route under its existing disclosed trust status. No such development counts as
+an admitted edge or substitutes for the required certificate.
+
+End-to-end self-host acceptance depends on settled exercised Omega behavior,
+the [Rust product completion contract](wiki/releases/rust_compiler_completion_contract.md),
+the `OMEGA-PRODUCT-COMPILER-SOURCE` work in [TASKS.md](TASKS.md), and complete D.
+Rust is a development comparator, not a canonical bootstrap stage. Lower-rung
+work can proceed for existing customer slices without pretending C is ready.
+Optimization quality is separate from semantic completion; require a particular
+optimization only when measured customer feasibility depends on it.
+
+## Next checkpoint - justify the remaining machinery
+
+- **BOOTSTRAP-COMPLEXITY-REVIEW.** Before another P1/P2/P3 infrastructure
+  milestone, apply the retention test to the current customer path. Owners:
+  `bootstrap/delta/compiler/implementation/normalization/` and
+  `checking/names/`, `bootstrap/gamma/{evaluator,derivation_checker,beta_encoding}/`,
+  and the retired concatenative inventories in the Gamma/Delta READMEs.
+  Compare retaining the 255-depth workaround with a coherently enlarged Gamma
+  profile using the actual Epsilon lowering demand; distinguish required
+  frontend semantics from storage optimizations and file fragmentation.
+  For P1, identify the remaining full-source encoder, owner-root reconstruction,
+  and source-owned certificate producer, with a bounded cost/feasibility probe
+  before extending another arithmetic/helper family. A partial proof is only
+  a measurement, never certificate acceptance. Inspect legacy consumers before
+  proposing deletion. Acceptance: present measured keep/simplify/defer/remove
+  recommendations, exact dependencies and validation costs, and one bounded
+  next customer milestone for user direction. Do not build an alternative
+  language, remove required validation, or change the trusted boundary as part
+  of this review; actual contract changes follow `OWNER_QUESTIONS.md`.
 
 ## P1 - Gamma checker
 
@@ -65,11 +104,16 @@ Epsilon evaluator.
   is retired.
   The current Epsilon evaluator source plus a diagnostic entry
   compiles through the selected lower route;
-  continue reducing general transformation costs rather than admitting a
-  customer-specific shortcut.
+  additional transformation optimization needs measured pressure from that
+  customer or a required conformance boundary. Compare coherent private-profile
+  growth before adding another optimization or limit workaround; retain general
+  source semantics and never add a customer-specific shortcut. Separate remaining
+  DCOUT conformance from execution progress through the Epsilon evaluator.
   Acceptance: conformance and malformed-source suites pass, the complete
   Epsilon evaluator compiles, exact receipts execute D, and no host or retired
-  compiler participates.
+  compiler participates. The final execution clause depends on P3 and complete
+  D in P4; missing downstream implementation is not a reason to keep adding
+  Delta mechanisms after its own applicable conformance and customer checks pass.
 
 ## P3 - Delta to Epsilon
 
