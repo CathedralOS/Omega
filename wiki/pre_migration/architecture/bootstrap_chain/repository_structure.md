@@ -3,7 +3,7 @@
 > **Needs porting.** This document has not been consolidated or vetted for the
 > current documentation structure. See the [migration index](../../README.md).
 
-[Chain overview](bootstrap_chain.md) | [Standing decisions](../../../architecture/bootstrap_chain/decisions.md)
+[Chain overview](bootstrap_chain.md) | [Standing decisions](decisions.md)
 
 ```text
 bootstrap/

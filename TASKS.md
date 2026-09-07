@@ -56,9 +56,9 @@ they must not acquire customer-shaped semantic types or lifecycle protocols.
   complete the physical payload tables, then the other documents in `wiki/pre_migration/`. The
   [documentation index](wiki/README.md) identifies the current subject owners.
   Consolidate into guide, specification, proposals, and temporary drafts; keep
-  implementation documentation beside code. The protected bootstrap decision
-  record needs explicit owner authorization for its eventual authority transition;
-  unrelated documentation cleanup is not blocked on it.
+  implementation documentation beside code. Include the bootstrap decision
+  record and chain alternatives in the same consolidation; their current
+  contracts must survive, not their old paths or superseded history.
 
   Acceptance: one authoritative home per current contract, no competing legacy
   documents or completed-work diaries, honest implementation/formalization status,

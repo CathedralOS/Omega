@@ -15,8 +15,8 @@ Run the focused serializer gate with `sh tests/delta/emission/run.sh`; its
 admitted Delta sources and executable Gamma programs.
 
 Completed direct-Beta topology comparisons are recorded in
-[D88](../../wiki/architecture/bootstrap_chain/decisions.md#d88--typed-functional-gamma-is-evaluated-directly-by-beta)
-and [D92](../../wiki/architecture/bootstrap_chain/decisions.md#d92--matched-direct-delta-does-not-displace-minimized-gamma).
+[D88](../../wiki/pre_migration/architecture/bootstrap_chain/decisions.md#d88--typed-functional-gamma-is-evaluated-directly-by-beta)
+and [D92](../../wiki/pre_migration/architecture/bootstrap_chain/decisions.md#d92--matched-direct-delta-does-not-displace-minimized-gamma).
 Their prototypes are not maintained as alternate implementations. Selected
 recursive-data, malformed-source, proper-tail, scale, and reordered-match
 coverage belongs to `staged-compiler/`; the selected evaluator and augmentation

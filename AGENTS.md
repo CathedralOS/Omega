@@ -392,11 +392,14 @@ Owner decisions belong in `OWNER_QUESTIONS.md`, not on a board. Before starting
 work, fetch `main` and inspect recent commits in that lane to avoid overlapping
 an active change. Prefer small checkpoint commits after working improvements.
 
-`wiki/architecture/bootstrap_chain/decisions.md` records decisions the owner has
-ratified. A decision exists there because a human answered a question, so a
-session never adds, amends, or supersedes an entry. When work meets one of D12's
-escalation criteria, read D12 for the criterion's exact scope, then raise the
-question in `OWNER_QUESTIONS.md` and leave the edge open until it is answered.
+The [bootstrap decision record](wiki/pre_migration/architecture/bootstrap_chain/decisions.md)
+is awaiting consolidation with the other legacy documentation. The owner has
+authorized porting its current contracts and deleting superseded history; its
+path and ledger format are not protected. Preserve ratified semantics while
+consolidating. Correct obvious stale text, but raise genuinely unsettled conflicts
+in `OWNER_QUESTIONS.md` and mark the affected specification undetermined. Until
+its escalation rules are ported, read D12 for their exact scope and leave an
+owner-blocked edge open until answered.
 
 History on `main` stays linear. The Git for Windows system config sets
 `pull.rebase` to `false`, which turns a `git pull` behind `origin/main` into a

@@ -3,7 +3,7 @@
 > **Needs porting.** This document has not been consolidated or vetted for the
 > current documentation structure. See the [migration index](../../README.md).
 
-[Chain overview](bootstrap_chain.md) | [Decisions](../../../architecture/bootstrap_chain/decisions.md) |
+[Chain overview](bootstrap_chain.md) | [Decisions](decisions.md) |
 [Omega toolchain](omega_toolchain.md)
 
 Three independent facts govern the top of the chain:
@@ -30,7 +30,7 @@ literal contents plus its closed escapes.
 This envelope governs implementation source, including comments; it does not
 restrict the byte data a compiler may consume or emit. Exact source closures,
 not filename suffixes, select enforcement. The full rule and offline-completion
-requirement are fixed by [D15](../../../architecture/bootstrap_chain/decisions.md#d15--bootstrap-implementation-source-is-closed-textual-ascii).
+requirement are fixed by [D15](decisions.md#d15--bootstrap-implementation-source-is-closed-textual-ascii).
 
 ## Required artifacts
 
