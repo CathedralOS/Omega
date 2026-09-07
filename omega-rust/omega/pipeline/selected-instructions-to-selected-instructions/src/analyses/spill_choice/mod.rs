@@ -3,12 +3,10 @@
 use crate::*;
 
 pub(crate) mod compute;
-pub(crate) mod identity;
 pub(crate) mod model;
 pub(crate) mod validate;
 
-pub use identity::spill_choice_identity;
-pub use model::*;
+pub use model::{SpillChoiceError, SpillChoiceValidationReceipt, ValidatedSpillChoices};
 pub use validate::validate_spill_choices;
 
 /// Select the deterministic recovery victim at each first supported local

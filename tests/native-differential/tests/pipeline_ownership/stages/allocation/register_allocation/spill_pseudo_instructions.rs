@@ -113,7 +113,7 @@ fn independent_replay_rejects_every_root_and_pseudo_surface_corruption() {
             },
             |plan: &mut selected_instructions_to_register_homes::SpillPseudoInstructionPlan| {
                 plan.allocator_availability =
-                    selected_instructions_to_register_homes::AllocatorAvailabilityIdentity::from_bytes([0xf3; 32]);
+                    register_homes::AllocatorAvailabilityIdentity::from_bytes([0xf3; 32]);
             },
             |plan: &mut selected_instructions_to_register_homes::SpillPseudoInstructionPlan| {
                 plan.optimization_unit =

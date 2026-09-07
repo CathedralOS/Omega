@@ -1284,12 +1284,14 @@ dependencies = [
  "proof-admission",
  "provider-planning",
  "register-environment",
+ "register-homes",
  "register-homes-to-post-allocation-machine",
  "register-model",
  "resolved-layout-to-resolved-layout",
  "selected-form-encoding-to-resolved-layout",
  "selected-instructions",
  "selected-instructions-to-register-homes",
+ "selected-instructions-to-selected-instructions",
  "semantic-vocabulary",
  "sha2",
  "source-files-to-tokens",
@@ -1516,6 +1518,7 @@ dependencies = [
  "optimization-core",
  "optimization-unit",
  "physical-instructions",
+ "register-homes",
  "register-homes-to-post-allocation-machine",
  "register-model",
  "selected-instructions",
@@ -1662,7 +1665,9 @@ dependencies = [
 name = "register-homes"
 version = "0.1.0"
 dependencies = [
+ "legalized-operations",
  "optimization-core",
+ "optimization-unit",
  "register-model",
  "selected-instructions",
  "semantic-vocabulary",

@@ -1,10 +1,11 @@
 //! Segment-home roots are mandatory and independently replayed.
 
 use crate::tests::*;
-use selected_instructions_to_register_homes::{
+use register_homes::{
     FixedPrecoloredIntervalPlanIdentity, FixedPrecoloredSegmentHomePlanIdentity,
-    FixedPrecoloredSplitRequirementPlanIdentity, FixedViewCopySourceEvidence,
+    FixedPrecoloredSplitRequirementPlanIdentity,
 };
+use selected_instructions_to_register_homes::FixedViewCopySourceEvidence;
 
 use super::fixture::{run, targets};
 

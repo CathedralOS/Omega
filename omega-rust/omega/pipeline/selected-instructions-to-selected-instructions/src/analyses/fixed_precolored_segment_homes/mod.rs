@@ -6,14 +6,15 @@
 
 mod compute;
 mod error;
-mod identity;
 mod model;
 mod replay;
 mod validation;
 
 pub use error::FixedPrecoloredSegmentHomeError;
-pub use identity::fixed_precolored_segment_home_plan_identity;
-pub use model::*;
+pub use model::{
+    FixedPrecoloredSegmentHomeValidationReceipt, ValidatedFixedPrecoloredSegmentHomes,
+};
+use register_homes::FixedPrecoloredSegmentHomePolicy;
 pub use validation::validate_fixed_precolored_segment_homes;
 
 use register_model::{

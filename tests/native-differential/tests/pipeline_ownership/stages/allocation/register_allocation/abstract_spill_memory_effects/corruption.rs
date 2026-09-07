@@ -71,9 +71,7 @@ const ROOT_MUTATIONS: [fn(
     },
     |plan| {
         plan.allocator_availability =
-            selected_instructions_to_register_homes::AllocatorAvailabilityIdentity::from_bytes(
-                [0xd2; 32],
-            );
+            register_homes::AllocatorAvailabilityIdentity::from_bytes([0xd2; 32]);
     },
     |plan| {
         plan.optimization_unit =

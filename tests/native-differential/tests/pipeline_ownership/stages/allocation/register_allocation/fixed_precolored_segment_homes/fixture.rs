@@ -23,18 +23,19 @@ pub(super) fn source(target: NativeTarget) -> HomeFixture {
     let fixed = selected_instructions_to_register_homes::analyze_fixed_precolored_intervals(
         source.live_range_stage().ranges(),
         source.legality(),
-        selected_instructions_to_register_homes::FixedPrecoloredIntervalPolicy::FixedConstraintPointIntervalsV1,
+        register_homes::FixedPrecoloredIntervalPolicy::FixedConstraintPointIntervalsV1,
         generous_budget(),
     )
     .unwrap();
-    let requirements = selected_instructions_to_register_homes::analyze_fixed_precolored_split_requirements(
-        source.live_range_stage().ranges(),
-        source.legality(),
-        &fixed,
-        selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementPolicy::FixedUseBoundaryRequirementsV1,
-        generous_budget(),
-    )
-    .unwrap();
+    let requirements =
+        selected_instructions_to_register_homes::analyze_fixed_precolored_split_requirements(
+            source.live_range_stage().ranges(),
+            source.legality(),
+            &fixed,
+            register_homes::FixedPrecoloredSplitRequirementPolicy::FixedUseBoundaryRequirementsV1,
+            generous_budget(),
+        )
+        .unwrap();
     HomeFixture {
         source,
         fixed,
@@ -69,14 +70,14 @@ pub(super) fn assign(
         environment.constraints(),
         environment.reservations(),
         &environment.allocation_constraint_keys(),
-        selected_instructions_to_register_homes::FixedPrecoloredSegmentHomePolicy::MostConstrainedLowestCompatibleViewV1,
+        register_homes::FixedPrecoloredSegmentHomePolicy::MostConstrainedLowestCompatibleViewV1,
         budget,
     )
 }
 
 pub(super) fn validate(
     fixture: &HomeFixture,
-    plan: selected_instructions_to_register_homes::FixedPrecoloredSegmentHomePlan,
+    plan: register_homes::FixedPrecoloredSegmentHomePlan,
 ) -> Result<
     selected_instructions_to_register_homes::ValidatedFixedPrecoloredSegmentHomes,
     selected_instructions_to_register_homes::FixedPrecoloredSegmentHomeError,

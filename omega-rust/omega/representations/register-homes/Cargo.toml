@@ -5,7 +5,9 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+legalized-operations = { path = "../legalized-operations" }
 optimization-core = { path = "../optimization-core" }
+optimization-unit = { path = "../optimization-unit" }
 target = { path = "../target" }
 register-model = { path = "../register-model" }
 selected-instructions = { path = "../selected-instructions" }

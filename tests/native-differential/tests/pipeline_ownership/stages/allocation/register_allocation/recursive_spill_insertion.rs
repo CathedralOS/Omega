@@ -158,7 +158,7 @@ fn independent_replay_rejects_root_slot_schedule_and_usage_corruption() {
             },
             |plan: &mut selected_instructions_to_register_homes::RecursiveSpillInsertionPlan| {
                 plan.allocator_availability =
-                    selected_instructions_to_register_homes::AllocatorAvailabilityIdentity::from_bytes([0xe4; 32]);
+                    register_homes::AllocatorAvailabilityIdentity::from_bytes([0xe4; 32]);
             },
             |plan: &mut selected_instructions_to_register_homes::RecursiveSpillInsertionPlan| {
                 plan.optimization_unit =

@@ -11,9 +11,7 @@ fn roots_rows_usage_and_cross_target_custody_fail_closed() {
     let mut corrupted = valid.plan().clone();
     corrupted.ranges = selected_instructions::LiveRangeIdentity::from_bytes([0x31; 32]);
     assert_ne!(
-        selected_instructions_to_register_homes::fixed_precolored_interval_plan_identity(
-            &corrupted
-        ),
+        register_homes::fixed_precolored_interval_plan_identity(&corrupted),
         identity,
     );
     assert!(matches!(
@@ -24,9 +22,7 @@ fn roots_rows_usage_and_cross_target_custody_fail_closed() {
     let mut corrupted = valid.plan().clone();
     corrupted.functions[0].intervals[0].end.0 += 1;
     assert_ne!(
-        selected_instructions_to_register_homes::fixed_precolored_interval_plan_identity(
-            &corrupted
-        ),
+        register_homes::fixed_precolored_interval_plan_identity(&corrupted),
         identity,
     );
     assert!(matches!(

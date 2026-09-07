@@ -3,12 +3,13 @@
 use crate::*;
 
 pub(crate) mod compute;
-pub(crate) mod identity;
 pub(crate) mod model;
 pub(crate) mod validate;
 
-pub use identity::allocation_legality_identity;
-pub use model::*;
+pub use model::{
+    AllocationLegalityError, AllocationLegalityValidationReceipt, ValidatedAllocationLegality,
+};
+
 pub use validate::validate_allocation_legality;
 
 /// Derive exact per-point physical-view candidates and incompatible fixed-view

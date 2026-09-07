@@ -71,11 +71,10 @@ fn encode_len(bytes: &mut Vec<u8>, value: usize) {
 mod tests {
     use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
     use register_model::TargetRegisterEnvironmentIdentity;
+    use selected_instructions::{LiveRangeIdentity, LiveRangePoint};
 
     use super::*;
-    use crate::{
-        AllocationLegalityIdentity, LiveRangeIdentity, SpillChoicePlan, SpillChoicePolicy,
-    };
+    use crate::{AllocationLegalityIdentity, SpillChoicePlan, SpillChoicePolicy};
 
     #[test]
     fn identity_binds_roots_policy_work_and_functions() {
@@ -114,7 +113,7 @@ mod tests {
         use semantic_vocabulary::MachineId;
 
         use crate::{
-            FunctionSpillChoices, LiveRangePoint, PressureContender, PressureResident, SpillChoice,
+            FunctionSpillChoices, PressureContender, PressureResident, SpillChoice,
             SpillChoiceDecodeError,
         };
 

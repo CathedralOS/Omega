@@ -45,7 +45,7 @@ pub(super) fn source(target: NativeTarget) -> SplitFixture {
     let fixed = selected_instructions_to_register_homes::analyze_fixed_precolored_intervals(
         source.live_range_stage().ranges(),
         source.legality(),
-        selected_instructions_to_register_homes::FixedPrecoloredIntervalPolicy::FixedConstraintPointIntervalsV1,
+        register_homes::FixedPrecoloredIntervalPolicy::FixedConstraintPointIntervalsV1,
         generous_budget(),
     )
     .unwrap();
@@ -67,14 +67,14 @@ pub(super) fn analyze(
         fixture.source.live_range_stage().ranges(),
         fixture.source.legality(),
         &fixture.fixed,
-        selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementPolicy::FixedUseBoundaryRequirementsV1,
+        register_homes::FixedPrecoloredSplitRequirementPolicy::FixedUseBoundaryRequirementsV1,
         budget,
     )
 }
 
 pub(super) fn validate(
     fixture: &SplitFixture,
-    plan: selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementPlan,
+    plan: register_homes::FixedPrecoloredSplitRequirementPlan,
 ) -> Result<
     selected_instructions_to_register_homes::ValidatedFixedPrecoloredSplitRequirements,
     selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementError,

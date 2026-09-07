@@ -3,12 +3,14 @@
 use crate::*;
 
 pub(crate) mod compute;
-pub(crate) mod identity;
 pub(crate) mod model;
 pub(crate) mod validate;
 
-pub use identity::allocator_availability_identity;
-pub use model::*;
+pub use model::{
+    AllocatorAvailabilityError, AllocatorAvailabilityValidationReceipt,
+    ValidatedAllocatorAvailability,
+};
+use register_homes::AllocatorAvailabilityPolicy;
 pub use validate::validate_allocator_availability;
 
 /// Materialize and independently replay one exact named policy controlling

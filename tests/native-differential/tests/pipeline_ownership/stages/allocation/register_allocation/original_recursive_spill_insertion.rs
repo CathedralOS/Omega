@@ -149,7 +149,7 @@ fn independent_replay_rejects_original_lineage_schedule_policy_and_usage_corrupt
             },
             |plan: &mut selected_instructions_to_register_homes::RecursiveSpillInsertionPlan| {
                 plan.allocator_availability =
-                    selected_instructions_to_register_homes::AllocatorAvailabilityIdentity::from_bytes([0xd3; 32])
+                    register_homes::AllocatorAvailabilityIdentity::from_bytes([0xd3; 32])
             },
             |plan: &mut selected_instructions_to_register_homes::RecursiveSpillInsertionPlan| {
                 plan.optimization_unit =

@@ -23,5 +23,6 @@ terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 sha2 = "0.10.9"
 
 [dev-dependencies]
+register-homes = { path = "../../representations/register-homes" }
 isa-aarch64 = { path = "../../backend/instruction_set_architectures/isa-aarch64" }
 isa-x86_64 = { path = "../../backend/instruction_set_architectures/isa-x86_64" }

@@ -12,14 +12,14 @@ use semantic_vocabulary::{
     ObligationId, OperationId, ScalarType, ValueId,
 };
 
-use crate::analyses::recovery_classification::identity::encode_terminal_recovery_classification_content;
+use super::identity::encode_terminal_recovery_classification_content;
 use crate::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FunctionRecoveryClassification,
-    LiveRangeIdentity, LiveRangePoint, NoAdmittedRecoveryReason, PressureRecoveryClassification,
-    RecoveryClassification, RecoveryClassificationDecodeError, RecoveryClassificationIdentity,
-    RecoveryClassificationPlan, RecoveryClassificationPolicy, RecoveryFutureUse,
-    RecoveryVictimRole, SpillChoiceIdentity,
+    NoAdmittedRecoveryReason, PressureRecoveryClassification, RecoveryClassification,
+    RecoveryClassificationDecodeError, RecoveryClassificationIdentity, RecoveryClassificationPlan,
+    RecoveryClassificationPolicy, RecoveryFutureUse, RecoveryVictimRole, SpillChoiceIdentity,
 };
+use selected_instructions::{LiveRangeIdentity, LiveRangePoint};
 
 const RECOVERY_CLASSIFICATION_MAGIC: &[u8; 8] = b"OMGRCV\0\0";
 const RECOVERY_CLASSIFICATION_VERSION: u32 = 4;

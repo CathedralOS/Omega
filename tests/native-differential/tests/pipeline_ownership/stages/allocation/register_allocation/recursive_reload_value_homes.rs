@@ -253,7 +253,7 @@ fn independent_replay_rejects_roots_lineage_interval_domain_view_roster_order_an
                 },
                 |plan: &mut selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
                     plan.legality =
-                        selected_instructions_to_register_homes::AllocationLegalityIdentity::from_bytes([0xb5; 32]);
+                        register_homes::AllocationLegalityIdentity::from_bytes([0xb5; 32]);
                 },
                 |plan: &mut selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
                     plan.register_environment =
@@ -263,7 +263,7 @@ fn independent_replay_rejects_roots_lineage_interval_domain_view_roster_order_an
                 },
                 |plan: &mut selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
                     plan.allocator_availability =
-                        selected_instructions_to_register_homes::AllocatorAvailabilityIdentity::from_bytes([0xb7; 32]);
+                        register_homes::AllocatorAvailabilityIdentity::from_bytes([0xb7; 32]);
                 },
                 |plan: &mut selected_instructions_to_register_homes::RecursiveReloadValueHomePlan| {
                     plan.optimization_unit =

@@ -239,9 +239,7 @@ fn fixture() -> (
         selected: selected_identity,
         effects: PreAllocationMachineEffectIdentity::from_bytes([4; 32]),
         ranges: selected_instructions::LiveRangeIdentity::from_bytes([5; 32]),
-        legality: selected_instructions_to_register_homes::AllocationLegalityIdentity::from_bytes(
-            [6; 32],
-        ),
+        legality: register_homes::AllocationLegalityIdentity::from_bytes([6; 32]),
         homes: selected_instructions_to_register_homes::RegisterHomeIdentity::from_bytes([7; 32]),
         post_allocation_manifest: PostAllocationOptimizationManifestIdentity::from_bytes([8; 32]),
         target: NativeTarget::linux_arm64(),

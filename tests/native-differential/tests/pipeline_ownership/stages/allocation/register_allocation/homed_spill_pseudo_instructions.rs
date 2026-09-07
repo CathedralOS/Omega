@@ -221,7 +221,7 @@ fn replay_rejects_every_root_destination_view_and_v1_surface_corruption() {
                 },
                 |plan: &mut selected_instructions_to_register_homes::HomedSpillPseudoInstructionPlan| {
                     plan.allocator_availability =
-                        selected_instructions_to_register_homes::AllocatorAvailabilityIdentity::from_bytes([0xc3; 32]);
+                        register_homes::AllocatorAvailabilityIdentity::from_bytes([0xc3; 32]);
                 },
                 |plan: &mut selected_instructions_to_register_homes::HomedSpillPseudoInstructionPlan| {
                     plan.optimization_unit =
