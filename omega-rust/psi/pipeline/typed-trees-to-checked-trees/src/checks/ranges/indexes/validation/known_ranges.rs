@@ -51,9 +51,21 @@ pub(super) fn prove(
     if !at_most_constant(program, machine, state, facts, range.end, end_limit) {
         return false;
     }
-    // Zero precedes a separately proven nonnegative end. Otherwise retain an
-    // explicit live ordering; two independently bounded endpoints can reverse.
+    // Separated enforced intervals order the produced values, even when two
+    // different calls produce them. Overlapping ranges or identical call
+    // spellings do not establish order between distinct evaluations.
+    let start_maximum = start.or_else(|| {
+        expression_enforced_declared_range(program, machine, state, range.start)
+            .map(|(_, maximum)| maximum)
+    });
+    let end_minimum = expression_enforced_declared_range(program, machine, state, range.end)
+        .and_then(|(minimum, _)| normalize_exclusive_end(minimum, range.end_inclusive));
+    // Zero precedes a separately proven nonnegative end. Otherwise require
+    // separated intervals or an independently retained live ordering.
     start == Some(0)
+        || start_maximum
+            .zip(end_minimum)
+            .is_some_and(|(start, end)| start <= end)
         || facts.at_most_is_proven(
             &program.expression_table.display_name(range.start),
             &program.expression_table.display_name(range.end),

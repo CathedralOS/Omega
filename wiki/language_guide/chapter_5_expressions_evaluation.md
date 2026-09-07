@@ -842,8 +842,13 @@ expression-only suppression restriction.
 > cells or packed bytes through nested windows, local loans, and forwarding;
 > bounds and counts remain relative to that view. Packed-byte windows share the
 > original allocation, and a live bounded view prevents resizing its backing.
-> Inline selector-call bound proofs remain incomplete, independently of runtime
-> selector evaluation.
+> For known collection extents, exactly selected ordinary selector calls,
+> including methods, contribute enforced literal integer return intervals to
+> bounds checking; callee return validation remains independent. Interval bounds
+> can prove endpoint ordering after inclusive-end normalization; overlapping
+> intervals or identical call spellings alone cannot establish it.
+> Dependent/public-trait result bounds and inline generic selector specialization
+> remain incomplete. Ordinary selector calls execute once in source order.
 > Shared record-valued elements retain their own field checks.
 > The destination's arithmetic policy cannot truncate an anonymous fraction or
 > wrap an out-of-range initial value. Successful integral
