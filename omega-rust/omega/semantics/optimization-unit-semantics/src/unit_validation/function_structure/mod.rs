@@ -7,6 +7,7 @@
 
 use super::*;
 
+mod byte_views;
 mod control_flow;
 mod fact_index;
 mod parameters;

@@ -90,13 +90,14 @@ fn every_supported_native_target_builds_a_matching_closed_environment() {
             (target.architecture, target.object_format),
             (Architecture::X86_64, ObjectFormat::Coff)
         );
+        let load = match target.architecture {
+            Architecture::X86_64 => X86_64_LOAD64,
+            Architecture::Aarch64 => isa_aarch64::AARCH64_LOAD64,
+        };
+        assert_eq!(environment.selected_keys().load64, Some(load));
+        assert_eq!(environment.allocation_constraint_keys().load64, Some(load));
+        assert_eq!(environment.constraint(load).unwrap().operands.len(), 2);
         for (selected_key, allocation_key, key, operands) in [
-            (
-                environment.selected_keys().load64,
-                environment.allocation_constraint_keys().load64,
-                X86_64_LOAD64,
-                2,
-            ),
             (
                 environment.selected_keys().store64,
                 environment.allocation_constraint_keys().store64,

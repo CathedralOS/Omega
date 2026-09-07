@@ -129,7 +129,9 @@ pub(crate) fn validate_operation_places(
                 }
             }
         }
-        O::BooleanStructuralField { source, .. } | O::ReturnStructural { source, .. } => {
+        O::ByteSequenceLength { source, .. }
+        | O::BooleanStructuralField { source, .. }
+        | O::ReturnStructural { source, .. } => {
             require(*source, known)?;
         }
         O::IntegerStructuralField { source, .. } => require(source.place, known)?,

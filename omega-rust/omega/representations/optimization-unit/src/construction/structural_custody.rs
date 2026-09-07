@@ -20,7 +20,9 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         } => {
             places.insert(result.place);
         }
-        O::BooleanStructuralField { source, .. } | O::ReturnStructural { source, .. } => {
+        O::ByteSequenceLength { source, .. }
+        | O::BooleanStructuralField { source, .. }
+        | O::ReturnStructural { source, .. } => {
             places.insert(*source);
         }
         O::IntegerStructuralField { source, .. } => {

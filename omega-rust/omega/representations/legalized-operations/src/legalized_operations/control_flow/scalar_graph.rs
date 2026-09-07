@@ -32,6 +32,7 @@ impl LegalizedScalarFunction {
                 .iter()
                 .any(|instruction| match &instruction.kind {
                     LegalizedScalarInstructionKind::Constant(_)
+                    | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
                     | LegalizedScalarInstructionKind::BoundarySettlement(_) => false,
                     LegalizedScalarInstructionKind::BooleanNot { operand }
                     | LegalizedScalarInstructionKind::IntegerWiden { operand, .. } => {
@@ -86,6 +87,10 @@ pub struct LegalizedValueDefinition {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarInstructionKind {
+    ByteSequenceLength {
+        source: semantic_vocabulary::PlaceId,
+        length_byte_offset: u32,
+    },
     Constant(IntegerValue),
     BooleanNot {
         operand: ValueId,

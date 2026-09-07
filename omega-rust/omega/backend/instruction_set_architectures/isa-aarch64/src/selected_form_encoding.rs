@@ -9,6 +9,8 @@ use semantic_vocabulary::IntegerValue;
 use crate::aarch64_physical_register_model;
 
 mod jump;
+mod memory;
+pub use memory::*;
 mod scalar_call;
 pub use jump::*;
 

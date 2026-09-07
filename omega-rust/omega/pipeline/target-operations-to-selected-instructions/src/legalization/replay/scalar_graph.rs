@@ -17,7 +17,8 @@ pub(super) fn replay(
 ) -> Result<(), LegalizationError> {
     let call_plan =
         scalar_graph_input::match_input(target, abstracted, optimized, native, plan, unit)?;
-    if proposed.structural != scalar_graph_input::structural_contract(target, abstracted, optimized)
+    if proposed.structural
+        != scalar_graph_input::structural_contract(target, abstracted, optimized, plan)
         || proposed.ranked.as_ref()
             != match &target.operation {
                 target_operations::TargetOperation::RankedU32Countdown(ranked) => {

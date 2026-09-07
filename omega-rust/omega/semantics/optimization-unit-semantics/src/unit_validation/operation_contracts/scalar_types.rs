@@ -18,6 +18,10 @@ pub(crate) fn operation_scalar_types_match(
         integer(left, expected) && integer(right, expected)
     };
     match operation {
+        O::ByteSequenceLength { result, .. } => {
+            matches!(result.scalar_type, ScalarType::Integer(integer)
+                if Ok(integer) == IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64))
+        }
         O::DynamicDescriptorParameter { parameter } => {
             parameter.owner == function.machine
                 && !parameter.trait_identity.is_empty()

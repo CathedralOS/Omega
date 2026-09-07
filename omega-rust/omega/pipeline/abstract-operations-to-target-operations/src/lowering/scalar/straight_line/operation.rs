@@ -149,7 +149,8 @@ pub(super) fn lower_operation(
             insert_value(values, *result, KnownScalar::Boolean(*value))?;
             provenance.operations.push(*psi_operation);
         }
-        AbstractOperation::BooleanStructuralField { .. }
+        AbstractOperation::ByteSequenceLength { .. }
+        | AbstractOperation::BooleanStructuralField { .. }
         | AbstractOperation::IntegerStructuralField { .. } => structural_scalar_field::lower(
             operation,
             function,

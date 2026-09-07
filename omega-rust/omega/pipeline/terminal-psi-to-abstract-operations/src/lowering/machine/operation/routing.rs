@@ -34,8 +34,23 @@ pub(super) fn lower(
         OperationKind::ByteSequenceSubslice { .. } => {
             Err(crate::lowering::LoweringError::UnsupportedByteSequenceSubslice(operation.id))
         }
-        OperationKind::ByteSequenceLength { .. } => {
-            Err(crate::lowering::LoweringError::UnsupportedByteSequenceLength(operation.id))
+        OperationKind::ByteSequenceLength { source } => {
+            let result = operation
+                .result
+                .scalar()
+                .ok_or(LoweringError::InvalidByteSequenceLength(operation.id))?;
+            if !matches!(result.scalar_type, ScalarType::Integer(integer) if Ok(integer) == semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64))
+            {
+                return Err(LoweringError::InvalidByteSequenceLength(operation.id));
+            }
+            Ok(AbstractOperation::ByteSequenceLength {
+                psi_operation: operation.id,
+                result: abstract_operations::AbstractResult {
+                    value: result.id,
+                    scalar_type: result.scalar_type,
+                },
+                source: *source,
+            })
         }
         OperationKind::StoreDynamicDescriptor { descriptor_ordinal } => {
             Ok(AbstractOperation::StoreDynamicDescriptor {

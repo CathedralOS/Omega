@@ -9,6 +9,13 @@ use terminal_psi::CrashRouteBucket;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetIntegerExpression {
+    ByteSequenceLength {
+        psi_operation: OperationId,
+        source_value: ValueId,
+        source: PlaceId,
+        source_placement: ValuePlacement,
+        length_byte_offset: u32,
+    },
     Call {
         psi_operation: OperationId,
         source_value: ValueId,

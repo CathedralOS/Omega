@@ -274,6 +274,7 @@ fn abstract_operation_psi_operation(operation: &AbstractOperation) -> Option<Ope
         | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { psi_operation, .. }
         | AbstractOperation::BooleanConstant { psi_operation, .. }
         | AbstractOperation::BooleanStructuralField { psi_operation, .. }
+        | AbstractOperation::ByteSequenceLength { psi_operation, .. }
         | AbstractOperation::IntegerStructuralField { psi_operation, .. }
         | AbstractOperation::BooleanNot { psi_operation, .. }
         | AbstractOperation::BooleanEqual { psi_operation, .. }

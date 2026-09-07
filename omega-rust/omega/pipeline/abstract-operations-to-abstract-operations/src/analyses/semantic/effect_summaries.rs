@@ -381,6 +381,7 @@ fn operation_effect(
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishAffineScalarRecord { .. }
         | O::BooleanStructuralField { .. }
+        | O::ByteSequenceLength { .. }
         | O::IntegerStructuralField { .. }
         | O::ReturnStructural { .. } => (EffectClass::StructuralState, No, Yes, No, No),
         O::CallUnit { .. }

@@ -55,8 +55,10 @@ fn preserves_exact_non_utf8_literal_and_structural_source() {
 }
 
 #[test]
-fn byte_sequence_length_has_an_explicit_native_realization_fence() {
+fn byte_sequence_length_retains_exact_source_result_type_and_rejects_drift() {
     let mut module = byte_sequence_module(vec![0, 0xff]);
+    module.boundary_machines.clear();
+    module.machines[0].blocks[0].operations.remove(1);
     module.machines[0].blocks[0].operations.insert(
         1,
         Operation {
@@ -78,9 +80,94 @@ fn byte_sequence_length_has_an_explicit_native_realization_fence() {
     );
     let semantic = encode_module(&module).unwrap();
     let proof = encode_proof_bundle(&ProofBundle::default()).unwrap();
-    assert!(
-        matches!(lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default()), Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::Lowering(terminal_psi_to_abstract_operations::LoweringError::UnsupportedByteSequenceLength(operation))) if operation == operation_id(3))
+    let profile = AdmissionProfile::default();
+    let plan = lower_artifact_sections(&semantic, &proof, &profile).unwrap();
+    let AbstractOperation::ByteSequenceLength {
+        psi_operation,
+        result,
+        source,
+    } = &plan.functions[0].operations[1]
+    else {
+        panic!("length remains an observation")
+    };
+    assert_eq!(*psi_operation, operation_id(3));
+    assert_eq!(*source, place_id(1));
+    assert_eq!(result.value, semantic_vocabulary::ValueId::new(1).unwrap());
+    assert_eq!(
+        result.scalar_type,
+        module.machines[0].blocks[0].operations[1]
+            .result
+            .scalar()
+            .unwrap()
+            .scalar_type
     );
+    terminal_psi_to_abstract_operations::admit_provider_installation(
+        &plan,
+        &semantic,
+        &proof,
+        &profile,
+        &[],
+    )
+    .unwrap();
+
+    let optimization = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &plan,
+        semantic_vocabulary::FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    optimization_unit_semantics::validate_psi_optimization_unit(&optimization).unwrap();
+
+    for mutation in 0..5 {
+        let mut drifted = plan.clone();
+        let operation = &mut drifted.functions[0].operations[1];
+        let AbstractOperation::ByteSequenceLength {
+            psi_operation,
+            result,
+            source,
+        } = operation
+        else {
+            panic!("length observation")
+        };
+        match mutation {
+            0 => *psi_operation = operation_id(9),
+            1 => *source = place_id(9),
+            2 => result.value = semantic_vocabulary::ValueId::new(9).unwrap(),
+            3 => result.scalar_type = semantic_vocabulary::ScalarType::Boolean,
+            4 => {
+                *operation = AbstractOperation::BooleanConstant {
+                    psi_operation: *psi_operation,
+                    result: result.value,
+                    value: false,
+                }
+            }
+            _ => panic!("bounded mutations"),
+        }
+        assert!(matches!(
+            terminal_psi_to_abstract_operations::admit_provider_installation(
+                &drifted,
+                &semantic,
+                &proof,
+                &profile,
+                &[],
+            ),
+            Err(terminal_psi_to_abstract_operations::ProviderInstallationError::PlanReplayMismatch)
+        ));
+        let changed = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &drifted,
+            semantic_vocabulary::FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        assert_ne!(optimization.identity, changed.identity);
+        if mutation == 1 || mutation == 3 {
+            assert!(optimization_unit_semantics::validate_psi_optimization_unit(&changed).is_err());
+        }
+    }
+
+    let mut unavailable = optimization.clone();
+    unavailable.functions[0].blocks[0].nodes.swap(0, 1);
+    unavailable.identity =
+        optimization_unit::recompute_psi_optimization_unit_identity(&unavailable);
+    assert!(optimization_unit_semantics::validate_psi_optimization_unit(&unavailable).is_err());
 }
 
 #[test]

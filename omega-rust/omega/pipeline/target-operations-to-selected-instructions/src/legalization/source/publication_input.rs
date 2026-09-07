@@ -43,7 +43,9 @@ fn eligible_function(
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> bool {
-    if matches!(function.operation, TargetOperation::RankedU32Countdown(_)) {
+    if matches!(function.operation, TargetOperation::RankedU32Countdown(_))
+        || function.mixed_structural_scalar_abi.is_some()
+    {
         return crate::legalization::scalar_graph_input::match_input(
             function, abstracted, optimized, native, plan, unit,
         )

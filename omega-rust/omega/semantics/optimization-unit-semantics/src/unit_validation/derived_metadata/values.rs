@@ -30,6 +30,7 @@ pub(crate) fn expected_definitions(
         | O::CallDynamicScalar { result, .. }
         | O::CallStoredDynamicScalar { result, .. }
         | O::CallDynamicParameterScalar { result, .. }
+        | O::ByteSequenceLength { result, .. }
         | O::IntegerStructuralField { result, .. } => Some((result.value, result.scalar_type)),
         O::BoundaryCall {
             result: abstract_operations::AbstractBoundaryResult::Scalar(result),

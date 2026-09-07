@@ -34,7 +34,9 @@ pub(crate) fn validate(
         kind @ (SelectedInstructionKind::Load64 { .. }
         | SelectedInstructionKind::Store64 { .. }
         | SelectedInstructionKind::FrameAddress { .. }) => {
-            if target != NativeTarget::windows_x64() {
+            if !matches!(kind, SelectedInstructionKind::Load64 { .. })
+                && target != NativeTarget::windows_x64()
+            {
                 return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
             }
             let address = row
@@ -43,20 +45,37 @@ pub(crate) fn validate(
             let SelectedFormEncodingState::Encoded { bytes, footprint } = &row.state else {
                 return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
             };
-            let encoded = isa_x86_64::validate_x86_64_selected_memory_form(
-                physical,
-                kind,
-                machine.alternative.key,
-                &operand_views(machine),
-                address.displacement,
-                bytes,
-            )
-            .map_err(OptimizedSelectedFormEncodingError::X86_64)?;
-            let decoded = decoded_footprint(
-                &encoded.footprint().register_reads,
-                &encoded.footprint().register_writes,
-                &encoded.footprint().encoded,
-            );
+            let decoded = if architecture == Architecture::Aarch64 {
+                let encoded = isa_aarch64::validate_aarch64_selected_memory_form(
+                    physical,
+                    kind,
+                    machine.alternative.key,
+                    &operand_views(machine),
+                    address.displacement,
+                    bytes,
+                )
+                .map_err(OptimizedSelectedFormEncodingError::Aarch64)?;
+                decoded_footprint(
+                    &encoded.footprint().register_reads,
+                    &encoded.footprint().register_writes,
+                    &encoded.footprint().encoded,
+                )
+            } else {
+                let encoded = isa_x86_64::validate_x86_64_selected_memory_form(
+                    physical,
+                    kind,
+                    machine.alternative.key,
+                    &operand_views(machine),
+                    address.displacement,
+                    bytes,
+                )
+                .map_err(OptimizedSelectedFormEncodingError::X86_64)?;
+                decoded_footprint(
+                    &encoded.footprint().register_reads,
+                    &encoded.footprint().register_writes,
+                    &encoded.footprint().encoded,
+                )
+            };
             validate_machine_footprint(selected.id, machine, &decoded)?;
             validate_size(selected.id, machine.alternative.size, bytes.len())?;
             if footprint.as_ref() != &decoded {

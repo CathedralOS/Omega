@@ -546,6 +546,7 @@ pub(super) fn lower_unit_body(
             | AbstractOperation::IntegerConstant { .. }
             | AbstractOperation::BooleanStructuralField { .. }
             | AbstractOperation::IntegerStructuralField { .. }
+            | AbstractOperation::ByteSequenceLength { .. }
             | AbstractOperation::BooleanNot { .. }
             | AbstractOperation::BooleanEqual { .. }
             | AbstractOperation::IntegerEqual { .. }

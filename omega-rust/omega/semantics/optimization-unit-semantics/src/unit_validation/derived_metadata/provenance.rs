@@ -55,6 +55,7 @@ pub(crate) fn expected_provenance(
         | O::NearestIeeeFloatFusedMultiplyAdd { psi_operation, .. }
         | O::BooleanConstant { psi_operation, .. }
         | O::BooleanStructuralField { psi_operation, .. }
+        | O::ByteSequenceLength { psi_operation, .. }
         | O::IntegerStructuralField { psi_operation, .. }
         | O::BooleanNot { psi_operation, .. }
         | O::BooleanEqual { psi_operation, .. }

@@ -103,7 +103,7 @@ fn selected_keys(
         }
     };
     Ok(SelectedConstraintKeys {
-        load64: None,
+        load64: Some(crate::AARCH64_LOAD64),
         store64: None,
         frame_address: None,
         call_unit: None,
@@ -136,8 +136,16 @@ fn declaration(
         constraint: keys
             .for_semantic(semantic)
             .expect("required AArch64 machine semantic has a constraint"),
-        memory: MachineMemoryEffect::NoneV1,
-        trap: MachineTrapBehavior::NeverV1,
+        memory: if semantic == MachineSemanticKind::Load64 {
+            MachineMemoryEffect::ReadPointerV1
+        } else {
+            MachineMemoryEffect::NoneV1
+        },
+        trap: if semantic == MachineSemanticKind::Load64 {
+            MachineTrapBehavior::MayArchitecturalFaultV1
+        } else {
+            MachineTrapBehavior::NeverV1
+        },
         barrier: if matches!(
             semantic,
             MachineSemanticKind::ConditionalBranchNonZero
@@ -186,6 +194,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         MachineSemanticKind::CompareI64 => (vec![0, 1], vec![]),
         MachineSemanticKind::MaterializeI64 => (vec![], vec![0]),
         MachineSemanticKind::CopyI64
+        | MachineSemanticKind::Load64
         | MachineSemanticKind::ZeroExtendU8
         | MachineSemanticKind::ZeroExtendU32 => (vec![0], vec![1]),
         MachineSemanticKind::ExactAddI64 | MachineSemanticKind::ExactSubtractI64 => {
@@ -199,8 +208,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::ReturnI64
         | MachineSemanticKind::Jump
         | MachineSemanticKind::ReturnUnit => (vec![], vec![]),
-        MachineSemanticKind::Load64
-        | MachineSemanticKind::Store64
+        MachineSemanticKind::Store64
         | MachineSemanticKind::FrameAddress
         | MachineSemanticKind::CallUnit => {
             panic!("memory and Unit call forms are not admitted on this target")
@@ -244,6 +252,12 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
                 target: view("x30"),
             },
         ),
+        MachineSemanticKind::Load64 => (
+            vec![],
+            vec![],
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+            MachineEncodedControlEffect::FallThroughV1,
+        ),
         _ => (
             vec![],
             vec![],
@@ -257,7 +271,14 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         implicit_unit_uses: implicit_uses,
         implicit_unit_defs: implicit_defs,
         implicit_unit_clobbers: vec![],
-        memory: MachineEncodedMemoryEffect::NoneV1,
+        memory: if semantic == MachineSemanticKind::Load64 {
+            MachineEncodedMemoryEffect::ReadPointerV1 {
+                pointer_operand: 0,
+                byte_count: 8,
+            }
+        } else {
+            MachineEncodedMemoryEffect::NoneV1
+        },
         stack: MachineEncodedStackEffect::UnchangedV1,
         trap,
         control,
@@ -270,8 +291,7 @@ const fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
             minimum_bytes: 4,
             maximum_bytes: Some(16),
         },
-        MachineSemanticKind::Load64
-        | MachineSemanticKind::Store64
+        MachineSemanticKind::Store64
         | MachineSemanticKind::FrameAddress
         | MachineSemanticKind::CallUnit => {
             panic!("memory and Unit call forms are not admitted on this target")

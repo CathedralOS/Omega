@@ -74,6 +74,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
         | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { .. }
         | AbstractOperation::BooleanConstant { .. }
         | AbstractOperation::BooleanStructuralField { .. }
+        | AbstractOperation::ByteSequenceLength { .. }
         | AbstractOperation::IntegerStructuralField { .. }
         | AbstractOperation::BooleanNot { .. }
         | AbstractOperation::BooleanEqual { .. }
