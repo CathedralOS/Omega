@@ -47,6 +47,36 @@ pub fn prove_ranking_range_edge(
         guards,
         evaluated_prefix,
         Some(arguments),
+        None,
+    )
+}
+
+/// Recheck a named self-edge under the range invariant established on every
+/// arrival. Each non-self formal corresponds to one exact entry parameter;
+/// the caller establishes that permutation from identity-forwarding arrivals.
+/// Neither machine requirements nor named-state declarations become induction
+/// hypotheses. Only rank membership and the supplied live guards are reused.
+pub fn prove_ranking_range_named_state_edge(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    range: ExpressionHandle,
+    measure: RankingRangeMeasure,
+    entry_parameters: &[symbols::SymbolHandle],
+    guards: &[(ExpressionHandle, bool)],
+    evaluated_prefix: &[ExpressionHandle],
+    arguments: &[ExpressionHandle],
+) -> Option<RankingRangeEdgeProof> {
+    prove_edge(
+        program,
+        machine,
+        state,
+        range,
+        measure,
+        guards,
+        evaluated_prefix,
+        Some(arguments),
+        Some(entry_parameters),
     )
 }
 
@@ -66,8 +96,18 @@ pub fn prove_ranking_range_entry(
     range: ExpressionHandle,
     measure: RankingRangeMeasure,
 ) -> bool {
-    prove_edge(program, machine, state, range, measure, &[], &[], None)
-        .is_some_and(|proof| proof.membership_and_pinning)
+    prove_edge(
+        program,
+        machine,
+        state,
+        range,
+        measure,
+        &[],
+        &[],
+        None,
+        None,
+    )
+    .is_some_and(|proof| proof.membership_and_pinning)
 }
 
 fn prove_edge(
@@ -79,29 +119,38 @@ fn prove_edge(
     guards: &[(ExpressionHandle, bool)],
     evaluated_prefix: &[ExpressionHandle],
     arguments: Option<&[ExpressionHandle]>,
+    entry_parameters: Option<&[symbols::SymbolHandle]>,
 ) -> Option<RankingRangeEdgeProof> {
-    if program.machine_states(machine).first()?.symbol != state.symbol {
+    let states = program.machine_states(machine);
+    let root = states.first()?;
+    if !states
+        .iter()
+        .any(|candidate| candidate.symbol == state.symbol)
+        || (entry_parameters.is_none() && root.symbol != state.symbol)
+        || (entry_parameters.is_some() && root.symbol == state.symbol)
+    {
         return None;
     }
     let ExpressionNode::Range(range) = program.expression_table.expression(range) else {
         return None;
     };
-    let admit = |expression| meanings::builtin(program, machine, state, expression, 0);
-    admit(range.start)?;
-    admit(range.end)?;
+    let admit_template = |expression| meanings::builtin(program, machine, root, expression, 0);
+    admit_template(range.start)?;
+    admit_template(range.end)?;
     match measure {
         RankingRangeMeasure::Single(subject) => {
-            admit(subject)?;
+            admit_template(subject)?;
         }
         RankingRangeMeasure::Distance { lower, upper }
         | RankingRangeMeasure::IncreasingTo {
             subject: lower,
             limit: upper,
         } => {
-            admit(lower)?;
-            admit(upper)?;
+            admit_template(lower)?;
+            admit_template(upper)?;
         }
     }
+    let admit = |expression| meanings::builtin(program, machine, state, expression, 0);
     for argument in arguments.unwrap_or_default() {
         admit(*argument)?;
     }
@@ -147,12 +196,61 @@ fn prove_edge(
             },
         });
     }
+    if let Some(entry_parameters) = entry_parameters {
+        let root_parameters = program.state_parameters(root);
+        let current_parameters = parameters
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .collect::<Vec<_>>();
+        if entry_parameters.len() != current_parameters.len()
+            || entry_parameters.len()
+                != root_parameters
+                    .iter()
+                    .filter(|parameter| !parameter.is_self)
+                    .count()
+        {
+            return None;
+        }
+        for (position, (parameter, entry_symbol)) in
+            current_parameters.iter().zip(entry_parameters).enumerate()
+        {
+            if entry_parameters[..position].contains(entry_symbol) {
+                return None;
+            }
+            let entry = root_parameters
+                .iter()
+                .find(|entry| !entry.is_self && entry.symbol == *entry_symbol)?;
+            if !entry.symbol.is_valid()
+                || entry.is_mutable
+                || entry.is_const
+                || parameter.is_mutable
+                || parameter.is_const
+                || exact_integer_parameter(program, entry.type_reference)?
+                    != exact_integer_parameter(program, parameter.type_reference)?
+            {
+                return None;
+            }
+            let value = bindings
+                .iter()
+                .find(|binding| binding.symbol == parameter.symbol)?
+                .value
+                .clone();
+            bindings.push(StrictArithmeticSymbolBinding {
+                symbol: *entry_symbol,
+                value,
+            });
+        }
+    }
     let mut engine = Engine::strict_with_symbol_bindings(program, machine, &bindings);
     if !engine.strict_symbol_bindings_are_valid() {
         return None;
     }
     let mut comparisons = Vec::new();
-    for contract in program.machine_contracts(machine) {
+    for contract in program
+        .machine_contracts(machine)
+        .iter()
+        .filter(|_| entry_parameters.is_none())
+    {
         if contract.kind != SignatureContractKind::Requires {
             continue;
         }
@@ -166,7 +264,7 @@ fn prove_edge(
     }
     // Declared ranges are enforced at arrivals. Read the exact endpoints, not
     // their display text or the ordinary engine's name-keyed range shortcut.
-    for binding in &bindings {
+    for binding in bindings.iter().filter(|_| entry_parameters.is_none()) {
         let parameter = parameters
             .iter()
             .find(|parameter| parameter.symbol == binding.symbol)?;
@@ -212,6 +310,27 @@ fn prove_edge(
             limit: upper,
         } => engine.normalize(upper)?.sub(&engine.normalize(lower)?),
     };
+    if entry_parameters.is_some() {
+        // This is the sole induction hypothesis: entry arrivals establish it,
+        // and each self-edge below re-establishes it with pinned endpoints.
+        comparisons.extend([
+            (
+                BinaryOperator::GreaterOrEqual,
+                rank.clone(),
+                Polynomial::constant(BigInt::from_i64(0)),
+            ),
+            (BinaryOperator::GreaterOrEqual, rank.clone(), floor.clone()),
+            (
+                if range.end_inclusive {
+                    BinaryOperator::LessOrEqual
+                } else {
+                    BinaryOperator::Less
+                },
+                rank.clone(),
+                ceiling.clone(),
+            ),
+        ]);
+    }
     if !engine.install_hypotheses(comparisons) {
         return None;
     }
