@@ -584,7 +584,10 @@ Owners include
   reject.
 
 - **CALLBACK-PRIVATE-MATERIALIZATION.** Add target-owned private callback slots
-  selected through exact conformances and validated layout paths. Private
+  selected through exact conformances and validated layout paths under the
+  [private-callback contract](wiki/spec/build/private_callbacks.md). Authenticate
+  the complete plan application and replay the authored-use-to-Terminal-operation
+  join independently; retained producer digests alone are insufficient. Private
   slots must be absent from source-visible schema and inaccessible as ordinary
   fields or addresses. Acceptance: one outbound registrar closes without a raw
   code pointer or duplicated placement authority.

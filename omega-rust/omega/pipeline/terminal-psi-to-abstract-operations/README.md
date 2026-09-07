@@ -32,3 +32,25 @@ selected optimization. Historical direct-assignment and special one-fragment
 publication routes are not architectural alternatives. Machine-effect facts
 must still reach final call placement, frame/return-address preservation,
 relocations, bytes, and independently validated publication.
+
+## Dynamic dispatch
+
+The [dynamic-dispatch contract](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md)
+owns selection identity, forwarding roles, and complete tables. Reconstruction
+starts in [dynamic_dispatch.rs](src/lowering/machine/operation/calls/dynamic_dispatch.rs).
+Retain whole closed applications, not just the selected callable. Changing an
+unselected row must still change identity and fail stale replay.
+
+Source/native support remains bounded around direct selections, a rebound
+descriptor, and a transparent parameter hop. The immutable-table native route
+does not establish arbitrary multi-block continuations, mutable initialized
+data, or BSS. Unit and scalar forwarding retain different result storage needs.
+
+The mutation-bearing source subset admits bounded ordered literal primitive-field
+stores through a mutable receiver before an independent field return. Direct
+and finite named-record paths are distinct from general indexed/case paths,
+computed values, repeated destinations, and arbitrary body reorderings. Its
+native integer/Boolean stores and scalar results do not imply general IEEE or
+aggregate support. Recheck the relevant producer and receiving admission before
+extending a shape; successful descriptor transport alone is not executable
+reference preservation.

@@ -19,6 +19,7 @@ beside code; completed work belongs in Git, not current reference material.
   [boundary calls](spec/terminal-psi/boundary_calls.md),
   [byte views](spec/terminal-psi/byte_views.md),
   [structural access and stores](spec/terminal-psi/structural_access.md),
+  [dynamic dispatch](spec/terminal-psi/dynamic_dispatch.md),
   [observations](spec/terminal-psi/observations.md), and
   [encoding](spec/terminal-psi/encoding.md),
   [verification](spec/terminal-psi/verification.md),
@@ -28,7 +29,8 @@ beside code; completed work belongs in Git, not current reference material.
   [storage](spec/resources/storage.md),
   [content custody](spec/resources/content_custody.md), and
   [placed access](spec/resources/placed_access.md).
-- Build products: [native products and component publication](spec/build/component_publication.md).
+- Build products: [native products and component publication](spec/build/component_publication.md)
+  and [private callbacks](spec/build/private_callbacks.md).
 
 Only the migrated subjects above have specification owners so far.
 The [migration index](pre_migration/README.md) identifies the remaining source

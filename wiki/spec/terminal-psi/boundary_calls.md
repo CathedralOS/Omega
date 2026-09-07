@@ -115,7 +115,7 @@ target, builtin, or checked-source receipt at this join. Replay the complete
 plan, external row, atomic locator, target, and strong stack commitment.
 Missing, extra, duplicate, or builtin-substituted demanded settlements reject.
 Selected but unreachable imports retain identity without requiring execution
-inputs. Callback use additionally needs combined callback and checked-scope
+inputs. [Callback use](../build/private_callbacks.md) additionally needs combined callback and checked-scope
 custody; neither half authorizes the other.
 
 Native provider executions must match the exact canonical requirement before
