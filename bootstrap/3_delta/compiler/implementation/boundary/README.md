@@ -326,6 +326,62 @@ canonical publisher with private retained Gamma plans, not admitted source.
 
 ## Remaining boundary work
 
+### Resource ownership in the selected producer
+
+D30's resource identities and limits remain fixed; changing the producer does
+not authorize renumbering them. The selected Delta compiler emits Gamma source,
+not Alpha instructions. Review the actual owners before treating each historical
+resource row as missing implementation:
+
+| DCOUT resource | Selected producer ownership |
+| --- | --- |
+| 1 source bytes | Request admission, before reading the declared body. |
+| 2–4 type, constructor, function rows | Authored global census, not generated Gamma functions. |
+| 5 active environment rows | Scoped frontend bindings, not physical runtime slots. |
+| 6 coverage rows | At most one distinct admitted constructor per match member; the global constructor bound makes an adjacent fresh same-owner member unreachable. Duplicate/owner checks still apply. |
+| 7 syntax-arena bytes, 8 parse depth | Parser/grammar allocation ledger and expression-level worklist. |
+| 9 live local slots, 10 labels, 11 fixups | Zero use in this producer; no physical slot allocator, label table, or fixup table exists. Preserve the identities and limits, without inventing allocations or adjacent refusals. |
+| 12 payload bytes | Complete Gamma receipt, including runtime, adapter, separators, and final LF. |
+
+The zero-use argument follows the representation, not a search for missing
+counter names: [Gamma programs](../representation/gamma.gamma) retain counted
+definitions with names, parameter binding atoms, and expression bodies.
+[Lowering locals](../lowering/bindings.gamma) retain binding identities, not
+physical homes. [Normalization](../normalization/program.gamma) adds ordinary
+definitions and parameters; [serialization](../emission/program.gamma) writes
+source rather than resolving branches to instruction addresses. Physical Alpha
+realization belongs below Delta. For the same reason, internal code 3's
+label/fixup contradiction has no producer here. This is nonreachability for this
+representation, not retirement of a ratified resource or diagnostic identity.
+
+Static admission of the emitted Gamma is a separate unfinished obligation:
+count every generated function, including fixed runtime, adapters and extracted
+helpers; establish each body's 255-list bound and validation environment fit.
+Do not reuse the authored-function resource or physical-slot resource to name
+those different counts. Dynamic non-tail contexts, temporary values, immutable
+pairs, and application input/output are selected evaluator/runtime resources.
+A statically admitted program can still exhaust them or diverge. Correct
+classification at those boundaries remains required, but a compiler cannot
+promise that every terminating program fits every finite runtime provision.
+
+### Producer invariants rather than arbitrary corruption coverage
+
+Declaration metadata's owner and body-start checks in
+[`checking/types.gamma`](../checking/types.gamma) compare fields built directly
+from the same retained declaration by
+[`catalog_function_signature`](../checking/declarations/functions.gamma).
+The complete immutable typed catalog then reaches body checking. These checks
+are useful custody assertions; no admitted-source contradiction has been
+demonstrated there. Replacing every private pair projection or assertion with
+a synthetic-frame diagnostic is not a finite source-conformance criterion.
+Trace a reachable producer/consumer disagreement before adding another guard,
+and preserve already-owned outcomes without claiming arbitrary corruption is
+canonicalized. Likewise, an unrepresentable expanded byte demand is not
+automatically corrupt metadata: count-overflow work first needs a reachable
+demand argument and an exact outcome representation.
+
+### Publication and generated admission
+
 After normalization, the shared serializer counts the complete Gamma payload
 before publishing its first byte. Above 16,777,212 bytes it returns tag 2,
 resource 12, payload coordinate space 2, coordinate and limit 16,777,212, and
