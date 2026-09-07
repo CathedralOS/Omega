@@ -45,6 +45,7 @@ pub(in crate::generic_data) fn canonicalize_closed_domain_indices(
     syntax: &mut SyntaxTrees,
     const_definitions: &HashMap<String, ConstDefinition>,
     const_values: &HashMap<String, i128>,
+    warnings: &mut Vec<Diagnostic>,
 ) -> Result<(), Diagnostic> {
     let mut families = HashMap::<String, ClosedDomainFamily>::new();
 
@@ -212,6 +213,7 @@ pub(in crate::generic_data) fn canonicalize_closed_domain_indices(
             arguments,
             const_definitions,
             const_values,
+            warnings,
         )?;
     }
     Ok(())
@@ -224,6 +226,7 @@ pub(in crate::generic_data) fn canonicalize_closed_domain_application(
     arguments: Vec<TypeReferenceHandle>,
     const_definitions: &HashMap<String, ConstDefinition>,
     const_values: &HashMap<String, i128>,
+    warnings: &mut Vec<Diagnostic>,
 ) -> Result<(), Diagnostic> {
     if arguments.len() != family.parameters.len() {
         return Err(Diagnostic::error(format!(
@@ -292,6 +295,8 @@ pub(in crate::generic_data) fn canonicalize_closed_domain_application(
                 if const_expression_contains_name(syntax, expression) {
                     continue;
                 }
+                let destination =
+                    syntax_type_identity(syntax, *parameter_type).map_err(Diagnostic::error)?;
                 let value = evaluate_const_argument_expression(
                     syntax,
                     expression,
@@ -299,14 +304,20 @@ pub(in crate::generic_data) fn canonicalize_closed_domain_application(
                     &HashMap::new(),
                     &HashSet::new(),
                     const_integer_type(syntax, *parameter_type),
+                    warnings,
                 )
                 .and_then(EvaluatedConst::into_concrete)
                 .map_err(|reason| {
                     Diagnostic::error(format!(
-                        "index argument expression for `{}` is invalid: {reason}",
+                        "index argument expression for `{}` is invalid for `{destination}`: {reason}",
                         family_name
-                    ))
+                    )).with_source_span(syntax.expressions.source_span(expression))
                 })?;
+                if const_integer_type(syntax, *parameter_type).is_some() {
+                    let required =
+                        syntax_type_identity(syntax, *parameter_type).map_err(Diagnostic::error)?;
+                    validate_syntax_integer_range(&required, value).map_err(Diagnostic::error)?;
+                }
                 syntax.tables.type_references.replace_type_reference(
                     argument,
                     TypeReferenceNode::Named(Identifier::generated(value.to_string())),

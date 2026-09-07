@@ -41,6 +41,7 @@ pub(in crate::generic_data) fn replace_const_expression_names_from(
 pub(in crate::generic_data) fn normalize_generic_template_const_expressions(
     syntax: &mut SyntaxTrees,
     const_values: &HashMap<String, i128>,
+    warnings: &mut Vec<Diagnostic>,
 ) -> Result<(), Diagnostic> {
     let templates: Vec<(String, HashSet<String>, Vec<TypeReferenceHandle>)> = syntax
         .root_items()
@@ -85,6 +86,7 @@ pub(in crate::generic_data) fn normalize_generic_template_const_expressions(
                 field,
                 const_values,
                 &symbolic_parameters,
+                warnings,
             )
             .map_err(|reason| {
                 Diagnostic::error(format!(
@@ -101,6 +103,7 @@ pub(in crate::generic_data) fn normalize_template_type_reference(
     type_reference: TypeReferenceHandle,
     const_values: &HashMap<String, i128>,
     symbolic_parameters: &HashSet<String>,
+    warnings: &mut Vec<Diagnostic>,
 ) -> Result<(), String> {
     let node = syntax
         .tables
@@ -108,18 +111,27 @@ pub(in crate::generic_data) fn normalize_template_type_reference(
         .type_reference(type_reference)
         .clone();
     match node {
-        TypeReferenceNode::Reference { referee, .. } => {
-            normalize_template_type_reference(syntax, referee, const_values, symbolic_parameters)
-        }
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            normalize_template_type_reference(syntax, base_type, const_values, symbolic_parameters)
-        }
+        TypeReferenceNode::Reference { referee, .. } => normalize_template_type_reference(
+            syntax,
+            referee,
+            const_values,
+            symbolic_parameters,
+            warnings,
+        ),
+        TypeReferenceNode::Constrained { base_type, .. } => normalize_template_type_reference(
+            syntax,
+            base_type,
+            const_values,
+            symbolic_parameters,
+            warnings,
+        ),
         TypeReferenceNode::FixedArray { element_type, .. }
         | TypeReferenceNode::Slice { element_type } => normalize_template_type_reference(
             syntax,
             element_type,
             const_values,
             symbolic_parameters,
+            warnings,
         ),
         TypeReferenceNode::Generic {
             base_name,
@@ -146,6 +158,7 @@ pub(in crate::generic_data) fn normalize_template_type_reference(
                         &HashMap::new(),
                         symbolic_parameters,
                         integer_types.get(index).copied().flatten(),
+                        warnings,
                     )?;
                     let name = match placeholder {
                         EvaluatedConst::Concrete(value) => value.to_string(),
@@ -161,6 +174,7 @@ pub(in crate::generic_data) fn normalize_template_type_reference(
                         argument,
                         const_values,
                         symbolic_parameters,
+                        warnings,
                     )?;
                 }
             }
@@ -174,6 +188,7 @@ pub(in crate::generic_data) fn normalize_template_type_reference(
                 &HashMap::new(),
                 symbolic_parameters,
                 None,
+                warnings,
             )?;
             let name = match placeholder {
                 EvaluatedConst::Concrete(value) => value.to_string(),

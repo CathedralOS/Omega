@@ -810,13 +810,17 @@ expression-only suppression restriction.
 > the destination's arithmetic policy cannot truncate an anonymous fraction or
 > wrap an out-of-range initial value. Successful integral
 > landings report the fractional-intermediate warning through the current
-> validation diagnostic route. Caller result proofs can also transport a callee's
-> builtin `result == immutable_parameter` guarantee from retained closed
+> validation diagnostic route. Closed builtin integer const arguments for data
+> and domains retain exact anonymous intermediates before normalization chooses
+> the canonical integer argument. Normalization reports their fractional
+> origins through the current stderr warning channel; an integral final value
+> must still fit its declared const parameter. Caller result proofs can also
+> transport a callee's builtin `result == immutable_parameter` guarantee from retained closed
 > fixed-integer operands, without replaying their source expressions. General runtime argument
 > snapshots, generic/evidence-adapted and boundary destination custody, aggregate
 > elements, remaining mutable parameter carriers and Unit-body storage, numeric policies, float
-> and constant-argument consumers, and ordinary warning suppression/report
-> transport remain on [the execution board](../../TASKS.md).
+> and remaining authored-operator/const-proof consumers, and ordinary warning
+> suppression/report transport remain on [the execution board](../../TASKS.md).
 
 ### Typed integer quotient and remainder
 

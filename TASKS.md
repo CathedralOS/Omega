@@ -647,9 +647,10 @@ Owners include
   ignored-backedge first-pass facts must never authorize a loop crash guard.
   Complete [exact anonymous division and landing](wiki/language_guide/chapter_5_expressions_evaluation.md#exact-anonymous-division-and-landing)
   for the remaining parameter and aggregate destinations, numeric policies, float
-  landing, constant arguments, and their proof consumers. Preserve exact rational
-  intermediates until an actual landing boundary. Carry fractional-intermediate
-  warnings through ordinary suppression and compiler reports, retaining authored
+  landing, remaining constant-argument destinations and policies, and their proof
+  consumers. Preserve exact rational intermediates until an actual landing
+  boundary. Carry fractional-intermediate warnings through ordinary suppression
+  and compiler reports, retaining authored
   origins at successful integer landing. Acceptance:
   `7 / 2 * 2` lands as 7 with a warning, `7 / 2` cannot land in an integer,
   `7i32 / 2 * 2` is 6 without that warning, and mixed runtime/constant operands

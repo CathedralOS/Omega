@@ -138,6 +138,23 @@ fn a_const_generic_argument_cannot_erase_anonymous_remainder_before_checking() {
 }
 
 #[test]
+fn exact_const_quotients_determine_checked_array_bounds() {
+    for (argument, last_element) in [("7 / 2 * 2", 6), ("7u64 / 2 * 2", 5)] {
+        let source = format!(
+            "data Buffer<const N: u64> {{ values: [u8; N]; }}
+            machine run(value: &Buffer<{argument}>) -> u8 {{ value.values[{last_element}] }}"
+        );
+        accepts(&source);
+        let outside = source.replace(
+            &format!("values[{last_element}]"),
+            &format!("values[{}]", last_element + 1),
+        );
+        let errors = check(&outside).expect_err("the first out-of-range element must reject");
+        assert!(errors.contains("index"), "{outside}: {errors}");
+    }
+}
+
+#[test]
 fn nested_anonymous_arithmetic_does_not_supply_a_remainder_operand_type() {
     for expression in ["(7 + 1) % 2", "(7 / 2) % 2", "(7 % 2) as i32"] {
         rejects_anonymous_remainder(&format!("machine run() -> i32 {{ {expression} }}"));
