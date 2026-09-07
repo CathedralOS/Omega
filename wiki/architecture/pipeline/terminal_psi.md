@@ -250,10 +250,17 @@ the ordinary structural-call continuation. It transfers actual input custody,
 executes the selected candidate, and establishes the caller's result only after
 the provider's successful fuel-charged return. Suspension does not invoke a
 host result producer or repeat the provider call. Projected consumers retain
-the same residual complement as an ordinary result producer. Checked-source
-provider discovery, Omega installation-call admission, and native boundary
-result storage still require their own result-aware extensions; this Terminal
-admission does not authorize those later stages.
+the same residual complement as an ordinary result producer.
+
+Checked-source discovery retains these structural-result candidates alongside
+Unit candidates in the shared closure. The candidates keep their existing
+affine identity-return plans, attachment and result types, and exact source-to-
+Terminal machine mapping; they are not converted to Unit bodies. A partial-result
+caller can move its sole whole owned input into either an ordinary or boundary
+producer, then consume projected results and discard only the residual complement.
+Omega installation-call admission and native boundary result storage still
+require their own result-aware extensions; source and Terminal admission do not
+authorize those later stages.
 
 For a target-selected attached `ProgramEntry`, the compiler now retains the
 first Fused root-establishment receipt beside Terminal. It derives one row per

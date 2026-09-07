@@ -1055,6 +1055,12 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
                     scalar_arguments,
                     discard_result_on_return,
                     ..
+                }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                    structural_arguments,
+                    scalar_arguments,
+                    discard_result_on_return,
+                    ..
                 } => {
                     if !scalar_arguments.is_empty()
                         || structural_arguments.len() != structural_parameters.len()
@@ -1063,20 +1069,6 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
                                 || !argument.path.is_empty()
                                 || argument.access != CheckedStructuralAccess::Owned
                         })
-                    {
-                        return None;
-                    }
-                    *discard_result_on_return = false;
-                }
-                CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                    structural_arguments,
-                    scalar_arguments,
-                    discard_result_on_return,
-                    ..
-                } => {
-                    if !structural_parameters.is_empty()
-                        || !structural_arguments.is_empty()
-                        || !scalar_arguments.is_empty()
                     {
                         return None;
                     }

@@ -2,6 +2,39 @@
 
 use super::*;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ProviderBody {
+    Unit,
+    AffineIdentity,
+}
+
+pub(super) fn affine_candidate(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+) -> Result<&checked_trees::CheckedClaimFreeAffineStructuralReturnMachinePlan, LoweringError> {
+    let mut candidates = checked
+        .facts
+        .flow
+        .terminal_structural_returns
+        .claim_free_affine_machines
+        .iter()
+        .filter(|plan| plan.machine == machine);
+    let candidate = candidates.next().ok_or(LoweringError::Unsupported(
+        "provider candidate has no checked affine identity return plan",
+    ))?;
+    if candidates.next().is_some()
+        || checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine)
+            .is_some()
+    {
+        return unsupported("provider candidate has ambiguous terminal body plans");
+    }
+    Ok(candidate)
+}
+
 pub(super) fn checked_unit_provider_candidates(
     checked: &CheckedTrees,
     closure: &[symbols::SymbolHandle],
@@ -17,7 +50,8 @@ pub(super) fn checked_unit_provider_candidates(
         })
         .filter_map(|operation| match operation {
             CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. } => {
+            | CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { target_machine, .. } => {
                 Some(*target_machine)
             }
             _ => None,
@@ -27,11 +61,7 @@ pub(super) fn checked_unit_provider_candidates(
     boundary_symbols.dedup();
     let mut output = Vec::new();
     for boundary_symbol in boundary_symbols {
-        plans
-            .boundary_for_machine(boundary_symbol)
-            .ok_or(LoweringError::Unsupported(
-                "Unit provider catalog references an unknown checked boundary plan",
-            ))?;
+        let boundary = unique_unit_boundary(plans, boundary_symbol)?;
         let exact_requirements = checked
             .typed
             .traits()
@@ -79,12 +109,38 @@ pub(super) fn checked_unit_provider_candidates(
                     })
         });
         for machine in candidates {
-            plans
-                .for_machine(machine.symbol)
-                .ok_or(LoweringError::Unsupported(
-                    "checked Unit provider candidate has no complete terminal body plan",
-                ))?;
+            let body = match &boundary.result {
+                checked_trees::CheckedBoundaryMachineResultPlan::Unit => {
+                    unique_unit_machine(plans, machine.symbol)?;
+                    ProviderBody::Unit
+                }
+                checked_trees::CheckedBoundaryMachineResultPlan::Structural {
+                    type_identity,
+                    multiplicity,
+                    qualifications,
+                } => {
+                    let candidate = affine_candidate(checked, machine.symbol)?;
+                    if *multiplicity != Multiplicity::Affine
+                        || !qualifications.is_empty()
+                        || candidate.result.type_identity != *type_identity
+                        || candidate.result.multiplicity != *multiplicity
+                        || !candidate.result.qualifications.is_empty()
+                        || !boundary.domain_requirements.is_empty()
+                    {
+                        return unsupported(
+                            "provider affine result disagrees with its boundary requirement",
+                        );
+                    }
+                    ProviderBody::AffineIdentity
+                }
+                checked_trees::CheckedBoundaryMachineResultPlan::Scalar(_) => {
+                    return unsupported(
+                        "scalar-result provider candidates have no admitted terminal route",
+                    );
+                }
+            };
             output.push(CheckedUnitProviderCandidate {
+                body,
                 boundary: boundary_symbol,
                 candidate: machine.symbol,
                 requirement_identity: requirement_identity.clone(),

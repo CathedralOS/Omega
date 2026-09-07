@@ -59,7 +59,7 @@ pub(super) use parameters::{
 };
 pub(super) use provider_attachments::lower_provider_attachment_places;
 use provider_attachments::validate_provider_attachment_requirements;
-use providers::checked_unit_provider_candidates;
+use providers::{ProviderBody, checked_unit_provider_candidates};
 use scalar_locals::lower_scalar_expression_local;
 use selected_operator::{
     lower_selected_structural_scalar_realizations, validate_selected_operator_scalar_call,
@@ -220,8 +220,9 @@ pub(super) fn retain_exact_unit_boundary<'plans>(
 pub(super) fn lower_unit_effect_closure(
     checked: &CheckedTrees,
     entry: symbols::SymbolHandle,
-) -> Result<LoweredPsi, LoweringError> {
-    lower_shared_unit_closure(checked, entry, &[entry], None).map(|closure| closure.lowered)
+) -> Result<crate::machine_dispatch::SourceMappedLowered, LoweringError> {
+    let closure = lower_shared_unit_closure(checked, entry, &[entry], None)?;
+    crate::machine_dispatch::SourceMappedLowered::new(closure.lowered, closure.machine_ids)
 }
 
 /// Nominal cleanup assembles the final caller and cleanup contracts itself,
@@ -287,7 +288,10 @@ fn assemble_unit_closure(
             return unsupported("external composed entry overlaps its ordinary Unit closure");
         }
         let candidates = checked_unit_provider_candidates(checked, &closure)?;
-        for candidate in &candidates {
+        for candidate in candidates
+            .iter()
+            .filter(|candidate| candidate.body == ProviderBody::Unit)
+        {
             if unique_unit_machine(plans, candidate.candidate)?
                 .operations
                 .iter()
@@ -305,6 +309,7 @@ fn assemble_unit_closure(
         }
         let new_roots = candidates
             .iter()
+            .filter(|candidate| candidate.body == ProviderBody::Unit)
             .map(|candidate| candidate.candidate)
             .filter(|candidate| {
                 !retained_roots.contains(candidate) && Some(*candidate) != ordinary_entry
@@ -409,6 +414,14 @@ fn assemble_unit_closure(
         );
     }
     let mut structural_result_roots = Vec::new();
+    for candidate in provider_candidate_plans
+        .iter()
+        .filter(|candidate| candidate.body == ProviderBody::AffineIdentity)
+    {
+        if !structural_result_roots.contains(&candidate.candidate) {
+            structural_result_roots.push(candidate.candidate);
+        }
+    }
     for machine_symbol in &closure {
         for operation in &unique_unit_machine(plans, *machine_symbol)?.operations {
             let target = match operation {
@@ -791,6 +804,15 @@ fn assemble_unit_closure(
     let mut additional_type_roots = external
         .as_ref()
         .map_or_else(Vec::new, |roots| roots.structural_type_roots.to_vec());
+    for candidate in provider_candidate_plans
+        .iter()
+        .filter(|candidate| candidate.body == ProviderBody::AffineIdentity)
+    {
+        let plan = providers::affine_candidate(checked, candidate.candidate)?;
+        additional_type_roots.extend(plan.attachment_type_identity.iter().cloned());
+        additional_type_roots.push(plan.structural_parameter.type_identity.clone());
+        additional_type_roots.push(plan.result.type_identity.clone());
+    }
     let mut additional_service_roots = external
         .as_ref()
         .map_or_else(Vec::new, |roots| roots.service_roots.to_vec());
@@ -3393,6 +3415,7 @@ fn assemble_unit_closure(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CheckedUnitProviderCandidate {
+    body: ProviderBody,
     boundary: symbols::SymbolHandle,
     candidate: symbols::SymbolHandle,
     requirement_identity: String,

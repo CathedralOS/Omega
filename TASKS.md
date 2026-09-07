@@ -578,8 +578,8 @@ Owners include
   calls, and partial initialization. Cleanup follows reverse establishment and
   exact residual custody; trap/abort edges clean nothing. Acceptance: no affine
   occurrence disappears, duplicates, or is cleaned after transfer.
-  Extend checked-source provider discovery and Omega installation-call admission
-  to structural-result candidates, retaining exact boundary/candidate result
+  Extend Omega installation-call admission to structural-result candidates,
+  retaining exact boundary/candidate result
   signatures and the caller's actual operation-result identity. Implement native
   boundary call-result residual cleanup, including result homes
   and projected copies;
