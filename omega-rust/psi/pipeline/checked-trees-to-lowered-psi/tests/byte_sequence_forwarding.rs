@@ -241,3 +241,47 @@ fn missing_or_late_literal_establishment_rejects() {
         assert_rejected(&lowered);
     }
 }
+
+#[test]
+fn free_conditional_helper_preserves_newline_choice_and_caller_continuation() {
+    let source = r#"
+        boundary trait Output {
+            machine write(bytes: &[u8]) reaches Output;
+        }
+        machine newline() reaches Output { Output::write("\n"); }
+        machine quiet() {}
+        machine finish(enabled: bool) reaches Output {
+            transition enabled {
+                true -> yes()
+                _ -> no()
+            }
+            state yes() { newline(); }
+            state no() { quiet(); }
+        }
+        data Root {}
+        machine Root::enter() reaches Output {
+            Output::write("\x80");
+            finish(false);
+            Output::write("\x00");
+            finish(true);
+            Output::write("last");
+        }
+    "#;
+    assert_eq!(
+        execute(source),
+        vec![
+            vec![vec![0x80]],
+            vec![vec![0]],
+            vec![vec![10]],
+            vec![b"last".to_vec()]
+        ]
+    );
+    let lowered = lower(source);
+    assert!(
+        lowered
+            .semantic_module
+            .machines
+            .iter()
+            .any(|machine| machine.blocks.len() == 3 && machine.attachment.is_none())
+    );
+}

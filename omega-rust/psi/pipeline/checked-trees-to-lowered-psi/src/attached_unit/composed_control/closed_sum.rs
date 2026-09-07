@@ -135,7 +135,9 @@ fn admit<'a>(
         return unsupported("closed-sum Unit control contains duplicate states");
     }
     admission::validate_contract(checked, plan)?;
-    let attachment = admission::exact_attachment(checked, plan)?;
+    let attachment = admission::exact_attachment(checked, plan)?.ok_or(
+        LoweringError::Unsupported("closed-sum composed Unit requires an attachment"),
+    )?;
     boundaries.sort_by(|left, right| left.1.cmp(&right.1));
     boundaries.dedup_by(|left, right| left.1 == right.1);
     let called = std::iter::once(entry_call)
@@ -364,7 +366,14 @@ fn emit(
         source_calls.append(&mut occurrences);
     }
 
-    let attachment = lookup_type_id(&catalogs.type_ids, &plan.attachment_type_identity)?;
+    let attachment = lookup_type_id(
+        &catalogs.type_ids,
+        plan.attachment_type_identity
+            .as_deref()
+            .ok_or(LoweringError::Unsupported(
+                "composed control family requires an attachment",
+            ))?,
+    )?;
     let attachment_declaration = catalogs
         .structural_types
         .iter()

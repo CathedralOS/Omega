@@ -334,7 +334,7 @@ pub(super) fn build(
     super::assembly::finish(
         facts,
         machine,
-        entry_attachment,
+        Some(entry_attachment),
         provider_requirements,
         states,
     )

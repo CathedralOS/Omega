@@ -256,7 +256,7 @@ pub(crate) fn admit_dynamic_continuation<'a>(
         plan.caller_machine,
         &[when_true, when_false],
         custody::ComposedCustody::Empty,
-        attachment,
+        Some(attachment),
         &continuation.provider_attachment_requirements,
     )
 }
@@ -301,7 +301,7 @@ fn exact_stored_local_drop(
 pub(super) fn exact_attachment<'a>(
     checked: &'a CheckedTrees,
     plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
-) -> Result<&'a checked_trees::CheckedUnitStructuralTypePlan, LoweringError> {
+) -> Result<Option<&'a checked_trees::CheckedUnitStructuralTypePlan>, LoweringError> {
     let mut machines = checked
         .machines()
         .iter()
@@ -312,6 +312,20 @@ pub(super) fn exact_attachment<'a>(
     if machines.next().is_some() {
         return unsupported("composed Unit attachment has duplicate authored machines");
     }
+    if machine.attached_data.is_none() {
+        if plan.attachment_type_identity.is_some()
+            || !plan.provider_attachment_requirements.is_empty()
+        {
+            return unsupported("free composed Unit fabricated an attachment or provider field");
+        }
+        return Ok(None);
+    }
+    let retained_identity =
+        plan.attachment_type_identity
+            .as_deref()
+            .ok_or(LoweringError::Unsupported(
+                "attached composed Unit omitted its authored attachment",
+            ))?;
     let program = &checked.typed;
     let mut attachments = program
         .data_definitions()
@@ -337,10 +351,10 @@ pub(super) fn exact_attachment<'a>(
         identity.push(character);
     }
     identity.push_str("))");
-    if identity != plan.attachment_type_identity {
+    if identity != retained_identity {
         return unsupported("composed Unit attachment disagrees with its authored owner");
     }
-    exact_attachment_identity(checked, &plan.attachment_type_identity)
+    exact_attachment_identity(checked, retained_identity).map(Some)
 }
 
 fn exact_attachment_identity<'a>(
@@ -373,7 +387,7 @@ pub(super) fn admit_call_targets<'a>(
     machine: symbols::SymbolHandle,
     call_states: &[&'a checked_trees::CheckedComposedUnitControlStatePlan],
     custody: custody::ComposedCustody,
-    attachment: &checked_trees::CheckedUnitStructuralTypePlan,
+    attachment: Option<&checked_trees::CheckedUnitStructuralTypePlan>,
     provider_attachment_requirements: &[checked_trees::CheckedProviderAttachmentRequirementPlan],
 ) -> Result<
     (
@@ -396,11 +410,15 @@ pub(super) fn admit_call_targets<'a>(
             _ => None,
         })
         .collect::<Vec<_>>();
-    super::super::provider_attachments::validate_provider_attachment_requirements(
-        attachment,
-        provider_attachment_requirements,
-        &called_boundaries,
-    )?;
+    if let Some(attachment) = attachment {
+        super::super::provider_attachments::validate_provider_attachment_requirements(
+            attachment,
+            provider_attachment_requirements,
+            &called_boundaries,
+        )?;
+    } else if !provider_attachment_requirements.is_empty() {
+        return unsupported("free composed Unit cannot retain provider attachment requirements");
+    }
     Ok((boundaries, internal_targets))
 }
 

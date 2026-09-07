@@ -59,7 +59,7 @@ pub(super) enum SelectedMachineRoute {
     PayloadlessCaseReturn,
     StructuralReturn,
     AffineReturn,
-    ComposedAttachedUnit,
+    ComposedUnit,
     StructuralUnitControl,
     UnitEffect,
     ScalarGraph,
@@ -527,13 +527,22 @@ pub(super) fn lower_selected_machine(
         .terminal_unit_effects
         .composed_for_machine(selection.machine)
     {
-        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
-            return unsupported("composed Unit control requires an attached signature");
+        if !matches!(
+            selection.signature,
+            CheckedTerminalSignatureEligibility::Eligible
+                | CheckedTerminalSignatureEligibility::FreeUnitEffect
+                | CheckedTerminalSignatureEligibility::Attached
+        ) || plan.attachment_type_identity.is_some()
+            != (selection.signature == CheckedTerminalSignatureEligibility::Attached)
+        {
+            return unsupported(
+                "composed Unit control requires an exact free or attached signature",
+            );
         }
         let composed = lower_composed_unit_control_machine(checked, plan)?;
         return Ok(LoweredSelectedMachine {
             terminal: composed.terminal,
-            route: SelectedMachineRoute::ComposedAttachedUnit,
+            route: SelectedMachineRoute::ComposedUnit,
             exact_sources: Some(composed.source_machine_ids),
         });
     }

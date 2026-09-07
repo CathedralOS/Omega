@@ -125,3 +125,104 @@ fn internal_unit_leaf_rejects_target_plan_and_identity_corruption() {
         .retain(|plan| plan.machine != quiet);
     rejects(&missing);
 }
+
+#[test]
+fn free_composed_attachment_matches_the_authored_declaration() {
+    let baseline = checked_source(
+        r#"
+            data Owner {}
+            machine quiet() {}
+            machine finish(flag: bool) {
+                transition flag { true -> yes() _ -> no() }
+                state yes() { quiet(); }
+                state no() { quiet(); }
+            }
+            machine Owner::finish(flag: bool) {
+                transition flag { true -> yes() _ -> no() }
+                state yes() { quiet(); }
+                state no() { quiet(); }
+            }
+        "#,
+    );
+    for name in ["finish", "Owner::finish"] {
+        let lowered = lower_machine(&baseline, name).expect("exact free or attached composed root");
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("root verifies independently");
+        let root = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .find(|machine| machine.id == lowered.semantic_module.entry)
+            .unwrap();
+        assert_eq!(root.attachment.is_some(), name == "Owner::finish");
+    }
+    let free = source_machine(&baseline, "finish");
+    let attached = source_machine(&baseline, "Owner::finish");
+    let attachment = baseline
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(attached)
+        .unwrap()
+        .attachment_type_identity
+        .clone()
+        .unwrap();
+    for (machine, name, replacement) in [
+        (free, "finish", Some(attachment)),
+        (attached, "Owner::finish", None),
+        (
+            attached,
+            "Owner::finish",
+            Some("foreign attachment".to_owned()),
+        ),
+    ] {
+        let mut changed = baseline.clone();
+        changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_machines
+            .iter_mut()
+            .find(|plan| plan.machine == machine)
+            .unwrap()
+            .attachment_type_identity = replacement;
+        assert!(
+            lower_machine(&changed, name).is_err(),
+            "attachment substitution rejects for {name}"
+        );
+    }
+}
+
+#[test]
+fn free_composed_helper_rejects_fabricated_provider_fields() {
+    let mut checked = checked_source(
+        r#"
+        machine quiet() {}
+        machine finish(flag: bool) {
+            transition flag { true -> yes() _ -> no() }
+            state yes() { quiet(); }
+            state no() { quiet(); }
+        }
+    "#,
+    );
+    let free = source_machine(&checked, "finish");
+    checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines
+        .iter_mut()
+        .find(|plan| plan.machine == free)
+        .unwrap()
+        .provider_attachment_requirements
+        .push(checked_trees::CheckedProviderAttachmentRequirementPlan {
+            field_identity: "fabricated".to_owned(),
+            provider_type_identity: "fabricated".to_owned(),
+            boundary: free,
+        });
+    assert!(lower_machine(&checked, "finish").is_err());
+}

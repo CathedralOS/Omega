@@ -100,7 +100,7 @@ pub(super) fn lower_composed_catalogs(
     lower_catalogs(
         checked,
         plan.machine,
-        &plan.attachment_type_identity,
+        plan.attachment_type_identity.as_deref(),
         plan.contract_service_reach,
         plan.service_reach,
         &plan.states,
@@ -126,7 +126,7 @@ pub(crate) fn lower_dynamic_catalogs(
     lower_catalogs(
         checked,
         plan.caller_machine,
-        &plan.caller_attachment_type_identity,
+        Some(&plan.caller_attachment_type_identity),
         contract_service_reach,
         plan.caller_service_reach,
         &continuation.leaves,
@@ -139,7 +139,7 @@ pub(crate) fn lower_dynamic_catalogs(
 fn lower_catalogs(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
-    attachment_type_identity: &str,
+    attachment_type_identity: Option<&str>,
     contract_service_reach: ServiceReachPlan,
     service_reach: ServiceReachSummary,
     states: &[checked_trees::CheckedComposedUnitControlStatePlan],
@@ -158,7 +158,10 @@ fn lower_catalogs(
             admitted_internal_targets,
         );
     }
-    let mut type_roots = vec![attachment_type_identity.to_owned()];
+    let mut type_roots = attachment_type_identity
+        .map(str::to_owned)
+        .into_iter()
+        .collect::<Vec<_>>();
     type_roots.extend(
         states
             .iter()

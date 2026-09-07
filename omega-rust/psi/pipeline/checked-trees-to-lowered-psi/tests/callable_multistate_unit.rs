@@ -263,7 +263,7 @@ fn callable_composed_guard_edges_contract_and_call_operands_rejoin_checked_sourc
                 };
                 coordinate.statement_index += 1;
             }
-            5 => callee.attachment_type_identity = "named(name(Root))".to_owned(),
+            5 => callee.attachment_type_identity = Some("named(name(Root))".to_owned()),
             _ => unreachable!(),
         }
         assert!(

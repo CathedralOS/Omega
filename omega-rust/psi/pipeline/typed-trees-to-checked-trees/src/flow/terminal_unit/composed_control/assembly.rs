@@ -51,24 +51,29 @@ pub(super) fn build(
     ];
     let true_flow = state_flow(facts, machine.symbol, graph.leaves[0].symbol)?;
     let false_flow = state_flow(facts, machine.symbol, graph.leaves[1].symbol)?;
-    let provider_attachment_requirements = checked_composed_provider_attachment_requirements(
-        program,
-        shapes,
-        machine,
-        &graph.attachment_type_identity,
-        &[
-            (
-                graph.leaves[0],
-                facts.flow.control.calls.span_or_empty(true_flow.calls),
-                &leaves[0].operations,
-            ),
-            (
-                graph.leaves[1],
-                facts.flow.control.calls.span_or_empty(false_flow.calls),
-                &leaves[1].operations,
-            ),
-        ],
-    )?;
+    let provider_attachment_requirements =
+        if let Some(attachment) = graph.attachment_type_identity.as_deref() {
+            checked_composed_provider_attachment_requirements(
+                program,
+                shapes,
+                machine,
+                attachment,
+                &[
+                    (
+                        graph.leaves[0],
+                        facts.flow.control.calls.span_or_empty(true_flow.calls),
+                        &leaves[0].operations,
+                    ),
+                    (
+                        graph.leaves[1],
+                        facts.flow.control.calls.span_or_empty(false_flow.calls),
+                        &leaves[1].operations,
+                    ),
+                ],
+            )?
+        } else {
+            Vec::new()
+        };
     finish(
         facts,
         machine,
@@ -98,7 +103,7 @@ pub(super) fn build(
 pub(super) fn finish(
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
-    attachment_type_identity: String,
+    attachment_type_identity: Option<String>,
     provider_attachment_requirements: Vec<CheckedProviderAttachmentRequirementPlan>,
     states: Vec<CheckedComposedUnitControlStatePlan>,
 ) -> Option<CheckedComposedUnitControlMachinePlan> {
