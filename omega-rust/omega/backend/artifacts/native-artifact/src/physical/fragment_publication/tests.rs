@@ -97,6 +97,7 @@ fn plan(machine_raw: u64) -> MachineCodePlan {
             unit_structural_scalar_field_stores: Vec::new(),
             unit_write_only_primitive_stores: Vec::new(),
             scalar_structural_scalar_field_stores: Vec::new(),
+            unit_continuations: Vec::new(),
             unit_affine_cleanup: Some(UnitAffineCleanupRecord {
                 psi_edge: return_edge,
                 structural_types: Vec::new(),

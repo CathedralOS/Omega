@@ -43,6 +43,7 @@ pub(in crate::function_fragments) fn validate_function(
     if function.unit_parameters.len() != selected.abi.parameters.len()
         || function.unit_parameter_homes.len() != selected.abi.parameters.len()
         || function.unit_affine_cleanup.is_some()
+        || !function.unit_continuations.is_empty()
         || function.internal_unit_calls.len() != usize::from(selected.call.is_some())
         || function.unit_call_stacks.len() != usize::from(selected.call.is_some())
         || function.scalar_stack.is_some()

@@ -4,6 +4,7 @@ use target_operations::MachineRegister;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AssignmentError {
+    UnitContinuationMismatch(MachineId),
     DynamicDescriptorAssignmentMismatch {
         machine: MachineId,
         operation: OperationId,

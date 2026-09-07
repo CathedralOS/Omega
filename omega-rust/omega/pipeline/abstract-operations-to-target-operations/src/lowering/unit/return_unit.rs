@@ -24,6 +24,30 @@ pub(super) fn lower_unit_return(
             psi_edge,
             cleanup_actions,
         } => {
+            if super::continuation::has_shape(function) {
+                let live = super::continuation::live_roots(
+                    function,
+                    parameters,
+                    operations,
+                    structural_types,
+                    functions,
+                )
+                .ok_or(LoweringError::UnsupportedOperationInUnitFunction(
+                    function.machine,
+                ))?;
+                if !super::continuation::final_cleanup(&live, cleanup_actions) {
+                    return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                        function.machine,
+                    ));
+                }
+                operations.push(TargetUnitOperation::Return {
+                    psi_edge: *psi_edge,
+                    cleanup_actions: cleanup_actions.clone(),
+                });
+                provenance.edges.push(*psi_edge);
+                *returned = true;
+                return Ok(());
+            }
             if nonreturning_boundary && !cleanup_actions.is_empty() {
                 return Err(LoweringError::InvalidLinuxExitGroupShape(function.machine));
             }

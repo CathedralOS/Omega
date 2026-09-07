@@ -133,6 +133,7 @@ pub fn build_function_fragment_object_artifact(
             scalar_structural_scalar_field_stores: Vec::new(),
             unit_parameters: Vec::new(),
             unit_parameter_homes: Vec::new(),
+            unit_continuations: Vec::new(),
             unit_affine_cleanup: None,
             scalar_affine_cleanup: None,
             scalar_control_affine_cleanups: Vec::new(),

@@ -86,35 +86,85 @@ pub(crate) fn expected_store_bytes(
     (cursor == shape.byte_size).then_some(bytes)
 }
 
+pub(crate) fn parameter_storage_end(
+    target: NativeTarget,
+    parameter_homes: &[UnitParameterHomeRecord],
+) -> Option<u32> {
+    let Ok(caller_plan) = calling_conventions::evaluate_call_plan(
+        calling_conventions::CallingPolicy::native_for_target(target),
+        &calling_conventions::CallSignature {
+            parameters: parameter_homes
+                .iter()
+                .map(|parameter| parameter.shape)
+                .collect(),
+            result: None,
+        },
+    ) else {
+        return None;
+    };
+    if caller_plan.parameters.len() != parameter_homes.len()
+        || caller_plan
+            .parameters
+            .iter()
+            .zip(parameter_homes)
+            .any(|(placement, parameter)| {
+                placement != &parameter.source
+                    || parameter.indirect
+                        != matches!(
+                            parameter.source.locations.as_slice(),
+                            [ValueLocation::Indirect { .. }]
+                        )
+            })
+    {
+        return None;
+    }
+    let mut parameter_cursor = 0_u32;
+    for parameter in parameter_homes {
+        let alignment = match target.architecture {
+            Architecture::X86_64 => 8,
+            Architecture::Aarch64 => u32::from(parameter.shape.alignment.clamp(8, 16)),
+        };
+        let offset = parameter_cursor.checked_next_multiple_of(alignment)?;
+        if parameter.location.stack_byte_offset() != Some(offset) {
+            return None;
+        }
+        let end = offset.checked_add(if parameter.indirect {
+            8
+        } else {
+            u32::from(parameter.shape.byte_size)
+        })?;
+        parameter_cursor = end;
+    }
+    Some(parameter_cursor)
+}
+
+pub(crate) fn exact_frame(
+    target: NativeTarget,
+    storage_end: u32,
+    frame_bytes: u32,
+    return_link: Option<u32>,
+) -> bool {
+    let expected_link = storage_end.checked_next_multiple_of(8);
+    let expected_frame = match target.architecture {
+        Architecture::X86_64 => storage_end.checked_next_multiple_of(16),
+        Architecture::Aarch64 => expected_link
+            .and_then(|offset| offset.checked_add(8))
+            .and_then(|size| size.checked_next_multiple_of(16)),
+    };
+    expected_frame == Some(frame_bytes)
+        && return_link.is_none_or(|offset| Some(offset) == expected_link)
+}
+
 pub(crate) fn exact_storage(
     target: NativeTarget,
     call: &InternalUnitCallRecord,
+    calls: &[InternalUnitCallRecord],
     frame_bytes: u32,
     parameter_homes: &[UnitParameterHomeRecord],
     scalar_homes: &[UnitScalarHomeRecord],
     return_link: Option<u32>,
 ) -> bool {
-    let [parameter] = parameter_homes else {
-        return false;
-    };
-    let Ok(caller_plan) = calling_conventions::evaluate_call_plan(
-        calling_conventions::CallingPolicy::native_for_target(target),
-        &calling_conventions::CallSignature {
-            parameters: vec![parameter.shape],
-            result: None,
-        },
-    ) else {
-        return false;
-    };
-    if caller_plan.parameters.as_slice() != std::slice::from_ref(&parameter.source)
-        || parameter.location.stack_byte_offset() != Some(0)
-        || parameter.indirect
-            != matches!(
-                parameter.source.locations.as_slice(),
-                [ValueLocation::Indirect { .. }]
-            )
-        || !scalar_homes.is_empty()
-    {
+    if parameter_storage_end(target, parameter_homes).is_none() || !scalar_homes.is_empty() {
         return false;
     }
     let Some(result) = &call.structural_result else {
@@ -153,13 +203,44 @@ pub(crate) fn exact_storage(
     let Some(parameter_end) = parameter_end else {
         return false;
     };
-    let expected_home = parameter_end
-        .iter()
-        .copied()
-        .max()
-        .unwrap_or(0)
-        .checked_next_multiple_of(u32::from(home.requirement.layout.shape().alignment.max(8)));
-    if expected_home != Some(home.home_byte_offset) {
+    let mut result_end = parameter_end.iter().copied().max().unwrap_or(0);
+    let mut found = false;
+    let mut previous_ordinal = None;
+    for producer in calls {
+        if previous_ordinal.is_some_and(|ordinal| ordinal >= producer.operation_ordinal) {
+            return false;
+        }
+        previous_ordinal = Some(producer.operation_ordinal);
+        let Some(stored) = producer
+            .structural_result
+            .as_ref()
+            .and_then(|result| result.result_home.as_ref())
+        else {
+            continue;
+        };
+        let shape = stored.requirement.layout.shape();
+        if result_end.checked_next_multiple_of(u32::from(shape.alignment.max(8)))
+            != Some(stored.home_byte_offset)
+            || expected_store_bytes(target, producer).as_ref() != Some(&stored.bytes)
+            || stored.byte_count != stored.bytes.len()
+        {
+            return false;
+        }
+        let Some(end) = stored
+            .home_byte_offset
+            .checked_add(u32::from(shape.byte_size))
+        else {
+            return false;
+        };
+        result_end = end;
+        if producer.owner == call.owner {
+            if producer != call || found {
+                return false;
+            }
+            found = true;
+        }
+    }
+    if !found {
         return false;
     }
     let scalar_end = scalar_homes
@@ -176,24 +257,16 @@ pub(crate) fn exact_storage(
     let live_end = parameter_end
         .into_iter()
         .chain(scalar_end)
-        .chain(std::iter::once(end))
+        .chain(std::iter::once(result_end))
         .max()
         .unwrap_or(end);
-    let expected_link = live_end.checked_next_multiple_of(8);
-    let expected_frame = match target.architecture {
-        Architecture::X86_64 => live_end.checked_next_multiple_of(16),
-        Architecture::Aarch64 => expected_link
-            .and_then(|offset| offset.checked_add(8))
-            .and_then(|size| size.checked_next_multiple_of(16)),
-    };
     home.byte_count == expected.len()
         && home.bytes == expected
         && home.code_offset >= call.code_offset
         && home.code_offset.checked_add(home.byte_count)
             == call.code_offset.checked_add(call.byte_count)
         && end <= frame_bytes
-        && expected_frame == Some(frame_bytes)
-        && return_link.is_none_or(|offset| Some(offset) == expected_link)
+        && exact_frame(target, live_end, frame_bytes, return_link)
         && parameter_homes.iter().all(|parameter| {
             parameter
                 .location

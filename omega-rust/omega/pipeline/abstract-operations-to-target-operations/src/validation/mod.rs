@@ -44,6 +44,7 @@ pub(crate) mod straight_line_wrapping_integer_shift_left_immediate;
 pub(crate) mod straight_line_wrapping_integer_shift_right_immediate;
 pub(crate) mod straight_line_wrapping_integer_subtract_immediate;
 pub(crate) mod structural_call_return;
+mod unit_continuations;
 mod whole_plan;
 
 pub use model::*;

@@ -579,10 +579,11 @@ Owners include
   whole-result disposal does not cover a projected result's residuals.
   Extend anonymous projected helper-result operands to multiple producers and
   other effects within one consumer's argument list and non-Unit consumers,
-  preserving each temporary's exact dying continuation. Implement native
-  Terminal Jump residual cleanup without dropping its ordered schedule: target
-  Unit bodies need continuation control flow, result homes, and independent
-  assignment/emission/replay custody at the edge rather than only at final return.
+  preserving each temporary's exact dying continuation. Extend native
+  Terminal Jump residual cleanup beyond acyclic Unit fallthrough with ordinary
+  direct-register results and parameter roots: scalar bindings, boundary-result
+  projections, and cyclic control need their own storage and edge replay without
+  delaying cleanup until final return.
   Extend the
   type-directed record/array complement in
   [Terminal Psi](wiki/architecture/pipeline/terminal_psi.md) to construction-local

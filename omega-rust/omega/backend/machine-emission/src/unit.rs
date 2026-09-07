@@ -24,6 +24,7 @@ use target::{Architecture, NativeTarget, ObjectFormat};
 use target_operations::CallSiteOwner;
 
 mod affine_cleanup;
+mod continuations;
 mod dynamic;
 mod dynamic_argument;
 mod installed_provider;
@@ -93,6 +94,7 @@ pub(super) struct UnitEmission {
     pub(super) parameter_homes: Vec<machine_code::UnitParameterHomeRecord>,
     pub(super) parameters: Vec<machine_code::UnitParameterRecord>,
     pub(super) affine_cleanup: Option<machine_code::UnitAffineCleanupRecord>,
+    pub(super) continuations: Vec<machine_code::UnitContinuationRecord>,
 }
 
 fn exact_construction_prefix(
@@ -537,8 +539,13 @@ pub(super) fn emit_unit_body(
     functions: &[AssignedFunction],
     native_callbacks: &[AssignedNativeCallbackArgument],
 ) -> Result<UnitEmission, EmissionError> {
-    let projected_cleanup_root =
-        affine_cleanup::validate_projected_cleanup(body, owner, attachment, target, functions)?;
+    let continuation_replay = continuations::validate(body, owner, attachment, target, functions)?;
+    let projected_cleanup_root = if continuation_replay.is_some() {
+        None
+    } else {
+        affine_cleanup::validate_projected_cleanup(body, owner, attachment, target, functions)?
+    };
+    let mut unit_continuations = Vec::new();
     let mut bytes = Vec::new();
     let mut internal_calls = Vec::new();
     let mut foreign_calls = Vec::new();
@@ -2184,6 +2191,12 @@ pub(super) fn emit_unit_body(
                     byte_count: bytes.len() - settlement_code_offset,
                 });
             }
+            AssignedUnitOperation::Continue { psi_edge, .. } => {
+                let record = continuations::record(body, operation, operation_ordinal, code_offset)
+                    .ok_or(EmissionError::UnsupportedAggregatePlacement)?;
+                unit_continuations.push(record);
+                edge_site = Some(*psi_edge);
+            }
             AssignedUnitOperation::Return {
                 psi_edge,
                 cleanup_actions,
@@ -2233,7 +2246,12 @@ pub(super) fn emit_unit_body(
                             } => Some(result.requirement.result.place),
                             _ => None,
                         })
-                        .filter(|place| !inspected_roots.contains(place))
+                        .filter(|place| {
+                            !inspected_roots.contains(place)
+                                && continuation_replay
+                                    .as_ref()
+                                    .is_none_or(|replay| !replay.retired_roots.contains(place))
+                        })
                         .collect::<Vec<_>>();
                 let expected_local_prefix = established_affine_locals
                     .iter()
@@ -2255,6 +2273,9 @@ pub(super) fn emit_unit_body(
                                     && parameter.access == terminal_psi::StructuralAccess::Owned
                                     && !transferred_roots.contains(&parameter.place)
                                     && Some(parameter.place) != fully_consumed_affine_root
+                                    && continuation_replay.as_ref().is_none_or(|replay| {
+                                        !replay.retired_roots.contains(&parameter.place)
+                                    })
                             })
                             .map(|parameter| parameter.place),
                     )
@@ -2422,6 +2443,7 @@ pub(super) fn emit_unit_body(
         return Err(EmissionError::UnitFunctionHasNoReturn);
     }
     Ok(UnitEmission {
+        continuations: unit_continuations,
         bytes,
         internal_calls,
         foreign_calls,

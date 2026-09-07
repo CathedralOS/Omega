@@ -57,6 +57,7 @@ mod structural_scalar_codec;
 mod structural_signature_codec;
 mod structural_source_codec;
 mod trivial_affine_local_codec;
+mod unit_continuation_codec;
 mod unit_dynamic_descriptor_join;
 mod unit_scalar_abi_codec;
 mod unit_scalar_codec;
@@ -100,7 +101,7 @@ use structural_scalar_codec::{
 use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joins;
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 81;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 82;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -540,6 +541,7 @@ pub struct InstalledFunction {
     pub unit_write_only_primitive_stores: Vec<machine_code::UnitWriteOnlyPrimitiveStoreRecord>,
     pub scalar_structural_scalar_field_stores:
         Vec<machine_code::ScalarStructuralScalarFieldStoreRecord>,
+    pub unit_continuations: Vec<machine_code::UnitContinuationRecord>,
     pub unit_affine_cleanup: Option<machine_code::UnitAffineCleanupRecord>,
     pub scalar_affine_cleanup: Option<machine_code::UnitAffineCleanupRecord>,
     /// Canonical true-before-false DFS cleanup leaves for the exact bounded
@@ -786,6 +788,7 @@ where
                 scalar_structural_scalar_field_stores: function
                     .scalar_structural_scalar_field_stores
                     .clone(),
+                unit_continuations: function.unit_continuations.clone(),
                 unit_affine_cleanup: function.unit_affine_cleanup.clone(),
                 scalar_affine_cleanup: function.scalar_affine_cleanup.clone(),
                 scalar_control_affine_cleanups: function
@@ -1283,6 +1286,7 @@ pub fn validate_installation_record(
                         != emitted.unit_write_only_primitive_stores
                     || installed.scalar_structural_scalar_field_stores
                         != emitted.scalar_structural_scalar_field_stores
+                    || installed.unit_continuations != emitted.unit_continuations
                     || installed.unit_affine_cleanup != emitted.unit_affine_cleanup
                     || installed.scalar_affine_cleanup != emitted.scalar_affine_cleanup
                     || !installed_scalar_control_cleanups_match_object(
@@ -1907,6 +1911,79 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             .filter(|call| call.machine == function.machine)
             .map(|call| call.custody.clone())
             .collect::<Vec<_>>();
+        let continuation_discards = crate::unit_continuations::completed_roots(
+            &function.unit_parameter_homes,
+            &function_unit_calls,
+            &function.unit_continuations,
+            function.unit_affine_cleanup.as_ref(),
+        )
+        .ok_or(InstallationError::InvalidUnitAffineCleanup(
+            function.machine,
+        ))?;
+        if !function.unit_continuations.is_empty()
+            && crate::unit_call_custody::result_home::parameter_storage_end(
+                record.target,
+                &function.unit_parameter_homes,
+            )
+            .is_none_or(|end| {
+                function.unit_stack.as_ref().is_none_or(|stack| {
+                    end > stack.frame_bytes
+                        || (function_unit_calls
+                            .iter()
+                            .all(|call| call.structural_result.is_none())
+                            && !crate::unit_call_custody::result_home::exact_frame(
+                                record.target,
+                                end,
+                                stack.frame_bytes,
+                                None,
+                            ))
+                })
+            })
+        {
+            return Err(InstallationError::InvalidUnitAffineCleanup(
+                function.machine,
+            ));
+        }
+        if function.unit_body
+            && !crate::unit_continuations::exact_attribution(
+                &function.unit_continuations,
+                function.unit_affine_cleanup.as_ref(),
+                function_unit_calls.len(),
+                &record
+                    .semantic_code_attribution
+                    .iter()
+                    .filter(|row| row.machine == function.machine)
+                    .map(|row| row.attribution)
+                    .collect::<Vec<_>>(),
+            )
+        {
+            return Err(InstallationError::InvalidUnitAffineCleanup(
+                function.machine,
+            ));
+        }
+        if !function.unit_continuations.is_empty()
+            && (!function.unit_body
+                || function.scalar_stack.is_some()
+                || function.scalar_abi.is_some()
+                || function.ranked_u32_countdown
+                || function.scalar_affine_cleanup.is_some()
+                || !function.scalar_control_affine_cleanups.is_empty()
+                || function.structural_call_scalar_return.is_some()
+                || function.unit_scalar_abi.is_some()
+                || !function.unit_scalar_homes.is_empty()
+                || !function.unit_integer_constants.is_empty()
+                || !function.unit_affine_scalar_records.is_empty()
+                || !function.unit_structural_scalar_field_stores.is_empty()
+                || !function.unit_write_only_primitive_stores.is_empty()
+                || record
+                    .boundary_settlements
+                    .iter()
+                    .any(|settlement| settlement.machine == function.machine))
+        {
+            return Err(InstallationError::InvalidUnitAffineCleanup(
+                function.machine,
+            ));
+        }
         let fully_consumed_affine_parameter =
             crate::affine_projected_calls::exact_fully_consumed_affine_parameter(
                 &function.unit_parameter_homes,
@@ -2127,6 +2204,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 .filter_map(|call| match call.custody.structural_result.as_ref() {
                     Some(result)
                         if projected_affine_result.is_none()
+                            && !continuation_discards.contains(&result.operation_result.place)
                             && result.operation_result.multiplicity
                                 == StructuralMultiplicity::Affine
                             && result.operation_result.claims.is_empty()
@@ -2160,6 +2238,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                         && home.access == terminal_psi::StructuralAccess::Owned
                         && !transferred_roots.contains(&home.place)
                         && !fully_consumed_affine_parameter
+                        && !continuation_discards.contains(&home.place)
                 })
                 .map(|home| home.place)
                 .collect::<Vec<_>>();
@@ -2947,6 +3026,12 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
         let affine_cleanup = function
             .scalar_affine_cleanup
             .as_ref()
+            .or_else(|| {
+                crate::unit_continuations::cleanup_for_call(
+                    &function.unit_continuations,
+                    custody.operation_ordinal,
+                )
+            })
             .or(function.unit_affine_cleanup.as_ref())
             .or(control_cleanup);
         let parameter_homes = if function.scalar_structural_parameter_homes.is_empty() {
@@ -2986,7 +3071,56 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             parameter_homes,
             &function_unit_calls,
             affine_cleanup,
-        );
+        )
+        .or_else(|| {
+            let disposed = crate::unit_continuations::completed_roots(
+                parameter_homes,
+                &function_unit_calls,
+                &function.unit_continuations,
+                function.unit_affine_cleanup.as_ref(),
+            )?;
+            crate::unit_continuations::result_for_call(&function_unit_calls, &disposed, custody)
+        });
+        let continuation_discards = crate::unit_continuations::completed_roots(
+            parameter_homes,
+            &function_unit_calls,
+            &function.unit_continuations,
+            function.unit_affine_cleanup.as_ref(),
+        )
+        .ok_or(InstallationError::InvalidInternalUnitCall(
+            installed.machine,
+        ))?;
+        if !function.unit_continuations.is_empty()
+            && custody
+                .arguments
+                .iter()
+                .any(|argument| !argument.path.is_empty())
+            && record
+                .functions
+                .iter()
+                .find(|callee| callee.machine == custody.target)
+                .is_none_or(|callee| {
+                    callee.scalar_abi.is_some()
+                        || function.unit_affine_cleanup.as_ref().is_none_or(|cleanup| {
+                            !crate::unit_continuations::exact_projected_callee(
+                                custody,
+                                &callee.unit_parameters,
+                                callee.unit_affine_cleanup.as_ref(),
+                                cleanup,
+                                &record
+                                    .semantic_code_attribution
+                                    .iter()
+                                    .filter(|row| row.machine == callee.machine)
+                                    .map(|row| row.attribution)
+                                    .collect::<Vec<_>>(),
+                            )
+                        })
+                })
+        {
+            return Err(InstallationError::InvalidInternalUnitCall(
+                installed.machine,
+            ));
+        }
         if let Some(home) = custody
             .structural_result
             .as_ref()
@@ -3034,6 +3168,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 || !crate::unit_call_custody::result_home::exact_storage(
                     record.target,
                     custody,
+                    &function_unit_calls,
                     stack.frame_bytes,
                     parameter_homes,
                     &function.unit_scalar_homes,
@@ -3575,6 +3710,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 }
                 argument.path.is_empty()
                     || (!fully_consumed_affine_parameter && projected_result.is_none()
+                        && !continuation_discards.contains(&argument.place)
                         && affine_cleanup.is_none_or(|cleanup| {
                             !cleanup.actions.iter().any(|action| {
                                 matches!(action,
@@ -4987,6 +5123,7 @@ mod resource_tests {
             unit_structural_scalar_field_stores: Vec::new(),
             unit_write_only_primitive_stores: Vec::new(),
             scalar_structural_scalar_field_stores: Vec::new(),
+            unit_continuations: Vec::new(),
             unit_affine_cleanup: None,
             scalar_affine_cleanup: None,
             scalar_control_affine_cleanups: Vec::new(),

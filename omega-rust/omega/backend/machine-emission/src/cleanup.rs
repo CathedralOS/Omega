@@ -101,6 +101,7 @@ pub(super) fn emit_scalar_return_with_cleanup(
     }
     if emitted.unit_stack.is_some()
         || emitted.unit_affine_cleanup.is_some()
+        || !emitted.unit_continuations.is_empty()
         || emitted.scalar_affine_cleanup.is_some()
         || !emitted.internal_calls.is_empty()
         || !emitted.internal_unit_calls.is_empty()
@@ -544,6 +545,7 @@ pub(super) fn emit_boolean_control_with_cleanup(
         unit_write_only_primitive_stores: Vec::new(),
         scalar_structural_scalar_field_stores: Vec::new(),
         unit_affine_cleanup: None,
+        unit_continuations: Vec::new(),
         scalar_affine_cleanup: None,
         scalar_control_affine_cleanups: emitted.cleanups,
         scalar_structural_parameters: parameter_records,

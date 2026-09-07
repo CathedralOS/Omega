@@ -16,7 +16,7 @@ use abstract_operations::{
 };
 use calling_conventions::{CallPlan, ValuePlacement, ValueShape};
 use semantic_vocabulary::{
-    BoundaryMachineId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType, IntegerValue,
+    BlockId, BoundaryMachineId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType, IntegerValue,
     MachineId, OperationId, ServiceId, StructuralFieldId, ValueId,
 };
 use terminal_psi::{
@@ -346,6 +346,13 @@ pub enum TargetUnitOperation {
         byte_sequence_arguments: Vec<BoundaryByteSequenceArgument>,
         completion_claim_sources: Vec<CompletionClaimSource>,
         completion_receipts: Vec<CompletionReceipt>,
+    },
+    /// An adjacent fallthrough edge retains cleanup at the actual continuation.
+    Continue {
+        psi_edge: EdgeId,
+        source_block: BlockId,
+        target_block: BlockId,
+        cleanup_actions: Vec<TerminalAffineCleanupAction>,
     },
     Return {
         psi_edge: EdgeId,

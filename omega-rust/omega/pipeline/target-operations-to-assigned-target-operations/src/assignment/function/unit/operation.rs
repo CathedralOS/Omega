@@ -488,6 +488,17 @@ pub(super) fn assign(
             completion_claim_sources: completion_claim_sources.clone(),
             completion_receipts: completion_receipts.clone(),
         },
+        TargetUnitOperation::Continue {
+            psi_edge,
+            source_block,
+            target_block,
+            cleanup_actions,
+        } => AssignedUnitOperation::Continue {
+            psi_edge: *psi_edge,
+            source_block: *source_block,
+            target_block: *target_block,
+            cleanup_actions: cleanup_actions.clone(),
+        },
         TargetUnitOperation::Return {
             psi_edge,
             cleanup_actions,

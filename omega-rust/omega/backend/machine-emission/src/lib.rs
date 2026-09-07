@@ -427,6 +427,7 @@ fn emit_function(
     let mut x86_scalar_fma_occurrences = Vec::new();
     let mut x86_floating_control = None;
     let mut unit_affine_cleanup = None;
+    let mut unit_continuations = Vec::new();
     let mut semantic_code_attribution = Vec::new();
     let mut port_effects = Vec::new();
     let mut boundary_settlements = Vec::new();
@@ -506,6 +507,7 @@ fn emit_function(
             unit_parameter_homes = emitted.parameter_homes;
             unit_parameters = emitted.parameters;
             unit_affine_cleanup = emitted.affine_cleanup;
+            unit_continuations = emitted.continuations;
             emitted.bytes
         }
         AssignedOperation::ReturnForwardedDynamicParameterScalarCall { .. }
@@ -569,6 +571,7 @@ fn emit_function(
             unit_parameter_homes = emitted.parameter_homes;
             unit_parameters = emitted.parameters;
             unit_affine_cleanup = emitted.affine_cleanup;
+            unit_continuations = emitted.continuations;
             emitted.bytes
         }
         AssignedOperation::ReturnBoundaryPortReadU8 {
@@ -787,6 +790,7 @@ fn emit_function(
             unit_parameter_homes = emitted.parameter_homes;
             unit_parameters = emitted.parameters;
             unit_affine_cleanup = emitted.affine_cleanup;
+            unit_continuations = emitted.continuations;
             emitted.bytes
         }
         AssignedOperation::ReturnStructuralParameter {
@@ -1247,6 +1251,7 @@ fn emit_function(
         unit_write_only_primitive_stores,
         scalar_structural_scalar_field_stores,
         unit_affine_cleanup,
+        unit_continuations,
         scalar_affine_cleanup: None,
         scalar_control_affine_cleanups: Vec::new(),
         scalar_structural_parameters,

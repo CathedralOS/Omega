@@ -12,6 +12,12 @@ mod affine_call_result;
 #[path = "terminal_psi_structural_return/projected_call_result.rs"]
 mod projected_call_result;
 
+#[path = "terminal_psi_structural_return/projected_continuations.rs"]
+mod projected_continuations;
+
+#[path = "terminal_psi_structural_return/parameter_continuation.rs"]
+mod parameter_continuation;
+
 #[path = "terminal_psi_structural_return/projected_result_fragments.rs"]
 mod projected_result_fragments;
 

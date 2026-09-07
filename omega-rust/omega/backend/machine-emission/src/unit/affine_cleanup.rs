@@ -68,14 +68,7 @@ fn exact_projected_cleanup(
     target: NativeTarget,
     functions: &[AssignedFunction],
 ) -> Option<PlaceId> {
-    let [parameter] = body.parameters.as_slice() else {
-        return None;
-    };
-    if !body.scalar_parameters.is_empty()
-        || parameter.multiplicity != StructuralMultiplicity::Affine
-        || parameter.access != StructuralAccess::Owned
-        || !parameter.projected_qualifications.is_empty()
-    {
+    if body.parameters.len() != 1 {
         return None;
     }
     let (
@@ -87,6 +80,42 @@ fn exact_projected_cleanup(
     else {
         return None;
     };
+    exact_projected_segment(
+        body,
+        owner,
+        attachment,
+        target,
+        functions,
+        calls,
+        cleanup_actions,
+    )
+}
+
+pub(super) fn exact_projected_segment(
+    body: &AssignedUnitBody,
+    owner: Option<MachineId>,
+    attachment: Option<StructuralTypeId>,
+    target: NativeTarget,
+    functions: &[AssignedFunction],
+    calls: &[AssignedUnitOperation],
+    cleanup_actions: &[TerminalAffineCleanupAction],
+) -> Option<PlaceId> {
+    let source = match calls.first()? {
+        AssignedUnitOperation::StructuralResultCall { copies, .. }
+        | AssignedUnitOperation::Call { copies, .. } => copies.first()?.place,
+        _ => return None,
+    };
+    let parameter = body
+        .parameters
+        .iter()
+        .find(|parameter| parameter.place == source)?;
+    if !body.scalar_parameters.is_empty()
+        || parameter.multiplicity != StructuralMultiplicity::Affine
+        || parameter.access != StructuralAccess::Owned
+        || !parameter.projected_qualifications.is_empty()
+    {
+        return None;
+    }
     let mut operations = BTreeSet::new();
     let (root_place, root_type, source_placement, calls, result_root) = match calls.split_first() {
         Some((
@@ -192,13 +221,21 @@ fn exact_projected_cleanup(
     let incoming = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
-            parameters: vec![root_shape],
+            parameters: body
+                .parameters
+                .iter()
+                .map(|parameter| parameter.shape)
+                .collect(),
             result: None,
         },
     )
     .ok()?;
     if parameter.shape != root_shape
-        || parameter.placement != incoming.parameters[0]
+        || body
+            .parameters
+            .iter()
+            .zip(&incoming.parameters)
+            .any(|(parameter, placement)| parameter.placement != *placement)
         || body.call_plan != incoming
     {
         return None;

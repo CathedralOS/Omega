@@ -362,6 +362,7 @@ fn terminal_image(
             unit_write_only_primitive_stores: Vec::new(),
             scalar_structural_scalar_field_stores: Vec::new(),
             unit_affine_cleanup: None,
+            unit_continuations: Vec::new(),
             semantic_code_attribution: vec![
                 SemanticCodeAttribution {
                     site: SemanticCodeSite::Operation(provider_operation),

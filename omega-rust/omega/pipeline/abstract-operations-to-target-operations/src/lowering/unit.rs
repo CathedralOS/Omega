@@ -4,6 +4,7 @@ mod body;
 mod boundary_call;
 mod closed_sum;
 mod conditional_exit;
+pub(crate) mod continuation;
 mod dynamic;
 mod dynamic_join;
 mod dynamic_parameter;

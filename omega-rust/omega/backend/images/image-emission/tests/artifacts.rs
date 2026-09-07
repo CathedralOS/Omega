@@ -373,6 +373,7 @@ fn linux_exit_group_object_validation_replays_exact_scalar_and_trap_bytes() {
                 internal_calls: Vec::new(),
                 foreign_calls: Vec::new(),
                 internal_unit_calls: Vec::new(),
+                unit_continuations: Vec::new(),
                 unit_affine_cleanup: None,
                 semantic_code_attribution: vec![
                     SemanticCodeAttribution {
@@ -589,6 +590,7 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
             internal_calls: Vec::new(),
             foreign_calls: Vec::new(),
             internal_unit_calls: Vec::new(),
+            unit_continuations: Vec::new(),
             unit_affine_cleanup: Some(UnitAffineCleanupRecord {
                 psi_edge: return_edge,
                 structural_types: vec![structural_type.clone()],
@@ -2287,6 +2289,7 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
                 internal_calls: Vec::new(),
                 foreign_calls: Vec::new(),
                 internal_unit_calls: Vec::new(),
+                unit_continuations: Vec::new(),
                 unit_affine_cleanup: None,
                 semantic_code_attribution: Vec::new(),
                 port_effects: Vec::new(),
@@ -2374,25 +2377,22 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "855c90226818559aab3e3008e2f3f2d38cf8655382330b6eac56d440ac3b8724"
+        "fb9188ca6bc74023ff224e4205d63a98748c3631aeccaad3bc54e3ab19cc4da2"
     );
-    // This fixture has no scalar ABI, structural homes or calls. Format 81
-    // preserves scalar kinds explicitly, so only the version header changes
-    // this fixture. Replacing it must recover the pinned format-80 fingerprint.
+    // Format 82 adds an explicit continuation count to every function row,
+    // including these empty rosters. Changing only the header is not a
+    // conversion back to the previous wire format.
+    assert!(
+        record
+            .functions()
+            .iter()
+            .all(|function| function.unit_continuations.is_empty())
+    );
     let mut previous_bytes = bytes.clone();
-    previous_bytes[8..10].copy_from_slice(&80_u16.to_le_bytes());
+    previous_bytes[8..10].copy_from_slice(&81_u16.to_le_bytes());
     assert_eq!(
         decode_installation_record(&previous_bytes),
-        Err(InstallationError::UnsupportedFormatMarker(80))
-    );
-    use sha2::{Digest, Sha256};
-    let mut previous_digest = Sha256::new();
-    previous_digest.update(b"omega-installation-record\0");
-    previous_digest.update(u64::try_from(previous_bytes.len()).unwrap().to_le_bytes());
-    previous_digest.update(&previous_bytes);
-    assert_eq!(
-        format!("{:x}", previous_digest.finalize()),
-        "b3a739120393461af70443e8d40378b6938949592a6597d9f3be7fdfe2e0e4e0"
+        Err(InstallationError::UnsupportedFormatMarker(81))
     );
 
     let mut changed_plan = plan;
@@ -2614,6 +2614,7 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
             internal_calls: Vec::new(),
             foreign_calls: Vec::new(),
             internal_unit_calls: Vec::new(),
+            unit_continuations: Vec::new(),
             unit_affine_cleanup: None,
             semantic_code_attribution: vec![
                 SemanticCodeAttribution {
@@ -2807,6 +2808,7 @@ fn two_function_plan() -> MachineCodePlan {
                 internal_calls: Vec::new(),
                 foreign_calls: Vec::new(),
                 internal_unit_calls: Vec::new(),
+                unit_continuations: Vec::new(),
                 unit_affine_cleanup: None,
                 semantic_code_attribution: Vec::new(),
                 port_effects: Vec::new(),
@@ -2853,6 +2855,7 @@ fn two_function_plan() -> MachineCodePlan {
                 internal_calls: Vec::new(),
                 foreign_calls: Vec::new(),
                 internal_unit_calls: Vec::new(),
+                unit_continuations: Vec::new(),
                 unit_affine_cleanup: None,
                 semantic_code_attribution: Vec::new(),
                 port_effects: Vec::new(),
@@ -3061,6 +3064,7 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
                 internal_calls: Vec::new(),
                 foreign_calls: Vec::new(),
                 internal_unit_calls: Vec::new(),
+                unit_continuations: Vec::new(),
                 unit_affine_cleanup: None,
                 semantic_code_attribution: Vec::new(),
                 port_effects: Vec::new(),
@@ -3113,6 +3117,7 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
                 }],
                 foreign_calls: Vec::new(),
                 internal_unit_calls: Vec::new(),
+                unit_continuations: Vec::new(),
                 unit_affine_cleanup: None,
                 semantic_code_attribution: Vec::new(),
                 port_effects: Vec::new(),
@@ -4277,6 +4282,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 internal_calls: vec![operation_call(operation_id(1), machine_id(2))],
                 foreign_calls: Vec::new(),
                 internal_unit_calls: vec![operation_custody(operation_id(1), machine_id(2))],
+                unit_continuations: Vec::new(),
                 unit_affine_cleanup: Some(empty_return(edge_id(1))),
                 semantic_code_attribution: vec![
                     SemanticCodeAttribution {
@@ -4336,6 +4342,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 internal_calls: Vec::new(),
                 foreign_calls: Vec::new(),
                 internal_unit_calls: Vec::new(),
+                unit_continuations: Vec::new(),
                 unit_affine_cleanup: Some(UnitAffineCleanupRecord {
                     structural_types: Vec::new(),
                     code_offset: 0,
@@ -4434,6 +4441,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                     code_offset: 0,
                     byte_count: 13,
                 }],
+                unit_continuations: Vec::new(),
                 unit_affine_cleanup: Some(UnitAffineCleanupRecord {
                     structural_types: Vec::new(),
                     psi_edge: edge_id(3),
