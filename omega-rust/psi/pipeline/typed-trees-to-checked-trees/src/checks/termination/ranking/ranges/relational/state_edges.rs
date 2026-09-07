@@ -25,7 +25,21 @@ pub(super) fn prove<'program>(
         targets.dedup();
     }
     let entry_is_initial = !adjacency.iter().any(|targets| targets.contains(&0));
-    let Some(mappings) = discover_mappings(program, machine, &adjacency) else {
+    let scalar_subject = match measure {
+        validation::RankingRangeMeasure::Single(subject)
+        | validation::RankingRangeMeasure::IncreasingTo { subject, .. } => {
+            match program.expression_table.expression(subject) {
+                ExpressionNode::Name(name)
+                    if name.symbol.is_valid() && name.head_symbol == name.symbol =>
+                {
+                    name.symbol
+                }
+                _ => SymbolHandle::default(),
+            }
+        }
+        _ => SymbolHandle::default(),
+    };
+    let Some(mappings) = discover_mappings(program, machine, &adjacency, scalar_subject) else {
         return false;
     };
     let components = graph::strongly_connected_components(&adjacency);
@@ -91,8 +105,9 @@ pub(super) fn prove<'program>(
     true
 }
 
-/// Identity transfers anchor the first closure. Single-parameter computations
-/// can then establish remaining telescopes without choosing a different subject.
+/// Identity transfers anchor the first closure. Computations can then establish
+/// remaining telescopes from one dependency or one current representative of
+/// the already-authored scalar rank subject, without selecting a new witness.
 /// Each state enters the worklist once per tier. Every eligible incoming edge
 /// checks its proposal, including edges to already-processed destinations, so
 /// provisional discovery order cannot resolve conflicting correspondences.
@@ -100,6 +115,7 @@ fn discover_mappings(
     program: &TypedTrees,
     machine: &Machine,
     adjacency: &[Vec<usize>],
+    scalar_subject: SymbolHandle,
 ) -> Option<Vec<Vec<SymbolHandle>>> {
     let states = program.machine_states(machine);
     let root = states.first()?;
@@ -146,6 +162,7 @@ fn discover_mappings(
                         target,
                         &source_mapping,
                         edge.arguments,
+                        scalar_subject,
                     ) else {
                         if identity {
                             return None;
@@ -178,6 +195,7 @@ fn argument_mapping(
     target: &State,
     source_mapping: &[SymbolHandle],
     arguments: &[ExpressionHandle],
+    scalar_subject: SymbolHandle,
 ) -> Option<Vec<SymbolHandle>> {
     let source_parameters = program
         .state_parameters(source)
@@ -195,15 +213,24 @@ fn argument_mapping(
         return None;
     }
     let mut parameters = Vec::with_capacity(arguments.len());
+    let mut subjects = Vec::new();
     for argument in arguments {
-        let subject = argument_subject(program, machine, source, *argument, 0)?;
-        let source_position = source_parameters.iter().position(|parameter| {
-            subject.is_valid()
-                && parameter.symbol == subject
-                && !parameter.is_mutable
-                && !parameter.is_const
-        })?;
-        let entry_symbol = source_mapping[source_position];
+        subjects.clear();
+        argument_subjects(program, machine, source, *argument, &mut subjects, 0)?;
+        let mut selected_position = None;
+        for subject in &subjects {
+            let source_position = source_parameters.iter().position(|parameter| {
+                parameter.symbol == *subject && !parameter.is_mutable && !parameter.is_const
+            })?;
+            if subjects.len() == 1 || source_mapping[source_position] == scalar_subject {
+                // Count current representatives, not just root ancestry. Two
+                // copies may have diverged and cannot choose each other's role.
+                if selected_position.replace(source_position).is_some() {
+                    return None;
+                }
+            }
+        }
+        let entry_symbol = source_mapping[selected_position?];
         parameters.push(entry_symbol);
     }
     Some(parameters)
@@ -212,26 +239,29 @@ fn argument_mapping(
 /// Discover a dependency, not a value equality or an arithmetic theorem. The
 /// ordinary edge query still checks selected builtin meaning and every rank
 /// obligation before this provisional correspondence can authorize anything.
-/// Count distinct current symbols before translating them to entry subjects:
-/// two copies with shared ancestry may have diverged. Zero denotes a literal
-/// subtree, which cannot establish a subject on its own.
-fn argument_subject(
+/// Retain all distinct current dependencies before selecting the authored role;
+/// nested auxiliary arithmetic must not select an operand merely by position.
+/// A literal subtree contributes no subject of its own.
+fn argument_subjects(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
+    subjects: &mut Vec<SymbolHandle>,
     depth: usize,
-) -> Option<SymbolHandle> {
+) -> Option<()> {
     if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
         return None;
     }
     match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(_) => Some(SymbolHandle::default()),
+        ExpressionNode::Integer(_) => {}
         ExpressionNode::Name(name) if name.symbol.is_valid() && name.head_symbol == name.symbol => {
-            Some(name.symbol)
+            if !subjects.contains(&name.symbol) {
+                subjects.push(name.symbol);
+            }
         }
         ExpressionNode::Atomic(atomic) => {
-            argument_subject(program, machine, state, atomic.value, depth + 1)
+            argument_subjects(program, machine, state, atomic.value, subjects, depth + 1)?;
         }
         ExpressionNode::Indexed(indexed)
             if validation::has_builtin_subslice_meaning(
@@ -244,7 +274,14 @@ fn argument_subject(
             // A window retains its collection's lineage, not the lineage of
             // the scalar bounds. The edge query separately proves its length
             // and bounds before this mapping can support a ranking fact.
-            argument_subject(program, machine, state, indexed.collection, depth + 1)
+            argument_subjects(
+                program,
+                machine,
+                state,
+                indexed.collection,
+                subjects,
+                depth + 1,
+            )?;
         }
         ExpressionNode::Binary(binary)
             if matches!(
@@ -255,16 +292,10 @@ fn argument_subject(
                     | BinaryOperator::Modulo
             ) =>
         {
-            let left = argument_subject(program, machine, state, binary.left, depth + 1)?;
-            let right = argument_subject(program, machine, state, binary.right, depth + 1)?;
-            if !left.is_valid() || left == right {
-                Some(right)
-            } else if !right.is_valid() {
-                Some(left)
-            } else {
-                None
-            }
+            argument_subjects(program, machine, state, binary.left, subjects, depth + 1)?;
+            argument_subjects(program, machine, state, binary.right, subjects, depth + 1)?;
         }
-        _ => None,
+        _ => return None,
     }
+    Some(())
 }
