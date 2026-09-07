@@ -35,13 +35,6 @@ pub(super) fn identity(
                 }
                 function
             }
-            LegalizedFunction::Leaf(function) => {
-                // A legacy identity cannot claim leaf custody. The leaf tag
-                // and complete payload are retained even under legacy domains.
-                bytes.push(1);
-                super::scalar_leaf::encode(&mut bytes, function);
-                continue;
-            }
             LegalizedFunction::SharedReturnConditional(function) => {
                 bytes.push(2);
                 encode_shared_return(&mut bytes, function);
@@ -134,7 +127,7 @@ fn encode_shared_return(bytes: &mut Vec<u8>, function: &LegalizedSharedReturnCon
         bytes,
         function.provenance.edges.iter().map(|value| value.get()),
     );
-    super::scalar_leaf::encode_abi(bytes, &function.abi);
+    super::calling::encode_abi(bytes, &function.abi);
     encode_condition(bytes, function.condition_source, &function.condition);
     bytes.extend_from_slice(&function.entry_block.get().to_le_bytes());
     for arm in [&function.when_true, &function.when_false] {

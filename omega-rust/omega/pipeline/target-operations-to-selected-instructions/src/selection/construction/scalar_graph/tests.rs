@@ -1,5 +1,6 @@
 //! Projection controls over raw graph data; no source-admission receipt is invented.
 use super::*;
+mod parameters;
 use calling_conventions::{CallSignature, ValueShape, evaluate_call_plan};
 use legalized_operations::{
     LegalizedScalarArgument, LegalizedScalarBlock, LegalizedScalarCall, LegalizedScalarInstruction,
@@ -327,6 +328,159 @@ fn scalar_returns_and_entry_parameters_keep_short_abi_transport() {
                 assert!(
                     validate(&changed).is_err(),
                     "return parameter {return_parameter}, corruption {corruption}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn exact_binary_graph_rows_retain_proof_operands_and_occurrence_custody() {
+    use legalized_operations::LegalizedExactIntegerOperator::{Add, Subtract};
+    use semantic_vocabulary::ObligationId;
+    for target in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::windows_x64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let environment =
+            register_environment::baseline_target_register_environment(target).unwrap();
+        let constraints = SelectedSelectionConstraints {
+            keys: environment.selected_keys(),
+            projected_structural_call: None,
+            fixed_inputs: Vec::new(),
+        };
+        for with_calls in [false, true] {
+            let mut source = fixture(target, 2);
+            source.attachment = None;
+            source.call_plan = evaluate_call_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: Vec::new(),
+                    result: Some(ValueShape::integer(8, 8)),
+                },
+            )
+            .unwrap();
+            if !with_calls {
+                source.blocks[0].instructions.truncate(2);
+            }
+            let first = source.blocks[0].instructions.len() as u64 + 1;
+            for (operator, raw) in [(Subtract, first), (Add, first + 1)] {
+                let operation = OperationId::new(raw).unwrap();
+                source.blocks[0]
+                    .instructions
+                    .push(LegalizedScalarInstruction {
+                        operation,
+                        result: ValueId::new(raw).unwrap(),
+                        scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                        definition_site: ValueDefinitionSite::Node {
+                            block: source.entry_block,
+                            node: raw as u32 - 1,
+                        },
+                        kind: LegalizedScalarInstructionKind::ExactBinary {
+                            operator,
+                            left: ValueId::new(raw - 1).unwrap(),
+                            right: ValueId::new(1).unwrap(),
+                            obligation: ObligationId::new(raw).unwrap(),
+                            accepted_fact:
+                                optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                                    [raw as u8; 32],
+                                ),
+                        },
+                        fuel: vec![FuelSettlement {
+                            site: PsiProvenance::Operation(operation),
+                            units: 1,
+                        }],
+                        effect: EffectLink {
+                            input: 0,
+                            output: 1,
+                        },
+                        ownership: Vec::new(),
+                    });
+            }
+            source.provenance.operations = source.blocks[0]
+                .instructions
+                .iter()
+                .map(|row| row.operation)
+                .collect();
+            // Returning an earlier value must not erase the later exact operation.
+            source.blocks[0].terminator.value = LegalizedScalarReturnValue::Value {
+                value: ValueId::new(first).unwrap(),
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+            };
+            let selected = build(
+                0,
+                &source,
+                target,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .unwrap();
+            let validate = |candidate: &SelectedFunction| {
+                crate::selection::validation::scalar_graph::validate(
+                    0,
+                    &source,
+                    candidate,
+                    target,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                )
+            };
+            validate(&selected).unwrap();
+            let binary = selected.blocks[0]
+                .instructions
+                .iter()
+                .position(|row| {
+                    matches!(row.kind, SelectedInstructionKind::ExactSubtractI64 { .. })
+                })
+                .unwrap();
+            let output = selected.blocks[0].instructions[binary].operands[2].virtual_register;
+            assert!(matches!(
+                selected.blocks[0].instructions[binary + 1].kind,
+                SelectedInstructionKind::ExactAddI64 { .. }
+            ));
+            for corruption in 0..12 {
+                let mut changed = selected.clone();
+                let row = &mut changed.blocks[0].instructions[binary];
+                match corruption {
+                    0 => row.operands[0].virtual_register = VirtualRegisterId(0),
+                    1 => {
+                        row.kind = SelectedInstructionKind::ExactSubtractI64 {
+                            obligation: ObligationId::new(first).unwrap(),
+                            accepted_fact:
+                                optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                                    [99; 32],
+                                ),
+                        }
+                    }
+                    2 => row.provenance.operations[0] = OperationId::new(99).unwrap(),
+                    3 => row.provenance.fuel[0].units += 1,
+                    4 => {
+                        changed.virtual_registers[output.0 as usize].definition_site =
+                            ValueDefinitionSite::FunctionParameter(0)
+                    }
+                    5 => {
+                        changed.virtual_registers[output.0 as usize].origin =
+                            selected.virtual_registers[0].origin
+                    }
+                    6 => {
+                        changed.blocks[0].instructions.remove(binary + 1);
+                    }
+                    7 => changed.blocks[0].instructions.swap(binary, binary + 1),
+                    8 => {
+                        changed.virtual_registers[output.0 as usize].entry_fixed_view =
+                            Some(environment.physical().model().views[0].id)
+                    }
+                    9 => row.clobbers.push(register_model::RegisterUnitId(999)),
+                    10 => row.provenance.obligations.clear(),
+                    _ => row.operands[0].access = RegisterOperandAccess::Def,
+                }
+                assert!(
+                    validate(&changed).is_err(),
+                    "calls {with_calls}, corruption {corruption}"
                 );
             }
         }

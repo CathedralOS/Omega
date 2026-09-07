@@ -56,11 +56,10 @@ pub(super) fn function_abi(
         },
     )
     .map_err(|_| invalid.clone())?;
-    if !expected.parameters.iter().all(register)
-        || expected
-            .result
-            .as_ref()
-            .is_some_and(|value| !register(value))
+    if expected
+        .result
+        .as_ref()
+        .is_some_and(|value| !register(value))
     {
         return Err(invalid);
     }

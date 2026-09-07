@@ -142,37 +142,80 @@ fn identity(sequence: LegalizedExactIntegerSequence) -> LegalizedOperationPlanId
     )
     .expect("scalar ABI");
     let scalar_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("U64");
-    let parameter = target_operations::FixedIntegerScalarAbiValue {
-        value: id(1),
-        scalar_type,
-        placement: call_plan.parameters[0].clone(),
-    };
-    let result = target_operations::FixedIntegerScalarAbiValue {
-        value: id(4),
-        scalar_type,
-        placement: call_plan.result.clone().expect("result"),
-    };
-    plan.functions
-        .push(LegalizedFunction::Leaf(LegalizedScalarLeafFunction {
-            machine: id(1),
-            attachment: None,
-            provenance: TerminalPsiProvenance {
-                operations: vec![id(1), id(2), id(3)],
-                edges: vec![id(1)],
-            },
-            entry_block: id(1),
-            abi: target_operations::FixedIntegerScalarFunctionAbi {
-                call_plan,
-                parameters: vec![parameter],
+    let instructions = sequence
+        .steps
+        .into_iter()
+        .map(|step| {
+            let (operation, result, definition_site, fuel, kind) = match step {
+                LegalizedIntegerStep::Immediate(value) => (
+                    value.constant_operation,
+                    value.source_value,
+                    value.definition_site,
+                    value.fuel,
+                    LegalizedScalarInstructionKind::Constant(value.value),
+                ),
+                LegalizedIntegerStep::ExactBinary(value) => (
+                    value.operation,
+                    value.source_value,
+                    value.definition_site,
+                    value.fuel,
+                    LegalizedScalarInstructionKind::ExactBinary {
+                        operator: value.operator,
+                        left: value.left,
+                        right: value.right,
+                        obligation: value.obligation,
+                        accepted_fact: value.accepted_fact,
+                    },
+                ),
+            };
+            LegalizedScalarInstruction {
+                operation,
                 result,
+                scalar_type,
+                definition_site,
+                kind,
+                fuel,
+                effect: EffectLink {
+                    input: 0,
+                    output: 0,
+                },
+                ownership: vec![],
+            }
+        })
+        .collect();
+    plan.scalar_functions.push(LegalizedScalarFunction {
+        machine: id(1),
+        attachment: None,
+        provenance: TerminalPsiProvenance {
+            operations: vec![id(1), id(2), id(3)],
+            edges: vec![id(1)],
+        },
+        parameters: vec![LegalizedScalarParameter {
+            value: id(1),
+            scalar_type,
+            definition_site: ValueDefinitionSite::FunctionParameter(0),
+            placement: call_plan.parameters[0].clone(),
+        }],
+        call_plan,
+        entry_block: id(1),
+        blocks: vec![LegalizedScalarBlock {
+            id: id(1),
+            instructions,
+            terminator: LegalizedScalarReturn {
+                edge: id(1),
+                value: LegalizedScalarReturnValue::Value {
+                    value: id(4),
+                    scalar_type,
+                },
+                fuel: vec![],
+                effect: EffectLink {
+                    input: 0,
+                    output: 0,
+                },
+                ownership: vec![],
             },
-            leaf: LegalizedLeaf {
-                return_edge: id(1),
-                source_value: id(4),
-                return_fuel: vec![],
-                value: LegalizedLeafValue::ExactIntegerSequence(sequence),
-            },
-        }));
+        }],
+    });
     legalized_operation_plan_identity(&plan)
 }
 

@@ -6,7 +6,6 @@ use super::shared::*;
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum OrdinaryInputKind {
     Unit,
-    Leaf,
     SharedReturn,
     Conditional,
 }
@@ -17,8 +16,6 @@ pub(super) fn kind(
 ) -> OrdinaryInputKind {
     if matches!(target.operation, TargetOperation::UnitBody(_)) {
         OrdinaryInputKind::Unit
-    } else if crate::legalization::scalar_leaf::control(target).is_some() {
-        OrdinaryInputKind::Leaf
     } else if abstracted.block_entries.len() == 4 {
         OrdinaryInputKind::SharedReturn
     } else {
@@ -108,14 +105,6 @@ fn eligible_function(
         return false;
     }
     match kind(function, abstracted) {
-        OrdinaryInputKind::Leaf => crate::legalization::scalar_leaf::validate_input(
-            index,
-            native.target,
-            function,
-            abstracted,
-            optimized,
-        )
-        .is_ok(),
         OrdinaryInputKind::SharedReturn => {
             super::shared_return::match_input(index, native.target, function, abstracted, optimized)
                 .is_ok()

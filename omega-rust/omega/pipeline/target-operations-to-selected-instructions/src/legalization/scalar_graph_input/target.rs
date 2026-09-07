@@ -1,5 +1,4 @@
 use super::*;
-use semantic_vocabulary::OperationId;
 use target_operations::{
     ScalarParameterLocation, TargetIntegerExpression as Expression, TargetScalarExpression,
     TargetUnitOperation,
@@ -35,7 +34,6 @@ pub(super) fn validate_target(
     let AbstractOperation::Return { value, .. } = returned.operation else {
         return Err(invalid);
     };
-    let mut seen_calls = Vec::new();
     let matches = match &target.operation {
         TargetOperation::ReturnIntegerImmediate {
             psi_edge,
@@ -57,7 +55,6 @@ pub(super) fn validate_target(
                     native,
                     plan,
                     unit,
-                    &mut seen_calls,
                 )
         }
         TargetOperation::ReturnIntegerParameter {
@@ -82,7 +79,6 @@ pub(super) fn validate_target(
                     native,
                     plan,
                     unit,
-                    &mut seen_calls,
                 )
         }
         TargetOperation::ReturnIntegerExpression {
@@ -94,16 +90,7 @@ pub(super) fn validate_target(
             *psi_edge == edge
                 && *source_value == value
                 && *scalar_type == u64_type()
-                && expression(
-                    expr,
-                    value,
-                    target,
-                    body,
-                    native,
-                    plan,
-                    unit,
-                    &mut seen_calls,
-                )
+                && expression(expr, value, target, body, native, plan, unit)
         }
         _ => false,
     };
@@ -121,7 +108,6 @@ fn expression(
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
-    seen: &mut Vec<OperationId>,
 ) -> bool {
     match expression {
         Expression::Immediate {source_value,value:literal} => *source_value == value && body.iter().any(|node|
@@ -136,13 +122,27 @@ fn expression(
             let Ok(call_plan)=callee_plan(*callee,native,plan,unit) else {return false;};
             if *source_value!=value || *result!=value || actual!=callee || requirement_obligations!=requirements || crash_continuations!=crashes
                 || arguments.len()!=sources.len() || arguments.len()!=call_plan.parameters.len() {return false;}
-            if !seen.contains(psi_operation) {seen.push(*psi_operation);}
             arguments.iter().zip(sources).zip(&call_plan.parameters).all(|((argument,source),placement)| {
                 let TargetScalarExpression::Integer {scalar_type,expression:child}=&argument.expression else {return false;};
                 argument.scalar_type==ScalarType::Integer(u64_type()) && *scalar_type==u64_type()
                     && location_matches(argument.location,placement)
-                    && self::expression(child,*source,function,body,native,plan,unit,seen)
+                    && self::expression(child,*source,function,body,native,plan,unit)
             })
+        },
+
+        Expression::ExactAdd {psi_operation,obligation,left,right}
+        | Expression::ExactSubtract {psi_operation,obligation,left,right} => {
+            let Some(node) = body.iter().find(|node| matches!(&node.operation,
+                AbstractOperation::ExactIntegerAdd {psi_operation: operation,..}
+                | AbstractOperation::ExactIntegerSubtract {psi_operation: operation,..} if operation == psi_operation)) else {return false;};
+            let (result, source_obligation, source_left, source_right) = match (&node.operation, expression) {
+                (AbstractOperation::ExactIntegerAdd {result,obligation,left,right,..}, Expression::ExactAdd {..})
+                | (AbstractOperation::ExactIntegerSubtract {result,obligation,left,right,..}, Expression::ExactSubtract {..}) => (*result,*obligation,*left,*right),
+                _ => return false,
+            };
+            result == value && source_obligation == *obligation
+                && self::expression(left,source_left,function,body,native,plan,unit)
+                && self::expression(right,source_right,function,body,native,plan,unit)
         },
         _=>false,
     }

@@ -13,7 +13,6 @@ use target_operations::TerminalPsiProvenance;
 pub enum LegalizedFunction {
     Conditional(LegalizedConditionalFunction),
     SharedReturnConditional(LegalizedSharedReturnConditionalFunction),
-    Leaf(LegalizedScalarLeafFunction),
 }
 
 impl LegalizedFunction {
@@ -21,14 +20,13 @@ impl LegalizedFunction {
     pub(crate) fn conditional_mut(&mut self) -> &mut LegalizedConditionalFunction {
         match self {
             Self::Conditional(function) => function,
-            Self::Leaf(_) | Self::SharedReturnConditional(_) => panic!("conditional fixture"),
+            Self::SharedReturnConditional(_) => panic!("conditional fixture"),
         }
     }
     pub const fn machine(&self) -> MachineId {
         match self {
             Self::Conditional(function) => function.machine,
             Self::SharedReturnConditional(function) => function.machine,
-            Self::Leaf(function) => function.machine,
         }
     }
 
@@ -36,7 +34,6 @@ impl LegalizedFunction {
         match self {
             Self::Conditional(function) => &function.provenance,
             Self::SharedReturnConditional(function) => &function.provenance,
-            Self::Leaf(function) => &function.provenance,
         }
     }
 }
@@ -71,16 +68,6 @@ pub struct LegalizedConstantTransferArm {
     pub transfer_edge: EdgeId,
     pub transfer_binding: ValueBinding,
     pub transfer_fuel: Vec<FuelSettlement>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LegalizedScalarLeafFunction {
-    pub machine: MachineId,
-    pub attachment: Option<semantic_vocabulary::StructuralTypeId>,
-    pub provenance: TerminalPsiProvenance,
-    pub entry_block: BlockId,
-    pub abi: target_operations::FixedIntegerScalarFunctionAbi,
-    pub leaf: LegalizedLeaf,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

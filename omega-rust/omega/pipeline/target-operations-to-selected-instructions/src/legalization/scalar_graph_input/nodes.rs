@@ -27,6 +27,18 @@ pub(in crate::legalization) fn instruction(
         {
             Some((*psi_operation, *result))
         }
+        AbstractOperation::ExactIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        }
+        | AbstractOperation::ExactIntegerSubtract {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        } if *scalar_type == u64_type() => Some((*psi_operation, *result)),
         _ => None,
     }
 }

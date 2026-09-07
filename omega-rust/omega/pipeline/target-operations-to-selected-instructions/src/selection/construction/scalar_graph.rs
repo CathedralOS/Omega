@@ -46,6 +46,9 @@ pub(super) fn build(
     // Entry ABI precoloring ends at a copy. The semantic parameter may remain
     // live across calls without being pinned to a caller-clobbered register.
     for (index, parameter) in source.parameters.iter().enumerate() {
+        if !source.references_value(parameter.value) {
+            continue;
+        }
         let [
             ValueLocation::Register {
                 register,
@@ -86,7 +89,7 @@ pub(super) fn build(
             ScalarType::Integer(parameter.scalar_type),
         ));
     }
-    for index in 0..source.parameters.len() {
+    for index in 0..builder.definitions.len() {
         let (value, input, site, scalar_type) = builder.definitions[index];
         let output = builder.copy(input, value, site, scalar_type)?;
         builder.definitions[index].1 = output;
@@ -104,6 +107,52 @@ pub(super) fn build(
                     SelectedInstructionProvenance {
                         operations: vec![operation.operation],
                         values: vec![operation.result],
+                        fuel: operation.fuel.clone(),
+                        ..Default::default()
+                    },
+                )?;
+                output
+            }
+            LegalizedScalarInstructionKind::ExactBinary {
+                operator,
+                left,
+                right,
+                obligation,
+                accepted_fact,
+            } => {
+                let (_, left_register, _, left_type) =
+                    builder.resolve(*left).ok_or_else(invalid)?;
+                let (_, right_register, _, right_type) =
+                    builder.resolve(*right).ok_or_else(invalid)?;
+                if left_type != scalar_type || right_type != scalar_type {
+                    return Err(invalid());
+                }
+                let (kind, key) = match operator {
+                    legalized_operations::LegalizedExactIntegerOperator::Add => (
+                        SelectedInstructionKind::ExactAddI64 {
+                            obligation: *obligation,
+                            accepted_fact: *accepted_fact,
+                        },
+                        constraints.keys.add_i64,
+                    ),
+                    legalized_operations::LegalizedExactIntegerOperator::Subtract => (
+                        SelectedInstructionKind::ExactSubtractI64 {
+                            obligation: *obligation,
+                            accepted_fact: *accepted_fact,
+                        },
+                        constraints.keys.subtract_i64,
+                    ),
+                };
+                let output =
+                    builder.register(operation.result, operation.definition_site, scalar_type)?;
+                builder.emit(
+                    kind,
+                    key,
+                    &[left_register, right_register, output],
+                    SelectedInstructionProvenance {
+                        operations: vec![operation.operation],
+                        values: vec![*left, *right, operation.result],
+                        obligations: vec![*obligation],
                         fuel: operation.fuel.clone(),
                         ..Default::default()
                     },

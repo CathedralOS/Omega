@@ -19,6 +19,21 @@ pub struct LegalizedScalarFunction {
     pub blocks: Vec<LegalizedScalarBlock>,
 }
 
+impl LegalizedScalarFunction {
+    /// Whether a retained instruction or return reads this value.
+    pub fn references_value(&self, value: ValueId) -> bool {
+        self.blocks.iter().any(|block| {
+            block.instructions.iter().any(|instruction| match &instruction.kind {
+                LegalizedScalarInstructionKind::Constant(_) => false,
+                LegalizedScalarInstructionKind::Call(call) =>
+                    call.arguments.iter().any(|argument| argument.source == value),
+                LegalizedScalarInstructionKind::ExactBinary { left, right, .. } =>
+                    *left == value || *right == value,
+            }) || matches!(block.terminator.value, LegalizedScalarReturnValue::Value { value: returned, .. } if returned == value)
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedScalarParameter {
     pub value: ValueId,
@@ -50,6 +65,13 @@ pub struct LegalizedScalarInstruction {
 pub enum LegalizedScalarInstructionKind {
     Constant(IntegerValue),
     Call(LegalizedScalarCall),
+    ExactBinary {
+        operator: super::super::LegalizedExactIntegerOperator,
+        left: ValueId,
+        right: ValueId,
+        obligation: ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

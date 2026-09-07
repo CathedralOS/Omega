@@ -36,53 +36,6 @@ pub fn selection_constraints(
                 }
                 continue;
             }
-            legalized_operations::LegalizedFunction::Leaf(function) => {
-                if let LegalizedLeafValue::ExactIntegerSequence(sequence) = &function.leaf.value {
-                    for (index, parameter) in function.abi.parameters.iter().enumerate() {
-                        if parameter.value != function.leaf.source_value
-                            && !sequence.steps.iter().any(|step| {
-                                matches!(step, legalized_operations::LegalizedIntegerStep::ExactBinary(binary)
-                                    if binary.left == parameter.value || binary.right == parameter.value)
-                            })
-                        {
-                            continue;
-                        }
-                        if let [
-                            calling_conventions::ValueLocation::Register {
-                                register,
-                                value_byte_offset: 0,
-                                byte_size: 8,
-                            },
-                        ] = parameter.placement.locations.as_slice()
-                        {
-                            push_fixed_input(
-                                &mut fixed_inputs,
-                                environment,
-                                function.machine,
-                                parameter.value,
-                                index,
-                                *register,
-                            );
-                        }
-                    }
-                }
-                if let LegalizedLeafValue::EntryParameter {
-                    parameter_index,
-                    register,
-                    ..
-                } = function.leaf.value
-                {
-                    push_fixed_input(
-                        &mut fixed_inputs,
-                        environment,
-                        function.machine,
-                        function.leaf.source_value,
-                        parameter_index,
-                        register,
-                    );
-                }
-                continue;
-            }
         };
         match &function.condition {
             LegalizedCondition::DirectParameter {
@@ -145,6 +98,9 @@ pub fn selection_constraints(
     }
     for function in &legalized.plan().scalar_functions {
         for (index, parameter) in function.parameters.iter().enumerate() {
+            if !function.references_value(parameter.value) {
+                continue;
+            }
             if let [
                 calling_conventions::ValueLocation::Register {
                     register,

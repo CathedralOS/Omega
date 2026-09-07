@@ -384,8 +384,10 @@ authored, verified Terminal products; shared-return controls start at Omega
 source and pass through ordinary Terminal publication and resumed lowering.
 Ordinary straight-line scalar and Unit functions share one legalized function
 graph: typed parameters, ordered instructions, and an explicit value or Unit
-return. The separate Unit and Unit-caller rosters and their call recipe are
-removed. Calls may target other callers; their results may be returned, reused,
+return. Exact U64 addition and subtraction are ordinary instructions in that
+same graph, retaining each operation's obligation and accepted proof fact.
+The separate Unit, Unit-caller and arithmetic-leaf representations and selectors
+are removed. Calls may target other callers; their results may be returned, reused,
 or discarded without erasing the call. Executable order comes from the checked
 operation stream, not recursive target return expressions. Those expressions
 remain source/ABI evidence, not the new graph's executable payload.
@@ -420,10 +422,13 @@ one exact constraint and effect row per admitted ABI register roster. Selection
 and independent replay check every argument's source, ordered parameter position,
 fixed register and result placement. Encoding checks the same exact register
 roster while preserving the target's ordinary call bytes and relocation. The
-current System V AMD64, AAPCS64, Microsoft x64 and Darwin Arm64 routes admit
-all-register U64 signatures; an argument requiring stack placement remains
-outside this contract. Legalized identity v26 binds the ordinary graph and
-return role; legalization verifier v27 independently checks its source, ABI,
+current System V AMD64, AAPCS64, Microsoft x64 and Darwin Arm64 call routes
+admit all-register U64 arguments. A function retains its complete ABI even when
+some parameters are unused and stack-passed; selection emits only referenced
+inputs, preserving their original positions. Reading a stack parameter or
+passing a stack argument remains outside this contract.
+Legalized identity v27 binds the ordinary graph and
+return role; legalization verifier v28 independently checks its source, ABI,
 fuel, effects and ownership. Register-environment and machine-effect identities
 bind the exact arity-key roster. Empty physical selection uses the same
 admission and encoding route. Microsoft calls reserve their required shadow

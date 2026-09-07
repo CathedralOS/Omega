@@ -118,16 +118,64 @@ fn discarded_call_result_artifact(value: u64) -> (Vec<u8>, Vec<u8>) {
 
 #[test]
 fn scalar_returning_multihop_calls_reach_common_native_stages() {
+    let value = 37_u64;
+    publish_scalar_artifacts(
+        value,
+        [
+            artifact(value),
+            preserving_artifact(value),
+            discarded_call_result_artifact(value),
+        ],
+    );
+}
+
+#[test]
+fn exact_arithmetic_and_calls_share_ordered_native_publication() {
+    publish_scalar_artifacts(37, [mixed_arithmetic_artifact()]);
+}
+
+#[test]
+fn mixed_arithmetic_calls_reject_missing_or_substituted_exact_evidence() {
+    let (semantic, proof) = mixed_arithmetic_artifact();
+    let choices = OptimizationSelections::default();
+    let mut missing = terminal_codec::decode_proof_bundle(&proof).unwrap();
+    assert!(missing.evidence.pop().is_some());
+    let missing = terminal_codec::encode_proof_bundle(&missing).unwrap();
+    assert!(
+        optimize_artifact_sections(
+            &semantic,
+            &missing,
+            &AdmissionProfile::default(),
+            compiler_baseline_request_v1(&choices),
+        )
+        .is_err()
+    );
+    let mut changed = terminal_codec::decode_module(&semantic).unwrap();
+    let OperationKind::ExactIntegerAdd { right, .. } =
+        &mut changed.machines[2].blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    // The existing certificate proves parameter + zero, not parameter + itself.
+    *right = ValueId::new(28_205).unwrap();
+    let changed = terminal_codec::encode_module(&changed).unwrap();
+    assert!(
+        optimize_artifact_sections(
+            &changed,
+            &proof,
+            &AdmissionProfile::default(),
+            compiler_baseline_request_v1(&choices),
+        )
+        .is_err()
+    );
+}
+
+fn publish_scalar_artifacts(value: u64, artifacts: impl IntoIterator<Item = (Vec<u8>, Vec<u8>)>) {
     #[cfg(not(all(target_os = "windows", target_arch = "x86_64")))]
     eprintln!(
         "SKIP: Windows native execution requires a Windows x86-64 host; cross-target replay still runs"
     );
-    let value = 37_u64;
-    for (semantic, proof) in [
-        artifact(value),
-        preserving_artifact(value),
-        discarded_call_result_artifact(value),
-    ] {
+    for (semantic, proof) in artifacts {
         let source = terminal_codec::decode_module(&semantic).unwrap();
         let expected_calls = source
             .machines
@@ -310,4 +358,103 @@ fn scalar_returning_calls_reject_changed_result_callee_and_provenance() {
     assert_ne!(instruction.operands[0].virtual_register, original_parameter);
     instruction.operands[0].virtual_register = original_parameter;
     assert!(validate_raw_selection(&staged, changed).is_err());
+}
+
+// Independent Terminal authoring; every exact-operation certificate must be
+// produced by the real checked arithmetic prover, never a fallback assumption.
+fn mixed_arithmetic_artifact() -> (Vec<u8>, Vec<u8>) {
+    let (semantic, _) = artifact(37);
+    let mut module = terminal_codec::decode_module(&semantic).unwrap();
+    let scalar_type = module.machines[2].parameters[0].scalar_type;
+    let declaration = |id| ValueDeclaration {
+        id: ValueId::new(id).unwrap(),
+        scalar_type,
+    };
+    let zero = |id| Operation {
+        id: OperationId::new(id).unwrap(),
+        result: OperationResult::Scalar(declaration(id)),
+        kind: OperationKind::IntegerConstant {
+            value: IntegerValue::Unsigned(0),
+        },
+    };
+    let exact = |id, left, right, subtract| Operation {
+        id: OperationId::new(id).unwrap(),
+        result: OperationResult::Scalar(declaration(id)),
+        kind: if subtract {
+            OperationKind::ExactIntegerSubtract {
+                left: ValueId::new(left).unwrap(),
+                right: ValueId::new(right).unwrap(),
+                obligation: ObligationId::new(id).unwrap(),
+            }
+        } else {
+            OperationKind::ExactIntegerAdd {
+                left: ValueId::new(left).unwrap(),
+                right: ValueId::new(right).unwrap(),
+                obligation: ObligationId::new(id).unwrap(),
+            }
+        },
+    };
+    let entry = &mut module.machines[0].blocks[0];
+    entry.operations.insert(1, zero(28_030));
+    entry
+        .operations
+        .insert(2, exact(28_031, 28_020, 28_030, false));
+    let OperationKind::Call { arguments, .. } = &mut entry.operations[3].kind else {
+        unreachable!()
+    };
+    *arguments = vec![ValueId::new(28_031).unwrap()];
+    entry.operations.push(exact(28_032, 28_023, 28_030, true));
+    // A dead pure definition remains authored in the ordered program; no call
+    // or operation may be silently recovered only from the returned-value tree.
+    entry.operations.push(exact(28_033, 28_032, 28_030, false));
+    let Terminator::Return { value, .. } = &mut entry.terminator else {
+        unreachable!()
+    };
+    *value = ValueId::new(28_032).unwrap();
+    let leaf = &mut module.machines[2].blocks[0];
+    leaf.operations.push(zero(28_230));
+    leaf.operations.push(exact(28_231, 28_205, 28_230, false));
+    let Terminator::Return { value, .. } = &mut leaf.terminator else {
+        unreachable!()
+    };
+    *value = ValueId::new(28_231).unwrap();
+    let validated = terminal_verifier::validate_module(&module).unwrap();
+    let mut evidence = Vec::new();
+    for question in reconstruct_operation_obligations(&module).unwrap() {
+        assert!(question.canonical_certificate);
+        let machine = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == question.owner.machine())
+            .unwrap();
+        let proof = checked_trees_to_lowered_psi::produce_checked_canonical_integer_proof(
+            &validated.value_context(machine).unwrap(),
+            &question.obligation.proposition,
+            &machine.contract.requires,
+            &question.semantic_axioms,
+            &machine
+                .parameters
+                .iter()
+                .map(|parameter| parameter.id)
+                .collect(),
+        )
+        .expect("exact mixed-call arithmetic must have a real checked certificate");
+        evidence.push(ObligationEvidence {
+            obligation: question.obligation.id,
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: EvidenceIdentity::new(question.obligation.id.get()).unwrap(),
+                proof_system_marker: ProofSystemMarker::CURRENT,
+                proof,
+            }),
+        });
+    }
+    evidence.sort_by_key(|row| row.obligation);
+    let proof = ProofBundle {
+        evidence,
+        ..ProofBundle::default()
+    };
+    (
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_bundle(&proof).unwrap(),
+    )
 }
