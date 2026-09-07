@@ -15,6 +15,17 @@ an opaque owned sidecar: carrying it does not interpret placement or grant
 registration, invocation, address, or lifetime authority. Native realization
 must rejoin the exact source/build receipts under its own authority.
 
+## Boundary source custody at the compiler handoff
+
+Compiler Terminal handoffs restore boundary requirement calls through
+`CheckedCompilation::terminal_production_trees`. The existing inverse-edit guards
+validate selected adapter identities and operand graphs before restoration;
+checked plans remain unchanged. Adapter edits are retained separately from
+operator/FMA settlement because those transformations carry their own checked
+plans. Full package source queries undo both batches in reverse settlement order.
+This is a transitional handoff for the selected-dispatch tree, not permission to
+serialize a selected provider as a source call or to weaken call-source custody.
+
 ## Source byte-view lowering
 
 The [byte-view contract](../../../../wiki/spec/terminal-psi/byte_views.md)

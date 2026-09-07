@@ -177,6 +177,11 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   requirement-owner checks. Profile and eliminate redundant guard replay there;
   preserve identical checks and rejection behavior. Acceptance: the unchanged
   CLI reaches its next real diagnostic promptly, with before/after timings.
+  Windows x64 at `a78040898d`: `mbx run -p omega -- --target windows_x86_64
+  --build-dir build/cli-mvp-route samples/cli/basics/cli_mvp/main.omg` took
+  718 seconds wall time (23.45 seconds reported Rust build) and exited 1 at
+  missing package-root policy. This is a completed slow-route observation,
+  not a timeout or evidence of native execution.
 
   The downstream native `cli_mvp` probe at `6a72c58124` remains red.
   On macOS ARM64, `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
