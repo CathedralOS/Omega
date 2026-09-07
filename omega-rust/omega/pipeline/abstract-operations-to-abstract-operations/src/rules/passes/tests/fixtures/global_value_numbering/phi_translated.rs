@@ -227,6 +227,7 @@ pub(crate) fn phi_translated_gvn_fixture(
                             scalar_type: ScalarType::Integer(integer),
                         }],
                         trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: Vec::new(),
                     },
                     AbstractOperation::Conditional {
                         condition,
@@ -253,6 +254,7 @@ pub(crate) fn phi_translated_gvn_fixture(
                             scalar_type: ScalarType::Integer(integer),
                         }],
                         trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: Vec::new(),
                     },
                 ],
             }],

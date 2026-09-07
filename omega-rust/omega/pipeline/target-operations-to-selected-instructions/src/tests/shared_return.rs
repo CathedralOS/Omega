@@ -113,6 +113,7 @@ fn fixture(
             target: block(2),
             bindings: vec![binding(3, 9)],
             trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
         },
         AbstractOperation::IntegerConstant {
             psi_operation: operation(3),
@@ -125,6 +126,7 @@ fn fixture(
             target: block(2),
             bindings: vec![binding(3, 10)],
             trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
         },
     ];
     let target =

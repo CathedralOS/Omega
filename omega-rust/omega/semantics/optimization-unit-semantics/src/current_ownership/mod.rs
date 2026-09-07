@@ -18,6 +18,7 @@ use terminal_psi::{
 use crate::OptimizationUnitValidationError;
 
 mod cleanup;
+mod continuation;
 mod model;
 mod mutations;
 mod replay;
@@ -25,6 +26,8 @@ mod residuals;
 mod structural;
 
 use cleanup::*;
+pub(crate) use continuation::valid_partial_continuation_complement;
+use continuation::{apply_edge_partial_affine_discards, validate_partial_continuation_roster};
 use model::*;
 use mutations::*;
 use residuals::*;

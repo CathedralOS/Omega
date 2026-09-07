@@ -81,6 +81,7 @@ pub(crate) fn linear_empty_block_unit() -> PsiOptimizationUnit {
                         target: empty,
                         bindings: vec![binding(first, left), binding(second, right)],
                         trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: Vec::new(),
                     },
                     AbstractOperation::Jump {
                         psi_edge: id(912, EdgeId::new),
@@ -90,6 +91,7 @@ pub(crate) fn linear_empty_block_unit() -> PsiOptimizationUnit {
                             binding(target_second, first),
                         ],
                         trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: Vec::new(),
                     },
                     AbstractOperation::ReturnUnit {
                         psi_edge: id(913, EdgeId::new),
@@ -181,18 +183,21 @@ pub(crate) fn path_qualified_empty_block_unit() -> PsiOptimizationUnit {
                         target: empty,
                         bindings: Vec::new(),
                         trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: Vec::new(),
                     },
                     AbstractOperation::Jump {
                         psi_edge: id(934, EdgeId::new),
                         target: empty,
                         bindings: Vec::new(),
                         trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: Vec::new(),
                     },
                     AbstractOperation::Jump {
                         psi_edge: id(935, EdgeId::new),
                         target,
                         bindings: Vec::new(),
                         trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: Vec::new(),
                     },
                     AbstractOperation::ReturnUnit {
                         psi_edge: id(936, EdgeId::new),

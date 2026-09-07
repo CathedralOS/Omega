@@ -152,6 +152,14 @@ pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
         _ => Vec::new(),
     };
     match operation {
+        O::Jump {
+            trivial_affine_discards,
+            residual_affine_discards,
+            ..
+        } => {
+            inputs.extend(trivial_affine_discards.iter().copied());
+            inputs.extend(residual_affine_discards.iter().map(|discard| discard.place));
+        }
         O::Return {
             cleanup_actions, ..
         }

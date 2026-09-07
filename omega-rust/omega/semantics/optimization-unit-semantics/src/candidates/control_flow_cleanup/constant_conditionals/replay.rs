@@ -120,6 +120,7 @@ pub(super) fn validate(
         target: selected.target,
         bindings: selected.bindings.clone(),
         trivial_affine_discards: selected.trivial_affine_discards.clone(),
+        residual_affine_discards: Vec::new(),
     };
     output_node.definitions.clear();
     output_node.uses = selected
@@ -136,6 +137,7 @@ pub(super) fn validate(
         target: selected.target,
         bindings: selected.bindings.clone(),
         trivial_affine_discards: selected.trivial_affine_discards.clone(),
+        residual_affine_discards: Vec::new(),
         provenance: vec![PsiProvenance::Edge(selected.psi_edge)],
         fuel: selected_fuel,
     }];

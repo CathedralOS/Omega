@@ -140,6 +140,7 @@ fn jump(edge: u64, target: BlockId) -> AbstractOperation {
         target,
         bindings: Vec::new(),
         trivial_affine_discards: Vec::new(),
+        residual_affine_discards: Vec::new(),
     }
 }
 

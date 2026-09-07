@@ -10,12 +10,14 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             target,
             bindings,
             trivial_affine_discards,
+            residual_affine_discards,
         } => {
             bytes.u8(42);
             bytes.id(*psi_edge);
             bytes.id(*target);
             bytes.slice(bindings, encode_binding);
             encode_ids(bytes, trivial_affine_discards);
+            bytes.slice(residual_affine_discards, encode_residual_cleanup);
         }
         O::Conditional {
             condition,

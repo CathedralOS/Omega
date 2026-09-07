@@ -21,6 +21,65 @@ use terminal_psi::{
 };
 
 #[test]
+fn jump_residual_identity_binds_both_operation_and_derived_edge() {
+    let mut source_plan = plan();
+    let residuals = vec![
+        terminal_psi::StructuralAffineDiscard {
+            place: id(201, PlaceId::new),
+            path: vec![terminal_psi::StructuralPathSegment::Field("right".into())],
+            structural_type: id(202, StructuralTypeId::new),
+        },
+        terminal_psi::StructuralAffineDiscard {
+            place: id(201, PlaceId::new),
+            path: vec![terminal_psi::StructuralPathSegment::Field("left".into())],
+            structural_type: id(203, StructuralTypeId::new),
+        },
+    ];
+    source_plan.functions[0].operations[0] = AbstractOperation::Jump {
+        psi_edge: id(204, EdgeId::new),
+        target: id(205, BlockId::new),
+        bindings: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+        residual_affine_discards: residuals.clone(),
+    };
+    let baseline =
+        reconstruct_psi_optimization_unit_seed(&source_plan, FuelScheduleIdentity::new(1).unwrap())
+            .unwrap();
+    let identity = recompute_psi_optimization_unit_identity(&baseline);
+    for derived in [false, true] {
+        for mutation in 0..5 {
+            let mut changed = baseline.clone();
+            let node = &mut changed.functions[0].blocks[0].nodes[0];
+            let rows = if derived {
+                &mut node.successors[0].residual_affine_discards
+            } else {
+                let AbstractOperation::Jump {
+                    residual_affine_discards,
+                    ..
+                } = &mut node.operation
+                else {
+                    unreachable!()
+                };
+                residual_affine_discards
+            };
+            match mutation {
+                0 => rows.clear(),
+                1 => rows.reverse(),
+                2 => rows[0].place = id(206, PlaceId::new),
+                3 => rows[0].path = vec![terminal_psi::StructuralPathSegment::FixedIndex(2)],
+                4 => rows[0].structural_type = id(207, StructuralTypeId::new),
+                _ => unreachable!(),
+            }
+            assert_ne!(
+                identity,
+                recompute_psi_optimization_unit_identity(&changed),
+                "derived={derived}, mutation={mutation}"
+            );
+        }
+    }
+}
+
+#[test]
 fn write_only_store_identity_binds_destination_value_and_scalar_type() {
     let schedule = FuelScheduleIdentity::new(70).unwrap();
     let baseline = reconstruct_psi_optimization_unit_seed(&write_only_store_plan(), schedule)
@@ -153,18 +212,18 @@ fn canonical_operation_identity_bytes_are_stable() {
     assert_eq!(
         scalar.identity.bytes(),
         [
-            48, 7, 24, 243, 148, 115, 9, 218, 202, 253, 248, 63, 227, 198, 2, 153, 68, 67, 7, 25,
-            28, 233, 62, 130, 207, 156, 111, 176, 189, 83, 130, 223,
+            44, 219, 24, 165, 77, 140, 72, 31, 161, 44, 175, 44, 42, 145, 172, 254, 166, 70, 163,
+            67, 180, 208, 16, 160, 20, 131, 110, 222, 60, 103, 36, 85,
         ],
-        "integer-constant and scalar-return operation tags and fields are stable",
+        "v21 identity pins integer-constant and scalar-return tags and fields",
     );
     assert_eq!(
         structural.identity.bytes(),
         [
-            108, 102, 228, 146, 102, 84, 135, 100, 90, 72, 132, 146, 170, 164, 233, 220, 255, 24,
-            70, 56, 78, 101, 94, 196, 59, 64, 8, 187, 111, 232, 98, 91,
+            137, 34, 126, 253, 192, 244, 227, 214, 107, 250, 90, 226, 184, 13, 239, 116, 59, 124,
+            152, 19, 231, 194, 189, 172, 155, 107, 71, 229, 108, 224, 159, 128,
         ],
-        "write-only structural storage and unit-return operation tags and fields are stable",
+        "v21 identity pins write-only structural storage and unit-return tags and fields",
     );
 }
 
@@ -457,6 +516,7 @@ fn canonical_identity_binds_every_retained_field_class() {
                 scalar_type,
             }],
             trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
             provenance: vec![PsiProvenance::Edge(id(101, EdgeId::new))],
             fuel: vec![FuelSettlement {
                 site: PsiProvenance::Edge(id(101, EdgeId::new)),

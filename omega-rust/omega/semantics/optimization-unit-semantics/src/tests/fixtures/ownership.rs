@@ -396,6 +396,7 @@ pub(crate) fn affine_claim_join_unit(settle_false_arm: bool) -> PsiOptimizationU
             target: join_block,
             bindings: Vec::new(),
             trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
         },
     ]);
     let false_offset = operations.len();
@@ -407,6 +408,7 @@ pub(crate) fn affine_claim_join_unit(settle_false_arm: bool) -> PsiOptimizationU
         target: join_block,
         bindings: Vec::new(),
         trivial_affine_discards: Vec::new(),
+        residual_affine_discards: Vec::new(),
     });
     let join_offset = operations.len();
     operations.push(AbstractOperation::ReturnUnit {

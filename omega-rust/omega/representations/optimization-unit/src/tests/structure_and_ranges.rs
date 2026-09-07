@@ -71,6 +71,7 @@ fn block_parameters_keep_terminal_declaration_order() {
                 },
             ],
             trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
         },
         AbstractOperation::Return {
             psi_edge: id(61, EdgeId::new),

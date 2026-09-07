@@ -4,7 +4,7 @@ use super::operation_encoding::*;
 use super::structural_encoding::*;
 use super::*;
 
-const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v20\0";
+const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v21\0";
 const STRUCTURAL_DOMAIN_CATALOG_IDENTITY_DOMAIN: &[u8] =
     b"omega.psi-optimization-structural-domain-catalog.v1\0";
 
@@ -389,6 +389,7 @@ fn encode_edge(bytes: &mut CanonicalBytes, edge: &OptimizationEdge) {
     bytes.id(edge.target);
     bytes.slice(&edge.bindings, encode_binding);
     encode_ids(bytes, &edge.trivial_affine_discards);
+    bytes.slice(&edge.residual_affine_discards, encode_residual_cleanup);
     bytes.slice(&edge.provenance, |bytes, provenance| {
         encode_provenance(bytes, *provenance)
     });

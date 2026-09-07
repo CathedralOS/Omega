@@ -111,6 +111,7 @@ pub(crate) fn propagated_block_parameter_unit(constant: bool) -> PsiOptimization
                         target: merge,
                         bindings: vec![binding(true_value)],
                         trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: Vec::new(),
                     },
                     AbstractOperation::IntegerConstant {
                         psi_operation: id(616, OperationId::new),
@@ -123,6 +124,7 @@ pub(crate) fn propagated_block_parameter_unit(constant: bool) -> PsiOptimization
                         target: merge,
                         bindings: vec![binding(false_value)],
                         trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: Vec::new(),
                     },
                     AbstractOperation::IntegerBitwiseNot {
                         psi_operation: id(618, OperationId::new),

@@ -580,7 +580,10 @@ Owners include
   Extend anonymous projected helper-result operands to multiple producers and
   other effects within one consumer's argument list and non-Unit consumers,
   preserving each temporary's exact dying continuation. Implement native
-  Terminal Jump residual cleanup without dropping its ordered schedule. Extend the
+  Terminal Jump residual cleanup without dropping its ordered schedule: target
+  Unit bodies need continuation control flow, result homes, and independent
+  assignment/emission/replay custody at the edge rather than only at final return.
+  Extend the
   type-directed record/array complement in
   [Terminal Psi](wiki/architecture/pipeline/terminal_psi.md) to construction-local
   roots and mixed dying-root schedules, preserving maximal untouched subtrees,

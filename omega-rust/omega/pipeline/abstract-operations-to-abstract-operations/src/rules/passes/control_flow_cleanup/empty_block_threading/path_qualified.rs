@@ -83,6 +83,7 @@ impl PsiOptimizationRule for PathQualifiedEmptyBlockThreadRule {
                     target,
                     bindings: outgoing_bindings,
                     trivial_affine_discards: outgoing_discards,
+                    residual_affine_discards: outgoing_residuals,
                 } = &empty.nodes[0].operation
                 else {
                     continue;
@@ -104,11 +105,13 @@ impl PsiOptimizationRule for PathQualifiedEmptyBlockThreadRule {
                     })
                     .collect::<Vec<_>>();
                 if !outgoing_discards.is_empty()
+                    || !outgoing_residuals.is_empty()
                     || incoming.is_empty()
                     || (incoming.len() == 1 && matches!(incoming[0].2.operation, O::Jump { .. }))
-                    || incoming
-                        .iter()
-                        .any(|(_, _, _, edge)| !edge.trivial_affine_discards.is_empty())
+                    || incoming.iter().any(|(_, _, _, edge)| {
+                        !edge.trivial_affine_discards.is_empty()
+                            || !edge.residual_affine_discards.is_empty()
+                    })
                     || empty.parameters.iter().any(|parameter| {
                         use_definitions.uses.iter().any(|(machine, use_site)| {
                             *machine == function.machine

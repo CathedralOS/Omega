@@ -63,6 +63,11 @@ pub enum AdmittedBoundaryExecution<'execution> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
+    /// Native continuations do not yet retain partial-owner cleanup.
+    UnsupportedPartialAffineContinuation {
+        machine: MachineId,
+        edge: semantic_vocabulary::EdgeId,
+    },
     TranslationValidation(crate::AbstractToTargetTranslationValidationError),
     /// Parameter-rooted path qualifications are preserved through the
     /// prephysical optimizer boundary but have no target-operation carrier yet.

@@ -95,7 +95,11 @@ pub(super) fn apply_edge_trivial_affine_discards(
             next += 1;
         }
     }
-    if next != discards.len() {
+    if next != discards.len()
+        || discards
+            .iter()
+            .any(|place| frontier.partial_custody_paths.contains_key(place))
+    {
         return Err(OptimizationUnitValidationError::CurrentCleanupMismatch {
             machine: function.machine,
             block,

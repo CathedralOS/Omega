@@ -428,6 +428,30 @@ pub(super) fn validate_current_ownership_cfg(
             .successors
         {
             let mut outgoing = frontier.clone();
+            if matches!(
+                block
+                    .nodes
+                    .last()
+                    .expect("validated block is nonempty")
+                    .operation,
+                O::Jump { .. }
+            ) {
+                validate_partial_continuation_roster(
+                    function,
+                    structural_types,
+                    block,
+                    &edge.trivial_affine_discards,
+                    &edge.residual_affine_discards,
+                )?;
+                apply_edge_partial_affine_discards(
+                    function,
+                    structural_types,
+                    block_id,
+                    &mut outgoing,
+                    &edge.trivial_affine_discards,
+                    &edge.residual_affine_discards,
+                )?;
+            }
             apply_edge_trivial_affine_discards(
                 function,
                 block_id,

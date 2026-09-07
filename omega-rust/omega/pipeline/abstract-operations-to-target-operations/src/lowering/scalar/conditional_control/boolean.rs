@@ -138,7 +138,14 @@ pub(in crate::lowering::scalar) fn lower_boolean_block(
             target,
             bindings,
             trivial_affine_discards,
+            residual_affine_discards,
         } => {
+            if !residual_affine_discards.is_empty() {
+                return Err(LoweringError::UnsupportedPartialAffineContinuation {
+                    machine: function.machine,
+                    edge: *psi_edge,
+                });
+            }
             let _ = trivial_affine_discards;
             bind_conditional_values(&mut values, bindings, *psi_edge)?;
             let mut lowered = lower_boolean_block(

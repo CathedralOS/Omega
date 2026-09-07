@@ -110,6 +110,7 @@ pub(super) fn lower(
             target: preheader_target,
             bindings: preheader_bindings,
             trivial_affine_discards: preheader_discards,
+            residual_affine_discards: preheader_residuals,
         },
     ] = preheader
     else {
@@ -124,6 +125,7 @@ pub(super) fn lower(
         || preheader_binding.argument != initial.value
         || preheader_binding.scalar_type != ScalarType::Integer(u32_type)
         || !preheader_discards.is_empty()
+        || !preheader_residuals.is_empty()
     {
         return Err(invalid());
     }
@@ -191,6 +193,7 @@ pub(super) fn lower(
             target: backedge_target,
             bindings: backedge_bindings,
             trivial_affine_discards: backedge_discards,
+            residual_affine_discards: backedge_residuals,
         },
     ] = decrement
     else {
@@ -215,6 +218,7 @@ pub(super) fn lower(
         || backedge_binding.argument != next_rank
         || backedge_binding.scalar_type != ScalarType::Integer(u32_type)
         || !backedge_discards.is_empty()
+        || !backedge_residuals.is_empty()
     {
         return Err(invalid());
     }

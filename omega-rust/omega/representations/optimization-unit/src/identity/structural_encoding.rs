@@ -542,6 +542,15 @@ pub(super) fn encode_content_place(bytes: &mut CanonicalBytes, place: &ContentSt
     }
 }
 
+pub(super) fn encode_residual_cleanup(
+    bytes: &mut CanonicalBytes,
+    discard: &terminal_psi::StructuralAffineDiscard,
+) {
+    bytes.id(discard.place);
+    bytes.slice(&discard.path, encode_structural_path_segment);
+    bytes.id(discard.structural_type);
+}
+
 pub(super) fn encode_cleanup(bytes: &mut CanonicalBytes, action: &TerminalAffineCleanupAction) {
     match action {
         TerminalAffineCleanupAction::DiscardRoot(place) => {
@@ -550,9 +559,7 @@ pub(super) fn encode_cleanup(bytes: &mut CanonicalBytes, action: &TerminalAffine
         }
         TerminalAffineCleanupAction::DiscardResidual(discard) => {
             bytes.u8(2);
-            bytes.id(discard.place);
-            bytes.slice(&discard.path, encode_structural_path_segment);
-            bytes.id(discard.structural_type);
+            encode_residual_cleanup(bytes, discard);
         }
         TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
             bytes.u8(3);
