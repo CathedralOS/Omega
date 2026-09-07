@@ -55,9 +55,10 @@ local-project package review route. Keep its result separate from the outer comm
 ## Trace the actual route
 
 The outer CLI probe reaches fresh `omega-language-std` package review and reports
-four unproved head/tail bounds in `console_write_bytes` plus one filesystem index
-bound. Std's [review entry](../../../../source/library/std/main.omg) imports a
-broader source set than the sample entry. The inner sample test gets farther and
+four unproved head/tail bounds in `console_write_bytes` plus filesystem index
+bounds (two on the macOS route). Std's
+[review entry](../../../../source/library/std/main.omg) imports a broader source
+set than the sample entry. The inner sample test gets farther and
 stops at the missing Terminal writer body. Neither result establishes native execution.
 
 The next investigation compares the same writer guards under those two roots:

@@ -113,9 +113,9 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   validation yet.
   The ordinary Unit planner in
   `typed-trees-to-checked-trees/src/flow/terminal_unit/control.rs` requires one
-  authored state. General acyclic call-only graphs are retained, but state-local
-  construction and writes still need shared body lowering. Producer widening
-  alone cannot close this: general cyclic validation
+  authored state. Shared acyclic graphs retain scalar prefixes and calls, but
+  aggregate construction and interleaved writes still need shared body lowering.
+  Producer widening alone cannot close this: general cyclic validation
   and execution remain missing under `GENERAL-CYCLIC-EXECUTION` below.
   Retain the actual state graph, field arithmetic, text initialization, and
   runtime-indexed byte stores; do not synthesize separate one-state machines.
@@ -124,28 +124,30 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   unchanged checked text facts; the console dependencies below are also required.
 
   Work from the actual `cli_mvp` [command and route](samples/cli/basics/cli_mvp/README.md).
-  At code checkpoint `54e0957333` on Windows x64, `mbx run -p omega -- --target windows_x86_64 --build-dir build/cli-mvp-route samples/cli/basics/cli_mvp/main.omg`
-  builds the CLI, then exits 1 during fresh `omega-language-std` review: the
-  writer's entry/emit head and tail bounds fail, plus filesystem
-  `self.rda_depth - 2` against length 16. Review compiles `std/main.omg` before
+  At code checkpoint `9f93744f34` on macOS ARM64, `CARGO_INCREMENTAL=0 cargo run
+  -p omega -- --target macos_arm64 --build-dir build/cli-mvp-route
+  samples/cli/basics/cli_mvp/main.omg` builds the CLI, then exits 1 during fresh
+  `omega-language-std` review: four writer entry/emit head and tail bounds fail,
+  plus two filesystem `self.rda_depth - 1` bounds against length 16
+  (`rds_read_go` and `rds_parent_go`). Review compiles `std/main.omg` before
   the application. Compare its exact guard/operator and state-edge range facts
   with application-root checking in `typed-trees-to-checked-trees/src/checks/ranges/`;
   preserve bound checking. Acceptance: whole-std review succeeds, then the same
   CLI command reaches its next boundary. The sample harness bypasses this review.
 
-  Resume the native `cli_mvp` customer at code checkpoint `6901c9214c`.
+  The downstream native `cli_mvp` probe at code checkpoint `9f93744f34` remains red.
   On macOS ARM64, `CARGO_INCREMENTAL=0 OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
   samples_with_documented_exit_run_correctly --no-fail-fast` exits 100 before
   execution: `InvalidUnitMachinePlan` names `ConsoleNativeProvider::write_line`
-  with a missing checked transitive machine plan. Next retain state-local scalar
-  construction and selected-edge byte observations for the
+  with a missing checked transitive machine plan. After the earlier review
+  failure is fixed, retain selected-edge tail descriptors for the
   [borrowed-byte writer closure](wiki/architecture/pipeline/terminal_psi.md#borrowed-byte-writer-composition)
   in `typed-trees-to-checked-trees/src/flow/terminal_unit/` and
   `checked-trees-to-lowered-psi/src/attached_unit/`.
-  Extend shared state-body construction and graph emission to the writer without
-  splitting authored states into synthetic machines. Its `let mut output` bodies,
-  computed scalar successor operands, and derived tail views remain unsupported.
+  Extend shared graph emission to the writer without splitting authored states
+  into synthetic machines. Derived tail views and slice-ranked cyclic execution
+  remain unsupported.
   The private writer calls its concrete provider's byte leaf directly; extending
   plain boundary-trait or `Service` forwarding is not a prerequisite.
   The callable plan must retain exact intrinsic settlement, view/scalar transfers,
