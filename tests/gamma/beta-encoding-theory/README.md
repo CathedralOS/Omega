@@ -42,6 +42,8 @@ The finite equations transcribe [Beta's language contract](../../../bootstrap/be
 | [Byte nibble splits](nibbles.py) | 512 | 512 | 68,869 |
 | [Split/join composition](roundtrip.py) | 256 | 1,792 | 84,741 |
 | [Eight-byte word emission](words.py) | 13 | 13 | 928 |
+| [Byte counter helpers](counters.py), four batches | 512 | 128 per batch | 9,029 or 25,413 |
+| [Checked word successor](counters.py), nineteen requests | 19 | 21–84 per request | 290–3,341 |
 
 Each family uses a separate checker request. All rows, including those unused
 by the final owner equation, must check. Lexical coverage retains every byte of
@@ -54,6 +56,24 @@ Word cases include zero, maximum, the highest bit, two varied byte patterns,
 and a single nonzero byte in each of all eight positions. The expected byte
 lists are authored least-significant byte first.
 
+Counter cases explicitly state both eight-byte input and expected result.
+They cover zero, a varied no-carry value, two sets of carry lengths one through
+seven with varied unaffected bytes, crossing the highest bit, maximum minus one
+to maximum, and maximum to `Overflow`. A successful result is `WordValue(Word)`;
+the maximum must never wrap to `WordValue(0)`. Four requests of 128 equations
+cover every clause of the internal byte increment and maximum predicate. The
+internal byte increment wraps 255 to zero; the public word successor selects
+Overflow before an eight-byte wrapped value can become its result.
+
+The fixed carry derivation writes each helper Unfold, predicate Unfold, two
+Reflexivity rows for the choice branches, ordered choice Congruence, choice
+Unfold, two Transitivity rows, and a Transitivity connecting that helper to the
+public root. The selected successful branch then supplies byte increment
+Unfold, seven byte Reflexivity rows, eight-argument Word Congruence, unary
+WordValue Congruence, and final Transitivity. These are finite authored proof
+families over the listed literals; no code reads theory clauses to infer a
+rewrite, recursively normalizes terms, or constructs a proof of arbitrary input.
+
 Negative controls preserve the lexical wrong answers, wrong clauses, altered
 formed body, and wrong owner root. New controls corrupt join answers and
 clauses, swap high/low results, omit the helper step, corrupt transitivity,
@@ -63,10 +83,17 @@ the high bit, truncate the maximum, corrupt each byte position, and select an
 invalid clause. Expected rejection coordinates come from physical record
 sizes, never decoded or learned checker observations.
 
-The 51 vectors also include seven-field and nine-field Word constructor
+The 106 vectors also include seven-field and nine-field Word constructor
 applications. These are physically complete records that must reject during
 ground admission with code 8 at the argument-count field, independently of
 the separate seven-byte and nine-byte output-list mutations.
+
+Counter mutations corrupt the clause in every byte-helper batch, attempt choice
+selection before normalizing its predicate, omit choice Congruence, substitute
+the wrong condition premise, omit increment normalization, and corrupt each
+result byte in a carry-three and highest-bit-crossing derivation. The maximum
+case explicitly rejects a proposed wrapped zero result. Their exact failure
+coordinates use the authored record lengths, including earlier valid rows.
 
 The work expectations follow the generic checker accounting. Every batch pays
 `P+1` for its proof index and four for its final root. Lexical clause walks cost
@@ -82,11 +109,33 @@ transitions. Shared closed ground references make each structural endpoint
 comparison exactly two units. These are independently derived expectations;
 the runner requires the exact tag-7 count/work observation.
 
+For counter byte helpers, each row costs `byte+6`; a 128-row request adds 129
+for indexing and four for the root. Public word unfolding costs 46: one row,
+one clause, ten index units, eighteen substitution transitions, and sixteen
+variable comparison transitions. Each lower carry-helper unfolding costs 80:
+one row, one clause, sixteen index units, 46 substitution transitions across
+22 child edges, and sixteen variable comparison transitions. Its highest-byte
+counterpart costs 63, with fifteen index units and thirty transitions across
+fourteen edges. Repeated variable templates under the same ground reference
+use the invocation-local memo; each of eight distinct variable templates still
+requires its first two-unit ground comparison.
+
+A predicate row costs `byte+6`; the two branch Reflexivity rows cost six,
+choice Congruence sixteen, choice unfolding eight for False or nine for True,
+and the three Transitivity rows cost 21. Successful final normalization costs
+`byte+81`: byte unfolding, seven Reflexivity rows (21), Word Congruence (41),
+WordValue Congruence (six), and final Transitivity (seven). Including the proof
+index and root, an input carrying `c=0..6` bytes and then incrementing byte `b`
+uses `21+9*c` proof rows and `290+402*c+2*b` work. Carrying seven bytes uses
+84 rows and `3087+2*b` work. Maximum overflow uses 73 rows and 3,251 work.
+These equations were fixed from checker/source accounting before execution.
+
 Rejections require the exact 33-byte owned diagnostic, process zero, and empty
 stderr. Timeouts and process failures never count as proof results. Request
 sizes and elapsed times are printed per vector; none establishes full-certificate
 size or runtime. This gate proves only these finite equations under the fixed
-partial theory. Token scanning, word parsing, counters, opcodes, limits, full
+partial theory. Token scanning, word parsing, counter ordering and limit
+comparisons, opcodes, source/output accounting, full
 Beta reconstruction, and accepted artifact custody remain outside its claim.
 It does not close the complete obligation in the
 [derivation calculus](../../../wiki/architecture/bootstrap_chain/derivation_calculus.md).

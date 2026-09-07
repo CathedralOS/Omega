@@ -2,10 +2,14 @@
 ; Byte constructors 1..256 denote values 0..255; their IDs are not arithmetic.
 ; False=257, True=258, nibble values 0..15=259..274, NoHex=275, Hex=276.
 ; Word=277 has eight Byte fields, least significant first; Nil=278, Cons=279.
+; WordResult=7 has Overflow=280 and WordValue=281 with one Word field.
 (def beta_encoding_vocabulary () Int
-  (let count Int (beta_theory_word 279)
+  (let count Int (beta_theory_word 281)
     (let lexical Int (beta_lexical_vocabulary)
-      (beta_word_vocabulary))))
+      (let words Int (beta_word_vocabulary)
+        (let overflow Int (beta_scalar_constructors 7 1)
+          (let value Int (beta_theory_fields3 3 7 1)
+            (beta_theory_word 5)))))))
 
 (def beta_lexical_vocabulary () Int
   (let bytes Int (beta_scalar_constructors 1 256)
