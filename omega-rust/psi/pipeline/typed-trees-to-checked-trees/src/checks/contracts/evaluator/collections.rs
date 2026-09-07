@@ -2,6 +2,9 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMemberExpre
 
 use super::ContractExpressionEvaluator;
 
+#[cfg(test)]
+mod tests;
+
 impl ContractExpressionEvaluator<'_, '_> {
     pub(super) fn collection_length(&self, expression: ExpressionHandle) -> Option<usize> {
         let resolved = self.resolved_expression(expression).unwrap_or(expression);
@@ -16,8 +19,95 @@ impl ContractExpressionEvaluator<'_, '_> {
             // evaluator's counterpart of the ranges lane's
             // `fixed_array_field_lengths` vocabulary).
             ExpressionNode::Member(member) => self.fixed_array_self_field_length(member),
+            ExpressionNode::Name(_) => self.immutable_fixed_array_view_length(resolved),
             _ => None,
         }
+    }
+
+    /// A fixed-array view captures a type extent, not an array-content snapshot.
+    /// Follow only an immutable descriptor whose binding is still unexposed at
+    /// this occurrence; general initializer evaluation remains forbidden.
+    fn immutable_fixed_array_view_length(&self, expression: ExpressionHandle) -> Option<usize> {
+        use typed_trees::statement::{StatementNode, TransitionGuardNode};
+
+        let ExpressionNode::Name(path) = self.program.expression_table.expression(expression)
+        else {
+            return None;
+        };
+        if !path.symbol.is_valid()
+            || path.head_symbol != path.symbol
+            || self
+                .program
+                .expression_table
+                .name_path_members(path.members)
+                .len()
+                != 1
+        {
+            return None;
+        }
+        let statements = self
+            .program
+            .statement_table
+            .statements(self.caller_state.statement_nodes);
+        // This first length-only route has no effects between the prefix and
+        // its actuals: neither a guard nor an earlier argument can rebind a view.
+        let StatementNode::Transition(transition) = statements.get(self.statement_index)? else {
+            return None;
+        };
+        if !matches!(transition.guard, TransitionGuardNode::Always)
+            || !matches!(self.call_site, crate::CallSite::TransitionNamed { .. })
+            || crate::call_site_argument_expressions(self.program, self.call_site)
+                .iter()
+                .any(|argument| {
+                    !matches!(
+                        self.program.expression_table.expression(*argument),
+                        ExpressionNode::Name(_)
+                            | ExpressionNode::Integer(_)
+                            | ExpressionNode::Boolean(_)
+                    )
+                })
+        {
+            return None;
+        }
+        let mut locals = statements[..self.statement_index]
+            .iter()
+            .filter_map(|statement| match statement {
+                StatementNode::LocalData(local) if local.symbol == path.symbol => Some(local),
+                _ => None,
+            });
+        let local = locals.next()?;
+        if local.is_mutable
+            || locals.next().is_some()
+            || !validation::CallFrameResolver::new(self.program)?
+                .expression_reference_bindings_are_stable(self.caller_machine, expression)
+        {
+            return None;
+        }
+        let ExpressionNode::Call(call) = self
+            .program
+            .expression_table
+            .expression(local.initial_value)
+        else {
+            return None;
+        };
+        if !matches!(call.target.as_str(), "as_slice" | "as_mut_slice")
+            || call.target_symbol.is_valid()
+            || !call.arguments.is_empty()
+            || !call.evidence_arguments.is_empty()
+            || !call.machine_arguments.is_empty()
+            || call.static_requirement_dispatch.is_some()
+            || call.quotient_operation.is_some()
+            || call.private_layout_operation.is_some()
+        {
+            return None;
+        }
+        let receiver_type = validation::declared_place_type_raw(
+            self.program,
+            self.caller_machine,
+            Some(self.caller_state),
+            call.receiver,
+        )?;
+        crate::checks::ranges::fixed_array_type_length(self.program, receiver_type)
     }
 
     /// The declared fixed-array extent of `self.<field>` in the TARGET
@@ -63,10 +153,12 @@ impl ContractExpressionEvaluator<'_, '_> {
     /// state. `None` for free machines (no attached data).
     fn target_self_data_definition(&self) -> Option<&typed_trees::data::DataDefinition> {
         let machine = self.program.machines().iter().find(|machine| {
-            self.program
-                .machine_states(machine)
-                .iter()
-                .any(|state| state.symbol == self.target_symbol)
+            machine.symbol == self.target_symbol
+                || self
+                    .program
+                    .machine_states(machine)
+                    .iter()
+                    .any(|state| state.symbol == self.target_symbol)
         })?;
         let attached_data = machine.attached_data.as_ref()?;
         self.program

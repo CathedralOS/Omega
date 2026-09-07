@@ -47,8 +47,9 @@ pub(super) fn parse_transition_block_target_with_bindings<'tokens, 'source>(
     let target_shaped = !input.at_keyword(KeywordKind::True)
         && !input.at_keyword(KeywordKind::False)
         && (input.at_keyword(KeywordKind::SelfValue) || input.at_name_like());
-    let (expression, rest) = if target_shaped {
-        let (expr, rest) = parse_transition_target_expression_handle(syntax_trees, input)?;
+    let (expression, rest, target_shaped) = if target_shaped {
+        let ((expression, named_target), rest) =
+            parse_transition_target_expression_handle(syntax_trees, input)?;
         // A struct/case literal arm VALUE (`-> Vec2 { dx: 1, dy: 2 }`) is name-like, so
         // the target-expression parser reads only the leading path and leaves the `{`.
         // A bare path immediately followed by `{` is a value, not a transition target
@@ -56,16 +57,18 @@ pub(super) fn parse_transition_block_target_with_bindings<'tokens, 'source>(
         // literals; the scrutinee position is the one that disallows them, not an arm).
         if rest.at_punctuation(PunctuationKind::LeftBrace)
             && matches!(
-                syntax_trees.expressions.expression(expr),
+                syntax_trees.expressions.expression(expression),
                 ExpressionNode::Name(_)
             )
         {
-            parse_expression_handle(syntax_trees, input)?
+            let (expression, rest) = parse_expression_handle(syntax_trees, input)?;
+            (expression, rest, false)
         } else {
-            (expr, rest)
+            (expression, rest, named_target)
         }
     } else {
-        parse_expression_handle(syntax_trees, input)?
+        let (expression, rest) = parse_expression_handle(syntax_trees, input)?;
+        (expression, rest, false)
     };
 
     let expression = bindings.iter().fold(expression, |expression, bindings| {
@@ -108,7 +111,7 @@ fn classify_transition_target_handle(
 fn parse_transition_target_expression_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, ExpressionHandle> {
+) -> ParseResult<'tokens, 'source, (ExpressionHandle, bool)> {
     let (mut expression, mut input) = if input.at_keyword(KeywordKind::SelfValue) {
         (
             syntax_trees.expressions.insert(ExpressionNode::SelfValue),
@@ -140,6 +143,16 @@ fn parse_transition_target_expression_handle<'tokens, 'source>(
                 }));
     }
 
+    // Namespace paths and implicit/current-self calls may name state targets.
+    // A dotted call on another receiver is an invocation, even when its leaf
+    // happens to spell the current machine or a sibling state.
+    let named_target = match syntax_trees.expressions.expression(expression) {
+        ExpressionNode::Member(member) => matches!(
+            syntax_trees.expressions.expression(member.receiver),
+            ExpressionNode::SelfValue
+        ),
+        _ => true,
+    };
     if input.at_punctuation(PunctuationKind::LeftParen) {
         input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
         let ((arguments, evidence_arguments), rest) =
@@ -196,7 +209,7 @@ fn parse_transition_target_expression_handle<'tokens, 'source>(
         };
     }
 
-    Ok((expression, input))
+    Ok(((expression, named_target), input))
 }
 
 fn classify_call_target_handle(

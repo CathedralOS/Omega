@@ -328,7 +328,22 @@ pub(crate) fn instantiate_call_contract_expression_label(
                     || path.symbol == parameter.symbol;
                 if parameter.is_self {
                     if parameter_matches {
-                        return "self".to_owned();
+                        // The callee's self denotes the selected receiver, not
+                        // necessarily the caller's enclosing machine value.
+                        return match call_site {
+                            crate::CallSite::Expression { call, .. }
+                                if call.receiver.is_valid() =>
+                            {
+                                program.expression_table.display_name(call.receiver)
+                            }
+                            crate::CallSite::Statement(call) if !call.receiver.is_empty() => {
+                                typed_trees::expression::display_name_path(
+                                    program.statement_table.name_path_members(call.receiver),
+                                    ".",
+                                )
+                            }
+                            _ => "self".to_owned(),
+                        };
                     }
                     continue;
                 }

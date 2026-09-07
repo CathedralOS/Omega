@@ -74,6 +74,104 @@ fn machine_entry_preconditions_remain_obligations_at_actual_calls() {
 }
 
 #[test]
+fn machine_entry_preconditions_remain_obligations_at_named_tail_calls() {
+    for (argument, accepted) in [(0, true), (2, false)] {
+        check(
+            &format!(
+                "machine restricted(index: u64) -> u64 requires index < 2 {{ index }}
+                 machine main() -> u64 {{ transition {{ _ -> restricted({argument}) }} }}"
+            ),
+            accepted,
+            "requires contract for call restricted",
+        );
+    }
+}
+
+#[test]
+fn named_tail_calls_retain_machine_requirement_facts() {
+    let typed = parse_typed_trees(
+        "machine restricted(index: u64) -> u64 requires index < 2 { index }
+         machine main() -> u64 { transition { _ -> restricted(2) } }",
+    );
+    let plan = proof::obligations::build_proof_plan(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &plan, &borrow);
+    assert!(
+        proof
+            .contract_calls
+            .iter()
+            .any(|(_, call)| !call.requires.is_empty()),
+        "named call retains its requirement roster"
+    );
+    let semantic = build_semantic_facts(&typed, &proof);
+    assert!(
+        semantic
+            .contexts
+            .iter()
+            .any(|(_, context)| matches!(context.point, facts::ProgramPoint::CallRequires { .. })),
+        "the roster reaches semantic call constraints"
+    );
+}
+
+#[test]
+fn tail_call_return_guarantees_do_not_leak_to_sibling_branches() {
+    for (fallback, accepted) in [(7, true), (0, false)] {
+        check(
+            &format!(
+                "machine produce() -> u64 ensures result == 7 {{ 7 }}
+                 machine main(selected: bool) -> u64 ensures result == 7 {{
+                     transition selected {{ true -> produce() false -> {fallback} }}
+                 }}"
+            ),
+            accepted,
+            "ensures",
+        );
+    }
+}
+
+#[test]
+fn tail_calls_owe_the_selected_receivers_requirements() {
+    for body in [
+        "transition { _ -> other.restricted() }",
+        "other.restricted()",
+        "other.restricted(); 0",
+    ] {
+        for (requirement, accepted) in [("self.allowed", false), ("other.allowed", true)] {
+            check(
+                &format!(
+                    "data Counter {{ allowed: bool; }}
+                 machine Counter::restricted(&self) -> u64 requires self.allowed {{ 1 }}
+                 machine Counter::main(&self, other: &Counter) -> u64
+                 requires {requirement} {{ {body} }}"
+                ),
+                accepted,
+                "requires contract for call restricted",
+            );
+        }
+    }
+}
+
+#[test]
+fn tail_call_requirements_use_live_guards_and_exact_actual_arguments() {
+    for (argument, accepted) in [("position", true), ("other", false)] {
+        check(
+            &format!(
+                "machine restricted(limit: u64, index: u64) -> u64
+                 requires index < limit {{ index }}
+                 machine main(bound: u64, position: u64, other: u64) -> u64 {{
+                     transition position < bound {{
+                         true -> restricted(bound, {argument})
+                         false -> 0
+                     }}
+                 }}"
+            ),
+            accepted,
+            "requires contract for call restricted",
+        );
+    }
+}
+
+#[test]
 fn explicit_target_state_preconditions_remain_edge_obligations() {
     for (argument, accepted) in [(0, true), (2, false)] {
         check(

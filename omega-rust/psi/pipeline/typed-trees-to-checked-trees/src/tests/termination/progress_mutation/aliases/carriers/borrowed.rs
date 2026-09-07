@@ -77,12 +77,11 @@ fn borrowed_carrier_loads_retain_the_exact_progress_premise() {
 }
 
 #[test]
-fn a_borrowed_carrier_load_retains_the_conditional_progress_premise() {
+fn a_borrowed_carrier_load_does_not_establish_a_missing_tail_requirement() {
     for (outer_access, inner_access) in [("", ""), ("mut ", ""), ("mut ", "mut ")] {
         let source = loaded_source(outer_access, inner_access)
             .replace("requires carrier.context.scheduler in WeakFair", "");
-        // A direct machine call transports its condition; it does not prove it.
-        assert_input_premise(&check_source(&source));
+        assert_unproved_tail_requirement(&source);
     }
 }
 

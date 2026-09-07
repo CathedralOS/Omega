@@ -237,20 +237,6 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   own breakage from the standing state. Acceptance: every remaining red canary
   is attributed to a named entry on a board, and this entry is replaced by those.
 
-- **CROSS-MACHINE-TAIL-REQUIRES.** In
-  `typed-trees-to-checked-trees/src/proof/contracts/calls.rs`, distinguish
-  a named transfer inside the current machine from a tail call to another
-  machine. `ContractCallSite::is_state_transfer` currently suppresses the
-  target's machine-level Requires for both; downstream
-  `typed-trees-to-checked-trees/src/checks/contracts/calls.rs` receives no such
-  obligation. At `7b51519f21` on macOS, `omega --check` accepts a guarded
-  IncreasingTo pair where the first member requires `limit <= capacity`, the
-  second requires `bound < ceiling`, and the first forwards `(capacity, cursor,
-  limit)` at `limit == capacity`. This is not a ranking decision or permission
-  for runtime fallback. Acceptance: reject the unproved cross-machine call,
-  accept its proved counterpart, and retain chapter 12's internal-transition
-  exemption from rechecking the enclosing machine invocation package.
-
 - **TERMINATION-RANKING-CHECKS.** Complete the documented flow-dependent
   rank-range checks in
   `typed-trees-to-checked-trees/src/checks/termination/ranking/` and

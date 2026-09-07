@@ -85,7 +85,7 @@ fn an_unused_unknown_mutable_reference_keeps_other_reference_queries_opaque() {
             "choices: &ContextPair) -> u64",
             "choices: &mut ContextPair) -> u64",
         );
-        assert_no_checked_guarantee(&check_source(&source));
+        assert_unproved_tail_requirement(&source);
     }
 }
 
@@ -126,5 +126,5 @@ fn an_unknown_shared_initializer_cannot_hide_mutable_binding_exposure() {
     );
     // Even a no-write helper exposes the binding through this explicit borrow;
     // accepting an unknown result cannot exempt it from the exposure guard.
-    assert_no_checked_guarantee(&check_source(&source));
+    assert_unproved_tail_requirement(&source);
 }

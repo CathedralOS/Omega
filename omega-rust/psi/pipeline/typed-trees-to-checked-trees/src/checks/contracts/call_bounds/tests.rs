@@ -10,6 +10,64 @@ fn checked(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics:
 }
 
 #[test]
+fn named_tail_arithmetic_requirements_use_exact_reordered_actuals_and_live_guards() {
+    let source = r#"
+            data Main {}
+            machine Main::bounded(&self, ceiling: u64, value: u64) -> u64
+            requires value <= ceiling { value }
+            machine Main::caller(&self, input: u64, capacity: u64, step: u64) -> u64
+            requires input <= capacity
+            { transition step <= capacity - input {
+                true -> self.bounded(capacity, input + step)
+                false -> input
+            } }
+        "#;
+    checked(source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+}
+
+#[test]
+fn named_tail_arithmetic_requirements_do_not_borrow_other_actuals_or_dead_bounds() {
+    for (parameters, requirement, prefix, arguments) in [
+        ("input: u64, other: u64", "2u64 <= input", "", "other"),
+        (
+            "mut input: u64, other: u64",
+            "2u64 <= input",
+            "input = 0u64;",
+            "input",
+        ),
+        ("input: u64, other: u64", "input <= 2u64", "", "input"),
+    ] {
+        let source = format!(
+            r#"
+            data Main {{}}
+            machine Main::bounded(&self, value: u64) -> u64
+            requires 1u64 <= value {{ value }}
+            machine Main::caller(&self, {parameters}) -> u64
+            requires {requirement}
+            {{ {prefix} transition {{ _ -> self.bounded({arguments}) }} }}
+        "#
+        );
+        assert_call_requirement_rejected(&source);
+    }
+}
+
+#[test]
+fn named_tail_arithmetic_requirements_do_not_leak_taken_guard_to_sibling() {
+    let source = r#"
+        data Main {}
+        machine Main::bounded(&self, value: u64) -> u64
+        requires 1u64 <= value { value }
+        machine Main::caller(&self, input: u64) -> u64 {
+            transition input > 0u64 {
+                true -> self.bounded(input)
+                false -> self.bounded(input)
+            }
+        }
+    "#;
+    assert_call_requirement_rejected(source);
+}
+
+#[test]
 fn immutable_result_aliases_follow_exact_entry_origins_in_both_orientations() {
     for guarantee in ["result == input", "input == result"] {
         for body in [

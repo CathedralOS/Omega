@@ -48,10 +48,11 @@ pub(crate) fn build_contract_call_facts(
                     target_state_symbol,
                     contract_machine_symbol: contract_target.0,
                     contract_state_symbol: contract_target.1,
-                    is_state_transfer: matches!(
-                        call_site,
-                        Some(crate::CallSite::TransitionNamed { .. })
-                    ),
+                    // Only an internal jump keeps the current invocation's
+                    // machine contract package. A named tail call to another
+                    // machine still owes that callee's entry requirements.
+                    is_state_transfer: target_machine_symbol == state.machine_symbol
+                        && matches!(call_site, Some(crate::CallSite::TransitionNamed { .. })),
                 },
             );
         }
@@ -255,6 +256,17 @@ pub(crate) fn contract_target_from_state_symbol(
 ) -> Option<(SymbolHandle, SymbolHandle)> {
     if !target_state_symbol.is_valid() {
         return None;
+    }
+
+    // Named calls may carry the machine symbol rather than its entry-state
+    // symbol. Resolve both forms to the same exact invocation contract.
+    if let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == target_state_symbol)
+    {
+        let entry = program.machine_states(machine).first()?;
+        return Some((machine.symbol, entry.symbol));
     }
 
     if let Some(target_machine) = program.machines().iter().find(|machine| {

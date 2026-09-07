@@ -6,6 +6,7 @@ use symbols::SymbolHandle;
 use syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::data::DataMember;
+use typed_trees::statement::StatementNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 mod references;
