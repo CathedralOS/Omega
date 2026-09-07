@@ -1,3 +1,5 @@
+mod mutable;
+
 fn checked(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()

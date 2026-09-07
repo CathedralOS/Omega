@@ -717,6 +717,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "termination/rank_range_increasing_call_component",
     "termination/increasing_call_component",
     "termination/natural_call_variable_step",
+    "termination/mutable_natural_call_variable_step",
     "termination/rank_range_clamped_call_component",
     "termination/default_order_unsigned_width_countdown_compile",
     "termination/proof_non_tail_joint_machine_cycle_compile",

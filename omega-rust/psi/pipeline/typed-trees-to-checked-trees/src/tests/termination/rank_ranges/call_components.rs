@@ -160,9 +160,6 @@ fn variable_call_step_uses_live_caller_arithmetic_premises() {
         .replace("amount: u64", "mut amount: u64")
         .replace("remaining: u64", "mut remaining: u64")
         .replace("pending: u64", "mut pending: u64");
-    // The ranking now handles preserved mutable inputs. The independent call
-    // requirement adapter still needs live mutable-parameter arithmetic; do
-    // not mistake ranking admission for complete checked-tree acceptance.
     for source in [
         mutable_inputs.clone(),
         mutable_inputs.replace(
@@ -170,22 +167,7 @@ fn variable_call_step_uses_live_caller_arithmetic_premises() {
             "    self.observed = remaining; transition remaining > floor",
         ),
     ] {
-        let program = typed(&source);
-        crate::checks::termination::check_machine_termination(&program)
-            .expect("preserved mutable inputs establish variable-step ranking");
-        let diagnostics = lower_typed_trees(program).expect_err("mutable call requirements remain");
-        assert!(
-            diagnostics.iter().any(|diagnostic| diagnostic
-                .message
-                .contains("cannot prove requires contract for call first")),
-            "{diagnostics:#?}"
-        );
-        assert!(
-            !diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("machine call cycle")),
-            "{diagnostics:#?}"
-        );
+        prove(&source);
     }
     reject(&mutable_inputs.replace(
         "    transition remaining > floor",

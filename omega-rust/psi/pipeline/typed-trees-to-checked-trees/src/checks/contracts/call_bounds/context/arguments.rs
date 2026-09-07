@@ -16,6 +16,100 @@ pub(super) fn primitive_type(
     meaning(program, facts, owner, parameters, expression).map(|meaning| meaning.primitive)
 }
 
+/// A numeric actual is evaluated before later operands. Current call-entry
+/// atoms represent that captured value only if those operands preserve it.
+pub(super) fn capture_is_current<'program>(
+    program: &'program TypedTrees,
+    facts: &CheckFacts,
+    machine: &'program typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    argument: ExpressionHandle,
+    later_arguments: &[ExpressionHandle],
+    frames: Option<&validation::CallFrameResolver<'program>>,
+) -> bool {
+    let parameters = program.state_parameters(state);
+    let mut occurrences = Vec::new();
+    crate::contract_occurrences::append_expression_occurrences(program, argument, &mut occurrences);
+    let captured = occurrences
+        .iter()
+        .filter_map(|expression| {
+            direct_parameter(program, parameters, *expression)
+                .filter(|parameter| parameter.is_mutable)
+                .map(|parameter| facts::PlaceRoot::Symbol(parameter.symbol))
+        })
+        .collect::<Vec<_>>();
+    if captured.is_empty() || later_arguments.is_empty() {
+        return true;
+    }
+    let Some(frames) = frames else {
+        return false;
+    };
+    later_arguments.iter().all(|expression| {
+        if !operand_effects_are_known(program, facts, machine.symbol, parameters, *expression) {
+            return false;
+        }
+        let frame = frames.expression_write_frame(machine, *expression);
+        crate::flow::frame_storage_writes(
+            program,
+            machine.symbol,
+            state.symbol,
+            statement_index,
+            &frame,
+        )
+        .is_some_and(|writes| {
+            writes.iter().all(|write| {
+                let root = crate::flow::normalized_event_place_root(program, write.root);
+                !captured.iter().any(|captured| {
+                    root == crate::flow::normalized_event_place_root(program, *captured)
+                })
+            })
+        })
+    })
+}
+
+/// Call write frames do not describe implicit selected-operator effects.
+/// Admit ordinary calls and independently builtin scalar operands only;
+/// other forms need their own complete expression-effect interpretation.
+fn operand_effects_are_known(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    owner: SymbolHandle,
+    parameters: &[StateParameter],
+    expression: ExpressionHandle,
+) -> bool {
+    if !program.expression_table.expression_is_valid(expression) {
+        return false;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::ZeroValue(_) => true,
+        ExpressionNode::Borrow(borrow) => {
+            operand_effects_are_known(program, facts, owner, parameters, borrow.target)
+        }
+        ExpressionNode::Call(call) => {
+            (!call.receiver.is_valid()
+                || operand_effects_are_known(program, facts, owner, parameters, call.receiver))
+                && program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .all(|argument| {
+                        operand_effects_are_known(program, facts, owner, parameters, *argument)
+                    })
+        }
+        ExpressionNode::Binary(_) => {
+            primitive_type(program, facts, owner, parameters, expression).is_some()
+                || comparison_is_supported(program, facts, owner, parameters, expression)
+        }
+        _ => false,
+    }
+}
+
 struct Meaning {
     primitive: PrimitiveType,
     domain: ArithmeticDomain,
