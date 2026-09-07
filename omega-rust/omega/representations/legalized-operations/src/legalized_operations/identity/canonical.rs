@@ -5,9 +5,7 @@ use super::condition::encode_condition;
 use super::projected_structural_call_return::encode_projected_structural_call_return;
 use super::{
     plan::encode_structural_unit_function,
-    scalar::{
-        encode_bindings, encode_definition_site, encode_immediate, encode_leaf, encode_scalar_type,
-    },
+    scalar::{encode_bindings, encode_leaf},
     shared::*,
 };
 
@@ -34,11 +32,6 @@ pub(super) fn identity(
                     bytes.push(0);
                 }
                 function
-            }
-            LegalizedFunction::SharedReturnConditional(function) => {
-                bytes.push(2);
-                encode_shared_return(&mut bytes, function);
-                continue;
             }
         };
         bytes.extend_from_slice(&function.machine.get().to_le_bytes());
@@ -103,53 +96,11 @@ pub(super) fn identity(
     }
     // A graph can never disappear under a legacy commitment.
     if !plan.scalar_functions.is_empty() {
-        bytes.extend_from_slice(b"ordinary-scalar-graph.v1\0");
+        bytes.extend_from_slice(b"ordinary-scalar-graph.v2\0");
         encode_len(&mut bytes, plan.scalar_functions.len());
         for function in &plan.scalar_functions {
             super::scalar_graph::encode(&mut bytes, function);
         }
     }
     LegalizedOperationPlanIdentity::from_canonical_bytes(&bytes)
-}
-
-fn encode_shared_return(bytes: &mut Vec<u8>, function: &LegalizedSharedReturnConditionalFunction) {
-    bytes.extend_from_slice(&function.machine.get().to_le_bytes());
-    encode_option_id(bytes, function.attachment.map(|value| value.get()));
-    encode_ids(
-        bytes,
-        function
-            .provenance
-            .operations
-            .iter()
-            .map(|value| value.get()),
-    );
-    encode_ids(
-        bytes,
-        function.provenance.edges.iter().map(|value| value.get()),
-    );
-    super::calling::encode_abi(bytes, &function.abi);
-    encode_condition(bytes, function.condition_source, &function.condition);
-    bytes.extend_from_slice(&function.entry_block.get().to_le_bytes());
-    for arm in [&function.when_true, &function.when_false] {
-        bytes.extend_from_slice(&arm.block.get().to_le_bytes());
-        encode_len(bytes, arm.parameters.len());
-        for parameter in &arm.parameters {
-            bytes.extend_from_slice(&parameter.value.get().to_le_bytes());
-            encode_scalar_type(bytes, parameter.scalar_type);
-            encode_definition_site(bytes, parameter.site);
-        }
-        bytes.extend_from_slice(&arm.branch_edge.get().to_le_bytes());
-        encode_bindings(bytes, &arm.branch_bindings);
-        encode_fuel(bytes, &arm.branch_fuel);
-        encode_immediate(bytes, &arm.constant);
-        bytes.extend_from_slice(&arm.transfer_edge.get().to_le_bytes());
-        encode_bindings(bytes, &[arm.transfer_binding]);
-        encode_fuel(bytes, &arm.transfer_fuel);
-    }
-    bytes.extend_from_slice(&function.return_block.get().to_le_bytes());
-    bytes.extend_from_slice(&function.return_parameter.value.get().to_le_bytes());
-    encode_scalar_type(bytes, function.return_parameter.scalar_type);
-    encode_definition_site(bytes, function.return_parameter.site);
-    bytes.extend_from_slice(&function.return_edge.get().to_le_bytes());
-    encode_fuel(bytes, &function.return_fuel);
 }

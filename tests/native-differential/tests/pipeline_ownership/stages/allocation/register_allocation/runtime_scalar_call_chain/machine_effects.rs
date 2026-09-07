@@ -156,7 +156,8 @@ fn scalar_calls_retain_exact_effects_through_post_allocation_persistence() {
         assert_eq!(encoding.counts().ordinary_encoded_call_templates, 3);
         assert_eq!(encoding.counts().ordinary_deferred_internal_control, 3);
         assert_eq!(encoding.counts().ordinary_internal_fixups, 3);
-        assert_eq!(encoding.counts().ordinary_encoded, 17);
+        // The common conditional callee retains two entry and two return copies.
+        assert_eq!(encoding.counts().ordinary_encoded, 21);
         assert_eq!(encoding.counts().ordinary_deferred_control, 1);
     }
 }

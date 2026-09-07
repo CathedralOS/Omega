@@ -16,6 +16,7 @@ mod golden;
 mod rejection;
 mod round_trip;
 mod structural;
+mod transport;
 
 pub(super) fn plan(policy: FixedViewCopyPolicy) -> FixedViewCopyPlan {
     let (_, _, _, copy, mut function) =

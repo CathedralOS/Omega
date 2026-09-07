@@ -247,6 +247,7 @@ pub enum FixedViewCopyDecodeError {
     UnknownFixedSite(u8),
     UnknownRegisterOrigin(u8),
     UnknownTerminator(u8),
+    UnknownValueTransport(u8),
     UnknownInstructionKind(u8),
     UnknownFuelSite(u8),
     UnknownArchitecture(u8),

@@ -1,4 +1,4 @@
-//! Optimizer module role: executable entrance. Versioned selected-plan wire coordination.
+//! Optimizer module role: executable entrance. Selected-plan payload coordination inside the versioned artifact envelope.
 //!
 //! V4 owns the historical scalar roster. V5 introduced the authenticated
 //! structural taxonomy; V6 extends its call leaf with proof/crash custody.
@@ -40,12 +40,6 @@ pub(super) fn encode_selected_plan_v5(bytes: &mut Vec<u8>, plan: &SelectedInstru
 
 pub(super) fn encode_selected_plan_v6(bytes: &mut Vec<u8>, plan: &SelectedInstructionPlan) {
     payload::encode(bytes, plan, true);
-}
-
-pub(super) fn decode_selected_plan_v5(
-    cursor: &mut Cursor<'_>,
-) -> Result<DecodedSelectedPlan, FixedViewCopyDecodeError> {
-    payload::decode(cursor, false)
 }
 
 pub(super) fn decode_selected_plan_v6(

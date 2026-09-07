@@ -1,5 +1,7 @@
 //! Real shared-return value flow, including unused incoming arm parameters.
 
+mod graph;
+
 use crate::{
     legalize_target_operations, select_instructions, selection_constraints,
     validate_legalized_operations, validate_selected_instructions,
@@ -193,9 +195,8 @@ fn shared_return_selection_preserves_real_blocks_and_binding_edges() {
                 .collect::<Vec<_>>(),
             [block(1), block(3), block(4), block(2)]
         );
-        assert_eq!(function.virtual_registers.len(), 5);
         assert!(
-            matches!(function.virtual_registers[4].origin, selected_instructions::VirtualRegisterOrigin::BlockParameter { source_value, .. } if source_value == value(3))
+            function.virtual_registers.iter().any(|register| matches!(register.origin, selected_instructions::VirtualRegisterOrigin::BlockParameter { source_value, .. } if source_value == value(3)))
         );
         for arm in &function.blocks[1..3] {
             let selected_instructions::SelectedTerminator::Jump { successor, .. } = &arm.terminator
@@ -203,7 +204,7 @@ fn shared_return_selection_preserves_real_blocks_and_binding_edges() {
                 panic!("actual jump")
             };
             assert_eq!(successor.source_target, block(2));
-            assert_eq!(successor.bindings[0].parameter, value(3));
+            assert_eq!(successor.bindings[0].semantic.parameter, value(3));
         }
     }
 }
@@ -214,17 +215,35 @@ fn shared_return_legalization_rejects_substituted_bindings_and_join_identity() {
     let legalized = legalize_target_operations(&target, &abstracted, &unit).unwrap();
     for change in 0..5 {
         let mut proposed = legalized.plan().clone();
-        let legalized_operations::LegalizedFunction::SharedReturnConditional(function) =
-            &mut proposed.functions[0]
-        else {
-            panic!("common return")
-        };
+        let function = &mut proposed.scalar_functions[0];
         match change {
-            0 => function.when_true.transfer_binding.argument = value(10),
-            1 => function.when_true.branch_bindings[0].argument = value(2),
-            2 => function.return_parameter.value = value(9),
-            3 => function.when_false.transfer_fuel.clear(),
-            _ => function.when_true.parameters.clear(),
+            0 => {
+                let legalized_operations::LegalizedScalarTerminator::Jump { successor, .. } =
+                    &mut function.blocks[2].terminator
+                else {
+                    panic!("jump");
+                };
+                successor.bindings[0].argument = value(10);
+            }
+            1 => {
+                let legalized_operations::LegalizedScalarTerminator::Conditional {
+                    when_true, ..
+                } = &mut function.blocks[0].terminator
+                else {
+                    panic!("conditional");
+                };
+                when_true.bindings[0].argument = value(2);
+            }
+            2 => function.blocks[1].parameters[0].value = value(9),
+            3 => {
+                let legalized_operations::LegalizedScalarTerminator::Jump { successor, .. } =
+                    &mut function.blocks[3].terminator
+                else {
+                    panic!("jump");
+                };
+                successor.fuel.clear();
+            }
+            _ => function.blocks[2].parameters.clear(),
         }
         assert_ne!(
             legalized_operations::legalized_operation_plan_identity(&proposed),
@@ -259,7 +278,7 @@ fn shared_return_selection_rejects_substituted_transfer_and_parameter_home() {
                 else {
                     unreachable!()
                 };
-                successor.bindings[0].argument = value(10);
+                successor.bindings[0].semantic.argument = value(10);
             }
             1 => {
                 let selected_instructions::SelectedTerminator::Jump { successor, .. } =
@@ -270,7 +289,7 @@ fn shared_return_selection_rejects_substituted_transfer_and_parameter_home() {
                 successor.source_target = block(4);
             }
             2 => {
-                function.virtual_registers[4].origin =
+                function.virtual_registers.iter_mut().find(|register| matches!(register.origin,selected_instructions::VirtualRegisterOrigin::BlockParameter {source_value,..} if source_value == value(3))).unwrap().origin =
                     selected_instructions::VirtualRegisterOrigin::BlockParameter {
                         source_value: value(3),
                         block: selected_instructions::SelectedBlockId(2),

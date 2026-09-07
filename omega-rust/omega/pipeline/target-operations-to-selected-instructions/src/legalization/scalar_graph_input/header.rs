@@ -6,8 +6,6 @@ pub(super) fn function_abi(
     optimized: &PsiOptimizationFunction,
 ) -> Result<CallPlan, LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
-    let integer = u64_type();
-    let scalar = ScalarType::Integer(integer);
     if target.machine != abstracted.machine
         || target.machine != optimized.machine
         || target.attachment != abstracted.attachment
@@ -31,9 +29,9 @@ pub(super) fn function_abi(
             .zip(&optimized.parameters)
             .enumerate()
             .any(|(index, (declared, actual))| {
-                declared.scalar_type != scalar
+                integer_type(declared.scalar_type).is_none()
                     || actual.value != declared.value
-                    || actual.scalar_type != scalar
+                    || actual.scalar_type != declared.scalar_type
                     || actual.site != ValueDefinitionSite::FunctionParameter(index as u32)
             })
     {
@@ -42,7 +40,7 @@ pub(super) fn function_abi(
     let result = match &abstracted.result {
         AbstractFunctionResult::Unit => None,
         AbstractFunctionResult::Scalar(result)
-            if result.scalar_type == scalar && target.attachment.is_none() =>
+            if integer_type(result.scalar_type).is_some() && target.attachment.is_none() =>
         {
             Some(ValueShape::integer(8, 8))
         }
@@ -71,7 +69,7 @@ pub(super) fn function_abi(
                 .ok_or(invalid.clone())?;
             if abi.call_plan != expected
                 || abi.result.value != result.value
-                || abi.result.scalar_type != integer
+                || ScalarType::Integer(abi.result.scalar_type) != result.scalar_type
                 || Some(&abi.result.placement) != expected.result.as_ref()
                 || abi.parameters.len() != abstracted.parameters.len()
                 || abi
@@ -81,7 +79,7 @@ pub(super) fn function_abi(
                     .zip(&expected.parameters)
                     .any(|((actual, declared), placement)| {
                         actual.value != declared.value
-                            || actual.scalar_type != integer
+                            || ScalarType::Integer(actual.scalar_type) != declared.scalar_type
                             || actual.placement != *placement
                     })
             {
@@ -103,7 +101,7 @@ pub(super) fn function_abi(
                     .zip(&expected.parameters)
                     .any(|((actual, declared), placement)| {
                         actual.value != declared.value
-                            || actual.scalar_type != scalar
+                            || actual.scalar_type != declared.scalar_type
                             || actual.placement != *placement
                     })
             {

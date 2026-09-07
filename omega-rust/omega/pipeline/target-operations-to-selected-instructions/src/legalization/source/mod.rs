@@ -10,7 +10,6 @@ mod ordinary_roster;
 mod publication_input;
 mod scalar_graph;
 mod shared;
-mod shared_return;
 mod structural;
 
 use crate::legalization::projected_structural_call_return;

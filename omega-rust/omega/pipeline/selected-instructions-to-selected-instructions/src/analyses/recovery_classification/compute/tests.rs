@@ -256,6 +256,59 @@ fn incoming_literal_is_classified_identically_by_compute_and_replay() {
 }
 
 #[test]
+fn edge_used_literal_is_not_an_instruction_local_recovery_candidate() {
+    let (mut selected, ranges, legality, choices) = fixture();
+    let selected_instructions::SelectedTerminator::Return { instruction, .. } =
+        selected.blocks[0].terminator.clone()
+    else {
+        unreachable!()
+    };
+    let mut jump = instruction;
+    jump.kind = selected_instructions::SelectedInstructionKind::Jump;
+    jump.operands.clear();
+    let source_value = match selected.virtual_registers[2].origin {
+        selected_instructions::VirtualRegisterOrigin::InstructionResult {
+            source_value, ..
+        } => source_value,
+        _ => unreachable!(),
+    };
+    selected.blocks[0].terminator = selected_instructions::SelectedTerminator::Jump {
+        instruction: jump,
+        successor: selected_instructions::SelectedSuccessor {
+            psi_edge: semantic_vocabulary::EdgeId::new(90).unwrap(),
+            block: selected_instructions::SelectedBlockId(1),
+            source_target: semantic_vocabulary::BlockId::new(91).unwrap(),
+            bindings: vec![selected_instructions::SelectedValueBinding {
+                semantic: abstract_operations::ValueBinding {
+                    parameter: ValueId::new(92).unwrap(),
+                    argument: source_value,
+                    scalar_type: selected.virtual_registers[2].scalar_type,
+                },
+                transport: selected_instructions::SelectedValueTransport::Registers {
+                    argument: VirtualRegisterId(2),
+                    parameter: VirtualRegisterId(3),
+                },
+            }],
+            fuel: Vec::new(),
+        },
+    };
+    // Classification receives an extra edge use absent from the supplied
+    // instruction-local occurrence list. It must not silently ignore that use.
+    let computed = classify(0, &selected, &ranges, &legality, &choices).unwrap();
+    let replayed = crate::analyses::recovery_classification::validate::replay_function_for_test(
+        0, &selected, &ranges, &legality, &choices,
+    )
+    .unwrap();
+    assert_eq!(computed, replayed);
+    assert!(matches!(
+        computed.classification.unwrap().classification,
+        RecoveryClassification::NoAdmittedRecovery {
+            reason: NoAdmittedRecoveryReason::UnsupportedRangeShape
+        }
+    ));
+}
+
+#[test]
 fn honest_unsupported_and_corrupt_provenance_are_distinct() {
     let (mut selected, ranges, legality, choices) = fixture();
     selected.virtual_registers[2].scalar_type = ScalarType::Boolean;

@@ -296,7 +296,7 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
     let instruction = |index, kind| LegalizedScalarInstruction {
         operation: operations[index],
         result: values[index],
-        scalar_type,
+        scalar_type: ScalarType::Integer(scalar_type),
         definition_site: definition(index as u32),
         kind,
         fuel: fuel(operations[index]),
@@ -339,6 +339,7 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
         entry_block: block,
         blocks: vec![LegalizedScalarBlock {
             id: block,
+            parameters: vec![],
             instructions: vec![
                 instruction(
                     0,
@@ -352,7 +353,7 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
                 instruction(3, call([values[0], values[1]])),
                 instruction(4, call([values[2], values[3]])),
             ],
-            terminator: LegalizedScalarReturn {
+            terminator: LegalizedScalarTerminator::Return(LegalizedScalarReturn {
                 edge,
                 value: LegalizedScalarReturnValue::Unit,
                 fuel: vec![FuelSettlement {
@@ -361,7 +362,7 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
                 }],
                 effect: effect(5),
                 ownership: vec![OwnershipEvent::Cleanup(Vec::new())],
-            },
+            }),
         }],
     });
     plan

@@ -7,7 +7,6 @@ mod leaf;
 mod ordinary_roster;
 mod scalar_graph;
 mod shared;
-mod shared_return;
 mod structural;
 mod validators;
 

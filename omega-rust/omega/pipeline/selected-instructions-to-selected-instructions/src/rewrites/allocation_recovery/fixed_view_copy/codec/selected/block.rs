@@ -1,8 +1,12 @@
 use abstract_operations::ValueBinding;
 use selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedSuccessor, SelectedTerminator,
+    SelectedBlock, SelectedBlockId, SelectedSuccessor, SelectedTerminator, SelectedValueBinding,
+    SelectedValueTransport, VirtualRegisterId,
 };
 use semantic_vocabulary::{BlockId, EdgeId, ValueId};
+
+#[cfg(test)]
+mod tests;
 
 use crate::FixedViewCopyDecodeError;
 
@@ -122,9 +126,20 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
     bytes.extend_from_slice(&successor.source_target.get().to_le_bytes());
     length(bytes, successor.bindings.len());
     for binding in &successor.bindings {
-        bytes.extend_from_slice(&binding.parameter.get().to_le_bytes());
-        bytes.extend_from_slice(&binding.argument.get().to_le_bytes());
-        encode_scalar(bytes, binding.scalar_type);
+        bytes.extend_from_slice(&binding.semantic.parameter.get().to_le_bytes());
+        bytes.extend_from_slice(&binding.semantic.argument.get().to_le_bytes());
+        encode_scalar(bytes, binding.semantic.scalar_type);
+        match binding.transport {
+            SelectedValueTransport::Unused => bytes.push(0),
+            SelectedValueTransport::Registers {
+                argument,
+                parameter,
+            } => {
+                bytes.push(1);
+                bytes.extend_from_slice(&argument.0.to_le_bytes());
+                bytes.extend_from_slice(&parameter.0.to_le_bytes());
+            }
+        }
     }
     encode_fuel(bytes, &successor.fuel);
 }
@@ -138,10 +153,22 @@ fn decode_successor(
     let count = cursor.length()?;
     let mut bindings = Vec::with_capacity(count.min(cursor.remaining()));
     for _ in 0..count {
-        bindings.push(ValueBinding {
+        let semantic = ValueBinding {
             parameter: decode_id(cursor, ValueId::new)?,
             argument: decode_id(cursor, ValueId::new)?,
             scalar_type: decode_scalar(cursor)?,
+        };
+        let transport = match cursor.byte()? {
+            0 => SelectedValueTransport::Unused,
+            1 => SelectedValueTransport::Registers {
+                argument: VirtualRegisterId(cursor.u32()?),
+                parameter: VirtualRegisterId(cursor.u32()?),
+            },
+            tag => return Err(FixedViewCopyDecodeError::UnknownValueTransport(tag)),
+        };
+        bindings.push(SelectedValueBinding {
+            semantic,
+            transport,
         });
     }
     Ok(SelectedSuccessor {

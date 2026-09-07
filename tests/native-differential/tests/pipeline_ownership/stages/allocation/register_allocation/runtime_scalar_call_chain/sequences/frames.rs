@@ -108,8 +108,9 @@ fn optimized_call_publication_rejects_detached_frame_application() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let staged = realization(target, Sequence::InterleavedCallees);
         let emitted = stage_optimized_function_fragment_emission(staged.into()).unwrap();
+        let expected_frames = super::super::publication::planned_frame_count(&emitted);
         let framed = stage_function_fragment_frame_application(emitted).unwrap();
-        assert_eq!(framed.receipt().framed_function_count(), 1);
+        assert_eq!(framed.receipt().framed_function_count(), expected_frames);
         let mut text = stage_optimized_fixed_frame_text_section(framed).unwrap();
         assert_eq!(text.text_section().resolved_internal_machine_calls.len(), 4);
         text.corrupt_custody_frame_application_for_test();

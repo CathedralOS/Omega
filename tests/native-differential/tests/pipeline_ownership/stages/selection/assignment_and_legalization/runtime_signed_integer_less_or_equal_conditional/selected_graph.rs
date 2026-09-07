@@ -24,36 +24,45 @@ fn runtime_i64_parameter_less_or_equal_selects_reversed_signed_compare_on_both_i
         .unwrap();
         validate_raw_selection(&staged, staged.selected().plan().clone()).unwrap();
 
-        let legalized = staged.legalized().plan().functions[0].conditional();
+        assert!(staged.legalized().plan().functions.is_empty());
+        let legalized = &staged.legalized().plan().scalar_functions[0];
+        let comparison = &legalized.blocks[0].instructions[0];
+        assert_eq!(comparison.operation, comparison_operation);
+        assert_eq!(comparison.result, condition);
         assert_eq!(
-            legalized.recipe,
-            LegalizationRecipe::ReturnU64I64LessOrEqualParametersConditionalV1
+            comparison.kind,
+            legalized_operations::LegalizedScalarInstructionKind::Compare {
+                predicate: legalized_operations::LegalizedScalarComparison::LessOrEqual,
+                operand_type: IntegerType::new(IntegerSign::Signed, 64).unwrap(),
+                left,
+                right,
+            }
         );
-        let legalized_operations::LegalizedCondition::I64LessOrEqualParametersV1 {
-            operation,
-            left: legalized_left,
-            right: legalized_right,
-            fuel,
-            ..
-        } = &legalized.condition
-        else {
-            panic!("legalization must retain authored signed inclusive order")
-        };
-        assert_eq!(*operation, comparison_operation);
-        assert_eq!(legalized_left.source_value, left);
-        assert_eq!(legalized_left.parameter_index, 0);
-        assert_eq!(legalized_right.source_value, right);
-        assert_eq!(legalized_right.parameter_index, 1);
-        assert_eq!(fuel[0].site, PsiProvenance::Operation(comparison_operation));
+        assert_eq!(comparison.fuel.len(), 1);
+        assert_eq!(
+            comparison.fuel[0].site,
+            PsiProvenance::Operation(comparison_operation)
+        );
+        assert_eq!(legalized.parameters[0].value, left);
+        assert_eq!(legalized.parameters[1].value, right);
 
         let function = &staged.selected().plan().functions[0];
         assert_eq!(function.blocks.len(), 3);
-        assert_eq!(function.virtual_registers.len(), 4);
-        assert_eq!(staged.selected().receipt().instruction_count(), 6);
+        assert_eq!(function.virtual_registers.len(), 8);
+        assert_eq!(staged.selected().receipt().instruction_count(), 10);
         let entry = &function.blocks[0];
-        let [compare] = entry.instructions.as_slice() else {
-            panic!("entry must contain exactly one reversed signed compare")
+        let [left_copy, right_copy, compare] = entry.instructions.as_slice() else {
+            panic!("entry must copy both ABI parameters before comparing")
         };
+        assert_eq!(left_copy.kind, SelectedInstructionKind::CopyI64);
+        assert_eq!(right_copy.kind, SelectedInstructionKind::CopyI64);
+        assert_eq!(left_copy.provenance.values, [left]);
+        assert_eq!(right_copy.provenance.values, [right]);
+        assert_eq!(left_copy.operands[0].virtual_register, VirtualRegisterId(0));
+        assert_eq!(
+            right_copy.operands[0].virtual_register,
+            VirtualRegisterId(1)
+        );
         assert_eq!(compare.kind, SelectedInstructionKind::CompareI64);
         assert_eq!(
             compare
@@ -61,7 +70,10 @@ fn runtime_i64_parameter_less_or_equal_selects_reversed_signed_compare_on_both_i
                 .iter()
                 .map(|operand| operand.virtual_register)
                 .collect::<Vec<_>>(),
-            [VirtualRegisterId(1), VirtualRegisterId(0)]
+            [
+                right_copy.operands[1].virtual_register,
+                left_copy.operands[1].virtual_register
+            ]
         );
         assert_eq!(compare.provenance.operations, [comparison_operation]);
 

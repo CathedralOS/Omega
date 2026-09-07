@@ -29,7 +29,9 @@ fn u64_parameter_equal_zero_reaches_linux_object_and_callable_on_both_isas() {
         match target.architecture {
             target::Architecture::X86_64 => {
                 assert!(
-                    text.windows(3).any(|bytes| bytes == [0x48, 0x85, 0xff]),
+                    text.windows(3).any(|bytes| {
+                        bytes[0] & 0xf8 == 0x48 && bytes[1] == 0x85 && bytes[2] & 0xc0 == 0xc0
+                    }),
                     "x86 object must compare the sole parameter with zero using TEST"
                 );
                 assert!(
@@ -41,15 +43,15 @@ fn u64_parameter_equal_zero_reaches_linux_object_and_callable_on_both_isas() {
                 assert!(
                     text.windows(4).any(|bytes| {
                         let word = u32::from_le_bytes(bytes.try_into().unwrap());
-                        word & 0xff00_001f == 0xb500_0000
+                        word & 0xff00_0000 == 0xb500_0000
                     }),
-                    "AArch64 object must contain CBNZ x0"
+                    "AArch64 object must contain CBNZ on the allocated parameter copy"
                 );
                 assert!(
                     !text.windows(4).any(|bytes| {
-                        u32::from_le_bytes(bytes.try_into().unwrap()) == 0xf100_001f
+                        u32::from_le_bytes(bytes.try_into().unwrap()) & 0xffff_fc1f == 0xf100_001f
                     }),
-                    "CBNZ publication must elide the baseline CMP x0, #0"
+                    "CBNZ publication must elide the baseline zero comparison"
                 );
                 let emission = artifact.source().source().source();
                 let compare = emission.fragments().functions[0]

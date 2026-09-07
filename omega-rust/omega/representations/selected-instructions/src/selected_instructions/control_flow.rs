@@ -1,5 +1,5 @@
 //! Functions, blocks and explicitly identified semantic successor edges.
-use super::{SelectedBlockId, SelectedInstruction, VirtualRegister};
+use super::{SelectedBlockId, SelectedInstruction, VirtualRegister, VirtualRegisterId};
 use abstract_operations::ValueBinding;
 use optimization_unit::FuelSettlement;
 use semantic_vocabulary::{BlockId, EdgeId, MachineId};
@@ -61,7 +61,25 @@ pub struct SelectedSuccessor {
     pub psi_edge: EdgeId,
     pub block: SelectedBlockId,
     pub source_target: BlockId,
-    pub bindings: Vec<ValueBinding>,
+    pub bindings: Vec<SelectedValueBinding>,
     /// Path-specific logical fuel for this exact semantic edge.
     pub fuel: Vec<FuelSettlement>,
+}
+
+/// A source transfer and its selected realization. Source identity alone cannot
+/// choose between a durable value and ABI temporaries carrying the same value.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedValueBinding {
+    pub semantic: ValueBinding,
+    pub transport: SelectedValueTransport,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelectedValueTransport {
+    /// The destination retains the semantic parameter but never reads it.
+    Unused,
+    Registers {
+        argument: VirtualRegisterId,
+        parameter: VirtualRegisterId,
+    },
 }

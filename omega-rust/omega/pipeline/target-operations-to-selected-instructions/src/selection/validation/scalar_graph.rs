@@ -4,9 +4,10 @@
 use super::integrity::{validate_block_constraints, validate_def_use};
 use crate::selection::constraints::{fixed_input_constraint, row};
 use crate::selection::shared::*;
-use legalized_operations::{
-    LegalizedScalarFunction, LegalizedScalarInstructionKind, LegalizedScalarReturnValue,
-};
+use legalized_operations::{LegalizedScalarFunction, LegalizedScalarInstructionKind};
+
+mod control;
+mod zero_compare;
 
 pub(in crate::selection) fn validate(
     function: usize,
@@ -18,16 +19,12 @@ pub(in crate::selection) fn validate(
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
     let invalid = || SelectedInstructionError::FunctionProjectionMismatch { function };
-    let ([source_block], [block]) = (source.blocks.as_slice(), selected.blocks.as_slice()) else {
-        return Err(invalid());
-    };
-    if source.entry_block != source_block.id
-        || selected.machine != source.machine
+    let block = selected.blocks.first().ok_or_else(invalid)?;
+    control::block_order(source, selected)?;
+    if selected.machine != source.machine
         || selected.attachment != source.attachment
         || selected.provenance != source.provenance
         || selected.entry_block != SelectedBlockId(0)
-        || block.id != SelectedBlockId(0)
-        || block.source_block != source_block.id
     {
         return Err(invalid());
     }
@@ -49,6 +46,7 @@ pub(in crate::selection) fn validate(
         block,
         class: operand.class,
         instruction_cursor: 0,
+        block_cursor: 0,
         register_cursor: 0,
         definitions: Vec::new(),
         constraints,
@@ -99,217 +97,255 @@ pub(in crate::selection) fn validate(
         let output = replay.check_copy(input, value, site, scalar_type)?;
         replay.definitions[index].1 = output;
     }
-    for operation in &source_block.instructions {
-        let scalar_type = ScalarType::Integer(operation.scalar_type);
-        let output = match &operation.kind {
-            LegalizedScalarInstructionKind::Constant(value) => {
-                let register = replay.result_register(
-                    operation.result,
-                    operation.definition_site,
-                    scalar_type,
-                )?;
-                replay.check_instruction(
-                    SelectedInstructionKind::MaterializeI64 { value: *value },
-                    constraints.keys.materialize_i64,
-                    &[register],
-                    &SelectedInstructionProvenance {
-                        operations: vec![operation.operation],
-                        values: vec![operation.result],
-                        fuel: operation.fuel.clone(),
-                        ..Default::default()
-                    },
-                )?;
-                register
-            }
-            LegalizedScalarInstructionKind::ExactBinary {
-                operator,
-                left,
-                right,
-                obligation,
-                accepted_fact,
-            } => {
-                let (_, left_register, _, left_type) = replay.resolve(*left).ok_or_else(invalid)?;
-                let (_, right_register, _, right_type) =
-                    replay.resolve(*right).ok_or_else(invalid)?;
-                if left_type != scalar_type || right_type != scalar_type {
-                    return Err(invalid());
-                }
-                let (kind, key) = match operator {
-                    legalized_operations::LegalizedExactIntegerOperator::Add => (
-                        SelectedInstructionKind::ExactAddI64 {
-                            obligation: *obligation,
-                            accepted_fact: *accepted_fact,
-                        },
-                        constraints.keys.add_i64,
-                    ),
-                    legalized_operations::LegalizedExactIntegerOperator::Subtract => (
-                        SelectedInstructionKind::ExactSubtractI64 {
-                            obligation: *obligation,
-                            accepted_fact: *accepted_fact,
-                        },
-                        constraints.keys.subtract_i64,
-                    ),
-                };
-                let output = replay.result_register(
-                    operation.result,
-                    operation.definition_site,
-                    scalar_type,
-                )?;
-                replay.check_instruction(
-                    kind,
-                    key,
-                    &[left_register, right_register, output],
-                    &SelectedInstructionProvenance {
-                        operations: vec![operation.operation],
-                        values: vec![*left, *right, operation.result],
-                        obligations: vec![*obligation],
-                        fuel: operation.fuel.clone(),
-                        ..Default::default()
-                    },
-                )?;
-                output
-            }
-            LegalizedScalarInstructionKind::Call(call) => {
-                let key = constraints
-                    .keys
-                    .call_i64
-                    .get(call.arguments.len())
-                    .copied()
-                    .ok_or_else(invalid)?;
-                crate::selection::scalar_call_abi::validate(
-                    function,
-                    call,
-                    key,
-                    row(catalog, key)?,
-                    &environment,
-                )?;
-                let mut operands = Vec::new();
-                for argument in &call.arguments {
-                    let (_, input, site, argument_type) =
-                        replay.resolve(argument.source).ok_or_else(invalid)?;
-                    operands.push(replay.check_copy(
-                        input,
-                        argument.source,
-                        site,
-                        argument_type,
-                    )?);
-                }
-                let short_result = replay.result_register(
-                    operation.result,
-                    operation.definition_site,
-                    scalar_type,
-                )?;
-                operands.push(short_result);
-                replay.check_instruction(
-                    SelectedInstructionKind::CallI64 {
-                        callee: call.callee,
-                    },
-                    key,
-                    &operands,
-                    &SelectedInstructionProvenance {
-                        operations: vec![operation.operation],
-                        values: call
-                            .arguments
-                            .iter()
-                            .map(|argument| argument.source)
-                            .chain(std::iter::once(operation.result))
-                            .collect(),
-                        obligations: call.requirement_obligations.clone(),
-                        fuel: operation.fuel.clone(),
-                        ..Default::default()
-                    },
-                )?;
-                replay.check_copy(
-                    short_result,
-                    operation.result,
-                    operation.definition_site,
-                    scalar_type,
-                )?
-            }
-        };
-        replay.definitions.push((
-            operation.result,
-            output,
-            operation.definition_site,
-            scalar_type,
-        ));
-    }
-    let returned = &source_block.terminator;
-    let (kind, key, operands, values) = match returned.value {
-        LegalizedScalarReturnValue::Unit => (
-            SelectedInstructionKind::ReturnUnit,
-            constraints.keys.return_unit,
-            Vec::new(),
-            Vec::new(),
-        ),
-        LegalizedScalarReturnValue::Value { value, scalar_type } => {
-            let (_, input, site, value_type) = replay.resolve(value).ok_or_else(invalid)?;
-            if value_type != ScalarType::Integer(scalar_type) {
-                return Err(invalid());
-            }
-            let result = source.call_plan.result.as_ref().ok_or_else(invalid)?;
-            let [
-                ValueLocation::Register {
-                    register,
-                    value_byte_offset: 0,
-                    byte_size: 8,
-                },
-            ] = result.locations.as_slice()
-            else {
-                return Err(invalid());
-            };
-            let [operand] = row(catalog, constraints.keys.return_i64)?
-                .operands
-                .as_slice()
-            else {
-                return Err(invalid());
-            };
-            if operand.fixed_view.is_none()
-                || operand.fixed_view != environment.fixed_register_view(*register)
-            {
-                return Err(invalid());
-            }
-            let output = replay.check_copy(input, value, site, value_type)?;
-            (
-                SelectedInstructionKind::ReturnI64,
-                constraints.keys.return_i64,
-                vec![output],
-                vec![value],
-            )
-        }
-    };
-    if replay.instruction_cursor != block.instructions.len()
-        || replay.register_cursor != selected.virtual_registers.len()
-    {
-        return Err(invalid());
-    }
-    let SelectedTerminator::Return {
-        instruction,
-        psi_return_edge,
-    } = &block.terminator
-    else {
-        return Err(invalid());
-    };
-    if *psi_return_edge != returned.edge
-        || instruction.id.0 as usize != replay.instruction_cursor
-        || instruction.kind != kind
-        || instruction.constraint != key
-        || instruction
-            .operands
+    // Check the predeclared destination roster before any edge refers to it.
+    for block in &selected.blocks {
+        let source_block = source
+            .blocks
             .iter()
-            .map(|operand| operand.virtual_register)
-            .ne(operands)
-        || instruction.provenance
-            != (SelectedInstructionProvenance {
-                values,
-                edges: vec![returned.edge],
-                fuel: returned.fuel.clone(),
-                ..Default::default()
-            })
-    {
+            .find(|source| source.id == block.source_block)
+            .ok_or_else(invalid)?;
+        for (parameter_index, parameter) in source_block.parameters.iter().enumerate() {
+            if !source.references_value(parameter.value) {
+                continue;
+            }
+            let id = replay.check_register(
+                parameter.site,
+                parameter.scalar_type,
+                VirtualRegisterOrigin::BlockParameter {
+                    source_value: parameter.value,
+                    block: block.id,
+                    parameter_index,
+                },
+                None,
+            )?;
+            replay
+                .definitions
+                .push((parameter.value, id, parameter.site, parameter.scalar_type));
+        }
+    }
+    for block in &selected.blocks {
+        let source_block = source
+            .blocks
+            .iter()
+            .find(|source| source.id == block.source_block)
+            .ok_or_else(invalid)?;
+        replay.block = block;
+        if block.id != SelectedBlockId(0) {
+            replay.block_cursor = 0;
+        }
+        for (operation_index, operation) in source_block.instructions.iter().enumerate() {
+            if zero_compare::folded_zero(source, source_block, operation_index + 1).is_some() {
+                continue;
+            }
+            let scalar_type = operation.scalar_type;
+            let output = match &operation.kind {
+                LegalizedScalarInstructionKind::Compare {
+                    predicate,
+                    operand_type,
+                    left,
+                    right,
+                } => {
+                    if let Some(zero) =
+                        zero_compare::folded_zero(source, source_block, operation_index)
+                    {
+                        let input = if *left == zero.result { *right } else { *left };
+                        let (_, register, _, actual_type) =
+                            replay.resolve(input).ok_or_else(invalid)?;
+                        if actual_type != ScalarType::Integer(*operand_type)
+                            || scalar_type != ScalarType::Boolean
+                        {
+                            return Err(invalid());
+                        }
+                        replay.check_instruction(
+                            SelectedInstructionKind::CompareI64Zero,
+                            constraints.keys.compare_i64_zero,
+                            &[register],
+                            &SelectedInstructionProvenance {
+                                operations: vec![zero.operation, operation.operation],
+                                values: vec![input, zero.result, operation.result],
+                                fuel: zero.fuel.iter().chain(&operation.fuel).copied().collect(),
+                                ..Default::default()
+                            },
+                        )?;
+                        continue;
+                    }
+                    let (_, left_register, _, left_type) =
+                        replay.resolve(*left).ok_or_else(invalid)?;
+                    let (_, right_register, _, right_type) =
+                        replay.resolve(*right).ok_or_else(invalid)?;
+                    if left_type != ScalarType::Integer(*operand_type)
+                        || right_type != left_type
+                        || scalar_type != ScalarType::Boolean
+                    {
+                        return Err(invalid());
+                    }
+                    let operands = if matches!(
+                        predicate,
+                        legalized_operations::LegalizedScalarComparison::LessOrEqual
+                    ) {
+                        [right_register, left_register]
+                    } else {
+                        [left_register, right_register]
+                    };
+                    replay.check_instruction(
+                        SelectedInstructionKind::CompareI64,
+                        constraints.keys.compare_i64,
+                        &operands,
+                        &SelectedInstructionProvenance {
+                            operations: vec![operation.operation],
+                            values: vec![*left, *right, operation.result],
+                            fuel: operation.fuel.clone(),
+                            ..Default::default()
+                        },
+                    )?;
+                    continue;
+                }
+                LegalizedScalarInstructionKind::Constant(value) => {
+                    let register = replay.result_register(
+                        operation.result,
+                        operation.definition_site,
+                        scalar_type,
+                    )?;
+                    replay.check_instruction(
+                        SelectedInstructionKind::MaterializeI64 { value: *value },
+                        constraints.keys.materialize_i64,
+                        &[register],
+                        &SelectedInstructionProvenance {
+                            operations: vec![operation.operation],
+                            values: vec![operation.result],
+                            fuel: operation.fuel.clone(),
+                            ..Default::default()
+                        },
+                    )?;
+                    register
+                }
+                LegalizedScalarInstructionKind::ExactBinary {
+                    operator,
+                    left,
+                    right,
+                    obligation,
+                    accepted_fact,
+                } => {
+                    let (_, left_register, _, left_type) =
+                        replay.resolve(*left).ok_or_else(invalid)?;
+                    let (_, right_register, _, right_type) =
+                        replay.resolve(*right).ok_or_else(invalid)?;
+                    if left_type != scalar_type || right_type != scalar_type {
+                        return Err(invalid());
+                    }
+                    let (kind, key) = match operator {
+                        legalized_operations::LegalizedExactIntegerOperator::Add => (
+                            SelectedInstructionKind::ExactAddI64 {
+                                obligation: *obligation,
+                                accepted_fact: *accepted_fact,
+                            },
+                            constraints.keys.add_i64,
+                        ),
+                        legalized_operations::LegalizedExactIntegerOperator::Subtract => (
+                            SelectedInstructionKind::ExactSubtractI64 {
+                                obligation: *obligation,
+                                accepted_fact: *accepted_fact,
+                            },
+                            constraints.keys.subtract_i64,
+                        ),
+                    };
+                    let output = replay.result_register(
+                        operation.result,
+                        operation.definition_site,
+                        scalar_type,
+                    )?;
+                    replay.check_instruction(
+                        kind,
+                        key,
+                        &[left_register, right_register, output],
+                        &SelectedInstructionProvenance {
+                            operations: vec![operation.operation],
+                            values: vec![*left, *right, operation.result],
+                            obligations: vec![*obligation],
+                            fuel: operation.fuel.clone(),
+                            ..Default::default()
+                        },
+                    )?;
+                    output
+                }
+                LegalizedScalarInstructionKind::Call(call) => {
+                    let key = constraints
+                        .keys
+                        .call_i64
+                        .get(call.arguments.len())
+                        .copied()
+                        .ok_or_else(invalid)?;
+                    crate::selection::scalar_call_abi::validate(
+                        function,
+                        call,
+                        key,
+                        row(catalog, key)?,
+                        &environment,
+                    )?;
+                    let mut operands = Vec::new();
+                    for argument in &call.arguments {
+                        let (_, input, site, argument_type) =
+                            replay.resolve(argument.source).ok_or_else(invalid)?;
+                        operands.push(replay.check_copy(
+                            input,
+                            argument.source,
+                            site,
+                            argument_type,
+                        )?);
+                    }
+                    let short_result = replay.result_register(
+                        operation.result,
+                        operation.definition_site,
+                        scalar_type,
+                    )?;
+                    operands.push(short_result);
+                    replay.check_instruction(
+                        SelectedInstructionKind::CallI64 {
+                            callee: call.callee,
+                        },
+                        key,
+                        &operands,
+                        &SelectedInstructionProvenance {
+                            operations: vec![operation.operation],
+                            values: call
+                                .arguments
+                                .iter()
+                                .map(|argument| argument.source)
+                                .chain(std::iter::once(operation.result))
+                                .collect(),
+                            obligations: call.requirement_obligations.clone(),
+                            fuel: operation.fuel.clone(),
+                            ..Default::default()
+                        },
+                    )?;
+                    replay.check_copy(
+                        short_result,
+                        operation.result,
+                        operation.definition_site,
+                        scalar_type,
+                    )?
+                }
+            };
+            replay.definitions.push((
+                operation.result,
+                output,
+                operation.definition_site,
+                scalar_type,
+            ));
+        }
+        control::validate(source, source_block, &mut replay, &environment, catalog)?;
+        if replay.block_cursor != block.instructions.len() {
+            return Err(invalid());
+        }
+        replay.instruction_cursor = replay
+            .instruction_cursor
+            .checked_add(1)
+            .ok_or_else(invalid)?;
+        validate_block_constraints(function, block, selected, catalog)?;
+    }
+    if replay.register_cursor != selected.virtual_registers.len() {
         return Err(invalid());
     }
-    validate_block_constraints(function, block, selected, catalog)?;
     validate_def_use(function, selected, catalog)
 }
 
@@ -319,6 +355,7 @@ struct Replay<'a> {
     block: &'a SelectedBlock,
     class: RegisterClassId,
     instruction_cursor: usize,
+    block_cursor: usize,
     register_cursor: usize,
     definitions: Vec<(ValueId, VirtualRegisterId, ValueDefinitionSite, ScalarType)>,
     constraints: &'a SelectedSelectionConstraints,
@@ -398,7 +435,7 @@ impl Replay<'_> {
         let instruction = self
             .block
             .instructions
-            .get(self.instruction_cursor)
+            .get(self.block_cursor)
             .ok_or_else(|| self.invalid())?;
         if instruction.id.0 as usize != self.instruction_cursor
             || instruction.kind != kind
@@ -413,6 +450,7 @@ impl Replay<'_> {
             return Err(self.invalid());
         }
         self.instruction_cursor += 1;
+        self.block_cursor += 1;
         Ok(())
     }
 

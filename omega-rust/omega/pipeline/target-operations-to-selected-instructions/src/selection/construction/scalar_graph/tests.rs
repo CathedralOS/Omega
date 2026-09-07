@@ -1,10 +1,12 @@
 //! Projection controls over raw graph data; no source-admission receipt is invented.
 use super::*;
+mod control;
 mod parameters;
 use calling_conventions::{CallSignature, ValueShape, evaluate_call_plan};
 use legalized_operations::{
     LegalizedScalarArgument, LegalizedScalarBlock, LegalizedScalarCall, LegalizedScalarInstruction,
-    LegalizedScalarParameter, LegalizedScalarReturn,
+    LegalizedScalarParameter, LegalizedScalarReturn, LegalizedScalarReturnValue,
+    LegalizedScalarTerminator,
 };
 use optimization_unit::EffectLink;
 use semantic_vocabulary::{
@@ -56,7 +58,7 @@ fn fixture(target: target::NativeTarget, count: usize) -> LegalizedScalarFunctio
         instructions.push(LegalizedScalarInstruction {
             operation,
             result: ValueId::new(raw).unwrap(),
-            scalar_type: integer,
+            scalar_type: ScalarType::Integer(integer),
             definition_site: ValueDefinitionSite::Node {
                 block,
                 node: raw as u32 - 1,
@@ -89,14 +91,15 @@ fn fixture(target: target::NativeTarget, count: usize) -> LegalizedScalarFunctio
         entry_block: block,
         blocks: vec![LegalizedScalarBlock {
             id: block,
+            parameters: Vec::new(),
             instructions,
-            terminator: LegalizedScalarReturn {
+            terminator: LegalizedScalarTerminator::Return(LegalizedScalarReturn {
                 edge: EdgeId::new(1).unwrap(),
                 value: LegalizedScalarReturnValue::Unit,
                 fuel: Vec::new(),
                 effect,
                 ownership: Vec::new(),
-            },
+            }),
         }],
     }
 }
@@ -249,7 +252,7 @@ fn scalar_returns_and_entry_parameters_keep_short_abi_transport() {
                 unreachable!();
             };
             call.arguments[0].source = parameter;
-            source.blocks[0].terminator.value = LegalizedScalarReturnValue::Value {
+            returned(&mut source.blocks[0]).value = LegalizedScalarReturnValue::Value {
                 value: if return_parameter {
                     parameter
                 } else {
@@ -373,7 +376,9 @@ fn exact_binary_graph_rows_retain_proof_operands_and_occurrence_custody() {
                     .push(LegalizedScalarInstruction {
                         operation,
                         result: ValueId::new(raw).unwrap(),
-                        scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                        scalar_type: ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                        ),
                         definition_site: ValueDefinitionSite::Node {
                             block: source.entry_block,
                             node: raw as u32 - 1,
@@ -405,7 +410,7 @@ fn exact_binary_graph_rows_retain_proof_operands_and_occurrence_custody() {
                 .map(|row| row.operation)
                 .collect();
             // Returning an earlier value must not erase the later exact operation.
-            source.blocks[0].terminator.value = LegalizedScalarReturnValue::Value {
+            returned(&mut source.blocks[0]).value = LegalizedScalarReturnValue::Value {
                 value: ValueId::new(first).unwrap(),
                 scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
             };
@@ -485,4 +490,11 @@ fn exact_binary_graph_rows_retain_proof_operands_and_occurrence_custody() {
             }
         }
     }
+}
+
+fn returned(block: &mut LegalizedScalarBlock) -> &mut LegalizedScalarReturn {
+    let LegalizedScalarTerminator::Return(returned) = &mut block.terminator else {
+        panic!("return fixture");
+    };
+    returned
 }

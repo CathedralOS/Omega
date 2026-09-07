@@ -8,8 +8,8 @@ pub(super) use optimization_core::OptimizationUnitIdentity;
 pub(super) use optimization_unit::{EffectLink, FuelSettlement, OwnershipEvent, PsiProvenance};
 pub(super) use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
-    IntegerValue, OperationId, StructuralDomainId, StructuralFieldId, StructuralPlaceKind,
-    StructuralTypeId, ValueId,
+    IntegerValue, OperationId, ScalarType, StructuralDomainId, StructuralFieldId,
+    StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 pub(super) use target::NativeTarget;
 pub(super) use target_operations::TerminalPsiProvenance;

@@ -254,15 +254,16 @@ fn replay_classification(
             ..
         } => (instruction, source_value),
     };
-    if range.fragments.as_slice()
-        != [crate::LiveRangeFragment {
-            block: choice.block,
-            start: range
-                .fragments
-                .first()
-                .map_or(choice.point, |row| row.start),
-            end: range.fragments.first().map_or(choice.point, |row| row.end),
-        }]
+    if crate::analyses::liveness::edge_values::has_edge_use(selected, victim.id)
+        || range.fragments.as_slice()
+            != [crate::LiveRangeFragment {
+                block: choice.block,
+                start: range
+                    .fragments
+                    .first()
+                    .map_or(choice.point, |row| row.start),
+                end: range.fragments.first().map_or(choice.point, |row| row.end),
+            }]
         || !range.edge_connectors.is_empty()
     {
         return replay_no(NoAdmittedRecoveryReason::UnsupportedRangeShape);

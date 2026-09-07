@@ -43,10 +43,10 @@ fn artifact_rejects_corruption_truncation_trailing_and_closed_tags() {
         Err(FixedViewCopyDecodeError::WrongMagic)
     );
     let mut wrong_version = encoded.clone();
-    wrong_version[8..12].copy_from_slice(&13_u32.to_le_bytes());
+    wrong_version[8..12].copy_from_slice(&14_u32.to_le_bytes());
     assert_eq!(
         FixedViewCopyPlan::decode(&wrong_version),
-        Err(FixedViewCopyDecodeError::UnsupportedVersion(13))
+        Err(FixedViewCopyDecodeError::UnsupportedVersion(14))
     );
     let mut policy_tag = encoded.clone();
     let policy_offset = 8 + 4 + 32 + (5 * 32);
@@ -94,7 +94,7 @@ fn artifact_rejects_corruption_truncation_trailing_and_closed_tags() {
 }
 
 #[test]
-fn artifact_v4_rejection_precedence_is_stable() {
+fn stale_artifact_version_rejects_before_payload_or_authentication() {
     let encoded = encode_v4(&plan(
         FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1,
     ));
@@ -105,7 +105,7 @@ fn artifact_v4_rejection_precedence_is_stable() {
     trailing_and_transformed.push(0);
     assert_eq!(
         FixedViewCopyPlan::decode(&trailing_and_transformed),
-        Err(FixedViewCopyDecodeError::TrailingBytes)
+        Err(FixedViewCopyDecodeError::UnsupportedVersion(4))
     );
 
     let mut transformed_and_outer = encoded;
@@ -113,12 +113,12 @@ fn artifact_v4_rejection_precedence_is_stable() {
     transformed_and_outer[12] ^= 1;
     assert_eq!(
         FixedViewCopyPlan::decode(&transformed_and_outer),
-        Err(FixedViewCopyDecodeError::TransformedIdentityMismatch)
+        Err(FixedViewCopyDecodeError::UnsupportedVersion(4))
     );
 }
 
 #[test]
-fn artifact_v12_rejection_precedence_is_trailing_payload_semantic_then_outer() {
+fn artifact_v13_rejection_precedence_is_trailing_payload_semantic_then_outer() {
     let encoded = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1).encode();
     let transformed_offset = transformed_identity_offset(&encoded);
     let payload_digest_offset = selected_payload_offset(&encoded);
@@ -149,4 +149,21 @@ fn artifact_v12_rejection_precedence_is_trailing_payload_semantic_then_outer() {
         FixedViewCopyPlan::decode(&semantic_outer),
         Err(FixedViewCopyDecodeError::TransformedIdentityMismatch)
     );
+}
+#[test]
+fn every_previous_wire_generation_rejects_before_payload_decoding() {
+    let encoded = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1).encode();
+    for version in 0..13_u32 {
+        let mut stale = encoded.clone();
+        stale[8..12].copy_from_slice(&version.to_le_bytes());
+        assert_eq!(
+            FixedViewCopyPlan::decode(&stale),
+            Err(FixedViewCopyDecodeError::UnsupportedVersion(version))
+        );
+        stale.truncate(12);
+        assert_eq!(
+            FixedViewCopyPlan::decode(&stale),
+            Err(FixedViewCopyDecodeError::UnsupportedVersion(version))
+        );
+    }
 }

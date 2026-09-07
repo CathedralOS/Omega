@@ -9,10 +9,7 @@ use crate::{
 use super::{
     copy::{decode_copy, encode_copy},
     primitives::{Cursor, length},
-    selected::{
-        decode_selected_plan_v4, decode_selected_plan_v5, decode_selected_plan_v6,
-        encode_selected_plan_v6,
-    },
+    selected::{decode_selected_plan_v6, encode_selected_plan_v6},
 };
 
 #[cfg(test)]
@@ -189,44 +186,6 @@ fn decode_prefix(cursor: &mut Cursor<'_>) -> Result<DecodedPrefix, FixedViewCopy
         copies,
         expected_transformed,
     })
-}
-
-pub(super) fn decode_v4(
-    cursor: &mut Cursor<'_>,
-) -> Result<DecodedContent, FixedViewCopyDecodeError> {
-    let prefix = decode_prefix(cursor)?;
-    finish(
-        prefix,
-        crate::FixedViewCopySourceEvidence::LegacyLegalityTransitionsV1,
-        decode_selected_plan_v4(cursor)?,
-        true,
-    )
-}
-
-pub(super) fn decode_v5(
-    cursor: &mut Cursor<'_>,
-) -> Result<DecodedContent, FixedViewCopyDecodeError> {
-    let prefix = decode_prefix(cursor)?;
-    let decoded = decode_selected_plan_v5(cursor)?;
-    finish(
-        prefix,
-        crate::FixedViewCopySourceEvidence::LegacyLegalityTransitionsV1,
-        decoded.plan,
-        decoded.payload_matches,
-    )
-}
-
-pub(super) fn decode_v6(
-    cursor: &mut Cursor<'_>,
-) -> Result<DecodedContent, FixedViewCopyDecodeError> {
-    let prefix = decode_prefix(cursor)?;
-    let decoded = decode_selected_plan_v6(cursor)?;
-    finish(
-        prefix,
-        crate::FixedViewCopySourceEvidence::LegacyLegalityTransitionsV1,
-        decoded.plan,
-        decoded.payload_matches,
-    )
 }
 
 pub(super) fn decode_v7(

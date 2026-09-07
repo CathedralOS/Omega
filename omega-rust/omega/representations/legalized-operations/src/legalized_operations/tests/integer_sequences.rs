@@ -171,7 +171,7 @@ fn identity(sequence: LegalizedExactIntegerSequence) -> LegalizedOperationPlanId
             LegalizedScalarInstruction {
                 operation,
                 result,
-                scalar_type,
+                scalar_type: ScalarType::Integer(scalar_type),
                 definition_site,
                 kind,
                 fuel,
@@ -200,8 +200,9 @@ fn identity(sequence: LegalizedExactIntegerSequence) -> LegalizedOperationPlanId
         entry_block: id(1),
         blocks: vec![LegalizedScalarBlock {
             id: id(1),
+            parameters: vec![],
             instructions,
-            terminator: LegalizedScalarReturn {
+            terminator: LegalizedScalarTerminator::Return(LegalizedScalarReturn {
                 edge: id(1),
                 value: LegalizedScalarReturnValue::Value {
                     value: id(4),
@@ -213,7 +214,7 @@ fn identity(sequence: LegalizedExactIntegerSequence) -> LegalizedOperationPlanId
                     output: 0,
                 },
                 ownership: vec![],
-            },
+            }),
         }],
     });
     legalized_operation_plan_identity(&plan)

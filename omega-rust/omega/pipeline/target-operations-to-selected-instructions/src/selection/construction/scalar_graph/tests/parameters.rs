@@ -52,7 +52,7 @@ fn unused_stack_parameters_keep_abi_without_inventing_entry_transport() {
                 fixed_view: environment.fixed_register_view(*register).unwrap(),
             }],
         };
-        source.blocks[0].terminator.value = LegalizedScalarReturnValue::Value {
+        returned(&mut source.blocks[0]).value = LegalizedScalarReturnValue::Value {
             value: used.value,
             scalar_type: integer,
         };
@@ -93,7 +93,7 @@ fn unused_stack_parameters_keep_abi_without_inventing_entry_transport() {
             source.parameters[capacity].placement.locations.as_slice(),
             [ValueLocation::Stack { .. }]
         ));
-        source.blocks[0].terminator.value = LegalizedScalarReturnValue::Value {
+        returned(&mut source.blocks[0]).value = LegalizedScalarReturnValue::Value {
             value: source.parameters[capacity].value,
             scalar_type: integer,
         };

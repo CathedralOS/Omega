@@ -23,16 +23,6 @@ pub(super) fn validate(
             .filter(|source| source.machine == selected.machine)
             .collect::<Vec<_>>();
         match (specialized.as_slice(), graph.as_slice()) {
-            ([legalized_operations::LegalizedFunction::SharedReturnConditional(source)], []) => {
-                super::shared_return::validate(
-                    function_index,
-                    source,
-                    selected,
-                    constraints,
-                    physical,
-                    catalog,
-                )?
-            }
             ([legalized_operations::LegalizedFunction::Conditional(source)], []) => {
                 validate_function(
                     function_index,

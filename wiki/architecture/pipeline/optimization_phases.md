@@ -376,21 +376,38 @@ allocation independently checks the same-home constraints that currently
 realize those transfers without copies. Conflicting home constraints reject
 until edge-copy scheduling exists. Unused incoming parameters retain their
 semantic bindings without requiring physical registers.
+Each selected binding explicitly distinguishes an unused destination from a
+register transfer, naming both the current argument register and destination
+parameter register. Liveness and allocation consume that pair; they do not
+search for a register by semantic value identity, which ABI temporaries may
+share. Independent validation checks the transfer against the source binding,
+types and destination parameter. Selected identity v18 commits to that
+disposition and its registers; fixed-view-copy wire v13 retains them and rejects
+older payload formats instead of reconstructing a transfer by guesswork.
 Scalar leaves retain their target ABI, keep incoming parameter precolors, and explicitly
 copy a returned parameter into a separate return-constrained virtual value.
 Structural parameters, cleanup, callbacks and provider settlements remain
 outside this scalar migration. Direct-return controls start at separately
 authored, verified Terminal products; shared-return controls start at Omega
 source and pass through ordinary Terminal publication and resumed lowering.
-Ordinary straight-line scalar and Unit functions share one legalized function
-graph: typed parameters, ordered instructions, and an explicit value or Unit
-return. Exact U64 addition and subtraction are ordinary instructions in that
-same graph, retaining each operation's obligation and accepted proof fact.
-The separate Unit, Unit-caller and arithmetic-leaf representations and selectors
-are removed. Calls may target other callers; their results may be returned, reused,
-or discarded without erasing the call. Executable order comes from the checked
+Ordinary acyclic scalar functions and straight-line Unit functions share one
+legalized graph: typed function and block parameters, ordered instructions,
+explicit branches and jumps, and value or Unit returns. Exact U64 addition and
+subtraction are ordinary instructions in that same graph, retaining each
+operation's obligation and accepted proof fact.
+The separate Unit, Unit-caller, arithmetic-leaf and fixed shared-return
+representations and selectors are removed. Calls may occur in conditional arms
+and carry their results through join parameters. Calls may target other callers;
+their results may be returned, reused, or discarded without erasing the call.
+Executable order comes from the checked
 operation stream, not recursive target return expressions. Those expressions
 remain source/ABI evidence, not the new graph's executable payload.
+Signed and unsigned 64-bit equality, less-than and less-or-equal comparisons
+retain their operand types. The admitted comparison result feeds only its
+immediately following conditional; selection realizes that pair with flags,
+not a Boolean value transport. Selected block scheduling is deterministic and
+topological, independent of authored block-roster order. Edge bindings retain
+their source identities and parallel-transfer meaning.
 Each call retains its exact ABI and source operation; allocation sees explicit
 argument/result copies and target-owned clobbers. Entry parameters are copied
 out of ABI-fixed registers so they can survive calls, and return transport has
@@ -413,7 +430,7 @@ manufacture stack-held result records for values in preserved registers.
 Installation replay composes WCSU from those same frame and call facts, taking
 the maximum across sequential calls and composing nested callees. Scalar and
 Unit callers retain their corresponding checked stack envelopes; neither is
-relabeled to bypass publication checks. Multi-block call graphs, narrow and
+relabeled to bypass publication checks. Cyclic scalar graphs, narrow and
 Boolean call transport, stack arguments, and the remaining structural/ranked
 routes are unfinished physical-route convergence work.
 Register-call argument counts come from the checked call plan, including zero;
@@ -427,8 +444,8 @@ admit all-register U64 arguments. A function retains its complete ABI even when
 some parameters are unused and stack-passed; selection emits only referenced
 inputs, preserving their original positions. Reading a stack parameter or
 passing a stack argument remains outside this contract.
-Legalized identity v27 binds the ordinary graph and
-return role; legalization verifier v28 independently checks its source, ABI,
+Legalized identity v28 binds the ordinary graph, block parameters, comparisons
+and control roles; legalization verifier v29 independently checks its source, ABI,
 fuel, effects and ownership. Register-environment and machine-effect identities
 bind the exact arity-key roster. Empty physical selection uses the same
 admission and encoding route. Microsoft calls reserve their required shadow

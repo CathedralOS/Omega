@@ -6,18 +6,15 @@ use super::shared::*;
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum OrdinaryInputKind {
     Unit,
-    SharedReturn,
     Conditional,
 }
 
 pub(super) fn kind(
     target: &target_operations::TargetFunction,
-    abstracted: &abstract_operations::AbstractFunction,
+    _abstracted: &abstract_operations::AbstractFunction,
 ) -> OrdinaryInputKind {
     if matches!(target.operation, TargetOperation::UnitBody(_)) {
         OrdinaryInputKind::Unit
-    } else if abstracted.block_entries.len() == 4 {
-        OrdinaryInputKind::SharedReturn
     } else {
         OrdinaryInputKind::Conditional
     }
@@ -105,10 +102,6 @@ fn eligible_function(
         return false;
     }
     match kind(function, abstracted) {
-        OrdinaryInputKind::SharedReturn => {
-            super::shared_return::match_input(index, native.target, function, abstracted, optimized)
-                .is_ok()
-        }
         OrdinaryInputKind::Conditional => {
             super::conditional_input::match_input(index, function, abstracted, optimized).is_ok()
         }

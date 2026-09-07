@@ -28,13 +28,18 @@ fn runtime_u64_parameter_equality_reaches_object_and_callable_on_both_isas() {
         assert!(!text.is_empty());
         match target.architecture {
             target::Architecture::X86_64 => assert!(
-                text.windows(3).any(|window| window == [0x48, 0x39, 0xf7]),
-                "x86 object must contain `cmp rdi, rsi`"
+                text.windows(3).any(|window| window[0] & 0xf8 == 0x48
+                    && window[1] == 0x39
+                    && window[2] & 0xc0 == 0xc0),
+                "x86 object must contain a register CMP; allocation owns its registers"
             ),
             target::Architecture::Aarch64 => assert!(
                 text.windows(4)
-                    .any(|window| window == [0x1f, 0x00, 0x01, 0xeb]),
-                "AArch64 object must contain `cmp x0, x1`"
+                    .any(
+                        |window| u32::from_le_bytes(window.try_into().unwrap()) & 0xffe0_fc1f
+                            == 0xeb00_001f
+                    ),
+                "AArch64 object must contain a register CMP; allocation owns its registers"
             ),
         }
 

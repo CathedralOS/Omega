@@ -95,7 +95,11 @@ fn successor(
         actual.psi_edge == source.psi_edge
             && actual.block == source.block
             && actual.source_target == source.source_target
-            && actual.bindings == source.bindings
+            && actual
+                .bindings
+                .iter()
+                .copied()
+                .eq(source.bindings.iter().map(|binding| binding.semantic))
             && actual.fuel == source.fuel,
     )
 }

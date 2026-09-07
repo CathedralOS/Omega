@@ -7,16 +7,12 @@ pub(crate) trait ConditionalFixture {
 
 impl ConditionalFixture for legalized_operations::LegalizedFunction {
     fn conditional(&self) -> &legalized_operations::LegalizedConditionalFunction {
-        let Self::Conditional(function) = self else {
-            panic!("fixture requires a direct conditional legal body");
-        };
+        let Self::Conditional(function) = self;
         function
     }
 
     fn conditional_mut(&mut self) -> &mut legalized_operations::LegalizedConditionalFunction {
-        let Self::Conditional(function) = self else {
-            panic!("fixture requires a direct conditional legal body");
-        };
+        let Self::Conditional(function) = self;
         function
     }
 }

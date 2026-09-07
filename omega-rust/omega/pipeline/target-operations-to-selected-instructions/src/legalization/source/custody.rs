@@ -24,9 +24,7 @@ pub(super) fn validate_source_register_architecture(
     architecture: target::Architecture,
 ) -> Result<(), LegalizationError> {
     if functions.iter().any(|function| {
-        let legalized_operations::LegalizedFunction::Conditional(function) = function else {
-            return false;
-        };
+        let legalized_operations::LegalizedFunction::Conditional(function) = function;
         let condition_register_mismatch = match &function.condition {
             LegalizedCondition::DirectParameter { register, .. } => {
                 register.architecture() != architecture

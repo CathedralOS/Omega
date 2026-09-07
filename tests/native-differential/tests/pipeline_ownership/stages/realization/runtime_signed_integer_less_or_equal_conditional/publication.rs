@@ -30,14 +30,19 @@ fn runtime_i64_parameter_less_or_equal_reaches_signed_object_and_callable_on_bot
         let text = &artifact.source().object().text_section.bytes;
         match target.architecture {
             target::Architecture::X86_64 => {
-                assert!(text.windows(3).any(|bytes| bytes == [0x48, 0x39, 0xfe]));
+                assert!(text.windows(3).any(|bytes| bytes[0] & 0xf8 == 0x48
+                    && bytes[1] == 0x39
+                    && bytes[2] & 0xc0 == 0xc0));
                 assert!(text.windows(2).any(|bytes| bytes[0] == 0x7c));
                 assert!(!text.windows(2).any(|bytes| bytes[0] == 0x72));
             }
             target::Architecture::Aarch64 => {
                 assert!(
                     text.windows(4)
-                        .any(|bytes| bytes == [0x3f, 0x00, 0x00, 0xeb])
+                        .any(
+                            |bytes| u32::from_le_bytes(bytes.try_into().unwrap()) & 0xffe0_fc1f
+                                == 0xeb00_001f
+                        )
                 );
                 assert!(text.windows(4).any(|bytes| {
                     let word = u32::from_le_bytes(bytes.try_into().unwrap());
