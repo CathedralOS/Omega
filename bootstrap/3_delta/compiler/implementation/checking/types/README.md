@@ -118,6 +118,17 @@ Other malformed retained metadata remains internal assertions, not guessed
 source rejections. Generated Delta execution traps are separate observations
 and are never remapped into these compiler diagnostics.
 
+An argument continuation must retain positive actual and expected counts: the
+argument loop pushes it only while both spines have a current argument. Resume
+checks these counts before expected-type lookup, count subtraction, or source
+diagnosis. A zero or negative count returns the same code 1 at the popped frame's
+row, including when an apparent type mismatch would otherwise produce code 15.
+The dispatcher checks original stack depth is positive before entering this
+handler, so its already-popped `depth` is a nonnegative row. This check uses
+the original value: decrementing `INT64_MIN` would wrap to `INT64_MAX` and could
+otherwise fabricate a row. Negative depth still asserts. Positive counts keep
+the ordinary type-before-later-arity order unchanged.
+
 ## Remaining boundaries
 
 Explicit continuations remove source-nesting-dependent Gamma return contexts

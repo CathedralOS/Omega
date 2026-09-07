@@ -338,6 +338,8 @@ payload bytes, and expression `parse_depth` refusals
 have owned resource frames. An unknown retained typing-continuation kind at
 positive depth returns InternalFailure code 1 with its zero-based active-stack
 row, through the ordinary phase outcome and canonical publisher. Negative
+or zero retained argument counts use the same internal outcome before any
+source type/arity diagnosis; valid argument traversal order is unchanged. Negative
 emission extents propagate to the complete-program preflight and return
 InternalFailure code 2 at internal row 0 before any receipt bytes are written.
 That coordinate denotes the singleton program emission record, not a corrupt
@@ -371,7 +373,7 @@ The downgraded full compiler remains separate under
 ## Measurements
 
 ```text
-3,398-line / 155,533-byte canonical entry plus shared Gamma implementation
+3,404-line / 155,915-byte canonical entry plus shared Gamma implementation
 7-line / 195-byte nullary-ADT Delta fixture
   -> 3-line / 165-byte Gamma receipt
   -> selected Gamma evaluation produces byte 9

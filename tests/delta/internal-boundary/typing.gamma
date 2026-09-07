@@ -21,8 +21,47 @@
                 (typing_resume (int_type) 1 (pair 8 0) 0)
                 (typing_resume (int_type) -1 (typing_frame 8 0 0) 0)))))))))
 
+; Kind 5 counts describe the argument whose type has just completed, not the
+; remaining tail. Empty-spine controls ensure bad counts win before type lookup.
+(def internal_test_argument ((mode Int)) Int
+  (let argument Int (syntax_node 23 24 -1 0)
+    (let application Int
+      (syntax_node 17 25 (if (eq mode 33) 3 2)
+        (pair (syntax_node 18 19 -1 0)
+          (pair argument (if (eq mode 33) (pair argument 0) 0))))
+      (let actual Int
+        (if (if (eq mode 25) 1 (if (eq mode 29) 1
+              (if (eq mode 30) 1 (if (eq mode 35) 1 (eq mode 38))))) 0
+          (if (eq mode 26) -1
+            (if (eq mode 36) -9223372036854775808 (if (eq mode 33) 2 1))))
+        (let expected Int
+          (if (if (eq mode 27) 1 (eq mode 29)) 0
+            (if (eq mode 28) -1
+              (if (eq mode 37) -9223372036854775808 (if (eq mode 34) 2 1))))
+          (let completed Int
+            (if (if (eq mode 30) 1 (eq mode 32)) (bytes_type) (int_type))
+            (let arguments Int
+              (if (eq mode 29) 0
+                (pair argument (if (eq mode 33) (pair argument 0) 0)))
+              (let types Int
+                (if (eq mode 29) 0
+                  (pair (int_type) (if (eq mode 34) (pair (int_type) 0) 0)))
+                (let payload Int
+                  (pair application (pair actual (pair arguments
+                    (pair expected (pair types (pair (int_type) 0))))))
+                  (let previous Int
+                    (if (eq mode 26)
+                      (typing_frame 3 (pair 0 (int_type))
+                        (typing_frame 3 (pair 0 (int_type)) 0)) 0)
+                    (typing_resume completed
+                      (if (eq mode 26) 3
+                        (if (eq mode 35) -1
+                          (if (eq mode 38) -9223372036854775808 1)))
+                      (typing_frame 5 payload previous) 0)))))))))))
+
 (def internal_test_typing ((mode Int)) Int
-  (let result Int (internal_test_resume mode)
+  (let result Int
+    (if (lt mode 25) (internal_test_resume mode) (internal_test_argument mode))
     (if (eq (first result) 0)
       (let observed Int (write (eq (second result) (int_type)))
         (pair 0 1))

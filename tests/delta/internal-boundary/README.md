@@ -31,6 +31,23 @@ and empty stdout/stderr; the other five controls already matched their current
 expectations. The gate establishes this bounded internal branch and its
 publisher, not all internal invariants or complete Delta boundary coverage.
 
+## Retained argument counts
+
+Fourteen further controls resume actual kind-5 argument frames. Zero, negative,
+and `INT64_MIN` actual/expected counts produce code 1 at the current internal
+row, including a depth-three stack whose top row is 2. Invalid counts precede
+empty type/node spines and apparent type mismatch. Negative-depth frames,
+including `INT64_MIN`, still fail without inventing or wrapping a coordinate.
+Positive-count companions retain
+successful typing, argument type rejection at source byte 23, and later
+missing/extra arity rejection at application byte 17.
+
+The zero-actual-count regression returned source Reject 16 at byte 17 before
+the fix, despite no admitted source owning that impossible continuation state.
+These controls distinguish compiler corruption from source error; they do not
+claim that authored source can construct a retained frame. The separate frontend
+gate covers actual source type/arity ordering and successful application execution.
+
 ## Emission metadata
 
 Seventeen controls call actual `emit_advance`, Gamma node constructors,
@@ -51,5 +68,5 @@ one definition separator and the entry-owned final byte. A synthetic positive
 body extent of 16,777,212 retains the resource-12 refusal, with requested
 16,777,229 (14 prefix bytes, the body, and three closing/separator bytes).
 These corrupt retained nodes are private controls, not authored Delta semantic
-outcomes and not a complete metadata validator. All 25 private controls run
-twice, followed by the two authored-source companions: 52 exact observations.
+outcomes and not a complete metadata validator. All 39 private controls run
+twice, followed by the two authored-source companions: 80 exact observations.

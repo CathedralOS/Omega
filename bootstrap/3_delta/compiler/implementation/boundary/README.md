@@ -304,6 +304,10 @@ row is `depth - 1`, counted from the bottom of the current stack. This
 artifact-owned convention is not a Gamma pair address or cumulative allocation
 index. Negative-depth unknown frames and malformed nonpair frames retain their
 raw Gamma failures. No evaluator trap is caught or translated into DCOUT.
+Argument continuations also require both retained counts to be positive. A
+violated count uses code 1 and that same active-frame row before looking up the
+expected type or producing an authored type/arity rejection. Negative row
+coordinates still assert. This adds no diagnostic code or coordinate convention.
 The ordinary phase outcome propagates the owned failure to the existing
 publisher before lowering or output. The
 [internal-boundary controls](../../../../../tests/delta/internal-boundary/README.md)
