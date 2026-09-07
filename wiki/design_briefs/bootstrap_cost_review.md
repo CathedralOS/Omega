@@ -563,14 +563,16 @@ first-order definitions use immediate list children for recursive progress;
 no parser framework, trusted cursor, or checker rule was introduced.
 
 Compare separate passes with a concrete fused candidate returning
-`Summary(byte_count, first_invalid_byte, parser_state)`. A Leaf checks its byte
-and takes one parser step. A Join combines child counts, shifts a right-side
-invalid offset by the left count, and threads the left parser state into the
-right traversal. Finalization gives envelope failure precedence over parser
-results, including an invalid byte in a late comment after an earlier parser
-error. Fusion may save traversal but adds projections/composition and may lose
-state-independent sharing; it is not established cheaper. Count those costs,
-not just the number of recursive passes.
+`Summary(byte_count, all_ascii, parser_state)`. A Leaf checks its byte and takes
+one parser step; a Join combines counts and validity and threads parser state.
+Finalization checks the whole envelope before publishing parser success, including
+a late invalid comment byte. The [P1 admission result](../architecture/bootstrap_chain/derivation_calculus.md#first-complete-subject)
+does not require reproducing rejected stdout or carrying diagnostic offsets.
+Those compiler observations remain unchanged; invalid and exhausted outcomes
+remain distinct. Offset-carrying summaries would strengthen the diagnostic
+claim, not discharge an otherwise missing P1 dependency. Fusion may still add
+projections/composition and lose state-independent sharing; it is not established
+cheaper. Count those costs, not just recursive passes.
 
 At `fee9ab5acad0fc927f01e130869451faa155b38d` on macOS arm64, three literal
 inputs were run through the selected admitted Beta compiler using
@@ -705,6 +707,72 @@ Include ASCII/count, root, operand/dispatch, and error-finalization costs.
 Do not repeat a no-op fold or add another helper family in place of that
 whole-route decision. A feasible complete route is still unestablished.
 
+### Whole-route comparison: real state and coherent provisions
+
+At `efe1898f290ac9b8220139f6331c7af74f57218f`, the same raw-byte binary partition
+is combined with the unchanged Gamma-produced trace. Each fold key contains
+the raw subtree and its incoming lexical state, not just the subtree identity.
+The terminal state is the last byte's output before EOF finalization. Duplicate
+keys have matching observed endpoints; this is a consistency check, not a proof.
+
+| Existing normalized fold scenario | Count |
+| --- | ---: |
+| Distinct raw Joins, ignoring state | 11,865 |
+| Distinct Join/incoming-lexical-state keys | 42,081 |
+| Distinct Leaf/incoming-lexical-state keys | 29,780 |
+| Distinct right Source references | 7,096 |
+| Existing Join/Ref recipe work: `55*42081 + 4*7096` | 2,342,839 |
+| Plus separately checked shape-capacity work | 2,890,656 |
+
+This replaces the no-op fold as the relevant traversal scenario. It does not
+price Leaf byte steps, collection, ASCII, token/operand recognition, instruction
+dispatch, assertions, output construction/counts, or root/error finalization.
+Nor is it a combined proof or a universal lower bound: complete encoder state,
+fusion, shared setup, or a different explicit recipe can change the result.
+The trace currently retains all completed tokens; a streaming encoder's state
+need not retain that list. Count that actual state rather than assuming this
+tokenizer model is the final encoder. The small factoring regression and the
+full-source key reduction do not resolve these remaining costs.
+
+Under the published blanket ledger, the partial 2,890,656-work scenario gives
+146,615,962 pairs and semantic-memory endpoint 6,133,073,936 bytes (about 5.71 GiB).
+That is **conservative provisioning, not measured allocation or a selected
+budget**. It omits encoding work while applying independent worst-case allocation
+allowances. Raising work to two million would not even cover this scenario;
+four million would leave unpriced obligations, not establish full fit.
+
+There are distinct engineering choices, not a language prohibition:
+
+- The checker permits 8 MiB of request; Gamma permits a 16-MiB complete frame.
+  With the 63,504-byte checker, the latter leaves 16,713,708 bytes of sealed input.
+  A larger checker request requires rederiving ground/index/memo and allocation
+  bounds, not only editing admission's constant. A larger Gamma request can
+  potentially move into its unused `[0x04300000,0x0e000000)` interval (157 MiB),
+  rather than enlarge native memory just for framing. In-place growth has only
+  2 MiB before the environment region. Any move needs containment, source/tape
+  identity, and exact/adjacent outcome checks.
+- The current pair arena supports at most 675,017 work under the blanket ledger.
+  Tighter allocation accounting must cover every successful, rejected, and
+  interrupted request. Scalar clause walks consume work without per-step pair
+  allocation, but that observation alone cannot justify a smaller universal
+  multiplier or a larger work limit.
+- If complete costs justify more memory, retain the same monotone pair arena
+  and investigate a fixed-size zeroed region obtained at native-seed startup.
+  This avoids the [static Windows image ceiling](../../bootstrap/0_alpha/README.md)
+  without introducing a Gamma
+  allocator, opcode, or native semantic accelerator. Both native realizations,
+  allocation-failure behavior, Gamma extents, identities, and containment must
+  be audited together. Alpha's `MEMSIZE` is already an implementation parameter;
+  no such replacement realization has been implemented or validated here.
+
+**Next decision:** consolidate the complete admission-encoder design and one
+request/work/storage ledger, explicitly pricing the missing operations above.
+Same calculus plus a coherently larger profile is a plausible candidate, not a
+proven feasible route. Pause new helper families and provision changes until
+that single comparison supports continuing, simplifying, or deferring. Do not
+replace it with another no-op traversal or a succession of small passing probes.
+This is an engineering/scope review, not an owner-language blocker.
+
 Local continuation material remains outside the repository:
 `/tmp/omega-lexical-factoring.RD0U2V/compare.py` takes `prepare`, `positive`, or
 `mutations`; `controls.py` takes `uncached` or `history` (all with `python3 -B`).
@@ -712,31 +780,11 @@ It reads the previous `/tmp/omega-components-probe.zy22J8` experiment, which
 imports literal recipes from `/private/tmp/omega-beta-hexword.qiJde0`.
 The census is `/tmp/omega-lexical-census.fRokwx/census.py`, with `controls` and
 `subject` modes under `python3 -B`; its Gamma producer and trace are beside it.
+The read-only joined-state census is
+`python3 -B /tmp/omega-whole-cost.LzrYr0/compare.py`.
 These local paths are continuation material, not portable repository commands
 or accepted artifacts; preserve them until the bounded comparison resolves
 retention. No permanent helper or runtime provision changed at this checkpoint.
-
-A larger provision also needs more than a checker constant. Applying the
-existing conservative ledger `7,864,346 + 48*work + 128` to the separate
-capacity and identity-fold recipe sum gives:
-
-```text
-work scenario       547,817 + 681,724 = 1,229,541
-pair bound          66,882,442 pairs
-pair storage        2,675,297,680 bytes at 40 bytes per pair
-memory end          0x10000000 + storage = 0xaf75cd90 (about 2.74 GiB)
-```
-
-This is a provisioning scenario, **not measured allocation, a combined proof,
-or a lower bound**; summing separate requests counts setup twice and omits
-combined-root work. The [current Alpha container](../../bootstrap/0_alpha/README.md)
-uses static Windows image storage with a documented 2-GiB image ceiling, so
-that scenario cannot be implemented merely by enlarging its static extent.
-The existing arena and ledger support at most 675,017 work units, below even
-the no-op normalized fold. Compare a tighter justified allocation argument,
-lower-allocation implementation, and a coherently reviewed native allocation
-change if a complete proof estimate warrants it. Do not infer that a new
-allocator, rule, or language is necessary from this conservative calculation.
 
 Connected component and mutation acceptance now passes. Remaining acceptance
 is a full-subject estimate with stated state-sharing assumptions, definition cost,
