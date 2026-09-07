@@ -238,8 +238,7 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   Computed-only paths without an independently established state mapping,
   non-bijective transfers, entry-state reentry, and machine-call-component
   ranges need exact arrival mappings and preserved premises for ranked subjects
-  and pinned endpoints. Extend state transport beyond all-integer parameters
-  to unrelated payloads. Mutable premises need live write-frame evidence.
+  and pinned endpoints. Mutable premises need live write-frame evidence.
   Custom scalar views and slice-length ranges need their produced-rank facts.
   These are implementation gaps, not grounds to weaken the range obligation.
 

@@ -243,11 +243,16 @@ fn prove_edge(
             .filter(|parameter| !parameter.is_self)
             .zip(entry_parameters)
         {
-            let value = bindings
+            let Some(binding) = bindings
                 .iter()
-                .find(|binding| binding.symbol == parameter.symbol)?
-                .value
-                .clone();
+                .find(|binding| binding.symbol == parameter.symbol)
+            else {
+                // An unrelated payload contributes no arithmetic fact. The
+                // strict engine cannot normalize either omitted symbol, even
+                // inside an expression that would otherwise cancel to zero.
+                continue;
+            };
+            let value = binding.value.clone();
             bindings.push(StrictArithmeticSymbolBinding {
                 symbol: *entry_symbol,
                 value,
@@ -488,12 +493,15 @@ fn validate_mapping(
             || parameter.is_mutable
             || parameter.is_const
             || (state.symbol == root.symbol && parameter.symbol != *entry_symbol)
-            || exact_integer_parameter(program, entry.type_reference)?
-                != exact_integer_parameter(program, parameter.type_reference)?
+            || exact_integer_parameter(program, entry.type_reference)
+                != exact_integer_parameter(program, parameter.type_reference)
         {
             return None;
         }
     }
+    // Two absent integer projections establish no payload type compatibility.
+    // Ordinary typed arrivals own that check; this query leaves both payload
+    // symbols unbound and can prove only the independently numeric rank.
     Some(())
 }
 
