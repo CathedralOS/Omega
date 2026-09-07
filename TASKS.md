@@ -122,17 +122,16 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   Acceptance remains native execution with the documented exit/output and
   unchanged checked text facts; the console dependencies below are also required.
 
-  Resume the native `cli_mvp` customer at code checkpoint `a9c2854307`.
-  On macOS ARM64, `CARGO_INCREMENTAL=0 OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
-  cargo nextest run -p compiler --test samples_compile
-  samples_with_documented_exit_run_correctly --no-fail-fast` exits 100 before
-  execution: `InvalidUnitMachinePlan` names
-  `ConsoleNativeProvider::write_line`. Next retain the free helper's borrowed-view
-  and scalar signature in the shared call graph for the
+  Resume the native `cli_mvp` customer at code checkpoint `229540c1ae`.
+  On Windows x64, set `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp` and run
+  `mbx nextest run -p compiler --test samples_compile --no-fail-fast -E 'test(=samples_with_documented_exit_run_correctly)'`.
+  This exits 100 before execution: `InvalidUnitMachinePlan` names
+  `ConsoleNativeProvider::write_line` with a missing checked transitive machine
+  plan. Next retain the free helper's borrowed-view state transfers in the shared call graph for the
   [borrowed-byte writer closure](wiki/architecture/pipeline/terminal_psi.md#borrowed-byte-writer-composition)
   in `typed-trees-to-checked-trees/src/flow/terminal_unit/` and
   `checked-trees-to-lowered-psi/src/attached_unit/`.
-  Existing three-state callees use the shared body catalog; extend that path
+  Three-state scalar callees, including free helpers, use the shared body catalog; extend that path
   to the writer without splitting authored states into synthetic machines.
   The private writer calls its concrete provider's byte leaf directly; extending
   plain boundary-trait or `Service` forwarding is not a prerequisite.
