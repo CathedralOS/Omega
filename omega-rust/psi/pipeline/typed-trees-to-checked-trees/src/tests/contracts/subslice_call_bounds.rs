@@ -1,5 +1,21 @@
 use super::{lower_typed_trees, parse_typed_trees};
 
+#[test]
+fn inline_const_generic_selector_infers_from_its_array_witness() {
+    check_window(
+        r#"
+        data Main {}
+        machine Main::endpoint<const N: u64>(&self, witness: &[u8; N]) -> u64 [0..=3] { 2 }
+        machine Main::window(&self, items: &[i32; 4]) -> u64 {
+            let witness: [u8; 2] = [0, 0];
+            let view: &[i32] = items[..self.endpoint(&witness)];
+            view.len
+        }
+        "#,
+        true,
+    );
+}
+
 fn window_source(callees: &str, selection: &str) -> String {
     format!(
         r#"

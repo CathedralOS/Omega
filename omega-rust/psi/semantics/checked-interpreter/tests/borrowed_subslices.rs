@@ -214,3 +214,49 @@ fn independently_bounded_selector_calls_execute_in_source_order() {
             transition calls == 12 && values[0] == 97 && values[1] == 7 && values[2] == 6 && values[3] == 100 { true -> 7 false -> 0 }
         }");
 }
+
+#[test]
+fn inline_const_generic_selectors_execute_distinct_inferred_extents() {
+    for (before_endpoint, after_endpoint, pair_length, triple_length) in
+        [("..", "", 2, 3), ("", "..", 2, 1), ("..=", "", 3, 4)]
+    {
+        assert_seven(&format!("data Main {{}}
+            machine Main::endpoint<const N: u64>(&self, witness: &[u8; N]) -> u64 [0..=3] {{
+                transition witness.len == 2 {{ true -> 2 false -> 3 }}
+            }}
+            machine Main::window(&self, items: &[i32; 4]) -> i32 {{
+                let pair: [u8; 2] = [0, 0];
+                let triple: [u8; 3] = [0, 0, 0];
+                let pair_view: &[i32] = items[{before_endpoint}self.endpoint(&pair){after_endpoint}];
+                let triple_view: &[i32] = items[{before_endpoint}self.endpoint(&triple){after_endpoint}];
+                transition pair_view.len == {pair_length} && triple_view.len == {triple_length} {{ true -> 7 false -> 0 }}
+            }}
+            machine main() -> i32 {{
+                let selector: Main = Main {{}};
+                let values: [i32; 4] = [11, 7, 6, 22];
+                selector.window(&values)
+            }}"));
+    }
+}
+
+#[test]
+fn inline_type_generic_selectors_infer_arguments_and_execute_once_in_source_order() {
+    assert_seven("data Main {}
+        machine Main::first<Element [copy]>(&self, witness: &Element, calls: &mut i32 in Wrapping) -> u64 [1..=1] {
+            calls = calls * 10 + 1; 1
+        }
+        machine Main::last<Element [copy]>(&self, witness: &Element, calls: &mut i32 in Wrapping) -> u64 [3..=3] {
+            calls = calls * 10 + 2; 3
+        }
+        machine fill(values: &mut [u8]) { values[..] = [7, 6]; }
+        machine main() -> i32 {
+            let selector: Main = Main {};
+            let byte: u8 = 0;
+            let integer: i32 = 0;
+            let mut calls: i32 in Wrapping = 0;
+            let mut values: [u8; 4] = \"abcd\";
+            fill(&mut values[selector.first(&byte, &mut calls)..selector.last(&integer, &mut calls)]);
+            let view: &[u8] = values[selector.first(&integer, &mut calls)..selector.last(&byte, &mut calls)];
+            transition calls == 1212 && view.len == 2 && values[0] == 97 && values[1] == 7 && values[2] == 6 && values[3] == 100 { true -> 7 false -> 0 }
+        }");
+}

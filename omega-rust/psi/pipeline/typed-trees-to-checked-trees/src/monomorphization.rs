@@ -193,128 +193,35 @@ pub(crate) fn monomorphize_generic_machine_value_calls_with_nominal_uses(
     let mut evidence_proposals = Vec::new();
     let contract_expressions = contract_expression_handles(program);
 
-    // Static selections may occur in any EXECUTABLE expression position.
-    // Contract calls are universal logical propositions, not runtime call
-    // sites: using one as specialization evidence consumes the generic schema
-    // and can rewrite every law stated over it to one accidental concrete
-    // tuple (notably heterogeneous quotient relations).
-    for (handle, expression) in program.expression_table.iter_expressions() {
-        if contract_expressions.contains(&handle) {
-            continue;
+    // Both the single-tuple and cloning paths consume the same call-site
+    // evidence. A second discovery pass must not omit nested argument types.
+    // Contract expressions remain proof schemas, never runtime selections.
+    let selections =
+        collect_call_selections(program, &candidates, &callee_states, &contract_expressions);
+    for selection in &selections {
+        let candidate_index = selection.candidate_index;
+        candidates[candidate_index].conflicted |= selection.conflicted;
+        for (parameter, binding) in selection.type_bindings.iter().enumerate() {
+            if let Some(binding) = binding {
+                type_proposals.push((candidate_index, parameter, *binding));
+            }
         }
-        let ExpressionNode::Call(call) = expression else {
-            continue;
-        };
-        if typed_trees::operator::resolve_named_expression_call(program, call).is_some() {
-            continue;
+        for (parameter, binding) in selection.const_bindings.iter().enumerate() {
+            if let Some(binding) = binding {
+                const_proposals.push((candidate_index, parameter, *binding));
+            }
         }
-        collect_machine_proposals(
-            program,
-            &candidates,
-            &callee_states,
-            call.target_symbol,
-            call.target.as_str(),
-            &call.machine_arguments,
-            &mut machine_proposals,
-            &mut evidence_proposals,
-            &mut type_proposals,
-            &mut const_proposals,
-        );
-    }
-
-    // Statement calls additionally provide parameter-position type inference.
-    // Annotated locals provide both parameter- and return-position inference.
-    for machine in program.machines() {
-        for state in program.machine_states(machine) {
-            for statement in program.statement_table.statements(state.statement_nodes) {
-                match statement {
-                    StatementNode::Call(call)
-                        if typed_trees::operator::declaration_by_symbol(
-                            program,
-                            call.target_symbol,
-                        )
-                        .is_none() =>
-                    {
-                        collect_call_proposals(
-                            program,
-                            machine,
-                            state,
-                            &candidates,
-                            &callee_states,
-                            call.target_symbol,
-                            call.target.as_str(),
-                            &call.machine_arguments,
-                            program.statement_table.expression_handles(call.arguments),
-                            None,
-                            &mut machine_proposals,
-                            &mut evidence_proposals,
-                            &mut type_proposals,
-                            &mut const_proposals,
-                        )
-                    }
-                    StatementNode::LocalData(local) if local.initial_value.is_valid() => {
-                        if let ExpressionNode::Call(call) =
-                            program.expression_table.expression(local.initial_value)
-                            && typed_trees::operator::resolve_named_expression_call(program, call)
-                                .is_none()
-                        {
-                            collect_call_proposals(
-                                program,
-                                machine,
-                                state,
-                                &candidates,
-                                &callee_states,
-                                call.target_symbol,
-                                call.target.as_str(),
-                                &call.machine_arguments,
-                                program.expression_table.expression_handles(call.arguments),
-                                local
-                                    .type_reference
-                                    .is_valid()
-                                    .then_some(local.type_reference),
-                                &mut machine_proposals,
-                                &mut evidence_proposals,
-                                &mut type_proposals,
-                                &mut const_proposals,
-                            );
-                        }
-                    }
-                    StatementNode::Expression(expression) => {
-                        if let ExpressionNode::Call(call) =
-                            program.expression_table.expression(*expression)
-                            && typed_trees::operator::resolve_named_expression_call(program, call)
-                                .is_none()
-                        {
-                            collect_call_proposals(
-                                program,
-                                machine,
-                                state,
-                                &candidates,
-                                &callee_states,
-                                call.target_symbol,
-                                call.target.as_str(),
-                                &call.machine_arguments,
-                                program.expression_table.expression_handles(call.arguments),
-                                None,
-                                &mut machine_proposals,
-                                &mut evidence_proposals,
-                                &mut type_proposals,
-                                &mut const_proposals,
-                            );
-                        }
-                    }
-                    _ => {}
-                }
+        for (parameter, binding) in selection.machine_bindings.iter().enumerate() {
+            if let Some(binding) = binding {
+                machine_proposals.push((candidate_index, parameter, binding.clone()));
+            }
+        }
+        for (parameter, binding) in selection.evidence_bindings.iter().enumerate() {
+            if let Some(binding) = binding {
+                evidence_proposals.push((candidate_index, parameter, binding.clone()));
             }
         }
     }
-
-    // Keep every concrete call-site tuple distinct. The aggregate proposal
-    // path below remains the cheap single-tuple case; this ledger is what
-    // lets the multi-tuple path clone once per unique specialization and
-    // rewrite only the calls that selected it.
-    let selections =
-        collect_call_selections(program, &candidates, &callee_states, &contract_expressions);
 
     for (candidate_index, parameter_index, binding) in type_proposals {
         if type_reference_is_still_generic(program, binding, &all_type_parameter_symbols) {
@@ -665,33 +572,6 @@ fn collect_call_proposals(
     }
 }
 
-fn collect_machine_proposals(
-    program: &TypedTrees,
-    candidates: &[Candidate],
-    callee_states: &[CalleeState],
-    target_symbol: SymbolHandle,
-    target_name: &str,
-    machine_arguments: &[StaticMachineArgument],
-    machine_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
-    evidence_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
-    type_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
-    const_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
-) {
-    let Some(callee) = resolve_callee(callee_states, target_symbol, target_name) else {
-        return;
-    };
-    collect_machine_proposals_for_callee(
-        program,
-        candidates,
-        callee,
-        machine_arguments,
-        machine_proposals,
-        evidence_proposals,
-        type_proposals,
-        const_proposals,
-    );
-}
-
 fn collect_machine_proposals_for_callee(
     program: &TypedTrees,
     candidates: &[Candidate],
@@ -926,7 +806,51 @@ fn collect_call_selections(
         }
     }
 
-    // Nested value calls may not have a local result annotation, but explicit
+    // Nested calls retain their lexical caller even without a direct result
+    // annotation. Their argument types can determine the specialization tuple.
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            let mut expressions = Vec::new();
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                if !matches!(statement, StatementNode::AssemblyFact(_)) {
+                    collect_statement_expression_trees(program, statement, &mut expressions);
+                }
+            }
+            for expression in expressions {
+                if covered_expressions.contains(&expression)
+                    || contract_expressions.contains(&expression)
+                {
+                    continue;
+                }
+                let ExpressionNode::Call(call) = program.expression_table.expression(expression)
+                else {
+                    continue;
+                };
+                if typed_trees::operator::resolve_named_expression_call(program, call).is_some() {
+                    continue;
+                }
+                covered_expressions.push(expression);
+                if let Some(selection) = selection_for_call(
+                    program,
+                    machine,
+                    state,
+                    candidates,
+                    callee_states,
+                    CallSite::Expression(expression),
+                    call.target_symbol,
+                    call.target.as_str(),
+                    &call.machine_arguments,
+                    program.expression_table.expression_handles(call.arguments),
+                    None,
+                    !program.machine_type_parameters(machine).is_empty(),
+                ) {
+                    upsert_selection(&mut selections, selection);
+                }
+            }
+        }
+    }
+
+    // Calls outside executable states have no caller argument context, but explicit
     // static-machine arguments still determine a complete tuple through the
     // authored machine requirement. Preserve the old all-expression scan for
     // precisely that case.
