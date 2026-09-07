@@ -10,7 +10,7 @@ mod values;
 pub(super) struct RangeFacts<'field> {
     pub(super) checked_operators: Option<&'field checked_trees::CheckedOperatorFacts>,
     pub(super) checked_borrows: Option<&'field checked_trees::BorrowFacts>,
-    mutation_summaries: crate::flow::StateMutationSummaryCache,
+    pub(super) mutation_summaries: std::borrow::Cow<'field, crate::flow::StateMutationSummaryCache>,
     pub(super) statement_index: usize,
     expression_dependencies: Vec<dependencies::ExpressionDependencies>,
     fields: &'field [(SymbolHandle, String, usize)],
@@ -52,7 +52,9 @@ impl<'field> RangeFacts<'field> {
         Self {
             checked_operators: None,
             checked_borrows: None,
-            mutation_summaries: crate::flow::StateMutationSummaryCache::default(),
+            mutation_summaries: std::borrow::Cow::Owned(
+                crate::flow::StateMutationSummaryCache::default(),
+            ),
             statement_index: 0,
             expression_dependencies: Vec::new(),
             fields,

@@ -39,7 +39,7 @@ impl RangeFacts<'_> {
             state.symbol,
             borrows,
             call,
-            &mut self.mutation_summaries,
+            &self.mutation_summaries,
         )?;
         // Callee expressions and previously captured selector expressions do
         // not execute in the caller's current value namespace. Unknown index

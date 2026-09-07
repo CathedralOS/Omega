@@ -43,7 +43,7 @@ pub(crate) fn normal_return_call_candidate<'program>(
     Ok((machine, state))
 }
 
-fn plain_value_call_target<'program>(
+pub(crate) fn plain_value_call_target<'program>(
     program: &'program TypedTrees,
     call: &TableCallExpression,
 ) -> Option<(&'program Machine, &'program State)> {

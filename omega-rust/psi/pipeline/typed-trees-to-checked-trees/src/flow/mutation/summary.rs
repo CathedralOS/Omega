@@ -11,8 +11,9 @@ use crate::flow::mutation::receiver::canonical_receiver_place_for_call_site;
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct StateMutationSummaryCache {
-    initialized: bool,
-    states: Vec<StateMutationSummary>,
+    // Completed summaries depend only on the immutable program and borrow
+    // facts. Publish after the fixed point, never during recursive inference.
+    states: std::sync::OnceLock<Vec<StateMutationSummary>>,
 }
 
 #[derive(Debug, Clone)]
@@ -28,7 +29,7 @@ pub(super) fn instantiate_known_call_mutation_summary_places(
     caller_state_symbol: SymbolHandle,
     borrow: &BorrowFacts,
     borrow_call: &BorrowCallFact,
-    cache: &mut StateMutationSummaryCache,
+    cache: &StateMutationSummaryCache,
     namespace: WritePlaceNamespace,
 ) -> Option<Vec<CanonicalPlace>> {
     let target_state = find_state(program, borrow_call.target_symbol)?;
@@ -89,29 +90,23 @@ fn core_method_mutates_receiver(
 fn state_mutation_summary_places<'cache>(
     program: &typed_trees::TypedTrees,
     borrow: &BorrowFacts,
-    cache: &'cache mut StateMutationSummaryCache,
+    cache: &'cache StateMutationSummaryCache,
     state: &typed_trees::state::State,
 ) -> Option<&'cache [CanonicalPlace]> {
-    ensure_state_mutation_summaries(program, borrow, cache);
-
     cache
         .states
+        .get_or_init(|| build_state_mutation_summaries(program, borrow))
         .iter()
         .find(|entry| entry.state_symbol == state.symbol)
         .filter(|entry| entry.complete)
         .map(|entry| entry.writes.as_slice())
 }
 
-fn ensure_state_mutation_summaries(
+fn build_state_mutation_summaries(
     program: &typed_trees::TypedTrees,
     borrow: &BorrowFacts,
-    cache: &mut StateMutationSummaryCache,
-) {
-    if cache.initialized {
-        return;
-    }
-    cache.initialized = true;
-
+) -> Vec<StateMutationSummary> {
+    let mut states = Vec::new();
     let mut inferred_completeness = Vec::new();
     if let Some(resolver) = validation::CallFrameResolver::new(program) {
         for machine in program.machines() {
@@ -139,7 +134,7 @@ fn ensure_state_mutation_summaries(
         {
             writes.push(receiver);
         }
-        cache.states.push(StateMutationSummary {
+        states.push(StateMutationSummary {
             state_symbol: state.symbol,
             complete: core_receiver_write
                 || (direct_complete
@@ -155,7 +150,7 @@ fn ensure_state_mutation_summaries(
     }
 
     loop {
-        let snapshot = cache.states.clone();
+        let snapshot = states.clone();
         let mut changed = false;
         for caller_index in 0..snapshot.len() {
             if !snapshot[caller_index].complete {
@@ -207,11 +202,11 @@ fn ensure_state_mutation_summaries(
                 }
             }
             if !complete {
-                cache.states[caller_index].complete = false;
-                cache.states[caller_index].writes.clear();
+                states[caller_index].complete = false;
+                states[caller_index].writes.clear();
                 changed = true;
             } else if !additions.is_empty() {
-                cache.states[caller_index].writes.extend(additions);
+                states[caller_index].writes.extend(additions);
                 changed = true;
             }
         }
@@ -219,6 +214,7 @@ fn ensure_state_mutation_summaries(
             break;
         }
     }
+    states
 }
 
 fn borrow_state_for_symbol(
@@ -480,4 +476,43 @@ fn storage_place_has_declared_identity(place: &CanonicalPlace) -> bool {
             facts::PlaceSegment::Case { variant } => variant.is_valid(),
             _ => true,
         })
+}
+
+#[cfg(test)]
+mod cache_tests {
+    use super::*;
+
+    #[test]
+    fn shared_cache_publishes_one_complete_table_on_first_demand() {
+        let source = "machine fill(values: &write [u16; 4]) { values[1..3] = [7, 8]; }";
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).unwrap();
+        let program =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let borrows = crate::build_borrow_facts(&program);
+        let state = &program.machine_states(&program.machines()[0])[0];
+        let cache = StateMutationSummaryCache::default();
+        let first = std::borrow::Cow::Borrowed(&cache);
+        let second = first.clone();
+        assert!(cache.states.get().is_none());
+        let expected = state_mutation_summary_places(&program, &borrows, &first, state).unwrap();
+        assert!(!expected.is_empty(), "fixture must retain a real write");
+        let observed = state_mutation_summary_places(&program, &borrows, &second, state).unwrap();
+        assert!(
+            std::ptr::eq(expected, observed),
+            "branch queries borrow the same initialized table"
+        );
+        let independent = StateMutationSummaryCache::default();
+        assert!(
+            independent.states.get().is_none(),
+            "a new analysis has no inherited facts"
+        );
+        assert_eq!(
+            expected,
+            state_mutation_summary_places(&program, &borrows, &independent, state).unwrap()
+        );
+    }
 }

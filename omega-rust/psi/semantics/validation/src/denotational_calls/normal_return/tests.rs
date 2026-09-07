@@ -86,12 +86,15 @@ fn target_and_runtime_arity_cannot_be_recovered_from_matching_text() {
     let original = selected_call(&program, "cost");
     let mut call = original.clone();
     call.target_symbol = SymbolHandle::invalid();
+    assert!(plain_value_call_target(&program, &call).is_none());
     assert!(!eligible(&program, &call));
     let mut call = original.clone();
     call.arguments = arena::HandleSpan::empty();
+    assert!(plain_value_call_target(&program, &call).is_none());
     assert!(!eligible(&program, &call));
     let mut call = original;
     call.receiver = program.expression_table.expression_handles(call.arguments)[0];
+    assert!(plain_value_call_target(&program, &call).is_none());
     assert!(!eligible(&program, &call));
 }
 
@@ -119,6 +122,7 @@ fn mutable_or_reference_inputs_do_not_become_value_only_reads() {
          machine run(level: &u32) -> u32 { cost(level) }",
     ] {
         let program = typed(source);
+        assert!(plain_value_call_target(&program, &selected_call(&program, "cost")).is_none());
         assert!(!eligible(&program, &selected_call(&program, "cost")));
     }
 }
@@ -142,6 +146,7 @@ fn custom_operator_bodies_do_not_inherit_empty_machine_call_effects() {
              machine cost(level: u32 [1..=10]) -> u32 {{ level + 1 }}
              machine run(level: u32 [1..=10]) -> u32 {{ cost(level) }}"
         ));
+        assert!(plain_value_call_target(&program, &selected_call(&program, "cost")).is_some());
         assert_eq!(
             eligible(&program, &selected_call(&program, "cost")),
             expected
@@ -174,6 +179,7 @@ fn unresolved_body_reads_do_not_inherit_parameter_spelling() {
 fn absent_effect_summaries_are_not_evidence_of_purity() {
     let program = typed(COST);
     let call = selected_call(&program, "cost");
+    assert!(plain_value_call_target(&program, &call).is_some());
     let operational = crate::infer_operational_may(&program);
     let reaches = crate::infer_service_reaches(&program, &operational);
     assert!(
