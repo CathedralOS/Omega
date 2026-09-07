@@ -151,11 +151,15 @@ pub machine Board::read(&mut self) -> u64 reaches ClockHost invokes ClockHost; {
 }
 
 #[test]
-fn nested_float_and_boundary_batches_restore_in_reverse_settlement_order() {
+fn float_and_boundary_source_views_restore_both_nesting_orders() {
     use typed_trees::expression::ExpressionNode;
 
-    let fixture = Fixture::with_build(
-        r#"
+    for (expression, boundary_is_outer) in [
+        ("F32::negate(self.clock.ticks(7.0f32))", false),
+        ("self.clock.ticks(F32::negate(7.0f32))", true),
+    ] {
+        let fixture = Fixture::with_build(
+            &r#"
 use omega::language::core::service;
 pub data F32 {}
 pub boundary operator F32::negate(value: f32) -> f32;
@@ -169,94 +173,173 @@ pub data Board { clock: Service<ClockHost> in Bound; }
 pub machine Board::read(&mut self) -> f32 reaches ClockHost invokes ClockHost; {
     F32::negate(self.clock.ticks(7.0f32))
 }
-"#,
-        r#"machine build(builder: &mut Build) {
+"#
+            .replace("F32::negate(self.clock.ticks(7.0f32))", expression),
+            r#"machine build(builder: &mut Build) {
     builder.package("review-fixture");
     builder.select_provider<F32::negate, FloatProvider>();
     builder.select_provider<ClockHost, Clock>();
 }"#,
-    );
-    let source = fixture
-        .checked
-        .pre_selected_dispatch_source_trees()
-        .expect("reverse validation restores both overlapping settlement batches");
-    let operator = source
-        .operators()
-        .iter()
-        .find(|operator| {
-            source
-                .operator_path_members(operator.name)
-                .iter()
-                .map(|member| member.as_str())
-                .eq(["F32", "negate"])
-        })
-        .expect("authored float operator");
-    let uses = fixture
-        .checked
-        .facts
-        .operators
-        .named_uses
-        .iter()
-        .filter(|(_, operator_use)| operator_use.selected_operator_symbol == operator.symbol)
-        .map(|(_, operator_use)| operator_use)
-        .collect::<Vec<_>>();
-    let [operator_use] = uses.as_slice() else {
-        panic!("one exact selected float use");
-    };
-    let outer = operator_use.expression;
-    let ExpressionNode::Call(original_negate) = source.expression_table.expression(outer) else {
-        panic!("restored named float operator");
-    };
-    assert_eq!(
-        typed_trees::operator::resolve_named_expression_call(&source, original_negate)
-            .map(|selected| selected.symbol),
-        Some(operator.symbol),
-    );
-    let [inner] = source
-        .expression_table
-        .expression_handles(original_negate.arguments)
-    else {
-        panic!("one nested boundary operand");
-    };
-    let ExpressionNode::Call(original_ticks) = source.expression_table.expression(*inner) else {
-        panic!("restored boundary call inside original float arguments");
-    };
-    assert_eq!(original_ticks.target.as_str(), "ticks");
-    assert!(original_ticks.receiver.is_valid());
-    let [literal] = source
-        .expression_table
-        .expression_handles(original_ticks.arguments)
-    else {
-        panic!("one scalar boundary argument");
-    };
-    let literal = *literal;
-    // The first batch guards the boundary call as an operand of the replaced
-    // float root. The second batch changes that same operand, so validating
-    // the first against settled source before undoing the second must fail.
-    let ExpressionNode::Binary(settled_negate) = fixture.checked.expression_table.expression(outer)
-    else {
-        panic!("float settlement must replace the outer named operation");
-    };
-    assert_eq!(settled_negate.left, *inner);
-    let ExpressionNode::Call(settled_ticks) = fixture.checked.expression_table.expression(*inner)
-    else {
-        panic!("boundary settlement must retain its call node");
-    };
-    assert_eq!(settled_ticks.target.as_str(), "Clock::ticks");
-    assert_ne!(settled_ticks.target_symbol, original_ticks.target_symbol);
-    assert!(!settled_ticks.receiver.is_valid());
-    drop(source);
-    project(&fixture);
+        );
+        let source = fixture
+            .checked
+            .pre_selected_dispatch_source_trees()
+            .expect("source review restores both nested dispatch edits");
+        let operator = source
+            .operators()
+            .iter()
+            .find(|operator| {
+                source
+                    .operator_path_members(operator.name)
+                    .iter()
+                    .map(|member| member.as_str())
+                    .eq(["F32", "negate"])
+            })
+            .expect("authored float operator");
+        let uses = source
+            .expression_table
+            .iter_expressions()
+            .filter_map(|(handle, expression)| match expression {
+                ExpressionNode::Call(call)
+                    if typed_trees::operator::resolve_named_expression_call(&source, call)
+                        .is_some_and(|selected| selected.symbol == operator.symbol) =>
+                {
+                    Some(handle)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let [negate] = uses.as_slice() else {
+            panic!("one exact restored float call");
+        };
+        let negate = *negate;
+        let ExpressionNode::Call(original_negate) = source.expression_table.expression(negate)
+        else {
+            panic!("restored named float operator");
+        };
+        assert_eq!(
+            typed_trees::operator::resolve_named_expression_call(&source, original_negate)
+                .map(|selected| selected.symbol),
+            Some(operator.symbol),
+        );
+        assert_eq!(
+            source.expression_table.expression(original_negate.receiver),
+            fixture
+                .checked
+                .expression_table
+                .expression(original_negate.receiver),
+            "the named operator retains its authored namespace receiver",
+        );
+        let [float_operand] = source
+            .expression_table
+            .expression_handles(original_negate.arguments)
+        else {
+            panic!("one exact float operand");
+        };
+        let requirement = source
+            .traits()
+            .iter()
+            .find(|definition| definition.name.as_str() == "ClockHost")
+            .and_then(|definition| {
+                source
+                    .trait_machine_signatures(definition)
+                    .iter()
+                    .find(|signature| signature.name.as_str() == "ticks")
+            })
+            .expect("exact authored boundary requirement");
+        let calls = source
+            .expression_table
+            .iter_expressions()
+            .filter_map(|(handle, expression)| match expression {
+                ExpressionNode::Call(call) if call.target_symbol == requirement.symbol => {
+                    Some((handle, call))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let [(ticks, original_ticks)] = calls.as_slice() else {
+            panic!("one restored call to the exact boundary requirement");
+        };
+        assert_eq!(original_ticks.target.as_str(), "ticks");
+        let receivers = fixture
+            .checked
+            .expression_table
+            .iter_expressions()
+            .filter_map(|(handle, expression)| match expression {
+                ExpressionNode::Member(member) if member.member.as_str() == "clock" => {
+                    Some((handle, expression))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let [(receiver, receiver_expression)] = receivers.as_slice() else {
+            panic!("one retained authored service receiver");
+        };
+        assert_eq!(original_ticks.receiver, *receiver);
+        assert_eq!(
+            source.expression_table.expression(original_ticks.receiver),
+            *receiver_expression,
+            "restoration preserves the exact receiver graph and symbols",
+        );
+        let [boundary_operand] = source
+            .expression_table
+            .expression_handles(original_ticks.arguments)
+        else {
+            panic!("one scalar boundary argument");
+        };
+        let literal = if boundary_is_outer {
+            assert_eq!(*boundary_operand, negate);
+            *float_operand
+        } else {
+            assert_eq!(*float_operand, *ticks);
+            *boundary_operand
+        };
+        let ExpressionNode::Float(original_literal) = source.expression_table.expression(literal)
+        else {
+            panic!("nested operand restores the authored float literal");
+        };
+        assert_eq!(original_literal.text(), "7.0");
+        assert_eq!(
+            original_literal.landing(),
+            Some(numerics::literals::FloatFormat::F32),
+        );
+        // Each journal validates its nested graph before reverse restoration;
+        // neither rewritten node is treated as authored source.
+        let ExpressionNode::Binary(settled_negate) =
+            fixture.checked.expression_table.expression(negate)
+        else {
+            panic!("float settlement must replace the named operation");
+        };
+        assert_eq!(settled_negate.left, *float_operand);
+        let ExpressionNode::Call(settled_ticks) =
+            fixture.checked.expression_table.expression(*ticks)
+        else {
+            panic!("boundary settlement must retain its call node");
+        };
+        assert_eq!(settled_ticks.target.as_str(), "Clock::ticks");
+        assert_ne!(settled_ticks.target_symbol, original_ticks.target_symbol);
+        assert!(!settled_ticks.receiver.is_valid());
+        assert_eq!(
+            fixture
+                .checked
+                .expression_table
+                .expression_handles(settled_ticks.arguments),
+            &[*boundary_operand],
+            "boundary settlement preserves its exact operand handle",
+        );
+        drop(source);
+        project(&fixture);
 
-    let mut altered = fixture.checked.clone();
-    *altered.typed.expression_table.expression_mut(literal) = ExpressionNode::Float(
-        numerics::literals::FloatLiteral::from_f64(8.0)
-            .with_landing(numerics::literals::FloatFormat::F32),
-    );
-    assert!(
-        altered.pre_selected_dispatch_source_trees().is_err(),
-        "nested operand changes invalidate the overlapping source graph"
-    );
+        let mut altered = fixture.checked.clone();
+        *altered.typed.expression_table.expression_mut(literal) = ExpressionNode::Float(
+            numerics::literals::FloatLiteral::from_f64(8.0)
+                .with_landing(numerics::literals::FloatFormat::F32),
+        );
+        assert!(
+            altered.pre_selected_dispatch_source_trees().is_err(),
+            "nested operand changes invalidate the restored source graph: {expression}"
+        );
+    }
 }
 
 #[test]

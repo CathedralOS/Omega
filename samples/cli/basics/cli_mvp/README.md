@@ -58,8 +58,8 @@ The Windows and macOS outer CLI probes complete fresh checked package review,
 then stop with
 `fresh package review has blocking rows but no explicit --package-root-policy`.
 This is a policy boundary before accepted native production. The compiler-library
-sample test bypasses it and stops later at authored/selected call identity
-reconciliation in Terminal production.
+sample test bypasses it and stops later at structural-argument path validation
+in Terminal production.
 Neither result establishes native execution.
 
 The missing-policy diagnostic includes exact conflict identities and source
@@ -101,7 +101,7 @@ native production, and execution.
 | Entry storage and providers | [`native_artifact.rs`](../../../../omega-rust/omega/compiler/native-realization/src/realization/native_artifact.rs) rejects an executable entry retaining unprovisioned `self`. `Main` needs real storage, including its 256-byte buffer, and a loan from the entry bridge. [`compiler_intrinsic.rs`](../../../../omega-rust/omega/build/selected-dispatch/src/compiler_intrinsic.rs) must supply closed identities for the selected Windows output, input, and exit leaves; declarations alone are not native implementations. |
 | Native image and publication | [`object.rs`](../../../../omega-rust/omega/compiler/native-realization/src/realization/object.rs) sequences physical lowering and emission. PE image support exists. [`compilation-report`](../../../../omega-rust/omega/compiler/compilation-report/src/lib.rs) validates the retained artifact and requires compiler-text/function evidence before publishing exact bytes. Preserve these gates. |
 
-The observed compiler-library failure at `6a72c58124` on macOS ARM64 is
+The observed compiler-library failure at `4e90b46d56` on macOS ARM64 is
 `InvalidStructuralArgumentPath { operation: OperationId(5), argument_index: 0 }`.
 Trace the exact operand through Terminal structural validation before assigning
 it to one of the downstream gaps below. Terminal production uses the validated

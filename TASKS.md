@@ -183,8 +183,8 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   missing package-root policy. This is a completed slow-route observation,
   not a timeout or evidence of native execution.
 
-  The downstream native `cli_mvp` probe at `6a72c58124` remains red.
-  On macOS ARM64, `OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
+  The downstream native `cli_mvp` probe at `4e90b46d56` remains red.
+  On macOS ARM64, `CARGO_INCREMENTAL=0 OMEGA_SAMPLE_RUNTIME_FILTER=cli_mvp
   cargo nextest run -p compiler --test samples_compile
   samples_with_documented_exit_run_correctly --no-fail-fast` exits 100 before
   execution: `InvalidStructuralArgumentPath { operation: OperationId(5), argument_index: 0 }`.
