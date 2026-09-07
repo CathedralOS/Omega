@@ -1,6 +1,5 @@
 //! Optimizer module role: executable entrance. Independent projected-roster replay for one structural call/return closure.
 
-mod layout;
 mod local;
 mod model;
 mod source;

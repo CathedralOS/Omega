@@ -8,8 +8,9 @@ use super::super::scalar_abi::fixed_native_integer_shape;
 use super::super::shared::*;
 use super::super::structural_layout::{
     direct_boolean_field_offset, direct_integer_field_offset, resolve_structural_field_path,
-    resolve_structural_projection_path, structural_shape,
+    resolve_structural_projection_path, structural_parameter_shape, structural_shape,
 };
+use super::super::structural_signature::StructuralCallSignature;
 use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
 pub(super) use dynamic_arguments::{
     lower_dynamic_argument_scalar_call, lower_dynamic_argument_unit_call,
@@ -296,31 +297,17 @@ pub(super) fn lower_structural_scalar_call(
                 .ok_or(LoweringError::UnitCallTargetKindMismatch(*callee))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let callee_shapes = callee_function
-        .structural_parameters
-        .iter()
-        .map(|parameter| {
-            structural_shape(
-                parameter.structural_type,
-                structural_types,
-                shape_cache,
-                active,
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
     let result_shape = scalar_shape(result.value, result.scalar_type, false)?;
-    let call_plan = evaluate_call_plan(
-        CallingPolicy::native_for_target(target),
-        &CallSignature {
-            parameters: scalar_shapes
-                .iter()
-                .copied()
-                .chain(callee_shapes.iter().copied())
-                .collect(),
-            result: Some(result_shape),
-        },
-    )
-    .map_err(LoweringError::AbiPlan)?;
+    let signature = StructuralCallSignature::derive(
+        &scalar_shapes,
+        &callee_function.structural_parameters,
+        Some(result_shape),
+        structural_types,
+        shape_cache,
+        active,
+    )?;
+    let callee_shapes = signature.structural_shapes();
+    let call_plan = signature.plan(target)?;
     if call_plan.result.as_ref().map(|placement| placement.shape) != Some(result_shape) {
         return Err(LoweringError::UnitCallTargetKindMismatch(*callee));
     }
@@ -357,7 +344,7 @@ pub(super) fn lower_structural_scalar_call(
     let arguments = structural_arguments
         .iter()
         .zip(&callee_function.structural_parameters)
-        .zip(callee_shapes)
+        .zip(callee_shapes.iter().copied())
         .zip(call_plan.parameters.iter().skip(scalar_arguments.len()))
         .map(|(((argument, callee_parameter), shape), destination)| {
             let source = parameters_by_place.get(&argument.place).copied().ok_or(
@@ -397,7 +384,8 @@ pub(super) fn lower_structural_scalar_call(
                     }
                 };
             if projected_type != callee_parameter.structural_type
-                || projected_shape != shape
+                || argument.access != callee_parameter.access
+                || structural_parameter_shape(projected_shape, callee_parameter.access) != shape
                 || u32::from(shape.byte_size)
                     .checked_add(source_byte_offset)
                     .is_none_or(|end| end > u32::from(source.shape.byte_size))

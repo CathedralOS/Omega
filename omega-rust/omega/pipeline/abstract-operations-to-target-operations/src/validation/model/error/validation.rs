@@ -8,6 +8,9 @@ use crate::validation::StructuralCallReturnProjectedQualificationValidationError
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractToTargetTranslationValidationError {
+    StructuralSignatureMismatch {
+        machine: MachineId,
+    },
     UnitContinuationMismatch {
         machine: MachineId,
     },

@@ -6,12 +6,15 @@ Start at [lib.rs](src/lib.rs). The public reference contract is
 
 ## Structural ABI derivation
 
-[structural_layout.rs](src/lowering/structural_layout.rs) derives referent layout
-and parameter shape separately. Its parameter classifier selects
-`BorrowedReference` for mutable/write-only access but currently passes shared
-access through as a value shape. [scalar/setup.rs](src/lowering/scalar/setup.rs)
-has another access-to-shape decision. These are implementation gaps, not a
-shared-reference snapshot contract.
+[structural_signature.rs](src/lowering/structural_signature.rs) constructs
+structural call signatures from declarations and resolved referent layouts.
+The exhaustive access classifier in
+[structural_layout.rs](src/lowering/structural_layout.rs) selects value placement
+only for owned inputs. Shared, mutable, and write-only borrows use
+`BorrowedReference`, preserving referent size/alignment and passing its pointer
+without a caller-side value copy. Layout caches retain referent shapes, not
+access-specific parameter shapes. Scalar and erased descriptor ABIs retain their
+existing generic construction.
 
 The native byte-observation path admits one unqualified, unrestricted shared
 `BorrowedView` parameter, `u64` scalar inputs, and a `u64` result. It uses
@@ -26,19 +29,25 @@ The ordinary conditional graph preserves the non-reading branch; shared
 and integer-result conditional lowering. Scalar inputs precede the descriptor
 pointer in the derived call signature.
 
-This does not complete the general shared-reference classifier below, literal
-descriptor materialization, structural helper calls, subslices, or ranked control. The
+This does not complete literal descriptor materialization, structural helper
+calls, subslices, or ranked control. The
 [native regression](../../../../tests/native-differential/tests/terminal_byte_views.rs)
 starts from encoded, verified Terminal, cross-lowers four hosted targets, and
 executes caller-owned descriptors on supported hosts; it does not establish
 Omega-source helper closure or standalone executable publication.
 
-Consolidate structural-signature producers under one mandatory derivation from
-declarations and referent shapes. Audit caller preparation and independent
-receiving validation/replay as well; fixing the classifier does not prevent a
-hand-built downstream plan from bypassing it. Generic scalar ABI construction
-remains legitimate. The owning work is `STRUCTURAL-BORROW-IDENTITY` on the
-[execution board](../../../../TASKS.md).
+[Structural-header validation](src/validation/structural_signatures.rs) rejoins
+retained Unit and mixed scalar ABI parameters to the source declarations and
+reconstructs scalar-prefix, result, and structural placement. A coherently
+recomputed value ABI cannot replace a source borrow. This check does not claim
+full function-body translation coverage or native caller-visible behavior.
+
+Finish caller preparation and independent native receiving/replay checks under
+`STRUCTURAL-BORROW-IDENTITY` on the [execution board](../../../../TASKS.md).
+Embedded callee plans and argument homes require their own reconciliation;
+standalone native consumers cannot assume a producer ran header validation.
+Existing owned-only structural-call legalization fences remain closed to borrowed
+execution; the byte observations above have their separate checked input shapes.
 
 A staged pointer and staged value bytes are different. A direct-home test is
 valid for owned semantics, not evidence that a borrowed caller sees a write.

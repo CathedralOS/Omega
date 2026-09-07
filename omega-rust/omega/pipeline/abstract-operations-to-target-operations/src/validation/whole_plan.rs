@@ -111,6 +111,17 @@ pub fn validate_abstract_to_target_translation_with_ieee_float_fma_settlements(
             target_function,
             ieee_float_fma,
         )?;
+        super::structural_signatures::validate(
+            source_function,
+            target_function,
+            expected_target,
+            &source.structural_types,
+        )
+        .ok_or(
+            AbstractToTargetTranslationValidationError::StructuralSignatureMismatch {
+                machine: source_function.machine,
+            },
+        )?;
         function_roster.push(AbstractToTargetFunctionRosterReceipt::new(
             source_function.machine,
             source_function.attachment,

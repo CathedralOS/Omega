@@ -1,4 +1,5 @@
 use super::*;
+use crate::lowering::structural_signature::StructuralCallSignature;
 
 pub(in crate::lowering) struct PreparedScalarLowering {
     pub(super) values: BTreeMap<ValueId, KnownScalar>,
@@ -54,11 +55,11 @@ pub(in crate::lowering) fn prepare_scalar_lowering(
         .collect::<BTreeSet<_>>();
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
-    let structural_parameter_shapes = function
+    function
         .structural_parameters
         .iter()
         .enumerate()
-        .map(|(position, parameter)| {
+        .try_for_each(|(position, parameter)| {
             // Verified qualifications remain in the exact completion-custody
             // source and do not alter the structural ABI shape. Linear inputs
             // enter this scalar lane only when that same boundary call carries
@@ -108,40 +109,22 @@ pub(in crate::lowering) fn prepare_scalar_lowering(
                     function.machine,
                 ));
             }
-            let shape = structural_shape(
-                parameter.structural_type,
-                structural_types,
-                &mut shape_cache,
-                &mut active,
-            )?;
-            Ok(
-                if shared_byte_view
-                    || matches!(
-                        parameter.access,
-                        terminal_psi::StructuralAccess::MutableBorrow
-                    )
-                {
-                    ValueShape::borrowed_reference(shape.byte_size, shape.alignment)
-                } else {
-                    shape
-                },
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let signature = CallSignature {
-        parameters: scalar_parameter_shapes
-            .iter()
-            .copied()
-            .chain(structural_parameter_shapes.iter().copied())
-            .collect(),
-        result: Some(scalar_shape(
+            Ok(())
+        })?;
+    let signature = StructuralCallSignature::derive(
+        &scalar_parameter_shapes,
+        &function.structural_parameters,
+        Some(scalar_shape(
             function_result.value,
             function_result.scalar_type,
             false,
         )?),
-    };
-    let call_plan = evaluate_call_plan(CallingPolicy::native_for_target(target), &signature)
-        .map_err(LoweringError::AbiPlan)?;
+        structural_types,
+        &mut shape_cache,
+        &mut active,
+    )?;
+    let structural_parameter_shapes = signature.structural_shapes();
+    let call_plan = signature.plan(target)?;
     if call_plan.parameters.len()
         != function.parameters.len() + function.structural_parameters.len()
     {
@@ -184,7 +167,7 @@ pub(in crate::lowering) fn prepare_scalar_lowering(
     let target_structural_parameters = function
         .structural_parameters
         .iter()
-        .zip(structural_parameter_shapes)
+        .zip(structural_parameter_shapes.iter().copied())
         .zip(&call_plan.parameters[function.parameters.len()..])
         .map(
             |((parameter, shape), placement)| TargetStructuralParameter {

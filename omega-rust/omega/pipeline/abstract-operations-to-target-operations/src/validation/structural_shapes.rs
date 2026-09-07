@@ -1,4 +1,4 @@
-//! Producer-independent structural shape reconstruction for the admitted ABI closure.
+//! Producer-independent referent shape reconstruction for structural ABI validation.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -42,7 +42,11 @@ fn shape(
         .get(&structural_type)
         .ok_or(Error::SourceShape)?;
     let result = match &declaration.shape {
-        StructuralTypeShape::Record { fields } if !fields.is_empty() => {
+        StructuralTypeShape::PrimitiveScalar(scalar) => scalar_shape(*scalar),
+        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView) => {
+            ValueShape::integer(16, 8)
+        }
+        StructuralTypeShape::Record { fields } => {
             let mut byte_size = 0_u32;
             let mut alignment = 1_u16;
             for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
@@ -147,4 +151,16 @@ fn align(value: u32, alignment: u32) -> Result<u32, Error> {
         .checked_add(alignment - 1)
         .map(|value| value / alignment * alignment)
         .ok_or(Error::SourceShape)
+}
+
+pub(super) fn scalar_shape(scalar: ScalarType) -> ValueShape {
+    match scalar {
+        ScalarType::Boolean => ValueShape::integer(1, 1),
+        ScalarType::Integer(integer) => {
+            let bytes = integer.bits().div_ceil(8);
+            ValueShape::integer(bytes, bytes.next_power_of_two().min(8))
+        }
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => ValueShape::float(4),
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => ValueShape::float(8),
+    }
 }

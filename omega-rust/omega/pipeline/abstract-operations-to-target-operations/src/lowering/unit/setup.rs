@@ -2,7 +2,7 @@
 
 use super::super::scalar_abi::fixed_native_integer_shape;
 use super::super::shared::*;
-use super::super::structural_layout::{structural_parameter_shape, structural_shape};
+use super::super::structural_signature::StructuralCallSignature;
 
 pub(super) struct PreparedUnitFunction {
     pub(super) call_plan: CallPlan,
@@ -39,29 +39,16 @@ pub(super) fn prepare_unit_function(
         .collect::<Result<Vec<_>, _>>()?;
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
-    let parameter_shapes = function
-        .structural_parameters
-        .iter()
-        .map(|parameter| -> Result<ValueShape, LoweringError> {
-            let shape = structural_shape(
-                parameter.structural_type,
-                structural_types,
-                &mut shape_cache,
-                &mut active,
-            )?;
-            Ok(structural_parameter_shape(shape, parameter.access))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let signature = CallSignature {
-        parameters: scalar_parameter_shapes
-            .iter()
-            .chain(&parameter_shapes)
-            .copied()
-            .collect(),
-        result: None,
-    };
-    let call_plan = evaluate_call_plan(CallingPolicy::native_for_target(target), &signature)
-        .map_err(LoweringError::AbiPlan)?;
+    let signature = StructuralCallSignature::derive(
+        &scalar_parameter_shapes,
+        &function.structural_parameters,
+        None,
+        structural_types,
+        &mut shape_cache,
+        &mut active,
+    )?;
+    let parameter_shapes = signature.structural_shapes();
+    let call_plan = signature.plan(target)?;
     let expected_parameter_count = function.parameters.len() + function.structural_parameters.len();
     if call_plan.parameters.len() != expected_parameter_count {
         return Err(LoweringError::AbiParameterCountMismatch {
@@ -90,7 +77,7 @@ pub(super) fn prepare_unit_function(
     let parameters = function
         .structural_parameters
         .iter()
-        .zip(parameter_shapes)
+        .zip(parameter_shapes.iter().copied())
         .zip(call_plan.parameters.iter().skip(function.parameters.len()))
         .map(
             |((parameter, shape), placement)| TargetStructuralParameter {

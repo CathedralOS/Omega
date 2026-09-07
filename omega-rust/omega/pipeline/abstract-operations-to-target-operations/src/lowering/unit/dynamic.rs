@@ -2,7 +2,7 @@
 
 use super::super::scalar::scalar_shape;
 use super::super::shared::*;
-use super::super::structural_layout::structural_shape;
+use super::super::structural_signature::StructuralCallSignature;
 use super::projected_argument;
 use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
 use abstract_operations::{AbstractReboundDynamicDispatch, AbstractStoredDynamicDispatch};
@@ -233,20 +233,15 @@ fn lower_stored_call(
     {
         return Err(LoweringError::UnitCallTargetKindMismatch(callee));
     }
-    let argument_shape = structural_shape(
-        callee_parameter.structural_type,
+    let call_plan = StructuralCallSignature::derive(
+        &[],
+        &callee_function.structural_parameters,
+        Some(result_shape),
         structural_types,
         shape_cache,
         active,
-    )?;
-    let call_plan = evaluate_call_plan(
-        CallingPolicy::native_for_target(target),
-        &CallSignature {
-            parameters: vec![argument_shape],
-            result: Some(result_shape),
-        },
-    )
-    .map_err(LoweringError::AbiPlan)?;
+    )?
+    .plan(target)?;
     let [destination] = call_plan.parameters.as_slice() else {
         return Err(LoweringError::UnitCallTargetKindMismatch(callee));
     };
@@ -440,20 +435,15 @@ fn lower_dynamic_call(
     {
         return Err(LoweringError::UnitCallTargetKindMismatch(callee));
     }
-    let argument_shape = structural_shape(
-        callee_parameter.structural_type,
+    let call_plan = StructuralCallSignature::derive(
+        &[],
+        &callee_function.structural_parameters,
+        result_shape,
         structural_types,
         shape_cache,
         active,
-    )?;
-    let call_plan = evaluate_call_plan(
-        CallingPolicy::native_for_target(target),
-        &CallSignature {
-            parameters: vec![argument_shape],
-            result: result_shape,
-        },
-    )
-    .map_err(LoweringError::AbiPlan)?;
+    )?
+    .plan(target)?;
     let [destination] = call_plan.parameters.as_slice() else {
         return Err(LoweringError::UnitCallTargetKindMismatch(callee));
     };

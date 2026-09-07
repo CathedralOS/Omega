@@ -3,13 +3,14 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
-    AbstractFunction, AbstractFunctionResult, AbstractOperation, BoundaryMachineId, CallSignature,
-    CallingPolicy, InstalledProviderCallEvidence, KnownUnitInteger, LoweringError, MachineId,
-    NativeTarget, OperationId, PlaceId, ScalarType, StructuralTypeDeclaration, StructuralTypeId,
+    AbstractFunction, AbstractFunctionResult, AbstractOperation, BoundaryMachineId,
+    InstalledProviderCallEvidence, KnownUnitInteger, LoweringError, MachineId, NativeTarget,
+    OperationId, PlaceId, ScalarType, StructuralTypeDeclaration, StructuralTypeId,
     TargetStructuralArgument, TargetStructuralParameter, TargetUnitOperation,
-    TargetUnitScalarCallArgument, TerminalPsiProvenance, ValueId, ValueShape, evaluate_call_plan,
-    fixed_native_integer_shape, structural_shape,
+    TargetUnitScalarCallArgument, TerminalPsiProvenance, ValueId, ValueShape,
+    fixed_native_integer_shape,
 };
+use crate::lowering::structural_signature::StructuralCallSignature;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn try_lower(
@@ -111,30 +112,16 @@ pub(super) fn try_lower(
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let callee_shapes = callee
-        .structural_parameters
-        .iter()
-        .map(|parameter| {
-            structural_shape(
-                parameter.structural_type,
-                structural_types,
-                shape_cache,
-                active,
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let callee_plan = evaluate_call_plan(
-        CallingPolicy::native_for_target(target),
-        &CallSignature {
-            parameters: scalar_shapes
-                .iter()
-                .chain(&callee_shapes)
-                .copied()
-                .collect(),
-            result: None,
-        },
-    )
-    .map_err(LoweringError::AbiPlan)?;
+    let signature = StructuralCallSignature::derive(
+        &scalar_shapes,
+        &callee.structural_parameters,
+        None,
+        structural_types,
+        shape_cache,
+        active,
+    )?;
+    let callee_shapes = signature.structural_shapes();
+    let callee_plan = signature.plan(target)?;
     let target_scalar_arguments = arguments
         .iter()
         .zip(&callee.parameters)

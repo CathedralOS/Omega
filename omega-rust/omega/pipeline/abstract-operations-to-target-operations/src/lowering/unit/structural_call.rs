@@ -6,6 +6,7 @@ use super::super::structural_layout::{
     checked_align_up_u32, resolve_structural_field_path, resolve_structural_projection_path,
     structural_parameter_shape, structural_shape,
 };
+use super::super::structural_signature::StructuralCallSignature;
 
 #[derive(Debug, Clone)]
 pub(super) struct StructuralCallLocalSource {
@@ -74,31 +75,16 @@ pub(super) fn lower_structural_unit_call(
             ScalarType::IeeeFloat(_) => Err(LoweringError::UnitCallTargetKindMismatch(*callee)),
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let callee_shapes = callee_function
-        .structural_parameters
-        .iter()
-        .map(|parameter| -> Result<ValueShape, LoweringError> {
-            let referent = structural_shape(
-                parameter.structural_type,
-                structural_types,
-                shape_cache,
-                active,
-            )?;
-            Ok(structural_parameter_shape(referent, parameter.access))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let callee_plan = evaluate_call_plan(
-        CallingPolicy::native_for_target(target),
-        &CallSignature {
-            parameters: scalar_shapes
-                .iter()
-                .copied()
-                .chain(callee_shapes.iter().copied())
-                .collect(),
-            result: None,
-        },
-    )
-    .map_err(LoweringError::AbiPlan)?;
+    let signature = StructuralCallSignature::derive(
+        &scalar_shapes,
+        &callee_function.structural_parameters,
+        None,
+        structural_types,
+        shape_cache,
+        active,
+    )?;
+    let callee_shapes = signature.structural_shapes();
+    let callee_plan = signature.plan(target)?;
     let scalar_arguments = scalar_arguments
         .iter()
         .zip(&callee_function.parameters)
@@ -175,7 +161,7 @@ pub(super) fn lower_structural_unit_call(
     let arguments = structural_arguments
         .iter()
         .zip(&callee_function.structural_parameters)
-        .zip(callee_shapes)
+        .zip(callee_shapes.iter().copied())
         .zip(callee_plan.parameters.iter().skip(scalar_arguments.len()))
         .map(|(((argument, callee_parameter), shape), destination)| {
             let result_source = super::projected_result::source(operations, argument.place);

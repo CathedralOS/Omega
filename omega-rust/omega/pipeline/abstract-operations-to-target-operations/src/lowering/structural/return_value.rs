@@ -1,5 +1,6 @@
 use super::super::shared::*;
 use super::super::structural_layout::structural_shape;
+use super::super::structural_signature::StructuralCallSignature;
 
 pub(in crate::lowering) fn lower_structural_return_function(
     function: &AbstractFunction,
@@ -133,19 +134,12 @@ pub(in crate::lowering) fn lower_structural_return_function(
     }
     let mut cache = BTreeMap::new();
     let mut active = BTreeSet::new();
-    let parameter_shapes = function
-        .structural_parameters
-        .iter()
-        .map(|parameter| {
-            structural_shape(
-                parameter.structural_type,
-                structural_types,
-                &mut cache,
-                &mut active,
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let shape = parameter_shapes[source_index];
+    let shape = structural_shape(
+        result.structural_type,
+        structural_types,
+        &mut cache,
+        &mut active,
+    )?;
     if shape.class != ValueClass::Integer
         || !((shape.byte_size == 8 && shape.alignment == 8) || (9..=16).contains(&shape.byte_size))
     {
@@ -154,14 +148,15 @@ pub(in crate::lowering) fn lower_structural_return_function(
             byte_size: shape.byte_size,
         });
     }
-    let call_plan = evaluate_call_plan(
-        CallingPolicy::native_for_target(target),
-        &CallSignature {
-            parameters: parameter_shapes,
-            result: Some(shape),
-        },
-    )
-    .map_err(LoweringError::AbiPlan)?;
+    let call_plan = StructuralCallSignature::derive(
+        &[],
+        &function.structural_parameters,
+        Some(shape),
+        structural_types,
+        &mut cache,
+        &mut active,
+    )?
+    .plan(target)?;
     let Some(source_placement) = call_plan.parameters.get(source_index) else {
         return Err(LoweringError::AbiParameterCountMismatch {
             expected: function.structural_parameters.len(),
@@ -298,18 +293,18 @@ fn lower_claim_free_affine_return(
     if scalar.is_some() && structural_shape != ValueShape::integer(8, 8) {
         return Ok(None);
     }
-    let call_plan = evaluate_call_plan(
-        CallingPolicy::native_for_target(target),
-        &CallSignature {
-            parameters: scalar
-                .iter()
-                .map(|(_, _, shape)| *shape)
-                .chain(std::iter::once(structural_shape))
-                .collect(),
-            result: Some(structural_shape),
-        },
-    )
-    .map_err(LoweringError::AbiPlan)?;
+    let call_plan = StructuralCallSignature::derive(
+        &scalar
+            .iter()
+            .map(|(_, _, shape)| *shape)
+            .collect::<Vec<_>>(),
+        &function.structural_parameters,
+        Some(structural_shape),
+        structural_types,
+        &mut cache,
+        &mut active,
+    )?
+    .plan(target)?;
     let source_index = usize::from(scalar.is_some());
     let Some(source_placement) = call_plan.parameters.get(source_index).cloned() else {
         return Err(LoweringError::AbiParameterCountMismatch {
