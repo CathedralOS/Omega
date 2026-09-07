@@ -8,18 +8,17 @@ mod leaves;
 mod matchers;
 mod ordinary_roster;
 mod publication_input;
-mod scalar_call_unit;
+mod scalar_graph;
 mod shared;
 mod shared_return;
 mod structural;
 
 use crate::legalization::projected_structural_call_return;
-use functions::{derive_source_function, derive_source_unit_function};
-use matchers::{match_scalar_call_unit_form, match_structural_unit_form, match_unit_form};
+use functions::derive_source_function;
+use matchers::match_structural_unit_form;
 #[cfg(test)]
 pub(crate) use publication_input::accepts as accepts_fragment_publication_input;
 pub(crate) use publication_input::is_fragment_publication_program;
-use scalar_call_unit::derive_source_scalar_call_unit_function;
 use shared::*;
 use structural::derive_source_structural_unit_function;
 
@@ -35,8 +34,7 @@ pub(in crate::legalization) fn derive_condition_for_test<'a>(
 
 pub(crate) struct SourceFunctionRosters {
     pub functions: Vec<legalized_operations::LegalizedFunction>,
-    pub unit_functions: Vec<SourceUnitFunction>,
-    pub scalar_call_unit_functions: Vec<legalized_operations::LegalizedScalarCallUnitFunction>,
+    pub scalar_functions: Vec<legalized_operations::LegalizedScalarFunction>,
     pub structural_unit_functions: Vec<SourceStructuralUnitFunction>,
     pub projected_structural_call_returns:
         Vec<legalized_operations::LegalizedProjectedStructuralCallReturn>,
@@ -54,8 +52,7 @@ pub(crate) fn derive_source_function_rosters(
 
     let mut rosters = SourceFunctionRosters {
         functions: Vec::new(),
-        unit_functions: Vec::new(),
-        scalar_call_unit_functions: Vec::new(),
+        scalar_functions: Vec::new(),
         structural_unit_functions: Vec::new(),
         projected_structural_call_returns: projected.iter().cloned().collect(),
     };

@@ -5,9 +5,9 @@ use super::fixture::{caller_machine, staged_homes, staged_selected};
 fn call_mut(
     plan: &mut legalized_operations::LegalizedOperationPlan,
     index: usize,
-) -> &mut legalized_operations::LegalizedScalarCallUnitCall {
-    let legalized_operations::LegalizedScalarCallUnitOperation::Call(call) =
-        &mut plan.scalar_call_unit_functions[0].operations[index + 2]
+) -> &mut legalized_operations::LegalizedScalarCall {
+    let legalized_operations::LegalizedScalarInstructionKind::Call(call) =
+        &mut plan.scalar_functions[0].blocks[0].instructions[index + 2].kind
     else {
         panic!("the fixture starts with two constants followed by its calls")
     };
@@ -35,8 +35,8 @@ fn legal_call_order_callee_plan_arguments_lineage_and_evidence_fail_closed() {
         };
 
         let mut corrupted = original.clone();
-        corrupted.scalar_call_unit_functions[0]
-            .operations
+        corrupted.scalar_functions[0].blocks[0]
+            .instructions
             .swap(2, 3);
         expect_rejected(corrupted);
 
@@ -59,19 +59,19 @@ fn legal_call_order_callee_plan_arguments_lineage_and_evidence_fail_closed() {
         expect_rejected(corrupted);
 
         let mut corrupted = original.clone();
-        call_mut(&mut corrupted, 1).result_home.source_value =
+        corrupted.scalar_functions[0].blocks[0].instructions[3].result =
             ValueId::new(SCALAR_CALL_UNIT_FIRST_RESULT).unwrap();
         expect_rejected(corrupted);
 
         let mut corrupted = original.clone();
-        corrupted.scalar_call_unit_functions[0]
+        corrupted.scalar_functions[0]
             .provenance
             .operations
             .swap(0, 1);
         expect_rejected(corrupted);
 
         let mut corrupted = original.clone();
-        call_mut(&mut corrupted, 0).fuel[0].units += 1;
+        corrupted.scalar_functions[0].blocks[0].instructions[2].fuel[0].units += 1;
         expect_rejected(corrupted);
     }
 }

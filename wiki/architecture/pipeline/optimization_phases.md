@@ -382,15 +382,22 @@ Structural parameters, cleanup, callbacks and provider settlements remain
 outside this scalar migration. Direct-return controls start at separately
 authored, verified Terminal products; shared-return controls start at Omega
 source and pass through ordinary Terminal publication and resumed lowering.
-The shared selected call path accepts ordered straight-line attached-Unit
-sequences of U64 constants and register-argument U64 calls to admitted, call-free
-scalar functions. Constant and call counts, constant equality, call target
-identity, and use of earlier results do not select a special graph recipe.
+Ordinary straight-line scalar and Unit functions share one legalized function
+graph: typed parameters, ordered instructions, and an explicit value or Unit
+return. The separate Unit and Unit-caller rosters and their call recipe are
+removed. Calls may target other callers; their results may be returned, reused,
+or discarded without erasing the call. Executable order comes from the checked
+operation stream, not recursive target return expressions. Those expressions
+remain source/ABI evidence, not the new graph's executable payload.
 Each call retains its exact ABI and source operation; allocation sees explicit
-argument/result copies and target-owned clobbers. These sequences reach framed
-fragment text, object, executable image and installation publication on Linux
-x64 and Arm64 with empty or selected physical phases. Default source builds
-enter the same path by the selection stage's input grammar, before routing;
+argument/result copies and target-owned clobbers. Entry parameters are copied
+out of ABI-fixed registers so they can survive calls, and return transport has
+its own result-constrained value. These graphs reach framed fragment text,
+object, executable image and installation publication on Linux x64/Arm64,
+Windows x64 and macOS Arm64 with empty or selected physical phases.
+The multihop scalar-return coordinator regression authors Terminal directly; it does
+not establish checked-source lowering of a scalar helper that returns another call.
+Default source builds enter the same path by the selection stage's input grammar, before routing;
 they do not probe emission or fall back after failure. Selected physical
 materialization uses the same frame construction and independent replay as
 ordinary realization. Allocated preservation writes and calls determine frame
@@ -402,19 +409,25 @@ shared object directly, preserving its bytes, ABI, semantic intervals and exact
 frame/call stack prefixes. It does not rebuild an assigned machine plan or
 manufacture stack-held result records for values in preserved registers.
 Installation replay composes WCSU from those same frame and call facts, taking
-the maximum across sequential calls. Other call ABIs and
-targets remain explicit prerequisites of physical-route convergence.
+the maximum across sequential calls and composing nested callees. Scalar and
+Unit callers retain their corresponding checked stack envelopes; neither is
+relabeled to bypass publication checks. Multi-block call graphs, narrow and
+Boolean call transport, stack arguments, and the remaining structural/ranked
+routes are unfinished physical-route convergence work.
 Register-call argument counts come from the checked call plan, including zero;
 they do not select different source-program recipes. The target catalog supplies
 one exact constraint and effect row per admitted ABI register roster. Selection
-and independent replay check every argument's source, dense parameter ordinal,
+and independent replay check every argument's source, ordered parameter position,
 fixed register and result placement. Encoding checks the same exact register
 roster while preserving the target's ordinary call bytes and relocation. The
-current System V AMD64 and AAPCS64 routes admit all-register U64 signatures;
-an argument requiring stack placement remains outside this contract. Legalized
-identity v25 frames the variable argument list and retires the pair-only recipe
-tag; register-environment v9 and machine-effect catalog v11 bind the arity-key
-roster. Empty physical selection uses the same admission and encoding route.
+current System V AMD64, AAPCS64, Microsoft x64 and Darwin Arm64 routes admit
+all-register U64 signatures; an argument requiring stack placement remains
+outside this contract. Legalized identity v26 binds the ordinary graph and
+return role; legalization verifier v27 independently checks its source, ABI,
+fuel, effects and ownership. Register-environment and machine-effect identities
+bind the exact arity-key roster. Empty physical selection uses the same
+admission and encoding route. Microsoft calls reserve their required shadow
+area in the same frame calculation used by publication replay.
 The existing Microsoft-x64 structural Unit family also reaches this shared
 object, image and installation path with empty or nonempty selections: an
 owned-indirect pair leaf, or one entry caller passing that pair to one leaf.

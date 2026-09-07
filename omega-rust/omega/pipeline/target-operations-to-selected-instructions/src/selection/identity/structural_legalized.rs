@@ -15,8 +15,7 @@ pub(super) fn identity(
         target: plan.target,
         entry: plan.entry,
         functions: Vec::new(),
-        unit_functions: Vec::new(),
-        scalar_call_unit_functions: Vec::new(),
+        scalar_functions: Vec::new(),
         structural_unit_functions: plan
             .structural_unit_functions
             .iter()

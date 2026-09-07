@@ -103,14 +103,38 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
             || !abstracted.structural_parameters.is_empty()
             || !abstracted.entry_claims.is_empty()
             || !abstracted.published_service_ceiling.is_empty()
-            || (unit
-                && (!abstracted.parameters.is_empty()
-                    || targeted.fixed_integer_scalar_abi.is_some()))
+            || (unit && targeted.fixed_integer_scalar_abi.is_some())
             || (!unit && targeted.fixed_integer_scalar_abi.is_none())
         {
             return Err(Error::Unsupported(
                 "shared function has unsupported ABI or boundary effects",
             ));
+        }
+        if unit && !abstracted.parameters.is_empty() {
+            let body = unit_scalar_body(targeted).ok_or(Error::Mismatch(
+                "parameterized Unit function has no retained scalar ABI",
+            ))?;
+            if body.scalar_parameters.len() != abstracted.parameters.len()
+                || body.call_plan.parameters.len() != abstracted.parameters.len()
+                || body.call_plan.result.is_some()
+                || !body.parameters.is_empty()
+                || body
+                    .scalar_parameters
+                    .iter()
+                    .zip(&abstracted.parameters)
+                    .zip(&body.call_plan.parameters)
+                    .any(|((row, declaration), placement)| {
+                        row.value != declaration.value
+                            || row.scalar_type != declaration.scalar_type
+                            || row.placement != *placement
+                    })
+            {
+                return Err(Error::Mismatch(
+                    "Unit scalar ABI differs from current source",
+                ));
+            }
+        } else if unit_scalar_body(targeted).is_some() {
+            return Err(Error::Mismatch("unexpected Unit scalar ABI"));
         }
         for operation in &abstracted.operations {
             let admitted = match operation {
@@ -121,17 +145,13 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     requirement_obligations,
                     crash_continuations,
                     ..
-                } if unit => {
+                } => {
                     let (body, target) = function(source, *callee)?;
                     target
                         .fixed_integer_scalar_abi
                         .as_ref()
                         .is_some_and(|abi| abi.parameters.len() == arguments.len())
                         && !matches!(body.result, AbstractFunctionResult::Unit)
-                        && !body
-                            .operations
-                            .iter()
-                            .any(|operation| matches!(operation, AbstractOperation::Call { .. }))
                         && arguments.len() == body.parameters.len()
                         && requirement_obligations.is_empty()
                         && crash_continuations.is_empty()
@@ -148,20 +168,16 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::BooleanNot { .. }
                 | AbstractOperation::IntegerWiden { .. }
                 | AbstractOperation::ExactIntegerAdd { .. }
-                | AbstractOperation::ExactIntegerSubtract { .. }
-                    if !unit =>
-                {
-                    true
-                }
+                | AbstractOperation::ExactIntegerSubtract { .. } => true,
                 AbstractOperation::Jump {
                     trivial_affine_discards,
                     ..
-                } if !unit => trivial_affine_discards.is_empty(),
+                } => trivial_affine_discards.is_empty(),
                 AbstractOperation::Conditional {
                     when_true,
                     when_false,
                     ..
-                } if !unit => {
+                } => {
                     when_true.trivial_affine_discards.is_empty()
                         && when_false.trivial_affine_discards.is_empty()
                 }
@@ -175,6 +191,20 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         }
     }
     Ok(())
+}
+
+/// Borrow already validated target ABI facts; this does not construct an ABI plan.
+pub(super) fn unit_scalar_body(
+    function: &target_operations::TargetFunction,
+) -> Option<&target_operations::TargetUnitBody> {
+    match &function.operation {
+        target_operations::TargetOperation::UnitBody(body)
+            if !body.scalar_parameters.is_empty() =>
+        {
+            Some(body)
+        }
+        _ => None,
+    }
 }
 
 pub(super) fn fragment_metadata(

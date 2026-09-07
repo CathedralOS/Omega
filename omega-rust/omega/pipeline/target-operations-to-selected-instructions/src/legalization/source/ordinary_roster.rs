@@ -32,43 +32,39 @@ pub(super) fn derive_remaining(
             return Err(Error::SourceCustodyMismatch);
         };
         let kind = super::publication_input::kind(target_function, abstracted);
-        if kind == super::publication_input::OrdinaryInputKind::Unit {
-            if match_scalar_call_unit_form(target_function).is_some() {
-                rosters
-                    .scalar_call_unit_functions
-                    .push(derive_source_scalar_call_unit_function(
-                        index,
-                        target_function,
-                        abstracted,
-                        optimized,
-                        target,
-                        abstract_plan,
-                        unit,
-                    )?);
-            } else if let Some(form) = match_unit_form(target_function, abstracted, optimized) {
-                rosters.unit_functions.push(derive_source_unit_function(
+        if crate::legalization::scalar_graph_input::match_input(
+            target_function,
+            abstracted,
+            optimized,
+            target,
+            abstract_plan,
+            unit,
+        )
+        .is_ok()
+        {
+            rosters.scalar_functions.push(super::scalar_graph::derive(
+                target_function,
+                abstracted,
+                optimized,
+                target,
+                abstract_plan,
+                unit,
+            )?);
+        } else if kind == super::publication_input::OrdinaryInputKind::Unit {
+            let matched = match_structural_unit_form(target_function, abstracted, optimized)
+                .ok_or(Error::UnsupportedSourceShape { function: index })?;
+            rosters
+                .structural_unit_functions
+                .push(derive_source_structural_unit_function(
                     index,
                     target_function,
                     abstracted,
                     optimized,
-                    form,
+                    target,
+                    abstract_plan,
+                    unit,
+                    matched,
                 )?);
-            } else {
-                let matched = match_structural_unit_form(target_function, abstracted, optimized)
-                    .ok_or(Error::UnsupportedSourceShape { function: index })?;
-                rosters
-                    .structural_unit_functions
-                    .push(derive_source_structural_unit_function(
-                        index,
-                        target_function,
-                        abstracted,
-                        optimized,
-                        target,
-                        abstract_plan,
-                        unit,
-                        matched,
-                    )?);
-            }
         } else if kind == super::publication_input::OrdinaryInputKind::Leaf {
             let (_, control) = crate::legalization::scalar_leaf::control(target_function)
                 .expect("classified leaf input");

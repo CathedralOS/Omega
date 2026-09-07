@@ -143,6 +143,27 @@ pub fn selection_constraints(
             );
         }
     }
+    for function in &legalized.plan().scalar_functions {
+        for (index, parameter) in function.parameters.iter().enumerate() {
+            if let [
+                calling_conventions::ValueLocation::Register {
+                    register,
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+            ] = parameter.placement.locations.as_slice()
+            {
+                push_fixed_input(
+                    &mut fixed_inputs,
+                    environment,
+                    function.machine,
+                    parameter.value,
+                    index,
+                    *register,
+                );
+            }
+        }
+    }
     SelectedSelectionConstraints {
         keys: environment.selected_keys(),
         projected_structural_call: environment

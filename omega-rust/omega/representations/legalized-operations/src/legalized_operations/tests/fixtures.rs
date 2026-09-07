@@ -75,8 +75,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
         target: NativeTarget::from_omega_target_name(Some("uefi_x86_64")).expect("UEFI target"),
         entry: id(1),
         functions: Vec::new(),
-        unit_functions: Vec::new(),
-        scalar_call_unit_functions: Vec::new(),
+        scalar_functions: Vec::new(),
         structural_unit_functions: vec![LegalizedStructuralUnitFunction {
             machine: id(1),
             attachment: None,
@@ -294,79 +293,76 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
         input: index,
         output: index + 1,
     };
-    let constant = |index, value| LegalizedScalarCallUnitConstant {
+    let instruction = |index, kind| LegalizedScalarInstruction {
         operation: operations[index],
         result: values[index],
         scalar_type,
-        value: IntegerValue::Unsigned(value),
         definition_site: definition(index as u32),
+        kind,
         fuel: fuel(operations[index]),
         effect: effect(index as u64),
         ownership: Vec::new(),
     };
-    let immediate =
-        |index, value| target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
-            defining_operation: operations[index],
-            source_value: values[index],
-            scalar_type,
-            value: IntegerValue::Unsigned(value),
-        };
-    let home = |index| target_operations::TargetUnitScalarHomeRequirement {
-        defining_operation: operations[index],
-        source_value: values[index],
-        scalar_type: semantic_vocabulary::ScalarType::Integer(scalar_type),
-        shape,
-    };
-    let argument = |parameter_index, source| LegalizedScalarCallUnitArgument {
-        parameter_index,
-        source,
-        placement: call_plan.parameters[parameter_index as usize].clone(),
-    };
-    let call = |index, sources: [target_operations::TargetUnitScalarArgumentSource; 2]| {
-        LegalizedScalarCallUnitCall {
-            operation: operations[index],
+    let call = |sources: [ValueId; 2]| {
+        LegalizedScalarInstructionKind::Call(LegalizedScalarCall {
             callee,
             call_plan: call_plan.clone(),
-            result_home: home(index),
-            result_definition_site: definition(index as u32),
-            arguments: vec![argument(0, sources[0]), argument(1, sources[1])],
+            result_placement: call_plan.result.clone().unwrap(),
+            arguments: sources
+                .into_iter()
+                .zip(&call_plan.parameters)
+                .map(|(source, placement)| LegalizedScalarArgument {
+                    source,
+                    placement: placement.clone(),
+                })
+                .collect(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
-            fuel: fuel(operations[index]),
-            effect: effect(index as u64),
-            ownership: Vec::new(),
-        }
+        })
     };
-    plan.scalar_call_unit_functions
-        .push(LegalizedScalarCallUnitFunction {
-            machine,
-            attachment,
-            provenance: TerminalPsiProvenance {
-                operations: operations.to_vec(),
-                edges: vec![edge],
+    plan.scalar_functions.push(LegalizedScalarFunction {
+        machine,
+        attachment: Some(attachment),
+        provenance: TerminalPsiProvenance {
+            operations: operations.to_vec(),
+            edges: vec![edge],
+        },
+        call_plan: evaluate_call_plan(
+            CallingPolicy::native_for_target(plan.target),
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
             },
-            recipe: ScalarCallUnitLegalizationRecipe::OrderedU64RegisterCallsThenReturnUnitV1,
-            entry_block: block,
-            operations: vec![
-                LegalizedScalarCallUnitOperation::Constant(constant(0, 7)),
-                LegalizedScalarCallUnitOperation::Constant(constant(1, 9)),
-                LegalizedScalarCallUnitOperation::Call(call(2, [immediate(0, 7), immediate(1, 9)])),
-                LegalizedScalarCallUnitOperation::Call(call(3, [immediate(0, 7), immediate(1, 9)])),
-                LegalizedScalarCallUnitOperation::Call(call(
-                    4,
-                    [
-                        target_operations::TargetUnitScalarArgumentSource::Home(home(2)),
-                        target_operations::TargetUnitScalarArgumentSource::Home(home(3)),
-                    ],
-                )),
+        )
+        .unwrap(),
+        parameters: Vec::new(),
+        entry_block: block,
+        blocks: vec![LegalizedScalarBlock {
+            id: block,
+            instructions: vec![
+                instruction(
+                    0,
+                    LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(7)),
+                ),
+                instruction(
+                    1,
+                    LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(9)),
+                ),
+                instruction(2, call([values[0], values[1]])),
+                instruction(3, call([values[0], values[1]])),
+                instruction(4, call([values[2], values[3]])),
             ],
-            return_edge: edge,
-            return_fuel: vec![FuelSettlement {
-                site: PsiProvenance::Edge(edge),
-                units: 1,
-            }],
-            return_effect: effect(5),
-            return_ownership: vec![OwnershipEvent::Cleanup(Vec::new())],
-        });
+            terminator: LegalizedScalarReturn {
+                edge,
+                value: LegalizedScalarReturnValue::Unit,
+                fuel: vec![FuelSettlement {
+                    site: PsiProvenance::Edge(edge),
+                    units: 1,
+                }],
+                effect: effect(5),
+                ownership: vec![OwnershipEvent::Cleanup(Vec::new())],
+            },
+        }],
+    });
     plan
 }

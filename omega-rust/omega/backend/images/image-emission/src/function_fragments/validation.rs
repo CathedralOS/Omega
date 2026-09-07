@@ -75,10 +75,21 @@ pub fn validate_function_fragment_object_artifact(
         } else {
             format!("omega_terminal_machine_{}", placed.machine.get())
         };
+        let unit_abi_matches = match (
+            &function.unit_scalar_abi,
+            source::unit_scalar_body(targeted),
+        ) {
+            (None, None) => true,
+            (Some(actual), Some(body)) => {
+                actual.call_plan == body.call_plan && actual.parameters == body.scalar_parameters
+            }
+            _ => false,
+        };
         if function.machine != placed.machine
             || function.attachment != attachment
             || function.provenance != *provenance
             || function.fixed_integer_scalar_abi != targeted.fixed_integer_scalar_abi
+            || !unit_abi_matches
             || function.text_offset != offset
             || function.byte_count != length
             || function.symbol != symbol_handle
@@ -144,9 +155,15 @@ pub fn validate_function_fragment_object_artifact(
                 function.unit_stack,
                 function.scalar_stack,
                 &function.unit_call_stacks,
+                &function.scalar_call_stacks,
             )?;
             attribution::validate(fragment, abstracted, &rows)?;
         } else {
+            if !function.scalar_call_stacks.is_empty() {
+                return Err(Error::Mismatch(
+                    "structural Unit function retains scalar call rows",
+                ));
+            }
             super::structural::validate_function(source, function, &rows)?;
         }
     }
@@ -162,11 +179,9 @@ pub fn validate_function_fragment_object_artifact(
 fn empty_unsupported_records(function: &ObjectFunction) -> bool {
     function.mixed_structural_scalar_abi.is_none()
         && function.structural_call_scalar_return.is_none()
-        && function.unit_scalar_abi.is_none()
         && function.x86_scalar_fma.is_empty()
         && function.x86_scalar_fma_occurrences.is_empty()
         && function.x86_floating_control.is_none()
-        && function.scalar_call_stacks.is_empty()
         && function.internal_unit_scalar_calls.is_empty()
         && function.installed_provider_unit_scalar_calls.is_empty()
         && function.dynamic_calls.is_empty()

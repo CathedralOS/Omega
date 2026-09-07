@@ -7,7 +7,7 @@ use abstract_operations_to_abstract_operations::OptimizationRunError;
 use calling_conventions::{IndirectPointerLocation, MachineRegister, ValueLocation};
 use legalized_operations::{
     LegalizationRecipe, LegalizationTheorem, LegalizedLeafValue, LegalizedTemporaryId,
-    ScalarCallUnitLegalizationRecipe, legalized_operation_plan_identity,
+    legalized_operation_plan_identity,
 };
 use optimization_core::{
     Optimization, OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,

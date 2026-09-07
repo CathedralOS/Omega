@@ -92,11 +92,15 @@ fn eligible_function(
     {
         return false;
     }
+    if crate::legalization::scalar_graph_input::match_input(
+        function, abstracted, optimized, native, plan, unit,
+    )
+    .is_ok()
+    {
+        return true;
+    }
     if kind(function, abstracted) == OrdinaryInputKind::Unit {
-        return super::matchers::match_unit_form(function, abstracted, optimized).is_some()
-            || super::scalar_call_unit::matches_input(
-                index, function, abstracted, optimized, native, plan, unit,
-            );
+        return false;
     }
     // Boolean-parameter catalog forms remain ineligible until the ordinary
     // scalar ABI representation retains Boolean without laundering it as U8.

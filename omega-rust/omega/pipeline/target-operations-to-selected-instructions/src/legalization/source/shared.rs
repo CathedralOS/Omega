@@ -5,10 +5,7 @@ pub(super) use legalized_operations::{
     LegalizedCallUnitParameter, LegalizedCondition, LegalizedConditionParameter,
     LegalizedConditionalFunction as SourceFunction, LegalizedImmediate as SourceImmediate,
     LegalizedLeaf as SourceLeaf, LegalizedLeafValue as SourceLeafValue,
-    LegalizedScalarCallUnitArgument, LegalizedScalarCallUnitCall, LegalizedScalarCallUnitConstant,
-    LegalizedScalarCallUnitFunction, LegalizedScalarCallUnitOperation,
     LegalizedStructuralUnitFunction as SourceStructuralUnitFunction, LegalizedTemporaryId,
-    LegalizedUnitFunction as SourceUnitFunction, ScalarCallUnitLegalizationRecipe,
 };
 pub(super) use optimization_unit::{
     AcceptedObligationFact, FuelSettlement, OptimizationFact, OwnershipEvent, PsiOptimizationUnit,
@@ -20,7 +17,7 @@ pub(super) use semantic_vocabulary::{
 pub(super) use target_operations::{
     ScalarParameterLocation, TargetBooleanExpression, TargetConditionalIntegerArm,
     TargetIntegerControl, TargetIntegerExpression, TargetOperation, TargetOperationPlan,
-    TargetUnitOperation, TargetUnitScalarArgumentSource, TerminalPsiProvenance,
+    TargetUnitOperation, TerminalPsiProvenance,
 };
 pub(super) use terminal_psi::StructuralPlaceDeclaration;
 

@@ -13,7 +13,7 @@ fn structural_call_and_terminal_callee_are_produced_and_replayed() {
     let (abstract_plan, target, unit) = structural_call_fixture();
     let legalized = legalize_target_operations(&target, &abstract_plan, &unit)
         .expect("one whole-root call and its structural callee legalize");
-    assert!(legalized.plan().unit_functions.is_empty());
+    assert!(legalized.plan().scalar_functions.is_empty());
     assert_eq!(legalized.plan().structural_unit_functions.len(), 2);
     let legalized_call = legalized.plan().structural_unit_functions[0]
         .call

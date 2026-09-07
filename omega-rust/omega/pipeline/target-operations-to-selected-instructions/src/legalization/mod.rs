@@ -13,7 +13,7 @@ mod integer_sequence_input;
 mod model;
 mod projected_structural_call_return;
 mod replay;
-mod scalar_call_contract;
+mod scalar_graph_input;
 mod scalar_leaf;
 mod source;
 
@@ -51,8 +51,7 @@ pub fn legalize_target_operations(
         target: target.target,
         entry: target.entry,
         functions: rosters.functions,
-        unit_functions: rosters.unit_functions,
-        scalar_call_unit_functions: rosters.scalar_call_unit_functions,
+        scalar_functions: rosters.scalar_functions,
         structural_unit_functions: rosters.structural_unit_functions,
         projected_structural_call_returns: rosters.projected_structural_call_returns,
     };
@@ -79,8 +78,7 @@ pub fn validate_legalized_operations(
         fuel_schedule: unit.fuel_schedule,
         target: target.target,
         function_count: plan.functions.len()
-            + plan.unit_functions.len()
-            + plan.scalar_call_unit_functions.len()
+            + plan.scalar_functions.len()
             + plan.structural_unit_functions.len()
             + plan.projected_structural_call_returns.len() * 2,
         decomposition_count,

@@ -8,7 +8,7 @@ use abstract_operations::{
     AbstractFunctionResult, AbstractOperation, AbstractOperationPlan, AbstractParameter,
     AbstractResult,
 };
-use legalized_operations::{LegalizedFunction, LegalizedLeafValue};
+use legalized_operations::{LegalizedScalarInstructionKind, LegalizedScalarReturnValue};
 use semantic_vocabulary::{
     EdgeId, IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType, ValueId,
 };
@@ -104,15 +104,23 @@ fn scalar_leaf_constants_and_parameters_select_without_fabricated_control() {
         for immediate in [Some(0), Some(7), Some(u64::MAX), None] {
             let (abstracted, target, unit) = fixture(immediate, native_target);
             let legalized = legalize_target_operations(&target, &abstracted, &unit).unwrap();
-            let LegalizedFunction::Leaf(leaf) = &legalized.plan().functions[0] else {
-                panic!("single scalar leaf")
-            };
+            assert!(legalized.plan().functions.is_empty());
+            let graph = &legalized.plan().scalar_functions[0];
+            let abi = target.functions[0]
+                .fixed_integer_scalar_abi
+                .as_ref()
+                .unwrap();
+            assert_eq!(graph.call_plan, abi.call_plan);
+            assert_eq!(graph.parameters.len(), abi.parameters.len());
+            for (parameter, expected) in graph.parameters.iter().zip(&abi.parameters) {
+                assert_eq!(parameter.value, expected.value);
+                assert_eq!(parameter.scalar_type, expected.scalar_type);
+                assert_eq!(parameter.placement, expected.placement);
+            }
+            assert_eq!(graph.blocks.len(), 1);
             assert_eq!(
-                leaf.abi,
-                target.functions[0]
-                    .fixed_integer_scalar_abi
-                    .clone()
-                    .unwrap()
+                graph.blocks[0].instructions.len(),
+                usize::from(immediate.is_some())
             );
             let environment =
                 register_environment::baseline_target_register_environment(native_target).unwrap();
@@ -125,10 +133,10 @@ fn scalar_leaf_constants_and_parameters_select_without_fabricated_control() {
             )
             .unwrap();
             assert_eq!(selected.plan().functions[0].blocks.len(), 1);
-            assert_eq!(selected.plan().functions[0].blocks[0].instructions.len(), 1);
+            assert_eq!(selected.plan().functions[0].blocks[0].instructions.len(), 2);
             assert_eq!(
                 selected.plan().functions[0].virtual_registers.len(),
-                1 + usize::from(immediate.is_none())
+                2 + usize::from(immediate.is_none())
             );
             if immediate.is_none() {
                 assert_eq!(
@@ -170,26 +178,31 @@ fn scalar_leaf_legalization_rejects_changed_literal_abi_and_return_register() {
     );
     for corruption in 0..4 {
         let mut proposed = legalized.plan().clone();
-        let LegalizedFunction::Leaf(leaf) = &mut proposed.functions[0] else {
-            unreachable!()
-        };
+        let graph = &mut proposed.scalar_functions[0];
         match corruption {
             0 => {
-                let LegalizedLeafValue::Immediate { value, .. } = &mut leaf.leaf.value else {
+                let LegalizedScalarInstructionKind::Constant(value) =
+                    &mut graph.blocks[0].instructions[0].kind
+                else {
                     unreachable!()
                 };
                 *value = IntegerValue::Unsigned(9);
             }
-            1 => leaf.abi.result.value = ValueId::new(99).unwrap(),
+            1 => {
+                graph.blocks[0].terminator.value = LegalizedScalarReturnValue::Value {
+                    value: ValueId::new(99).unwrap(),
+                    scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                }
+            }
             2 => {
                 let calling_conventions::ValueLocation::Register { register, .. } =
-                    &mut leaf.abi.result.placement.locations[0]
+                    &mut graph.call_plan.result.as_mut().unwrap().locations[0]
                 else {
                     unreachable!()
                 };
                 *register = target_operations::MachineRegister::X86Rcx;
             }
-            _ => leaf.provenance.operations.clear(),
+            _ => graph.provenance.operations.clear(),
         }
         assert_ne!(
             original_identity,
@@ -205,6 +218,23 @@ fn scalar_leaf_legalization_rejects_changed_literal_abi_and_return_register() {
     };
     *value = IntegerValue::Unsigned(8);
     assert!(legalize_target_operations(&corrupted_target, &abstracted, &unit).is_err());
+    let mut corrupted_target = target.clone();
+    corrupted_target.functions[0]
+        .fixed_integer_scalar_abi
+        .as_mut()
+        .unwrap()
+        .result
+        .value = ValueId::new(99).unwrap();
+    assert!(legalize_target_operations(&corrupted_target, &abstracted, &unit).is_err());
+    assert!(
+        validate_legalized_operations(
+            &corrupted_target,
+            &abstracted,
+            &unit,
+            legalized.plan().clone()
+        )
+        .is_err()
+    );
     let mut corrupted_target = target.clone();
     let abi = corrupted_target.functions[0]
         .fixed_integer_scalar_abi
@@ -236,20 +266,17 @@ fn scalar_leaf_parameter_replay_binds_index_and_incoming_register() {
     let legalized = legalize_target_operations(&target, &abstracted, &unit).unwrap();
     for change_index in [false, true] {
         let mut proposed = legalized.plan().clone();
-        let LegalizedFunction::Leaf(leaf) = &mut proposed.functions[0] else {
-            unreachable!()
-        };
-        let LegalizedLeafValue::EntryParameter {
-            parameter_index,
-            register,
-            ..
-        } = &mut leaf.leaf.value
-        else {
-            unreachable!()
-        };
+        let graph = &mut proposed.scalar_functions[0];
+        let parameter = &mut graph.parameters[0];
         if change_index {
-            *parameter_index = 1;
+            parameter.definition_site =
+                optimization_unit::ValueDefinitionSite::FunctionParameter(1);
         } else {
+            let calling_conventions::ValueLocation::Register { register, .. } =
+                &mut parameter.placement.locations[0]
+            else {
+                unreachable!()
+            };
             *register = target_operations::MachineRegister::X86Rdx;
         }
         assert!(validate_legalized_operations(&target, &abstracted, &unit, proposed).is_err());

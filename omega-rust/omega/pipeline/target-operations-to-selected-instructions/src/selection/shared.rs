@@ -10,10 +10,7 @@ pub(super) use legalized_operations::{
     LegalizedImmediate as SourceImmediate, LegalizedLeaf as SourceLeaf,
     LegalizedLeafValue as SourceLeafValue, LegalizedOperationPlan, LegalizedOperationPlanIdentity,
     LegalizedProjectedStructuralCallReturn,
-    LegalizedScalarCallUnitFunction as SourceScalarCallUnitFunction,
-    LegalizedScalarCallUnitOperation,
     LegalizedStructuralUnitFunction as SourceStructuralUnitFunction,
-    LegalizedUnitFunction as SourceUnitFunction,
 };
 pub(super) use optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};
 pub(super) use register_model::{
