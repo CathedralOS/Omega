@@ -113,5 +113,6 @@ Maintain current rules in place; Git owns implementation history.
 - Contracts are preserved, unspecified behavior is explicit, and implementation
   or formal-verification status is not overstated.
 
-Next: consolidate the remaining Terminal operation and proof material. The
-directory move marks that work as pending; it has not performed the review.
+Next: consolidate the remaining Terminal operation-specific material and physical
+payload tables, then move to the build/package reference. The remaining documents
+in pre_migration still need review, not automatic promotion into the specification.

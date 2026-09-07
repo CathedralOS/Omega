@@ -52,8 +52,8 @@ they must not acquire customer-shaped semantic types or lifecycle protocols.
 
 - **DOCUMENTATION-CONSOLIDATION.** Execute the
   [four-move cleanup plan](wiki/drafts/documentation_cleanup.md), owned by repository
-  documentation. Review and port the remaining Terminal operation and verification
-  reference, then the other documents in `wiki/pre_migration/`. The
+  documentation. Review and port the remaining Terminal operation reference and
+  complete the physical payload tables, then the other documents in `wiki/pre_migration/`. The
   [documentation index](wiki/README.md) identifies the current subject owners.
   Consolidate into guide, specification, proposals, and temporary drafts; keep
   implementation documentation beside code. The protected bootstrap decision
@@ -494,7 +494,9 @@ Owners include
 - **PCC-CANONICAL-SEMANTIC-LEDGER.** Replace trusted Rust fusion of artifact
   traversal and proof search with a small total canonical-ledger generator plus
   an untrusted certificate producer. The verifier reconstructs goals and only
-  checks the supplied route. Bootstrap discharge remains open under
+  checks the supplied route, under the
+  [verification contract](wiki/spec/terminal-psi/verification.md).
+  Bootstrap discharge remains open under
   `BETA-DERIVATION-CHECKER` in `TASKS_BOOTSTRAP.md`; no current artifact may
   claim rooted-checker acceptance.
 
