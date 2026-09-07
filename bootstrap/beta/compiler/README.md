@@ -5,7 +5,7 @@ The authoritative grammar and encoding are fixed by
 [`../LANGUAGE.md`](../LANGUAGE.md).
 
 The admitted cold-start implementation is
-[`beta_compiler_bytecode.tape`](beta_compiler_bytecode.tape), a 1,792-byte
+[`beta_compiler_bytecode.tape`](beta_compiler_bytecode.tape), a 1,773-byte
 platform-independent Alpha program at the first compiler edge. The readable
 [`beta_compiler.beta`](beta_compiler.beta) source is the same assembler expressed in
 Beta; `tests/beta/compiler/reconstruction.sh`

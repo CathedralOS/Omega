@@ -75,7 +75,7 @@
         mov   r1, r99
         jlt   r0, r1, 0x1e3 ; -> scan_done:
         jnz   r0, 0x1a8 ; -> scan_address:
-        call  0x46f ; -> parse_op:
+        call  0x47f ; -> parse_op:
         imm   r1, 0x15
         jeq   r0, r1, 0x1d1 ; dw pseudo-opcode -> scan_dw:
         write r0
@@ -88,7 +88,7 @@
         sub   r98, r9d
         add   r85, r98
         jlt   r95, r85, 0x107 ; -> source_reject:
-        call  0x540 ; -> emit_operand:
+        call  0x550 ; -> emit_operand:
         add   r96, r9a
         jmp   0x175 ; -> scan_operand:
 
@@ -102,7 +102,7 @@
         jmp   0x107 ; -> source_reject:
 
 0x1d1: ; scan_dw:
-        call  0x645 ; -> dw_scan:
+        call  0x632 ; -> dw_scan:
         jmp   0x123 ; -> scan_loop:
 0x1e3: ; scan_done:
         ret
@@ -186,56 +186,59 @@
         mov   r4, r82           ; TSTART
         mov   r5, r83           ; TLEN
         imm   r8, 0x3
-        jlt   r5, r8, 0x639 ; -> operand_reject:
+        jlt   r5, r8, 0x626 ; -> operand_reject:
         imm   r8, 0x12
-        jlt   r8, r5, 0x639 ; -> operand_reject:
+        jlt   r8, r5, 0x626 ; -> operand_reject:
+        loadb r9, r4
+        sub   r9, r9d           ; first prefix byte must be '0'
+        jnz   r9, 0x626 ; -> operand_reject:
         mov   r8, r4
         mov   ra, r9a
         add   r8, ra
         loadb r9, r8
         imm   ra, 0x78          ; 'x'
-        jeq   r9, ra, 0x3ad ; -> phw_digits:
-        jmp   0x639 ; -> operand_reject:
-0x3ad: ; phw_digits:
+        jeq   r9, ra, 0x3bd ; -> phw_digits:
+        jmp   0x626 ; -> operand_reject:
+0x3bd: ; phw_digits:
         imm   r7, 0x2            ; skip '0x'
-        call  0x3c1 ; -> parse_hex_digits:
+        call  0x3d1 ; -> parse_hex_digits:
         ret
 
 ; r4/r5 token span and r7 first digit -> NUM.
-0x3c1: ; parse_hex_digits:
+0x3d1: ; parse_hex_digits:
         mov   r6, r99            ; accumulator
-0x3c4: ; phd_loop:
-        jlt   r7, r5, 0x3d6 ; -> phd_byte:
+0x3d4: ; phd_loop:
+        jlt   r7, r5, 0x3e6 ; -> phd_byte:
         mov   r3, r8c
         store r3, r6
         ret
-0x3d6: ; phd_byte:
+0x3e6: ; phd_byte:
         mov   r8, r4
         add   r8, r7
         loadb r9, r8
-        call  0x407 ; -> hex_nibble:
+        call  0x417 ; -> hex_nibble:
         imm   ra, 0x10
         mul   r6, ra
         add   r6, r9
         mov   ra, r9a
         add   r7, ra
-        jmp   0x3c4 ; -> phd_loop:
+        jmp   0x3d4 ; -> phd_loop:
 
 ; Lowercase hexadecimal byte r9 -> nibble r9. Preserves r4-r8.
-0x407: ; hex_nibble:
+0x417: ; hex_nibble:
         mov   ra, r9d           ; '0'
-        jlt   r9, ra, 0x639 ; -> operand_reject:
+        jlt   r9, ra, 0x626 ; -> operand_reject:
         imm   rb, 0x3a           ; ':'
-        jlt   r9, rb, 0x45d ; -> hn_digit:
+        jlt   r9, rb, 0x46d ; -> hn_digit:
         imm   ra, 0x61           ; 'a'
-        jlt   r9, ra, 0x639 ; -> operand_reject:
+        jlt   r9, ra, 0x626 ; -> operand_reject:
         imm   rb, 0x67          ; 'g'
-        jlt   r9, rb, 0x461 ; -> hn_lower:
-        jmp   0x639 ; -> operand_reject:
-0x45d: ; hn_digit:
+        jlt   r9, rb, 0x471 ; -> hn_lower:
+        jmp   0x626 ; -> operand_reject:
+0x46d: ; hn_digit:
         sub   r9, ra
         ret
-0x461: ; hn_lower:
+0x471: ; hn_lower:
         imm   ra, 0x57           ; 'a' - 10
         sub   r9, ra
         ret
@@ -243,129 +246,121 @@
 ; ---------------- parse_op ----------------
 ; Compare the current token directly with each mnemonic row.
 ; Return opcode in r0 and install its operand descriptor. Halt 8 if unknown.
-0x46f: ; parse_op:
+0x47f: ; parse_op:
         mov   r4, r82           ; TSTART
         mov   r5, r83           ; TLEN
         mov   rb, r9b
-        jlt   rb, r5, 0x53b ; -> unknown_mnemonic:
+        jlt   rb, r5, 0x54b ; -> unknown_mnemonic:
         mov   r0, r99            ; op = 0
-        imm   r1, 0x660
-0x490: ; po_mloop:
+        imm   r1, 0x64d
+0x4a0: ; po_mloop:
         loadb rb, r1
-        jz    rb, 0x53b ; -> unknown_mnemonic:
+        jz    rb, 0x54b ; -> unknown_mnemonic:
         mov   r6, r99            ; byte index
-0x4a0: ; po_compare:
-        jlt   r6, r5, 0x4c1 ; -> po_compare_byte:
+0x4b0: ; po_compare:
+        jlt   r6, r5, 0x4d1 ; -> po_compare_byte:
         loadb r7, r1
-        jz    r7, 0x534 ; -> po_found:
-        jmp   0x4f0 ; -> po_next:
-0x4c1: ; po_compare_byte:
+        jz    r7, 0x544 ; -> po_found:
+        jmp   0x500 ; -> po_next:
+0x4d1: ; po_compare_byte:
         mov   r7, r4
         add   r7, r6
         loadb r8, r7
         loadb r9, r1
-        jeq   r8, r9, 0x4e1 ; -> po_same:
-        jmp   0x4f0 ; -> po_next:
-0x4e1: ; po_same:
+        jeq   r8, r9, 0x4f1 ; -> po_same:
+        jmp   0x500 ; -> po_next:
+0x4f1: ; po_same:
         add   r1, r9a
         add   r6, r9a
-        jmp   0x4a0 ; -> po_compare:
-0x4f0: ; po_next:
+        jmp   0x4b0 ; -> po_compare:
+0x500: ; po_next:
         loadb r7, r1
-        jz    r7, 0x509 ; -> po_skip_widths:
+        jz    r7, 0x519 ; -> po_skip_widths:
         add   r1, r9a
-        jmp   0x4f0 ; -> po_next:
-0x509: ; po_skip_widths:
+        jmp   0x500 ; -> po_next:
+0x519: ; po_skip_widths:
         add   r1, r9a
-0x50c: ; po_skip_width:
+0x51c: ; po_skip_width:
         loadb r7, r1
-        jz    r7, 0x525 ; -> po_next_row:
+        jz    r7, 0x535 ; -> po_next_row:
         add   r1, r9a
-        jmp   0x50c ; -> po_skip_width:
-0x525: ; po_next_row:
+        jmp   0x51c ; -> po_skip_width:
+0x535: ; po_next_row:
         add   r1, r9a          ; past descriptor NUL
         add   r0, r9a
-        jmp   0x490 ; -> po_mloop:
-0x534: ; po_found:
+        jmp   0x4a0 ; -> po_mloop:
+0x544: ; po_found:
         add   r1, r9a          ; NUL-terminated ASCII width list follows name
         mov   r87, r1
         ret
 
-0x53b: ; unknown_mnemonic:
+0x54b: ; unknown_mnemonic:
         mov   r0, r9b
         halt  r0
 
 ; ---------------- emit_operand ----------------
 ; Read and validate the next operand according to EMITW: width 1 is exactly
 ; REGISTER, width 8 is exactly HEXWORD. Emit little-endian bytes.
-0x540: ; emit_operand:
+0x550: ; emit_operand:
         call  0x1e4 ; -> next_token:
-        jnz   r0, 0x639 ; -> operand_reject:
+        jnz   r0, 0x626 ; -> operand_reject:
         mov   r1, r98           ; width
         mov   r2, r9a
-        jeq   r1, r2, 0x57b ; -> eo_register:
+        jeq   r1, r2, 0x58b ; -> eo_register:
         mov   r2, r9b
-        jeq   r1, r2, 0x5de ; -> eo_word:
-        jmp   0x639 ; -> operand_reject:
+        jeq   r1, r2, 0x5ee ; -> eo_word:
+        jmp   0x626 ; -> operand_reject:
 
-0x57b: ; eo_register:
+0x58b: ; eo_register:
         mov   r4, r82           ; TSTART
         mov   r5, r83           ; TLEN
         imm   r6, 0x2
-        jlt   r5, r6, 0x639 ; -> operand_reject:
+        jlt   r5, r6, 0x626 ; -> operand_reject:
         imm   r6, 0x3
-        jlt   r6, r5, 0x639 ; -> operand_reject:
+        jlt   r6, r5, 0x626 ; -> operand_reject:
         mov   r6, r4
         loadb r6, r6
         imm   r7, 0x72          ; 'r'
-        jeq   r6, r7, 0x5cf ; -> er_parse:
-        jmp   0x639 ; -> operand_reject:
-0x5cf: ; er_parse:
+        jeq   r6, r7, 0x5df ; -> er_parse:
+        jmp   0x626 ; -> operand_reject:
+0x5df: ; er_parse:
         mov   r7, r9a            ; skip 'r'
-        call  0x3c1 ; -> parse_hex_digits:
+        call  0x3d1 ; -> parse_hex_digits:
         write r6
         ret
 
-0x5de: ; eo_word:
-        mov   r4, r82
-        mov   r5, r83
-        mov   r6, r4
-        loadb r6, r6
-        mov   r7, r9d            ; '0'
-        jeq   r6, r7, 0x601 ; -> eo_hex_word:
-        jmp   0x639 ; -> operand_reject:
-0x601: ; eo_hex_word:
+0x5ee: ; eo_word:
         call  0x353 ; -> parse_hex_word:
-        jmp   0x613 ; -> eo_emit:
-0x613: ; eo_emit:
+        jmp   0x600 ; -> eo_emit:
+0x600: ; eo_emit:
         mov   r3, r8c
         mov   r1, r8c
         add   r1, r9b          ; end of eight-byte NUM scratch
-0x61c: ; eo_bloop:
-        jeq   r3, r1, 0x638 ; -> eo_done:
+0x609: ; eo_bloop:
+        jeq   r3, r1, 0x625 ; -> eo_done:
         loadb r0, r3
         write r0
         add   r3, r9a
-        jmp   0x61c ; -> eo_bloop:
-0x638: ; eo_done:
+        jmp   0x609 ; -> eo_bloop:
+0x625: ; eo_done:
         ret
 
-0x639: ; operand_reject:
+0x626: ; operand_reject:
         imm   r0, 0x7
         halt  r0
 
 ; ---------------- dw_scan ----------------
 ; Emit one parsed Alpha word through the ordinary operand path.
-0x645: ; dw_scan:
+0x632: ; dw_scan:
         mov   r98, r9b
         add   r85, r98
         jlt   r95, r85, 0x107 ; -> source_reject:
-        call  0x540 ; -> emit_operand:
+        call  0x550 ; -> emit_operand:
         ret
 
 ; NUL-terminated names in opcode order. Each name is followed by a
 ; NUL-terminated list of ASCII widths: 1 register byte or 8 word bytes.
-0x660: ; mnemonic_table:
+0x64d: ; mnemonic_table:
         dw 0x69003100746c6168 ; halt.1.i
         dw 0x6f6d003831006d6d ; mm.18.mo
         dw 0x6464610031310076 ; v.11.add

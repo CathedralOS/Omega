@@ -118,9 +118,9 @@ The current exact subject is small enough for total checked reconstruction:
 
 | Subject fact | Value |
 | --- | ---: |
-| Source bytes | 12,640 |
-| Source lines | 388 |
-| Encoded payload bytes | 1,792 |
+| Source bytes | 12,536 |
+| Source lines | 383 |
+| Encoded payload bytes | 1,773 |
 
 An admission certificate must bind the raw source and tape outside the proof
 producer, partition every source item and output byte exactly once, check every

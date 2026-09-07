@@ -132,7 +132,7 @@ Alpha VM
 This is the selected architecture. It has the same functional semantics as
 candidate C, but retains Beta to make the evaluator source readable and exactly
 reconstructible. Beta's compiler is itself Beta source with an admitted
-1,792-byte Alpha tape and byte-identical reconstruction. That added language
+1,773-byte Alpha tape and byte-identical reconstruction. That added language
 edge is more honest and reviewable than treating the larger Gamma evaluator
 tape as independently understandable opaque root material.
 

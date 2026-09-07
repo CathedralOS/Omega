@@ -93,6 +93,9 @@ else
   echo "finite root audit SKIP - python3 not found"
 fi
 
+echo "--- shared hexadecimal prefix (strict grammar) ---"
+if sh "$OMEGA_REPO_ROOT/tests/beta/compiler/word-prefix.sh"; then :; else rc=1; fi
+
 echo ""
 if [ $rc = 0 ]; then
   if [ "$ALPHA_VERIFY_MODE" = full ]; then

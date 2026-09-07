@@ -12,11 +12,11 @@ ROOT = Path(__file__).resolve().parents[3]
 SOURCE = ROOT / "bootstrap/beta/compiler/beta_compiler.beta"
 TAPE = ROOT / "bootstrap/beta/compiler/beta_compiler_bytecode.tape"
 
-SOURCE_SIZE = 12_640
-SOURCE_SHA256 = "3ea0b6d4d8651bddf2aaeb2176009706a0119942c8c2a072e03f6f8876eef53a"
-TAPE_SIZE = 1_792
-TAPE_SHA256 = "b5c3b23c945a250d03e16e66126b4b783573bb8d15139de94a2c8f69fc6ac24f"
-CODE_END = 0x660
+SOURCE_SIZE = 12_536
+SOURCE_SHA256 = "2f9a9f55a2c708731567367380521bfe35b1c13a00a367febd1f9f654c25f320"
+TAPE_SIZE = 1_773
+TAPE_SHA256 = "4b1572a5ce406fc5b194e047ac6c5c601c1860261933381443a08c9041b77361"
+CODE_END = 0x64D
 
 # This table is copied from Alpha's written encoding, not from the compiler's
 # mnemonic table or the independent Beta assembler.
@@ -35,10 +35,10 @@ ALPHA = {
 }
 
 EXPECTED_INVENTORY = {
-    "add": 24, "call": 12, "halt": 4, "imm": 37, "jeq": 20,
-    "jlt": 24, "jmp": 27, "jnz": 2, "jz": 5, "load": 1,
-    "loadb": 16, "mov": 59, "mul": 1, "read": 2, "ret": 12,
-    "store": 1, "storeb": 1, "sub": 6, "write": 3,
+    "add": 24, "call": 12, "halt": 4, "imm": 37, "jeq": 19,
+    "jlt": 24, "jmp": 26, "jnz": 3, "jz": 5, "load": 1,
+    "loadb": 16, "mov": 55, "mul": 1, "read": 2, "ret": 12,
+    "store": 1, "storeb": 1, "sub": 7, "write": 3,
 }
 
 EXPECTED_TABLE = [
@@ -132,7 +132,7 @@ def main() -> None:
 
     items = beta_ref.parse(source)
     counts = Counter(item[0] for item in items)
-    require(counts == {"assert": 53, "ins": 257, "dw": 20}, "source-item inventory changed")
+    require(counts == {"assert": 52, "ins": 253, "dw": 20}, "source-item inventory changed")
     cursor = 0
     for item in items:
         if item[0] == "assert":
@@ -161,8 +161,8 @@ def main() -> None:
     require(initial == expected_initial, "memory/profile initialization changed")
 
     print(
-        "Beta root audit: 12,640-byte source -> 53 assertions + 277 emitting items -> "
-        "257 reachable Alpha instructions + 160 table bytes -> 1,792-byte tape"
+        "Beta root audit: 12,536-byte source -> 52 assertions + 273 emitting items -> "
+        "253 reachable Alpha instructions + 160 table bytes -> 1,773-byte tape"
     )
 
 
