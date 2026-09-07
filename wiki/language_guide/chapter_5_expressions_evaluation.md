@@ -820,12 +820,18 @@ expression-only suppression restriction.
 > peers and integer domain membership require integral anonymous operands;
 > successful integer landing retains fractional-intermediate warnings. Facts
 > with potentially authored operators remain for typed declaration selection,
-> not builtin evaluation by spelling. Caller result proofs can also
+> not builtin evaluation by spelling. At supported declared `f32`/`f64`
+> destinations, wholly anonymous integer-literal arithmetic uses the same exact
+> rational value and rounds once, without an integer-landing warning. Retained
+> but unused operands do not impose runtime integer-width limits after this
+> folding; another executable use still has its own width obligation.
+> Caller result proofs can also
 > transport a callee's builtin `result == immutable_parameter` guarantee from retained closed
 > fixed-integer operands, without replaying their source expressions. General runtime argument
 > snapshots, generic/evidence-adapted and boundary destination custody, aggregate
-> elements, remaining mutable parameter carriers and Unit-body storage, numeric policies, float
-> and remaining authored-operator/const-proof consumers, and ordinary warning
+> elements, remaining mutable parameter carriers and Unit-body storage, numeric policies,
+> mixed integer/decimal anonymous trees and remaining float destinations,
+> remaining authored-operator/const-proof consumers, and ordinary warning
 > suppression/report transport remain on [the execution board](../../TASKS.md).
 
 ### Typed integer quotient and remainder

@@ -50,7 +50,29 @@ use typed_trees::types::PrimitiveType;
 
 pub(crate) fn validate_literal_widths(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
     let blessed = u64_blessed_literals(program);
-    for (handle, node) in program.expression_table.expression_entries() {
+    // This is a runtime consumer-width gate, not a limit on anonymous math.
+    // Float landing can replace a whole exact tree while its old children
+    // remain in the arena. Follow all statement roots (including unused
+    // machines), so detached operands are not mistaken for runtime values.
+    // Any shared operand still reached by another statement remains checked.
+    let mut pending = Vec::new();
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                pending.extend(crate::calls::statement_value_expression_roots(
+                    program, statement,
+                ));
+            }
+        }
+    }
+    let mut visited = Vec::new();
+    while let Some(handle) = pending.pop() {
+        if !program.expression_table.expression_is_valid(handle) || visited.contains(&handle) {
+            continue;
+        }
+        visited.push(handle);
+        let node = program.expression_table.expression(handle);
+        super::expression_children::children(program, node, |child| pending.push(child));
         if let ExpressionNode::Integer(literal) = node
             && literal.value_i64().is_none()
             && !blessed.contains(&handle)

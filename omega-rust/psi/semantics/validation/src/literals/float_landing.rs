@@ -6,6 +6,8 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 type FloatLandingPair = (ExpressionHandle, TypeReferenceHandle);
 
 mod call_destinations;
+mod integer_operands;
+pub(super) use integer_operands::validate_integer_tree_destination;
 
 /// F2b -- float DESTINATION stamping (ch5 two-phase constants, the float
 /// half): an UNSUFFIXED float literal initializing a declared `f32`/`f64`
@@ -459,7 +461,16 @@ fn land_float_tree(
     expression: ExpressionHandle,
     format: numerics::literals::FloatFormat,
 ) {
-    if let Some(exact) = anonymous_exact_float_tree(program, expression) {
+    // Integer spellings are anonymous exact values too. Evaluate the complete
+    // rational before requesting a float format; rounding each leaf would
+    // change division and double-round large intermediate values. Typed
+    // integer operands are deliberately declined by the shared evaluator.
+    let mut builtin =
+        |expression| super::integer_landing::has_anonymous_operator_meaning(program, expression);
+    let exact = super::integer_landing::anonymous_numeric_value(program, expression, &mut builtin)
+        .map(|evaluated| numerics::bignum::ExactFloat::Finite(evaluated.value))
+        .or_else(|| anonymous_exact_float_tree(program, expression));
+    if let Some(exact) = exact {
         let semantic_format = match format {
             numerics::literals::FloatFormat::F32 => {
                 numerics::float_semantics::FloatFormat::BINARY32

@@ -3,6 +3,7 @@ use super::*;
 mod anonymous_integer_exits;
 mod anonymous_rational_arguments;
 mod anonymous_rational_exits;
+mod anonymous_rational_floats;
 mod assembly;
 mod assigned_values;
 mod bounded_arguments;

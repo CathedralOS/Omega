@@ -647,8 +647,9 @@ Owners include
   beyond entry requirements using independently checked all-path invariants;
   ignored-backedge first-pass facts must never authorize a loop crash guard.
   Complete [exact anonymous division and landing](wiki/language_guide/chapter_5_expressions_evaluation.md#exact-anonymous-division-and-landing)
-  for the remaining parameter and aggregate destinations, numeric policies, float
-  landing, remaining constant-argument destinations and policies, and their proof
+  for the remaining parameter and aggregate destinations, numeric policies,
+  mixed integer/decimal anonymous trees and remaining float destinations,
+  remaining constant-argument destinations and policies, and their proof
   consumers. Preserve exact rational intermediates until an actual landing
   boundary. Carry fractional-intermediate warnings through ordinary suppression
   and compiler reports, retaining authored
