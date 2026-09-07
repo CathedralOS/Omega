@@ -110,6 +110,17 @@ set -e
 [ "$ACTUAL" -eq 9 ]
 [ "$(cat "$PUBLICATION_TAPE")" = keep-tape ]
 [ "$(cat "$PUBLICATION_EXE")" = keep-exe ]
+# The shared prefix rejection also preserves both existing artifacts after
+# the assembler has streamed a valid instruction prefix.
+printf '%s\n' 'halt r0' 'qx2:' > "$T/$PUBLICATION_NAME.beta"
+set +e
+"$OMEGA_REPO_ROOT/tools/bootstrap/beta/build.sh" "$T/$PUBLICATION_NAME.beta" \
+  > "$T/publication.stdout" 2> "$T/publication.stderr"
+ACTUAL=$?
+set -e
+[ "$ACTUAL" -eq 7 ]
+[ "$(cat "$PUBLICATION_TAPE")" = keep-tape ]
+[ "$(cat "$PUBLICATION_EXE")" = keep-exe ]
 rm -f -- "$PUBLICATION_TAPE" "$PUBLICATION_EXE"
 PUBLICATION_TAPE=
 PUBLICATION_EXE=

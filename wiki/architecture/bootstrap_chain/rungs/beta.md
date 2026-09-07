@@ -9,7 +9,7 @@ is the deterministic partial relation from Beta source to raw Alpha tape.
 
 The normative contract is
 [`bootstrap/beta/LANGUAGE.md`](../../../../bootstrap/beta/LANGUAGE.md). The admitted
-1,792-byte compiler tape runs on Alpha, while
+1,773-byte compiler tape runs on Alpha, while
 `bootstrap/beta/compiler/beta_compiler.beta` reconstructs that tape
 byte-identically. The compiler differential and strict grammar gates live under
 `tests/beta/compiler/`.
