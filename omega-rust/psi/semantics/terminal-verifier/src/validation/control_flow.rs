@@ -133,6 +133,12 @@ pub(super) fn validate_control_flow(
         }
     }
     if order.len() != blocks.len() {
+        if representation_backedges.is_empty()
+            && validate_unranked_scalar_cycle(machine, blocks, value_types, &globally_defined)
+                .is_ok()
+        {
+            return Ok(());
+        }
         let block = indegree
             .iter()
             .find_map(|(block, count)| (*count != 0).then_some(*block))
@@ -364,6 +370,107 @@ pub(super) fn validate_control_flow(
                         ContractClauseKind::Crash,
                     )?;
                 }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Admit the first unranked cyclic execution slice. With no local definitions,
+/// block parameters, or structural custody, the cycle's scalar environment is
+/// the machine parameter telescope at every block. This is a real cyclic graph
+/// path; broader cycles still require the SCC and fixed-point analyses below it.
+fn validate_unranked_scalar_cycle(
+    machine: &TerminalMachine,
+    blocks: &BTreeMap<BlockId, &terminal_psi::Block>,
+    value_types: &BTreeMap<ValueId, ScalarType>,
+    globally_defined: &BTreeSet<ValueId>,
+) -> Result<(), ModuleError> {
+    if !machine.structural_parameters.is_empty()
+        || blocks
+            .values()
+            .any(|block| !block.parameters.is_empty() || !block.operations.is_empty())
+    {
+        return Err(ModuleError::ControlCycle(machine.entry));
+    }
+    for block in blocks.values() {
+        match &block.terminator {
+            Terminator::Jump {
+                edge,
+                target,
+                arguments,
+                ..
+            } => validate_successor_bindings(
+                *edge,
+                *target,
+                arguments,
+                blocks,
+                value_types,
+                globally_defined,
+            )?,
+            Terminator::Conditional {
+                condition,
+                when_true,
+                when_false,
+            } => {
+                require_defined(*condition, value_types, globally_defined)?;
+                if value_types[condition] != ScalarType::Boolean {
+                    return Err(ModuleError::ConditionalConditionTypeMismatch {
+                        block: block.id,
+                        condition: *condition,
+                        actual: value_types[condition],
+                    });
+                }
+                for successor in [when_true, when_false] {
+                    validate_successor_bindings(
+                        successor.edge,
+                        successor.target,
+                        &successor.arguments,
+                        blocks,
+                        value_types,
+                        globally_defined,
+                    )?;
+                }
+            }
+            Terminator::Return { value, .. } => {
+                let Some(result) = machine.result.scalar() else {
+                    return Err(ModuleError::ScalarReturnFromUnitMachine {
+                        machine: machine.id,
+                        block: block.id,
+                    });
+                };
+                require_defined(*value, value_types, globally_defined)?;
+                if value_types[value] != result.scalar_type {
+                    return Err(ModuleError::ReturnTypeMismatch {
+                        machine: machine.id,
+                        value: value_types[value],
+                        result: result.scalar_type,
+                    });
+                }
+            }
+            Terminator::ReturnUnit { .. } => {
+                if !matches!(machine.result, TerminalMachineResult::Unit) {
+                    return Err(ModuleError::UnitReturnFromScalarMachine {
+                        machine: machine.id,
+                        block: block.id,
+                    });
+                }
+            }
+            Terminator::Crash { site_guard, .. } => {
+                for predicate in site_guard {
+                    contracts::validate_contract_scope(
+                        predicate.proposition(),
+                        globally_defined,
+                        machine.contract.id,
+                        ContractClauseKind::Crash,
+                    )?;
+                }
+            }
+            Terminator::StructuralCase { .. }
+            | Terminator::ReturnUnitPartialAffine { .. }
+            | Terminator::ReturnUnitNominalAffine { .. }
+            | Terminator::ReturnStructural { .. } => {
+                return Err(ModuleError::ControlCycle(machine.entry));
             }
         }
     }

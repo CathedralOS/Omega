@@ -233,6 +233,52 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
     }
 }
 
+fn unranked_scalar_cycle() -> TerminalModule {
+    let mut module = ranked_countdown();
+    let machine = &mut module.machines[0];
+    let condition = id(10, ValueId::new);
+    let entry = id(1, BlockId::new);
+    let done = id(4, BlockId::new);
+    machine.parameters = vec![ValueDeclaration {
+        id: condition,
+        scalar_type: ScalarType::Boolean,
+    }];
+    machine.ranked_scc = None;
+    machine.entry = entry;
+    machine.blocks = vec![
+        Block {
+            id: entry,
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::Conditional {
+                condition,
+                when_true: SuccessorEdge {
+                    edge: id(10, EdgeId::new),
+                    target: entry,
+                    arguments: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                },
+                when_false: SuccessorEdge {
+                    edge: id(11, EdgeId::new),
+                    target: done,
+                    arguments: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                },
+            },
+        },
+        Block {
+            id: done,
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::ReturnUnit {
+                edge: id(12, EdgeId::new),
+                trivial_affine_discards: Vec::new(),
+            },
+        },
+    ];
+    module
+}
+
 fn ranked_countdown_proof(module: &TerminalModule) -> ProofBundle {
     let interpretable = validate_module_for_interpretation(module)
         .expect("ranked countdown fixture is interpreter-valid");
@@ -682,4 +728,12 @@ fn ranked_countdown_rejects_uncovered_or_false_arithmetic() {
         validate_module_representation(&wrong_guard),
         Err(ModuleError::InvalidRankedScc(_))
     ));
+}
+
+#[test]
+fn unranked_scalar_cycle_is_interpreter_valid() {
+    let module = unranked_scalar_cycle();
+    assert_eq!(validate_module_representation(&module), Ok(()));
+    validate_module_for_interpretation(&module)
+        .expect("a scalar-only unranked cycle is interpreter-valid");
 }
