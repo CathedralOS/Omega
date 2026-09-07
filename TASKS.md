@@ -48,6 +48,22 @@ tables, schedulers, process tables, timer queues, or drivers as compiler-owned
 Rust models. Compiler validation and code generation may consume general plans;
 they must not acquire customer-shaped semantic types or lifecycle protocols.
 
+## Documentation consolidation
+
+- **DOCUMENTATION-CONSOLIDATION.** Execute the
+  [four-move cleanup plan](wiki/work/documentation_cleanup.md), owned by repository
+  documentation. Start by separating Terminal Psi's public contract from local
+  implementation notes and deleting its displaced history and duplicate rules.
+  Consolidate into guide, specification, RFCs, and temporary work notes; keep
+  implementation documentation beside code. The protected bootstrap decision
+  record needs explicit owner authorization for its eventual authority transition;
+  unrelated documentation cleanup is not blocked on it.
+
+  Acceptance: one authoritative home per current contract, no competing legacy
+  documents or completed-work diaries, honest implementation/formalization status,
+  repaired links and affected source readers, and the plan's finish conditions
+  satisfied. Remove this task and the temporary plan when complete.
+
 ## Immediate product closure
 
 These are the next product-level priorities for the maintained Rust
