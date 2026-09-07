@@ -9,6 +9,8 @@ pub enum LoweringError {
     /// Psi preserves exact byte-sequence literals, but native realization is
     /// deliberately fenced until the selected boundary has a byte-view ABI.
     UnsupportedByteSequenceLiteral(semantic_vocabulary::OperationId),
+    /// Exact byte-view length is executable in Terminal; native descriptor observation is not yet realized.
+    UnsupportedByteSequenceLength(semantic_vocabulary::OperationId),
     /// Independent Terminal-to-Omega projection could not rejoin one exact
     /// descriptor, its initializer/latest selections, and its indirect row.
     InvalidDynamicCall(semantic_vocabulary::OperationId),

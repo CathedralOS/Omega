@@ -1307,6 +1307,12 @@ fn assemble_unit_closure(
         let mut affine_scalar_record_places = Vec::<StructuralPlaceDeclaration>::new();
         let mut structural_result_places = Vec::<(StructuralPlaceDeclaration, bool)>::new();
         let mut evaluation = argument_evaluation::Evaluation::new(&mut next_block)?;
+        evaluation.structural_parameters = plan
+            .structural_parameters
+            .iter()
+            .zip(parameters)
+            .map(|(source, parameter)| (source.position, parameter.clone()))
+            .collect();
         let mut staged_arguments = vec![Vec::<usize>::new(); plan.operations.len()];
         let mut retained_scalar_prefix = None;
         let mut staged_scalar_result = None;

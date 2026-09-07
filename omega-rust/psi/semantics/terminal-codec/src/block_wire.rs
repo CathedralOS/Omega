@@ -60,6 +60,13 @@ pub(super) fn encode_block_for_result_paths(
             }
         }
         match operation.kind.clone() {
+            OperationKind::ByteSequenceLength { source } => {
+                if result_path_format != ResultPathWireFormat::Current {
+                    return Err(CodecError::InvalidTag("OperationKind", 55));
+                }
+                writer.u8(55);
+                writer.id(source);
+            }
             OperationKind::WriteOnlyPrimitiveStore { destination, value } => {
                 writer.u8(43);
                 writer.id(destination);
@@ -795,6 +802,11 @@ pub(super) fn decode_block_for_result_paths(
             tag => return Err(CodecError::InvalidTag("OperationResult", tag)),
         };
         let kind = match reader.u8()? {
+            55 if result_path_format == ResultPathWireFormat::Current => {
+                OperationKind::ByteSequenceLength {
+                    source: reader.id("PlaceId")?,
+                }
+            }
             43 => OperationKind::WriteOnlyPrimitiveStore {
                 destination: reader.id("PlaceId")?,
                 value: reader.id("ValueId")?,
@@ -1292,7 +1304,10 @@ mod tests {
         Terminator, ValueDeclaration,
     };
 
-    use super::{decode_block, encode_block};
+    use super::{
+        decode_block, decode_block_for_result_paths, encode_block, encode_block_for_result_paths,
+    };
+    use crate::structural_result_wire::ResultPathWireFormat;
     use crate::{
         CodecError,
         wire::{Reader, Writer},
@@ -1540,6 +1555,74 @@ mod tests {
             &id::<StructuralFieldId>(11).get().to_le_bytes(),
         );
         assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(read));
+    }
+
+    #[test]
+    fn byte_sequence_length_wire_binds_exact_source_and_result() {
+        let block = Block {
+            id: id::<BlockId>(1),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                id: id::<OperationId>(2),
+                result: OperationResult::Scalar(ValueDeclaration {
+                    id: id::<ValueId>(3),
+                    scalar_type: ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    ),
+                }),
+                kind: OperationKind::ByteSequenceLength {
+                    source: id::<PlaceId>(4),
+                },
+            }],
+            terminator: Terminator::Return {
+                edge: id::<EdgeId>(5),
+                value: id::<ValueId>(3),
+                cleanup_actions: Vec::new(),
+            },
+        };
+        let mut writer = Writer::default();
+        encode_block(&mut writer, &block).unwrap();
+        let bytes = writer.finish();
+        let position = bytes
+            .iter()
+            .position(|byte| *byte == 55)
+            .expect("length operation tag");
+        assert_eq!(&bytes[position + 1..position + 9], &4_u64.to_le_bytes());
+        assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(block.clone()));
+        assert!(
+            encode_block_for_result_paths(
+                &mut Writer::default(),
+                &block,
+                ResultPathWireFormat::LegacyWithoutResultPaths
+            )
+            .is_err()
+        );
+        assert_eq!(
+            decode_block_for_result_paths(
+                &mut Reader::new(&bytes),
+                ResultPathWireFormat::LegacyWithoutResultPaths
+            ),
+            Err(CodecError::InvalidTag("OperationKind", 55))
+        );
+        let mut changed = bytes.clone();
+        changed[position + 1..position + 9].copy_from_slice(&6_u64.to_le_bytes());
+        let decoded = decode_block(&mut Reader::new(&changed)).unwrap();
+        assert_eq!(
+            decoded.operations[0].kind,
+            OperationKind::ByteSequenceLength {
+                source: id::<PlaceId>(6)
+            }
+        );
+        assert_eq!(decoded.operations[0].result, block.operations[0].result);
+        changed[position + 1..position + 9].fill(0);
+        assert!(decode_block(&mut Reader::new(&changed)).is_err());
+        let mut unknown = bytes.clone();
+        unknown[position] = 255;
+        assert_eq!(
+            decode_block(&mut Reader::new(&unknown)),
+            Err(CodecError::InvalidTag("OperationKind", 255))
+        );
+        assert!(decode_block(&mut Reader::new(&bytes[..position + 8])).is_err());
     }
 
     #[test]

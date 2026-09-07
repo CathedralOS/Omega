@@ -2176,6 +2176,9 @@ fn lowered_direct_scalar_term(
     values: &[ValueDeclaration],
 ) -> Result<ScalarTerm, LoweringError> {
     Ok(match expression {
+        LoweredDirectExpression::ByteSequenceLength { .. } => {
+            return unsupported("byte length has no retained crash predicate term");
+        }
         LoweredDirectExpression::Parameter {
             position,
             scalar_type,

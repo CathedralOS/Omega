@@ -92,6 +92,7 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         | O::BooleanConstant { .. }
         | O::IeeeFloatConstant { .. }
         | O::IntegerStructuralField { .. }
+        | O::ByteSequenceLength { .. }
         | O::BooleanStructuralField { .. }
         | O::EstablishPayloadlessCase { .. }
         | O::EstablishByteSequenceLiteral { .. }

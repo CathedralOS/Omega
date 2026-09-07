@@ -1057,6 +1057,11 @@ pub enum ModuleError {
         field: StructuralFieldId,
     },
     IntegerStructuralFieldRequiresIntegerResult(OperationId),
+    ByteSequenceLengthRequiresU64Result(OperationId),
+    InvalidByteSequenceLengthSource {
+        operation: OperationId,
+        source: PlaceId,
+    },
     InvalidIntegerStructuralField {
         operation: OperationId,
         source: PlaceId,

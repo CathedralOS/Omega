@@ -518,6 +518,7 @@ fn shared_integer_runtime_inputs_with_shells(
                 })
         }
         CheckedScalarExpression::IeeeFloatLiteral { .. }
+        | CheckedScalarExpression::StructuralParameterByteLength { .. }
         | CheckedScalarExpression::Parameter { .. }
         | CheckedScalarExpression::Local { .. }
         | CheckedScalarExpression::IntegerBinary { .. }

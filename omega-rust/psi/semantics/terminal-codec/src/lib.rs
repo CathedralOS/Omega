@@ -860,6 +860,21 @@ fn validate_operation_foundation(
     operation: &Operation,
 ) -> Result<(), CodecError> {
     match &operation.kind {
+        OperationKind::ByteSequenceLength { .. } => {
+            let expected = ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64)
+                    .expect("u64 is valid"),
+            );
+            if operation
+                .result
+                .scalar()
+                .is_none_or(|result| result.scalar_type != expected)
+            {
+                return malformed("byte-sequence length requires an unsigned 64-bit scalar result");
+            }
+            // The independent module verifier checks exact source custody and
+            // literal establishment before encode or after decode.
+        }
         OperationKind::WriteOnlyPrimitiveStore { destination, value } => {
             if operation.result != OperationResult::Unit {
                 return malformed("write-only primitive store declares a non-Unit result");

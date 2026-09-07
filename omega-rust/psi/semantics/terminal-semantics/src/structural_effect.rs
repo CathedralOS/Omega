@@ -12,6 +12,7 @@ use super::{OperationSemanticError, OperationSemanticTag};
 pub enum StructuralEffectResultShape {
     Boolean,
     Integer,
+    ByteCount,
     Structural,
     Unit,
 }
@@ -21,6 +22,7 @@ pub enum StructuralEffectCustody {
     ExactWriteOnlyPrimitiveRoot,
     ExactStructuralScalarField,
     ExactByteSequenceLiteral,
+    ExactImmutableByteView,
     ExactLiveBooleanField,
     ExactLiveIntegerField,
     ExactPublishedService,
@@ -34,6 +36,7 @@ pub enum StructuralEffectAction {
     StorePrimitive,
     StoreScalarField,
     EstablishByteSequencePlace,
+    ReadByteSequenceLength,
     ReadBooleanField,
     ReadIntegerField,
     EmitPortWrite,
@@ -127,7 +130,17 @@ pub struct StructuralEffectSemanticRow {
 }
 
 impl StructuralEffectSemanticRow {
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 10] = [
+        Self {
+            tag: OperationSemanticTag::ByteSequenceLength,
+            schema: structural_effect_leaf(
+                StructuralEffectResultShape::ByteCount,
+                StructuralEffectCustody::ExactImmutableByteView,
+                StructuralEffectAction::ReadByteSequenceLength,
+                StructuralEffectExternalEffect::None,
+                StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
+            ),
+        },
         Self {
             tag: OperationSemanticTag::WriteOnlyPrimitiveStore,
             schema: structural_effect_leaf(
@@ -236,6 +249,7 @@ const fn is_structural_effect_tag(tag: OperationSemanticTag) -> bool {
             | OperationSemanticTag::StructuralScalarFieldStore
             | OperationSemanticTag::EstablishPayloadlessCase
             | OperationSemanticTag::EstablishByteSequenceLiteral
+            | OperationSemanticTag::ByteSequenceLength
             | OperationSemanticTag::BooleanStructuralField
             | OperationSemanticTag::IntegerStructuralField
             | OperationSemanticTag::PortWrite
@@ -286,6 +300,7 @@ pub fn validate_structural_effect_semantic_rows(
         OperationSemanticTag::StructuralScalarFieldStore,
         OperationSemanticTag::EstablishPayloadlessCase,
         OperationSemanticTag::EstablishByteSequenceLiteral,
+        OperationSemanticTag::ByteSequenceLength,
         OperationSemanticTag::BooleanStructuralField,
         OperationSemanticTag::IntegerStructuralField,
         OperationSemanticTag::PortWrite,
@@ -313,6 +328,10 @@ pub enum StructuralEffectObservation {
     },
     ByteSequencePlaceEstablished {
         destination: PlaceId,
+    },
+    ByteSequenceLengthRead {
+        source: PlaceId,
+        result: ValueId,
     },
     BooleanFieldEquation(Proposition),
     IntegerFieldRead {
@@ -347,6 +366,7 @@ impl StructuralEffectObservation {
             Self::PrimitiveStored { .. }
             | Self::ScalarFieldStored { .. }
             | Self::ByteSequencePlaceEstablished { .. }
+            | Self::ByteSequenceLengthRead { .. }
             | Self::IntegerFieldRead { .. }
             | Self::PortWrite { .. }
             | Self::AffinePlaceEstablished { .. } => None,
@@ -359,6 +379,7 @@ fn validate_structural_effect_schema(
     schema: StructuralEffectLeafSchema,
 ) -> Result<(), OperationSemanticError> {
     let action_tag = match schema.action {
+        StructuralEffectAction::ReadByteSequenceLength => OperationSemanticTag::ByteSequenceLength,
         StructuralEffectAction::StorePrimitive => OperationSemanticTag::WriteOnlyPrimitiveStore,
         StructuralEffectAction::StoreScalarField => {
             OperationSemanticTag::StructuralScalarFieldStore
@@ -381,6 +402,13 @@ fn validate_structural_effect_schema(
     };
     let valid = action_tag == tag
         && match schema.action {
+            StructuralEffectAction::ReadByteSequenceLength => {
+                schema.result == StructuralEffectResultShape::ByteCount
+                    && schema.custody == StructuralEffectCustody::ExactImmutableByteView
+                    && schema.external_effect == StructuralEffectExternalEffect::None
+                    && schema.frontier
+                        == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
+            }
             StructuralEffectAction::StorePrimitive => {
                 schema.result == StructuralEffectResultShape::Unit
                     && schema.custody == StructuralEffectCustody::ExactWriteOnlyPrimitiveRoot
@@ -452,6 +480,9 @@ fn validate_structural_effect_result(
     schema: StructuralEffectLeafSchema,
 ) -> Result<(), OperationSemanticError> {
     let valid = match schema.result {
+        StructuralEffectResultShape::ByteCount => operation.result.scalar_ref().is_some_and(|result| {
+            matches!(result.scalar_type, ScalarType::Integer(integer) if integer == IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"))
+        }),
         StructuralEffectResultShape::Boolean => operation
             .result
             .scalar_ref()
@@ -488,6 +519,13 @@ pub fn structural_effect_leaf_observation_in(
     let schema = row.schema;
     validate_structural_effect_result(operation, tag, schema)?;
     let observation = match (schema.action, &operation.kind) {
+        (
+            StructuralEffectAction::ReadByteSequenceLength,
+            OperationKind::ByteSequenceLength { source },
+        ) => StructuralEffectObservation::ByteSequenceLengthRead {
+            source: *source,
+            result: operation.result.expect_scalar().id,
+        },
         (
             StructuralEffectAction::StorePrimitive,
             OperationKind::WriteOnlyPrimitiveStore { destination, value },
@@ -620,14 +658,48 @@ mod tests {
     use super::*;
 
     #[test]
+    fn byte_sequence_length_retains_source_without_inventing_a_proof_equation() {
+        let operation = Operation {
+            id: OperationId::new(1).unwrap(),
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: ValueId::new(2).unwrap(),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                ),
+            }),
+            kind: OperationKind::ByteSequenceLength {
+                source: PlaceId::new(3).unwrap(),
+            },
+        };
+        let observation = structural_effect_leaf_observation(&operation)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            observation,
+            StructuralEffectObservation::ByteSequenceLengthRead {
+                source: PlaceId::new(3).unwrap(),
+                result: ValueId::new(2).unwrap()
+            }
+        );
+        assert_eq!(observation.local_equation(), None);
+        let mut wrong_result = operation;
+        wrong_result.result = OperationResult::Scalar(ValueDeclaration {
+            id: ValueId::new(2).unwrap(),
+            scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap()),
+        });
+        assert!(structural_effect_leaf_observation(&wrong_result).is_err());
+    }
+
+    #[test]
     fn inventory_is_exact_unique_and_keeps_axes_separate() {
-        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 9);
+        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 10);
         assert_eq!(
             StructuralEffectSemanticRow::ALL
                 .iter()
                 .map(|row| row.tag())
                 .collect::<BTreeSet<_>>(),
             BTreeSet::from([
+                OperationSemanticTag::ByteSequenceLength,
                 OperationSemanticTag::WriteOnlyPrimitiveStore,
                 OperationSemanticTag::StructuralScalarFieldStore,
                 OperationSemanticTag::EstablishPayloadlessCase,

@@ -222,6 +222,7 @@ pub(crate) fn emit_call_leaf(
 ) -> Result<(Vec<Block>, Vec<LoweredSourceCallOccurrence>), LoweringError> {
     let mut operations = OperationBuffer::new(*next_operation - 1);
     let mut evaluation = super::super::argument_evaluation::Evaluation {
+        structural_parameters: Vec::new(),
         entry: block,
         current: block,
         parameters: scalar_parameters.to_vec(),

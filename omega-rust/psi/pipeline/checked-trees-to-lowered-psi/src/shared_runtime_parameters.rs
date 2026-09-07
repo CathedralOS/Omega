@@ -421,7 +421,8 @@ fn shared_integer_runtime_parameters_with_shells(
 ) -> Option<BTreeSet<SharedBooleanRuntimeInput>> {
     match expression {
         LoweredDirectExpression::IntegerLiteral { .. } => Some(BTreeSet::new()),
-        LoweredDirectExpression::IeeeFloatLiteral { .. } => None,
+        LoweredDirectExpression::IeeeFloatLiteral { .. }
+        | LoweredDirectExpression::ByteSequenceLength { .. } => None,
         LoweredDirectExpression::Parameter {
             position,
             scalar_type,

@@ -156,6 +156,7 @@ pub(super) fn append_operation(
         OperationKind::WriteOnlyPrimitiveStore { .. }
         | OperationKind::StructuralScalarFieldStore { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
+        | OperationKind::ByteSequenceLength { .. }
         | OperationKind::EstablishPayloadlessCase { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
         | OperationKind::EstablishAffineScalarRecord { .. }

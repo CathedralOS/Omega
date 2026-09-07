@@ -28,6 +28,9 @@ pub(super) fn lower(
     lowered_byte_sequence_literals: &mut usize,
 ) -> Result<AbstractOperation, LoweringError> {
     match &operation.kind {
+        OperationKind::ByteSequenceLength { .. } => {
+            Err(crate::lowering::LoweringError::UnsupportedByteSequenceLength(operation.id))
+        }
         OperationKind::StoreDynamicDescriptor { descriptor_ordinal } => {
             Ok(AbstractOperation::StoreDynamicDescriptor {
                 psi_operation: operation.id,

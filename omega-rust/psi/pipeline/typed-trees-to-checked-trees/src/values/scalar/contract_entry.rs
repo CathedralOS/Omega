@@ -211,6 +211,7 @@ impl EntryOperands<'_> {
                 };
             }
             CheckedScalarExpression::Local { .. }
+            | CheckedScalarExpression::StructuralParameterByteLength { .. }
             | CheckedScalarExpression::IntegerTrappingCast { .. }
             | CheckedScalarExpression::IntegerWrappingCast { .. }
             | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => return None,

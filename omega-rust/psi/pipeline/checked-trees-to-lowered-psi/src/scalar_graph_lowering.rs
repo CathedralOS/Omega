@@ -784,7 +784,33 @@ pub(super) fn lower_checked_scalar_expression_at(
 pub(super) fn lower_checked_scalar_expression(
     expression: &CheckedScalarExpression,
 ) -> Result<LoweredDirectExpression, LoweringError> {
+    lower_checked_scalar_expression_with_parameters(expression, &[])
+}
+
+pub(super) fn lower_checked_scalar_expression_with_parameters(
+    expression: &CheckedScalarExpression,
+    structural_parameters: &[(u32, StructuralParameterDeclaration)],
+) -> Result<LoweredDirectExpression, LoweringError> {
     match expression {
+        CheckedScalarExpression::StructuralParameterByteLength { parameter_position } => {
+            let parameter = structural_parameters
+                .iter()
+                .find_map(|(source_position, parameter)| {
+                    (*source_position == *parameter_position).then_some(parameter)
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "byte length has no exact structural parameter",
+                ))?;
+            if parameter.access != StructuralAccess::SharedBorrow
+                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+            {
+                return unsupported("byte length requires a whole immutable view parameter");
+            }
+            Ok(LoweredDirectExpression::ByteSequenceLength {
+                source: parameter.place,
+                scalar_type: terminal_scalar_type(PrimitiveType::U64)?,
+            })
+        }
         CheckedScalarExpression::StorageRead { .. } => {
             unsupported("scalar storage read requires an exact current storage mapping")
         }
@@ -872,22 +898,34 @@ pub(super) fn lower_checked_scalar_expression(
                 }
             },
             scalar_type: terminal_scalar_type(*primitive_type)?,
-            left: Box::new(lower_checked_scalar_expression(left)?),
-            right: Box::new(lower_checked_scalar_expression(right)?),
+            left: Box::new(lower_checked_scalar_expression_with_parameters(
+                left,
+                structural_parameters,
+            )?),
+            right: Box::new(lower_checked_scalar_expression_with_parameters(
+                right,
+                structural_parameters,
+            )?),
         }),
         CheckedScalarExpression::IntegerBitwiseNot {
             primitive_type,
             operand,
         } => Ok(LoweredDirectExpression::IntegerBitwiseNot {
             scalar_type: terminal_scalar_type(*primitive_type)?,
-            operand: Box::new(lower_checked_scalar_expression(operand)?),
+            operand: Box::new(lower_checked_scalar_expression_with_parameters(
+                operand,
+                structural_parameters,
+            )?),
         }),
         CheckedScalarExpression::IntegerWiden {
             primitive_type,
             operand,
         } => Ok(LoweredDirectExpression::IntegerWiden {
             scalar_type: terminal_scalar_type(*primitive_type)?,
-            operand: Box::new(lower_checked_scalar_expression(operand)?),
+            operand: Box::new(lower_checked_scalar_expression_with_parameters(
+                operand,
+                structural_parameters,
+            )?),
         }),
         CheckedScalarExpression::StructuralParameterIndexedRead { .. } => {
             unsupported("indexed structural scalar reads require runtime realization")
@@ -904,16 +942,30 @@ pub(super) fn lower_checked_scalar_expression(
             ..
         } => Ok(LoweredDirectExpression::IntegerExactCast {
             scalar_type: terminal_scalar_type(*primitive_type)?,
-            operand: Box::new(lower_checked_scalar_expression(operand)?),
+            operand: Box::new(lower_checked_scalar_expression_with_parameters(
+                operand,
+                structural_parameters,
+            )?),
         }),
         CheckedScalarExpression::Boolean(expression) => Ok(LoweredDirectExpression::Boolean {
-            expression: Box::new(lower_checked_boolean_expression(expression)?),
+            expression: Box::new(lower_checked_boolean_expression_with_parameters(
+                expression,
+                structural_parameters,
+            )?),
         }),
     }
 }
 
+#[cfg(test)]
 pub(super) fn lower_checked_boolean_expression(
     expression: &CheckedBooleanExpression,
+) -> Result<LoweredBooleanReturnExpression, LoweringError> {
+    lower_checked_boolean_expression_with_parameters(expression, &[])
+}
+
+fn lower_checked_boolean_expression_with_parameters(
+    expression: &CheckedBooleanExpression,
+    structural_parameters: &[(u32, StructuralParameterDeclaration)],
 ) -> Result<LoweredBooleanReturnExpression, LoweringError> {
     Ok(match expression {
         CheckedBooleanExpression::Constant(value) => {
@@ -951,11 +1003,20 @@ pub(super) fn lower_checked_boolean_expression(
             }
         }
         CheckedBooleanExpression::Not(operand) => LoweredBooleanReturnExpression::Not {
-            operand: Box::new(lower_checked_boolean_expression(operand)?),
+            operand: Box::new(lower_checked_boolean_expression_with_parameters(
+                operand,
+                structural_parameters,
+            )?),
         },
         CheckedBooleanExpression::Equal { left, right } => LoweredBooleanReturnExpression::Equal {
-            left: Box::new(lower_checked_boolean_expression(left)?),
-            right: Box::new(lower_checked_boolean_expression(right)?),
+            left: Box::new(lower_checked_boolean_expression_with_parameters(
+                left,
+                structural_parameters,
+            )?),
+            right: Box::new(lower_checked_boolean_expression_with_parameters(
+                right,
+                structural_parameters,
+            )?),
         },
         CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
             LoweredBooleanReturnExpression::IntegerComparison {
@@ -968,8 +1029,14 @@ pub(super) fn lower_checked_boolean_expression(
                         LoweredIntegerComparisonKind::LessOrEqual
                     }
                 },
-                left: Box::new(lower_checked_scalar_expression(left)?),
-                right: Box::new(lower_checked_scalar_expression(right)?),
+                left: Box::new(lower_checked_scalar_expression_with_parameters(
+                    left,
+                    structural_parameters,
+                )?),
+                right: Box::new(lower_checked_scalar_expression_with_parameters(
+                    right,
+                    structural_parameters,
+                )?),
             }
         }
         CheckedBooleanExpression::IeeeFloatComparison { .. }
@@ -979,12 +1046,24 @@ pub(super) fn lower_checked_boolean_expression(
             return unsupported("structural equality is contract-only terminal vocabulary");
         }
         CheckedBooleanExpression::And { left, right } => LoweredBooleanReturnExpression::And {
-            left: Box::new(lower_checked_boolean_expression(left)?),
-            right: Box::new(lower_checked_boolean_expression(right)?),
+            left: Box::new(lower_checked_boolean_expression_with_parameters(
+                left,
+                structural_parameters,
+            )?),
+            right: Box::new(lower_checked_boolean_expression_with_parameters(
+                right,
+                structural_parameters,
+            )?),
         },
         CheckedBooleanExpression::Or { left, right } => LoweredBooleanReturnExpression::Or {
-            left: Box::new(lower_checked_boolean_expression(left)?),
-            right: Box::new(lower_checked_boolean_expression(right)?),
+            left: Box::new(lower_checked_boolean_expression_with_parameters(
+                left,
+                structural_parameters,
+            )?),
+            right: Box::new(lower_checked_boolean_expression_with_parameters(
+                right,
+                structural_parameters,
+            )?),
         },
     })
 }
@@ -1043,7 +1122,8 @@ pub(super) fn validate_direct_parameter_types(
             }
         }
         LoweredDirectExpression::IntegerLiteral { .. }
-        | LoweredDirectExpression::IeeeFloatLiteral { .. } => Ok(()),
+        | LoweredDirectExpression::IeeeFloatLiteral { .. }
+        | LoweredDirectExpression::ByteSequenceLength { .. } => Ok(()),
         LoweredDirectExpression::IntegerBinary { left, right, .. } => {
             validate_direct_parameter_types(left, parameter_types)?;
             validate_direct_parameter_types(right, parameter_types)
@@ -1179,7 +1259,8 @@ fn evaluate_direct_expression(
         LoweredDirectExpression::IntegerLiteral { value, .. } => {
             Some(KnownDirectScalar::Integer(*value))
         }
-        LoweredDirectExpression::IeeeFloatLiteral { .. } => None,
+        LoweredDirectExpression::IeeeFloatLiteral { .. }
+        | LoweredDirectExpression::ByteSequenceLength { .. } => None,
         LoweredDirectExpression::IntegerBinary {
             kind,
             scalar_type,
