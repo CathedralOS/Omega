@@ -526,15 +526,94 @@ diagnostic totals is not an exact combined-certificate cost: setup, shared
 facts, root composition, and a fused definition may change it. Nevertheless,
 these separate-pass recipes cannot fit together unchanged.
 
-Before another permanent helper family, cost a contiguous real encoder example
-with operands, trivia, assertions, and endpoints, and estimate **one combined**
-ASCII/capacity/encoding request. Compare fused traversal against separate passes
-under a coherent larger work/input/allocation provision; the private limits
-are adjustable, not language laws. Raising work merely enough for this no-op
-fold would not establish encoding feasibility. Keep the complete error-valued
-root, raw-byte coverage, and cumulative budget intact. This measurement adds
+Raising work merely enough for this no-op fold would not establish encoding
+feasibility. The next bounded experiment below compares complete-route costs;
+the private limits remain adjustable, not language laws. This measurement adds
 no production definition, checker rule, runtime provision, or retained probe
 framework. Complete encoding and its source-owned producer remain unimplemented.
+
+### Next experiment: connected components, not a partial Beta dialect
+
+The next cost experiment must not require a completed encoder before permitting
+the definitions needed to express it. Theory formation checks every declared
+case, including cases not reached by the 24-byte example. A root named
+`encode_Beta(example) = Success(tape)` therefore requires the complete total
+Beta definition package. Mapping other valid instructions to Reject, or
+supplying only the reached transitions, would prove a different relation.
+
+Use one temporary, explicitly diagnostic component root instead. It must connect
+all 24 raw bytes to their complete token sequence, decode the actual register
+and word operands, account for the comment and separators, establish the
+address assertion at output offset ten, and compose the eleven output bytes
+with exact EOF. Include checked textual-ASCII and source-capacity facts in the
+same request. Implemented component definitions must be total; identify the
+remaining instruction dispatch, malformed-input, output-limit, and final
+error-valued encoder obligations rather than representing them as completed.
+The root is not an admitted encoding judgment, and host-authored literal rows
+are diagnostic witnesses, not the required source-owned production producer.
+
+The existing transparent definitions cover lexical classification, nibble conversion, Word
+serialization, successor, and comparison. Whole-token recognition, hexadecimal
+accumulation, and actual token/operand transitions are missing. Keep the complete
+route first-order: token helpers precede byte-step helpers; an ordered Source
+fold threads lexical/operand/output state through unchanged immediate children;
+EOF finalization follows it. No parser framework or helper-returned cursor is
+needed to justify recursive progress.
+
+Compare separate passes with a concrete fused candidate returning
+`Summary(byte_count, first_invalid_byte, parser_state)`. A Leaf checks its byte
+and takes one parser step. A Join combines child counts, shifts a right-side
+invalid offset by the left count, and threads the left parser state into the
+right traversal. Finalization gives envelope failure precedence over parser
+results, including an invalid byte in a late comment after an earlier parser
+error. Fusion may save traversal but adds projections/composition and may lose
+state-independent sharing; it is not established cheaper. Count those costs,
+not just the number of recursive passes.
+
+At `fee9ab5acad0fc927f01e130869451faa155b38d` on macOS arm64, three literal
+inputs were run through the selected admitted Beta compiler using
+`tools/bootstrap/beta/artifact_env.sh`'s `materialize_beta_compiler`:
+
+- The 24-byte example returns status zero and exact tape hex
+  `0100010000000000000014`.
+- Replacing `0xa:` with `0xb:` returns status nine and the ten-byte process
+  prefix `01000100000000000000`; that failure publishes no artifact.
+- Appending `;` and DEL to that mismatched-assertion input returns status nine
+  with empty stdout, exercising envelope rejection before the earlier assertion.
+
+All three have empty stderr. These observations corroborate the literal
+customer and failure order, not the Gamma component root, which has not run.
+The materialized diagnostic compiler is not retained.
+
+A larger provision also needs more than a checker constant. Applying the
+existing conservative ledger `7,864,346 + 48*work + 128` to the separate
+capacity and identity-fold recipe sum gives:
+
+```text
+work scenario       547,817 + 681,724 = 1,229,541
+pair bound          66,882,442 pairs
+pair storage        2,675,297,680 bytes at 40 bytes per pair
+memory end          0x10000000 + storage = 0xaf75cd90 (about 2.74 GiB)
+```
+
+This is a provisioning scenario, **not measured allocation, a combined proof,
+or a lower bound**; summing separate requests counts setup twice and omits
+combined-root work. The [current Alpha container](../../bootstrap/0_alpha/README.md)
+uses static Windows image storage with a documented 2-GiB image ceiling, so
+that scenario cannot be implemented merely by enlarging its static extent.
+The existing arena and ledger support at most 675,017 work units, below even
+the no-op normalized fold. Compare a tighter justified allocation argument,
+lower-allocation implementation, and a coherently reviewed native allocation
+change if a complete proof estimate warrants it. Do not infer that a new
+allocator, rule, or language is necessary from this conservative calculation.
+
+Acceptance for this experiment is connected checked component evidence, a
+Gamma-level mutation control on that connection (changed raw coverage,
+assertion endpoint, or claimed output must not check), and a
+full-subject estimate with stated state-sharing assumptions, definition cost,
+request bytes, work, allocation provision, and remaining uncertainty. A small
+pass alone cannot select a production route. If no plausible complete route
+emerges, apply the scope pause before expanding into permanent helper families.
 
 ## Legacy route: retirement must follow its consumers
 

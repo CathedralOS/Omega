@@ -76,18 +76,24 @@ prerequisite to every lower-rung milestone.
   `bootstrap/2_gamma/beta_encoding/`: the measured capacity and normalized
   forward-fold recipes cannot fit together unchanged under the current budget.
   Do not adopt the per-byte Word counter or raise work just enough for the
-  identity-fold diagnostic. Cost a contiguous real sequence covering operands,
-  trivia, assertions, and exact endpoints, composed with textual-ASCII validation
-  and source capacity. Compare fused traversal against separate passes under a
-  coherent larger work/input/allocation provision before another helper family.
+  identity-fold diagnostic. Run the bounded
+  [connected-component experiment](wiki/design_briefs/bootstrap_cost_review.md#next-experiment-connected-components-not-a-partial-beta-dialect)
+  over the 24-byte literal sequence, including operands, trivia, assertions,
+  exact endpoints, textual-ASCII validation, and source capacity in one request.
+  This diagnostic root may use total component definitions while complete Beta
+  definitions remain missing; it must not masquerade as `encode_Beta` or map
+  unimplemented valid Beta cases to Reject. Compare fused traversal against
+  separate passes under a coherent larger work/input/allocation provision
+  before another permanent helper family.
   Acceptance needs a full-subject estimate with state-sharing assumptions and
   total definition/proof cost, not just a checked small sequence. Keep direct
   counting versus the shape intermediary in that whole-route comparison.
-  Resume evidence: the [state-fold cost probe](wiki/design_briefs/bootstrap_cost_review.md#forward-state-threading-reject-the-recipes-budget-premise)
-  uses `06b76d3eb6` on macOS arm64: the full raw-source identity fold returns
-  owned Incomplete (`checking_work`, limit 655,360, requested 655,361).
-  It is not a complete encoder probe.
-  The actual `encode_Beta(S, limits) = Success(T)` probe has not run and has no
+  Resume evidence at `fee9ab5aca` on macOS arm64: the admitted Beta compiler
+  materialized by `tools/bootstrap/beta/artifact_env.sh` produces the literal's
+  exact eleven bytes and rejects its assertion/late-DEL controls. These are
+  compiler observations, not Gamma proofs. The component probe has not run;
+  the full identity-fold resource refusal remains detailed in the cost review.
+  The actual `encode_Beta(S, limits) = Success(T)` probe also has not run and has no
   repository command yet: complete definitions, owner-root reconstruction, and
   the source-owned producer remain missing.
   The existing representation and fold probes are prerequisite measurements, not
