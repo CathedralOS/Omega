@@ -20,7 +20,7 @@ pub(super) fn validate(
     physical: &ValidatedPhysicalRegisterModel,
     candidate: &FunctionFragmentFrameApplication,
 ) -> Result<(), FrameApplicationError> {
-    if source.target != protocol.target || !source.structural_unit_functions.is_empty() {
+    if source.target != protocol.target {
         return Err(FrameApplicationError::RootMismatch);
     }
     if candidate.source_fragment_manifest != source_manifest
@@ -71,7 +71,6 @@ fn same_plan_roots(
         && source.selected == candidate.selected
         && source.target == candidate.target
         && source.entry == candidate.entry
-        && source.structural_unit_functions == candidate.structural_unit_functions
         && source.functions.len() == candidate.functions.len()
 }
 

@@ -5,24 +5,30 @@ use crate::SelectedConstraintKeys;
 
 impl SelectedConstraintKeys {
     pub fn in_identity_order(&self) -> Vec<RegisterConstraintKey> {
-        self.structural_unit_call
-            .into_iter()
-            .chain(self.call_i64.iter().copied())
-            .chain([
-                self.materialize_i64,
-                self.copy_i64,
-                self.add_i64,
-                self.add_i64_immediate,
-                self.subtract_i64,
-                self.subtract_i64_immediate,
-                self.compare_i64_zero,
-                self.conditional_branch,
-                self.return_i64,
-                self.return_unit,
-                self.compare_i64,
-                self.jump,
-            ])
-            .collect()
+        [
+            self.load64,
+            self.store64,
+            self.frame_address,
+            self.call_unit,
+        ]
+        .into_iter()
+        .flatten()
+        .chain(self.call_i64.iter().copied())
+        .chain([
+            self.materialize_i64,
+            self.copy_i64,
+            self.add_i64,
+            self.add_i64_immediate,
+            self.subtract_i64,
+            self.subtract_i64_immediate,
+            self.compare_i64_zero,
+            self.conditional_branch,
+            self.return_i64,
+            self.return_unit,
+            self.compare_i64,
+            self.jump,
+        ])
+        .collect()
     }
 
     pub const fn for_semantic(
@@ -30,6 +36,10 @@ impl SelectedConstraintKeys {
         semantic: MachineSemanticKind,
     ) -> Option<RegisterConstraintKey> {
         Some(match semantic {
+            MachineSemanticKind::Load64 => return self.load64,
+            MachineSemanticKind::Store64 => return self.store64,
+            MachineSemanticKind::FrameAddress => return self.frame_address,
+            MachineSemanticKind::CallUnit => return self.call_unit,
             MachineSemanticKind::CompareI64Zero => self.compare_i64_zero,
             MachineSemanticKind::MaterializeI64 => self.materialize_i64,
             MachineSemanticKind::CopyI64 | MachineSemanticKind::ZeroExtendU8 => self.copy_i64,

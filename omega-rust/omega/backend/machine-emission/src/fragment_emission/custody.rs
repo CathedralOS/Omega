@@ -1,7 +1,6 @@
 use crate::FunctionFragmentReplayInputs;
 use crate::{
     validate_fixed_frame_function_relative_realization,
-    validate_optimized_structural_unit_function_relative_realization,
     validate_optimized_unit_function_relative_realization,
     validate_post_allocation_machine_function_relative_realization_custody,
     validate_selected_lowering_function_relative_realization_custody,
@@ -29,10 +28,6 @@ pub(super) fn validate_source(
         FunctionFragmentReplayInputs::UnitBaseline(realization) => {
             validate_optimized_unit_function_relative_realization(realization)
                 .map_err(FunctionFragmentEmissionError::UnitSource)?;
-        }
-        FunctionFragmentReplayInputs::StructuralUnit(realization) => {
-            validate_optimized_structural_unit_function_relative_realization(realization)
-                .map_err(FunctionFragmentEmissionError::StructuralUnitSource)?;
         }
         FunctionFragmentReplayInputs::FixedFrame(realization) => {
             validate_fixed_frame_function_relative_realization(realization)

@@ -4,24 +4,10 @@ pub(super) use machine_code::whole_function_exit_contract_identity as contract_i
 
 #[cfg(test)]
 mod tests {
-    use isa_x86_64::{
-        X86_64_STRUCTURAL_UNIT_CALL_NEXT_INSTRUCTION_OFFSET,
-        X86_64_STRUCTURAL_UNIT_CALL_OPCODE_OFFSET, X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_OFFSET,
-        X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_WIDTH,
-        X86_64_STRUCTURAL_UNIT_CALL_TEMPLATE_BYTE_COUNT,
-    };
-    use machine_code::{
-        X86_64StructuralUnitInternalControlFixup, X86_64StructuralUnitInternalControlFixupKind,
-        X86_64StructuralUnitInternalControlFixupState,
-    };
     use optimization_core::Optimization;
     use physical_instructions::Aarch64MovnMaterializationIdentity;
     use register_model::RegisterViewId;
-    use selected_instructions::{
-        MachineEncodedTrapBehavior, SelectedBlockId, SelectedInstructionId,
-        SelectedInstructionPlanIdentity,
-    };
-    use semantic_vocabulary::{EdgeId, MachineId};
+    use selected_instructions::SelectedInstructionPlanIdentity;
     use target::NativeTarget;
 
     use machine_code::{
@@ -32,9 +18,7 @@ mod tests {
     use super::super::model::{
         WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitContractIdentity,
         WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy, WholeFunctionFrameDisposition,
-        WholeFunctionHardeningPolicy, WholeFunctionReturnEvidence, WholeFunctionReturnMechanism,
-        WholeFunctionReturnValueEvidence, WholeFunctionStructuralUnitCallEvidence,
-        WholeFunctionStructuralUnitExitEvidence,
+        WholeFunctionHardeningPolicy,
     };
     use super::contract_identity;
 
@@ -68,7 +52,6 @@ mod tests {
             result_view: RegisterViewId(1),
             callee_saved_units: Vec::new(),
             functions: Box::new(Vec::new()),
-            structural_unit_functions: Box::new(Vec::new()),
         };
         contract.identity = contract_identity(&contract);
         contract
@@ -135,105 +118,5 @@ mod tests {
         let mut windows = framed.clone();
         windows.policy = WholeFunctionExitPolicy::MicrosoftX64CanonicalFixedFrameV1;
         assert_ne!(contract_identity(&windows), framed.identity);
-    }
-
-    #[test]
-    fn structural_call_frame_fixup_and_returns_are_identity_bound() {
-        let caller = MachineId::new(1).unwrap();
-        let leaf = MachineId::new(2).unwrap();
-        let mut contract =
-            contract_with_custody(WholeFunctionExitLayoutCustody::BaselineNearLayoutV1);
-        contract.target = NativeTarget::uefi_x64();
-        contract.policy = WholeFunctionExitPolicy::MicrosoftX64BalancedStructuralUnitCallV1;
-        contract.red_zone_bytes = 0;
-        let mut call_bytes = vec![0; X86_64_STRUCTURAL_UNIT_CALL_TEMPLATE_BYTE_COUNT];
-        call_bytes[usize::from(X86_64_STRUCTURAL_UNIT_CALL_OPCODE_OFFSET)] = 0xe8;
-        let returned = |instruction, offset, edge| WholeFunctionReturnEvidence {
-            block: SelectedBlockId(0),
-            psi_return_edge: EdgeId::new(edge).unwrap(),
-            instruction: SelectedInstructionId(instruction),
-            offset,
-            bytes: vec![0xc3],
-            value: WholeFunctionReturnValueEvidence::UnitV1,
-            trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-            mechanism: WholeFunctionReturnMechanism::X86ActivationStackReturnV1 {
-                stack_pointer: contract.stack_pointer,
-                read_bytes: 8,
-                pop_bytes: 8,
-            },
-        };
-        *contract.structural_unit_functions = vec![
-            WholeFunctionStructuralUnitExitEvidence {
-                machine: caller,
-                entry_block: SelectedBlockId(0),
-                body_stack_delta: 0,
-                modified_callee_saved_units: Vec::new(),
-                call: Some(WholeFunctionStructuralUnitCallEvidence {
-                    block: SelectedBlockId(0),
-                    instruction: SelectedInstructionId(0),
-                    operation: semantic_vocabulary::OperationId::new(3).unwrap(),
-                    callee: leaf,
-                    offset: 0,
-                    bytes: call_bytes,
-                    fixup: X86_64StructuralUnitInternalControlFixup {
-                        kind: X86_64StructuralUnitInternalControlFixupKind::Relative32FromNextInstructionToInternalMachineV1,
-                        state: X86_64StructuralUnitInternalControlFixupState::UnresolvedZeroFieldV1,
-                        callee: leaf,
-                        opcode_byte_offset: X86_64_STRUCTURAL_UNIT_CALL_OPCODE_OFFSET,
-                        field_byte_offset: X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_OFFSET,
-                        next_instruction_byte_offset:
-                            X86_64_STRUCTURAL_UNIT_CALL_NEXT_INSTRUCTION_OFFSET,
-                        field_byte_width: X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_WIDTH,
-                        addend: 0,
-                    },
-                    unit_uses: Vec::new(),
-                    unit_defs: Vec::new(),
-                    unit_clobbers: Vec::new(),
-                    frame_byte_count: 72,
-                    shadow_byte_count: 32,
-                    pre_call_stack_alignment: 16,
-                    frame_is_balanced: true,
-                }),
-                returned: returned(1, 89, 4),
-            },
-            WholeFunctionStructuralUnitExitEvidence {
-                machine: leaf,
-                entry_block: SelectedBlockId(0),
-                body_stack_delta: 0,
-                modified_callee_saved_units: Vec::new(),
-                call: None,
-                returned: returned(0, 0, 5),
-            },
-        ];
-        contract.identity = contract_identity(&contract);
-
-        let mut changed_frame = contract.clone();
-        changed_frame.structural_unit_functions[0]
-            .call
-            .as_mut()
-            .unwrap()
-            .frame_byte_count = 71;
-        changed_frame.identity = contract_identity(&changed_frame);
-        let mut changed_fixup = contract.clone();
-        changed_fixup.structural_unit_functions[0]
-            .call
-            .as_mut()
-            .unwrap()
-            .fixup
-            .field_byte_offset += 1;
-        changed_fixup.identity = contract_identity(&changed_fixup);
-        let mut changed_return = contract.clone();
-        changed_return.structural_unit_functions[0].returned.offset -= 1;
-        changed_return.identity = contract_identity(&changed_return);
-        let mut structural_leaf = contract.clone();
-        structural_leaf.policy = WholeFunctionExitPolicy::MicrosoftX64FramelessStructuralUnitLeafV1;
-        *structural_leaf.structural_unit_functions =
-            vec![structural_leaf.structural_unit_functions[1].clone()];
-        structural_leaf.identity = contract_identity(&structural_leaf);
-
-        assert_ne!(contract.identity, changed_frame.identity);
-        assert_ne!(contract.identity, changed_fixup.identity);
-        assert_ne!(contract.identity, changed_return.identity);
-        assert_ne!(contract.identity, structural_leaf.identity);
     }
 }

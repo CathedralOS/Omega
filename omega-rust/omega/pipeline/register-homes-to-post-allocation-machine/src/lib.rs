@@ -42,7 +42,6 @@ fn post_allocation_machine_custody(
         effects: effects.receipt().identity(),
         machine: machine.receipt().identity(),
         function_count: machine.plan().functions.len(),
-        structural_unit_function_count: machine.plan().structural_unit_functions.len(),
         instruction_count: machine.receipt().instruction_count(),
         operand_count: machine.receipt().operand_count(),
         unit_action_count: machine.receipt().unit_action_count(),

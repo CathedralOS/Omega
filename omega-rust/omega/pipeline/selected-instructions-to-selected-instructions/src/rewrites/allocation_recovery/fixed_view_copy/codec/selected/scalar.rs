@@ -52,7 +52,6 @@ pub(super) fn decode(
         target,
         entry,
         functions,
-        structural_unit_functions: Vec::new(),
         projected_structural_call_returns: Vec::new(),
     })
 }

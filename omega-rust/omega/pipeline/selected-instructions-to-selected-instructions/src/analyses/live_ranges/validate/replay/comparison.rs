@@ -2,17 +2,6 @@
 
 use crate::{EarlyClobberConstraint, FunctionLiveRanges, LiveRangeError};
 
-pub(super) fn require_structural_function(
-    function: usize,
-    actual: &FunctionLiveRanges,
-    expected: &FunctionLiveRanges,
-) -> Result<(), LiveRangeError> {
-    if actual != expected {
-        return Err(LiveRangeError::FunctionMismatch { function });
-    }
-    Ok(())
-}
-
 pub(super) fn require_function(
     function: usize,
     actual: &FunctionLiveRanges,

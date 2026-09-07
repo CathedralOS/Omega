@@ -37,29 +37,6 @@ pub(crate) fn function_relative_statistics(
                 .checked_add(function.byte_count)
                 .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)
         })?;
-    let structural_unit_functions = count(layout.structural_unit_functions().len())?;
-    let structural_unit_blocks = structural_unit_functions;
-    let structural_call_templates = layout
-        .structural_unit_functions()
-        .iter()
-        .filter(|function| function.call.is_some())
-        .try_fold(0_u64, |total, _| {
-            total
-                .checked_add(1)
-                .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)
-        })?;
-    let structural_unit_instructions = structural_call_templates
-        .checked_add(structural_unit_functions)
-        .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)?;
-    let structural_unit_bytes =
-        layout
-            .structural_unit_functions()
-            .iter()
-            .try_fold(0_u64, |total, function| {
-                total
-                    .checked_add(function.byte_count)
-                    .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)
-            })?;
     let resolved_conditional_branches = layout
         .functions()
         .iter()
@@ -88,19 +65,13 @@ pub(crate) fn function_relative_statistics(
                 .checked_add(1)
                 .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)
         })?;
-    let unresolved_internal_machine_fixups = ordinary_internal_machine_fixups
-        .checked_add(structural_call_templates)
-        .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)?;
+    let unresolved_internal_machine_fixups = ordinary_internal_machine_fixups;
     Ok(FunctionRelativeOptimizationRealizationStatistics {
         functions,
         blocks,
         instructions,
         bytes,
         resolved_conditional_branches,
-        structural_unit_functions,
-        structural_unit_blocks,
-        structural_unit_instructions,
-        structural_unit_bytes,
         unresolved_internal_machine_fixups,
     })
 }

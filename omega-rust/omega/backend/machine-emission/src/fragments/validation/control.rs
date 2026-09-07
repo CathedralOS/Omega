@@ -15,7 +15,9 @@ pub(super) fn check(
     instruction: &SelectedInstruction,
     actual: &Control,
 ) -> Result<(), ResolvedFragmentEmissionError> {
-    if let SelectedInstructionKind::CallI64 { callee } = instruction.kind {
+    if let SelectedInstructionKind::CallI64 { callee }
+    | SelectedInstructionKind::CallUnit { callee } = instruction.kind
+    {
         return require(
             matches!(actual, Control::DirectInternalCall { callee: target } if *target == callee),
         );

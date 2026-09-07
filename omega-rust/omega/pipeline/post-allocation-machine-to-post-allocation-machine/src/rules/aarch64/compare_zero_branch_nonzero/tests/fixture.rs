@@ -128,6 +128,11 @@ pub(super) fn fixture() -> Fixture {
         target: NativeTarget::linux_arm64(),
         entry: machine,
         functions: vec![SelectedFunction {
+            structural: None,
+            outgoing_arguments: Vec::new(),
+            calls: Vec::new(),
+            memory_accesses: Vec::new(),
+            boundary_settlements: Vec::new(),
             machine,
             attachment: None,
             provenance: TerminalPsiProvenance::default(),
@@ -144,7 +149,6 @@ pub(super) fn fixture() -> Fixture {
                 },
             }],
         }],
-        structural_unit_functions: Vec::new(),
         projected_structural_call_returns: Vec::new(),
     };
     let nzcv_pc = units(nzcv.units.iter().chain(&pc.units).copied());
@@ -196,9 +200,9 @@ pub(super) fn fixture() -> Fixture {
                 successors: Vec::new(),
             }],
         }],
-        structural_unit_functions: Vec::new(),
     };
     let compare_machine = PostAllocationMachineInstruction {
+        address: None,
         instruction: compare_id,
         alternative: alternative(
             MachineAlternativeFamily::CompareI64Zero,
@@ -223,6 +227,7 @@ pub(super) fn fixture() -> Fixture {
         unit_clobbers: Vec::new(),
     };
     let branch_machine = PostAllocationMachineInstruction {
+        address: None,
         instruction: branch_id,
         alternative: alternative(
             MachineAlternativeFamily::ConditionalBranchNonZero,
@@ -262,13 +267,13 @@ pub(super) fn fixture() -> Fixture {
         machine_effect_catalog: MachineEffectCatalogIdentity::from_bytes([12; 32]),
         choice_rule: MachineAlternativeChoiceRule::UniqueApplicableInCatalogOrderV1,
         functions: vec![PostAllocationMachineFunction {
+            outgoing_arguments: Vec::new(),
             machine,
             blocks: vec![PostAllocationMachineBlock {
                 block,
                 instructions: vec![compare_machine, branch_machine],
             }],
         }],
-        structural_unit_functions: Vec::new(),
     };
     Fixture {
         selected,

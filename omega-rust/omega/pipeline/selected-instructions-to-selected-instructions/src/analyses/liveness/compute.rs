@@ -7,8 +7,7 @@ use selected_instructions::{
     LivenessPosition, OperandPosition, SuccessorLiveness,
 };
 use selected_instructions::{
-    SelectedBlock, SelectedFunction, SelectedInstruction, SelectedStructuralUnitFunction,
-    VirtualRegisterId, VirtualRegisterOrigin,
+    SelectedBlock, SelectedFunction, SelectedInstruction, VirtualRegisterId, VirtualRegisterOrigin,
 };
 
 mod control;
@@ -26,108 +25,12 @@ pub(crate) fn compute_terminal_liveness(
         .enumerate()
         .map(|(index, function)| compute_function(index, function))
         .collect::<Result<Vec<_>, _>>()?;
-    let structural_unit_functions = plan
-        .structural_unit_functions
-        .iter()
-        .enumerate()
-        .map(|(index, function)| compute_structural_unit_function(index, function))
-        .collect::<Result<Vec<_>, _>>()?;
     Ok(LivenessPlan {
         selected: selected.selected_identity(),
         optimization_unit: selected.optimization_unit_identity(),
         fuel_schedule: selected.fuel_schedule_identity(),
         target: plan.target,
         functions,
-        structural_unit_functions,
-    })
-}
-
-pub(crate) fn compute_structural_unit_function(
-    function_index: usize,
-    function: &SelectedStructuralUnitFunction,
-) -> Result<FunctionLiveness, LivenessError> {
-    let mut instructions = Vec::with_capacity(usize::from(function.call.is_some()) + 1);
-    if let Some(call) = &function.call {
-        instructions.push(StructuralUnitInstructionFacts {
-            id: call.id,
-            uses: &call.implicit_uses,
-            defs: &call.implicit_defs,
-            clobbers: &call.clobbers,
-        });
-    }
-    let terminator = &function.terminator.instruction;
-    instructions.push(StructuralUnitInstructionFacts {
-        id: terminator.id,
-        uses: &terminator.implicit_uses,
-        defs: &terminator.implicit_defs,
-        clobbers: &terminator.clobbers,
-    });
-    compute_structural_unit_facts(
-        function_index,
-        function.machine,
-        function.entry_block,
-        function.source_entry_block,
-        &instructions,
-    )
-}
-
-#[derive(Clone, Copy)]
-pub(super) struct StructuralUnitInstructionFacts<'a> {
-    pub(super) id: selected_instructions::SelectedInstructionId,
-    pub(super) uses: &'a [RegisterUnitId],
-    pub(super) defs: &'a [RegisterUnitId],
-    pub(super) clobbers: &'a [RegisterUnitId],
-}
-
-pub(super) fn compute_structural_unit_facts(
-    function_index: usize,
-    machine: semantic_vocabulary::MachineId,
-    entry_block: selected_instructions::SelectedBlockId,
-    source_entry_block: semantic_vocabulary::BlockId,
-    instructions: &[StructuralUnitInstructionFacts<'_>],
-) -> Result<FunctionLiveness, LivenessError> {
-    let mut unit_live = BTreeSet::new();
-    let mut rows = Vec::with_capacity(instructions.len());
-    for (ordinal, instruction) in instructions.iter().enumerate().rev() {
-        let position = LivenessPosition(u32::try_from(ordinal).map_err(|_| {
-            LivenessError::NonDensePositions {
-                function: function_index,
-            }
-        })?);
-        let unit_live_out = sorted(&unit_live);
-        for unit in instruction.defs.iter().chain(instruction.clobbers) {
-            unit_live.remove(unit);
-        }
-        unit_live.extend(instruction.uses.iter().copied());
-        rows.push(InstructionLiveness {
-            position,
-            instruction: instruction.id,
-            virtual_uses: Vec::new(),
-            virtual_defs: Vec::new(),
-            virtual_live_in: Vec::new(),
-            virtual_live_out: Vec::new(),
-            unit_uses: instruction.uses.to_vec(),
-            unit_defs: instruction.defs.to_vec(),
-            unit_clobbers: instruction.clobbers.to_vec(),
-            unit_live_in: sorted(&unit_live),
-            unit_live_out,
-        });
-    }
-    rows.reverse();
-    Ok(FunctionLiveness {
-        machine,
-        entry_definitions: Vec::new(),
-        operand_positions: Vec::new(),
-        blocks: vec![BlockLiveness {
-            block: entry_block,
-            source_block: source_entry_block,
-            virtual_live_in: Vec::new(),
-            virtual_live_out: Vec::new(),
-            unit_live_in: sorted(&unit_live),
-            unit_live_out: Vec::new(),
-            instructions: rows,
-            successors: Vec::new(),
-        }],
     })
 }
 
@@ -217,6 +120,7 @@ pub(crate) fn compute_function(
             matches!(
                 register.origin,
                 VirtualRegisterOrigin::EntryParameter { .. }
+                    | VirtualRegisterOrigin::StructuralParameter { .. }
             )
         })
         .map(|register| EntryDefinition {

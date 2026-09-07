@@ -14,6 +14,8 @@ pub(super) fn decode_instruction(
     let unit_clobbers = decode_units(cursor)?;
     let memory = match cursor.byte()? {
         0 => MachineMemoryEffect::NoneV1,
+        1 => MachineMemoryEffect::ReadPointerV1,
+        2 => MachineMemoryEffect::WriteOutgoingArgumentV1,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
     let trap = match cursor.byte()? {
@@ -78,6 +80,26 @@ fn decode_kind(
         },
         2 => SelectedInstructionKind::CopyI64,
         15 => SelectedInstructionKind::ZeroExtendU8,
+        16 => SelectedInstructionKind::Load64 {
+            byte_offset: cursor.u32()?,
+        },
+        tag @ (17 | 18) => {
+            let slot = crate::OutgoingArgumentSlotId {
+                operation: OperationId::new(cursor.u64()?)
+                    .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+                argument_index: cursor.u32()?,
+            };
+            let byte_offset = cursor.u32()?;
+            if tag == 17 {
+                SelectedInstructionKind::Store64 { slot, byte_offset }
+            } else {
+                SelectedInstructionKind::FrameAddress { slot, byte_offset }
+            }
+        }
+        19 => SelectedInstructionKind::CallUnit {
+            callee: MachineId::new(cursor.u64()?)
+                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+        },
         3 => SelectedInstructionKind::ExactAddI64 {
             obligation: decode_obligation(cursor)?,
             accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
@@ -191,6 +213,10 @@ fn decode_alternative_for_version(
         1 => MachineAlternativeFamily::MaterializeI64,
         2 => MachineAlternativeFamily::CopyI64,
         15 => MachineAlternativeFamily::ZeroExtendU8,
+        16 => MachineAlternativeFamily::Load64,
+        17 => MachineAlternativeFamily::Store64,
+        18 => MachineAlternativeFamily::FrameAddress,
+        19 => MachineAlternativeFamily::CallUnit,
         3 => MachineAlternativeFamily::ExactAddI64,
         4 => MachineAlternativeFamily::ExactAddI64Immediate,
         5 => MachineAlternativeFamily::ExactSubtractI64,
@@ -278,6 +304,14 @@ fn decode_encoded_effects(
     let implicit_unit_clobbers = decode_units(cursor)?;
     let memory = match cursor.byte()? {
         0 => MachineEncodedMemoryEffect::NoneV1,
+        3 => MachineEncodedMemoryEffect::ReadPointerV1 {
+            pointer_operand: cursor.u16()?,
+            byte_count: cursor.u16()?,
+        },
+        4 => MachineEncodedMemoryEffect::WriteOutgoingArgumentV1 {
+            stack_pointer: register_model::RegisterViewId(cursor.u16()?),
+            byte_count: cursor.u16()?,
+        },
         1 => MachineEncodedMemoryEffect::ReadActivationStackV1 {
             stack_pointer: register_model::RegisterViewId(cursor.u16()?),
             byte_count: cursor.u16()?,

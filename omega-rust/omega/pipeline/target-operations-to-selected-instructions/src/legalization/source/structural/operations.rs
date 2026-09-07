@@ -4,7 +4,7 @@ use super::boundary_settlement::derive_boundary_settlement;
 use super::call::derive_structural_call;
 
 pub(super) struct DerivedStructuralOperations {
-    pub(super) call: Option<LegalizedCallUnit>,
+    pub(super) call: Option<legalized_operations::LegalizedScalarInstruction>,
     pub(super) boundary_settlements: Vec<LegalizedBoundarySettlement>,
 }
 

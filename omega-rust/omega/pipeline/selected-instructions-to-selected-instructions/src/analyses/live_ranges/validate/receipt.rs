@@ -12,11 +12,9 @@ pub(super) fn build_receipt(plan: &LiveRangePlan) -> LiveRangeValidationReceipt 
         optimization_unit: plan.optimization_unit,
         fuel_schedule: plan.fuel_schedule,
         function_count: plan.functions.len(),
-        structural_unit_function_count: plan.structural_unit_functions.len(),
         block_count: plan
             .functions
             .iter()
-            .chain(&plan.structural_unit_functions)
             .map(|row| row.block_domains.len())
             .sum(),
         virtual_register_count: plan
@@ -45,20 +43,17 @@ pub(super) fn build_receipt(plan: &LiveRangePlan) -> LiveRangeValidationReceipt 
         architectural_unit_count: plan
             .functions
             .iter()
-            .chain(&plan.structural_unit_functions)
             .map(|row| row.architectural_units.len())
             .sum(),
         architectural_action_count: plan
             .functions
             .iter()
-            .chain(&plan.structural_unit_functions)
             .flat_map(|row| &row.architectural_units)
             .map(|row| row.actions.len())
             .sum(),
         architectural_fragment_count: plan
             .functions
             .iter()
-            .chain(&plan.structural_unit_functions)
             .flat_map(|row| &row.architectural_units)
             .map(|row| row.fragments.len())
             .sum(),
@@ -71,7 +66,6 @@ pub(super) fn build_receipt(plan: &LiveRangePlan) -> LiveRangeValidationReceipt 
         architectural_edge_connector_count: plan
             .functions
             .iter()
-            .chain(&plan.structural_unit_functions)
             .flat_map(|row| &row.architectural_units)
             .map(|range| range.edge_connectors.len())
             .sum(),

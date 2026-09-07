@@ -7,7 +7,6 @@ pub use machine_code::{
     WholeFunctionExitEvidence, WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy,
     WholeFunctionFrameDisposition, WholeFunctionHardeningPolicy, WholeFunctionReturnEvidence,
     WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
-    WholeFunctionStructuralUnitCallEvidence, WholeFunctionStructuralUnitExitEvidence,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

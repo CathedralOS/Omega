@@ -83,7 +83,7 @@ pub(in crate::assignment::logical_spill_operations) fn compute_action(
     };
     if !matches!(
         victim.definition_site,
-        ValueDefinitionSite::Node { block, .. } if block == selected_block.source_block
+        Some(ValueDefinitionSite::Node { block, .. }) if block == selected_block.source_block
     ) {
         return Err(LogicalSpillOperationError::UnsupportedOrigin {
             function: function_index,
@@ -273,7 +273,12 @@ pub(in crate::assignment::logical_spill_operations) fn compute_action(
         victim_class: victim.class,
         victim_scalar_type: victim.scalar_type,
         victim_origin: victim.origin,
-        victim_definition_site: victim.definition_site,
+        victim_definition_site: victim.definition_site.ok_or(
+            LogicalSpillOperationError::UnsupportedOrigin {
+                function: function_index,
+                register: victim.id.0,
+            },
+        )?,
         current_view: resident.view,
         reclaimed_view,
         storage,

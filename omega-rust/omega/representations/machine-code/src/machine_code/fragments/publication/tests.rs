@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn retired_realization_roles_and_prior_wire_versions_reject() {
     let encoded = record(FunctionFragmentEmissionSourceKind::UnitBaselineV1).encode();
-    for version in 0..12_u32 {
+    for version in 0..13_u32 {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(
@@ -11,7 +11,7 @@ fn retired_realization_roles_and_prior_wire_versions_reject() {
             Err(FunctionFragmentEmissionManifestDecodeError::UnsupportedVersion(version))
         );
     }
-    for tag in [1, 3] {
+    for tag in [1, 3, 5] {
         let mut retired = encoded.clone();
         retired[45] = tag;
         assert_eq!(
@@ -54,12 +54,7 @@ fn record(source_kind: FunctionFragmentEmissionSourceKind) -> FunctionFragmentEm
             bytes: 5,
             resolved_conditional_branches: 6,
             logical_fuel_settlements: 7,
-            structural_unit_functions: 8,
-            structural_unit_blocks: 9,
-            structural_unit_instruction_spans: 10,
-            structural_unit_bytes: 11,
             unresolved_internal_machine_fixups: 12,
-            structural_logical_fuel_settlements: 13,
         },
         section_placement: unavailable,
         symbols: unavailable,
@@ -77,7 +72,6 @@ fn publication_records_roundtrip_without_a_compiler_or_admission_capsule() {
     let sources = [
         FunctionFragmentEmissionSourceKind::SelectedLoweringV1,
         FunctionFragmentEmissionSourceKind::UnitBaselineV1,
-        FunctionFragmentEmissionSourceKind::StructuralUnitV1,
         FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1,
         FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
             optimization: Optimization::X86SelectXorZeroI64MaterializationV1,
@@ -87,12 +81,12 @@ fn publication_records_roundtrip_without_a_compiler_or_admission_capsule() {
         let record = record(source);
         let encoded = record.encode();
         assert_eq!(&encoded[..8], b"OMGFFE\0\0");
-        assert_eq!(&encoded[8..12], &12_u32.to_le_bytes());
+        assert_eq!(&encoded[8..12], &13_u32.to_le_bytes());
         let extra_rule_tag = usize::from(matches!(
             source,
             FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 { .. }
         ));
-        assert_eq!(encoded.len(), 500 + extra_rule_tag);
+        assert_eq!(encoded.len(), 460 + extra_rule_tag);
         assert_eq!(
             FunctionFragmentEmissionManifest::decode(&encoded),
             Ok(record)

@@ -32,7 +32,7 @@ fn graph(
     if signed {
         source.blocks[0].instructions.truncate(2);
         for (index, row) in source.blocks[0].instructions.iter_mut().enumerate() {
-            row.scalar_type = ScalarType::Integer(integer);
+            row.result.as_mut().unwrap().scalar_type = ScalarType::Integer(integer);
             row.kind =
                 LegalizedScalarInstructionKind::Constant(IntegerValue::Signed(index as i128));
         }
@@ -56,12 +56,14 @@ fn graph(
         .instructions
         .push(LegalizedScalarInstruction {
             operation: OperationId::new(5).unwrap(),
-            result: value(5),
-            scalar_type: ScalarType::Boolean,
-            definition_site: ValueDefinitionSite::Node {
-                block: block(1),
-                node: comparison_index as u32,
-            },
+            result: Some(LegalizedValueDefinition {
+                value: value(5),
+                scalar_type: ScalarType::Boolean,
+                definition_site: ValueDefinitionSite::Node {
+                    block: block(1),
+                    node: comparison_index as u32,
+                },
+            }),
             kind: LegalizedScalarInstructionKind::Compare {
                 predicate,
                 operand_type: integer,
@@ -89,12 +91,14 @@ fn graph(
             parameters: Vec::new(),
             instructions: vec![LegalizedScalarInstruction {
                 operation,
-                result: value(raw + 4),
-                scalar_type: scalar,
-                definition_site: ValueDefinitionSite::Node {
-                    block: block(raw),
-                    node: 0,
-                },
+                result: Some(LegalizedValueDefinition {
+                    value: value(raw + 4),
+                    scalar_type: scalar,
+                    definition_site: ValueDefinitionSite::Node {
+                        block: block(raw),
+                        node: 0,
+                    },
+                }),
                 kind: LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(raw as u128)),
                 fuel: vec![FuelSettlement {
                     site: PsiProvenance::Operation(operation),
@@ -173,13 +177,13 @@ fn boolean_not_branch_suffix_preserves_each_operation_and_polarity() {
                 .iter_mut()
                 .find(|block| block.id == source.entry_block)
                 .unwrap();
-            let mut value = entry.instructions.last().unwrap().result;
+            let mut value = entry.instructions.last().unwrap().result.unwrap().value;
             for index in 0..count {
                 let mut row = entry.instructions.last().unwrap().clone();
                 row.operation = OperationId::new(100 + index).unwrap();
-                row.result = ValueId::new(100 + index).unwrap();
+                row.result.as_mut().unwrap().value = ValueId::new(100 + index).unwrap();
                 row.kind = LegalizedScalarInstructionKind::BooleanNot { operand: value };
-                row.definition_site = ValueDefinitionSite::Node {
+                row.result.as_mut().unwrap().definition_site = ValueDefinitionSite::Node {
                     block: entry.id,
                     node: entry.instructions.len() as u32,
                 };
@@ -187,7 +191,7 @@ fn boolean_not_branch_suffix_preserves_each_operation_and_polarity() {
                     site: PsiProvenance::Operation(row.operation),
                     units: 1,
                 }];
-                value = row.result;
+                value = row.result.unwrap().value;
                 entry.instructions.push(row);
             }
             let LegalizedScalarTerminator::Conditional { condition, .. } = &mut entry.terminator
@@ -484,14 +488,16 @@ fn graph_zero_equality_retains_fuel_and_does_not_elide_shared_zero() {
             let zero_operation = OperationId::new(90).unwrap();
             entry.instructions.push(LegalizedScalarInstruction {
                 operation: zero_operation,
-                result: zero_value,
-                scalar_type: ScalarType::Integer(
-                    IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
-                ),
-                definition_site: ValueDefinitionSite::Node {
-                    block: entry.id,
-                    node: entry.instructions.len() as u32,
-                },
+                result: Some(LegalizedValueDefinition {
+                    value: zero_value,
+                    scalar_type: ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    ),
+                    definition_site: ValueDefinitionSite::Node {
+                        block: entry.id,
+                        node: entry.instructions.len() as u32,
+                    },
+                }),
                 kind: LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(0)),
                 fuel: vec![FuelSettlement {
                     site: PsiProvenance::Operation(zero_operation),
@@ -500,7 +506,7 @@ fn graph_zero_equality_retains_fuel_and_does_not_elide_shared_zero() {
                 effect: comparison.effect,
                 ownership: Vec::new(),
             });
-            comparison.definition_site = ValueDefinitionSite::Node {
+            comparison.result.as_mut().unwrap().definition_site = ValueDefinitionSite::Node {
                 block: entry.id,
                 node: entry.instructions.len() as u32,
             };

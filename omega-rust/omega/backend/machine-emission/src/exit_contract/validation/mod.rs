@@ -7,7 +7,6 @@
 mod context;
 mod ordinary;
 mod returned;
-mod structural;
 
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
@@ -68,10 +67,6 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
         contract,
     };
     let context = context::check(&inputs, custody)?;
-    if inputs.selected.structural_unit_functions.is_empty() {
-        ordinary::check(&inputs, &context)?;
-    } else {
-        structural::check(&inputs, &context)?;
-    }
+    ordinary::check(&inputs, &context)?;
     require(contract.identity == contract.recomputed_identity())
 }

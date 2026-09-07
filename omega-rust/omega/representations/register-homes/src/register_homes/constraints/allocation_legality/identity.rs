@@ -5,11 +5,11 @@ use selected_instructions::VirtualFixedConstraintSite;
 
 pub fn allocation_legality_identity(plan: &AllocationLegalityPlan) -> AllocationLegalityIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-allocation-legality.v5\0");
+    bytes.extend_from_slice(b"omega.terminal-allocation-legality.v6\0");
     bytes.extend_from_slice(&plan.ranges.bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
-    for functions in [&plan.functions, &plan.structural_unit_functions] {
+    for functions in [&plan.functions] {
         length(&mut bytes, functions.len());
         for function in functions {
             bytes.extend_from_slice(&function.machine.get().to_le_bytes());
@@ -107,41 +107,43 @@ mod tests {
             ranges: LiveRangeIdentity::from_bytes([1; 32]),
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([2; 32]),
             allocator_availability: AllocatorAvailabilityIdentity::from_bytes([5; 32]),
-            functions: vec![FunctionAllocationLegality {
-                machine: MachineId::new(1).unwrap(),
-                virtual_registers: vec![VirtualRegisterAllocationLegality {
-                    virtual_register: VirtualRegisterId(0),
-                    class: RegisterClassId(0),
-                    points: vec![VirtualPointLegality {
-                        block: SelectedBlockId(0),
-                        point: LiveRangePoint(1),
-                        candidates: vec![RegisterViewId(0), RegisterViewId(1)],
-                    }],
-                    early_clobber_points: vec![VirtualEarlyClobberPointLegality {
-                        block: SelectedBlockId(0),
-                        position: LivenessPosition(0),
-                        instruction: SelectedInstructionId(2),
-                        operand: 1,
-                        point: LiveRangePoint(0),
-                        candidates: vec![RegisterViewId(0), RegisterViewId(1)],
-                    }],
-                    entry_transitions: vec![EntryFixedViewTransition {
-                        from_view: RegisterViewId(0),
-                        to_site: VirtualFixedConstraintSite::Operand {
-                            position: LivenessPosition(0),
+            functions: vec![
+                FunctionAllocationLegality {
+                    machine: MachineId::new(1).unwrap(),
+                    virtual_registers: vec![VirtualRegisterAllocationLegality {
+                        virtual_register: VirtualRegisterId(0),
+                        class: RegisterClassId(0),
+                        points: vec![VirtualPointLegality {
+                            block: SelectedBlockId(0),
                             point: LiveRangePoint(1),
+                            candidates: vec![RegisterViewId(0), RegisterViewId(1)],
+                        }],
+                        early_clobber_points: vec![VirtualEarlyClobberPointLegality {
+                            block: SelectedBlockId(0),
+                            position: LivenessPosition(0),
                             instruction: SelectedInstructionId(2),
-                            operand: 0,
-                            access: RegisterOperandAccess::Use,
-                        },
-                        to_view: RegisterViewId(1),
+                            operand: 1,
+                            point: LiveRangePoint(0),
+                            candidates: vec![RegisterViewId(0), RegisterViewId(1)],
+                        }],
+                        entry_transitions: vec![EntryFixedViewTransition {
+                            from_view: RegisterViewId(0),
+                            to_site: VirtualFixedConstraintSite::Operand {
+                                position: LivenessPosition(0),
+                                point: LiveRangePoint(1),
+                                instruction: SelectedInstructionId(2),
+                                operand: 0,
+                                access: RegisterOperandAccess::Use,
+                            },
+                            to_view: RegisterViewId(1),
+                        }],
                     }],
-                }],
-            }],
-            structural_unit_functions: vec![FunctionAllocationLegality {
-                machine: MachineId::new(2).unwrap(),
-                virtual_registers: Vec::new(),
-            }],
+                },
+                FunctionAllocationLegality {
+                    machine: MachineId::new(2).unwrap(),
+                    virtual_registers: Vec::new(),
+                },
+            ],
         }
     }
 
@@ -209,8 +211,10 @@ mod tests {
                     .clear()
             },
             |plan| plan.functions.clear(),
-            |plan| plan.structural_unit_functions.clear(),
-            |plan| plan.structural_unit_functions[0].machine = MachineId::new(3).unwrap(),
+            |plan| {
+                plan.functions.pop();
+            },
+            |plan| plan.functions[1].machine = MachineId::new(3).unwrap(),
         ];
         for mutate in mutations {
             let mut changed = plan();

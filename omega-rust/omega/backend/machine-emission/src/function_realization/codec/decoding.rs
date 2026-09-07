@@ -59,7 +59,6 @@ pub(super) fn decode_manifest_content(
     let layout_policy = match cursor.byte()? {
         1 => SelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1,
         2 => SelectedFunctionLayoutPolicy::SingleEntryBlockV1,
-        3 => SelectedFunctionLayoutPolicy::StructuralUnitCallThenReturnSingleEntryBlockV1,
         4 => SelectedFunctionLayoutPolicy::EntryThenNotLessFallthroughThenLessV1,
         5 => SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1,
         tag => return Err(Error::UnknownLayoutPolicy(tag)),
@@ -74,10 +73,6 @@ pub(super) fn decode_manifest_content(
         instructions: u64::from_le_bytes(cursor.array()?),
         bytes: u64::from_le_bytes(cursor.array()?),
         resolved_conditional_branches: u64::from_le_bytes(cursor.array()?),
-        structural_unit_functions: u64::from_le_bytes(cursor.array()?),
-        structural_unit_blocks: u64::from_le_bytes(cursor.array()?),
-        structural_unit_instructions: u64::from_le_bytes(cursor.array()?),
-        structural_unit_bytes: u64::from_le_bytes(cursor.array()?),
         unresolved_internal_machine_fixups: u64::from_le_bytes(cursor.array()?),
     };
     let frame = match cursor.byte()? {

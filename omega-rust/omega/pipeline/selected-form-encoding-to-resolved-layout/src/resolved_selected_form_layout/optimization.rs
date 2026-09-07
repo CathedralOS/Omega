@@ -135,7 +135,6 @@ pub(super) fn validate_layout_byte_savings(
         || baseline.target() != selected.target()
         || baseline.policy() != selected.policy()
         || baseline.functions().len() != selected.functions().len()
-        || baseline.structural_unit_functions() != selected.structural_unit_functions()
         || baseline.post_allocation_machine_optimization().is_some()
         || selected.post_allocation_machine_optimization() != Some(custody)
         || !has_exact_byte_savings(baseline_bytes, selected_bytes, expected)

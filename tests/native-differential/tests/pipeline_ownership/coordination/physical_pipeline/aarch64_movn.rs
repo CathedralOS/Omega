@@ -60,6 +60,7 @@ fn named_aarch64_movn_materialization_shrinks_pre_layout_bytes_and_replays() {
         selected_stage.selected(),
         &machine,
         physical,
+        None,
     )
     .unwrap();
     let encoded =
@@ -67,6 +68,7 @@ fn named_aarch64_movn_materialization_shrinks_pre_layout_bytes_and_replays() {
             selected_stage.selected(),
             &machine,
             physical,
+            None,
             &materialization,
         )
         .unwrap();
@@ -152,6 +154,7 @@ fn named_aarch64_movn_materialization_shrinks_pre_layout_bytes_and_replays() {
         selected_stage.selected(),
         &machine,
         physical,
+        None,
         &materialization,
         &encoded,
     )
@@ -230,6 +233,7 @@ fn named_aarch64_movn_materialization_shrinks_pre_layout_bytes_and_replays() {
             selected_stage.selected(),
             &machine,
             physical,
+            None,
             &materialization,
             &corrupted,
         ),

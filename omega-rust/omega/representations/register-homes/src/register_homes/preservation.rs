@@ -32,12 +32,6 @@ pub enum AllocatedCalleeSavedRequirementPolicy {
     AllocatedSelectedWritesIntersectAbiPreservationV1,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum AllocatedCalleeSavedFunctionKind {
-    Ordinary,
-    StructuralUnit,
-}
-
 /// One exact selected write that may modify the containing ABI-preserved unit.
 /// A home without a selected definition never creates a witness.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,7 +65,6 @@ pub struct AllocatedCalleeSavedUnitRequirement {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionAllocatedCalleeSavedRequirements {
     pub machine: MachineId,
-    pub kind: AllocatedCalleeSavedFunctionKind,
     pub modified_units: Vec<AllocatedCalleeSavedUnitRequirement>,
 }
 

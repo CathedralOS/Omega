@@ -224,7 +224,7 @@ fn run_machine(
         stage_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization(
             selected_stage.selected(),
             &machine,
-            &physical,
+            &physical, None,
             Some(&optimization),
         )
         .unwrap();

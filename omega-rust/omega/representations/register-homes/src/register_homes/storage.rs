@@ -19,7 +19,6 @@ pub struct RegisterHomePlan {
     pub register_environment: TargetRegisterEnvironmentIdentity,
     pub allocator_availability: AllocatorAvailabilityIdentity,
     pub functions: Vec<FunctionRegisterHomes>,
-    pub structural_unit_functions: Vec<FunctionRegisterHomes>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

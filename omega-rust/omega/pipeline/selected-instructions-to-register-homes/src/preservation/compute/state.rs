@@ -118,27 +118,6 @@ impl<'model> DirectTraversal<'model> {
         )
     }
 
-    pub(super) fn scan_implicit(
-        &mut self,
-        block: SelectedBlockId,
-        instruction: selected_instructions::SelectedInstructionId,
-        definitions: &[RegisterUnitId],
-        clobbers: &[RegisterUnitId],
-        units: &mut BTreeMap<RegisterUnitId, Vec<CalleeSavedModificationWitness>>,
-    ) -> Result<(), AllocatedCalleeSavedRequirementError> {
-        self.instruction_count = add(self.instruction_count, 1)?;
-        self.scan_units(
-            definitions,
-            CalleeSavedModificationWitness::ImplicitDefinition { block, instruction },
-            units,
-        )?;
-        self.scan_units(
-            clobbers,
-            CalleeSavedModificationWitness::ImplicitClobber { block, instruction },
-            units,
-        )
-    }
-
     fn scan_units(
         &mut self,
         writes: &[RegisterUnitId],

@@ -1,12 +1,9 @@
-//! Optimizer module role: executable entrance. Mandatory target legalization: construct the canonical plan, then replay it independently.
+//! Optimizer module role: stage group. Mandatory target legalization: construct the canonical plan, then replay it independently.
 //!
 //! `source` projects ordinary instruction graphs; `replay` independently checks
-//! them. `catalog` enumerates the remaining exact structural-call forms.
+//! them, including structural signatures and instruction-keyed ownership.
 
 mod admission;
-mod catalog;
-#[cfg(test)]
-mod catalog_tests;
 mod model;
 mod projected_structural_call_return;
 mod replay;
@@ -47,7 +44,6 @@ pub fn legalize_target_operations(
         target: target.target,
         entry: target.entry,
         scalar_functions: rosters.scalar_functions,
-        structural_unit_functions: rosters.structural_unit_functions,
         projected_structural_call_returns: rosters.projected_structural_call_returns,
     };
     validate_legalized_operations(target, abstract_plan, unit, plan)
@@ -73,7 +69,6 @@ pub fn validate_legalized_operations(
         fuel_schedule: unit.fuel_schedule,
         target: target.target,
         function_count: plan.scalar_functions.len()
-            + plan.structural_unit_functions.len()
             + plan.projected_structural_call_returns.len() * 2,
         decomposition_count,
         projected_structural_call_return,

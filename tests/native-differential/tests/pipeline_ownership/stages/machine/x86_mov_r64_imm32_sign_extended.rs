@@ -54,13 +54,14 @@ fn x86_mov_r64_imm32_sign_extended_reaches_publication_with_replayable_custody()
         selected_stage.selected(),
         &machine,
         physical,
+        None,
     )
     .unwrap();
     let selected_encoding =
         stage_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization(
             selected_stage.selected(),
             &machine,
-            physical,
+            physical, None,
             Some(&optimization),
         )
         .unwrap();
@@ -157,7 +158,7 @@ fn x86_mov_r64_imm32_sign_extended_reaches_publication_with_replayable_custody()
     validate_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization(
         selected_stage.selected(),
         &machine,
-        physical,
+        physical, None,
         Some(&optimization),
         &selected_encoding,
     )
@@ -176,7 +177,7 @@ fn x86_mov_r64_imm32_sign_extended_reaches_publication_with_replayable_custody()
         validate_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization(
             selected_stage.selected(),
             &machine,
-            physical,
+            physical, None,
             Some(&optimization),
             &corrupted_encoding,
         ),

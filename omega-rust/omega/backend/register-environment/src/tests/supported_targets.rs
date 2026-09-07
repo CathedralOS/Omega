@@ -2,8 +2,8 @@ use isa_aarch64::{
     AARCH64_ADD_I64, AARCH64_ADD_I64_IMMEDIATE, AARCH64_COPY_I64, AARCH64_SUBTRACT_I64,
 };
 use isa_x86_64::{
-    X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COPY_I64,
-    X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR, X86_64_SUBTRACT_I64,
+    X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COPY_I64, X86_64_FRAME_ADDRESS, X86_64_LOAD64,
+    X86_64_MICROSOFT_CALL_UNIT, X86_64_STORE64, X86_64_SUBTRACT_I64,
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 
@@ -86,26 +86,49 @@ fn every_supported_native_target_builds_a_matching_closed_environment() {
         assert!(environment.constraint(expected_add).is_some());
         assert!(environment.constraint(expected_add_immediate).is_some());
         assert!(environment.constraint(expected_subtract).is_some());
-        let expected_structural_call = matches!(
+        let microsoft = matches!(
             (target.architecture, target.object_format),
             (Architecture::X86_64, ObjectFormat::Coff)
-        )
-        .then_some(X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR);
-        assert_eq!(
-            environment.selected_keys().structural_unit_call,
-            expected_structural_call
         );
-        assert_eq!(
-            environment
-                .allocation_constraint_keys()
-                .structural_unit_call,
-            expected_structural_call
-        );
-        if let Some(key) = expected_structural_call {
-            let row = environment
-                .constraint(key)
-                .expect("applicable structural Unit call row is catalog-owned");
-            assert!(row.operands.is_empty());
+        for (selected_key, allocation_key, key, operands) in [
+            (
+                environment.selected_keys().load64,
+                environment.allocation_constraint_keys().load64,
+                X86_64_LOAD64,
+                2,
+            ),
+            (
+                environment.selected_keys().store64,
+                environment.allocation_constraint_keys().store64,
+                X86_64_STORE64,
+                1,
+            ),
+            (
+                environment.selected_keys().frame_address,
+                environment.allocation_constraint_keys().frame_address,
+                X86_64_FRAME_ADDRESS,
+                1,
+            ),
+            (
+                environment.selected_keys().call_unit,
+                environment.allocation_constraint_keys().call_unit,
+                X86_64_MICROSOFT_CALL_UNIT,
+                2,
+            ),
+        ] {
+            let expected = microsoft.then_some(key);
+            assert_eq!(selected_key, expected);
+            assert_eq!(allocation_key, expected);
+            if let Some(key) = expected {
+                assert_eq!(
+                    environment
+                        .constraint(key)
+                        .expect("applicable ordinary ABI primitive")
+                        .operands
+                        .len(),
+                    operands
+                );
+            }
         }
     }
 }

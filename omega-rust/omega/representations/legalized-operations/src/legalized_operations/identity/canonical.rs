@@ -1,27 +1,23 @@
 //! Canonical legalized-plan roster encoding shared by current and legacy identities.
 
 use super::projected_structural_call_return::encode_projected_structural_call_return;
-use super::{plan::encode_structural_unit_function, shared::*};
+use super::shared::*;
 
 pub(super) fn identity(plan: &LegalizedOperationPlan) -> LegalizedOperationPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v29\0");
+    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v30\0");
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
     bytes.extend_from_slice(&plan.psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
     bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
     encode_target(&mut bytes, plan.target);
     bytes.extend_from_slice(&plan.entry.get().to_le_bytes());
-    encode_len(&mut bytes, plan.structural_unit_functions.len());
-    for function in &plan.structural_unit_functions {
-        encode_structural_unit_function(&mut bytes, function);
-    }
     encode_len(&mut bytes, plan.projected_structural_call_returns.len());
     for closure in &plan.projected_structural_call_returns {
         encode_projected_structural_call_return(&mut bytes, closure);
     }
     {
-        bytes.extend_from_slice(b"ordinary-scalar-graph.v3\0");
+        bytes.extend_from_slice(b"ordinary-scalar-graph.v4\0");
         encode_len(&mut bytes, plan.scalar_functions.len());
         for function in &plan.scalar_functions {
             super::scalar_graph::encode(&mut bytes, function);

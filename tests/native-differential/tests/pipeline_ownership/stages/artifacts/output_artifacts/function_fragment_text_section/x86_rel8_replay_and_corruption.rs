@@ -96,7 +96,7 @@ fn relocation_free_rel8_text_section_replays_bytes_manifest_and_custody() {
         Err(FunctionFragmentTextSectionManifestDecodeError::IdentityMismatch)
     );
     let mut unknown_relocation = record.encode();
-    let relocation_tag = unknown_relocation.len() - 127;
+    let relocation_tag = unknown_relocation.len() - 87;
     unknown_relocation[relocation_tag] = 2;
     assert_eq!(
         FunctionFragmentTextSectionManifest::decode(&unknown_relocation),

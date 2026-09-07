@@ -55,12 +55,6 @@ pub fn decode_terminal_pre_allocation_machine_effect_plan(
         }
         functions.push(FunctionMachineEffects { machine, blocks });
     }
-    let structural_count = cursor.length()?;
-    let mut structural_unit_functions =
-        Vec::with_capacity(structural_count.min(cursor.remaining()));
-    for _ in 0..structural_count {
-        structural_unit_functions.push(decode_structural_function(&mut cursor, true)?);
-    }
     if cursor.remaining() != 0 {
         return Err(PreAllocationMachineEffectDecodeError::TrailingBytes);
     }
@@ -74,7 +68,6 @@ pub fn decode_terminal_pre_allocation_machine_effect_plan(
         register_constraints,
         machine_effect_catalog,
         functions,
-        structural_unit_functions,
     };
     let expected_identity = pre_allocation_machine_effect_identity(&plan);
     if plan.identity != expected_identity {

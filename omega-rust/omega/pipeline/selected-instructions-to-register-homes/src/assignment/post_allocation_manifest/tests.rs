@@ -36,7 +36,6 @@ fn record() -> PostAllocationOptimizationManifest {
         publication: PostAllocationUnavailableData::Unavailable,
         statistics: PostAllocationStatistics {
             functions: 1,
-            structural_unit_functions: 2,
             assignments: 2,
             distinct_physical_views: 2,
             virtual_interferences: 1,
@@ -95,7 +94,6 @@ fn identity_binds_every_post_allocation_domain() {
         },
         |record| record.homes = RegisterHomeIdentity::from_bytes([11; 32]),
         |record| record.statistics.functions += 1,
-        |record| record.statistics.structural_unit_functions += 1,
         |record| record.statistics.assignments += 1,
         |record| record.statistics.distinct_physical_views += 1,
         |record| record.statistics.virtual_interferences += 1,
@@ -109,7 +107,8 @@ fn identity_binds_every_post_allocation_domain() {
     let text = baseline.render_text();
     assert!(text.contains("spills: not required"));
     assert!(text.contains("publication: unavailable"));
-    assert!(text.contains("structural Unit functions: 2"));
+    assert!(text.contains("functions: 1"));
+    assert!(!text.contains("structural Unit functions:"));
     let mut rematerialized = baseline.clone();
     rematerialized.selected_transformations = vec![
         PostAllocationSelectedTransformation::PressureRematerialization(

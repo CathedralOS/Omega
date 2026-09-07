@@ -189,6 +189,11 @@ pub(crate) fn fixture() -> Fixture {
         target: NativeTarget::linux_arm64(),
         entry: machine,
         functions: vec![SelectedFunction {
+            structural: None,
+            outgoing_arguments: Vec::new(),
+            calls: Vec::new(),
+            memory_accesses: Vec::new(),
+            boundary_settlements: Vec::new(),
             machine,
             attachment: None,
             provenance: TerminalPsiProvenance::default(),
@@ -204,7 +209,6 @@ pub(crate) fn fixture() -> Fixture {
                 },
             }],
         }],
-        structural_unit_functions: vec![],
         projected_structural_call_returns: vec![],
     };
     let selected_identity = SelectedInstructionPlanIdentity::from_bytes([2; 32]);
@@ -256,9 +260,9 @@ pub(crate) fn fixture() -> Fixture {
                 successors: vec![],
             }],
         }],
-        structural_unit_functions: vec![],
     };
     let copy_machine = PostAllocationMachineInstruction {
+        address: None,
         instruction: copy_id,
         alternative: alternative(
             MachineAlternativeFamily::CopyI64,
@@ -276,6 +280,7 @@ pub(crate) fn fixture() -> Fixture {
         unit_clobbers: vec![],
     };
     let return_machine = PostAllocationMachineInstruction {
+        address: None,
         instruction: return_id,
         alternative: alternative(
             MachineAlternativeFamily::ReturnI64,
@@ -315,13 +320,13 @@ pub(crate) fn fixture() -> Fixture {
         machine_effect_catalog: MachineEffectCatalogIdentity::from_bytes([12; 32]),
         choice_rule: MachineAlternativeChoiceRule::UniqueApplicableInCatalogOrderV1,
         functions: vec![PostAllocationMachineFunction {
+            outgoing_arguments: Vec::new(),
             machine,
             blocks: vec![PostAllocationMachineBlock {
                 block,
                 instructions: vec![copy_machine, return_machine],
             }],
         }],
-        structural_unit_functions: vec![],
     };
     Fixture {
         selected,
@@ -443,6 +448,7 @@ pub(crate) fn compare_fixture() -> Fixture {
     machine_block
         .instructions
         .push(PostAllocationMachineInstruction {
+            address: None,
             instruction: return_id,
             alternative: alternative(
                 MachineAlternativeFamily::ReturnUnit,

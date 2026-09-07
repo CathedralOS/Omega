@@ -16,7 +16,11 @@ pub(in super::super) fn validate_realization_artifacts<S: ValidatedSelectedAnaly
     selections: &OptimizationSelections,
 ) -> Result<(), FunctionRelativeOptimizationRealizationError> {
     validate_optimized_layout_independent_selected_form_encoding(
-        selected, machine, physical, encoding,
+        selected,
+        machine,
+        physical,
+        frame.map(|frame| frame.layout().plan()),
+        encoding,
     )
     .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
     validate_optimized_resolved_selected_form_layout(

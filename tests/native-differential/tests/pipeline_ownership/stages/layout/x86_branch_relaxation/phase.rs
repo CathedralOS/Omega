@@ -14,9 +14,10 @@ fn layout_phase_replays_exact_selection_current_and_evidence() {
         .selected_stage();
     let selected = selected_stage.selected();
     let physical = selected_stage.register_environment().physical();
-    let encoding =
-        stage_optimized_layout_independent_selected_form_encoding(selected, &machine, physical)
-            .unwrap();
+    let encoding = stage_optimized_layout_independent_selected_form_encoding(
+        selected, &machine, physical, None,
+    )
+    .unwrap();
     let baseline =
         stage_optimized_resolved_selected_form_layout(selected, &machine, physical, &encoding)
             .unwrap();

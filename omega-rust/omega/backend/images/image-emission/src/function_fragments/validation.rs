@@ -65,7 +65,8 @@ pub fn validate_function_fragment_object_artifact(
         let fragment = fragments
             .functions
             .iter()
-            .find(|fragment| fragment.machine == placed.machine);
+            .find(|fragment| fragment.machine == placed.machine)
+            .ok_or(Error::Mismatch("missing current fragment"))?;
         let (attachment, provenance) = source::fragment_metadata(source, placed.machine)?;
         let offset = host(placed.section_offset)?;
         let length = host(placed.byte_count)?;
@@ -101,10 +102,6 @@ pub fn validate_function_fragment_object_artifact(
             || !symbol.import_library.is_empty()
             || (entry && layout.entry_symbol != symbol_handle)
             || !empty_unsupported_records(function)
-            || (fragment.is_some()
-                && (!function.internal_unit_calls.is_empty()
-                    || !function.unit_parameters.is_empty()
-                    || !function.unit_parameter_homes.is_empty()))
         {
             return Err(Error::Mismatch(
                 "shared object function or symbol differs from current data",
@@ -132,7 +129,7 @@ pub fn validate_function_fragment_object_artifact(
             .iter()
             .map(|row| row.attribution)
             .collect::<Vec<_>>();
-        if let Some(fragment) = fragment {
+        {
             let unit = matches!(
                 abstracted.result,
                 abstract_operations::AbstractFunctionResult::Unit
@@ -157,13 +154,9 @@ pub fn validate_function_fragment_object_artifact(
                 &function.unit_call_stacks,
                 &function.scalar_call_stacks,
             )?;
-            attribution::validate(fragment, abstracted, &rows)?;
-        } else {
-            if !function.scalar_call_stacks.is_empty() {
-                return Err(Error::Mismatch(
-                    "structural Unit function retains scalar call rows",
-                ));
-            }
+            let ordinary_rows =
+                super::structural::validate_settlement_attributions(source, placed.machine, &rows)?;
+            attribution::validate(fragment, abstracted, &ordinary_rows)?;
             super::structural::validate_function(source, function, &rows)?;
         }
     }

@@ -20,7 +20,7 @@ mod transport;
 
 // Deliberately mutate only the current header; do not manufacture old schemas.
 fn with_stale_version(plan: &FixedViewCopyPlan, version: u32) -> Vec<u8> {
-    assert!(version < 14);
+    assert!(version < 15);
     let mut encoded = plan.encode();
     encoded[8..12].copy_from_slice(&version.to_le_bytes());
     encoded
@@ -69,7 +69,6 @@ pub(super) fn plan(policy: FixedViewCopyPolicy) -> FixedViewCopyPlan {
             target: target::NativeTarget::linux_x64(),
             entry: function.machine,
             functions: vec![function],
-            structural_unit_functions: Vec::new(),
             projected_structural_call_returns: Vec::new(),
         }
         .into(),

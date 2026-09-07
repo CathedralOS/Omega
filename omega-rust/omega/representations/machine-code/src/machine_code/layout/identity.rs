@@ -1,10 +1,5 @@
 //! Exact identity of the function-relative bytes, layout, and replay inputs.
 
-use crate::{
-    X86_64SelectedStructuralUnitCallFootprint, X86_64StructuralUnitInternalControlFixup,
-    X86_64StructuralUnitInternalControlFixupKind, X86_64StructuralUnitInternalControlFixupState,
-};
-use calling_conventions::MachineRegister;
 use selected_instructions::{
     MachineAlternativeKey, MachineEncodedControlEffect, MachineEncodedEffects,
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
@@ -16,7 +11,7 @@ use physical_instructions::PostAllocationMachineOptimizationCustody;
 
 use super::{
     ResolvedConditionalBranchPredicate, ResolvedSelectedFunctionLayout,
-    ResolvedStructuralUnitFunctionLayout, SelectedFunctionLayoutPolicy,
+    SelectedFunctionLayoutPolicy,
 };
 use crate::{
     SelectedFormInternalMachineFixup, SelectedFormInternalMachineFixupKind,
@@ -36,7 +31,7 @@ impl ResolvedSelectedFormLayoutIdentity {
     }
 }
 
-const LAYOUT_SCHEMA: &[u8] = b"omega.terminal.resolved-selected-form-layout.v9";
+const LAYOUT_SCHEMA: &[u8] = b"omega.terminal.resolved-selected-form-layout.v10";
 
 pub fn resolved_machine_layout_identity(
     selected: selected_instructions::SelectedInstructionPlanIdentity,
@@ -46,7 +41,6 @@ pub fn resolved_machine_layout_identity(
     target: NativeTarget,
     policy: SelectedFunctionLayoutPolicy,
     functions: &[ResolvedSelectedFunctionLayout],
-    structural_unit_functions: &[ResolvedStructuralUnitFunctionLayout],
 ) -> ResolvedSelectedFormLayoutIdentity {
     let mut hasher = Sha256::new();
     hasher.update(LAYOUT_SCHEMA);
@@ -81,7 +75,6 @@ pub fn resolved_machine_layout_identity(
     hasher.update([match policy {
         SelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1 => 0,
         SelectedFunctionLayoutPolicy::SingleEntryBlockV1 => 1,
-        SelectedFunctionLayoutPolicy::StructuralUnitCallThenReturnSingleEntryBlockV1 => 2,
         SelectedFunctionLayoutPolicy::EntryThenNotLessFallthroughThenLessV1 => 3,
         SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1 => 4,
     }]);
@@ -135,34 +128,6 @@ pub fn resolved_machine_layout_identity(
             }
         }
     }
-    hasher.update((structural_unit_functions.len() as u64).to_le_bytes());
-    for function in structural_unit_functions {
-        hasher.update(function.machine.get().to_le_bytes());
-        hasher.update(function.block.0.to_le_bytes());
-        hasher.update(function.offset.to_le_bytes());
-        hasher.update(function.byte_count.to_le_bytes());
-        match &function.call {
-            None => hasher.update([0]),
-            Some(call) => {
-                hasher.update([1]);
-                hasher.update(call.instruction.0.to_le_bytes());
-                hasher.update(call.operation.get().to_le_bytes());
-                hasher.update(call.callee.get().to_le_bytes());
-                hasher.update(call.offset.to_le_bytes());
-                hasher.update((call.bytes.len() as u64).to_le_bytes());
-                hasher.update(&call.bytes);
-                encode_structural_footprint(&mut hasher, &call.footprint);
-                encode_structural_fixup(&mut hasher, call.fixup);
-            }
-        }
-        hasher.update(function.return_instruction.instruction.0.to_le_bytes());
-        encode_alternative(&mut hasher, function.return_instruction.alternative);
-        hasher.update(function.return_instruction.offset.to_le_bytes());
-        hasher.update((function.return_instruction.bytes.len() as u64).to_le_bytes());
-        hasher.update(&function.return_instruction.bytes);
-        debug_assert!(function.return_instruction.branch.is_none());
-        hasher.update([0]);
-    }
     ResolvedSelectedFormLayoutIdentity(hasher.finalize().into())
 }
 
@@ -184,64 +149,6 @@ fn encode_internal_fixup(hasher: &mut Sha256, fixup: Option<SelectedFormInternal
     hasher.update(fixup.patch_row_offset.to_le_bytes());
     hasher.update(fixup.reference_row_offset.to_le_bytes());
     hasher.update([fixup.patch_byte_width]);
-    hasher.update(fixup.addend.to_le_bytes());
-}
-
-fn encode_structural_footprint(
-    hasher: &mut Sha256,
-    footprint: &X86_64SelectedStructuralUnitCallFootprint,
-) {
-    encode_units(hasher, &footprint.implicit_unit_uses);
-    encode_units(hasher, &footprint.implicit_unit_defs);
-    encode_units(hasher, &footprint.implicit_unit_clobbers);
-    for read in footprint.root_reads {
-        encode_machine_register(hasher, read.root);
-        hasher.update(read.byte_offset.to_le_bytes());
-        hasher.update(read.byte_count.to_le_bytes());
-    }
-    for write in footprint.caller_copy_writes {
-        hasher.update(write.stack_byte_offset.to_le_bytes());
-        hasher.update(write.byte_count.to_le_bytes());
-    }
-    for register in footprint.scratch_register_writes {
-        encode_machine_register(hasher, register);
-    }
-    for write in footprint.argument_pointer_writes {
-        encode_machine_register(hasher, write.register);
-        hasher.update(write.stack_byte_offset.to_le_bytes());
-    }
-    hasher.update([u8::from(footprint.writes_rflags)]);
-    hasher.update(footprint.frame_byte_count.to_le_bytes());
-    hasher.update(footprint.shadow_byte_count.to_le_bytes());
-    hasher.update(footprint.pre_call_stack_alignment.to_le_bytes());
-    hasher.update([u8::from(footprint.frame_is_balanced)]);
-    hasher.update([match footprint.trap {
-        selected_instructions::MachineTrapBehavior::NeverV1 => 0,
-        selected_instructions::MachineTrapBehavior::MayArchitecturalFaultV1 => 1,
-    }]);
-    hasher.update([match footprint.barrier {
-        selected_instructions::StructuralUnitCallBarrier::CallV1 => 0,
-    }]);
-    hasher.update([match footprint.call {
-        selected_instructions::StructuralUnitCallEffect::DirectInternalUnitV1 => 0,
-    }]);
-    hasher.update([match footprint.cleanup {
-        selected_instructions::MachineCleanupEffect::NoneV1 => 0,
-    }]);
-}
-
-fn encode_structural_fixup(hasher: &mut Sha256, fixup: X86_64StructuralUnitInternalControlFixup) {
-    hasher.update([match fixup.kind {
-        X86_64StructuralUnitInternalControlFixupKind::Relative32FromNextInstructionToInternalMachineV1 => 0,
-    }]);
-    hasher.update([match fixup.state {
-        X86_64StructuralUnitInternalControlFixupState::UnresolvedZeroFieldV1 => 0,
-    }]);
-    hasher.update(fixup.callee.get().to_le_bytes());
-    hasher.update(fixup.opcode_byte_offset.to_le_bytes());
-    hasher.update(fixup.field_byte_offset.to_le_bytes());
-    hasher.update(fixup.next_instruction_byte_offset.to_le_bytes());
-    hasher.update([fixup.field_byte_width]);
     hasher.update(fixup.addend.to_le_bytes());
 }
 
@@ -271,6 +178,10 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         Family::ConditionalBranchI64LessThan => 12,
         Family::CallI64 => 13,
         Family::Jump => 14,
+        Family::Load64 => 16,
+        Family::Store64 => 17,
+        Family::FrameAddress => 18,
+        Family::CallUnit => 19,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }
@@ -283,6 +194,22 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
     encode_units(hasher, &effects.implicit_unit_clobbers);
     match effects.memory {
         MachineEncodedMemoryEffect::NoneV1 => hasher.update([0]),
+        MachineEncodedMemoryEffect::ReadPointerV1 {
+            pointer_operand,
+            byte_count,
+        } => {
+            hasher.update([3]);
+            hasher.update(pointer_operand.to_le_bytes());
+            hasher.update(byte_count.to_le_bytes());
+        }
+        MachineEncodedMemoryEffect::WriteOutgoingArgumentV1 {
+            stack_pointer,
+            byte_count,
+        } => {
+            hasher.update([4]);
+            hasher.update(stack_pointer.0.to_le_bytes());
+            hasher.update(byte_count.to_le_bytes());
+        }
         MachineEncodedMemoryEffect::ReadActivationStackV1 {
             stack_pointer,
             byte_count,
@@ -348,29 +275,4 @@ fn encode_units(hasher: &mut Sha256, values: &[register_model::RegisterUnitId]) 
     for value in values {
         hasher.update(value.0.to_le_bytes());
     }
-}
-
-fn encode_machine_register(hasher: &mut Sha256, register: MachineRegister) {
-    let (tag, index) = match register {
-        MachineRegister::X86Rax => (1, 0),
-        MachineRegister::X86Rcx => (2, 0),
-        MachineRegister::X86Rdx => (3, 0),
-        MachineRegister::X86Rbx => (4, 0),
-        MachineRegister::X86Rsp => (5, 0),
-        MachineRegister::X86Rbp => (6, 0),
-        MachineRegister::X86Rsi => (7, 0),
-        MachineRegister::X86Rdi => (8, 0),
-        MachineRegister::X86R8 => (9, 0),
-        MachineRegister::X86R9 => (10, 0),
-        MachineRegister::X86R10 => (11, 0),
-        MachineRegister::X86R11 => (12, 0),
-        MachineRegister::X86R12 => (13, 0),
-        MachineRegister::X86R13 => (14, 0),
-        MachineRegister::X86R14 => (15, 0),
-        MachineRegister::X86R15 => (16, 0),
-        MachineRegister::X86Xmm(index) => (17, index),
-        MachineRegister::Aarch64X(index) => (18, index),
-        MachineRegister::Aarch64V(index) => (19, index),
-    };
-    hasher.update([tag, index]);
 }

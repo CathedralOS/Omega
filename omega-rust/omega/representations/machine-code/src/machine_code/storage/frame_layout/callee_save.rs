@@ -8,8 +8,7 @@ use semantic_vocabulary::MachineId;
 use target::NativeTarget;
 
 use register_homes::{
-    AllocatedCalleeSavedFunctionKind, AllocatedCalleeSavedRequirementIdentity,
-    AllocatedCalleeSavedUnitRequirement,
+    AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedUnitRequirement,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -49,7 +48,6 @@ pub struct NonAuthoritativeCalleeSaveSlot {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionNonAuthoritativeCalleeSaveStorage {
     pub machine: MachineId,
-    pub kind: AllocatedCalleeSavedFunctionKind,
     pub abstract_area_bytes: u64,
     pub abstract_area_alignment: u64,
     pub slots: Vec<NonAuthoritativeCalleeSaveSlot>,

@@ -13,7 +13,7 @@ use super::model::receipt;
 use super::{MachineEffectError, ValidatedPreAllocationMachineEffects};
 use selected_instructions::{
     FunctionMachineEffects, InstructionMachineEffects, PreAllocationMachineEffectPlan,
-    StructuralUnitCallMachineEffects, pre_allocation_machine_effect_identity,
+    pre_allocation_machine_effect_identity,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -72,114 +72,11 @@ pub fn validate_pre_allocation_machine_effects<S: ValidatedSelectedAnalysis>(
         }
         validate_function(source_function, actual_function, constraints, catalog)?;
     }
-    validate_structural_functions(source, &plan, constraints, catalog)?;
     if plan.identity != pre_allocation_machine_effect_identity(&plan) {
         return Err(MachineEffectError::IdentityMismatch);
     }
     let receipt = receipt(&plan)?;
     Ok(ValidatedPreAllocationMachineEffects::new(plan, receipt))
-}
-
-fn validate_structural_functions(
-    source: &selected_instructions::SelectedInstructionPlan,
-    plan: &PreAllocationMachineEffectPlan,
-    constraints: &ValidatedRegisterConstraintCatalog,
-    catalog: &ValidatedMachineEffectCatalog,
-) -> Result<(), MachineEffectError> {
-    if source.structural_unit_functions.len() != plan.structural_unit_functions.len() {
-        return Err(MachineEffectError::NonCanonicalFunction);
-    }
-    let actual_machines = plan
-        .structural_unit_functions
-        .iter()
-        .map(|function| function.machine)
-        .collect::<BTreeSet<_>>();
-    if actual_machines.len() != plan.structural_unit_functions.len() {
-        return Err(MachineEffectError::NonCanonicalFunction);
-    }
-    for source_function in &source.structural_unit_functions {
-        let matches = plan
-            .structural_unit_functions
-            .iter()
-            .filter(|function| function.machine == source_function.machine)
-            .collect::<Vec<_>>();
-        let [actual] = matches.as_slice() else {
-            return Err(MachineEffectError::StructuralFunctionMismatch {
-                machine: source_function.machine,
-            });
-        };
-        if actual.block != source_function.entry_block
-            || actual.return_effect != source_function.terminator.effect
-            || actual.return_ownership != source_function.terminator.ownership
-        {
-            return Err(MachineEffectError::StructuralFunctionMismatch {
-                machine: source_function.machine,
-            });
-        }
-        validate_instruction(
-            &source_function.terminator.instruction,
-            &actual.return_instruction,
-            constraints,
-            catalog,
-        )?;
-        match (&source_function.call, &actual.call) {
-            (Some(source_call), Some(actual_call)) => validate_structural_call(
-                source_function.machine,
-                source_call,
-                actual_call,
-                constraints,
-                catalog,
-            )?,
-            (None, None) => {}
-            _ => {
-                return Err(MachineEffectError::StructuralCallMismatch {
-                    machine: source_function.machine,
-                });
-            }
-        }
-    }
-    Ok(())
-}
-
-fn validate_structural_call(
-    machine: semantic_vocabulary::MachineId,
-    source: &selected_instructions::SelectedStructuralUnitCallInstruction,
-    actual: &StructuralUnitCallMachineEffects,
-    constraints: &ValidatedRegisterConstraintCatalog,
-    catalog: &ValidatedMachineEffectCatalog,
-) -> Result<(), MachineEffectError> {
-    let constraint = constraints
-        .catalog()
-        .constraints
-        .iter()
-        .find(|row| row.key == source.constraint)
-        .ok_or(MachineEffectError::StructuralCallMismatch { machine })?;
-    let declaration = catalog
-        .catalog()
-        .structural_unit_call
-        .ok_or(MachineEffectError::StructuralCallMismatch { machine })?;
-    if !constraint.operands.is_empty()
-        || source.implicit_uses != constraint.implicit_uses
-        || source.implicit_defs != constraint.implicit_defs
-        || source.clobbers != constraint.clobbers
-        || declaration.constraint != source.constraint
-        || actual.instruction != source.id
-        || actual.operation != source.operation
-        || actual.callee != source.callee
-        || actual.constraint != source.constraint
-        || actual.unit_uses != constraint.implicit_uses
-        || actual.unit_defs != constraint.implicit_defs
-        || actual.unit_clobbers != constraint.clobbers
-        || actual.layout != source.layout
-        || actual.effect != source.effect
-        || actual.ownership != source.ownership
-        || actual.claim_transfers != source.claim_transfers
-        || actual.provenance != source.provenance
-        || actual.declaration != declaration
-    {
-        return Err(MachineEffectError::StructuralCallMismatch { machine });
-    }
-    Ok(())
 }
 
 fn validate_function(
@@ -296,6 +193,10 @@ fn replay_declaration<'a>(
         SelectedInstructionKind::ReturnI64 => MachineSemanticKind::ReturnI64,
         SelectedInstructionKind::ReturnUnit => MachineSemanticKind::ReturnUnit,
         SelectedInstructionKind::CallI64 { .. } => MachineSemanticKind::CallI64,
+        SelectedInstructionKind::Load64 { .. } => MachineSemanticKind::Load64,
+        SelectedInstructionKind::Store64 { .. } => MachineSemanticKind::Store64,
+        SelectedInstructionKind::FrameAddress { .. } => MachineSemanticKind::FrameAddress,
+        SelectedInstructionKind::CallUnit { .. } => MachineSemanticKind::CallUnit,
     };
     let declarations = catalog
         .catalog()
@@ -318,7 +219,10 @@ fn replay_declaration<'a>(
 
 fn copied_selected_keys(keys: &TargetRegisterEnvironmentConstraintKeys) -> SelectedConstraintKeys {
     SelectedConstraintKeys {
-        structural_unit_call: keys.structural_unit_call,
+        load64: keys.load64,
+        store64: keys.store64,
+        frame_address: keys.frame_address,
+        call_unit: keys.call_unit,
         call_i64: keys.call_i64.clone(),
         materialize_i64: keys.materialize_i64,
         copy_i64: keys.copy_i64,
@@ -334,4 +238,3 @@ fn copied_selected_keys(keys: &TargetRegisterEnvironmentConstraintKeys) -> Selec
         return_unit: keys.return_unit,
     }
 }
-use std::collections::BTreeSet;

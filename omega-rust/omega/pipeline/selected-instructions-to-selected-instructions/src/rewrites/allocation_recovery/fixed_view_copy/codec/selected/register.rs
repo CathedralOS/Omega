@@ -16,6 +16,24 @@ pub(super) fn encode_register(bytes: &mut Vec<u8>, register: &VirtualRegister) {
     encode_scalar(bytes, register.scalar_type);
     bytes.extend_from_slice(&register.class.0.to_le_bytes());
     match register.origin {
+        VirtualRegisterOrigin::StructuralParameter {
+            place,
+            parameter_index,
+        } => {
+            bytes.push(4);
+            bytes.extend_from_slice(&place.get().to_le_bytes());
+            length(bytes, parameter_index);
+        }
+        VirtualRegisterOrigin::AbiTransport {
+            instruction,
+            place,
+            byte_offset,
+        } => {
+            bytes.push(5);
+            bytes.extend_from_slice(&instruction.0.to_le_bytes());
+            bytes.extend_from_slice(&place.get().to_le_bytes());
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
+        }
         VirtualRegisterOrigin::BlockParameter {
             source_value,
             block,
@@ -43,7 +61,13 @@ pub(super) fn encode_register(bytes: &mut Vec<u8>, register: &VirtualRegister) {
             bytes.extend_from_slice(&source_value.get().to_le_bytes());
         }
     }
-    encode_definition_site(bytes, register.definition_site);
+    match register.definition_site {
+        None => bytes.push(0),
+        Some(site) => {
+            bytes.push(1);
+            encode_definition_site(bytes, site);
+        }
+    }
     encode_option_u16(bytes, register.entry_fixed_view.map(|view| view.0));
 }
 
@@ -54,6 +78,15 @@ pub(super) fn decode_register(
     let scalar_type = decode_scalar(cursor)?;
     let class = RegisterClassId(cursor.u16()?);
     let origin = match cursor.byte()? {
+        4 => VirtualRegisterOrigin::StructuralParameter {
+            place: decode_id(cursor, semantic_vocabulary::PlaceId::new)?,
+            parameter_index: cursor.length()?,
+        },
+        5 => VirtualRegisterOrigin::AbiTransport {
+            instruction: SelectedInstructionId(cursor.u32()?),
+            place: decode_id(cursor, semantic_vocabulary::PlaceId::new)?,
+            byte_offset: cursor.u32()?,
+        },
         3 => VirtualRegisterOrigin::BlockParameter {
             source_value: decode_id(cursor, ValueId::new)?,
             block: selected_instructions::SelectedBlockId(cursor.u32()?),
@@ -74,7 +107,11 @@ pub(super) fn decode_register(
         scalar_type,
         class,
         origin,
-        definition_site: decode_definition_site(cursor)?,
+        definition_site: match cursor.byte()? {
+            0 => None,
+            1 => Some(decode_definition_site(cursor)?),
+            tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
+        },
         entry_fixed_view: decode_option_u16(cursor)?.map(RegisterViewId),
     })
 }

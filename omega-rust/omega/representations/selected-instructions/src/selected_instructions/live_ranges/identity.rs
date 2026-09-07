@@ -8,7 +8,7 @@ use crate::{
 
 pub fn live_range_identity(plan: &LiveRangePlan) -> LiveRangeIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-live-range-fragments.v9\0");
+    bytes.extend_from_slice(b"omega.terminal-live-range-fragments.v10\0");
     bytes.extend_from_slice(&plan.selected.bytes());
     bytes.extend_from_slice(&plan.liveness.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
@@ -24,7 +24,7 @@ pub fn live_range_identity(plan: &LiveRangePlan) -> LiveRangeIdentity {
     });
     bytes.extend_from_slice(&(plan.target.pointer_size as u64).to_le_bytes());
     bytes.extend_from_slice(&(plan.target.pointer_alignment as u64).to_le_bytes());
-    for functions in [&plan.functions, &plan.structural_unit_functions] {
+    for functions in [&plan.functions] {
         encode_len(&mut bytes, functions.len());
         for function in functions {
             bytes.extend_from_slice(&function.machine.get().to_le_bytes());
@@ -212,102 +212,104 @@ mod tests {
             optimization_unit: OptimizationUnitIdentity::from_canonical_bytes(b"unit"),
             fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
             target: NativeTarget::linux_x64(),
-            functions: vec![FunctionLiveRanges {
-                machine: MachineId::new(1).unwrap(),
-                block_domains: vec![BlockPointDomain {
-                    block: SelectedBlockId(0),
-                    source_block: BlockId::new(1).unwrap(),
-                    start: LiveRangePoint(0),
-                    end: LiveRangePoint(4),
-                }],
-                virtual_registers: vec![VirtualLiveRange {
-                    virtual_register: VirtualRegisterId(0),
-                    class: RegisterClassId(1),
-                    occurrences: vec![VirtualOccurrence {
-                        position: LivenessPosition(0),
-                        point: LiveRangePoint(0),
-                        instruction: SelectedInstructionId(0),
-                        operand: 0,
-                        access: RegisterOperandAccess::Use,
+            functions: vec![
+                FunctionLiveRanges {
+                    machine: MachineId::new(1).unwrap(),
+                    block_domains: vec![BlockPointDomain {
+                        block: SelectedBlockId(0),
+                        source_block: BlockId::new(1).unwrap(),
+                        start: LiveRangePoint(0),
+                        end: LiveRangePoint(4),
                     }],
-                    fixed_constraints: vec![VirtualFixedConstraint {
-                        site: VirtualFixedConstraintSite::Entry,
-                        view: RegisterViewId(1),
-                    }],
-                    fragments: vec![fragment],
-                    edge_connectors: vec![connector],
-                }],
-                edge_transfers: Vec::new(),
-                tied_pairs: vec![DistinctUseDefTie {
-                    block: SelectedBlockId(0),
-                    position: LivenessPosition(0),
-                    instruction: SelectedInstructionId(0),
-                    use_operand: 0,
-                    use_virtual_register: VirtualRegisterId(0),
-                    use_point: LiveRangePoint(0),
-                    def_operand: 1,
-                    def_virtual_register: VirtualRegisterId(1),
-                    def_point: LiveRangePoint(1),
-                    class: RegisterClassId(1),
-                }],
-                early_clobbers: vec![EarlyClobberConstraint {
-                    block: SelectedBlockId(0),
-                    position: LivenessPosition(0),
-                    instruction: SelectedInstructionId(0),
-                    early_point: LiveRangePoint(0),
-                    def_operand: 1,
-                    def_virtual_register: VirtualRegisterId(1),
-                    def_class: RegisterClassId(1),
-                    def_point: LiveRangePoint(1),
-                    uses: vec![EarlyClobberUse {
-                        operand: 0,
+                    virtual_registers: vec![VirtualLiveRange {
                         virtual_register: VirtualRegisterId(0),
                         class: RegisterClassId(1),
+                        occurrences: vec![VirtualOccurrence {
+                            position: LivenessPosition(0),
+                            point: LiveRangePoint(0),
+                            instruction: SelectedInstructionId(0),
+                            operand: 0,
+                            access: RegisterOperandAccess::Use,
+                        }],
+                        fixed_constraints: vec![VirtualFixedConstraint {
+                            site: VirtualFixedConstraintSite::Entry,
+                            view: RegisterViewId(1),
+                        }],
+                        fragments: vec![fragment],
+                        edge_connectors: vec![connector],
                     }],
-                }],
-                architectural_units: vec![ArchitecturalUnitLiveRange {
-                    unit: RegisterUnitId(1),
-                    actions: vec![ArchitecturalUnitAction {
+                    edge_transfers: Vec::new(),
+                    tied_pairs: vec![DistinctUseDefTie {
                         block: SelectedBlockId(0),
                         position: LivenessPosition(0),
-                        point: LiveRangePoint(0),
                         instruction: SelectedInstructionId(0),
-                        kind: ArchitecturalUnitActionKind::Use,
+                        use_operand: 0,
+                        use_virtual_register: VirtualRegisterId(0),
+                        use_point: LiveRangePoint(0),
+                        def_operand: 1,
+                        def_virtual_register: VirtualRegisterId(1),
+                        def_point: LiveRangePoint(1),
+                        class: RegisterClassId(1),
                     }],
-                    fragments: vec![fragment],
-                    edge_connectors: vec![connector],
-                }],
-                interference: vec![VirtualInterference {
-                    lower: VirtualRegisterId(0),
-                    higher: VirtualRegisterId(1),
-                }],
-            }],
-            structural_unit_functions: vec![FunctionLiveRanges {
-                machine: MachineId::new(2).unwrap(),
-                block_domains: vec![BlockPointDomain {
-                    block: SelectedBlockId(0),
-                    source_block: BlockId::new(2).unwrap(),
-                    start: LiveRangePoint(0),
-                    end: LiveRangePoint(4),
-                }],
-                virtual_registers: Vec::new(),
-                edge_transfers: Vec::new(),
-                tied_pairs: Vec::new(),
-                early_clobbers: Vec::new(),
-                architectural_units: vec![ArchitecturalUnitLiveRange {
-                    unit: RegisterUnitId(2),
-                    actions: vec![ArchitecturalUnitAction {
+                    early_clobbers: vec![EarlyClobberConstraint {
                         block: SelectedBlockId(0),
                         position: LivenessPosition(0),
-                        point: LiveRangePoint(0),
                         instruction: SelectedInstructionId(0),
-                        kind: ArchitecturalUnitActionKind::Clobber,
+                        early_point: LiveRangePoint(0),
+                        def_operand: 1,
+                        def_virtual_register: VirtualRegisterId(1),
+                        def_class: RegisterClassId(1),
+                        def_point: LiveRangePoint(1),
+                        uses: vec![EarlyClobberUse {
+                            operand: 0,
+                            virtual_register: VirtualRegisterId(0),
+                            class: RegisterClassId(1),
+                        }],
                     }],
-                    fragments: vec![fragment],
-                    edge_connectors: Vec::new(),
-                }],
-                interference: Vec::new(),
-            }],
+                    architectural_units: vec![ArchitecturalUnitLiveRange {
+                        unit: RegisterUnitId(1),
+                        actions: vec![ArchitecturalUnitAction {
+                            block: SelectedBlockId(0),
+                            position: LivenessPosition(0),
+                            point: LiveRangePoint(0),
+                            instruction: SelectedInstructionId(0),
+                            kind: ArchitecturalUnitActionKind::Use,
+                        }],
+                        fragments: vec![fragment],
+                        edge_connectors: vec![connector],
+                    }],
+                    interference: vec![VirtualInterference {
+                        lower: VirtualRegisterId(0),
+                        higher: VirtualRegisterId(1),
+                    }],
+                },
+                FunctionLiveRanges {
+                    machine: MachineId::new(2).unwrap(),
+                    block_domains: vec![BlockPointDomain {
+                        block: SelectedBlockId(0),
+                        source_block: BlockId::new(2).unwrap(),
+                        start: LiveRangePoint(0),
+                        end: LiveRangePoint(4),
+                    }],
+                    virtual_registers: Vec::new(),
+                    edge_transfers: Vec::new(),
+                    tied_pairs: Vec::new(),
+                    early_clobbers: Vec::new(),
+                    architectural_units: vec![ArchitecturalUnitLiveRange {
+                        unit: RegisterUnitId(2),
+                        actions: vec![ArchitecturalUnitAction {
+                            block: SelectedBlockId(0),
+                            position: LivenessPosition(0),
+                            point: LiveRangePoint(0),
+                            instruction: SelectedInstructionId(0),
+                            kind: ArchitecturalUnitActionKind::Clobber,
+                        }],
+                        fragments: vec![fragment],
+                        edge_connectors: Vec::new(),
+                    }],
+                    interference: Vec::new(),
+                },
+            ],
         }
     }
 
@@ -317,13 +319,13 @@ mod tests {
         let identity = live_range_identity(&original);
         let mut mutations = Vec::new();
         let mut changed = original.clone();
-        changed.structural_unit_functions.clear();
+        changed.functions.pop();
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.structural_unit_functions[0].machine = MachineId::new(3).unwrap();
+        changed.functions[1].machine = MachineId::new(3).unwrap();
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.structural_unit_functions[0].architectural_units[0].actions[0].kind =
+        changed.functions[1].architectural_units[0].actions[0].kind =
             ArchitecturalUnitActionKind::Def;
         mutations.push(changed);
 

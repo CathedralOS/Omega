@@ -171,7 +171,7 @@ pub(super) fn reconstruct(
             .iter()
             .find(|vreg| vreg.id == operand.virtual_register)
             .ok_or(OptimizedOrdinaryCallableEntryError::MissingReturn(edge))?;
-        if origin_value(vreg.origin) != value {
+        if origin_value(vreg.origin) != Some(value) {
             return Err(OptimizedOrdinaryCallableEntryError::RootMismatch);
         }
         let evidence = exit_function
@@ -319,10 +319,38 @@ fn scalar_shape(scalar: ScalarType) -> Result<ValueShape, OptimizedOrdinaryCalla
     };
     Ok(ValueShape::integer(bytes, bytes.next_power_of_two().min(8)))
 }
-fn origin_value(origin: VirtualRegisterOrigin) -> ValueId {
+fn origin_value(origin: VirtualRegisterOrigin) -> Option<ValueId> {
     match origin {
         VirtualRegisterOrigin::EntryParameter { source_value, .. }
         | VirtualRegisterOrigin::BlockParameter { source_value, .. }
-        | VirtualRegisterOrigin::InstructionResult { source_value, .. } => source_value,
+        | VirtualRegisterOrigin::InstructionResult { source_value, .. } => Some(source_value),
+        VirtualRegisterOrigin::StructuralParameter { .. }
+        | VirtualRegisterOrigin::AbiTransport { .. } => None,
     }
+}
+
+#[test]
+fn place_backed_origins_cannot_supply_scalar_callable_results() {
+    let place = semantic_vocabulary::PlaceId::new(1).unwrap();
+    for origin in [
+        VirtualRegisterOrigin::StructuralParameter {
+            place,
+            parameter_index: 0,
+        },
+        VirtualRegisterOrigin::AbiTransport {
+            instruction: selected_instructions::SelectedInstructionId(0),
+            place,
+            byte_offset: 0,
+        },
+    ] {
+        assert_eq!(origin_value(origin), None);
+    }
+    let value = ValueId::new(1).unwrap();
+    assert_eq!(
+        origin_value(VirtualRegisterOrigin::EntryParameter {
+            source_value: value,
+            parameter_index: 0,
+        }),
+        Some(value)
+    );
 }

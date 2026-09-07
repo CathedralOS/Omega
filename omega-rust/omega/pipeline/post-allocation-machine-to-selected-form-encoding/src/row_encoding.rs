@@ -25,6 +25,7 @@ pub(super) fn encode_row(
     selected: &SelectedInstruction,
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
+    address: Option<machine_code::ResolvedPhysicalAddress>,
     machine_disposition: SelectedFormMachineDisposition,
     materialization: Option<MaterializationDisposition<'_>>,
 ) -> Result<SelectedFormEncodingRow, OptimizedSelectedFormEncodingError> {
@@ -38,9 +39,57 @@ pub(super) fn encode_row(
     )?;
     let alternative = machine.alternative.key;
     let state = match (selected.kind, materialization) {
-        (kind @ SelectedInstructionKind::CallI64 { .. }, materialization)
-            if materialization.is_none_or(MaterializationDisposition::is_retained) =>
-        {
+        (
+            kind @ (SelectedInstructionKind::Load64 { .. }
+            | SelectedInstructionKind::Store64 { .. }
+            | SelectedInstructionKind::FrameAddress { .. }),
+            materialization,
+        ) if materialization.is_none_or(MaterializationDisposition::is_retained) => {
+            if target != NativeTarget::windows_x64() {
+                return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+            }
+            let address = address.ok_or(OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
+            let views = machine
+                .operands
+                .iter()
+                .map(|operand| operand.view)
+                .collect::<Vec<_>>();
+            let encoded = isa_x86_64::encode_x86_64_selected_memory_form(
+                physical,
+                kind,
+                alternative,
+                &views,
+                address.displacement,
+            )
+            .map_err(OptimizedSelectedFormEncodingError::X86_64)?;
+            let footprint = encoded.footprint();
+            validate_operand_footprint(
+                selected.id,
+                machine,
+                &footprint.encoded,
+                &footprint.register_reads,
+                &footprint.register_writes,
+            )?;
+            if footprint.encoded != machine.alternative.encoded {
+                return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+            }
+            validate_size(selected.id, machine.alternative.size, encoded.bytes().len())?;
+            SelectedFormEncodingState::Encoded {
+                bytes: encoded.bytes().to_vec(),
+                footprint: Box::new(SelectedFormDecodedFootprint {
+                    register_reads: footprint.register_reads.clone(),
+                    register_writes: footprint.register_writes.clone(),
+                    implicit_defs: footprint.encoded.implicit_unit_defs.clone(),
+                    implicit_clobbers: footprint.encoded.implicit_unit_clobbers.clone(),
+                    encoded: footprint.encoded.clone(),
+                }),
+            }
+        }
+        (
+            kind @ (SelectedInstructionKind::CallI64 { .. }
+            | SelectedInstructionKind::CallUnit { .. }),
+            materialization,
+        ) if materialization.is_none_or(MaterializationDisposition::is_retained) => {
             scalar_call::encode(target, selected.id, kind, machine, physical)?
         }
         (
@@ -100,6 +149,7 @@ pub(super) fn encode_row(
         alternative,
         machine_disposition,
         state,
+        address,
     })
 }
 

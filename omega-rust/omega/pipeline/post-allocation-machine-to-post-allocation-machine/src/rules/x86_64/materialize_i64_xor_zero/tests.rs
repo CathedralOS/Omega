@@ -88,6 +88,7 @@ fn machine_materialization(
 ) -> PostAllocationMachineInstruction {
     let rax = physical.model().view_named("rax").unwrap();
     PostAllocationMachineInstruction {
+        address: None,
         instruction: SelectedInstructionId(id),
         alternative: MachineAlternative {
             key: MachineAlternativeKey {
@@ -160,6 +161,11 @@ fn fixture() -> Fixture {
         target: NativeTarget::linux_x64(),
         entry: machine,
         functions: vec![SelectedFunction {
+            structural: None,
+            outgoing_arguments: Vec::new(),
+            calls: Vec::new(),
+            memory_accesses: Vec::new(),
+            boundary_settlements: Vec::new(),
             machine,
             attachment: None,
             provenance: TerminalPsiProvenance::default(),
@@ -179,7 +185,6 @@ fn fixture() -> Fixture {
                 },
             }],
         }],
-        structural_unit_functions: vec![],
         projected_structural_call_returns: vec![],
     };
     let selected_identity = SelectedInstructionPlanIdentity::from_bytes([2; 32]);
@@ -208,11 +213,11 @@ fn fixture() -> Fixture {
                 successors: vec![],
             }],
         }],
-        structural_unit_functions: vec![],
     };
     let liveness_identity = LivenessIdentity::from_bytes([3; 32]);
     let source_identity = PostAllocationMachineIdentity::from_bytes([4; 32]);
     let return_machine = PostAllocationMachineInstruction {
+        address: None,
         instruction: SelectedInstructionId(4),
         alternative: MachineAlternative {
             key: MachineAlternativeKey {
@@ -247,6 +252,7 @@ fn fixture() -> Fixture {
         machine_effect_catalog: MachineEffectCatalogIdentity::from_bytes([12; 32]),
         choice_rule: MachineAlternativeChoiceRule::UniqueApplicableInCatalogOrderV1,
         functions: vec![PostAllocationMachineFunction {
+            outgoing_arguments: Vec::new(),
             machine,
             blocks: vec![PostAllocationMachineBlock {
                 block,
@@ -258,7 +264,6 @@ fn fixture() -> Fixture {
                 ],
             }],
         }],
-        structural_unit_functions: vec![],
     };
     Fixture {
         selected,

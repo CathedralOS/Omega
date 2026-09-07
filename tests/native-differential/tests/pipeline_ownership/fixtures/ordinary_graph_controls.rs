@@ -54,19 +54,42 @@ pub(crate) fn assert_ordinary_graph_custody(staged: &StagedOptimizedSelectedInst
                             nodes.remove(node_index);
                         }
                         1 => nodes[node_index].operation = OperationId::new(999_999).unwrap(),
-                        2 => nodes[node_index].result = ValueId::new(999_999).unwrap(),
+                        2 => {
+                            if let Some(result) = &mut nodes[node_index].result {
+                                result.value = ValueId::new(999_999).unwrap();
+                            } else {
+                                nodes[node_index].result =
+                                    Some(legalized_operations::LegalizedValueDefinition {
+                                        value: ValueId::new(999_999).unwrap(),
+                                        scalar_type: semantic_vocabulary::ScalarType::Integer(
+                                            IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                                        ),
+                                        definition_site: ValueDefinitionSite::FunctionParameter(
+                                            999,
+                                        ),
+                                    });
+                            }
+                        }
                         3 => {
-                            nodes[node_index].definition_site =
-                                ValueDefinitionSite::FunctionParameter(999)
+                            if let Some(result) = &mut nodes[node_index].result {
+                                result.definition_site =
+                                    ValueDefinitionSite::FunctionParameter(999);
+                            } else {
+                                nodes[node_index].effect.input += 1;
+                            }
                         }
                         4 => nodes[node_index].fuel.push(FuelSettlement {
                             site: PsiProvenance::Operation(node.operation),
                             units: 999,
                         }),
                         _ => {
-                            nodes[node_index].scalar_type = semantic_vocabulary::ScalarType::Integer(
-                                IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
-                            )
+                            if let Some(result) = &mut nodes[node_index].result {
+                                result.scalar_type = semantic_vocabulary::ScalarType::Integer(
+                                    IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+                                );
+                            } else {
+                                nodes[node_index].effect.output += 1;
+                            }
                         }
                     }
                     assert!(

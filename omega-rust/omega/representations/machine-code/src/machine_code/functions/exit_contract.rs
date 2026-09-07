@@ -3,7 +3,6 @@
 mod identity;
 pub use identity::whole_function_exit_contract_identity;
 
-use crate::X86_64StructuralUnitInternalControlFixup;
 use optimization_core::Optimization;
 use physical_instructions::{Aarch64CbnzFusionIdentity, Aarch64MovnMaterializationIdentity};
 use register_model::{RegisterUnitId, RegisterViewId};
@@ -38,14 +37,6 @@ pub enum WholeFunctionExitPolicy {
     MicrosoftX64FramelessLeafV1,
     Aapcs64FramelessLeafV1,
     DarwinAapcs64FramelessLeafV1,
-    /// Exact Microsoft-x64 custody for one balanced structural Unit caller
-    /// and its Unit leaf. This is deliberately not a frameless-leaf policy:
-    /// the caller owns a canonical 72-byte outgoing frame around its call.
-    MicrosoftX64BalancedStructuralUnitCallV1,
-    /// Exact Microsoft-x64 custody for one structural-signature Unit leaf.
-    /// The function owns no call frame and consists solely of its validated
-    /// `ReturnUnit` encoding.
-    MicrosoftX64FramelessStructuralUnitLeafV1,
     SystemVAMD64CanonicalFixedFrameV1,
     Aapcs64CanonicalFixedFrameV1,
     DarwinAapcs64CanonicalFixedFrameV1,
@@ -144,39 +135,6 @@ pub struct WholeFunctionExitEvidence {
     pub returns: Vec<WholeFunctionReturnEvidence>,
 }
 
-/// Whole-function evidence for the one atomic structural Unit call bundle.
-/// The rel32 remains a typed unresolved fixup until whole-text placement.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct WholeFunctionStructuralUnitCallEvidence {
-    pub block: SelectedBlockId,
-    pub instruction: SelectedInstructionId,
-    pub operation: semantic_vocabulary::OperationId,
-    pub callee: MachineId,
-    pub offset: u64,
-    pub bytes: Vec<u8>,
-    pub fixup: X86_64StructuralUnitInternalControlFixup,
-    pub unit_uses: Vec<RegisterUnitId>,
-    pub unit_defs: Vec<RegisterUnitId>,
-    pub unit_clobbers: Vec<RegisterUnitId>,
-    pub frame_byte_count: u32,
-    pub shadow_byte_count: u32,
-    pub pre_call_stack_alignment: u16,
-    pub frame_is_balanced: bool,
-}
-
-/// Parallel custody for the bounded zero-VReg structural Unit roster. Keeping
-/// this distinct prevents its function-local instruction IDs from colliding
-/// with ordinary rows or with the other structural function.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct WholeFunctionStructuralUnitExitEvidence {
-    pub machine: MachineId,
-    pub entry_block: SelectedBlockId,
-    pub body_stack_delta: i64,
-    pub modified_callee_saved_units: Vec<RegisterUnitId>,
-    pub call: Option<WholeFunctionStructuralUnitCallEvidence>,
-    pub returned: WholeFunctionReturnEvidence,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WholeFunctionExitContract {
     pub identity: WholeFunctionExitContractIdentity,
@@ -198,12 +156,7 @@ pub struct WholeFunctionExitContract {
     pub red_zone_bytes: u16,
     pub result_view: RegisterViewId,
     pub callee_saved_units: Vec<RegisterUnitId>,
-    /// These rosters stay heap-owned because the validated contract is nested
-    /// in several owning pipeline carriers; adding structural evidence must
-    /// not inflate every ordinary carrier's stack frame.
     pub functions: Box<Vec<WholeFunctionExitEvidence>>,
-    /// Parallel to `functions`; never merged by function-local instruction ID.
-    pub structural_unit_functions: Box<Vec<WholeFunctionStructuralUnitExitEvidence>>,
 }
 
 impl WholeFunctionExitContract {

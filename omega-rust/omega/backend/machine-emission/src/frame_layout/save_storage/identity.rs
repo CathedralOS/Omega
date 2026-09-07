@@ -1,8 +1,7 @@
 use sha2::{Digest, Sha256};
 
 use crate::frame_layout::save_storage::{
-    AllocatedCalleeSavedFunctionKind, CalleeSavedModificationWitness,
-    FrameAbiPreservationConvention,
+    CalleeSavedModificationWitness, FrameAbiPreservationConvention,
 };
 
 use super::{
@@ -14,7 +13,7 @@ pub fn non_authoritative_callee_save_storage_identity(
     plan: &NonAuthoritativeCalleeSaveStoragePlan,
 ) -> NonAuthoritativeCalleeSaveStorageIdentity {
     let mut hasher = Sha256::new();
-    hasher.update(b"omega.non-authoritative-callee-save-storage.v1");
+    hasher.update(b"omega.non-authoritative-callee-save-storage.v2");
     hasher.update(plan.callee_saved_requirements.bytes());
     hasher.update(plan.register_environment.bytes());
     hasher.update(plan.physical_register_model.bytes());
@@ -30,10 +29,6 @@ pub fn non_authoritative_callee_save_storage_identity(
     length(&mut hasher, plan.functions.len());
     for function in &plan.functions {
         hasher.update(function.machine.get().to_le_bytes());
-        hasher.update([match function.kind {
-            AllocatedCalleeSavedFunctionKind::Ordinary => 0,
-            AllocatedCalleeSavedFunctionKind::StructuralUnit => 1,
-        }]);
         hasher.update(function.abstract_area_bytes.to_le_bytes());
         hasher.update(function.abstract_area_alignment.to_le_bytes());
         length(&mut hasher, function.slots.len());

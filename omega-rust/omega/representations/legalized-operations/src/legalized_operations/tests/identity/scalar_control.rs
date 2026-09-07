@@ -13,12 +13,14 @@ fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
         .instructions
         .push(LegalizedScalarInstruction {
             operation: id(120),
-            result: id(121),
-            scalar_type: ScalarType::Boolean,
-            definition_site: ValueDefinitionSite::Node {
-                block: function.entry_block,
-                node: 5,
-            },
+            result: Some(LegalizedValueDefinition {
+                value: id(121),
+                scalar_type: ScalarType::Boolean,
+                definition_site: ValueDefinitionSite::Node {
+                    block: function.entry_block,
+                    node: 5,
+                },
+            }),
             kind: LegalizedScalarInstructionKind::Compare {
                 predicate: LegalizedScalarComparison::Equal,
                 operand_type: integer,
@@ -156,7 +158,13 @@ fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
                 }
             }
             23 => function.blocks.swap(1, 2),
-            _ => function.blocks[0].instructions[5].scalar_type = scalar_type,
+            _ => {
+                function.blocks[0].instructions[5]
+                    .result
+                    .as_mut()
+                    .unwrap()
+                    .scalar_type = scalar_type
+            }
         }
         assert_identity_drift(identity, &changed);
     }

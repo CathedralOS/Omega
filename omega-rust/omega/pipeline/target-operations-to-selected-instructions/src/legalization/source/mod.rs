@@ -18,13 +18,12 @@ use structural::derive_source_structural_unit_function;
 
 pub(crate) struct SourceFunctionRosters {
     pub scalar_functions: Vec<legalized_operations::LegalizedScalarFunction>,
-    pub structural_unit_functions: Vec<SourceStructuralUnitFunction>,
     pub projected_structural_call_returns:
         Vec<legalized_operations::LegalizedProjectedStructuralCallReturn>,
 }
 
 /// Validate common custody once, then place every target function in exactly
-/// one ordinary-graph or structural-call roster.
+/// one ordinary graph or retained projected-result closure.
 pub(crate) fn derive_source_function_rosters(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
@@ -35,7 +34,6 @@ pub(crate) fn derive_source_function_rosters(
 
     let mut rosters = SourceFunctionRosters {
         scalar_functions: Vec::new(),
-        structural_unit_functions: Vec::new(),
         projected_structural_call_returns: projected.iter().cloned().collect(),
     };
     ordinary_roster::derive_remaining(

@@ -18,7 +18,6 @@ pub(super) fn validate_initial_roots(
         return Err(SelectedInstructionError::TargetRegisterArchitectureMismatch);
     }
     if target.scalar_functions.len() != plan.functions.len()
-        || target.structural_unit_functions.len() != plan.structural_unit_functions.len()
         || target.projected_structural_call_returns.len()
             != plan.projected_structural_call_returns.len()
     {
@@ -53,25 +52,4 @@ pub(super) fn validate_initial_roots(
         return Err(SelectedInstructionError::SourceCustodyMismatch);
     }
     require_key_rows(&constraints.keys, catalog)
-}
-
-pub(super) fn validate_structural_roster(
-    target: &LegalizedOperationPlan,
-    plan: &SelectedInstructionPlan,
-) -> Result<(), SelectedInstructionError> {
-    let mut expected_structural_machines = target
-        .structural_unit_functions
-        .iter()
-        .map(|function| function.machine)
-        .collect::<Vec<_>>();
-    expected_structural_machines.sort_unstable();
-    if plan
-        .structural_unit_functions
-        .iter()
-        .map(|function| function.machine)
-        .ne(expected_structural_machines)
-    {
-        return Err(SelectedInstructionError::SourceCustodyMismatch);
-    }
-    Ok(())
 }

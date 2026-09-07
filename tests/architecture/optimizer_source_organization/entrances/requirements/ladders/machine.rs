@@ -20,7 +20,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "omega-rust/omega/representations/selected-instructions/src/selected_instructions/effects/program/encoding/v6/framing.rs",
             "omega-rust/omega/representations/selected-instructions/src/selected_instructions/effects/program/encoding/v6/instruction.rs",
             "omega-rust/omega/representations/selected-instructions/src/selected_instructions/effects/program/encoding/v6/ownership.rs",
-            "omega-rust/omega/representations/selected-instructions/src/selected_instructions/effects/program/encoding/v6/structural.rs",
             "omega-rust/omega/representations/selected-instructions/src/selected_instructions/effects/program/encoding/v6/values.rs",
         ],
     },

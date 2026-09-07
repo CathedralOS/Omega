@@ -50,13 +50,14 @@ fn x86_mov_r32_imm32_reaches_realization_with_replayable_zero_extension_custody(
         selected_stage.selected(),
         &machine,
         physical,
+        None,
     )
     .unwrap();
     let selected_encoding =
         stage_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization(
             selected_stage.selected(),
             &machine,
-            physical,
+            physical, None,
             Some(&optimization),
         )
         .unwrap();
@@ -189,7 +190,7 @@ fn x86_mov_r32_imm32_reaches_realization_with_replayable_zero_extension_custody(
     validate_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization(
         selected_stage.selected(),
         &machine,
-        physical,
+        physical, None,
         Some(&optimization),
         &selected_encoding,
     )
@@ -218,7 +219,7 @@ fn x86_mov_r32_imm32_reaches_realization_with_replayable_zero_extension_custody(
         validate_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization(
             selected_stage.selected(),
             &machine,
-            physical,
+            physical, None,
             Some(&optimization),
             &corrupted_encoding,
         ),

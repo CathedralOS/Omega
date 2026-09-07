@@ -1,7 +1,7 @@
 use machine_code::{
     SelectedFormEncoding, SelectedFormEncodingCounts, SelectedFormEncodingIdentity,
     SelectedFormEncodingRow, SelectedFormMachineOptimizationCustody,
-    SelectedFormMovnOptimizationCustody, SelectedStructuralUnitFunctionEncoding,
+    SelectedFormMovnOptimizationCustody,
 };
 use physical_instructions::{
     PostAllocationMachineIdentity, PostAllocationMachineOptimizationCustody,
@@ -52,12 +52,14 @@ impl StagedOptimizedSelectedFormEncoding {
         &self.program.rows
     }
 
-    pub fn structural_unit_functions(&self) -> &[SelectedStructuralUnitFunctionEncoding] {
-        &self.program.structural_unit_functions
-    }
-
     pub fn counts(&self) -> SelectedFormEncodingCounts {
         self.program.counts
+    }
+
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
+    pub fn program_mut_for_test(&mut self) -> &mut SelectedFormEncoding {
+        std::sync::Arc::make_mut(&mut self.program)
     }
 
     #[cfg(feature = "test-support")]
@@ -65,17 +67,6 @@ impl StagedOptimizedSelectedFormEncoding {
     pub fn rows_mut(&mut self) -> &mut [SelectedFormEncodingRow] {
         std::sync::Arc::make_mut(&mut self.program)
             .rows
-            .as_mut_slice()
-    }
-
-    #[cfg(feature = "test-support")]
-    #[doc(hidden)]
-    #[allow(dead_code)]
-    pub fn structural_unit_functions_mut(
-        &mut self,
-    ) -> &mut [SelectedStructuralUnitFunctionEncoding] {
-        std::sync::Arc::make_mut(&mut self.program)
-            .structural_unit_functions
             .as_mut_slice()
     }
 

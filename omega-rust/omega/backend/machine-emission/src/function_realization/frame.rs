@@ -124,6 +124,7 @@ pub(super) fn ordinary_frame_required(
                 matches!(
                     instruction.kind,
                     selected_instructions::SelectedInstructionKind::CallI64 { .. }
+                        | selected_instructions::SelectedInstructionKind::CallUnit { .. }
                 )
             })
         })

@@ -52,6 +52,7 @@ pub(super) fn derive(
         provenance: target.provenance.clone(),
         call_plan,
         parameters,
+        structural: None,
         entry_block: optimized.entry,
         blocks,
     })

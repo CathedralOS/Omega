@@ -7,11 +7,18 @@ fn structural_call_publication_preserves_owned_indirect_arguments() {
     for selections in [
         OptimizationSelections::default(),
         OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
+        OptimizationSelections::new([Optimization::X86RelaxConditionalBranchesToRel8V1]).unwrap(),
     ] {
         let (semantic, proof) = structural_extent_call_unit_artifact();
         let object = stage(&semantic, &proof, selections, &[], &[]);
         let published = publish(&object, &[]);
-        assert_eq!(published.text_bytes().len(), 91);
+        #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+        super::native_calls::check_owned_pair(&object, &published);
+        #[cfg(not(all(target_os = "windows", target_arch = "x86_64")))]
+        eprintln!(
+            "SKIP: structural Unit native execution requires Windows x86-64; publication replay still runs"
+        );
+        assert_eq!(published.text_bytes(), object.source().text_section().bytes);
         let [caller, callee] = published.functions() else {
             panic!("one structural caller and one structural callee");
         };
@@ -20,14 +27,20 @@ fn structural_call_publication_preserves_owned_indirect_arguments() {
         assert_eq!(caller.unit_parameter_homes.len(), 2);
         assert_eq!(callee.unit_parameter_homes.len(), 2);
         assert_eq!(caller.unit_call_stacks.len(), 1);
-        assert_eq!(caller.unit_call_stacks[0].active_frame_bytes, 0);
-        assert_eq!(caller.unit_call_stacks[0].transient_bytes, 80);
-        assert_eq!(caller.unit_call_stacks[0].caller_live_bytes, 80);
+        assert!(caller.unit_call_stacks[0].active_frame_bytes >= 64);
+        assert!(
+            caller.unit_call_stacks[0].caller_live_bytes
+                >= caller.unit_call_stacks[0].active_frame_bytes
+        );
         let call = &caller.internal_unit_calls[0];
         assert_eq!(call.target, callee.machine);
         assert_eq!(call.arguments.len(), 2);
-        assert_eq!(call.code_offset, 0);
-        assert_eq!(call.byte_count, 89);
+        let placed_call = &object
+            .source()
+            .text_section()
+            .resolved_internal_machine_calls[0];
+        assert_eq!(call.code_offset as u64, placed_call.call_function_offset);
+        assert_eq!(call.byte_count as u64, placed_call.call_byte_count);
         for function in published.functions() {
             for (home, register) in function
                 .unit_parameter_homes
@@ -142,6 +155,41 @@ fn claim_completion_prefixes_publish_as_metadata_without_instruction_spans() {
             assert_eq!(row.settlement.operation_ordinal, index);
             assert_eq!(row.settlement.completion_receipts.len(), 1);
         }
+        let settlement_site = machine_code::SemanticCodeSite::Operation(
+            published.boundary_settlements()[0].settlement.psi_operation,
+        );
+        let attribution_position = published
+            .semantic_code_attribution()
+            .iter()
+            .position(|row| row.attribution.site == settlement_site)
+            .unwrap();
+        for mutation in 0..5 {
+            let mut changed = published.clone();
+            let rows = changed.semantic_code_attribution_mut_for_test();
+            match mutation {
+                0 => {
+                    rows.remove(attribution_position);
+                }
+                1 => {
+                    // Keep the correct row and add the same site with a different
+                    // extent. Filtering by site must not hide this extra record.
+                    let mut duplicate = rows[attribution_position].clone();
+                    duplicate.attribution.byte_count = 1;
+                    rows.insert(attribution_position + 1, duplicate);
+                }
+                2 => rows[attribution_position].attribution.operation_ordinal += 1,
+                3 => {
+                    rows[attribution_position].attribution.code_offset += 1;
+                    rows[attribution_position].text_offset += 1;
+                }
+                _ => rows[attribution_position].attribution.byte_count = 1,
+            }
+            assert!(
+                image_emission::validate_function_fragment_object_artifact(&source, &changed)
+                    .is_err(),
+                "settlement attribution mutation {mutation} must fail independent replay"
+            );
+        }
         let mut changed = published.clone();
         changed.boundary_settlements_mut_for_test().pop();
         assert!(
@@ -214,9 +262,17 @@ fn stage(
         physical.into_function_fragment_emission_source(),
     )
     .expect("shared structural fragments");
-    let text =
-        stage_optimized_relocation_free_text_section(fragments).expect("shared structural text");
-    stage_optimized_relocation_free_object_container(text).expect("shared structural object")
+    if fragments.source().frame_layout().is_some() {
+        let applied = stage_function_fragment_frame_application(fragments)
+            .expect("common structural frame application");
+        let text =
+            stage_optimized_fixed_frame_text_section(applied).expect("shared structural text");
+        stage_optimized_relocation_free_object_container(text).expect("shared structural object")
+    } else {
+        let text = stage_optimized_relocation_free_text_section(fragments)
+            .expect("shared frameless structural text");
+        stage_optimized_relocation_free_object_container(text).expect("shared structural object")
+    }
 }
 
 fn publish(

@@ -6,11 +6,15 @@ pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegister
     let current = homes.replay_allocation().unwrap();
     let selected_owner = current.selected().shared_selected_plan();
     let home_owner = current.homes().shared_plan();
-    let mut realization = crate::tests::with_allocated_machine(
-        homes.try_into().unwrap(),
-        stage_optimized_structural_unit_function_relative_realization,
-    )
-    .expect("structural Unit calls must reach owning function-relative custody");
+    let mut realization =
+        crate::tests::with_allocated_machine(homes.try_into().unwrap(), |allocation, machine| {
+            stage_fixed_frame_function_relative_realization(
+                allocation,
+                machine,
+                selected_lowering_budget(),
+            )
+        })
+        .unwrap();
     assert!(std::sync::Arc::ptr_eq(
         &selected_owner,
         &realization.allocation().program().selected
@@ -24,272 +28,130 @@ pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegister
         let mut changed = original.clone();
         if replace_selected {
             std::sync::Arc::make_mut(&mut changed.selected)
-                .structural_unit_functions
+                .functions
                 .clear();
         } else {
             std::sync::Arc::make_mut(&mut changed.homes)
-                .structural_unit_functions
+                .functions
                 .clear();
         }
         realization
             .allocation_mut()
             .substitute_current_program_for_test(changed);
         assert!(matches!(
-            validate_optimized_structural_unit_function_relative_realization(&realization),
-            Err(
-                OptimizedStructuralUnitFunctionRelativeRealizationError::Allocation(
-                    AllocationReplayError::CurrentProgramMismatch
-                )
-            )
+            validate_fixed_frame_function_relative_realization(&realization),
+            Err(FunctionRelativeOptimizationRealizationError::Allocation(
+                AllocationReplayError::CurrentProgramMismatch
+            ))
         ));
         realization
             .allocation_mut()
             .substitute_current_program_for_test(original.clone());
-        validate_optimized_structural_unit_function_relative_realization(&realization).unwrap();
     }
     let exit = realization.exit_contract().contract();
-    assert_eq!(
-        exit.policy,
-        WholeFunctionExitPolicy::MicrosoftX64BalancedStructuralUnitCallV1
-    );
-    assert!(exit.functions.is_empty());
-    assert_eq!(exit.structural_unit_functions.len(), 2);
-    assert_eq!(exit.structural_unit_functions[0].body_stack_delta, 0);
-    assert!(
-        exit.structural_unit_functions
-            .iter()
-            .all(|function| function.returned.value == WholeFunctionReturnValueEvidence::UnitV1)
-    );
-    let exit_call = exit.structural_unit_functions[0]
-        .call
-        .as_ref()
-        .expect("entry caller retains whole-function call evidence");
-    assert_eq!(exit_call.offset, 0);
-    assert_eq!(exit_call.bytes.len(), 89);
-    assert!(exit_call.frame_is_balanced);
-    assert_eq!(exit_call.frame_byte_count, 72);
-    assert_eq!(exit_call.shadow_byte_count, 32);
-    assert_eq!(exit_call.pre_call_stack_alignment, 16);
-
+    assert_eq!(exit.functions.len(), 2);
+    assert!(exit.functions.iter().all(|function| {
+        function.body_stack_delta == 0
+            && function
+                .returns
+                .iter()
+                .all(|returned| returned.value == WholeFunctionReturnValueEvidence::UnitV1)
+    }));
     let original_exit = realization.exit_contract().shared_contract();
-    for mutation in 0..7 {
+    for mutation in 0..6 {
         let changed = realization.exit_contract_mut().contract_mut();
         match mutation {
-            0 => changed.structural_unit_functions.reverse(),
+            0 => changed.functions.reverse(),
             1 => {
-                changed.structural_unit_functions.pop();
+                changed.functions.pop();
             }
-            2 => changed.structural_unit_functions[0].call = None,
-            3 => {
-                changed.structural_unit_functions[0]
-                    .call
-                    .as_mut()
-                    .unwrap()
-                    .fixup
-                    .field_byte_offset += 1
-            }
-            4 => {
-                changed.structural_unit_functions[0]
-                    .call
-                    .as_mut()
-                    .unwrap()
-                    .frame_is_balanced = false
-            }
-            5 => changed.structural_unit_functions[0].returned.offset += 1,
-            6 => changed.structural_unit_functions[1].returned.bytes[0] ^= 1,
-            _ => unreachable!(),
+            2 => changed.functions[0].body_stack_delta += 8,
+            3 => changed.functions[0].returns[0].offset += 1,
+            4 => changed.functions[1].returns[0].bytes[0] ^= 1,
+            _ => changed.functions[0].returns.clear(),
         }
         changed.identity = changed.recomputed_identity();
         assert!(
-            matches!(
-                validate_optimized_structural_unit_function_relative_realization(&realization),
-                Err(
-                    OptimizedStructuralUnitFunctionRelativeRealizationError::Exit(
-                        WholeFunctionExitContractError::ArtifactMismatch
-                    )
-                )
-            ),
-            "structural exit mutation {mutation}"
+            validate_fixed_frame_function_relative_realization(&realization).is_err(),
+            "exit mutation {mutation}"
         );
         *realization.exit_contract_mut().contract_mut() = (*original_exit).clone();
-        validate_optimized_structural_unit_function_relative_realization(&realization).unwrap();
     }
-
-    let manifest = realization.manifest().record();
-    assert_eq!(manifest.statistics.functions, 0);
-    assert_eq!(manifest.statistics.blocks, 0);
-    assert_eq!(manifest.statistics.instructions, 0);
-    assert_eq!(manifest.statistics.bytes, 0);
-    assert_eq!(manifest.statistics.resolved_conditional_branches, 0);
-    assert_eq!(manifest.statistics.structural_unit_functions, 2);
-    assert_eq!(manifest.statistics.structural_unit_blocks, 2);
-    assert_eq!(manifest.statistics.structural_unit_instructions, 3);
-    assert_eq!(manifest.statistics.structural_unit_bytes, 91);
-    assert_eq!(manifest.statistics.unresolved_internal_machine_fixups, 1);
-    assert_eq!(
-        FunctionRelativeOptimizationRealizationManifest::decode(&manifest.encode()),
-        Ok(manifest.clone())
-    );
-    validate_optimized_structural_unit_function_relative_realization(&realization).unwrap();
-
-    let original_offset = realization.layout().structural_unit_functions()[0]
-        .return_instruction
-        .offset;
-    realization.layout_mut().structural_unit_functions_mut()[0]
-        .return_instruction
-        .offset = original_offset + 1;
-    assert!(matches!(
-        validate_optimized_structural_unit_function_relative_realization(&realization),
-        Err(
-            OptimizedStructuralUnitFunctionRelativeRealizationError::LayoutOptimization(
-                ResolvedLayoutOptimizationError::Baseline(
-                    OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch
-                )
-            )
-        )
-    ));
-    realization.layout_mut().structural_unit_functions_mut()[0]
-        .return_instruction
-        .offset = original_offset;
-    validate_optimized_structural_unit_function_relative_realization(&realization).unwrap();
-
-    realization
-        .exit_contract_mut()
-        .contract_mut()
-        .structural_unit_functions[0]
-        .call
-        .as_mut()
-        .unwrap()
-        .frame_is_balanced = false;
-    assert!(matches!(
-        validate_optimized_structural_unit_function_relative_realization(&realization),
-        Err(
-            OptimizedStructuralUnitFunctionRelativeRealizationError::Exit(
-                WholeFunctionExitContractError::ArtifactMismatch
-            )
-        )
-    ));
-    realization
-        .exit_contract_mut()
-        .contract_mut()
-        .structural_unit_functions[0]
-        .call
-        .as_mut()
-        .unwrap()
-        .frame_is_balanced = true;
-    validate_optimized_structural_unit_function_relative_realization(&realization).unwrap();
-
+    let original_manifest = realization.manifest().record().clone();
     realization
         .manifest_mut()
         .record_mut()
         .statistics
         .unresolved_internal_machine_fixups = 0;
-    assert!(matches!(
-        validate_optimized_structural_unit_function_relative_realization(&realization),
-        Err(OptimizedStructuralUnitFunctionRelativeRealizationError::RootMismatch)
-    ));
-    realization
-        .manifest_mut()
-        .record_mut()
-        .statistics
-        .unresolved_internal_machine_fixups = 1;
-    validate_optimized_structural_unit_function_relative_realization(&realization).unwrap();
+    assert!(validate_fixed_frame_function_relative_realization(&realization).is_err());
+    *realization.manifest_mut().record_mut() = original_manifest;
+    validate_fixed_frame_function_relative_realization(&realization).unwrap();
 
     let mut fragments = stage_optimized_function_fragment_emission(
-        FunctionFragmentReplayInputs::StructuralUnit(Box::new(realization)).into(),
+        FunctionFragmentReplayInputs::FixedFrame(Box::new(realization)).into(),
     )
-    .expect("structural Unit calls must retain typed unresolved fragment custody");
-    assert!(fragments.fragments().functions.is_empty());
-    assert_eq!(fragments.fragments().structural_unit_functions.len(), 2);
+    .unwrap();
+    assert_eq!(fragments.fragments().functions.len(), 2);
     let original_fragments = fragments.fragments().clone();
-    for mutation in 0..7 {
+    for mutation in 0..8 {
         let mut changed = original_fragments.clone();
         match mutation {
-            0 => changed.structural_unit_functions.reverse(),
-            1 => changed.structural_unit_functions[0].block.call = None,
-            2 => {
-                changed.structural_unit_functions[0]
-                    .block
-                    .call
-                    .as_mut()
-                    .unwrap()
-                    .fixup
-                    .patch_function_offset += 1
-            }
-            3 => {
-                changed.structural_unit_functions[0]
-                    .block
-                    .call
-                    .as_mut()
-                    .unwrap()
-                    .bytes[0] ^= 1
+            0 => changed.functions.reverse(),
+            1..=3 => {
+                let row = changed.functions[0]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|block| &mut block.instructions)
+                    .find(|row| row.internal_machine_fixup.is_some())
+                    .unwrap();
+                if mutation == 1 {
+                    row.internal_machine_fixup = None;
+                } else if mutation == 2 {
+                    row.internal_machine_fixup
+                        .as_mut()
+                        .unwrap()
+                        .patch_function_offset += 1;
+                } else {
+                    row.bytes[0] ^= 1;
+                }
             }
             4 => {
-                changed.structural_unit_functions[0]
-                    .block
-                    .return_instruction
+                changed.functions[0].blocks[0]
+                    .instructions
+                    .last_mut()
+                    .unwrap()
                     .offset += 1
             }
             5 => {
-                changed.structural_unit_functions[1]
-                    .block
-                    .return_instruction
+                changed.functions[1].blocks[0]
+                    .instructions
+                    .last_mut()
+                    .unwrap()
                     .control = machine_code::FunctionFragmentControlProvenance::None
             }
-            6 => changed.structural_unit_functions[1].bytes[0] ^= 1,
-            _ => unreachable!(),
+            6 => changed.functions[1].bytes[0] ^= 1,
+            _ => changed.functions[1].machine = changed.functions[0].machine,
         }
         changed.identity = changed.recomputed_identity();
         assert_ne!(changed.identity, original_fragments.identity);
-        assert_eq!(
+        assert!(
             machine_emission::validate_resolved_function_fragments(
                 fragments.source().program(),
                 &changed
-            ),
-            Err(machine_emission::ResolvedFragmentEmissionError::ArtifactMismatch),
-            "structural projection mutation {mutation}"
+            )
+            .is_err(),
+            "fragment mutation {mutation}"
         );
+        *fragments.fragments_mut() = changed;
+        assert!(validate_optimized_function_fragment_emission(&fragments).is_err());
+        *fragments.fragments_mut() = original_fragments.clone();
     }
-    let caller_fragment = &fragments.fragments().structural_unit_functions[0];
-    let callee_fragment = &fragments.fragments().structural_unit_functions[1];
-    assert_eq!(
-        (caller_fragment.byte_count, callee_fragment.byte_count),
-        (90, 1)
-    );
-    assert_eq!(caller_fragment.bytes.len(), 90);
-    assert_eq!(&caller_fragment.bytes[81..85], &[0, 0, 0, 0]);
-    assert_eq!(caller_fragment.bytes[89], 0xc3);
-    assert_eq!(callee_fragment.bytes, [0xc3]);
-    let fragment_call = caller_fragment
-        .block
-        .call
-        .as_ref()
-        .expect("caller fragment owns the unresolved internal call");
-    assert_eq!(fragment_call.offset, 0);
-    assert_eq!(fragment_call.fixup.opcode_function_offset, 80);
-    assert_eq!(fragment_call.fixup.patch_function_offset, 81);
-    assert_eq!(fragment_call.fixup.reference_function_offset, 85);
-    assert_eq!(fragment_call.fixup.patch_byte_width, 4);
-    assert_eq!(fragment_call.fixup.addend, 0);
     let fragment_manifest = fragments.manifest().record();
     assert_eq!(
-        fragment_manifest.stage,
-        FunctionFragmentEmissionStage::ValidatedFunctionFragmentsWithUnresolvedInternalMachineFixupsV1
-    );
-    assert_eq!(
         fragment_manifest.source_kind,
-        FunctionFragmentEmissionSourceKind::StructuralUnitV1
+        FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1
     );
-    assert_eq!(fragment_manifest.statistics.functions, 0);
-    assert_eq!(fragment_manifest.statistics.structural_unit_functions, 2);
-    assert_eq!(fragment_manifest.statistics.structural_unit_blocks, 2);
-    assert_eq!(
-        fragment_manifest
-            .statistics
-            .structural_unit_instruction_spans,
-        3
-    );
-    assert_eq!(fragment_manifest.statistics.structural_unit_bytes, 91);
+    assert_eq!(fragment_manifest.statistics.functions, 2);
     assert_eq!(
         fragment_manifest
             .statistics
@@ -300,7 +162,7 @@ pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegister
         FunctionFragmentEmissionManifest::decode(&fragment_manifest.encode()),
         Ok(fragment_manifest.clone())
     );
-    for unsupported in [5_u32, 7_u32, 11_u32, 13_u32] {
+    for unsupported in [5_u32, 7, 12, 14] {
         let mut encoded = fragment_manifest.encode();
         encoded[8..12].copy_from_slice(&unsupported.to_le_bytes());
         assert_eq!(
@@ -308,145 +170,68 @@ pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegister
             Err(FunctionFragmentEmissionManifestDecodeError::UnsupportedVersion(unsupported))
         );
     }
-    validate_optimized_function_fragment_emission(&fragments).unwrap();
-    let original_field_offset = fragments.fragments().structural_unit_functions[0]
-        .block
-        .call
-        .as_ref()
-        .unwrap()
-        .fixup
-        .patch_function_offset;
-    fragments.fragments_mut().structural_unit_functions[0]
-        .block
-        .call
-        .as_mut()
-        .unwrap()
-        .fixup
-        .patch_function_offset += 1;
-    assert!(matches!(
-        validate_optimized_function_fragment_emission(&fragments),
-        Err(FunctionFragmentEmissionError::ArtifactMismatch)
-    ));
-    assert!(matches!(
-        machine_emission::place_structural_unit_fragments_for_test(&fragments),
-        Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch)
-    ));
-    fragments.fragments_mut().structural_unit_functions[0]
-        .block
-        .call
-        .as_mut()
-        .unwrap()
-        .fixup
-        .patch_function_offset = original_field_offset;
-    validate_optimized_function_fragment_emission(&fragments).unwrap();
-
-    let original_template_byte = fragments.fragments().structural_unit_functions[0]
-        .block
-        .call
-        .as_ref()
-        .unwrap()
-        .bytes[0];
-    fragments.fragments_mut().structural_unit_functions[0]
-        .block
-        .call
-        .as_mut()
-        .unwrap()
-        .bytes[0] ^= 1;
-    assert!(matches!(
-        machine_emission::place_structural_unit_fragments_for_test(&fragments),
-        Err(
-            RelocationFreeTextSectionPlacementError::StructuralUnitCallTemplate(
-                _,
-                isa_x86_64::X86_64StructuralUnitCallTemplateError::MalformedTemplate
-            )
-        )
-    ));
-    fragments.fragments_mut().structural_unit_functions[0]
-        .block
-        .call
-        .as_mut()
-        .unwrap()
-        .bytes[0] = original_template_byte;
-    validate_optimized_function_fragment_emission(&fragments).unwrap();
-
-    let callee_machine = fragments.fragments().structural_unit_functions[1].machine;
-    let caller_machine = fragments.fragments().structural_unit_functions[0].machine;
-    fragments.fragments_mut().structural_unit_functions[1].machine = caller_machine;
-    assert!(matches!(
-        machine_emission::place_structural_unit_fragments_for_test(
-            &fragments
-        ),
-        Err(RelocationFreeTextSectionPlacementError::DuplicateFunction(machine))
-            if machine == caller_machine
-    ));
-    fragments.fragments_mut().structural_unit_functions[1].machine = callee_machine;
-    validate_optimized_function_fragment_emission(&fragments).unwrap();
-
-    // A valid leaf template cannot authorize different enclosing function bytes.
-    let call_start = fragments.fragments().structural_unit_functions[0]
-        .block
-        .call
-        .as_ref()
-        .unwrap()
-        .offset as usize;
-    fragments.fragments_mut().structural_unit_functions[0].bytes[call_start] ^= 1;
-    assert!(matches!(
-        machine_emission::place_structural_unit_fragments_for_test(&fragments),
-        Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch)
-    ));
-    fragments.fragments_mut().structural_unit_functions[0].bytes[call_start] ^= 1;
-
-    let mut text = stage_optimized_relocation_free_text_section(fragments)
-        .expect("whole-text placement must discharge the internal MachineId call");
+    let applied = stage_function_fragment_frame_application(fragments).unwrap();
+    validate_function_fragment_frame_application(&applied).unwrap();
+    let mut text = stage_optimized_fixed_frame_text_section(applied).unwrap();
+    crate::tests::text_placement_checks::fixed(&text);
     let placed = text.text_section();
-    crate::tests::text_placement_checks::direct(&text);
-    assert_eq!(placed.byte_count, 91);
     assert_eq!(placed.functions.len(), 2);
-    assert_eq!(
-        (
-            placed.functions[0].section_offset,
-            placed.functions[0].byte_count,
-            placed.functions[1].section_offset,
-            placed.functions[1].byte_count,
-        ),
-        (0, 90, 90, 1)
-    );
-    assert_eq!(&placed.bytes[81..85], &[5, 0, 0, 0]);
-    assert_eq!(placed.bytes[89], 0xc3);
-    assert_eq!(placed.bytes[90], 0xc3);
     assert_eq!(placed.resolved_internal_machine_calls.len(), 1);
-    let resolved_call = placed.resolved_internal_machine_calls[0];
-    assert_eq!(resolved_call.call_section_offset, 0);
-    assert_eq!(resolved_call.opcode_section_offset, 80);
-    assert_eq!(resolved_call.field_section_offset, 81);
-    assert_eq!(resolved_call.next_instruction_section_offset, 85);
-    assert_eq!(resolved_call.callee_section_offset, 90);
-    assert_eq!(resolved_call.displacement, 5);
+    let call = placed.resolved_internal_machine_calls[0];
     assert_eq!(
-        placed.relocation_requirements,
-        object_file::TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1
+        call.callee_section_offset,
+        placed.functions[1].section_offset
     );
-    let text_manifest = text.manifest().record();
-    assert_eq!(text_manifest.statistics.functions, 0);
-    assert_eq!(text_manifest.statistics.bytes, 0);
-    assert_eq!(text_manifest.statistics.structural_unit_functions, 2);
-    assert_eq!(text_manifest.statistics.structural_unit_blocks, 2);
     assert_eq!(
-        text_manifest.statistics.structural_unit_instruction_spans,
-        3
+        call.next_instruction_section_offset as i64 + i64::from(call.displacement),
+        call.callee_section_offset as i64
     );
-    assert_eq!(text_manifest.statistics.structural_unit_bytes, 91);
-    assert_eq!(text_manifest.statistics.source_internal_machine_fixups, 1);
-    assert_eq!(text_manifest.statistics.resolved_internal_machine_fixups, 1);
     assert_eq!(
-        text_manifest.statistics.remaining_internal_machine_fixups,
+        &placed.bytes[call.field_section_offset as usize..call.field_section_offset as usize + 4],
+        &call.displacement.to_le_bytes()
+    );
+    assert_eq!(text.manifest().record().statistics.functions, 2);
+    assert_eq!(
+        text.manifest()
+            .record()
+            .statistics
+            .source_internal_machine_fixups,
+        1
+    );
+    assert_eq!(
+        text.manifest()
+            .record()
+            .statistics
+            .resolved_internal_machine_fixups,
+        1
+    );
+    assert_eq!(
+        text.manifest()
+            .record()
+            .statistics
+            .remaining_internal_machine_fixups,
         0
     );
+    let original_section = text.text_section().clone();
+    text.text_section_mut().resolved_internal_machine_calls[0].displacement += 1;
+    let identity = text.text_section().recomputed_identity();
+    text.text_section_mut().identity = identity;
+    assert!(validate_optimized_fixed_frame_text_section(&text).is_err());
+    *text.text_section_mut() = original_section;
+    let original_manifest = text.manifest().record().clone();
+    text.manifest_mut()
+        .record_mut()
+        .statistics
+        .resolved_internal_machine_fixups = 0;
+    assert!(validate_optimized_fixed_frame_text_section(&text).is_err());
+    *text.manifest_mut().record_mut() = original_manifest;
+    validate_optimized_fixed_frame_text_section(&text).unwrap();
+    let text_manifest = text.manifest().record();
     assert_eq!(
         FunctionFragmentTextSectionManifest::decode(&text_manifest.encode()),
         Ok(text_manifest.clone())
     );
-    for unsupported in [5_u32, 7_u32, 12_u32, 14_u32] {
+    for unsupported in [5_u32, 7, 13, 15] {
         let mut encoded = text_manifest.encode();
         encoded[8..12].copy_from_slice(&unsupported.to_le_bytes());
         assert_eq!(
@@ -454,37 +239,8 @@ pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegister
             Err(FunctionFragmentTextSectionManifestDecodeError::UnsupportedVersion(unsupported))
         );
     }
-    validate_optimized_relocation_free_text_section(&text).unwrap();
-    text.text_section_mut().resolved_internal_machine_calls[0].displacement += 1;
-    assert!(matches!(
-        validate_optimized_relocation_free_text_section(&text),
-        Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch)
-    ));
-    text.text_section_mut().resolved_internal_machine_calls[0].displacement = 5;
-    validate_optimized_relocation_free_text_section(&text).unwrap();
-    text.manifest_mut()
-        .record_mut()
-        .statistics
-        .resolved_internal_machine_fixups = 0;
-    assert!(matches!(
-        validate_optimized_relocation_free_text_section(&text),
-        Err(RelocationFreeTextSectionPlacementError::ManifestMismatch)
-    ));
-    text.manifest_mut()
-        .record_mut()
-        .statistics
-        .resolved_internal_machine_fixups = 1;
-    validate_optimized_relocation_free_text_section(&text).unwrap();
-
-    let object = stage_optimized_relocation_free_object_container(text)
-        .expect("resolved structural text must require no object relocation");
-    assert_eq!(object.object().text_section.byte_count, 91);
-    assert_eq!(&object.object().text_section.bytes[81..85], &[5, 0, 0, 0]);
+    let object = stage_optimized_relocation_free_object_container(text).unwrap();
     assert_eq!(object.object().symbols.len(), 2);
-    assert_eq!(object.object().symbols[0].section_offset, 0);
-    assert_eq!(object.object().symbols[0].byte_count, 90);
-    assert_eq!(object.object().symbols[1].section_offset, 90);
-    assert_eq!(object.object().symbols[1].byte_count, 1);
     assert_eq!(object.object().relocation_record_count, 0);
     validate_optimized_relocation_free_object_container(&object).unwrap();
 }

@@ -52,7 +52,6 @@ pub struct FixedPrecoloredSegmentHomePlan {
     pub budget: OptimizationWorkBudget,
     pub usage: OptimizationWorkUsage,
     pub functions: Vec<FunctionFixedPrecoloredSegmentHomes>,
-    pub structural_unit_functions: Vec<FunctionFixedPrecoloredSegmentHomes>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

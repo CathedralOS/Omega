@@ -13,8 +13,7 @@ pub(in crate::legalization::source) fn accepts(
     abstract_plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> bool {
-    if target.target != target::NativeTarget::uefi_x64() || !matches!(target.functions.len(), 1 | 2)
-    {
+    if target.target != target::NativeTarget::uefi_x64() || target.functions.is_empty() {
         return false;
     }
     let roster = target
@@ -29,16 +28,35 @@ pub(in crate::legalization::source) fn accepts(
     let Ok(roster) = roster else {
         return false;
     };
-    // The existing structural whole-function exit contract admits one leaf,
-    // or the entry caller and its sole leaf. Per-function legalization remains
-    // independent of this publication topology restriction.
-    match roster.as_slice() {
-        [(leaf, None)] => *leaf == target.entry,
-        [(caller, Some(callee)), (leaf, None)] | [(leaf, None), (caller, Some(callee))] => {
-            *caller == target.entry && callee == leaf && caller != leaf
-        }
-        _ => false,
+    if roster
+        .iter()
+        .filter(|(machine, _)| *machine == target.entry)
+        .count()
+        != 1
+        || roster.iter().enumerate().any(|(index, (machine, _))| {
+            roster[..index]
+                .iter()
+                .any(|(previous, _)| previous == machine)
+        })
+    {
+        return false;
     }
+    // Every retained call names exactly one admitted function. Follow each
+    // chain to a leaf; an ordinary acyclic call graph has no roster-size limit.
+    roster.iter().all(|(machine, _)| {
+        let mut current = *machine;
+        for _ in 0..roster.len() {
+            let Some((_, callee)) = roster.iter().find(|(candidate, _)| *candidate == current)
+            else {
+                return false;
+            };
+            match callee {
+                None => return true,
+                Some(callee) => current = *callee,
+            }
+        }
+        false
+    })
 }
 
 fn matches_function(

@@ -19,7 +19,6 @@ pub struct FixedPrecoloredSegmentHomeValidationReceipt {
     pub(crate) policy: FixedPrecoloredSegmentHomePolicy,
     pub(crate) usage: OptimizationWorkUsage,
     pub(crate) function_count: usize,
-    pub(crate) structural_unit_function_count: usize,
     pub(crate) domain_count: usize,
     pub(crate) assignment_count: usize,
 }
@@ -63,9 +62,6 @@ impl FixedPrecoloredSegmentHomeValidationReceipt {
     }
     pub const fn function_count(self) -> usize {
         self.function_count
-    }
-    pub const fn structural_unit_function_count(self) -> usize {
-        self.structural_unit_function_count
     }
     pub const fn domain_count(self) -> usize {
         self.domain_count

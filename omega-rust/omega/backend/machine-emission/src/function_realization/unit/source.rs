@@ -33,7 +33,6 @@ pub fn validate_unit_shape(
     selected: &SelectedInstructionPlan,
 ) -> Result<(), OptimizedUnitFunctionRelativeRealizationError> {
     if selected.functions.is_empty()
-        || !selected.structural_unit_functions.is_empty()
         || !selected.projected_structural_call_returns.is_empty()
         || !selected
             .functions

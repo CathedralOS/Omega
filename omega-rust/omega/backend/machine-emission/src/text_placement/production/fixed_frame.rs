@@ -23,9 +23,6 @@ use super::{
 pub(in crate::text_placement) fn place(
     fragments: &FunctionFragmentEmissionPlan,
 ) -> Result<RelocationFreeTextSectionPlacement, TextPlacementError> {
-    if !fragments.structural_unit_functions.is_empty() {
-        return Err(TextPlacementError::SourceShapeMismatch);
-    }
     let section_alignment = match fragments.target.architecture {
         Architecture::Aarch64 => 4,
         Architecture::X86_64 => 1,

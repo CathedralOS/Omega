@@ -1,4 +1,4 @@
-use selected_instructions::{SelectedStructuralUnitCallArgument, SelectedStructuralUnitParameter};
+use legalized_operations::LegalizedCallUnitParameter;
 use semantic_vocabulary::{
     AffineConstructionElement, IeeeFloatFormat, OperationId, PlaceId, StructuralCaseId,
     StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
@@ -22,7 +22,7 @@ use crate::rewrites::allocation_recovery::fixed_view_copy::codec::{
 
 pub(super) fn encode_parameter(
     bytes: &mut Vec<u8>,
-    parameter: &SelectedStructuralUnitParameter,
+    parameter: &LegalizedCallUnitParameter,
     retain_projected_qualifications: bool,
 ) {
     encode_semantic_parameter(bytes, &parameter.semantic, retain_projected_qualifications);
@@ -32,24 +32,10 @@ pub(super) fn encode_parameter(
 pub(super) fn decode_parameter(
     cursor: &mut Cursor<'_>,
     retain_projected_qualifications: bool,
-) -> Result<SelectedStructuralUnitParameter, FixedViewCopyDecodeError> {
-    Ok(SelectedStructuralUnitParameter {
+) -> Result<LegalizedCallUnitParameter, FixedViewCopyDecodeError> {
+    Ok(LegalizedCallUnitParameter {
         semantic: decode_semantic_parameter(cursor, retain_projected_qualifications)?,
         target: decode_target_parameter(cursor)?,
-    })
-}
-
-pub(super) fn encode_argument(bytes: &mut Vec<u8>, argument: &SelectedStructuralUnitCallArgument) {
-    encode_semantic_argument(bytes, &argument.semantic);
-    encode_target_argument(bytes, &argument.target);
-}
-
-pub(super) fn decode_argument(
-    cursor: &mut Cursor<'_>,
-) -> Result<SelectedStructuralUnitCallArgument, FixedViewCopyDecodeError> {
-    Ok(SelectedStructuralUnitCallArgument {
-        semantic: decode_semantic_argument(cursor)?,
-        target: decode_target_argument(cursor)?,
     })
 }
 
@@ -314,7 +300,7 @@ pub(super) fn decode_semantic_argument(
     })
 }
 
-fn encode_target_argument(bytes: &mut Vec<u8>, argument: &TargetStructuralArgument) {
+pub(super) fn encode_target_argument(bytes: &mut Vec<u8>, argument: &TargetStructuralArgument) {
     bytes.extend_from_slice(&argument.place.get().to_le_bytes());
     encode_access(bytes, argument.access);
     encode_path(bytes, &argument.path);
@@ -328,7 +314,7 @@ fn encode_target_argument(bytes: &mut Vec<u8>, argument: &TargetStructuralArgume
     encode_placement(bytes, &argument.destination);
 }
 
-fn decode_target_argument(
+pub(super) fn decode_target_argument(
     cursor: &mut Cursor<'_>,
 ) -> Result<TargetStructuralArgument, FixedViewCopyDecodeError> {
     Ok(TargetStructuralArgument {

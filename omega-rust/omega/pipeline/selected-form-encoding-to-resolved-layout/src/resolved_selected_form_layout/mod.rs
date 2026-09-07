@@ -5,15 +5,13 @@ mod model;
 mod optimization;
 mod ordinary;
 mod stage;
-mod structural;
 mod validation;
 
 pub use error::OptimizedResolvedSelectedFormLayoutError;
 pub use model::{
     ResolvedBranchEvidence, ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate,
     ResolvedJumpEvidence, ResolvedSelectedBlockLayout, ResolvedSelectedFormLayoutIdentity,
-    ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout, ResolvedStructuralUnitCallLayout,
-    ResolvedStructuralUnitFunctionLayout, SelectedFunctionLayoutPolicy,
+    ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout, SelectedFunctionLayoutPolicy,
     StagedOptimizedResolvedSelectedFormLayout,
 };
 pub use stage::{

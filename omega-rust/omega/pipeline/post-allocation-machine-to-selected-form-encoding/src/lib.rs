@@ -10,8 +10,7 @@ use machine_code::{
     SelectedFormEncodingCounts, SelectedFormEncodingIdentity, SelectedFormEncodingRow,
     SelectedFormEncodingState, SelectedFormInternalMachineFixup,
     SelectedFormInternalMachineFixupKind, SelectedFormInternalMachineFixupState,
-    SelectedFormMachineDisposition, SelectedStructuralUnitCallEncodingRow,
-    SelectedStructuralUnitFunctionEncoding,
+    SelectedFormMachineDisposition,
 };
 use physical_instructions::PostAllocationMachineOptimizationCustody;
 use register_model::ValidatedPhysicalRegisterModel;
@@ -26,11 +25,11 @@ use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMach
 mod compute;
 mod custody;
 mod error;
+mod frame_address;
 mod materialization;
 mod model;
 mod row_encoding;
 mod stage;
-mod structural_encoding;
 mod validation;
 
 pub use error::*;
@@ -45,10 +44,11 @@ pub fn stage_optimized_layout_independent_selected_form_encoding_with_post_alloc
     selected: &S,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
+    frame: Option<&machine_code::TargetFrameLayoutPlan>,
     optimization: Option<&StagedOptimizedPostAllocationMachineOptimization>,
 ) -> Result<StagedOptimizedSelectedFormEncoding, OptimizedSelectedFormEncodingError> {
-    let artifact = compute::compute(selected, machine, physical, optimization)?;
-    validation::validate(selected, machine, physical, optimization, &artifact)?;
+    let artifact = compute::compute(selected, machine, physical, frame, optimization)?;
+    validation::validate(selected, machine, physical, frame, optimization, &artifact)?;
     Ok(StagedOptimizedSelectedFormEncoding {
         program: std::sync::Arc::new(artifact),
     })
@@ -62,6 +62,7 @@ pub fn validate_optimized_layout_independent_selected_form_encoding_with_post_al
     selected: &S,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
+    frame: Option<&machine_code::TargetFrameLayoutPlan>,
     optimization: Option<&StagedOptimizedPostAllocationMachineOptimization>,
     artifact: &StagedOptimizedSelectedFormEncoding,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
@@ -69,6 +70,7 @@ pub fn validate_optimized_layout_independent_selected_form_encoding_with_post_al
         selected,
         machine,
         physical,
+        frame,
         optimization,
         artifact.program(),
     )

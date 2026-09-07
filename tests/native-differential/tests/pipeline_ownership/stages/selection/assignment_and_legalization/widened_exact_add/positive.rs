@@ -139,7 +139,7 @@ fn widened_u8_exact_add_legalization_retains_theorem_temporaries_and_exact_custo
             {
                 assert_eq!(source_type, u8_integer);
                 assert_eq!(
-                    row.scalar_type,
+                    row.result.as_ref().unwrap().scalar_type,
                     semantic_vocabulary::ScalarType::Integer(u64_integer)
                 );
             }

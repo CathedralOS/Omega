@@ -47,7 +47,7 @@ fn every_representable_text_manifest_field_rejects_after_reauthentication() {
     let baseline = staged.manifest().record().clone();
     // Vocabulary, placement, relocation, and unavailable-data values are
     // singleton in memory; the wire matrix below rejects alternate tags.
-    let mutations: [(&str, ManifestMutation); 38] = [
+    let mutations: [(&str, ManifestMutation); 33] = [
         ("stage", |record| {
             record.stage = FunctionFragmentTextSectionStage::ValidatedFixedFrameInternalCallTextSectionPlacementV1
         }),
@@ -156,26 +156,6 @@ fn every_representable_text_manifest_field_rejects_after_reauthentication() {
         ("statistics.relocation_requirements", |record| {
             record.statistics.relocation_requirements += 1
         }),
-        ("statistics.structural_unit_functions", |record| {
-            record.statistics.structural_unit_functions += 1
-        }),
-        ("statistics.structural_unit_blocks", |record| {
-            record.statistics.structural_unit_blocks += 1
-        }),
-        ("statistics.structural_unit_instruction_spans", |record| {
-            record.statistics.structural_unit_instruction_spans += 1
-        }),
-        (
-            "statistics.structural_unit_zero_byte_instruction_spans",
-            |record| {
-                record
-                    .statistics
-                    .structural_unit_zero_byte_instruction_spans += 1
-            },
-        ),
-        ("statistics.structural_unit_bytes", |record| {
-            record.statistics.structural_unit_bytes += 1
-        }),
         ("statistics.source_internal_machine_fixups", |record| {
             record.statistics.source_internal_machine_fixups += 1
         }),
@@ -219,7 +199,7 @@ fn every_representable_text_manifest_field_rejects_after_reauthentication() {
 fn text_manifest_wire_rejects_every_closed_tag_and_envelope_mutation() {
     let staged = staged_text_section();
     let encoded = staged.manifest().record().encode();
-    assert_eq!(encoded.len(), 600, "post-allocation V11 layout is pinned");
+    assert_eq!(encoded.len(), 560, "post-allocation V14 layout is pinned");
 
     let mut wrong_magic = encoded.clone();
     wrong_magic[0] ^= 1;
@@ -334,7 +314,7 @@ fn text_manifest_wire_rejects_every_closed_tag_and_envelope_mutation() {
         Err(FunctionFragmentTextSectionManifestDecodeError::UnknownRelocationRequirements(99),),
     );
 
-    for offset in 594..600 {
+    for offset in encoded.len() - 6..encoded.len() {
         let mut unknown_unavailable = encoded.clone();
         unknown_unavailable[offset] = 99;
         assert_eq!(

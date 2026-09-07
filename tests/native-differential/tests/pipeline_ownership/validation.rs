@@ -228,10 +228,10 @@ fn selected_content_identity_binds_every_retained_field_class() {
         };
     mutations.push(changed);
     let mut changed = original.clone();
-    changed.functions[0].virtual_registers[1].definition_site = ValueDefinitionSite::Node {
+    changed.functions[0].virtual_registers[1].definition_site = Some(ValueDefinitionSite::Node {
         block: BlockId::new(8_013).unwrap(),
         node: 7,
-    };
+    });
     mutations.push(changed);
     let mut changed = original.clone();
     changed.functions[0].virtual_registers[0].entry_fixed_view = None;

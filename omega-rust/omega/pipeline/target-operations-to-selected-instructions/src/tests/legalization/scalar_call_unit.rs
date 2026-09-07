@@ -180,12 +180,18 @@ fn exact_u64_equality_three_call_chain_is_produced_and_replayed() {
     assert_eq!(calls.len(), 3);
     assert_eq!(calls[0].arguments, calls[1].arguments);
     assert_eq!(
-        calls[2].arguments[0].source,
-        function.blocks[0].instructions[2].result
+        calls[2].arguments[0].scalar_source(),
+        function.blocks[0].instructions[2]
+            .result
+            .as_ref()
+            .map(|result| result.value)
     );
     assert_eq!(
-        calls[2].arguments[1].source,
-        function.blocks[0].instructions[3].result
+        calls[2].arguments[1].scalar_source(),
+        function.blocks[0].instructions[3]
+            .result
+            .as_ref()
+            .map(|result| result.value)
     );
 
     let mut corruptions = Vec::new();

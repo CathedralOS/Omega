@@ -11,10 +11,6 @@ pub struct FunctionRelativeOptimizationRealizationStatistics {
     pub instructions: u64,
     pub bytes: u64,
     pub resolved_conditional_branches: u64,
-    pub structural_unit_functions: u64,
-    pub structural_unit_blocks: u64,
-    pub structural_unit_instructions: u64,
-    pub structural_unit_bytes: u64,
     pub unresolved_internal_machine_fixups: u64,
 }
 

@@ -12,7 +12,7 @@ use std::collections::BTreeSet;
 
 use register_model::ValidatedRegisterConstraintCatalog;
 
-use validation::{validate_declaration, validate_structural_unit_call};
+use validation::validate_declaration;
 
 pub use identity::machine_effect_catalog_identity;
 pub use model::{
@@ -22,9 +22,7 @@ pub use model::{
     MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
     MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
-    MachineTrapBehavior, StructuralUnitCallBarrier, StructuralUnitCallEffect,
-    StructuralUnitCallEffectDeclaration, StructuralUnitCallFrameEffect,
-    StructuralUnitCallMemoryEffect, ValidatedMachineEffectCatalog,
+    MachineTrapBehavior, ValidatedMachineEffectCatalog,
 };
 
 pub fn validate_machine_effect_catalog(
@@ -60,7 +58,6 @@ pub fn validate_machine_effect_catalog(
     {
         return Err(MachineEffectCatalogValidationError::DeclarationRosterMismatch);
     }
-    validate_structural_unit_call(constraints, &catalog)?;
     for declaration in &catalog.declarations {
         let row = constraints
             .catalog()

@@ -17,11 +17,11 @@ use super::{
 };
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGFFE\0\0";
-const MANIFEST_VERSION: u32 = 12;
+const MANIFEST_VERSION: u32 = 13;
 
 impl FunctionFragmentEmissionManifest {
     pub fn recomputed_identity(&self) -> FunctionFragmentEmissionManifestIdentity {
-        let mut canonical = b"omega.function-fragment-emission-manifest.v12\0".to_vec();
+        let mut canonical = b"omega.function-fragment-emission-manifest.v13\0".to_vec();
         canonical.extend_from_slice(&encode_manifest_content(self));
         FunctionFragmentEmissionManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -60,7 +60,6 @@ impl FunctionFragmentEmissionManifest {
                 optimization: decode_post_allocation_optimization(cursor.byte()?)?,
             },
             4 => FunctionFragmentEmissionSourceKind::UnitBaselineV1,
-            5 => FunctionFragmentEmissionSourceKind::StructuralUnitV1,
             6 => FunctionFragmentEmissionSourceKind::SelectedLoweringV1,
             7 => FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1,
             tag => return Err(FunctionFragmentEmissionManifestDecodeError::UnknownSourceKind(tag)),
@@ -99,12 +98,7 @@ impl FunctionFragmentEmissionManifest {
             bytes: u64::from_le_bytes(cursor.array()?),
             resolved_conditional_branches: u64::from_le_bytes(cursor.array()?),
             logical_fuel_settlements: u64::from_le_bytes(cursor.array()?),
-            structural_unit_functions: u64::from_le_bytes(cursor.array()?),
-            structural_unit_blocks: u64::from_le_bytes(cursor.array()?),
-            structural_unit_instruction_spans: u64::from_le_bytes(cursor.array()?),
-            structural_unit_bytes: u64::from_le_bytes(cursor.array()?),
             unresolved_internal_machine_fixups: u64::from_le_bytes(cursor.array()?),
-            structural_logical_fuel_settlements: u64::from_le_bytes(cursor.array()?),
         };
         for _ in 0..6 {
             if cursor.byte()? != 1 {
@@ -161,7 +155,6 @@ fn encode_manifest_content(record: &FunctionFragmentEmissionManifest) -> Vec<u8>
             bytes.push(optimization as u8);
         }
         FunctionFragmentEmissionSourceKind::UnitBaselineV1 => bytes.push(4),
-        FunctionFragmentEmissionSourceKind::StructuralUnitV1 => bytes.push(5),
         FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1 => bytes.push(7),
     }
     bytes.extend_from_slice(&record.source_realization.bytes());
@@ -189,25 +182,10 @@ fn encode_manifest_content(record: &FunctionFragmentEmissionManifest) -> Vec<u8>
             .to_le_bytes(),
     );
     bytes.extend_from_slice(&record.statistics.logical_fuel_settlements.to_le_bytes());
-    bytes.extend_from_slice(&record.statistics.structural_unit_functions.to_le_bytes());
-    bytes.extend_from_slice(&record.statistics.structural_unit_blocks.to_le_bytes());
-    bytes.extend_from_slice(
-        &record
-            .statistics
-            .structural_unit_instruction_spans
-            .to_le_bytes(),
-    );
-    bytes.extend_from_slice(&record.statistics.structural_unit_bytes.to_le_bytes());
     bytes.extend_from_slice(
         &record
             .statistics
             .unresolved_internal_machine_fixups
-            .to_le_bytes(),
-    );
-    bytes.extend_from_slice(
-        &record
-            .statistics
-            .structural_logical_fuel_settlements
             .to_le_bytes(),
     );
     bytes.extend_from_slice(&[1; 6]);

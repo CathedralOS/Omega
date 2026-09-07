@@ -4,7 +4,7 @@ use super::super::shared::*;
 pub(super) fn replay_callee_alpha_match(
     function: usize,
     callee: semantic_vocabulary::MachineId,
-    proposed: &legalized_operations::LegalizedCallUnit,
+    proposed: &legalized_operations::LegalizedScalarCall,
     caller_claims: &[terminal_psi::EntryClaim],
     target_plan: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
@@ -47,7 +47,8 @@ pub(super) fn replay_callee_alpha_match(
         },
     )
     .map_err(|_| Error::UnsupportedSourceShape { function })?;
-    if abstract_callee.result != abstract_operations::AbstractFunctionResult::Unit
+    if proposed.call_plan != expected_callee_plan
+        || abstract_callee.result != abstract_operations::AbstractFunctionResult::Unit
         || optimized_callee.result != abstract_callee.result
         || !abstract_callee.parameters.is_empty()
         || !optimized_callee.parameters.is_empty()
@@ -65,10 +66,17 @@ pub(super) fn replay_callee_alpha_match(
         .zip(&abstract_callee.structural_parameters)
         .zip(&callee_body.parameters)
     {
-        if argument.semantic.access != semantic_parameter.access
-            || argument.target.structural_type != semantic_parameter.structural_type
-            || argument.target.shape != target_parameter.shape
-            || argument.target.destination != target_parameter.placement
+        let legalized_operations::LegalizedScalarArgument::Structural {
+            semantic: argument_semantic,
+            target: argument_target,
+        } = argument
+        else {
+            return Err(Error::NonCanonicalLegalizedPlan);
+        };
+        if argument_semantic.access != semantic_parameter.access
+            || argument_target.structural_type != semantic_parameter.structural_type
+            || argument_target.shape != target_parameter.shape
+            || argument_target.destination != target_parameter.placement
             || semantic_parameter.place != target_parameter.place
             || semantic_parameter.structural_type != target_parameter.structural_type
             || semantic_parameter.multiplicity != target_parameter.multiplicity
@@ -101,7 +109,14 @@ pub(super) fn replay_callee_alpha_match(
         let [caller_claim] = matching_caller_claims.as_slice() else {
             return Err(Error::NonCanonicalLegalizedPlan);
         };
-        if caller_claim.input != argument.semantic.place
+        let legalized_operations::LegalizedScalarArgument::Structural {
+            semantic: argument_semantic,
+            ..
+        } = argument
+        else {
+            return Err(Error::NonCanonicalLegalizedPlan);
+        };
+        if caller_claim.input != argument_semantic.place
             || !caller_claim.path.is_empty()
             || callee_claim.input != callee_parameter.place
             || !callee_claim.path.is_empty()

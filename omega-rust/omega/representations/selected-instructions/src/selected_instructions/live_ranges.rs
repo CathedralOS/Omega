@@ -40,9 +40,6 @@ pub struct LiveRangePlan {
     pub fuel_schedule: FuelScheduleIdentity,
     pub target: NativeTarget,
     pub functions: Vec<FunctionLiveRanges>,
-    /// Structural-signature Unit functions remain distinct from the ordinary
-    /// VReg roster while retaining their exact architectural live ranges.
-    pub structural_unit_functions: Vec<FunctionLiveRanges>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

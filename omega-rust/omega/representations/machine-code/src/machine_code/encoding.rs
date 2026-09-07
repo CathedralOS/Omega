@@ -1,12 +1,10 @@
 //! Current layout-independent instruction bytes, call templates and evidence.
 
-mod calls;
 mod custody;
 mod identity;
 mod rows;
 #[cfg(test)]
 mod tests;
-pub use calls::*;
 pub use custody::*;
 use optimization_core::Optimization;
 use physical_instructions::{Aarch64CbnzFusionIdentity, Aarch64MovnMaterializationIdentity};
@@ -24,7 +22,8 @@ pub struct SelectedFormEncoding {
     pub post_allocation_machine_optimization: Option<PostAllocationMachineOptimizationCustody>,
     pub identity: SelectedFormEncodingIdentity,
     pub rows: Vec<SelectedFormEncodingRow>,
-    pub structural_unit_functions: Vec<SelectedStructuralUnitFunctionEncoding>,
+    /// Raw frame geometry is explicit replay input, never a frame admission token.
+    pub frame: Option<crate::TargetFrameLayoutPlan>,
     pub counts: SelectedFormEncodingCounts,
 }
 
@@ -93,10 +92,6 @@ impl SelectedFormEncoding {
         &self.rows
     }
 
-    pub fn structural_unit_functions(&self) -> &[SelectedStructuralUnitFunctionEncoding] {
-        &self.structural_unit_functions
-    }
-
     pub const fn counts(&self) -> SelectedFormEncodingCounts {
         self.counts
     }
@@ -108,7 +103,7 @@ impl SelectedFormEncoding {
             self.machine,
             self.post_allocation_machine_optimization,
             &self.rows,
-            &self.structural_unit_functions,
+            self.frame.as_ref(),
             self.counts,
         )
     }

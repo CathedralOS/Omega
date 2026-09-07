@@ -79,14 +79,14 @@ pub(crate) fn successor_parameter_function() -> SelectedFunction {
                     parameter_index: 0,
                 }
             },
-            definition_site: if index < 2 {
+            definition_site: Some(if index < 2 {
                 ValueDefinitionSite::FunctionParameter(index)
             } else {
                 ValueDefinitionSite::BlockParameter {
                     block: BlockId::new(2).unwrap(),
                     position: 0,
                 }
-            },
+            }),
         })
         .collect();
     function

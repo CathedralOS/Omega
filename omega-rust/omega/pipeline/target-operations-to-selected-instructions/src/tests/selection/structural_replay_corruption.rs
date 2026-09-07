@@ -18,10 +18,7 @@ fn selected_structural_replay_rejects_abi_constraint_and_semantic_custody_mutati
     let selected_identity = selected.receipt().identity();
 
     let mut corrupted = selected.plan().clone();
-    corrupted.structural_unit_functions[0]
-        .abi
-        .layout
-        .outgoing_frame_byte_count -= 8;
+    corrupted.functions[0].outgoing_arguments[0].abi_stack_byte_offset += 8;
     assert_ne!(
         selected_instruction_plan_identity(&corrupted),
         selected_identity
@@ -32,10 +29,8 @@ fn selected_structural_replay_rejects_abi_constraint_and_semantic_custody_mutati
     );
 
     let mut corrupted = selected.plan().clone();
-    corrupted.structural_unit_functions[0]
+    corrupted.functions[0].calls[0]
         .call
-        .as_mut()
-        .unwrap()
         .requirement_obligations
         .clear();
     assert_ne!(
@@ -48,10 +43,8 @@ fn selected_structural_replay_rejects_abi_constraint_and_semantic_custody_mutati
     );
 
     let mut corrupted = selected.plan().clone();
-    corrupted.structural_unit_functions[0]
+    corrupted.functions[0].calls[0]
         .call
-        .as_mut()
-        .unwrap()
         .crash_continuations
         .clear();
     assert_ne!(
@@ -64,11 +57,13 @@ fn selected_structural_replay_rejects_abi_constraint_and_semantic_custody_mutati
     );
 
     let mut corrupted = selected.plan().clone();
-    corrupted.structural_unit_functions[0]
-        .call
-        .as_mut()
+    let instruction = corrupted.functions[0].calls[0].instruction;
+    corrupted.functions[0].blocks[0]
+        .instructions
+        .iter_mut()
+        .find(|row| row.id == instruction)
         .unwrap()
-        .implicit_uses
+        .operands
         .pop();
     assert_ne!(
         selected_instruction_plan_identity(&corrupted),
@@ -80,7 +75,11 @@ fn selected_structural_replay_rejects_abi_constraint_and_semantic_custody_mutati
     );
 
     let mut corrupted = selected.plan().clone();
-    corrupted.structural_unit_functions[0].abi.parameters[0]
+    corrupted.functions[0]
+        .structural
+        .as_mut()
+        .unwrap()
+        .parameters[0]
         .semantic
         .qualifications[0] = semantic_vocabulary::StructuralDomainId::new(2).unwrap();
     assert_ne!(
@@ -93,12 +92,7 @@ fn selected_structural_replay_rejects_abi_constraint_and_semantic_custody_mutati
     );
 
     let mut corrupted = selected.plan().clone();
-    corrupted.structural_unit_functions[0]
-        .call
-        .as_mut()
-        .unwrap()
-        .effect
-        .output += 1;
+    corrupted.functions[0].calls[0].effect.output += 1;
     assert_ne!(
         selected_instruction_plan_identity(&corrupted),
         selected_identity
@@ -109,7 +103,7 @@ fn selected_structural_replay_rejects_abi_constraint_and_semantic_custody_mutati
     );
 
     let mut missing_key = constraints.clone();
-    missing_key.keys.structural_unit_call = None;
+    missing_key.keys.call_unit = None;
     assert!(select_instructions(&legalized, &missing_key, &physical, &catalog).is_err());
 
     let linux_target = abstract_operations_to_target_operations::lower_to_target_operations(

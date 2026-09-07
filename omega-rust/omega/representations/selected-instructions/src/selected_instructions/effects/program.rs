@@ -42,7 +42,6 @@ pub struct PreAllocationMachineEffectPlan {
     pub register_constraints: RegisterConstraintCatalogIdentity,
     pub machine_effect_catalog: MachineEffectCatalogIdentity,
     pub functions: Vec<FunctionMachineEffects>,
-    pub structural_unit_functions: Vec<StructuralUnitFunctionMachineEffects>,
 }
 
 impl PreAllocationMachineEffectPlan {

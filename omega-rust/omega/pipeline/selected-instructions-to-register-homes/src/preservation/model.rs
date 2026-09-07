@@ -7,10 +7,9 @@ use target::NativeTarget;
 use register_model::FrameAbiPreservationConvention;
 
 pub use register_homes::{
-    AllocatedCalleeSavedFunctionKind, AllocatedCalleeSavedRequirementIdentity,
-    AllocatedCalleeSavedRequirementPlan, AllocatedCalleeSavedRequirementPolicy,
-    AllocatedCalleeSavedUnitRequirement, CalleeSavedModificationWitness,
-    FunctionAllocatedCalleeSavedRequirements,
+    AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedRequirementPlan,
+    AllocatedCalleeSavedRequirementPolicy, AllocatedCalleeSavedUnitRequirement,
+    CalleeSavedModificationWitness, FunctionAllocatedCalleeSavedRequirements,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

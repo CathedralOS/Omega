@@ -1,6 +1,10 @@
-use crate::legalization::catalog::{
-    StructuralUnitLegalizationValidatorKind, legalization_form_for_recipe,
-};
+#[derive(Clone, Copy)]
+enum StructuralUnitLegalizationValidatorKind {
+    ReturnOnly,
+    AuthoredCall,
+    InstalledProviderCall,
+    ClaimCompletionSettlements,
+}
 
 use super::super::shared::*;
 
@@ -22,26 +26,33 @@ pub(crate) fn validate_structural_unit_form<'a>(
     target: &'a target_operations::TargetFunction,
     abstracted: &'a abstract_operations::AbstractFunction,
     optimized: &'a optimization_unit::PsiOptimizationFunction,
-    recipe: legalized_operations::StructuralUnitLegalizationRecipe,
 ) -> Option<ValidatedStructuralUnitForm<'a>> {
     if independently_plain_unit_contract(target, abstracted, optimized) {
         return None;
     }
-    let descriptor = legalization_form_for_recipe(recipe)?;
-    let (validator, constraints) = (descriptor.validator, descriptor.constraints);
     let TargetOperation::UnitBody(body) = &target.operation else {
         return None;
     };
     let [optimized_block] = optimized.blocks.as_slice() else {
         return None;
     };
-    if abstracted.block_entries.len() != constraints.block_count
-        || optimized.blocks.len() != constraints.block_count
-        || abstracted.parameters.len() != constraints.scalar_parameter_count
-        || optimized.parameters.len() != constraints.scalar_parameter_count
+    if abstracted.block_entries.len() != 1
+        || !abstracted.parameters.is_empty()
+        || !optimized.parameters.is_empty()
     {
         return None;
     }
+    let validator = match body.operations.first()? {
+        TargetUnitOperation::Return { .. } => StructuralUnitLegalizationValidatorKind::ReturnOnly,
+        TargetUnitOperation::Call { .. } => StructuralUnitLegalizationValidatorKind::AuthoredCall,
+        TargetUnitOperation::InstalledProviderCall { .. } => {
+            StructuralUnitLegalizationValidatorKind::InstalledProviderCall
+        }
+        TargetUnitOperation::BoundarySettlement { .. } => {
+            StructuralUnitLegalizationValidatorKind::ClaimCompletionSettlements
+        }
+        _ => return None,
+    };
     validate_form(
         validator,
         &body.operations,

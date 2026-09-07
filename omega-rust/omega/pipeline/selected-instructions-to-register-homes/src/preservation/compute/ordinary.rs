@@ -3,10 +3,7 @@ use std::collections::BTreeMap;
 use selected_instructions::{SelectedInstruction, SelectedTerminator};
 
 use super::{
-    super::{
-        AllocatedCalleeSavedFunctionKind, AllocatedCalleeSavedRequirementError,
-        FunctionAllocatedCalleeSavedRequirements,
-    },
+    super::{AllocatedCalleeSavedRequirementError, FunctionAllocatedCalleeSavedRequirements},
     state::{DirectTraversal, add, finish_units},
 };
 
@@ -46,7 +43,6 @@ pub(super) fn derive(
             .functions
             .push(FunctionAllocatedCalleeSavedRequirements {
                 machine: function.machine,
-                kind: AllocatedCalleeSavedFunctionKind::Ordinary,
                 modified_units: finish_units(units),
             });
     }

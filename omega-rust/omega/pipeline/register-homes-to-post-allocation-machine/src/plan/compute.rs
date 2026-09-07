@@ -1,14 +1,12 @@
 //! Post-allocation plan construction coordination.
 //!
-//! Root custody is admitted first, ordinary and structural functions descend
-//! through separate builders, and this file performs the sole final plan
-//! assembly and identity assignment.
+//! Root custody is admitted first, each ordinary function is resolved, and this
+//! file performs the sole final plan assembly and identity assignment.
 
 mod alternative;
 mod instruction;
 mod ordinary;
 mod roots;
-mod structural;
 #[cfg(test)]
 mod tests;
 
@@ -53,8 +51,6 @@ pub(crate) fn compute_terminal_post_allocation_machine_plan<S: ValidatedSelected
     )?;
     let selected_plan = selected.selected_plan();
     let functions = ordinary::build_functions(selected_plan, effects, homes, physical)?;
-    let structural_unit_functions =
-        structural::build_functions(selected_plan, effects, homes, physical)?;
     let mut plan = PostAllocationMachinePlan {
         identity: PostAllocationMachineIdentity::from_bytes([0; 32]),
         selected: selected.selected_identity(),
@@ -70,7 +66,6 @@ pub(crate) fn compute_terminal_post_allocation_machine_plan<S: ValidatedSelected
         machine_effect_catalog: effects.plan().machine_effect_catalog,
         choice_rule: MachineAlternativeChoiceRule::UniqueApplicableInCatalogOrderV1,
         functions,
-        structural_unit_functions,
     };
     plan.identity = post_allocation_machine_identity(&plan);
     Ok(plan)

@@ -18,10 +18,7 @@ use crate::{
 use selected_instructions::selected_instructions::effects::program::encoding as effect_codec;
 
 const MAGIC: &[u8; 8] = b"OMGPMX\0\0";
-const LEGACY_V3_VERSION: u32 = 3;
-const LEGACY_V4_VERSION: u32 = 4;
-const LEGACY_V5_VERSION: u32 = 5;
-const VERSION: u32 = 6;
+const VERSION: u32 = 7;
 
 pub(crate) fn encode_terminal_post_allocation_machine_plan(
     plan: &PostAllocationMachinePlan,
@@ -43,31 +40,17 @@ pub(crate) fn decode_terminal_post_allocation_machine_plan(
         return Err(PostAllocationMachineDecodeError::WrongMagic);
     }
     let version = cursor::u32_field(&mut cursor)?;
-    if !matches!(
-        version,
-        LEGACY_V3_VERSION | LEGACY_V4_VERSION | LEGACY_V5_VERSION | VERSION
-    ) {
+    if version != VERSION {
         return Err(PostAllocationMachineDecodeError::UnsupportedVersion(
             version,
         ));
     }
     let identity = PostAllocationMachineIdentity::from_bytes(cursor::array(&mut cursor)?);
-    let plan = v3::decode_content(
-        &mut cursor,
-        identity,
-        matches!(version, LEGACY_V4_VERSION | LEGACY_V5_VERSION | VERSION),
-        matches!(version, LEGACY_V5_VERSION | VERSION),
-        version == VERSION,
-    )?;
+    let plan = v3::decode_content(&mut cursor, identity, true, true, true)?;
     if cursor.remaining() != 0 {
         return Err(PostAllocationMachineDecodeError::TrailingBytes);
     }
-    let expected_identity = match version {
-        LEGACY_V3_VERSION => super::identity::post_allocation_machine_identity_v4_legacy(&plan),
-        LEGACY_V4_VERSION => super::identity::post_allocation_machine_identity_v5_legacy(&plan),
-        LEGACY_V5_VERSION | VERSION => post_allocation_machine_identity(&plan),
-        _ => unreachable!("wire version admitted above"),
-    };
+    let expected_identity = post_allocation_machine_identity(&plan);
     if plan.identity != expected_identity {
         return Err(PostAllocationMachineDecodeError::InvalidIdentity);
     }

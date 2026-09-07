@@ -37,11 +37,6 @@ pub struct LivenessPlan {
     pub fuel_schedule: FuelScheduleIdentity,
     pub target: NativeTarget,
     pub functions: Vec<FunctionLiveness>,
-    /// Structural-ABI Unit functions retain their own roster even though the
-    /// current exact form has no allocator-managed virtual registers. Keeping
-    /// this separate prevents a zero-VReg result from erasing function, call,
-    /// return, or architectural-unit custody.
-    pub structural_unit_functions: Vec<FunctionLiveness>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

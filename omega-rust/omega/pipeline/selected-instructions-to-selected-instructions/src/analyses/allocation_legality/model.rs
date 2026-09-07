@@ -8,7 +8,6 @@ pub struct AllocationLegalityValidationReceipt {
     pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
     pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
     pub(crate) function_count: usize,
-    pub(crate) structural_unit_function_count: usize,
     pub(crate) virtual_register_count: usize,
     pub(crate) point_count: usize,
     pub(crate) candidate_count: usize,
@@ -32,9 +31,6 @@ impl AllocationLegalityValidationReceipt {
     }
     pub const fn function_count(self) -> usize {
         self.function_count
-    }
-    pub const fn structural_unit_function_count(self) -> usize {
-        self.structural_unit_function_count
     }
     pub const fn virtual_register_count(self) -> usize {
         self.virtual_register_count

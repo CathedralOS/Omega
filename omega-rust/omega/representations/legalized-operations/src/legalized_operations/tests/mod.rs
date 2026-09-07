@@ -28,6 +28,36 @@ mod validation;
 
 use fixtures::*;
 
+fn structural_call_mut(plan: &mut LegalizedOperationPlan) -> &mut LegalizedScalarCall {
+    let LegalizedScalarInstructionKind::Call(call) =
+        &mut plan.scalar_functions[0].blocks[0].instructions[0].kind
+    else {
+        panic!("structural call fixture");
+    };
+    call
+}
+
+fn scalar_argument_mut(
+    argument: &mut LegalizedScalarArgument,
+) -> (&mut ValueId, &mut calling_conventions::ValuePlacement) {
+    let LegalizedScalarArgument::Scalar { source, placement } = argument else {
+        panic!("scalar argument fixture");
+    };
+    (source, placement)
+}
+
+fn structural_argument_mut(
+    argument: &mut LegalizedScalarArgument,
+) -> (
+    &mut StructuralArgument,
+    &mut target_operations::TargetStructuralArgument,
+) {
+    let LegalizedScalarArgument::Structural { semantic, target } = argument else {
+        panic!("structural argument fixture");
+    };
+    (semantic, target)
+}
+
 pub(super) fn id<T>(raw: u64) -> T
 where
     T: semantic_vocabulary::PsiSemanticId,

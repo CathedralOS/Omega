@@ -98,3 +98,12 @@ fn decode_structural_type(
 ) -> Result<StructuralTypeId, PreAllocationMachineEffectDecodeError> {
     StructuralTypeId::new(cursor.u64()?).ok_or(PreAllocationMachineEffectDecodeError::InvalidField)
 }
+
+pub fn decode_effect_link(
+    cursor: &mut Cursor<'_>,
+) -> Result<EffectLink, PreAllocationMachineEffectDecodeError> {
+    Ok(EffectLink {
+        input: cursor.u64()?,
+        output: cursor.u64()?,
+    })
+}

@@ -261,7 +261,7 @@ pub(crate) fn derive_structural_call(
     target_plan: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
-) -> Result<LegalizedCallUnit, LegalizationError> {
+) -> Result<legalized_operations::LegalizedScalarInstruction, LegalizationError> {
     let parameters = caller_parameters
         .iter()
         .map(|parameter| super::input::Parameter {
@@ -280,26 +280,38 @@ pub(crate) fn derive_structural_call(
         abstract_plan,
         unit,
     )?;
-    let call = LegalizedCallUnit {
+    let call_plan = match target_call {
+        TargetUnitOperation::Call { call_plan, .. }
+        | TargetUnitOperation::InstalledProviderCall { call_plan, .. } => call_plan.clone(),
+        _ => return Err(Error::UnsupportedSourceShape { function }),
+    };
+    let call = legalized_operations::LegalizedScalarCall {
         source: matched.source,
-        operation: matched.operation,
         callee: matched.callee,
+        call_plan,
+        result_placement: None,
         arguments: matched
             .arguments
             .into_iter()
-            .map(|argument| LegalizedCallUnitArgument {
-                semantic: argument.semantic.clone(),
-                target: argument.target.clone(),
-            })
+            .map(
+                |argument| legalized_operations::LegalizedScalarArgument::Structural {
+                    semantic: argument.semantic.clone(),
+                    target: argument.target.clone(),
+                },
+            )
             .collect(),
         claim_transfers: matched.claim_transfers.to_vec(),
         requirement_obligations: matched.requirement_obligations.to_vec(),
         crash_continuations: matched.crash_continuations.to_vec(),
+    };
+    call.validate_shape()
+        .map_err(|_| Error::UnsupportedSourceShape { function })?;
+    Ok(legalized_operations::LegalizedScalarInstruction {
+        operation: matched.operation,
+        result: None,
+        kind: legalized_operations::LegalizedScalarInstructionKind::Call(call),
         fuel: matched.optimized_call.fuel.clone(),
         effect: matched.optimized_call.effect,
         ownership: matched.optimized_call.ownership.clone(),
-    };
-    call.validate_source()
-        .map_err(|_| Error::UnsupportedSourceShape { function })?;
-    Ok(call)
+    })
 }

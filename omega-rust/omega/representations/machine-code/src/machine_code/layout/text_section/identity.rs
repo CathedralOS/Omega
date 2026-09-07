@@ -117,6 +117,10 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::ConditionalBranchI64LessThan => 12,
         MachineAlternativeFamily::CallI64 => 13,
         MachineAlternativeFamily::Jump => 14,
+        MachineAlternativeFamily::Load64 => 16,
+        MachineAlternativeFamily::Store64 => 17,
+        MachineAlternativeFamily::FrameAddress => 18,
+        MachineAlternativeFamily::CallUnit => 19,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }

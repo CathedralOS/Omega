@@ -89,9 +89,11 @@ fn replay_rejects_every_root_usage_roster_function_unit_and_witness_corruption()
         .position(|function| !function.modified_units.is_empty())
         .unwrap();
 
-    let mut kind = canonical.clone();
-    kind.functions[modified_function].kind = AllocatedCalleeSavedFunctionKind::StructuralUnit;
-    rejects_noncanonical(&source, kind);
+    let mut omitted_modifications = canonical.clone();
+    omitted_modifications.functions[modified_function]
+        .modified_units
+        .clear();
+    rejects_noncanonical(&source, omitted_modifications);
 
     let mut unit = canonical.clone();
     unit.functions[modified_function].modified_units[0].unit =

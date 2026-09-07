@@ -45,16 +45,6 @@ pub(super) fn expected_record(
         || homes.receipt().allocator_availability() != legality.receipt().allocator_availability()
         || homes.plan().functions.len() != ranges.plan().functions.len()
         || homes.plan().functions.len() != legality.plan().functions.len()
-        || homes.plan().structural_unit_functions.len()
-            != ranges.plan().structural_unit_functions.len()
-        || homes.plan().structural_unit_functions.len()
-            != legality.plan().structural_unit_functions.len()
-        || ranges.receipt().structural_unit_function_count()
-            != ranges.plan().structural_unit_functions.len()
-        || legality.receipt().structural_unit_function_count()
-            != legality.plan().structural_unit_functions.len()
-        || homes.receipt().structural_unit_function_count()
-            != homes.plan().structural_unit_functions.len()
     {
         return Err(PostAllocationOptimizationManifestError::RootMismatch);
     }
@@ -84,7 +74,6 @@ pub(super) fn expected_record(
         .sum::<usize>();
     let statistics = PostAllocationStatistics {
         functions: count(homes.plan().functions.len())?,
-        structural_unit_functions: count(homes.plan().structural_unit_functions.len())?,
         assignments: count(homes.receipt().assignment_count())?,
         distinct_physical_views: count(distinct_views)?,
         virtual_interferences: count(interference_count)?,

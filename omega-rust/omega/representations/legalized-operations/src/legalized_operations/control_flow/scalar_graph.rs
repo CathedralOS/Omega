@@ -16,6 +16,7 @@ pub struct LegalizedScalarFunction {
     pub provenance: TerminalPsiProvenance,
     pub call_plan: CallPlan,
     pub parameters: Vec<LegalizedScalarParameter>,
+    pub structural: Option<crate::LegalizedStructuralContract>,
     pub entry_block: BlockId,
     pub blocks: Vec<LegalizedScalarBlock>,
 }
@@ -28,7 +29,8 @@ impl LegalizedScalarFunction {
                 .instructions
                 .iter()
                 .any(|instruction| match &instruction.kind {
-                    LegalizedScalarInstructionKind::Constant(_) => false,
+                    LegalizedScalarInstructionKind::Constant(_)
+                    | LegalizedScalarInstructionKind::BoundarySettlement(_) => false,
                     LegalizedScalarInstructionKind::BooleanNot { operand }
                     | LegalizedScalarInstructionKind::IntegerWiden { operand, .. } => {
                         *operand == value
@@ -36,7 +38,7 @@ impl LegalizedScalarFunction {
                     LegalizedScalarInstructionKind::Call(call) => call
                         .arguments
                         .iter()
-                        .any(|argument| argument.source == value),
+                        .any(|argument| matches!(argument, LegalizedScalarArgument::Scalar {source, ..} if *source == value)),
                     LegalizedScalarInstructionKind::ExactBinary { left, right, .. }
                     | LegalizedScalarInstructionKind::Compare { left, right, .. } => {
                         *left == value || *right == value
@@ -66,13 +68,18 @@ pub struct LegalizedScalarBlock {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedScalarInstruction {
     pub operation: OperationId,
-    pub result: ValueId,
-    pub scalar_type: ScalarType,
-    pub definition_site: ValueDefinitionSite,
+    pub result: Option<LegalizedValueDefinition>,
     pub kind: LegalizedScalarInstructionKind,
     pub fuel: Vec<FuelSettlement>,
     pub effect: EffectLink,
     pub ownership: Vec<OwnershipEvent>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LegalizedValueDefinition {
+    pub value: ValueId,
+    pub scalar_type: ScalarType,
+    pub definition_site: ValueDefinitionSite,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -86,6 +93,7 @@ pub enum LegalizedScalarInstructionKind {
         source_type: IntegerType,
     },
     Call(LegalizedScalarCall),
+    BoundarySettlement(crate::LegalizedBoundarySettlement),
     ExactBinary {
         operator: super::super::LegalizedExactIntegerOperator,
         left: ValueId,
@@ -158,18 +166,41 @@ impl LegalizedScalarTerminator {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedScalarCall {
+    pub source: crate::LegalizedCallUnitSource,
     pub callee: MachineId,
     pub call_plan: CallPlan,
     pub arguments: Vec<LegalizedScalarArgument>,
-    pub result_placement: ValuePlacement,
+    pub result_placement: Option<ValuePlacement>,
+    pub claim_transfers: Vec<terminal_psi::ClaimTransfer>,
     pub requirement_obligations: Vec<ObligationId>,
     pub crash_continuations: Vec<CrashRouteBucket>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LegalizedScalarArgument {
-    pub source: ValueId,
-    pub placement: ValuePlacement,
+pub enum LegalizedScalarArgument {
+    Scalar {
+        source: ValueId,
+        placement: ValuePlacement,
+    },
+    Structural {
+        semantic: terminal_psi::StructuralArgument,
+        target: target_operations::TargetStructuralArgument,
+    },
+}
+
+impl LegalizedScalarArgument {
+    pub fn scalar_source(&self) -> Option<ValueId> {
+        match self {
+            Self::Scalar { source, .. } => Some(*source),
+            Self::Structural { .. } => None,
+        }
+    }
+    pub fn placement(&self) -> &ValuePlacement {
+        match self {
+            Self::Scalar { placement, .. } => placement,
+            Self::Structural { target, .. } => &target.destination,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

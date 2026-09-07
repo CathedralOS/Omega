@@ -15,7 +15,6 @@ pub struct FixedPrecoloredIntervalValidationReceipt {
     pub(crate) policy: FixedPrecoloredIntervalPolicy,
     pub(crate) usage: OptimizationWorkUsage,
     pub(crate) function_count: usize,
-    pub(crate) structural_unit_function_count: usize,
     pub(crate) inspected_register_count: usize,
     pub(crate) interval_count: usize,
     pub(crate) entry_interval_count: usize,
@@ -52,9 +51,6 @@ impl FixedPrecoloredIntervalValidationReceipt {
     }
     pub const fn function_count(self) -> usize {
         self.function_count
-    }
-    pub const fn structural_unit_function_count(self) -> usize {
-        self.structural_unit_function_count
     }
     pub const fn inspected_register_count(self) -> usize {
         self.inspected_register_count

@@ -142,13 +142,6 @@ fn baseline_realizations_reject_selected_lowering_evidence_roles() {
         assert!(matches!(
             crate::tests::with_allocated_machine(
                 selected_allocation(target),
-                stage_optimized_structural_unit_function_relative_realization
-            ),
-            Err(OptimizedStructuralUnitFunctionRelativeRealizationError::RootMismatch)
-        ));
-        assert!(matches!(
-            crate::tests::with_allocated_machine(
-                selected_allocation(target),
                 |allocation, machine| stage_fixed_frame_function_relative_realization(
                     allocation,
                     machine,

@@ -11,10 +11,9 @@ use post_allocation_machine_to_selected_form_encoding::{
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 
 use super::error::OptimizedResolvedSelectedFormLayoutError;
-use super::model::{SelectedFunctionLayoutPolicy, StagedOptimizedResolvedSelectedFormLayout};
+use super::model::StagedOptimizedResolvedSelectedFormLayout;
 use super::optimization::{validate_layout_byte_savings, validate_optimization_custody};
 use super::ordinary::{instructions, layout, select};
-use super::structural::layout_structural_unit_function;
 use machine_code::{ResolvedMachineLayout, resolved_machine_layout_identity as layout_identity};
 
 pub(super) fn compute<S: ValidatedSelectedAnalysis>(
@@ -28,6 +27,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
         selected,
         machine,
         physical,
+        pre_layout.program().frame.as_ref(),
         optimization,
         pre_layout,
     )
@@ -54,28 +54,12 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
         || selected_plan.target != machine_plan.target
         || selected_plan.target.architecture != physical.model().architecture
         || selected_plan.functions.len() != machine_plan.functions.len()
-        || selected_plan.structural_unit_functions.len()
-            != machine_plan.structural_unit_functions.len()
-        || selected_plan.structural_unit_functions.len()
-            != pre_layout.structural_unit_functions().len()
         || pre_layout.post_allocation_machine_optimization() != normalized
     {
         return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
     }
 
-    let has_ordinary = !selected_plan.functions.is_empty();
-    let has_structural = !selected_plan.structural_unit_functions.is_empty();
-    if has_ordinary && has_structural {
-        return Err(OptimizedResolvedSelectedFormLayoutError::MixedOrdinaryAndStructuralFunctions);
-    }
-    if has_structural && optimization.is_some() {
-        return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
-    }
-    let policy = if has_structural {
-        SelectedFunctionLayoutPolicy::StructuralUnitCallThenReturnSingleEntryBlockV1
-    } else {
-        select(selected_plan)?
-    };
+    let policy = select(selected_plan)?;
     let mut pre_rows = pre_layout.rows().iter();
     let mut functions = Vec::with_capacity(selected_plan.functions.len());
     for (function, machine_function) in selected_plan.functions.iter().zip(&machine_plan.functions)
@@ -123,75 +107,6 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
         return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
     }
 
-    let mut structural_unit_functions =
-        Vec::with_capacity(selected_plan.structural_unit_functions.len());
-    for ((selected_function, machine_function), pre_function) in selected_plan
-        .structural_unit_functions
-        .iter()
-        .zip(&machine_plan.structural_unit_functions)
-        .zip(pre_layout.structural_unit_functions())
-    {
-        if selected_function.machine != machine_function.machine
-            || selected_function.machine != pre_function.machine
-            || selected_function.entry_block != machine_function.block
-            || selected_function.entry_block != pre_function.block
-        {
-            return Err(
-                OptimizedResolvedSelectedFormLayoutError::StructuralFunctionRosterMismatch(
-                    selected_function.machine,
-                ),
-            );
-        }
-        match (
-            &selected_function.call,
-            &machine_function.call,
-            &pre_function.call,
-        ) {
-            (None, None, None) => {}
-            (Some(selected_call), Some(machine_call), Some(pre_call))
-                if selected_call.id == machine_call.instruction
-                    && selected_call.id == pre_call.instruction
-                    && selected_call.operation == machine_call.operation
-                    && selected_call.operation == pre_call.operation
-                    && selected_call.callee == machine_call.callee
-                    && selected_call.callee == pre_call.callee => {}
-            (Some(selected_call), _, _) => {
-                return Err(
-                    OptimizedResolvedSelectedFormLayoutError::StructuralCallRosterMismatch(
-                        selected_call.id,
-                    ),
-                );
-            }
-            (None, Some(machine_call), _) => {
-                return Err(
-                    OptimizedResolvedSelectedFormLayoutError::StructuralCallRosterMismatch(
-                        machine_call.instruction,
-                    ),
-                );
-            }
-            (None, None, Some(pre_call)) => {
-                return Err(
-                    OptimizedResolvedSelectedFormLayoutError::StructuralCallRosterMismatch(
-                        pre_call.instruction,
-                    ),
-                );
-            }
-        }
-        let selected_return = &selected_function.terminator.instruction;
-        if selected_return.id != machine_function.return_instruction.instruction
-            || selected_return.id != pre_function.return_instruction.instruction
-            || machine_function.return_instruction.alternative.key
-                != pre_function.return_instruction.alternative
-        {
-            return Err(
-                OptimizedResolvedSelectedFormLayoutError::StructuralReturnRosterMismatch(
-                    selected_return.id,
-                ),
-            );
-        }
-        structural_unit_functions.push(layout_structural_unit_function(pre_function)?);
-    }
-
     let selected_root = selected.selected_identity();
     let machine_root = machine.machine().receipt().identity();
     let pre_layout_root = pre_layout.identity();
@@ -204,7 +119,6 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
         target,
         policy,
         &functions,
-        &structural_unit_functions,
     );
     let artifact = StagedOptimizedResolvedSelectedFormLayout::from_program(ResolvedMachineLayout {
         selected: selected_root,
@@ -215,12 +129,15 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
         policy,
         identity,
         functions,
-        structural_unit_functions,
     });
     if let Some(custody) = normalized {
-        let baseline_encoding =
-            stage_optimized_layout_independent_selected_form_encoding(selected, machine, physical)
-                .map_err(OptimizedResolvedSelectedFormLayoutError::PreLayout)?;
+        let baseline_encoding = stage_optimized_layout_independent_selected_form_encoding(
+            selected,
+            machine,
+            physical,
+            pre_layout.program().frame.as_ref(),
+        )
+        .map_err(OptimizedResolvedSelectedFormLayoutError::PreLayout)?;
         let baseline = compute(selected, machine, physical, &baseline_encoding, None)?;
         validate_layout_byte_savings(&baseline, &artifact, custody)?;
     }

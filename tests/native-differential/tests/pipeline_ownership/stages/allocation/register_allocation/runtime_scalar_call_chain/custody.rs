@@ -164,12 +164,12 @@ fn exact_target_legal_and_selected_call_chain_survives_on_both_isas() {
             call_operations
         );
         assert!(calls.iter().all(|(_, call)| call.callee == callee));
-        assert_eq!(calls[0].1.arguments[0].source, left);
-        assert_eq!(calls[0].1.arguments[1].source, right);
-        assert_eq!(calls[1].1.arguments[0].source, left);
-        assert_eq!(calls[1].1.arguments[1].source, right);
-        assert_eq!(calls[2].1.arguments[0].source, first_result);
-        assert_eq!(calls[2].1.arguments[1].source, second_result);
+        assert_eq!(calls[0].1.arguments[0].scalar_source(), Some(left));
+        assert_eq!(calls[0].1.arguments[1].scalar_source(), Some(right));
+        assert_eq!(calls[1].1.arguments[0].scalar_source(), Some(left));
+        assert_eq!(calls[1].1.arguments[1].scalar_source(), Some(right));
+        assert_eq!(calls[2].1.arguments[0].scalar_source(), Some(first_result));
+        assert_eq!(calls[2].1.arguments[1].scalar_source(), Some(second_result));
         let legalized_operations::LegalizedScalarTerminator::Return(returned) =
             &legal_caller.blocks[0].terminator
         else {

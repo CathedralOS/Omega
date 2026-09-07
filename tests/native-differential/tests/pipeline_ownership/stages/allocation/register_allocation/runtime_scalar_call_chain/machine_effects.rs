@@ -151,6 +151,7 @@ fn scalar_calls_retain_exact_effects_through_post_allocation_persistence() {
             selected_stage.selected(),
             &post,
             selected_stage.register_environment().physical(),
+            None,
         )
         .expect("target-owned call templates must now reach selected-form encoding");
         assert_eq!(encoding.counts().ordinary_encoded_call_templates, 3);

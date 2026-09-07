@@ -68,7 +68,7 @@ fn selected_form_encoding_data_outlives_its_producer() {
         "pub struct SelectedFormEncodingRow {",
         "pub enum SelectedFormEncodingState {",
         "pub struct SelectedFormDecodedFootprint {",
-        "pub struct SelectedStructuralUnitFunctionEncoding {",
+        "pub struct ResolvedPhysicalAddress {",
     ] {
         assert_eq!(data.matches(declaration).count(), 1, "{declaration}");
         assert!(
@@ -88,6 +88,84 @@ fn selected_form_encoding_data_outlives_its_producer() {
     .unwrap();
     assert!(current.contains("encoding: replay.encoding().shared_program()"));
     assert!(!current.contains("StagedOptimizedSelectedFormEncoding"));
+}
+
+#[test]
+fn structural_calls_share_current_graph_storage_and_publication_owners() {
+    let root = repository();
+    for package in [
+        "legalized-operations",
+        "selected-instructions",
+        "physical-instructions",
+        "machine-code",
+    ] {
+        let source = rust_source(
+            &root
+                .join("omega-rust/omega/representations")
+                .join(package)
+                .join("src"),
+        );
+        for retired in [
+            "pub structural_unit_functions:",
+            "pub struct LegalizedStructuralUnitFunction {",
+            "pub struct SelectedStructuralUnitFunction {",
+            "pub struct PostAllocationStructuralUnitFunction {",
+            "pub struct SelectedStructuralUnitFunctionEncoding {",
+            "pub struct ResolvedStructuralUnitFunctionLayout {",
+            "pub struct StructuralUnitFunctionFragment {",
+            "pub struct WholeFunctionStructuralUnitExitEvidence {",
+            "StructuralUnitV1",
+        ] {
+            assert!(
+                !source.contains(retired),
+                "{package} retains parallel owner {retired}"
+            );
+        }
+    }
+    let legalized =
+        rust_source(&root.join("omega-rust/omega/representations/legalized-operations/src"));
+    assert!(legalized.contains("pub struct LegalizedStructuralContract {"));
+    assert!(legalized.contains("pub enum LegalizedScalarArgument {"));
+    assert!(legalized.contains("pub result: Option<LegalizedValueDefinition>"));
+    let machine = rust_source(&root.join("omega-rust/omega/representations/machine-code/src"));
+    assert!(machine.contains("pub frame: Option<crate::TargetFrameLayoutPlan>"));
+    assert!(machine.contains("pub symbolic: physical_instructions::PhysicalAddressOperation"));
+    let emission = root.join("omega-rust/omega/backend/machine-emission/src");
+    for retired in [
+        "function_realization/structural_unit",
+        "fragments/production/structural_unit",
+        "fragments/validation/structural.rs",
+        "text_placement/production/structural_unit.rs",
+    ] {
+        assert!(
+            !emission.join(retired).exists(),
+            "parallel realization survives: {retired}"
+        );
+    }
+    let replay = std::fs::read_to_string(root.join("omega-rust/omega/backend/images/image-emission/src/function_fragments/structural/validation.rs")).unwrap();
+    for forbidden in [
+        "= settlement_attributions(",
+        "structural::settlement_attributions(",
+        "settlement_offset(",
+        "copy_extent(",
+        "populate(",
+    ] {
+        assert!(
+            !replay.contains(forbidden),
+            "object metadata replay reenters producer {forbidden}"
+        );
+    }
+    for required in [
+        "validate_copy(",
+        "validate_settlement_position(",
+        "completion_claim_sources",
+        "validate_completion_custody(",
+    ] {
+        assert!(
+            replay.contains(required),
+            "independent structural metadata replay loses {required}"
+        );
+    }
 }
 
 #[test]
@@ -449,7 +527,7 @@ fn text_publication_records_and_codec_belong_to_the_representation() {
         assert!(data.contains(declaration));
     }
     let codec = rust_source(&representation.with_extension(""));
-    assert!(codec.contains("const MANIFEST_VERSION: u32 = 13;"));
+    assert!(codec.contains("const MANIFEST_VERSION: u32 = 14;"));
     for forbidden in [
         "native_realization::",
         "machine_emission::",
@@ -823,7 +901,7 @@ fn physical_instruction_data_is_independent_of_optimizer_authority() {
         "pub struct PostAllocationMachineFunction {",
         "pub struct PostAllocationMachineBlock {",
         "pub struct PostAllocationMachineInstruction {",
-        "pub struct PostAllocationStructuralUnitFunction {",
+        "pub enum PhysicalAddressOperation {",
         "pub struct PhysicalOperandFootprint {",
         "pub struct PostAllocationMachineIdentity(",
         "pub enum MachineAlternativeChoiceRule {",
@@ -893,55 +971,44 @@ fn machine_construction_precedes_and_does_not_depend_on_optimization() {
 }
 
 #[test]
-fn structural_call_encoding_data_does_not_require_the_isa_implementation() {
+fn structural_memory_and_call_data_do_not_require_the_isa_implementation() {
     let root = repository();
-    let representation =
-        rust_source(&root.join("omega-rust/omega/representations/machine-code/src"));
+    let machine = rust_source(&root.join("omega-rust/omega/representations/machine-code/src"));
+    let physical =
+        rust_source(&root.join("omega-rust/omega/representations/physical-instructions/src"));
+    let selected =
+        rust_source(&root.join("omega-rust/omega/representations/selected-instructions/src"));
     let isa = rust_source(
         &root.join("omega-rust/omega/backend/instruction_set_architectures/isa-x86_64/src"),
     );
-    for declaration in [
-        "pub enum X86_64StructuralUnitInternalControlFixupKind {",
-        "pub enum X86_64StructuralUnitInternalControlFixupState {",
-        "pub struct X86_64StructuralUnitInternalControlFixup {",
-        "pub enum X86_64StructuralUnitInternalControlResolutionState {",
-        "pub struct X86_64ResolvedStructuralUnitInternalControlFixup {",
-        "pub struct X86_64StructuralUnitRootRead {",
-        "pub struct X86_64StructuralUnitCallerCopyWrite {",
-        "pub struct X86_64StructuralUnitArgumentPointerWrite {",
-        "pub struct X86_64SelectedStructuralUnitCallFootprint {",
+    for (owner, declaration) in [
+        (&machine, "pub struct ResolvedPhysicalAddress {"),
+        (&machine, "pub struct SelectedFormInternalMachineFixup {"),
+        (&physical, "pub enum PhysicalAddressOperation {"),
+        (&selected, "pub struct SelectedCallContract {"),
+        (&selected, "pub struct SelectedMemoryAccess {"),
+        (&selected, "pub struct SelectedOutgoingArgumentSlot {"),
     ] {
-        assert_eq!(
-            representation.matches(declaration).count(),
-            1,
-            "{declaration}"
-        );
+        assert_eq!(owner.matches(declaration).count(), 1, "{declaration}");
         assert!(!isa.contains(declaration), "ISA still owns {declaration}");
     }
-    for admitted in [
-        "pub struct ValidatedX86_64SelectedStructuralUnitCallTemplate {",
-        "pub struct ValidatedX86_64ResolvedStructuralUnitCall {",
+    assert!(isa.contains("pub fn validate_x86_64_selected_memory_form("));
+    assert!(!machine.contains("ValidatedX86_64SelectedStructuralUnitCallTemplate"));
+    assert!(!isa.contains("ValidatedX86_64SelectedStructuralUnitCallTemplate"));
+    for package in [
+        "machine-code",
+        "physical-instructions",
+        "selected-instructions",
     ] {
-        assert!(isa.contains(admitted), "target admission lost {admitted}");
-        assert!(
-            !representation.contains(admitted),
-            "data owner grants target admission"
-        );
+        let manifest = std::fs::read_to_string(
+            root.join("omega-rust/omega/representations")
+                .join(package)
+                .join("Cargo.toml"),
+        )
+        .unwrap();
+        assert!(!manifest.contains("/backend/"));
+        assert!(!manifest.contains("/pipeline/"));
     }
-    for path in [
-        "omega-rust/omega/pipeline/post-allocation-machine-to-selected-form-encoding/src/model.rs",
-        "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout/model.rs",
-    ] {
-        let source = std::fs::read_to_string(root.join(path)).unwrap();
-        assert!(source.contains("use machine_code::{"));
-        assert!(!source.contains("use isa_x86_64::{"));
-    }
-    let manifest = std::fs::read_to_string(
-        root.join("omega-rust/omega/representations/machine-code/Cargo.toml"),
-    )
-    .unwrap();
-    assert!(!manifest.contains("/backend/"));
-    assert!(!manifest.contains("/pipeline/"));
 }
 
 #[test]
@@ -954,7 +1021,7 @@ fn resolved_layout_data_and_identity_do_not_require_a_producing_stage() {
     for declaration in [
         "pub struct ResolvedMachineLayout {",
         "pub struct ResolvedSelectedFunctionLayout {",
-        "pub struct ResolvedStructuralUnitFunctionLayout {",
+        "pub struct ResolvedSelectedFormRow {",
         "pub struct ResolvedSelectedFormLayoutIdentity(",
         "pub struct SelectedFormEncodingIdentity(",
         "pub struct SelectedFormInternalMachineFixup {",
@@ -970,8 +1037,8 @@ fn resolved_layout_data_and_identity_do_not_require_a_producing_stage() {
     assert!(!pipeline.contains(record));
     assert!(!machine.contains("post_allocation_machine_to_post_allocation_machine::"));
     assert!(!machine.contains("pub struct StagedOptimizedResolvedSelectedFormLayout"));
-    assert!(machine.contains("omega.terminal.resolved-selected-form-layout.v9"));
-    assert!(!pipeline.contains("omega.terminal.resolved-selected-form-layout.v9"));
+    assert!(machine.contains("omega.terminal.resolved-selected-form-layout.v10"));
+    assert!(!pipeline.contains("omega.terminal.resolved-selected-form-layout.v10"));
 
     let stage = root.join("omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout");
     let wrapper = std::fs::read_to_string(stage.join("model.rs")).unwrap();
@@ -1005,8 +1072,6 @@ fn exit_contract_records_and_identities_are_representation_owned() {
         "pub struct WholeFunctionExitContract {",
         "pub struct WholeFunctionExitEvidence {",
         "pub struct WholeFunctionReturnEvidence {",
-        "pub struct WholeFunctionStructuralUnitCallEvidence {",
-        "pub struct WholeFunctionStructuralUnitExitEvidence {",
         "pub struct WholeFunctionExitContractIdentity(",
         "pub struct TargetFrameLayoutIdentity(",
         "pub struct TargetFrameProtocolEncodingIdentity(",
@@ -1034,8 +1099,8 @@ fn exit_contract_records_and_identities_are_representation_owned() {
     assert!(emission.contains(wrapper));
     assert!(!pipeline.contains(wrapper));
     assert!(!machine.contains(wrapper));
-    assert!(machine.contains("omega.terminal.whole-function-exit-contract.v10"));
-    assert!(!pipeline.contains("omega.terminal.whole-function-exit-contract.v10"));
+    assert!(machine.contains("omega.terminal.whole-function-exit-contract.v11"));
+    assert!(!pipeline.contains("omega.terminal.whole-function-exit-contract.v11"));
     assert!(!machine.contains("post_allocation_machine_to_post_allocation_machine::"));
     assert!(!machine.contains("native_realization::"));
     assert!(
@@ -1141,8 +1206,8 @@ fn fragment_publication_data_and_codec_do_not_depend_on_admission() {
         );
     }
     let codec = rust_source(&representation.with_extension(""));
-    assert!(codec.contains("omega.function-fragment-emission-manifest.v12"));
-    assert!(!coordinator.contains("omega.function-fragment-emission-manifest.v12"));
+    assert!(codec.contains("omega.function-fragment-emission-manifest.v13"));
+    assert!(!coordinator.contains("omega.function-fragment-emission-manifest.v13"));
     assert!(!pipeline.join("manifest.rs").exists());
     assert!(!pipeline.join("statistics.rs").exists());
     for forbidden in [
@@ -1538,7 +1603,8 @@ fn unit_realization_and_identity_routing_consume_current_allocation() {
     let root = repository().join("omega-rust/omega/compiler/native-realization/src");
     let realization =
         repository().join("omega-rust/omega/backend/machine-emission/src/function_realization");
-    for family in ["unit", "structural_unit"] {
+    assert!(!realization.join("structural_unit").exists());
+    for family in ["unit"] {
         let source = rust_source(&realization.join(family));
         assert!(source.contains("allocation: RetainedAllocation"));
         assert!(source.contains("replay_allocation()"));

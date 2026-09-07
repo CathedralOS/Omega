@@ -39,9 +39,14 @@ pub(super) fn build_realization(
     let physical = allocation.register_environment().physical();
     let selections = allocation.selections();
     let budget = allocation.budget_per_pass();
-    let encoding =
-        stage_optimized_layout_independent_selected_form_encoding(selected, machine, physical)
-            .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
+    let frame = super::unit::frame::stage_unit_frame(allocation, machine)?;
+    let encoding = stage_optimized_layout_independent_selected_form_encoding(
+        selected,
+        machine,
+        physical,
+        frame.as_ref().map(|frame| frame.layout().plan()),
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
     let baseline_layout =
         stage_optimized_resolved_selected_form_layout(selected, machine, physical, &encoding)
             .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
@@ -54,7 +59,6 @@ pub(super) fn build_realization(
         selections,
         budget,
     )?;
-    let frame = super::unit::frame::stage_unit_frame(allocation, machine)?;
     let exit_contract = crate::stage_whole_function_exit_contract_for_layout(
         selected,
         machine,

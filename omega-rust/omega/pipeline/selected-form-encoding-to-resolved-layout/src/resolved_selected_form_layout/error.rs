@@ -10,8 +10,6 @@ pub enum OptimizedResolvedSelectedFormLayoutError {
     PreLayout(OptimizedSelectedFormEncodingError),
     RootMismatch,
     MixedOrdinaryAndStructuralFunctions,
-    StructuralFunctionRosterMismatch(MachineId),
-    StructuralCallRosterMismatch(SelectedInstructionId),
     StructuralReturnRosterMismatch(SelectedInstructionId),
     StructuralEncodingMismatch(SelectedInstructionId),
     UnsupportedFunctionShape(MachineId),

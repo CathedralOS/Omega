@@ -32,7 +32,7 @@ pub(crate) fn compare_i64_left_operand_fixture() -> Fixture {
                 source_value: ValueId::new(1).unwrap(),
                 parameter_index: 0,
             },
-            definition_site: ValueDefinitionSite::FunctionParameter(0),
+            definition_site: Some(ValueDefinitionSite::FunctionParameter(0)),
             entry_fixed_view: Some(x0.id),
         },
         VirtualRegister {
@@ -43,10 +43,10 @@ pub(crate) fn compare_i64_left_operand_fixture() -> Fixture {
                 instruction: SelectedInstructionId(1),
                 source_value: ValueId::new(1).unwrap(),
             },
-            definition_site: ValueDefinitionSite::Node {
+            definition_site: Some(ValueDefinitionSite::Node {
                 block: fixture.selected.functions[0].blocks[0].source_block,
                 node: 0,
-            },
+            }),
             entry_fixed_view: None,
         },
         VirtualRegister {
@@ -57,7 +57,7 @@ pub(crate) fn compare_i64_left_operand_fixture() -> Fixture {
                 source_value: ValueId::new(2).unwrap(),
                 parameter_index: 1,
             },
-            definition_site: ValueDefinitionSite::FunctionParameter(1),
+            definition_site: Some(ValueDefinitionSite::FunctionParameter(1)),
             entry_fixed_view: Some(x1.id),
         },
     ];

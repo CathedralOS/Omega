@@ -7,15 +7,6 @@ pub enum LegalizedExactIntegerOperator {
     Subtract,
 }
 
-/// Closed structural-Unit legalization forms admitted by the mandatory stage.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum StructuralUnitLegalizationRecipe {
-    ReturnUnitV1,
-    AuthoredCallThenReturnUnitV1,
-    InstalledProviderCallThenReturnUnitV1,
-    ClaimCompletionSettlementsThenReturnUnitV1,
-}
-
 /// Closed identity legalization for the first result-bearing structural ABI
 /// family. This recipe retains authority; it does not select instructions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

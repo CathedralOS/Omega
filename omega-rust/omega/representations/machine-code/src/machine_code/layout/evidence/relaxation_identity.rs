@@ -182,6 +182,10 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::ConditionalBranchI64LessThan => 12,
         MachineAlternativeFamily::CallI64 => 13,
         MachineAlternativeFamily::Jump => 14,
+        MachineAlternativeFamily::Load64 => 16,
+        MachineAlternativeFamily::Store64 => 17,
+        MachineAlternativeFamily::FrameAddress => 18,
+        MachineAlternativeFamily::CallUnit => 19,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }
@@ -194,6 +198,22 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
     encode_units(hasher, &effects.implicit_unit_clobbers);
     match effects.memory {
         MachineEncodedMemoryEffect::NoneV1 => hasher.update([0]),
+        MachineEncodedMemoryEffect::ReadPointerV1 {
+            pointer_operand,
+            byte_count,
+        } => {
+            hasher.update([3]);
+            hasher.update(pointer_operand.to_le_bytes());
+            hasher.update(byte_count.to_le_bytes());
+        }
+        MachineEncodedMemoryEffect::WriteOutgoingArgumentV1 {
+            stack_pointer,
+            byte_count,
+        } => {
+            hasher.update([4]);
+            hasher.update(stack_pointer.0.to_le_bytes());
+            hasher.update(byte_count.to_le_bytes());
+        }
         MachineEncodedMemoryEffect::ReadActivationStackV1 {
             stack_pointer,
             byte_count,

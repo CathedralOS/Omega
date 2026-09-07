@@ -42,6 +42,9 @@ pub(super) fn check(
     {
         return Err(WholeFunctionExitContractError::RootMismatch);
     }
+    if encoding.program().frame.as_ref() != frame.map(|(frame, _)| frame.plan()) {
+        return Err(WholeFunctionExitContractError::RootMismatch);
+    }
     let (mut policy, convention, stack_name, link_name, entry) =
         target_contract_inputs(physical, machine.target)?;
     if convention.result_views.len() != 1 || convention.stack_alignment == 0 {
@@ -92,23 +95,6 @@ pub(super) fn check(
     } else {
         WholeFunctionFrameDisposition::FramelessV1
     };
-    if !selected.structural_unit_functions.is_empty() {
-        if policy != WholeFunctionExitPolicy::MicrosoftX64FramelessLeafV1
-            || frame.is_some() || custody != WholeFunctionExitLayoutCustody::BaselineNearLayoutV1
-            || !selected.functions.is_empty() || !machine.functions.is_empty()
-            || !encoding.rows().is_empty() || !layout.functions().is_empty()
-            || layout.policy() != machine_code::SelectedFunctionLayoutPolicy::StructuralUnitCallThenReturnSingleEntryBlockV1
-        { return Err(WholeFunctionExitContractError::UnsupportedTargetPolicy); }
-        policy = if selected
-            .structural_unit_functions
-            .iter()
-            .any(|function| function.call.is_some())
-        {
-            WholeFunctionExitPolicy::MicrosoftX64BalancedStructuralUnitCallV1
-        } else {
-            WholeFunctionExitPolicy::MicrosoftX64FramelessStructuralUnitLeafV1
-        };
-    }
     require(
         contract.selected == machine.selected
             && contract.post_allocation_manifest == machine.post_allocation_manifest

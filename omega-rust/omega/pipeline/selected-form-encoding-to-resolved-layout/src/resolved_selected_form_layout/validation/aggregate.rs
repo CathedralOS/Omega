@@ -41,7 +41,6 @@ pub(super) fn validate_identity(
         artifact.target(),
         artifact.policy(),
         artifact.functions(),
-        artifact.structural_unit_functions(),
     );
     if artifact.identity() != identity {
         return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);

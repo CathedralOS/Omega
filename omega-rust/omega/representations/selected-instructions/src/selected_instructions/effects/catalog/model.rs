@@ -39,10 +39,14 @@ pub enum MachineSemanticKind {
     CallI64,
     Jump,
     ZeroExtendU8,
+    Load64,
+    Store64,
+    FrameAddress,
+    CallUnit,
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 16] = [
+    pub const ALL: [Self; 20] = [
         Self::CompareI64Zero,
         Self::MaterializeI64,
         Self::CopyI64,
@@ -59,6 +63,10 @@ impl MachineSemanticKind {
         Self::CallI64,
         Self::Jump,
         Self::ZeroExtendU8,
+        Self::Load64,
+        Self::Store64,
+        Self::FrameAddress,
+        Self::CallUnit,
     ];
 }
 
@@ -80,6 +88,10 @@ pub enum MachineAlternativeFamily {
     CallI64,
     Jump,
     ZeroExtendU8,
+    Load64,
+    Store64,
+    FrameAddress,
+    CallUnit,
 }
 
 impl From<MachineSemanticKind> for MachineAlternativeFamily {
@@ -101,6 +113,10 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::CallI64 => Self::CallI64,
             MachineSemanticKind::Jump => Self::Jump,
             MachineSemanticKind::ZeroExtendU8 => Self::ZeroExtendU8,
+            MachineSemanticKind::Load64 => Self::Load64,
+            MachineSemanticKind::Store64 => Self::Store64,
+            MachineSemanticKind::FrameAddress => Self::FrameAddress,
+            MachineSemanticKind::CallUnit => Self::CallUnit,
         }
     }
 }
@@ -145,6 +161,8 @@ pub enum MachineAlternativeApplicability {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineMemoryEffect {
     NoneV1,
+    ReadPointerV1,
+    WriteOutgoingArgumentV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -169,49 +187,6 @@ pub enum MachineCallEffect {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineCleanupEffect {
     NoneV1,
-}
-
-/// Structural memory footprint of the bounded Microsoft-x64 Unit call pseudo.
-/// This is semantic/pre-allocation custody, not an emitted load/store recipe.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StructuralUnitCallMemoryEffect {
-    ReadOwnedIndirectPairWriteCallerCopiesV1 {
-        root_byte_count: u16,
-        copy_stack_byte_offsets: [u32; 2],
-    },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StructuralUnitCallFrameEffect {
-    BalancedCallerFrameV1 {
-        frame_byte_count: u32,
-        shadow_byte_count: u32,
-        pre_call_stack_alignment: u16,
-    },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StructuralUnitCallBarrier {
-    CallV1,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StructuralUnitCallEffect {
-    DirectInternalUnitV1,
-}
-
-/// Target-applicable semantic machine effects for the atomic structural call.
-/// Keeping this outside the ordinary alternative roster prevents this stage
-/// from claiming an encoding, displacement, symbol, or object relocation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StructuralUnitCallEffectDeclaration {
-    pub constraint: RegisterConstraintKey,
-    pub memory: StructuralUnitCallMemoryEffect,
-    pub frame: StructuralUnitCallFrameEffect,
-    pub trap: MachineTrapBehavior,
-    pub barrier: StructuralUnitCallBarrier,
-    pub call: StructuralUnitCallEffect,
-    pub cleanup: MachineCleanupEffect,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -270,6 +245,14 @@ impl MachineEncodedEffects {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineEncodedMemoryEffect {
     NoneV1,
+    ReadPointerV1 {
+        pointer_operand: u16,
+        byte_count: u16,
+    },
+    WriteOutgoingArgumentV1 {
+        stack_pointer: RegisterViewId,
+        byte_count: u16,
+    },
     ReadActivationStackV1 {
         stack_pointer: RegisterViewId,
         byte_count: u16,
@@ -335,7 +318,6 @@ pub struct MachineEffectCatalog {
     pub target: NativeTarget,
     pub register_constraints: RegisterConstraintCatalogIdentity,
     pub selected_keys: SelectedConstraintKeys,
-    pub structural_unit_call: Option<StructuralUnitCallEffectDeclaration>,
     pub declarations: Vec<MachineEffectDeclaration>,
 }
 
@@ -370,7 +352,6 @@ pub enum MachineEffectCatalogValidationError {
     InvalidEncodedEffects(MachineSemanticKind),
     InvalidSizeKnowledge(MachineSemanticKind),
     BarrierMismatch(MachineSemanticKind),
-    StructuralCallDeclarationMismatch,
 }
 
 impl std::fmt::Display for MachineEffectCatalogValidationError {

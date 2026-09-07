@@ -10,7 +10,6 @@ pub mod functions;
 pub mod identity;
 pub mod policy;
 pub mod program;
-pub mod structural;
 pub mod text_section;
 
 pub use control_flow::*;
@@ -19,7 +18,6 @@ pub use functions::*;
 pub use identity::{ResolvedSelectedFormLayoutIdentity, resolved_machine_layout_identity};
 pub use policy::*;
 pub use program::ResolvedMachineProgram;
-pub use structural::*;
 pub use text_section::*;
 
 use crate::{SelectedFormMachineOptimizationCustody, SelectedFormMovnOptimizationCustody};
@@ -41,7 +39,6 @@ pub struct ResolvedMachineLayout {
     pub policy: SelectedFunctionLayoutPolicy,
     pub identity: ResolvedSelectedFormLayoutIdentity,
     pub functions: Vec<ResolvedSelectedFunctionLayout>,
-    pub structural_unit_functions: Vec<ResolvedStructuralUnitFunctionLayout>,
 }
 
 impl ResolvedMachineLayout {
@@ -115,10 +112,6 @@ impl ResolvedMachineLayout {
         &self.functions
     }
 
-    pub fn structural_unit_functions(&self) -> &[ResolvedStructuralUnitFunctionLayout] {
-        &self.structural_unit_functions
-    }
-
     pub fn recomputed_identity(&self) -> ResolvedSelectedFormLayoutIdentity {
         resolved_machine_layout_identity(
             self.selected,
@@ -128,7 +121,6 @@ impl ResolvedMachineLayout {
             self.target,
             self.policy,
             &self.functions,
-            &self.structural_unit_functions,
         )
     }
 }

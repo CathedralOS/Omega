@@ -5,7 +5,6 @@
 
 mod projected_structural_call_return;
 mod scalar_graph;
-mod structural_unit;
 
 use crate::selection::constraints::require_key_rows;
 use crate::selection::shared::*;
@@ -27,15 +26,6 @@ pub(super) fn build_plan(
         })
         .collect::<Result<Vec<_>, _>>()?;
     functions.sort_by_key(|function| function.machine);
-    let mut structural_unit_functions = target
-        .structural_unit_functions
-        .iter()
-        .enumerate()
-        .map(|(index, source)| {
-            structural_unit::build(index, source, target, &constraints.keys, catalog)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    structural_unit_functions.sort_by_key(|function| function.machine);
     let projected_structural_call_returns = target
         .projected_structural_call_returns
         .iter()
@@ -55,7 +45,6 @@ pub(super) fn build_plan(
         target: target.target,
         entry: target.entry,
         functions,
-        structural_unit_functions,
         projected_structural_call_returns,
     })
 }

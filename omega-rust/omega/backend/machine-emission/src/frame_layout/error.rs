@@ -4,7 +4,6 @@ pub enum TargetFrameLayoutError {
     UnsupportedPolicy,
     UnsupportedTarget,
     FunctionRosterMismatch,
-    StructuralFunctionUnsupported,
     MissingStackPointerView,
     MissingLinkRegisterView,
     GeometryOverflow,

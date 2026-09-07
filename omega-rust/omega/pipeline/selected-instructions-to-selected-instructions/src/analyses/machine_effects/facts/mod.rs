@@ -8,8 +8,7 @@ pub use model::*;
 pub use selected_instructions::{
     BlockMachineEffects, FunctionMachineEffects, InstructionMachineEffects,
     PreAllocationMachineEffectDecodeError, PreAllocationMachineEffectIdentity,
-    PreAllocationMachineEffectPlan, StructuralUnitCallMachineEffects,
-    StructuralUnitFunctionMachineEffects, pre_allocation_machine_effect_identity,
+    PreAllocationMachineEffectPlan, pre_allocation_machine_effect_identity,
 };
 pub use validate::validate_pre_allocation_machine_effects;
 

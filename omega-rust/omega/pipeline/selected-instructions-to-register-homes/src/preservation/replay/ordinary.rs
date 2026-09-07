@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use selected_instructions::{SelectedInstruction, SelectedTerminator};
 
 use super::{
-    super::{AllocatedCalleeSavedFunctionKind, AllocatedCalleeSavedRequirementError},
+    super::AllocatedCalleeSavedRequirementError,
     state::{ReplayTraversal, add},
     writes::{index_homes, scan_instruction},
 };
@@ -42,11 +42,7 @@ pub(super) fn reconstruct(
             &mut units,
         )?;
     }
-    traversal.finish(
-        function.machine,
-        AllocatedCalleeSavedFunctionKind::Ordinary,
-        units,
-    );
+    traversal.finish(function.machine, units);
     Ok(())
 }
 

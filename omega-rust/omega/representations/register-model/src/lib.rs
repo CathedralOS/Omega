@@ -192,9 +192,12 @@ pub struct RegisterConstraintKey {
 /// environment. Named fields prevent positional key drift in its identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetRegisterEnvironmentConstraintKeys {
+    pub load64: Option<RegisterConstraintKey>,
+    pub store64: Option<RegisterConstraintKey>,
+    pub frame_address: Option<RegisterConstraintKey>,
+    pub call_unit: Option<RegisterConstraintKey>,
     /// Target-applicable bounded structural Unit call. `None` means this
     /// environment does not claim that ABI/ISA form; it is not a dummy row.
-    pub structural_unit_call: Option<RegisterConstraintKey>,
     /// Target-owned register-call keys indexed by argument count, including zero.
     /// Empty means this environment supplies no scalar register-call form.
     pub call_i64: Vec<RegisterConstraintKey>,
@@ -1605,7 +1608,10 @@ mod tests {
         )
         .unwrap();
         let keys = TargetRegisterEnvironmentConstraintKeys {
-            structural_unit_call: Some(RegisterConstraintKey {
+            load64: Some(instruction_key(30)),
+            store64: Some(instruction_key(31)),
+            frame_address: Some(instruction_key(32)),
+            call_unit: Some(RegisterConstraintKey {
                 family: RegisterConstraintFamily::Call,
                 variant: 2,
             }),
@@ -1676,7 +1682,24 @@ mod tests {
 
         for changed_keys in [
             TargetRegisterEnvironmentConstraintKeys {
-                structural_unit_call: None,
+                call_unit: None,
+                ..keys.clone()
+            },
+            TargetRegisterEnvironmentConstraintKeys {
+                load64: None,
+                ..keys.clone()
+            },
+            TargetRegisterEnvironmentConstraintKeys {
+                store64: None,
+                ..keys.clone()
+            },
+            TargetRegisterEnvironmentConstraintKeys {
+                frame_address: None,
+                ..keys.clone()
+            },
+            TargetRegisterEnvironmentConstraintKeys {
+                load64: keys.store64,
+                store64: keys.load64,
                 ..keys.clone()
             },
             TargetRegisterEnvironmentConstraintKeys {

@@ -6,9 +6,12 @@ use target_operations::MachineRegister;
 /// Numeric variants are deliberately not inferred by target-neutral stages.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedConstraintKeys {
+    pub load64: Option<RegisterConstraintKey>,
+    pub store64: Option<RegisterConstraintKey>,
+    pub frame_address: Option<RegisterConstraintKey>,
+    pub call_unit: Option<RegisterConstraintKey>,
     /// Target-applicable structural Unit call. Absence is an explicit refusal
     /// to select the bounded structural-call roster on this target.
-    pub structural_unit_call: Option<RegisterConstraintKey>,
     /// Register-passed U64 call rows indexed by argument count, including zero.
     /// An empty roster explicitly supplies no scalar-call form on this target.
     pub call_i64: Vec<RegisterConstraintKey>,

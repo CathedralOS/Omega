@@ -1,9 +1,6 @@
 //! Optimizer module role: executable entrance. Selected-plan payload coordination inside the versioned artifact envelope.
 //!
-//! V4 owns the historical scalar roster. V5 introduced the authenticated
-//! structural taxonomy; V6 extends its call leaf with proof/crash custody.
-//! V8 appended predicate-aware instruction and terminator tags. V9 appends the
-//! direct scalar-call tag and callee payload to that byte-stable taxonomy.
+//! One ordinary function graph; structural contracts are instruction-keyed data.
 
 mod block;
 mod function;
@@ -23,22 +20,22 @@ use super::primitives::Cursor;
 #[cfg(test)]
 pub(super) use self::instruction::decode_kind;
 
-pub(super) fn encode_selected_plan_v4(bytes: &mut Vec<u8>, plan: &SelectedInstructionPlan) {
+pub(super) fn encode_ordinary_plan(bytes: &mut Vec<u8>, plan: &SelectedInstructionPlan) {
     scalar::encode(bytes, plan);
 }
 
-pub(super) fn decode_selected_plan_v4(
+pub(super) fn decode_ordinary_plan(
     cursor: &mut Cursor<'_>,
 ) -> Result<SelectedInstructionPlan, FixedViewCopyDecodeError> {
     scalar::decode(cursor)
 }
 
-pub(super) fn encode_selected_plan_v6(bytes: &mut Vec<u8>, plan: &SelectedInstructionPlan) {
-    payload::encode(bytes, plan, true);
+pub(super) fn encode_selected_plan(bytes: &mut Vec<u8>, plan: &SelectedInstructionPlan) {
+    payload::encode(bytes, plan);
 }
 
-pub(super) fn decode_selected_plan_v6(
+pub(super) fn decode_selected_plan(
     cursor: &mut Cursor<'_>,
 ) -> Result<DecodedSelectedPlan, FixedViewCopyDecodeError> {
-    payload::decode(cursor, true)
+    payload::decode(cursor)
 }

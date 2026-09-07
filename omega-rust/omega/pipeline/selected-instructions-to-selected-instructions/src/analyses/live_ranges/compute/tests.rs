@@ -5,8 +5,8 @@ use selected_instructions::{SelectedBlockId, SelectedInstructionId, VirtualRegis
 use semantic_vocabulary::{BlockId, MachineId};
 
 use super::{
-    block_domain, build_unit, compute_structural_function, derive_early_clobbers,
-    derive_tied_pairs, fragments_overlap, virtual_fragments,
+    block_domain, build_unit, compute_function, derive_early_clobbers, derive_tied_pairs,
+    fragments_overlap, virtual_fragments,
 };
 use crate::{
     BlockLiveness, FunctionLiveness, InstructionLiveness, LiveRangeFragment, LiveRangePoint,
@@ -49,7 +49,7 @@ fn block(id: u32, instructions: Vec<InstructionLiveness>) -> BlockLiveness {
 }
 
 #[test]
-fn structural_unit_ranges_retain_architecture_without_inventing_virtuals() {
+fn ordinary_ranges_retain_architecture_without_inventing_virtuals() {
     let mut call = instruction(0, &[], &[], &[], &[]);
     call.unit_uses = vec![RegisterUnitId(1)];
     call.unit_defs = vec![RegisterUnitId(2)];
@@ -65,7 +65,25 @@ fn structural_unit_ranges_retain_architecture_without_inventing_virtuals() {
         operand_positions: Vec::new(),
         blocks: vec![block(0, vec![call, returned])],
     };
-    let ranges = compute_structural_function(0, live.machine, &live).unwrap();
+    let mut selected =
+        crate::analyses::liveness::tests::function_with_operand(RegisterOperandAccess::Use);
+    selected.machine = live.machine;
+    let instruction = &mut selected.blocks[0].instructions[0];
+    instruction.kind = selected_instructions::SelectedInstructionKind::CallUnit {
+        callee: MachineId::new(10).unwrap(),
+    };
+    instruction.operands.clear();
+    instruction.implicit_uses = vec![RegisterUnitId(1)];
+    instruction.implicit_defs = vec![RegisterUnitId(2)];
+    instruction.clobbers = vec![RegisterUnitId(3)];
+    let selected_instructions::SelectedTerminator::Return { instruction, .. } =
+        &mut selected.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    instruction.kind = selected_instructions::SelectedInstructionKind::ReturnUnit;
+    instruction.implicit_uses = vec![RegisterUnitId(2)];
+    let ranges = compute_function(0, &selected, &live).unwrap();
     assert_eq!(ranges.machine, live.machine);
     assert!(ranges.virtual_registers.is_empty());
     assert!(ranges.tied_pairs.is_empty());

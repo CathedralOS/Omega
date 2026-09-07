@@ -43,6 +43,7 @@ machine-code = { path = "../../representations/machine-code" }
 machine-emission = { path = "../../backend/machine-emission" }
 native-artifact = { path = "../../backend/artifacts/native-artifact" }
 selected-instructions = { path = "../../representations/selected-instructions" }
+legalized-operations = { path = "../../representations/legalized-operations" }
 terminal-psi-to-abstract-operations = { path = "../../pipeline/terminal-psi-to-abstract-operations" }
 target-operations = { path = "../../representations/target-operations" }
 target-operations-to-assigned-target-operations = { path = "../../pipeline/target-operations-to-assigned-target-operations" }

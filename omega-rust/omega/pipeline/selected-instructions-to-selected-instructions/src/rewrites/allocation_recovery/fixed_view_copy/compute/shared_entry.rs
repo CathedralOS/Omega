@@ -161,7 +161,12 @@ pub(super) fn build_shared_entry_copy(
         machine: function.machine,
         source_virtual_register: source.id,
         source_value,
-        source_definition_site: source.definition_site,
+        source_definition_site: source.definition_site.ok_or(
+            FixedViewCopyError::UnsupportedSourceRegister {
+                function: function_index,
+                register: source.id.0,
+            },
+        )?,
         from_view,
         to_view: destinations[0].view,
         insertion_block: entry.id,

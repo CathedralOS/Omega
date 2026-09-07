@@ -23,6 +23,7 @@ fn staged_call_encoding(
         selected_stage.selected(),
         &post,
         selected_stage.register_environment().physical(),
+        None,
     )
     .unwrap();
     (homes, post, encoding)
@@ -110,10 +111,6 @@ fn target_owned_unresolved_call_templates_survive_layout_on_both_isas() {
                 ordinary_encoded_call_templates: 3,
                 ordinary_deferred_internal_control: 3,
                 ordinary_internal_fixups: 3,
-                structural_encoded_call_templates: 0,
-                structural_encoded_returns: 0,
-                structural_deferred_internal_control: 0,
-                structural_internal_fixups: 0,
             }
         );
 
@@ -191,6 +188,7 @@ fn target_owned_unresolved_call_templates_survive_layout_on_both_isas() {
             selected_stage.selected(),
             &post,
             physical,
+            None,
             &encoding,
         )
         .unwrap();
@@ -376,6 +374,23 @@ fn target_owned_unresolved_call_templates_survive_layout_on_both_isas() {
                 | WholeFunctionExitContractError::LinkRegisterWrite(_)
         ));
 
+        // Frame geometry is an encoding input, not evidence attachable after
+        // encoding. Keep the frameless rejection above and replay a fresh
+        // frame-bound encoding/layout for the framed contract.
+        let encoding = stage_optimized_layout_independent_selected_form_encoding(
+            selected_stage.selected(),
+            &post,
+            physical,
+            Some(frame.plan()),
+        )
+        .unwrap();
+        let layout = stage_optimized_resolved_selected_form_layout(
+            selected_stage.selected(),
+            &post,
+            physical,
+            &encoding,
+        )
+        .unwrap();
         let contract = stage_whole_function_exit_contract_with_frame(
             selected_stage.selected(),
             &post,
@@ -593,7 +608,7 @@ fn selected_call_template_and_layout_corruption_fail_independent_replay() {
             }
             assert!(matches!(
                 validate_optimized_layout_independent_selected_form_encoding(
-                    selected, &post, physical, &corrupted,
+                    selected, &post, physical, None, &corrupted,
                 ),
                 Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
             ));

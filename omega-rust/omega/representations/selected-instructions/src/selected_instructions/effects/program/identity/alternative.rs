@@ -24,6 +24,10 @@ pub(super) fn encode_alternative(bytes: &mut Vec<u8>, alternative: &MachineAlter
         MachineAlternativeFamily::ConditionalBranchI64LessThan => 12,
         MachineAlternativeFamily::CallI64 => 13,
         MachineAlternativeFamily::Jump => 14,
+        MachineAlternativeFamily::Load64 => 16,
+        MachineAlternativeFamily::Store64 => 17,
+        MachineAlternativeFamily::FrameAddress => 18,
+        MachineAlternativeFamily::CallUnit => 19,
     });
     bytes.extend_from_slice(&alternative.key.variant.to_le_bytes());
     encode_applicability(bytes, alternative.applicability);
@@ -113,6 +117,22 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
     encode_units(bytes, &effects.implicit_unit_defs);
     encode_units(bytes, &effects.implicit_unit_clobbers);
     match effects.memory {
+        MachineEncodedMemoryEffect::ReadPointerV1 {
+            pointer_operand,
+            byte_count,
+        } => {
+            bytes.push(3);
+            bytes.extend_from_slice(&pointer_operand.to_le_bytes());
+            bytes.extend_from_slice(&byte_count.to_le_bytes());
+        }
+        MachineEncodedMemoryEffect::WriteOutgoingArgumentV1 {
+            stack_pointer,
+            byte_count,
+        } => {
+            bytes.push(4);
+            bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
+            bytes.extend_from_slice(&byte_count.to_le_bytes());
+        }
         MachineEncodedMemoryEffect::NoneV1 => bytes.push(0),
         MachineEncodedMemoryEffect::ReadActivationStackV1 {
             stack_pointer,

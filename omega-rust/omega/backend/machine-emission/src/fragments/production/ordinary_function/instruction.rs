@@ -87,12 +87,17 @@ fn translate_fixup(
     instruction: &SelectedInstruction,
 ) -> Result<Option<FunctionFragmentInternalMachineFixup>, ResolvedFragmentEmissionError> {
     let Some(fixup) = row.internal_machine_fixup else {
-        if matches!(instruction.kind, SelectedInstructionKind::CallI64 { .. }) {
+        if matches!(
+            instruction.kind,
+            SelectedInstructionKind::CallI64 { .. } | SelectedInstructionKind::CallUnit { .. }
+        ) {
             return Err(ResolvedFragmentEmissionError::RootMismatch);
         }
         return Ok(None);
     };
-    let SelectedInstructionKind::CallI64 { callee } = instruction.kind else {
+    let (SelectedInstructionKind::CallI64 { callee }
+    | SelectedInstructionKind::CallUnit { callee }) = instruction.kind
+    else {
         return Err(ResolvedFragmentEmissionError::RootMismatch);
     };
     if fixup.state != SelectedFormInternalMachineFixupState::UnresolvedZeroFieldV1

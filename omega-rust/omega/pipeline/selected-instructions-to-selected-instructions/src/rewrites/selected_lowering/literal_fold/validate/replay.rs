@@ -240,7 +240,14 @@ fn rebuild_function(
         .ok_or(LiteralFoldError::DecisionMismatch {
             function: function_index,
         })?;
+    let removed_position =
+        u32::try_from(literal_index).map_err(|_| LiteralFoldError::WorkOverflow)?;
     let literal = block.instructions.remove(literal_index);
+    for settlement in &mut function.boundary_settlements {
+        if settlement.block == action.block && settlement.instruction_index > removed_position {
+            settlement.instruction_index -= 1;
+        }
+    }
     let consumer = block
         .instructions
         .get_mut(literal_index)
@@ -331,14 +338,24 @@ fn redensify(
     removed_instruction: SelectedInstructionId,
     removed_register: VirtualRegisterId,
 ) -> Result<(), LiteralFoldError> {
+    for call in &mut function.calls {
+        call.instruction =
+            lower_instruction(function_index, call.instruction, removed_instruction)?;
+    }
+    for access in &mut function.memory_accesses {
+        access.instruction =
+            lower_instruction(function_index, access.instruction, removed_instruction)?;
+    }
     for register in &mut function.virtual_registers {
         register.id = lower_register(function_index, register.id, removed_register)?;
         match &mut register.origin {
-            VirtualRegisterOrigin::InstructionResult { instruction, .. } => {
+            VirtualRegisterOrigin::InstructionResult { instruction, .. }
+            | VirtualRegisterOrigin::AbiTransport { instruction, .. } => {
                 *instruction =
                     lower_instruction(function_index, *instruction, removed_instruction)?;
             }
             VirtualRegisterOrigin::EntryParameter { .. }
+            | VirtualRegisterOrigin::StructuralParameter { .. }
             | VirtualRegisterOrigin::BlockParameter { .. } => {}
         }
     }

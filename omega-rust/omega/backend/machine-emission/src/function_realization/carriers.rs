@@ -47,6 +47,14 @@ impl StagedFixedFrameFunctionRelativeRealization {
     pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachinePlan {
         &self.machine
     }
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn encoding_mut(&mut self) -> &mut StagedOptimizedSelectedFormEncoding {
+        &mut self.encoding
+    }
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn baseline_layout_mut(&mut self) -> &mut StagedOptimizedResolvedSelectedFormLayout {
+        &mut self.baseline_layout
+    }
     pub const fn encoding(&self) -> &StagedOptimizedSelectedFormEncoding {
         &self.encoding
     }

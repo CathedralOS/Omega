@@ -21,10 +21,6 @@ pub enum WholeFunctionExitContractError {
     MissingInstruction(SelectedInstructionId),
     FunctionRosterMismatch(MachineId),
     FramePreservationMismatch(MachineId),
-    StructuralFunctionRosterMismatch(MachineId),
-    StructuralCallRosterMismatch(SelectedInstructionId),
-    StructuralCallTopologyMismatch,
-    StructuralCallLayoutMismatch(SelectedInstructionId),
     BlockRosterMismatch(SelectedBlockId),
     InstructionRosterMismatch(SelectedInstructionId),
     CalleeSavedWrite {

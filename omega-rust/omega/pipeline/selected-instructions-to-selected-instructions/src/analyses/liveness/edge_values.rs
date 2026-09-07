@@ -145,7 +145,7 @@ pub(crate) fn incoming_argument(
         return Ok(destination);
     }
     if destination_register.definition_site
-        != (optimization_unit::ValueDefinitionSite::BlockParameter {
+        != Some(optimization_unit::ValueDefinitionSite::BlockParameter {
             block: successor.source_target,
             position: u32::try_from(parameter_index).map_err(|_| mismatch())?,
         })
@@ -183,6 +183,8 @@ pub(crate) fn incoming_argument(
         return Err(mismatch());
     }
     let value = match source.origin {
+        VirtualRegisterOrigin::StructuralParameter { .. }
+        | VirtualRegisterOrigin::AbiTransport { .. } => return Err(mismatch()),
         VirtualRegisterOrigin::EntryParameter { source_value, .. }
         | VirtualRegisterOrigin::BlockParameter { source_value, .. }
         | VirtualRegisterOrigin::InstructionResult { source_value, .. } => source_value,

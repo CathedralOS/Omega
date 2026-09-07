@@ -26,22 +26,18 @@ pub fn validate_fixed_precolored_intervals(
     if candidate.usage != expected.usage {
         return Err(FixedPrecoloredIntervalError::UsageMismatch);
     }
-    if candidate.functions != expected.functions
-        || candidate.structural_unit_functions != expected.structural_unit_functions
-    {
+    if candidate.functions != expected.functions {
         return Err(FixedPrecoloredIntervalError::NonCanonicalFunctions);
     }
     let all = candidate
         .functions
         .iter()
-        .chain(&candidate.structural_unit_functions)
         .flat_map(|function| &function.intervals)
         .collect::<Vec<_>>();
     let inspected_register_count = ranges
         .plan()
         .functions
         .iter()
-        .chain(&ranges.plan().structural_unit_functions)
         .map(|function| function.virtual_registers.len())
         .sum();
     let entry_interval_count = all
@@ -59,7 +55,6 @@ pub fn validate_fixed_precolored_intervals(
         policy: candidate.policy,
         usage: candidate.usage,
         function_count: candidate.functions.len(),
-        structural_unit_function_count: candidate.structural_unit_functions.len(),
         inspected_register_count,
         interval_count: all.len(),
         entry_interval_count,

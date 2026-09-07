@@ -5,8 +5,8 @@
 mod manifest;
 
 use super::{
-    FunctionFragmentEmissionError, FunctionFragmentEmissionSourceKind,
-    StagedOptimizedFunctionFragmentEmissionSource, ValidatedFunctionFragmentEmissionManifest,
+    FunctionFragmentEmissionError, StagedOptimizedFunctionFragmentEmissionSource,
+    ValidatedFunctionFragmentEmissionManifest,
 };
 
 pub(super) type Emission = (
@@ -25,10 +25,5 @@ pub(super) fn compute(
     {
         return Err(FunctionFragmentEmissionError::RootMismatch);
     }
-    let source_kind = if source.selected_plan().structural_unit_functions.is_empty() {
-        source.source_kind()
-    } else {
-        FunctionFragmentEmissionSourceKind::StructuralUnitV1
-    };
-    manifest::seal(fragments, source_manifest, source_kind)
+    manifest::seal(fragments, source_manifest, source.source_kind())
 }

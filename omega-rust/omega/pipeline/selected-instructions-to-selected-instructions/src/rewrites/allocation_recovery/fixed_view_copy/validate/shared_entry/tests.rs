@@ -73,7 +73,7 @@ fn independent_replay_reconstructs_one_copy_and_both_returns() {
             }
             2 => {
                 changed.virtual_registers[2].definition_site =
-                    optimization_unit::ValueDefinitionSite::FunctionParameter(0)
+                    Some(optimization_unit::ValueDefinitionSite::FunctionParameter(0))
             }
             3 | 4 => {
                 let SelectedTerminator::Return { instruction, .. } =

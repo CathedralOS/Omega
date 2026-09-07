@@ -80,16 +80,6 @@ pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
         ],
     },
     RuleStageDescriptor {
-        entrance: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/mod.rs",
-        catalog: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/catalog.rs",
-        coordination_marker: "pub fn legalize_target_operations",
-        catalog_marker: "LEGALIZATION_FORMS",
-        next_rungs: &[
-            "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/source",
-            "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/replay",
-        ],
-    },
-    RuleStageDescriptor {
         entrance: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/mod.rs",
         catalog: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/catalog.rs",
         coordination_marker: "pub fn built_in_psi_registries",

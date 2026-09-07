@@ -24,10 +24,12 @@ pub(super) fn classify(
         return no_recovery(NoAdmittedRecoveryReason::UnsupportedScalarType);
     }
     let (defining_id, source_value) = match victim.origin {
-        VirtualRegisterOrigin::BlockParameter { .. } => {
+        VirtualRegisterOrigin::BlockParameter { .. }
+        | VirtualRegisterOrigin::AbiTransport { .. } => {
             return no_recovery(NoAdmittedRecoveryReason::UnsupportedRangeShape);
         }
-        VirtualRegisterOrigin::EntryParameter { .. } => {
+        VirtualRegisterOrigin::EntryParameter { .. }
+        | VirtualRegisterOrigin::StructuralParameter { .. } => {
             return no_recovery(NoAdmittedRecoveryReason::EntryParameter);
         }
         VirtualRegisterOrigin::InstructionResult {

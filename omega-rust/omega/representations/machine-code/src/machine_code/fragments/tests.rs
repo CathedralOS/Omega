@@ -47,7 +47,6 @@ fn zero_span_plan() -> FunctionFragmentEmissionPlan {
                 }],
             }],
         }],
-        structural_unit_functions: Vec::new(),
     };
     plan.identity = plan.recomputed_identity();
     plan

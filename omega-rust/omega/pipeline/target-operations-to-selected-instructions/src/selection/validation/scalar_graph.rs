@@ -1,3 +1,4 @@
+//! Optimizer module role: executable entrance.
 //! Replay selected register transport against the current scalar graph.
 //! This checks the proposed stream in place; it does not call selection.
 
@@ -7,6 +8,7 @@ use crate::selection::shared::*;
 use legalized_operations::{LegalizedScalarFunction, LegalizedScalarInstructionKind};
 
 mod control;
+mod structural;
 mod zero_compare;
 
 pub(in crate::selection) fn validate(
@@ -24,6 +26,7 @@ pub(in crate::selection) fn validate(
     if selected.machine != source.machine
         || selected.attachment != source.attachment
         || selected.provenance != source.provenance
+        || selected.structural != source.structural
         || selected.entry_block != SelectedBlockId(0)
     {
         return Err(invalid());
@@ -49,8 +52,10 @@ pub(in crate::selection) fn validate(
         block_cursor: 0,
         register_cursor: 0,
         definitions: Vec::new(),
+        transport: structural::Transport::default(),
         constraints,
     };
+    structural::entry(source, &environment, &mut replay)?;
     for (index, parameter) in source.parameters.iter().enumerate() {
         if !source.references_value(parameter.value) {
             continue;
@@ -160,7 +165,11 @@ pub(in crate::selection) fn validate(
             if zero_compare::folded_zero(source, source_block, operation_index + 1).is_some() {
                 continue;
             }
-            let scalar_type = operation.scalar_type;
+            if structural::operation(source, operation, &environment, &mut replay)? {
+                continue;
+            }
+            let result = operation.result.ok_or_else(invalid)?;
+            let scalar_type = result.scalar_type;
             let output = match &operation.kind {
                 LegalizedScalarInstructionKind::Compare {
                     predicate,
@@ -168,13 +177,17 @@ pub(in crate::selection) fn validate(
                     left,
                     right,
                 } => {
-                    if !branch_suffix(source_block, operation_index) {
+                    if !control::branch_suffix(source_block, operation_index) {
                         return Err(invalid());
                     }
                     if let Some(zero) =
                         zero_compare::folded_zero(source, source_block, operation_index)
                     {
-                        let input = if *left == zero.result { *right } else { *left };
+                        let input = if *left == zero.result.ok_or_else(invalid)?.value {
+                            *right
+                        } else {
+                            *left
+                        };
                         let (_, register, _, actual_type) =
                             replay.resolve(input).ok_or_else(invalid)?;
                         if actual_type != ScalarType::Integer(*operand_type)
@@ -188,7 +201,11 @@ pub(in crate::selection) fn validate(
                             &[register],
                             &SelectedInstructionProvenance {
                                 operations: vec![zero.operation, operation.operation],
-                                values: vec![input, zero.result, operation.result],
+                                values: vec![
+                                    input,
+                                    zero.result.ok_or_else(invalid)?.value,
+                                    result.value,
+                                ],
                                 fuel: zero.fuel.iter().chain(&operation.fuel).copied().collect(),
                                 ..Default::default()
                             },
@@ -219,7 +236,7 @@ pub(in crate::selection) fn validate(
                         &operands,
                         &SelectedInstructionProvenance {
                             operations: vec![operation.operation],
-                            values: vec![*left, *right, operation.result],
+                            values: vec![*left, *right, result.value],
                             fuel: operation.fuel.clone(),
                             ..Default::default()
                         },
@@ -227,7 +244,7 @@ pub(in crate::selection) fn validate(
                     continue;
                 }
                 LegalizedScalarInstructionKind::BooleanNot { .. } => {
-                    if !branch_suffix(source_block, operation_index) {
+                    if !control::branch_suffix(source_block, operation_index) {
                         return Err(invalid());
                     }
                     continue;
@@ -247,8 +264,8 @@ pub(in crate::selection) fn validate(
                         return Err(invalid());
                     }
                     let output = replay.result_register(
-                        operation.result,
-                        operation.definition_site,
+                        result.value,
+                        result.definition_site,
                         scalar_type,
                     )?;
                     replay.check_instruction(
@@ -257,7 +274,7 @@ pub(in crate::selection) fn validate(
                         &[input, output],
                         &SelectedInstructionProvenance {
                             operations: vec![operation.operation],
-                            values: vec![*operand, operation.result],
+                            values: vec![*operand, result.value],
                             fuel: operation.fuel.clone(),
                             ..Default::default()
                         },
@@ -266,8 +283,8 @@ pub(in crate::selection) fn validate(
                 }
                 LegalizedScalarInstructionKind::Constant(value) => {
                     let register = replay.result_register(
-                        operation.result,
-                        operation.definition_site,
+                        result.value,
+                        result.definition_site,
                         scalar_type,
                     )?;
                     replay.check_instruction(
@@ -276,7 +293,7 @@ pub(in crate::selection) fn validate(
                         &[register],
                         &SelectedInstructionProvenance {
                             operations: vec![operation.operation],
-                            values: vec![operation.result],
+                            values: vec![result.value],
                             fuel: operation.fuel.clone(),
                             ..Default::default()
                         },
@@ -314,8 +331,8 @@ pub(in crate::selection) fn validate(
                         ),
                     };
                     let output = replay.result_register(
-                        operation.result,
-                        operation.definition_site,
+                        result.value,
+                        result.definition_site,
                         scalar_type,
                     )?;
                     replay.check_instruction(
@@ -324,7 +341,7 @@ pub(in crate::selection) fn validate(
                         &[left_register, right_register, output],
                         &SelectedInstructionProvenance {
                             operations: vec![operation.operation],
-                            values: vec![*left, *right, operation.result],
+                            values: vec![*left, *right, result.value],
                             obligations: vec![*obligation],
                             fuel: operation.fuel.clone(),
                             ..Default::default()
@@ -332,6 +349,7 @@ pub(in crate::selection) fn validate(
                     )?;
                     output
                 }
+                LegalizedScalarInstructionKind::BoundarySettlement(_) => return Err(invalid()),
                 LegalizedScalarInstructionKind::Call(call) => {
                     let key = constraints
                         .keys
@@ -348,21 +366,37 @@ pub(in crate::selection) fn validate(
                     )?;
                     let mut operands = Vec::new();
                     for argument in &call.arguments {
-                        let (_, input, site, argument_type) =
-                            replay.resolve(argument.source).ok_or_else(invalid)?;
+                        let (_, input, site, argument_type) = replay
+                            .resolve(argument.scalar_source().ok_or_else(invalid)?)
+                            .ok_or_else(invalid)?;
                         operands.push(replay.check_copy(
                             input,
-                            argument.source,
+                            argument.scalar_source().ok_or_else(invalid)?,
                             site,
                             argument_type,
                         )?);
                     }
                     let short_result = replay.result_register(
-                        operation.result,
-                        operation.definition_site,
+                        result.value,
+                        result.definition_site,
                         scalar_type,
                     )?;
                     operands.push(short_result);
+                    replay
+                        .transport
+                        .calls
+                        .push(selected_instructions::SelectedCallContract {
+                            instruction: SelectedInstructionId(
+                                replay
+                                    .instruction_cursor
+                                    .try_into()
+                                    .map_err(|_| invalid())?,
+                            ),
+                            operation: operation.operation,
+                            call: call.clone(),
+                            effect: operation.effect,
+                            ownership: operation.ownership.clone(),
+                        });
                     replay.check_instruction(
                         SelectedInstructionKind::CallI64 {
                             callee: call.callee,
@@ -374,8 +408,8 @@ pub(in crate::selection) fn validate(
                             values: call
                                 .arguments
                                 .iter()
-                                .map(|argument| argument.source)
-                                .chain(std::iter::once(operation.result))
+                                .filter_map(|argument| argument.scalar_source())
+                                .chain(std::iter::once(result.value))
                                 .collect(),
                             obligations: call.requirement_obligations.clone(),
                             fuel: operation.fuel.clone(),
@@ -384,18 +418,15 @@ pub(in crate::selection) fn validate(
                     )?;
                     replay.check_copy(
                         short_result,
-                        operation.result,
-                        operation.definition_site,
+                        result.value,
+                        result.definition_site,
                         scalar_type,
                     )?
                 }
             };
-            replay.definitions.push((
-                operation.result,
-                output,
-                operation.definition_site,
-                scalar_type,
-            ));
+            replay
+                .definitions
+                .push((result.value, output, result.definition_site, scalar_type));
         }
         control::validate(source, source_block, &mut replay, &environment, catalog)?;
         if replay.block_cursor != block.instructions.len() {
@@ -410,10 +441,18 @@ pub(in crate::selection) fn validate(
     if replay.register_cursor != selected.virtual_registers.len() {
         return Err(invalid());
     }
+    if replay.transport.calls != selected.calls
+        || replay.transport.slots != selected.outgoing_arguments
+        || replay.transport.memory != selected.memory_accesses
+        || replay.transport.settlements != selected.boundary_settlements
+    {
+        return Err(invalid());
+    }
     validate_def_use(function, selected, catalog)
 }
 
 struct Replay<'a> {
+    transport: structural::Transport,
     function: usize,
     selected: &'a SelectedFunction,
     block: &'a SelectedBlock,
@@ -458,7 +497,7 @@ impl Replay<'_> {
             || register.scalar_type != scalar_type
             || register.class != self.class
             || register.origin != origin
-            || register.definition_site != site
+            || register.definition_site != Some(site)
             || register.entry_fixed_view != fixed
         {
             return Err(self.invalid());
@@ -537,18 +576,4 @@ impl Replay<'_> {
         )?;
         Ok(output)
     }
-}
-
-fn branch_suffix(block: &legalized_operations::LegalizedScalarBlock, index: usize) -> bool {
-    let mut value = block.instructions[index].result;
-    for row in &block.instructions[index + 1..] {
-        if !matches!(row.kind, LegalizedScalarInstructionKind::BooleanNot {operand} if operand == value)
-            || row.scalar_type != ScalarType::Boolean
-        {
-            return false;
-        }
-        value = row.result;
-    }
-    matches!(block.terminator, legalized_operations::LegalizedScalarTerminator::Conditional {condition,..}
-        if condition == value)
 }

@@ -11,9 +11,12 @@ pub(super) fn validate(
     let invalid = Error::NonCanonicalLegalizedPlan;
     let (operation, result) = scalar_graph_input::instruction(node).ok_or(invalid.clone())?;
     if actual.operation != operation
-        || actual.result != result
-        || actual.scalar_type != node.definitions[0].scalar_type
-        || actual.definition_site != node.definitions[0].site
+        || actual.result
+            != Some(LegalizedValueDefinition {
+                value: result,
+                scalar_type: node.definitions[0].scalar_type,
+                definition_site: node.definitions[0].site,
+            })
         || actual.fuel != node.fuel
         || actual.effect != node.effect
         || actual.ownership != node.ownership
@@ -55,7 +58,9 @@ pub(super) fn validate(
             let expected = scalar_graph_input::callee_plan(*callee, native, plan, unit)?;
             if call.callee != *callee
                 || call.call_plan != expected
-                || Some(&call.result_placement) != expected.result.as_ref()
+                || call.result_placement != expected.result
+                || call.source != LegalizedCallUnitSource::AuthoredCallUnit
+                || !call.claim_transfers.is_empty()
                 || call.requirement_obligations != *requirement_obligations
                 || call.crash_continuations != *crash_continuations
                 || call.arguments.len() != arguments.len()
@@ -65,7 +70,7 @@ pub(super) fn validate(
                     .zip(arguments)
                     .zip(&expected.parameters)
                     .any(|((actual, source), placement)| {
-                        actual.source != *source || actual.placement != *placement
+                        !matches!(actual, LegalizedScalarArgument::Scalar {source: value,placement: actual} if value == source && actual == placement)
                     })
                 || proposed_plan
                     .scalar_functions

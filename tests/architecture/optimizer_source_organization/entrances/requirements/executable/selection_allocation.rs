@@ -11,7 +11,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/representations/legalized-operations/src/legalized_operations/validation/mod.rs",
-        coordination_marker: "impl LegalizedCallUnit",
+        coordination_marker: "impl LegalizedScalarCall",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/codec/mod.rs",
@@ -118,8 +118,8 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(super) fn build_plan",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection/construction/structural_unit/mod.rs",
-        coordination_marker: "let call = call::build(function, source, plan, layout, keys, catalog)?",
+        path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection/construction/scalar_graph.rs",
+        coordination_marker: "pub(super) fn build",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection/construction/projected_structural_call_return/mod.rs",
@@ -130,8 +130,8 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "target::replay(selected, constraints, physical, catalog)",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection/validation/structural_unit/mod.rs",
-        coordination_marker: "pub(super) fn reconstruct_structural_unit_contract",
+        path: "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection/validation/scalar_graph.rs",
+        coordination_marker: "pub(in crate::selection) fn validate",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/mod.rs",

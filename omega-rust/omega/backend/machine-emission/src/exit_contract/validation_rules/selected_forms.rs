@@ -115,28 +115,6 @@ pub(in crate::exit_contract) fn unique_layout_rows(
     Ok(rows)
 }
 
-pub(in crate::exit_contract) fn reject_preservation_writes(
-    machine: &PostAllocationMachineInstruction,
-    callee_saved: &BTreeSet<RegisterUnitId>,
-    link_units: &BTreeSet<RegisterUnitId>,
-    instruction: SelectedInstructionId,
-) -> Result<(), WholeFunctionExitContractError> {
-    for unit in machine.unit_defs.iter().chain(&machine.unit_clobbers) {
-        if callee_saved.contains(unit) {
-            return Err(WholeFunctionExitContractError::CalleeSavedWrite {
-                instruction,
-                unit: *unit,
-            });
-        }
-        if link_units.contains(unit) {
-            return Err(WholeFunctionExitContractError::LinkRegisterWrite(
-                instruction,
-            ));
-        }
-    }
-    Ok(())
-}
-
 pub(in crate::exit_contract) fn transformed_implicit_writes_any(
     encoding: &machine_code::SelectedFormEncodingRow,
     units: &BTreeSet<RegisterUnitId>,
@@ -217,7 +195,33 @@ pub(in crate::exit_contract) fn validate_non_return(
             instruction,
         ));
     }
-    if effects.memory != MachineEncodedMemoryEffect::NoneV1 {
+    let memory_matches = match (kind, effects.memory, encoding.address) {
+        (
+            SelectedInstructionKind::Load64 { byte_offset },
+            MachineEncodedMemoryEffect::ReadPointerV1 {
+                pointer_operand: 0,
+                byte_count: 8,
+            },
+            Some(address),
+        ) => {
+            address.symbolic
+                == physical_instructions::PhysicalAddressOperation::Load64 {
+                    base_operand: 0,
+                    byte_offset,
+                }
+        }
+        (
+            SelectedInstructionKind::Store64 { slot, byte_offset },
+            MachineEncodedMemoryEffect::WriteOutgoingArgumentV1 { byte_count: 8, .. },
+            Some(address),
+        ) => {
+            address.symbolic
+                == physical_instructions::PhysicalAddressOperation::Store64 { slot, byte_offset }
+        }
+        (_, MachineEncodedMemoryEffect::NoneV1, _) => true,
+        _ => false,
+    };
+    if !memory_matches {
         return Err(WholeFunctionExitContractError::NonReturnMemoryEffect(
             instruction,
         ));

@@ -1,27 +1,22 @@
-//! Optimizer module role: stage group. Structural-payload and envelope custody.
-
-use calling_conventions::{CallPlan, CallingPolicy, EntryControl, MachineRegister, RegisterSet};
-use optimization_unit::EffectLink;
-use register_model::{RegisterConstraintFamily, RegisterConstraintKey, RegisterUnitId};
-use selected_instructions::{
-    SelectedBlockId, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedMicrosoftX64OwnedIndirectPairLayout,
-    SelectedStructuralUnitAbi, SelectedStructuralUnitAbiRecipe,
-    SelectedStructuralUnitCallInstruction, SelectedStructuralUnitCallSource,
-    SelectedStructuralUnitFunction, SelectedStructuralUnitIndirectBinding,
-    SelectedStructuralUnitReturn,
-};
-use semantic_vocabulary::{BlockId, EdgeId, MachineId, ObligationId, OperationId};
-use sha2::{Digest, Sha256};
-use terminal_psi::{CrashCause, CrashRouteBucket, CrashRouteGuard};
-
-use crate::{FixedViewCopyDecodeError, FixedViewCopyPlan, FixedViewCopyPolicy};
-
+//! Ordinary structural metadata and envelope custody.
 use super::{
     super::{copy::decode_copy, primitives::Cursor},
     plan,
 };
-
+use crate::{FixedViewCopyDecodeError, FixedViewCopyPlan, FixedViewCopyPolicy};
+use calling_conventions::{CallPlan, CallingPolicy, EntryControl, MachineRegister, RegisterSet};
+use legalized_operations::{
+    LegalizedCallUnitSource, LegalizedScalarCall, LegalizedStructuralContract,
+};
+use optimization_unit::EffectLink;
+use selected_instructions::{
+    OutgoingArgumentSlotId, SelectedCallContract, SelectedFunction, SelectedInstructionId,
+    SelectedMemoryAccess, SelectedMemoryAccessRole, SelectedOutgoingArgumentSlot,
+    VirtualRegisterId, VirtualRegisterOrigin,
+};
+use semantic_vocabulary::{MachineId, ObligationId, OperationId, PlaceId};
+use sha2::{Digest, Sha256};
+use terminal_psi::{CrashCause, CrashRouteBucket, CrashRouteGuard};
 fn call_plan(clobbers: &[MachineRegister], shadow_bytes: u16) -> CallPlan {
     CallPlan {
         policy: CallingPolicy::MicrosoftX64,
@@ -34,106 +29,76 @@ fn call_plan(clobbers: &[MachineRegister], shadow_bytes: u16) -> CallPlan {
         entry_control: EntryControl::CallReturn,
     }
 }
-
-fn layout() -> SelectedMicrosoftX64OwnedIndirectPairLayout {
-    SelectedMicrosoftX64OwnedIndirectPairLayout {
-        shadow_byte_count: 32,
-        outgoing_frame_byte_count: 72,
-        pre_call_stack_alignment: 16,
-        bindings: [
-            SelectedStructuralUnitIndirectBinding {
-                parameter_index: 0,
-                pointer: MachineRegister::X86Rcx,
-                copy_stack_byte_offset: 32,
-                byte_count: 16,
-                alignment: 8,
-            },
-            SelectedStructuralUnitIndirectBinding {
-                parameter_index: 1,
-                pointer: MachineRegister::X86Rdx,
-                copy_stack_byte_offset: 48,
-                byte_count: 16,
-                alignment: 8,
-            },
-        ],
-    }
-}
-
-fn structural_function() -> SelectedStructuralUnitFunction {
-    let return_constraint = RegisterConstraintKey {
-        family: RegisterConstraintFamily::Return,
-        variant: 1,
+fn structural_function() -> SelectedFunction {
+    let mut function = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1)
+        .transformed
+        .functions[0]
+        .clone();
+    function.machine = MachineId::new(41).unwrap();
+    let mut pointer = function.virtual_registers[0].clone();
+    pointer.id = VirtualRegisterId(function.virtual_registers.len() as u32);
+    pointer.origin = VirtualRegisterOrigin::StructuralParameter {
+        place: PlaceId::new(1).unwrap(),
+        parameter_index: 1,
     };
-    SelectedStructuralUnitFunction {
-        machine: MachineId::new(41).unwrap(),
-        attachment: None,
-        provenance: Default::default(),
+    pointer.definition_site = None;
+    function.virtual_registers.push(pointer.clone());
+    pointer.id = VirtualRegisterId(function.virtual_registers.len() as u32);
+    pointer.origin = VirtualRegisterOrigin::AbiTransport {
+        instruction: SelectedInstructionId(0),
+        place: PlaceId::new(1).unwrap(),
+        byte_offset: 8,
+    };
+    function.virtual_registers.push(pointer);
+    function.structural = Some(LegalizedStructuralContract {
         structural_types: Vec::new(),
-        abi: SelectedStructuralUnitAbi {
-            recipe: SelectedStructuralUnitAbiRecipe::MicrosoftX64OwnedIndirectPairV1,
-            call_plan: call_plan(&[MachineRegister::X86Rbx], 32),
-            parameters: Vec::new(),
-            layout: layout(),
-        },
+        parameters: Vec::new(),
         structural_places: Vec::new(),
         entry_claims: Vec::new(),
         published_service_ceiling: Vec::new(),
-        entry_block: SelectedBlockId(0),
-        source_entry_block: BlockId::new(41).unwrap(),
-        boundary_settlements: Vec::new(),
-        call: Some(SelectedStructuralUnitCallInstruction {
-            id: SelectedInstructionId(0),
-            source: SelectedStructuralUnitCallSource::AuthoredCallUnit,
-            operation: OperationId::new(41).unwrap(),
+    });
+    function.calls = vec![SelectedCallContract {
+        instruction: SelectedInstructionId(0),
+        operation: OperationId::new(41).unwrap(),
+        call: LegalizedScalarCall {
+            source: LegalizedCallUnitSource::AuthoredCallUnit,
             callee: MachineId::new(42).unwrap(),
-            caller_call_plan: call_plan(
-                &[MachineRegister::X86Rax, MachineRegister::X86Rcx],
-                0x4567,
-            ),
-            callee_call_plan: call_plan(&[MachineRegister::X86Rdx], 0x6789),
+            call_plan: call_plan(&[MachineRegister::X86Rax, MachineRegister::X86Rcx], 0x4567),
             arguments: Vec::new(),
+            result_placement: None,
             claim_transfers: Vec::new(),
-            layout: layout(),
-            constraint: RegisterConstraintKey {
-                family: RegisterConstraintFamily::Call,
-                variant: 1,
-            },
-            implicit_uses: vec![RegisterUnitId(1)],
-            implicit_defs: vec![RegisterUnitId(2)],
-            clobbers: vec![RegisterUnitId(3)],
-            provenance: Default::default(),
-            effect: EffectLink {
-                input: 10,
-                output: 11,
-            },
             requirement_obligations: vec![ObligationId::new(43).unwrap()],
             crash_continuations: vec![CrashRouteBucket {
                 cause: CrashCause::Trap,
                 alternatives: vec![CrashRouteGuard::Truth],
             }],
-            ownership: Vec::new(),
-        }),
-        terminator: SelectedStructuralUnitReturn {
-            instruction: SelectedInstruction {
-                id: SelectedInstructionId(1),
-                kind: SelectedInstructionKind::ReturnUnit,
-                constraint: return_constraint,
-                operands: Vec::new(),
-                implicit_uses: Vec::new(),
-                implicit_defs: Vec::new(),
-                clobbers: Vec::new(),
-                provenance: SelectedInstructionProvenance::default(),
-            },
-            psi_return_edge: EdgeId::new(41).unwrap(),
-            effect: EffectLink {
-                input: 11,
-                output: 12,
-            },
-            ownership: Vec::new(),
         },
-    }
+        effect: EffectLink {
+            input: 10,
+            output: 11,
+        },
+        ownership: Vec::new(),
+    }];
+    let slot = OutgoingArgumentSlotId {
+        operation: OperationId::new(41).unwrap(),
+        argument_index: 0,
+    };
+    function.outgoing_arguments = vec![SelectedOutgoingArgumentSlot {
+        id: slot,
+        byte_size: 16,
+        alignment: 8,
+        abi_stack_byte_offset: 32,
+    }];
+    function.memory_accesses = vec![SelectedMemoryAccess {
+        instruction: SelectedInstructionId(0),
+        operation: slot.operation,
+        place: PlaceId::new(1).unwrap(),
+        byte_offset: 8,
+        byte_count: 8,
+        role: SelectedMemoryAccessRole::WriteOutgoing { slot },
+    }];
+    function
 }
-
 fn transformed_identity_offset(encoded: &[u8]) -> usize {
     let mut cursor = Cursor::new(encoded);
     cursor.take(44 + (5 * 32) + 1 + 40 + 40).unwrap();
@@ -154,10 +119,10 @@ fn selected_payload_offset(encoded: &[u8]) -> usize {
 }
 
 #[test]
-fn artifact_v14_round_trips_structural_functions_call_plans_and_semantic_call_rows() {
+fn artifact_v15_round_trips_structural_functions_call_plans_and_semantic_call_rows() {
     let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     std::sync::Arc::make_mut(&mut plan.transformed)
-        .structural_unit_functions
+        .functions
         .push(structural_function());
     assert_eq!(FixedViewCopyPlan::decode(&plan.encode()).unwrap(), plan);
 }
@@ -166,7 +131,7 @@ fn artifact_v14_round_trips_structural_functions_call_plans_and_semantic_call_ro
 fn stale_header_rejects_current_structural_payload() {
     let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     std::sync::Arc::make_mut(&mut plan.transformed)
-        .structural_unit_functions
+        .functions
         .push(structural_function());
 
     let encoded = super::with_stale_version(&plan, 5);
@@ -177,10 +142,10 @@ fn stale_header_rejects_current_structural_payload() {
 }
 
 #[test]
-fn artifact_v14_payload_digest_and_outer_envelope_close_call_plan_blind_spots() {
+fn artifact_v15_payload_digest_and_outer_envelope_close_call_plan_blind_spots() {
     let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     std::sync::Arc::make_mut(&mut plan.transformed)
-        .structural_unit_functions
+        .functions
         .push(structural_function());
     let encoded = plan.encode();
     let digest_offset = selected_payload_offset(&encoded);
@@ -199,7 +164,7 @@ fn artifact_v14_payload_digest_and_outer_envelope_close_call_plan_blind_spots() 
         .enumerate()
         .filter_map(|(offset, bytes)| (bytes == marker).then_some(payload_offset + offset))
         .collect::<Vec<_>>();
-    assert_eq!(matches.len(), 1, "caller call-plan marker must be unique");
+    assert_eq!(matches.len(), 1, "call-plan marker must be unique");
     let mut payload_and_digest_tamper = encoded;
     payload_and_digest_tamper[matches[0]..matches[0] + 2]
         .copy_from_slice(&0x4568_u16.to_le_bytes());
@@ -208,7 +173,7 @@ fn artifact_v14_payload_digest_and_outer_envelope_close_call_plan_blind_spots() 
     payload_and_digest_tamper[digest_offset..digest_offset + 32].copy_from_slice(&payload_digest);
     assert_eq!(
         FixedViewCopyPlan::decode(&payload_and_digest_tamper),
-        Err(FixedViewCopyDecodeError::IdentityMismatch)
+        Err(FixedViewCopyDecodeError::TransformedIdentityMismatch)
     );
 
     let clobber_marker = [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0x10, 0, 0x67, 0x45, 1];
@@ -218,7 +183,7 @@ fn artifact_v14_payload_digest_and_outer_envelope_close_call_plan_blind_spots() 
         .enumerate()
         .filter_map(|(offset, bytes)| (bytes == clobber_marker).then_some(offset))
         .collect::<Vec<_>>();
-    assert_eq!(matches.len(), 1, "caller clobber marker must be unique");
+    assert_eq!(matches.len(), 1, "call clobber marker must be unique");
     let mut noncanonical = plan.encode();
     noncanonical[matches[0] + 8..matches[0] + 12].copy_from_slice(&[1, 0, 0, 0]);
     let payload_digest = <[u8; 32]>::from(Sha256::digest(&noncanonical[payload_offset..]));

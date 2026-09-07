@@ -48,13 +48,14 @@ fn x86_xor_zero_reaches_direct_whole_function_exit_with_exact_custody() {
         selected_stage.selected(),
         &machine,
         physical,
+        None,
     )
     .unwrap();
     let selected_encoding =
         stage_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization(
             selected_stage.selected(),
             &machine,
-            physical,
+            physical, None,
             Some(&optimization),
         )
         .unwrap();
@@ -192,7 +193,7 @@ fn x86_xor_zero_reaches_direct_whole_function_exit_with_exact_custody() {
     validate_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization(
         selected_stage.selected(),
         &machine,
-        physical,
+        physical, None,
         Some(&optimization),
         &selected_encoding,
     )
@@ -250,7 +251,7 @@ fn x86_xor_zero_reaches_direct_whole_function_exit_with_exact_custody() {
         validate_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization(
             selected_stage.selected(),
             &machine,
-            physical,
+            physical, None,
             Some(&optimization),
             &corrupted_encoding,
         ),

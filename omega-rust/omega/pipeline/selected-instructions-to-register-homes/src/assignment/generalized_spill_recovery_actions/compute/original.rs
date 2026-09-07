@@ -107,7 +107,7 @@ pub(super) fn build(
     };
     let definition_site_ok = matches!(
         value.definition_site,
-        ValueDefinitionSite::Node { block: source, .. } if source == block.source_block
+        Some(ValueDefinitionSite::Node { block: source, .. }) if source == block.source_block
     );
     if !scalar_ok
         || !definition_site_ok

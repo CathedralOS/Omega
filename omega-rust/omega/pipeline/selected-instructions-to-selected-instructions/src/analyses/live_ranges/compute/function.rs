@@ -2,37 +2,6 @@
 
 use super::*;
 
-pub(super) fn compute_structural_function(
-    function_index: usize,
-    machine: semantic_vocabulary::MachineId,
-    liveness: &crate::FunctionLiveness,
-) -> Result<FunctionLiveRanges, LiveRangeError> {
-    if liveness.machine != machine
-        || !liveness.entry_definitions.is_empty()
-        || !liveness.operand_positions.is_empty()
-    {
-        return Err(LiveRangeError::FunctionMismatch {
-            function: function_index,
-        });
-    }
-    let block_domains = liveness
-        .blocks
-        .iter()
-        .map(|block| block_domain(function_index, block))
-        .collect::<Result<Vec<_>, _>>()?;
-    let architectural_units = architectural_units(function_index, liveness)?;
-    Ok(FunctionLiveRanges {
-        machine,
-        block_domains,
-        virtual_registers: Vec::new(),
-        edge_transfers: Vec::new(),
-        tied_pairs: Vec::new(),
-        early_clobbers: Vec::new(),
-        architectural_units,
-        interference: Vec::new(),
-    })
-}
-
 pub(super) fn compute_function(
     function_index: usize,
     selected: &selected_instructions::SelectedFunction,

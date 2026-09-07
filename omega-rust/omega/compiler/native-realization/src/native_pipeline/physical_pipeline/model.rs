@@ -67,18 +67,6 @@ impl From<machine_emission::StagedOptimizedUnitFunctionRelativeRealization>
     }
 }
 
-impl From<machine_emission::StagedOptimizedStructuralUnitFunctionRelativeRealization>
-    for StagedOptimizedVerifiedPhysicalPipeline
-{
-    fn from(
-        realization: machine_emission::StagedOptimizedStructuralUnitFunctionRelativeRealization,
-    ) -> Self {
-        Self {
-            source: realization.into(),
-        }
-    }
-}
-
 impl From<machine_emission::StagedFixedFrameFunctionRelativeRealization>
     for StagedOptimizedVerifiedPhysicalPipeline
 {

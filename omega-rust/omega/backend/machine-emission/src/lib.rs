@@ -18,8 +18,8 @@ pub use native_publication::{
 mod text_placement;
 pub use text_placement::custody::*;
 pub use text_placement::{
-    StructuralFragmentPlacementInputs, TextPlacementError, TextPlacementInput,
-    place_fragment_text_section, text_section_statistics, validate_fragment_text_section,
+    TextPlacementError, TextPlacementInput, place_fragment_text_section, text_section_statistics,
+    validate_fragment_text_section,
 };
 
 mod exit_contract;

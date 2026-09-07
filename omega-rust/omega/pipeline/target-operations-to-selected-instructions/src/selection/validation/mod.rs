@@ -1,17 +1,14 @@
 //! Optimizer module role: executable entrance. Independent selected-plan reconstruction and admission.
 
 mod def_use;
-mod functions;
 mod integrity;
 mod ordinary_roster;
 mod projected_structural_call_return;
 mod roots;
 pub(super) mod scalar_graph;
-mod structural_unit;
 
 use super::identity::receipt;
 use super::shared::*;
-use functions::validate_structural_unit_function;
 
 pub fn validate_selected_instructions(
     legalized: &ValidatedLegalizedOperations,
@@ -23,24 +20,6 @@ pub fn validate_selected_instructions(
     let target = legalized.plan();
     roots::validate_initial_roots(target, constraints, physical, catalog, &plan)?;
     ordinary_roster::validate(target, &plan.functions, constraints, physical, catalog)?;
-    roots::validate_structural_roster(target, &plan)?;
-    for (function_index, selected) in plan.structural_unit_functions.iter().enumerate() {
-        let Some(source) = target
-            .structural_unit_functions
-            .iter()
-            .find(|source| source.machine == selected.machine)
-        else {
-            return Err(SelectedInstructionError::SourceCustodyMismatch);
-        };
-        validate_structural_unit_function(
-            function_index + plan.functions.len(),
-            source,
-            selected,
-            target,
-            &constraints.keys,
-            catalog,
-        )?;
-    }
     for (source, selected) in target
         .projected_structural_call_returns
         .iter()

@@ -36,12 +36,14 @@ pub(super) fn project(
                 arguments: arguments
                     .iter()
                     .zip(&call_plan.parameters)
-                    .map(|(source, placement)| LegalizedScalarArgument {
+                    .map(|(source, placement)| LegalizedScalarArgument::Scalar {
                         source: *source,
                         placement: placement.clone(),
                     })
                     .collect(),
-                result_placement: call_plan.result.clone().expect("scalar callee result"),
+                result_placement: call_plan.result.clone(),
+                source: LegalizedCallUnitSource::AuthoredCallUnit,
+                claim_transfers: Vec::new(),
                 call_plan,
                 requirement_obligations: requirement_obligations.clone(),
                 crash_continuations: crash_continuations.clone(),
@@ -112,9 +114,11 @@ pub(super) fn project(
     };
     Ok(LegalizedScalarInstruction {
         operation,
-        result,
-        scalar_type: node.definitions[0].scalar_type,
-        definition_site: node.definitions[0].site,
+        result: Some(LegalizedValueDefinition {
+            value: result,
+            scalar_type: node.definitions[0].scalar_type,
+            definition_site: node.definitions[0].site,
+        }),
         kind,
         fuel: node.fuel.clone(),
         effect: node.effect,

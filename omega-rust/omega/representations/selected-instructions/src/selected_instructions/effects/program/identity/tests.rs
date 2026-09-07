@@ -65,7 +65,6 @@ fn plan() -> PreAllocationMachineEffectPlan {
                 }],
             }],
         }],
-        structural_unit_functions: Vec::new(),
     };
     plan.identity = pre_allocation_machine_effect_identity(&plan);
     plan

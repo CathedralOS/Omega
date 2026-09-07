@@ -32,21 +32,24 @@ fn register_call_shape_admits_actual_arity_and_rejects_roster_corruption() {
             .call_plan
             .parameters
             .iter()
-            .map(|placement| LegalizedScalarArgument {
+            .map(|placement| LegalizedScalarArgument::Scalar {
                 placement: placement.clone(),
-                ..argument.clone()
+                source: argument.scalar_source().unwrap(),
             })
             .collect();
         assert_eq!(call.validate_shape(), Ok(()));
         if arity > 0 {
             let mut corrupt = call.clone();
-            corrupt.result_placement.locations.clear();
+            corrupt.result_placement.as_mut().unwrap().locations.clear();
             assert!(corrupt.validate_shape().is_err());
             let mut corrupt = call.clone();
             corrupt.arguments.pop();
             assert!(corrupt.validate_shape().is_err());
             let mut corrupt = call.clone();
-            corrupt.arguments[0].placement.locations.clear();
+            scalar_argument_mut(&mut corrupt.arguments[0])
+                .1
+                .locations
+                .clear();
             assert!(corrupt.validate_shape().is_err());
         }
     }
@@ -64,8 +67,11 @@ fn register_call_identity_retains_argument_length_order_and_placement() {
                 call.arguments.pop();
             }
             1 => call.arguments.swap(0, 1),
-            2 => call.arguments[0].source = id(999),
-            _ => call.arguments[0].placement.locations.clear(),
+            2 => *scalar_argument_mut(&mut call.arguments[0]).0 = id(999),
+            _ => scalar_argument_mut(&mut call.arguments[0])
+                .1
+                .locations
+                .clear(),
         }
         assert_ne!(legalized_operation_plan_identity(&proposed), identity);
     }

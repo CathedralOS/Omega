@@ -17,10 +17,28 @@ pub struct PostAllocationMachineInstruction {
     pub instruction: SelectedInstructionId,
     pub alternative: MachineAlternative,
     pub operands: Vec<PhysicalOperandFootprint>,
+    pub address: Option<PhysicalAddressOperation>,
     pub implicit_unit_uses: Vec<RegisterUnitId>,
     pub implicit_unit_defs: Vec<RegisterUnitId>,
     pub implicit_unit_clobbers: Vec<RegisterUnitId>,
     pub unit_uses: Vec<RegisterUnitId>,
     pub unit_defs: Vec<RegisterUnitId>,
     pub unit_clobbers: Vec<RegisterUnitId>,
+}
+
+/// Address semantics remain symbolic until a validated frame is supplied.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PhysicalAddressOperation {
+    Load64 {
+        base_operand: u16,
+        byte_offset: u32,
+    },
+    Store64 {
+        slot: selected_instructions::OutgoingArgumentSlotId,
+        byte_offset: u32,
+    },
+    FrameAddress {
+        slot: selected_instructions::OutgoingArgumentSlotId,
+        byte_offset: u32,
+    },
 }

@@ -1,7 +1,6 @@
 //! Optimizer module role: executable entrance. Fragment assembly from current data.
 
 mod ordinary_function;
-mod structural_unit;
 
 use super::ResolvedFragmentEmissionError;
 use machine_code::{FunctionFragmentEmissionPlan, ResolvedMachineProgram};
@@ -23,43 +22,23 @@ pub(super) fn emit(
         target: selected.target,
         entry: selected.entry,
         functions: Vec::new(),
-        structural_unit_functions: Vec::new(),
     };
-    if selected.structural_unit_functions.is_empty() {
-        if selected.functions.len() != layout.functions.len()
-            || !layout.structural_unit_functions.is_empty()
-        {
-            return Err(ResolvedFragmentEmissionError::RootMismatch);
-        }
-        for function in &selected.functions {
-            let resolved = layout
-                .functions
-                .iter()
-                .find(|row| row.machine == function.machine)
-                .ok_or(ResolvedFragmentEmissionError::MissingFunction(
-                    function.machine,
-                ))?;
-            fragments
-                .functions
-                .push(ordinary_function::emit(function, resolved)?);
-        }
-    } else {
-        if !selected.functions.is_empty()
-            || !layout.functions.is_empty()
-            || selected.structural_unit_functions.len() != layout.structural_unit_functions.len()
-        {
-            return Err(ResolvedFragmentEmissionError::RootMismatch);
-        }
-        for (function, resolved) in selected
-            .structural_unit_functions
-            .iter()
-            .zip(&layout.structural_unit_functions)
-        {
-            fragments
-                .structural_unit_functions
-                .push(structural_unit::function::emit(function, resolved)?);
-        }
+    if selected.functions.len() != layout.functions.len() {
+        return Err(ResolvedFragmentEmissionError::RootMismatch);
     }
+    for function in &selected.functions {
+        let resolved = layout
+            .functions
+            .iter()
+            .find(|row| row.machine == function.machine)
+            .ok_or(ResolvedFragmentEmissionError::MissingFunction(
+                function.machine,
+            ))?;
+        fragments
+            .functions
+            .push(ordinary_function::emit(function, resolved)?);
+    }
+
     fragments.identity = fragments.recomputed_identity();
     Ok(fragments)
 }

@@ -217,7 +217,7 @@ fn reconstruct(
         .iter()
         .find(|block| block.id == choice.block)
         .ok_or(SpillRecoveryActionError::FunctionMismatch { function })?;
-    if !matches!(victim.definition_site, ValueDefinitionSite::Node { block: source, .. } if source == block.source_block)
+    if !matches!(victim.definition_site, Some(ValueDefinitionSite::Node { block: source, .. }) if source == block.source_block)
     {
         return Err(SpillRecoveryActionError::UnsupportedOrigin {
             function,
@@ -370,7 +370,9 @@ fn reconstruct(
         victim_class: victim.class,
         victim_scalar_type: victim.scalar_type,
         victim_origin: victim.origin,
-        victim_definition_site: victim.definition_site,
+        victim_definition_site: victim
+            .definition_site
+            .ok_or(SpillRecoveryActionError::FunctionMismatch { function })?,
         current_view: resident.view,
         reclaimed_view: choice.reclaimed_view,
         storage: SpillRecoveryLogicalStorage {

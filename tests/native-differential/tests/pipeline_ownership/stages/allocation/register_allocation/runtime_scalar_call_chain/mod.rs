@@ -8,7 +8,7 @@ mod encoding_layout;
 mod fixture;
 mod machine_effects;
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-mod native_execution;
+use crate::tests::native_execution;
 mod publication;
 mod scalar_return_calls;
 mod sequences;

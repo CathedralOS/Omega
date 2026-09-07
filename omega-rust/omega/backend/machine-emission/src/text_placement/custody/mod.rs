@@ -21,7 +21,7 @@ pub use machine_code::{
 pub use validation::*;
 
 #[cfg(any(test, feature = "test-support"))]
-pub use placement::{place_fragments_for_test, place_structural_unit_fragments_for_test};
+pub use placement::place_fragments_for_test;
 
 use crate::{
     StagedFunctionFragmentFrameApplication, StagedOptimizedFunctionFragmentEmission,

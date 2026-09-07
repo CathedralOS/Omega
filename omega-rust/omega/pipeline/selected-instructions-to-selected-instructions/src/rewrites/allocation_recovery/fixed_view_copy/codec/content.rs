@@ -9,7 +9,7 @@ use crate::{
 use super::{
     copy::{decode_copy, encode_copy},
     primitives::{Cursor, length},
-    selected::{decode_selected_plan_v6, encode_selected_plan_v6},
+    selected::{decode_selected_plan, encode_selected_plan},
 };
 
 pub(super) struct DecodedContent {
@@ -50,7 +50,7 @@ pub(super) fn encode_v7(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) {
         ),
     );
     super::evidence::encode(bytes, plan.source_evidence);
-    encode_selected_plan_v6(bytes, &plan.transformed);
+    encode_selected_plan(bytes, &plan.transformed);
 }
 
 struct DecodedPrefix {
@@ -106,7 +106,7 @@ pub(super) fn decode_v7(
 ) -> Result<DecodedContent, FixedViewCopyDecodeError> {
     let prefix = decode_prefix(cursor)?;
     let evidence = super::evidence::decode(cursor)?;
-    let decoded = decode_selected_plan_v6(cursor)?;
+    let decoded = decode_selected_plan(cursor)?;
     finish(prefix, evidence, decoded.plan, decoded.payload_matches)
 }
 

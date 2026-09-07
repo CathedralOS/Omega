@@ -9,31 +9,6 @@ use crate::{
 
 use super::{architectural_units, constraints, fragments};
 
-pub(super) fn replay_structural_function(
-    function: usize,
-    machine: semantic_vocabulary::MachineId,
-    live: &crate::FunctionLiveness,
-) -> Result<FunctionLiveRanges, LiveRangeError> {
-    if live.machine != machine
-        || !live.entry_definitions.is_empty()
-        || !live.operand_positions.is_empty()
-    {
-        return Err(LiveRangeError::FunctionMismatch { function });
-    }
-    let block_domains = fragments::block_domains(function, live)?;
-    let architectural_units = architectural_units::replay_all(function, live)?;
-    Ok(FunctionLiveRanges {
-        machine,
-        block_domains,
-        virtual_registers: Vec::new(),
-        edge_transfers: Vec::new(),
-        tied_pairs: Vec::new(),
-        early_clobbers: Vec::new(),
-        architectural_units,
-        interference: Vec::new(),
-    })
-}
-
 pub(super) fn replay_function(
     function: usize,
     selected: &selected_instructions::SelectedFunction,

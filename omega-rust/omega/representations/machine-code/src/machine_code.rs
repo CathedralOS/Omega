@@ -28,9 +28,8 @@ pub use layout::{
     ResolvedBranchEvidence, ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate,
     ResolvedJumpEvidence, ResolvedMachineLayout, ResolvedMachineProgram,
     ResolvedSelectedBlockLayout, ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFormRow,
-    ResolvedSelectedFunctionLayout, ResolvedStructuralUnitCallLayout,
-    ResolvedStructuralUnitFunctionLayout, SelectedFunctionLayoutPolicy,
-    X86BranchRelaxationIdentity, resolved_machine_layout_identity,
+    ResolvedSelectedFunctionLayout, SelectedFunctionLayoutPolicy, X86BranchRelaxationIdentity,
+    resolved_machine_layout_identity,
 };
 pub use ownership::*;
 pub use provenance::*;

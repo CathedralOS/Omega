@@ -39,28 +39,8 @@ pub(super) fn validate(
         ) != register_environment
         || plan.functions.len() != legality.plan().functions.len()
         || plan.functions.len() != ranges.plan().functions.len()
-        || plan.structural_unit_functions.len() != legality.plan().structural_unit_functions.len()
-        || plan.structural_unit_functions.len() != ranges.plan().structural_unit_functions.len()
     {
         return Err(RegisterHomeError::RootMismatch);
-    }
-    for (function_index, ((actual, legality), ranges)) in plan
-        .structural_unit_functions
-        .iter()
-        .zip(&legality.plan().structural_unit_functions)
-        .zip(&ranges.plan().structural_unit_functions)
-        .enumerate()
-    {
-        if actual.machine != legality.machine
-            || actual.machine != ranges.machine
-            || !actual.assignments.is_empty()
-            || !legality.virtual_registers.is_empty()
-            || !ranges.virtual_registers.is_empty()
-        {
-            return Err(RegisterHomeError::FunctionMismatch {
-                function: function_index,
-            });
-        }
     }
     Ok(())
 }

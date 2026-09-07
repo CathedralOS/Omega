@@ -164,6 +164,11 @@ pub struct ObjectArtifact {
 
 impl ObjectArtifact {
     #[cfg(any(test, feature = "test-support"))]
+    pub fn semantic_code_attribution_mut_for_test(&mut self) -> &mut Vec<ObjectCodeAttribution> {
+        &mut self.semantic_code_attribution
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
     pub fn functions_mut_for_test(&mut self) -> &mut Vec<ObjectFunction> {
         &mut self.functions
     }

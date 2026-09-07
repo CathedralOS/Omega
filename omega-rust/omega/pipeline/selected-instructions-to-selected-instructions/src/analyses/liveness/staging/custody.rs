@@ -21,7 +21,6 @@ pub(super) fn liveness_custody_receipt(
         selected: upstream.selected(),
         liveness: validation.identity(),
         function_count: validation.function_count(),
-        structural_unit_function_count: validation.structural_unit_function_count(),
         block_count: validation.block_count(),
         virtual_register_count: validation.virtual_register_count(),
         instruction_count: validation.instruction_count(),

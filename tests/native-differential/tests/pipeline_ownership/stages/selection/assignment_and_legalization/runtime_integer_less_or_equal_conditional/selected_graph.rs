@@ -52,7 +52,7 @@ fn runtime_u64_parameter_less_or_equal_selects_reversed_compare_on_both_isas() {
         let legalized = &staged.legalized().plan().scalar_functions[0];
         let comparison = &legalized.blocks[0].instructions[0];
         assert_eq!(comparison.operation, comparison_operation);
-        assert_eq!(comparison.result, condition);
+        assert_eq!(comparison.result.unwrap().value, condition);
         assert_eq!(
             comparison.kind,
             legalized_operations::LegalizedScalarInstructionKind::Compare {

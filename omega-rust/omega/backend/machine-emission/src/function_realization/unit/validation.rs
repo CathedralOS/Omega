@@ -36,6 +36,7 @@ pub fn validate_optimized_unit_function_relative_realization(
         selected,
         &staged.machine,
         physical,
+        staged.frame.as_ref().map(|frame| frame.layout().plan()),
         &staged.encoding,
     )
     .map_err(OptimizedUnitFunctionRelativeRealizationError::Encoding)?;

@@ -1,11 +1,14 @@
-use crate::legalization::catalog::{
-    LEGALIZATION_FORMS, LegalizationFormDescriptor, StructuralUnitLegalizationMatcherKind,
-};
+#[derive(Clone, Copy)]
+enum StructuralUnitLegalizationMatcherKind {
+    ReturnOnly,
+    AuthoredCall,
+    InstalledProviderCall,
+    ClaimCompletionSettlements,
+}
 
 use super::super::shared::*;
 
 pub(crate) struct MatchedStructuralUnitForm<'a> {
-    pub descriptor: &'static LegalizationFormDescriptor,
     pub target_call: Option<&'a TargetUnitOperation>,
     pub target_return: &'a TargetUnitOperation,
     pub abstract_call: Option<&'a AbstractOperation>,
@@ -33,29 +36,32 @@ pub(crate) fn match_structural_unit_form<'a>(
     let [optimized_block] = optimized.blocks.as_slice() else {
         return None;
     };
-    let mut matches = LEGALIZATION_FORMS.iter().filter_map(|descriptor| {
-        let (matcher, constraints) = (descriptor.producer_matcher, descriptor.constraints);
-        (abstracted.block_entries.len() == constraints.block_count
-            && optimized.blocks.len() == constraints.block_count
-            && abstracted.parameters.len() == constraints.scalar_parameter_count
-            && optimized.parameters.len() == constraints.scalar_parameter_count)
-            .then_some(())
-            .and_then(|()| {
-                match_form(
-                    descriptor,
-                    matcher,
-                    &body.operations,
-                    &abstracted.operations,
-                    &optimized_block.nodes,
-                )
-            })
-    });
-    let matched = matches.next()?;
-    matches.next().is_none().then_some(matched)
+    if abstracted.block_entries.len() != 1
+        || !abstracted.parameters.is_empty()
+        || !optimized.parameters.is_empty()
+    {
+        return None;
+    }
+    let matcher = match body.operations.first()? {
+        TargetUnitOperation::Return { .. } => StructuralUnitLegalizationMatcherKind::ReturnOnly,
+        TargetUnitOperation::Call { .. } => StructuralUnitLegalizationMatcherKind::AuthoredCall,
+        TargetUnitOperation::InstalledProviderCall { .. } => {
+            StructuralUnitLegalizationMatcherKind::InstalledProviderCall
+        }
+        TargetUnitOperation::BoundarySettlement { .. } => {
+            StructuralUnitLegalizationMatcherKind::ClaimCompletionSettlements
+        }
+        _ => return None,
+    };
+    match_form(
+        matcher,
+        &body.operations,
+        &abstracted.operations,
+        &optimized_block.nodes,
+    )
 }
 
 fn match_form<'a>(
-    descriptor: &'static LegalizationFormDescriptor,
     matcher: StructuralUnitLegalizationMatcherKind,
     target: &'a [TargetUnitOperation],
     abstracted: &'a [AbstractOperation],
@@ -184,7 +190,6 @@ fn match_form<'a>(
         }
     };
     Some(MatchedStructuralUnitForm {
-        descriptor,
         target_call,
         target_return,
         abstract_call,

@@ -2,9 +2,7 @@ use super::FunctionFragmentEmissionSourceKind;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use crate::{
-    StagedFixedFrameFunctionRelativeRealization,
-    StagedOptimizedStructuralUnitFunctionRelativeRealization,
-    StagedOptimizedUnitFunctionRelativeRealization,
+    StagedFixedFrameFunctionRelativeRealization, StagedOptimizedUnitFunctionRelativeRealization,
     StagedPostAllocationMachineFunctionRelativeRealization,
     StagedSelectedLoweringFunctionRelativeRealization,
 };
@@ -16,7 +14,6 @@ pub enum FunctionFragmentReplayInputs {
     SelectedLowering(Box<StagedSelectedLoweringFunctionRelativeRealization>),
     PostAllocationMachine(Box<StagedPostAllocationMachineFunctionRelativeRealization>),
     UnitBaseline(Box<StagedOptimizedUnitFunctionRelativeRealization>),
-    StructuralUnit(Box<StagedOptimizedStructuralUnitFunctionRelativeRealization>),
     FixedFrame(Box<StagedFixedFrameFunctionRelativeRealization>),
 }
 
@@ -26,7 +23,6 @@ impl FunctionFragmentReplayInputs {
             Self::SelectedLowering(realization) => realization.allocation(),
             Self::PostAllocationMachine(realization) => realization.allocation(),
             Self::UnitBaseline(realization) => realization.allocation(),
-            Self::StructuralUnit(realization) => realization.allocation(),
             Self::FixedFrame(realization) => realization.allocation(),
         }
     }
@@ -40,7 +36,6 @@ impl FunctionFragmentReplayInputs {
                 }
             }
             Self::UnitBaseline(_) => FunctionFragmentEmissionSourceKind::UnitBaselineV1,
-            Self::StructuralUnit(_) => FunctionFragmentEmissionSourceKind::StructuralUnitV1,
             Self::FixedFrame(_) => FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1,
         }
     }
@@ -52,7 +47,6 @@ impl FunctionFragmentReplayInputs {
     ) -> &register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan {
         match self {
             Self::UnitBaseline(realization) => realization.machine(),
-            Self::StructuralUnit(realization) => realization.machine(),
             Self::FixedFrame(realization) => realization.machine(),
             Self::PostAllocationMachine(realization) => realization.machine(),
             Self::SelectedLowering(realization) => realization.machine(),
@@ -68,7 +62,6 @@ impl FunctionFragmentReplayInputs {
     ) -> &resolved_layout_to_resolved_layout::ResolvedLayoutOptimization {
         match self {
             Self::UnitBaseline(realization) => realization.layout_optimization(),
-            Self::StructuralUnit(realization) => realization.layout_optimization(),
             Self::FixedFrame(realization) => realization.layout_optimization(),
             Self::PostAllocationMachine(realization) => realization.layout_optimization(),
             Self::SelectedLowering(realization) => realization.layout_optimization(),
@@ -80,7 +73,7 @@ impl FunctionFragmentReplayInputs {
     ) -> Option<&post_allocation_machine_to_post_allocation_machine::StagedOptimizedPostAllocationMachineOptimization>{
         match self {
             Self::PostAllocationMachine(realization) => Some(realization.optimization()),
-            _ => None,
+            Self::SelectedLowering(_) | Self::UnitBaseline(_) | Self::FixedFrame(_) => None,
         }
     }
 
@@ -97,7 +90,6 @@ impl FunctionFragmentReplayInputs {
             Self::SelectedLowering(realization) => {
                 realization.frame().map(|frame| frame.protocol())
             }
-            _ => None,
         }
     }
 
@@ -111,7 +103,6 @@ impl FunctionFragmentReplayInputs {
                 realization.frame().map(|frame| frame.layout())
             }
             Self::SelectedLowering(realization) => realization.frame().map(|frame| frame.layout()),
-            _ => None,
         }
     }
 
@@ -132,7 +123,6 @@ impl FunctionFragmentReplayInputs {
             Self::SelectedLowering(realization) => realization.exit_contract(),
             Self::PostAllocationMachine(realization) => realization.exit_contract(),
             Self::UnitBaseline(realization) => realization.exit_contract(),
-            Self::StructuralUnit(realization) => realization.exit_contract(),
             Self::FixedFrame(realization) => realization.exit_contract(),
         }
     }
@@ -144,7 +134,6 @@ impl FunctionFragmentReplayInputs {
             Self::SelectedLowering(realization) => realization.manifest(),
             Self::PostAllocationMachine(realization) => realization.manifest(),
             Self::UnitBaseline(realization) => realization.manifest(),
-            Self::StructuralUnit(realization) => realization.manifest(),
             Self::FixedFrame(realization) => realization.manifest(),
         }
     }
@@ -181,7 +170,6 @@ impl FunctionFragmentReplayInputs {
             Self::SelectedLowering(realization) => realization.encoding(),
             Self::PostAllocationMachine(realization) => realization.encoding(),
             Self::UnitBaseline(realization) => realization.encoding(),
-            Self::StructuralUnit(realization) => realization.encoding(),
             Self::FixedFrame(realization) => realization.encoding(),
         }
     }

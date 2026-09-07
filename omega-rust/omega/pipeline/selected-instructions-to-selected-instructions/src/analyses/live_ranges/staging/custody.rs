@@ -22,7 +22,6 @@ pub(super) fn live_range_custody_receipt(
         liveness: upstream.liveness(),
         ranges: ranges.identity(),
         function_count: ranges.function_count(),
-        structural_unit_function_count: ranges.structural_unit_function_count(),
         block_count: ranges.block_count(),
         virtual_register_count: ranges.virtual_register_count(),
         virtual_occurrence_count: ranges.virtual_occurrence_count(),

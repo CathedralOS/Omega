@@ -1,3 +1,4 @@
+//! Optimizer module role: executable entrance.
 //! Scalar instructions share one selection path regardless of the caller's result.
 
 use crate::selection::constraints::{fixed_input_constraint, instruction, row};
@@ -5,6 +6,7 @@ use crate::selection::shared::*;
 use legalized_operations::{LegalizedScalarFunction, LegalizedScalarInstructionKind};
 
 mod control;
+mod structural;
 mod zero_compare;
 
 #[cfg(test)]
@@ -38,7 +40,9 @@ pub(super) fn build(
         registers: Vec::new(),
         instructions: Vec::new(),
         definitions: Vec::new(),
+        transport: structural::Transport::default(),
     };
+    structural::entry(function, source, &environment, &mut builder)?;
     // Entry ABI precoloring ends at a copy. The semantic parameter may remain
     // live across calls without being pinned to a caller-clobbered register.
     for (index, parameter) in source.parameters.iter().enumerate() {
@@ -84,7 +88,7 @@ pub(super) fn build(
                 source_value: parameter.value,
                 parameter_index: index,
             },
-            definition_site: parameter.definition_site,
+            definition_site: Some(parameter.definition_site),
             entry_fixed_view: Some(fixed.fixed_view),
         });
         builder.definitions.push((
@@ -132,7 +136,7 @@ pub(super) fn build(
                     block: block_id,
                     parameter_index,
                 },
-                definition_site: parameter.site,
+                definition_site: Some(parameter.site),
                 entry_fixed_view: None,
             });
             builder
@@ -153,7 +157,18 @@ pub(super) fn build(
             if zero_compare::folded_zero(source, block, operation_index + 1).is_some() {
                 continue;
             }
-            let scalar_type = operation.scalar_type;
+            if structural::operation(
+                source,
+                block_id,
+                start,
+                operation,
+                &environment,
+                &mut builder,
+            )? {
+                continue;
+            }
+            let result = operation.result.ok_or_else(invalid)?;
+            let scalar_type = result.scalar_type;
             let output = match &operation.kind {
                 LegalizedScalarInstructionKind::Compare {
                     predicate,
@@ -165,7 +180,11 @@ pub(super) fn build(
                         return Err(invalid());
                     }
                     if let Some(zero) = zero_compare::folded_zero(source, block, operation_index) {
-                        let input = if *left == zero.result { *right } else { *left };
+                        let input = if *left == zero.result.ok_or_else(invalid)?.value {
+                            *right
+                        } else {
+                            *left
+                        };
                         let (_, register, _, actual_type) =
                             builder.resolve(input).ok_or_else(invalid)?;
                         if actual_type != ScalarType::Integer(*operand_type)
@@ -179,7 +198,11 @@ pub(super) fn build(
                             &[register],
                             SelectedInstructionProvenance {
                                 operations: vec![zero.operation, operation.operation],
-                                values: vec![input, zero.result, operation.result],
+                                values: vec![
+                                    input,
+                                    zero.result.ok_or_else(invalid)?.value,
+                                    result.value,
+                                ],
                                 fuel: zero.fuel.iter().chain(&operation.fuel).copied().collect(),
                                 ..Default::default()
                             },
@@ -210,7 +233,7 @@ pub(super) fn build(
                         &operands,
                         SelectedInstructionProvenance {
                             operations: vec![operation.operation],
-                            values: vec![*left, *right, operation.result],
+                            values: vec![*left, *right, result.value],
                             fuel: operation.fuel.clone(),
                             ..Default::default()
                         },
@@ -237,18 +260,15 @@ pub(super) fn build(
                     {
                         return Err(invalid());
                     }
-                    let output = builder.register(
-                        operation.result,
-                        operation.definition_site,
-                        scalar_type,
-                    )?;
+                    let output =
+                        builder.register(result.value, result.definition_site, scalar_type)?;
                     builder.emit(
                         SelectedInstructionKind::CopyI64,
                         constraints.keys.copy_i64,
                         &[input, output],
                         SelectedInstructionProvenance {
                             operations: vec![operation.operation],
-                            values: vec![*operand, operation.result],
+                            values: vec![*operand, result.value],
                             fuel: operation.fuel.clone(),
                             ..Default::default()
                         },
@@ -256,18 +276,15 @@ pub(super) fn build(
                     output
                 }
                 LegalizedScalarInstructionKind::Constant(value) => {
-                    let output = builder.register(
-                        operation.result,
-                        operation.definition_site,
-                        scalar_type,
-                    )?;
+                    let output =
+                        builder.register(result.value, result.definition_site, scalar_type)?;
                     builder.emit(
                         SelectedInstructionKind::MaterializeI64 { value: *value },
                         constraints.keys.materialize_i64,
                         &[output],
                         SelectedInstructionProvenance {
                             operations: vec![operation.operation],
-                            values: vec![operation.result],
+                            values: vec![result.value],
                             fuel: operation.fuel.clone(),
                             ..Default::default()
                         },
@@ -304,18 +321,15 @@ pub(super) fn build(
                             constraints.keys.subtract_i64,
                         ),
                     };
-                    let output = builder.register(
-                        operation.result,
-                        operation.definition_site,
-                        scalar_type,
-                    )?;
+                    let output =
+                        builder.register(result.value, result.definition_site, scalar_type)?;
                     builder.emit(
                         kind,
                         key,
                         &[left_register, right_register, output],
                         SelectedInstructionProvenance {
                             operations: vec![operation.operation],
-                            values: vec![*left, *right, operation.result],
+                            values: vec![*left, *right, result.value],
                             obligations: vec![*obligation],
                             fuel: operation.fuel.clone(),
                             ..Default::default()
@@ -323,6 +337,7 @@ pub(super) fn build(
                     )?;
                     output
                 }
+                LegalizedScalarInstructionKind::BoundarySettlement(_) => return Err(invalid()),
                 LegalizedScalarInstructionKind::Call(call) => {
                     let key = constraints
                         .keys
@@ -339,16 +354,35 @@ pub(super) fn build(
                     )?;
                     let mut operands = Vec::new();
                     for argument in &call.arguments {
-                        let (_, input, site, argument_type) =
-                            builder.resolve(argument.source).ok_or_else(invalid)?;
-                        operands.push(builder.copy(input, argument.source, site, argument_type)?);
+                        let (_, input, site, argument_type) = builder
+                            .resolve(argument.scalar_source().ok_or_else(invalid)?)
+                            .ok_or_else(invalid)?;
+                        operands.push(builder.copy(
+                            input,
+                            argument.scalar_source().ok_or_else(invalid)?,
+                            site,
+                            argument_type,
+                        )?);
                     }
-                    let short_result = builder.register(
-                        operation.result,
-                        operation.definition_site,
-                        scalar_type,
-                    )?;
+                    let short_result =
+                        builder.register(result.value, result.definition_site, scalar_type)?;
                     operands.push(short_result);
+                    builder
+                        .transport
+                        .calls
+                        .push(selected_instructions::SelectedCallContract {
+                            instruction: SelectedInstructionId(
+                                builder
+                                    .instructions
+                                    .len()
+                                    .try_into()
+                                    .map_err(|_| invalid())?,
+                            ),
+                            operation: operation.operation,
+                            call: call.clone(),
+                            effect: operation.effect,
+                            ownership: operation.ownership.clone(),
+                        });
                     builder.emit(
                         SelectedInstructionKind::CallI64 {
                             callee: call.callee,
@@ -360,8 +394,8 @@ pub(super) fn build(
                             values: call
                                 .arguments
                                 .iter()
-                                .map(|argument| argument.source)
-                                .chain(std::iter::once(operation.result))
+                                .filter_map(|argument| argument.scalar_source())
+                                .chain(std::iter::once(result.value))
                                 .collect(),
                             obligations: call.requirement_obligations.clone(),
                             fuel: operation.fuel.clone(),
@@ -370,18 +404,15 @@ pub(super) fn build(
                     )?;
                     builder.copy(
                         short_result,
-                        operation.result,
-                        operation.definition_site,
+                        result.value,
+                        result.definition_site,
                         scalar_type,
                     )?
                 }
             };
-            builder.definitions.push((
-                operation.result,
-                output,
-                operation.definition_site,
-                scalar_type,
-            ));
+            builder
+                .definitions
+                .push((result.value, output, result.definition_site, scalar_type));
         }
         let terminator =
             control::build(function, source, block, &order, &mut builder, &environment)?;
@@ -401,6 +432,11 @@ pub(super) fn build(
         machine: source.machine,
         attachment: source.attachment,
         provenance: source.provenance.clone(),
+        structural: source.structural.clone(),
+        outgoing_arguments: builder.transport.slots,
+        calls: builder.transport.calls,
+        memory_accesses: builder.transport.memory,
+        boundary_settlements: builder.transport.settlements,
         entry_block: SelectedBlockId(0),
         virtual_registers: builder.registers,
         blocks,
@@ -408,6 +444,7 @@ pub(super) fn build(
 }
 
 struct Builder<'a> {
+    transport: structural::Transport,
     class: RegisterClassId,
     constraints: &'a SelectedSelectionConstraints,
     catalog: &'a ValidatedRegisterConstraintCatalog,
@@ -452,7 +489,7 @@ impl Builder<'_> {
                 ),
                 source_value: value,
             },
-            definition_site: site,
+            definition_site: Some(site),
             entry_fixed_view: None,
         });
         Ok(id)
@@ -504,14 +541,22 @@ impl Builder<'_> {
 }
 
 fn branch_suffix(block: &legalized_operations::LegalizedScalarBlock, index: usize) -> bool {
-    let mut value = block.instructions[index].result;
+    let Some(result) = block.instructions[index].result else {
+        return false;
+    };
+    let mut value = result.value;
     for row in &block.instructions[index + 1..] {
         if !matches!(row.kind, LegalizedScalarInstructionKind::BooleanNot {operand} if operand == value)
-            || row.scalar_type != ScalarType::Boolean
+            || row
+                .result
+                .is_none_or(|result| result.scalar_type != ScalarType::Boolean)
         {
             return false;
         }
-        value = row.result;
+        let Some(result) = row.result else {
+            return false;
+        };
+        value = result.value;
     }
     matches!(block.terminator, legalized_operations::LegalizedScalarTerminator::Conditional {condition,..}
         if condition == value)

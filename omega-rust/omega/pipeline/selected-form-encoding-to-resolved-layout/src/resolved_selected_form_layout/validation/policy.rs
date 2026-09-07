@@ -5,9 +5,6 @@ use super::super::{OptimizedResolvedSelectedFormLayoutError, SelectedFunctionLay
 pub(super) fn derive(
     selected: &SelectedInstructionPlan,
 ) -> Result<SelectedFunctionLayoutPolicy, OptimizedResolvedSelectedFormLayoutError> {
-    if !selected.structural_unit_functions.is_empty() {
-        return Ok(SelectedFunctionLayoutPolicy::StructuralUnitCallThenReturnSingleEntryBlockV1);
-    }
     let single_entry_count = selected
         .functions
         .iter()

@@ -60,6 +60,7 @@ pub(super) fn build_functions(
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(PostAllocationMachineFunction {
                 machine: function.machine,
+                outgoing_arguments: function.outgoing_arguments.clone(),
                 blocks,
             })
         })
