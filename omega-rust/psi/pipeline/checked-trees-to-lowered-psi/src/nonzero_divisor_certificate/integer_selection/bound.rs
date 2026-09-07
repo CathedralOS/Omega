@@ -13,6 +13,9 @@ pub(super) fn prove(
     semantic_axioms: &[Proposition],
     definitions: &mut DefinitionIndex,
 ) -> Option<ProofNode> {
+    if let Some(proof) = super::super::integer_evidence::integer_carrier_bound(context, goal) {
+        return Some(proof);
+    }
     if let Some(proof) =
         order::prove_exact_or_closed_transitive_integer_bound(goal, assumptions, semantic_axioms)
     {

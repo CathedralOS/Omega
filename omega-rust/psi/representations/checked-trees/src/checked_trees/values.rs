@@ -231,6 +231,18 @@ pub enum CheckedScalarExpressionRole {
         call_ordinal: u32,
         argument_ordinal: u32,
     },
+    /// Present exclusive byte-subslice start, keyed by the enclosing call and
+    /// dense structural argument ordinal, not its mixed authored position.
+    ByteSequenceSubsliceStart {
+        call_ordinal: u32,
+        argument_ordinal: u32,
+    },
+    /// Present exclusive byte-subslice end in the same structural namespace.
+    /// An omitted end has no expression or source-binding row.
+    ByteSequenceSubsliceEnd {
+        call_ordinal: u32,
+        argument_ordinal: u32,
+    },
     /// Right-hand side of one direct typed assignment. The coordinate remains
     /// statement-local and does not imply that every assignment is admitted
     /// by a later executable plan.

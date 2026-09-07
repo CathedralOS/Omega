@@ -102,6 +102,18 @@ pub(super) fn closed_integer_relation(conclusion: Proposition) -> Option<ProofNo
     })
 }
 
+pub(super) fn integer_carrier_bound(
+    context: &semantic_vocabulary::PropositionContext,
+    goal: &Proposition,
+) -> Option<ProofNode> {
+    proof_admission::decide_primitive(context, goal, PrimitiveJudgment::IntegerCarrierBound)
+        .is_ok()
+        .then(|| ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::Primitive(PrimitiveJudgment::IntegerCarrierBound),
+        })
+}
+
 impl Citation {
     pub(super) fn proof(self, conclusion: &Proposition) -> ProofNode {
         ProofNode {

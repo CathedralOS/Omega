@@ -167,9 +167,9 @@ Interpretation binds exact bytes to each invocation's parameter places and
 restores the caller's byte storage on return. Nested and repeated calls retain
 their own payloads, including empty sequences, independently of opaque host
 identities. An opaque incoming value without byte contents cannot execute a
-byte-consuming call. Source-produced views still exclude nominal projections,
-owned byte storage, and subslicing. Native whole-byte-view argument layout also
-remains unimplemented; Terminal subslice execution is described below.
+byte-consuming call. Source-produced views still exclude nominal projections
+and owned byte storage. Native whole-byte-view argument layout also remains
+unimplemented; source and Terminal subslice execution are described below.
 
 Vocabulary 81 adds `ByteSequenceLength { source }`: a total observation of one
 whole immutable byte view, producing its exact `u64` byte count. The source is
@@ -224,6 +224,19 @@ The interpreter retains shared immutable byte backing and checked view bounds;
 deriving a tail does not copy its bytes. Invocation binding and caller-frame
 restoration preserve those descriptors. One executed subslice costs one
 operation unit; an unselected branch costs none for that operation.
+
+Source call arguments retain exclusive ranges over whole immutable byte-view
+parameters. Present endpoints use unique source-bound `u64` scalar facts keyed
+by state, statement, call ordinal, and dense structural argument ordinal; they
+are evaluated start then end at that argument's authored position, between
+surrounding scalar computations. Omitted start/end become zero/source length.
+Lowering rejoins the exact source expression, parameter, endpoint facts, and
+built-in range selection before emitting the canonical two-leg obligation.
+An ordinary Unit helper or boundary can consume the view, and a called helper
+can subslice it again. `bytes[..]` executes for empty and arbitrary raw bytes
+through that source closure. Inclusive ranges, mutable views, projections,
+custom range operators, and borrowed structural returns remain outside this
+source path; no unchecked descriptor operation substitutes for them.
 
 This closes an acyclic Terminal tail-to-helper execution path, not source
 state-edge lowering or slice-ranked loops. Those still need to retain and emit
@@ -5117,9 +5130,9 @@ that alternative appended to the enclosing assumptions and requires the same
 conclusion in every branch. Discharged local assumptions are not ambient
 requirements in the acceptance record. This permits signed division to use
 both nonzero signs while independently proving the `MIN / -1` exclusion.
-The current proof vocabulary uses proof-bundle format 27, canonical
-proof-calculus trust root 27, proof-system marker 2, and Rust admission kernel
-v10. `EqualitySymmetry` reverses one independently proved scalar
+The current proof vocabulary uses proof-bundle format 28, canonical
+proof-calculus trust root 28, proof-system marker 2, and Rust admission kernel
+v11. `EqualitySymmetry` reverses one independently proved scalar
 equality, retaining its exact child citation. This lets canonical contract
 equalities participate in either direction without inventing an equality or
 depending on runtime value identity ordering.
@@ -5149,6 +5162,16 @@ endpoint must be identical. The kernel checks exact adjacency, carrier bounds,
 and the child derivation; it neither wraps at integer limits nor applies the
 rule to addresses. This lets a selected false `length == 0` branch prove a head
 read without adding a read-specific trusted axiom or changing the read goal.
+
+`IntegerCarrierBound` is a primitive judgment for exactly `MIN <= value` or
+`value <= MAX` of a declared fixed-integer SSA value. The kernel validates its
+identity and exact signed width against the proposition context, and requires
+the matching typed literal limit. It does not cover strict order, addresses,
+compound arithmetic, or narrower claimed limits. The producer uses ordinary
+equality substitution to transport that fact to an evaluated endpoint such as
+zero in a full byte range; the canonical subslice goal remains unchanged.
+Format 28 adds primitive tag 4 and rejects format 27 proof bundles as stale.
+Semantic module format 77 and vocabulary 83 are unchanged.
 
 Exact representability uses a separate proof-only, total mathematical term
 domain rather than executable `ScalarTerm` operations, whose exact arithmetic
@@ -6596,6 +6619,13 @@ must use the selected edge's evaluation order. The emitted byte and optional
 newline precede normal return to the caller. Source slice-decrease checking
 in `validation/src/slice_ranking.rs` already checks the guarded `[1..]` route;
 executable ranking must retain that proof, not substitute a private countdown.
+
+A source `requires bytes.len > 0` is not a substitute for retaining the
+selected body guard: contract-level byte-length observations and their exact
+caller substitution are not yet represented in Terminal. A contracted source
+`bytes[1..]` therefore currently stops at an unavailable operation proof.
+Do not inject a body SSA value into the parameter-only contract scope or add
+an unrelated length parameter as a replacement for the view's actual extent.
 
 The current ordinary Unit call closure consumes one-state plans. A separate
 multistate plan is insufficient until calls, structural/scalar transfers,

@@ -19,6 +19,7 @@ pub(super) fn prove(
     allow_cast: bool,
 ) -> Option<ProofNode> {
     prove_exact_or_closed_transitive_integer_bound(relation, assumptions, semantic_axioms)
+        .or_else(|| super::super::super::integer_evidence::integer_carrier_bound(context, relation))
         .or_else(|| prove_two_fact_transitive_integer_bound(relation, assumptions, semantic_axioms))
         .or_else(|| {
             if allow_cast {

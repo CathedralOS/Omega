@@ -488,7 +488,7 @@ mod tests {
             .iter()
             .find(|node| node.identity() == "implementation:rust-proof-admission")
             .expect("current Rust proof admission checker");
-        assert_eq!(rust_admission.version(), "rust-proof-admission-v10");
+        assert_eq!(rust_admission.version(), "rust-proof-admission-v11");
         assert!(
             rust_admission
                 .dependencies()

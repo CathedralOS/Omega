@@ -748,6 +748,7 @@ fn lower_boundary_call_arguments(
             .count();
     let mut explicit_index = 0usize;
     let mut scalar_index = 0usize;
+    let mut structural_index = 0usize;
     let mut output = Vec::new();
     for target in target_parameters {
         if target.is_self && !explicit_self {
@@ -756,6 +757,72 @@ fn lower_boundary_call_arguments(
         let argument = *explicit_arguments.get(explicit_index)?;
         explicit_index = explicit_index.checked_add(1)?;
         let Some(expected_type) = program.primitive_type_reference(target.type_reference) else {
+            let argument_ordinal = u32::try_from(structural_index).ok()?;
+            structural_index = structural_index.checked_add(1)?;
+            let ExpressionNode::Indexed(indexed) = program.expression_table.expression(argument)
+            else {
+                continue;
+            };
+            let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index)
+            else {
+                continue;
+            };
+            if range.end_inclusive
+                || operators.expression_use(argument).is_some_and(|selected| {
+                    selected.spelling != language_core::OperatorSpelling::Range
+                        || selected.selected_operator_symbol.is_valid()
+                        || selected.candidate_count != 0
+                        || !matches!(
+                            selected.status,
+                            CheckedOperatorResolutionStatus::Missing
+                                | CheckedOperatorResolutionStatus::BuiltinFallback
+                        )
+                })
+            {
+                continue;
+            }
+            let call_ordinal = u32::try_from(call_ordinal).ok()?;
+            for (endpoint, role) in [
+                (
+                    range.start,
+                    CheckedScalarExpressionRole::ByteSequenceSubsliceStart {
+                        call_ordinal,
+                        argument_ordinal,
+                    },
+                ),
+                (
+                    range.end,
+                    CheckedScalarExpressionRole::ByteSequenceSubsliceEnd {
+                        call_ordinal,
+                        argument_ordinal,
+                    },
+                ),
+            ] {
+                if !endpoint.is_valid() {
+                    continue;
+                }
+                if let Some(expression) = lower_return_expression(
+                    program,
+                    operators,
+                    endpoint,
+                    parameters,
+                    authored_parameters,
+                    parameter_types,
+                    locals,
+                    PrimitiveType::U64,
+                    exact_integer_casts,
+                ) {
+                    output.push((
+                        endpoint,
+                        CheckedLocatedScalarExpression {
+                            state: state.symbol,
+                            statement_ordinal,
+                            role,
+                            expression,
+                        },
+                    ));
+                }
+            }
             continue;
         };
         if target.is_self

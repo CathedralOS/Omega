@@ -588,7 +588,7 @@ fn emit_scalar_leaf(
     id
 }
 
-fn emit_byte_length(
+pub(super) fn emit_byte_length(
     source: PlaceId,
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,

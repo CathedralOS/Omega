@@ -51,7 +51,7 @@ fn canonical_terminal_bytes_version() -> String {
 }
 
 fn canonical_proof_calculus_identity() -> &'static str {
-    "root:canonical-proof-calculus-format-27"
+    "root:canonical-proof-calculus-format-28"
 }
 
 fn canonical_proof_calculus_version() -> String {
@@ -177,7 +177,7 @@ fn proof_admission_node() -> TrustDependencyNode {
         TrustDependencyKind::TrustedImplementation,
         TrustDependencyStatus::TrustedJudgment,
         "Rust product-local proof admission and judgment checker",
-        "rust-proof-admission-v10",
+        "rust-proof-admission-v11",
         "proof-admission",
         "portable proof bundle acceptance",
         "The current Rust admission checker remains trusted until the independent low-rung checker closes the diamond.",

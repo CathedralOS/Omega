@@ -5,6 +5,8 @@ pub enum PrimitiveJudgment {
     Truth,
     ReflexiveEquality,
     ClosedIntegerRelation,
+    /// The exact minimum or maximum of a fixed integer value's declared type.
+    IntegerCarrierBound,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
