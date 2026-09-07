@@ -139,9 +139,14 @@ fn discover_mappings(
                         // they do not redefine its parameter correspondence.
                         continue;
                     }
-                    let Some(incoming) =
-                        argument_mapping(program, source, target, &source_mapping, edge.arguments)
-                    else {
+                    let Some(incoming) = argument_mapping(
+                        program,
+                        machine,
+                        source,
+                        target,
+                        &source_mapping,
+                        edge.arguments,
+                    ) else {
                         if identity {
                             return None;
                         }
@@ -167,6 +172,7 @@ fn discover_mappings(
 /// query independently requires an unambiguous slot for every rank input.
 fn argument_mapping(
     program: &TypedTrees,
+    machine: &Machine,
     source: &State,
     target: &State,
     source_mapping: &[SymbolHandle],
@@ -189,7 +195,7 @@ fn argument_mapping(
     }
     let mut parameters = Vec::with_capacity(arguments.len());
     for argument in arguments {
-        let subject = argument_subject(program, *argument, 0)?;
+        let subject = argument_subject(program, machine, source, *argument, 0)?;
         let source_position = source_parameters.iter().position(|parameter| {
             subject.is_valid()
                 && parameter.symbol == subject
@@ -210,6 +216,8 @@ fn argument_mapping(
 /// subtree, which cannot establish a subject on its own.
 fn argument_subject(
     program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<SymbolHandle> {
@@ -221,7 +229,22 @@ fn argument_subject(
         ExpressionNode::Name(name) if name.symbol.is_valid() && name.head_symbol == name.symbol => {
             Some(name.symbol)
         }
-        ExpressionNode::Atomic(atomic) => argument_subject(program, atomic.value, depth + 1),
+        ExpressionNode::Atomic(atomic) => {
+            argument_subject(program, machine, state, atomic.value, depth + 1)
+        }
+        ExpressionNode::Indexed(indexed)
+            if validation::has_builtin_subslice_meaning(
+                program,
+                machine,
+                Some(state),
+                expression,
+            ) =>
+        {
+            // A window retains its collection's lineage, not the lineage of
+            // the scalar bounds. The edge query separately proves its length
+            // and bounds before this mapping can support a ranking fact.
+            argument_subject(program, machine, state, indexed.collection, depth + 1)
+        }
         ExpressionNode::Binary(binary)
             if matches!(
                 binary.operator,
@@ -231,8 +254,8 @@ fn argument_subject(
                     | BinaryOperator::Modulo
             ) =>
         {
-            let left = argument_subject(program, binary.left, depth + 1)?;
-            let right = argument_subject(program, binary.right, depth + 1)?;
+            let left = argument_subject(program, machine, state, binary.left, depth + 1)?;
+            let right = argument_subject(program, machine, state, binary.right, depth + 1)?;
             if !left.is_valid() || left == right {
                 Some(right)
             } else if !right.is_valid() {

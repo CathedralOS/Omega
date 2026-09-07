@@ -6,6 +6,7 @@ mod entry_reentry;
 mod named_states;
 mod payloads;
 mod relational;
+mod slice_length;
 mod state_edges;
 mod static_fallback;
 

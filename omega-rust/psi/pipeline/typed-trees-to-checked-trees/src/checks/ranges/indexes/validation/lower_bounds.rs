@@ -33,6 +33,14 @@ pub(super) fn prove(
         }
         let label = program.expression_table.display_name(expression);
         validation::collection_length_receiver(program, machine, Some(state), expression).is_some()
+            || crate::checks::ranges::proofs::length_difference_is_within_collection(
+                program,
+                machine,
+                state,
+                facts,
+                indexed.collection,
+                expression,
+            )
             || expression_is_unsigned_integer(program, machine, state, expression)
             || expression_enforced_declared_range(program, machine, state, expression)
                 .is_some_and(|(minimum, _)| minimum >= 0)

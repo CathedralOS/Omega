@@ -242,7 +242,8 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   machine-call-component ranges need exact arrival mappings and preserved
   premises for ranked subjects and pinned endpoints. Mutable premises need live
   write-frame evidence.
-  Custom scalar views and slice-length ranges need their produced-rank facts.
+  Custom scalar views and slice-length ranges over projected storage need their
+  produced-rank facts.
   These are implementation gaps, not grounds to weaken the range obligation.
 
   Acceptance: named-state and call-component rank ranges accept proved
