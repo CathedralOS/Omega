@@ -29,6 +29,7 @@ pub(in crate::tests) fn microsoft_selection_environment() -> (
         keys: SelectedConstraintKeys {
             call_unit: Some(X86_64_MICROSOFT_CALL_UNIT),
             load64: Some(isa_x86_64::X86_64_LOAD64),
+            load8_indexed: None,
             store64: Some(isa_x86_64::X86_64_STORE64),
             frame_address: Some(isa_x86_64::X86_64_FRAME_ADDRESS),
             call_i64: Vec::new(),

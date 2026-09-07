@@ -61,6 +61,7 @@ pub(super) fn resolve(
         return Ok(None);
     };
     let displacement = match symbolic {
+        Address::Load8Indexed { .. } => 0,
         Address::Load64 { byte_offset, .. } => byte_offset,
         Address::Store64 { slot, byte_offset } | Address::FrameAddress { slot, byte_offset } => {
             let slot = function
@@ -122,6 +123,10 @@ pub(super) fn validate_address(
         return Err(Error::ArtifactMismatch);
     }
     match symbolic {
+        Address::Load8Indexed {
+            base_operand: 0,
+            index_operand: 1,
+        } if candidate.displacement == 0 => Ok(()),
         Address::Load64 {
             base_operand: 0,
             byte_offset,

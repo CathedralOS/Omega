@@ -183,15 +183,10 @@ pub(in crate::selection) fn validate(
             let result = operation.result.ok_or_else(invalid)?;
             let scalar_type = result.scalar_type;
             let output = match &operation.kind {
-                LegalizedScalarInstructionKind::ByteSequenceLength {
-                    source,
-                    length_byte_offset,
-                } => structural::byte_sequence_length(
-                    &mut replay,
-                    operation,
-                    *source,
-                    *length_byte_offset,
-                )?,
+                LegalizedScalarInstructionKind::ByteSequenceRead { .. }
+                | LegalizedScalarInstructionKind::ByteSequenceLength { .. } => {
+                    structural::byte_observation(&mut replay, operation)?
+                }
                 LegalizedScalarInstructionKind::Compare {
                     predicate,
                     operand_type,

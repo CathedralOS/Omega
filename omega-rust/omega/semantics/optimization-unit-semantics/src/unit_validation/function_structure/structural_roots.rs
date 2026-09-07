@@ -145,7 +145,8 @@ pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
             dynamic_dispatch.initial.source.place,
             dynamic_dispatch.rebound.source.place,
         ],
-        O::ByteSequenceLength { source, .. }
+        O::ByteSequenceRead { source, .. }
+        | O::ByteSequenceLength { source, .. }
         | O::BooleanStructuralField { source, .. }
         | O::ReturnStructural { source, .. } => {
             vec![*source]
@@ -218,12 +219,12 @@ pub(crate) fn validate_structural_root_operations(
         for (node_index, node) in block.nodes.iter().enumerate() {
             let node_index = u32::try_from(node_index).expect("unit node index fits u32");
             match &node.operation {
-                O::ByteSequenceLength { source, .. } => {
+                O::ByteSequenceLength { source, .. } | O::ByteSequenceRead { source, .. } => {
                     super::byte_views::validate_immutable_byte_view_source(
                         function,
                         block.id,
                         node_index,
-                        *source,
+                        &node.operation,
                         place_kinds.get(source),
                         structural_types,
                     )?;

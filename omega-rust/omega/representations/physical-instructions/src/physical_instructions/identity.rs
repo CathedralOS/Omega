@@ -118,6 +118,14 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &crate::PostAllocationMa
         }
     }
     match instruction.address {
+        Some(crate::PhysicalAddressOperation::Load8Indexed {
+            base_operand,
+            index_operand,
+        }) => {
+            bytes.push(4);
+            bytes.extend_from_slice(&base_operand.to_le_bytes());
+            bytes.extend_from_slice(&index_operand.to_le_bytes());
+        }
         None => bytes.push(0),
         Some(crate::PhysicalAddressOperation::Load64 {
             base_operand,
@@ -172,6 +180,7 @@ fn encode_alternative(bytes: &mut Vec<u8>, alternative: &MachineAlternative) {
         MachineAlternativeFamily::CallI64 => 13,
         MachineAlternativeFamily::Jump => 14,
         MachineAlternativeFamily::Load64 => 16,
+        MachineAlternativeFamily::Load8Indexed => 21,
         MachineAlternativeFamily::Store64 => 17,
         MachineAlternativeFamily::FrameAddress => 18,
         MachineAlternativeFamily::CallUnit => 19,
@@ -264,6 +273,16 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
         } => {
             bytes.push(3);
             bytes.extend_from_slice(&pointer_operand.to_le_bytes());
+            bytes.extend_from_slice(&byte_count.to_le_bytes());
+        }
+        MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
+            pointer_operand,
+            index_operand,
+            byte_count,
+        } => {
+            bytes.push(5);
+            bytes.extend_from_slice(&pointer_operand.to_le_bytes());
+            bytes.extend_from_slice(&index_operand.to_le_bytes());
             bytes.extend_from_slice(&byte_count.to_le_bytes());
         }
         MachineEncodedMemoryEffect::WriteOutgoingArgumentV1 {

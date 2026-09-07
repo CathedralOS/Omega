@@ -23,6 +23,7 @@ impl MachineEffectCatalogIdentity {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MachineSemanticKind {
+    Load8Indexed,
     CompareI64Zero,
     MaterializeI64,
     CopyI64,
@@ -47,7 +48,8 @@ pub enum MachineSemanticKind {
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 21] = [
+    pub const ALL: [Self; 22] = [
+        Self::Load8Indexed,
         Self::CompareI64Zero,
         Self::MaterializeI64,
         Self::CopyI64,
@@ -74,6 +76,7 @@ impl MachineSemanticKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MachineAlternativeFamily {
+    Load8Indexed,
     CompareI64Zero,
     MaterializeI64,
     CopyI64,
@@ -100,6 +103,7 @@ pub enum MachineAlternativeFamily {
 impl From<MachineSemanticKind> for MachineAlternativeFamily {
     fn from(value: MachineSemanticKind) -> Self {
         match value {
+            MachineSemanticKind::Load8Indexed => Self::Load8Indexed,
             MachineSemanticKind::CompareI64Zero => Self::CompareI64Zero,
             MachineSemanticKind::MaterializeI64 => Self::MaterializeI64,
             MachineSemanticKind::CopyI64 => Self::CopyI64,
@@ -248,6 +252,11 @@ impl MachineEncodedEffects {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineEncodedMemoryEffect {
+    ReadIndexedPointerV1 {
+        pointer_operand: u16,
+        index_operand: u16,
+        byte_count: u16,
+    },
     NoneV1,
     ReadPointerV1 {
         pointer_operand: u16,

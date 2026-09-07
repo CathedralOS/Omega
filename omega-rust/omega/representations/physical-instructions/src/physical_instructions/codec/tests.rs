@@ -251,6 +251,10 @@ fn physical_codec_binds_symbolic_address_roles_and_outgoing_geometry() {
             abi_stack_byte_offset: 48,
         });
     for address in [
+        PhysicalAddressOperation::Load8Indexed {
+            base_operand: 0,
+            index_operand: 1,
+        },
         PhysicalAddressOperation::Load64 {
             base_operand: 0,
             byte_offset: 8,

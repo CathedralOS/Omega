@@ -181,15 +181,10 @@ pub(super) fn build(
             let result = operation.result.ok_or_else(invalid)?;
             let scalar_type = result.scalar_type;
             let output = match &operation.kind {
-                LegalizedScalarInstructionKind::ByteSequenceLength {
-                    source,
-                    length_byte_offset,
-                } => structural::byte_sequence_length(
-                    &mut builder,
-                    operation,
-                    *source,
-                    *length_byte_offset,
-                )?,
+                LegalizedScalarInstructionKind::ByteSequenceRead { .. }
+                | LegalizedScalarInstructionKind::ByteSequenceLength { .. } => {
+                    structural::byte_observation(&mut builder, operation)?
+                }
                 LegalizedScalarInstructionKind::Compare {
                     predicate,
                     operand_type,

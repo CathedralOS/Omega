@@ -1,5 +1,6 @@
 //! Unsigned-offset LDR with independently decoded pointer-read evidence.
 use super::*;
+mod indexed;
 
 pub fn encode_aarch64_selected_memory_form(
     physical: &ValidatedPhysicalRegisterModel,
@@ -8,6 +9,9 @@ pub fn encode_aarch64_selected_memory_form(
     operands: &[RegisterViewId],
     displacement: u32,
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    if kind == SelectedInstructionKind::Load8Indexed {
+        return indexed::encode(physical, alternative, operands, displacement);
+    }
     let [base, destination] = request(physical, kind, alternative, operands, displacement)?;
     let word =
         0xf940_0000 | ((displacement / 8) << 10) | (u32::from(base) << 5) | u32::from(destination);
@@ -29,6 +33,9 @@ pub fn validate_aarch64_selected_memory_form(
     displacement: u32,
     bytes: &[u8],
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    if kind == SelectedInstructionKind::Load8Indexed {
+        return indexed::validate(physical, alternative, operands, displacement, bytes);
+    }
     let [base, destination] = request(physical, kind, alternative, operands, displacement)?;
     let word = bytes
         .try_into()

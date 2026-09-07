@@ -28,9 +28,23 @@ pub(super) fn validate(
         || abstracted.attachment.is_some()
         || optimized.attachment.is_some()
         || target.scalar_abi.is_some()
-        || !abstracted.parameters.is_empty()
-        || !optimized.parameters.is_empty()
-        || !abi.scalar_parameters.is_empty()
+        || abstracted.parameters.len() != optimized.parameters.len()
+        || abi.scalar_parameters.len() != abstracted.parameters.len()
+        || abi.call_plan.parameters.len() != abstracted.parameters.len() + 1
+        || abi
+            .scalar_parameters
+            .iter()
+            .zip(&abstracted.parameters)
+            .zip(&optimized.parameters)
+            .zip(&abi.call_plan.parameters)
+            .any(|(((actual, declared), optimized), placement)| {
+                actual.value != declared.value
+                    || actual.scalar_type != ScalarType::Integer(u64_type())
+                    || declared.scalar_type != actual.scalar_type
+                    || optimized.value != declared.value
+                    || optimized.scalar_type != declared.scalar_type
+                    || actual.placement != *placement
+            })
         || abi.structural_parameters.len() != 1
         || abstracted.structural_parameters.len() != 1
         || optimized.structural_parameters != abstracted.structural_parameters

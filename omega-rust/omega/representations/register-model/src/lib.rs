@@ -193,6 +193,7 @@ pub struct RegisterConstraintKey {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetRegisterEnvironmentConstraintKeys {
     pub load64: Option<RegisterConstraintKey>,
+    pub load8_indexed: Option<RegisterConstraintKey>,
     pub store64: Option<RegisterConstraintKey>,
     pub frame_address: Option<RegisterConstraintKey>,
     pub call_unit: Option<RegisterConstraintKey>,
@@ -1609,6 +1610,7 @@ mod tests {
         .unwrap();
         let keys = TargetRegisterEnvironmentConstraintKeys {
             load64: Some(instruction_key(30)),
+            load8_indexed: None,
             store64: Some(instruction_key(31)),
             frame_address: Some(instruction_key(32)),
             call_unit: Some(RegisterConstraintKey {

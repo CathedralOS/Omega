@@ -29,9 +29,20 @@ pub struct SelectedCallContract {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedMemoryAccessRole {
+    /// Dynamic byte offset; the row's fixed byte offset is additive only.
+    ReadByteSequence {
+        index: semantic_vocabulary::ValueId,
+        length: semantic_vocabulary::ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
+    },
     ReadPlace,
-    WriteOutgoing { slot: OutgoingArgumentSlotId },
-    AddressOutgoing { slot: OutgoingArgumentSlotId },
+    WriteOutgoing {
+        slot: OutgoingArgumentSlotId,
+    },
+    AddressOutgoing {
+        slot: OutgoingArgumentSlotId,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

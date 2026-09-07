@@ -7,6 +7,7 @@ impl SelectedConstraintKeys {
     pub fn in_identity_order(&self) -> Vec<RegisterConstraintKey> {
         [
             self.load64,
+            self.load8_indexed,
             self.store64,
             self.frame_address,
             self.call_unit,
@@ -36,6 +37,7 @@ impl SelectedConstraintKeys {
         semantic: MachineSemanticKind,
     ) -> Option<RegisterConstraintKey> {
         Some(match semantic {
+            MachineSemanticKind::Load8Indexed => return self.load8_indexed,
             MachineSemanticKind::Load64 => return self.load64,
             MachineSemanticKind::Store64 => return self.store64,
             MachineSemanticKind::FrameAddress => return self.frame_address,

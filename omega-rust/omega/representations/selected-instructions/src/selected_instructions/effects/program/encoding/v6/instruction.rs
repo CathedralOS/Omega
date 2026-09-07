@@ -81,6 +81,7 @@ fn decode_kind(
         2 => SelectedInstructionKind::CopyI64,
         15 => SelectedInstructionKind::ZeroExtendU8,
         20 => SelectedInstructionKind::ZeroExtendU32,
+        21 => SelectedInstructionKind::Load8Indexed,
         16 => SelectedInstructionKind::Load64 {
             byte_offset: cursor.u32()?,
         },
@@ -215,6 +216,7 @@ fn decode_alternative_for_version(
         2 => MachineAlternativeFamily::CopyI64,
         15 => MachineAlternativeFamily::ZeroExtendU8,
         20 => MachineAlternativeFamily::ZeroExtendU32,
+        21 => MachineAlternativeFamily::Load8Indexed,
         16 => MachineAlternativeFamily::Load64,
         17 => MachineAlternativeFamily::Store64,
         18 => MachineAlternativeFamily::FrameAddress,
@@ -306,6 +308,11 @@ fn decode_encoded_effects(
     let implicit_unit_clobbers = decode_units(cursor)?;
     let memory = match cursor.byte()? {
         0 => MachineEncodedMemoryEffect::NoneV1,
+        5 => MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
+            pointer_operand: cursor.u16()?,
+            index_operand: cursor.u16()?,
+            byte_count: cursor.u16()?,
+        },
         3 => MachineEncodedMemoryEffect::ReadPointerV1 {
             pointer_operand: cursor.u16()?,
             byte_count: cursor.u16()?,

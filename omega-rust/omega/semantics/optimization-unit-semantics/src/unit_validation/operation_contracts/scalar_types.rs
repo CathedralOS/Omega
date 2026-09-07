@@ -18,6 +18,18 @@ pub(crate) fn operation_scalar_types_match(
         integer(left, expected) && integer(right, expected)
     };
     match operation {
+        O::ByteSequenceRead {
+            result,
+            index,
+            length,
+            ..
+        } => {
+            matches!(result.scalar_type, ScalarType::Integer(integer)
+                if Ok(integer) == IntegerType::new(IntegerSign::Unsigned, 8))
+                && matches!(scalar(*index), Some(ScalarType::Integer(integer))
+                    if Ok(integer) == IntegerType::new(IntegerSign::Unsigned, 64))
+                && scalar(*index) == scalar(*length)
+        }
         O::ByteSequenceLength { result, .. } => {
             matches!(result.scalar_type, ScalarType::Integer(integer)
                 if Ok(integer) == IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64))

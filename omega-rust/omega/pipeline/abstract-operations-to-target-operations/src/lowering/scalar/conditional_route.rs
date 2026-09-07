@@ -17,7 +17,12 @@ pub(super) fn lower_conditional(
         .iter()
         .any(|operation| matches!(operation, AbstractOperation::Conditional { .. }))
     {
-        if function.structural_parameters.is_empty() {
+        if function.structural_parameters.is_empty()
+            || (matches!(function_result.scalar_type, ScalarType::Integer(_))
+                && function.structural_parameters.iter().all(|parameter| {
+                    byte_views::is_immutable_byte_parameter(parameter, structural_types)
+                }))
+        {
             if function.operations.iter().any(|operation| {
                 matches!(operation,
                     AbstractOperation::Return { cleanup_actions, .. }
@@ -28,9 +33,14 @@ pub(super) fn lower_conditional(
                 ));
             }
             return match function_result.scalar_type {
-                ScalarType::Integer(_) => {
-                    lower_integer_conditional(function, &values, target, functions)
-                }
+                ScalarType::Integer(_) => lower_integer_conditional(
+                    function,
+                    &values,
+                    target,
+                    functions,
+                    &target_structural_parameters,
+                    structural_types,
+                ),
                 ScalarType::Boolean => {
                     lower_boolean_conditional(function, &values, target, functions)
                 }

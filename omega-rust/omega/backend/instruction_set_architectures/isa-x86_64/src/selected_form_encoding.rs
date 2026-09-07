@@ -484,7 +484,8 @@ fn family_and_operand_count(
         SelectedInstructionKind::ConditionalBranchI64LessThan => {
             return Err(X86_64SelectedFormEncodingError::LayoutDependentForm);
         }
-        SelectedInstructionKind::Load64 { .. }
+        SelectedInstructionKind::Load8Indexed
+        | SelectedInstructionKind::Load64 { .. }
         | SelectedInstructionKind::Store64 { .. }
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
@@ -708,7 +709,8 @@ fn encode_unchecked(
         | SelectedInstructionKind::Jump => {
             return Err(X86_64SelectedFormEncodingError::LayoutDependentForm);
         }
-        SelectedInstructionKind::Load64 { .. }
+        SelectedInstructionKind::Load8Indexed
+        | SelectedInstructionKind::Load64 { .. }
         | SelectedInstructionKind::Store64 { .. }
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
@@ -1061,6 +1063,7 @@ fn validate_decoded(
         | SelectedInstructionKind::ConditionalBranchU64LessThan
         | SelectedInstructionKind::ConditionalBranchI64LessThan
         | SelectedInstructionKind::Jump
+        | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Load64 { .. }
         | SelectedInstructionKind::Store64 { .. }
         | SelectedInstructionKind::FrameAddress { .. }
@@ -1106,6 +1109,7 @@ fn footprint(
         | SelectedInstructionKind::ConditionalBranchU64LessThan
         | SelectedInstructionKind::ConditionalBranchI64LessThan
         | SelectedInstructionKind::Jump
+        | SelectedInstructionKind::Load8Indexed
         | SelectedInstructionKind::Load64 { .. }
         | SelectedInstructionKind::Store64 { .. }
         | SelectedInstructionKind::FrameAddress { .. }

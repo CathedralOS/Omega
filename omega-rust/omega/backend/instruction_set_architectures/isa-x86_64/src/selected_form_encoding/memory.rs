@@ -1,5 +1,6 @@
 //! AMD64 ordinary load/store/address primitives with independent byte replay.
 use super::*;
+mod indexed;
 
 pub fn encode_x86_64_selected_memory_form(
     physical: &ValidatedPhysicalRegisterModel,
@@ -8,6 +9,9 @@ pub fn encode_x86_64_selected_memory_form(
     operands: &[RegisterViewId],
     displacement: u32,
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
+    if kind == SelectedInstructionKind::Load8Indexed {
+        return indexed::encode(physical, alternative, operands, displacement);
+    }
     let (opcode, register, base, _) = request(physical, kind, alternative, operands)?;
     let displacement = i32::try_from(displacement)
         .map_err(|_| X86_64SelectedFormEncodingError::ImmediateOutsideU12)?;
@@ -34,6 +38,9 @@ pub fn validate_x86_64_selected_memory_form(
     displacement: u32,
     bytes: &[u8],
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
+    if kind == SelectedInstructionKind::Load8Indexed {
+        return indexed::validate(physical, alternative, operands, displacement, bytes);
+    }
     let (opcode, register, base, footprint) = request(physical, kind, alternative, operands)?;
     let prefix = *bytes
         .first()

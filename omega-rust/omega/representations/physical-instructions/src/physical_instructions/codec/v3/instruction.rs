@@ -36,6 +36,10 @@ pub(super) fn decode_instruction(
     }
     let address = match byte(cursor)? {
         0 => None,
+        4 => Some(crate::PhysicalAddressOperation::Load8Indexed {
+            base_operand: u16_field(cursor)?,
+            index_operand: u16_field(cursor)?,
+        }),
         1 => Some(crate::PhysicalAddressOperation::Load64 {
             base_operand: u16_field(cursor)?,
             byte_offset: u32_field(cursor)?,

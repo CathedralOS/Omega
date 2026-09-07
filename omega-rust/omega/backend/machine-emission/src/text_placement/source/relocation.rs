@@ -88,6 +88,7 @@ pub(in crate::text_placement) fn prove_none(
                     return Err(TextPlacementError::UnsupportedRelocationShape);
                 }
                 MachineAlternativeFamily::CompareI64Zero
+                | MachineAlternativeFamily::Load8Indexed
                 | MachineAlternativeFamily::Load64
                 | MachineAlternativeFamily::Store64
                 | MachineAlternativeFamily::FrameAddress

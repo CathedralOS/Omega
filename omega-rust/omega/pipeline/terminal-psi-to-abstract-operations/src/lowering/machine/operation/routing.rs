@@ -28,9 +28,33 @@ pub(super) fn lower(
     lowered_byte_sequence_literals: &mut usize,
 ) -> Result<AbstractOperation, LoweringError> {
     match &operation.kind {
-        OperationKind::ByteSequenceRead { .. } => Err(
-            crate::lowering::LoweringError::UnsupportedByteSequenceRead(operation.id),
-        ),
+        OperationKind::ByteSequenceRead {
+            source,
+            index,
+            length,
+            obligation,
+        } => {
+            let result = operation
+                .result
+                .scalar()
+                .ok_or(LoweringError::InvalidByteSequenceRead(operation.id))?;
+            if !matches!(result.scalar_type, ScalarType::Integer(integer)
+                if Ok(integer) == semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8))
+            {
+                return Err(LoweringError::InvalidByteSequenceRead(operation.id));
+            }
+            Ok(AbstractOperation::ByteSequenceRead {
+                psi_operation: operation.id,
+                result: abstract_operations::AbstractResult {
+                    value: result.id,
+                    scalar_type: result.scalar_type,
+                },
+                source: *source,
+                index: *index,
+                length: *length,
+                obligation: *obligation,
+            })
+        }
         OperationKind::ByteSequenceSubslice { .. } => {
             Err(crate::lowering::LoweringError::UnsupportedByteSequenceSubslice(operation.id))
         }

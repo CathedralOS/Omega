@@ -20,6 +20,15 @@ use terminal_psi::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractOperation {
+    /// Read one byte with the verified same-view length and bounds obligation.
+    ByteSequenceRead {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        source: PlaceId,
+        index: ValueId,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+    },
     /// Observe the byte count of one verifier-approved immutable view.
     ByteSequenceLength {
         psi_operation: OperationId,

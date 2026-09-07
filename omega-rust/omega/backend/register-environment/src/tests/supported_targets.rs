@@ -97,6 +97,22 @@ fn every_supported_native_target_builds_a_matching_closed_environment() {
         assert_eq!(environment.selected_keys().load64, Some(load));
         assert_eq!(environment.allocation_constraint_keys().load64, Some(load));
         assert_eq!(environment.constraint(load).unwrap().operands.len(), 2);
+        let indexed_load = match target.architecture {
+            Architecture::X86_64 => isa_x86_64::X86_64_LOAD8_INDEXED,
+            Architecture::Aarch64 => isa_aarch64::AARCH64_LOAD8_INDEXED,
+        };
+        assert_eq!(
+            environment.selected_keys().load8_indexed,
+            Some(indexed_load)
+        );
+        assert_eq!(
+            environment.allocation_constraint_keys().load8_indexed,
+            Some(indexed_load)
+        );
+        assert_eq!(
+            environment.constraint(indexed_load).unwrap().operands.len(),
+            3
+        );
         for (selected_key, allocation_key, key, operands) in [
             (
                 environment.selected_keys().store64,

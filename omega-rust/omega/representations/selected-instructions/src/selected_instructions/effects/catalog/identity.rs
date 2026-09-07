@@ -17,6 +17,7 @@ pub fn machine_effect_catalog_identity(
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in [
         catalog.selected_keys.load64,
+        catalog.selected_keys.load8_indexed,
         catalog.selected_keys.store64,
         catalog.selected_keys.frame_address,
         catalog.selected_keys.call_unit,
@@ -158,6 +159,16 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
             bytes.extend_from_slice(&pointer_operand.to_le_bytes());
             bytes.extend_from_slice(&byte_count.to_le_bytes());
         }
+        MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
+            pointer_operand,
+            index_operand,
+            byte_count,
+        } => {
+            bytes.push(5);
+            bytes.extend_from_slice(&pointer_operand.to_le_bytes());
+            bytes.extend_from_slice(&index_operand.to_le_bytes());
+            bytes.extend_from_slice(&byte_count.to_le_bytes());
+        }
         MachineEncodedMemoryEffect::WriteOutgoingArgumentV1 {
             stack_pointer,
             byte_count,
@@ -274,6 +285,7 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
         MachineSemanticKind::ZeroExtendU8 => 15,
         MachineSemanticKind::ZeroExtendU32 => 20,
         MachineSemanticKind::Load64 => 16,
+        MachineSemanticKind::Load8Indexed => 21,
         MachineSemanticKind::Store64 => 17,
         MachineSemanticKind::FrameAddress => 18,
         MachineSemanticKind::CallUnit => 19,
@@ -300,6 +312,7 @@ pub(crate) const fn alternative_family_tag(family: MachineAlternativeFamily) -> 
         MachineAlternativeFamily::ZeroExtendU8 => 15,
         MachineAlternativeFamily::ZeroExtendU32 => 20,
         MachineAlternativeFamily::Load64 => 16,
+        MachineAlternativeFamily::Load8Indexed => 21,
         MachineAlternativeFamily::Store64 => 17,
         MachineAlternativeFamily::FrameAddress => 18,
         MachineAlternativeFamily::CallUnit => 19,
@@ -350,6 +363,7 @@ mod tests {
     fn keys() -> SelectedConstraintKeys {
         SelectedConstraintKeys {
             load64: Some(instruction(20)),
+            load8_indexed: Some(instruction(23)),
             store64: Some(instruction(21)),
             frame_address: Some(instruction(22)),
             call_unit: Some(RegisterConstraintKey {

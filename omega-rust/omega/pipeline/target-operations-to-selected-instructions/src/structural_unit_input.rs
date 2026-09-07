@@ -22,10 +22,15 @@ pub(crate) fn accepts_borrowed_view(
     let [parameter] = parameters else {
         return false;
     };
+    let Some(scalar_count) = call_plan.parameters.len().checked_sub(1) else {
+        return false;
+    };
+    let mut shapes = vec![calling_conventions::ValueShape::integer(8, 8); scalar_count];
+    shapes.push(calling_conventions::ValueShape::borrowed_reference(16, 8));
     let expected = calling_conventions::evaluate_call_plan(
         call_plan.policy,
         &calling_conventions::CallSignature {
-            parameters: vec![calling_conventions::ValueShape::borrowed_reference(16, 8)],
+            parameters: shapes,
             result: Some(calling_conventions::ValueShape::integer(8, 8)),
         },
     );
@@ -44,7 +49,7 @@ pub(crate) fn accepts_borrowed_view(
         && parameter.target.projected_qualifications.is_empty()
         && parameter.target.multiplicity == parameter.semantic.multiplicity
         && parameter.target.shape == calling_conventions::ValueShape::borrowed_reference(16, 8)
-        && parameter.target.placement == call_plan.parameters[0]
+        && parameter.target.placement == call_plan.parameters[scalar_count]
         && structural_types.iter().any(|declaration| {
             declaration.id == parameter.semantic.structural_type
                 && declaration.shape

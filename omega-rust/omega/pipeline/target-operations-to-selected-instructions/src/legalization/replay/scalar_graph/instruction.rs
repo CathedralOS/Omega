@@ -25,6 +25,36 @@ pub(super) fn validate(
     }
     match (&actual.kind, &node.operation) {
         (
+            LegalizedScalarInstructionKind::ByteSequenceRead {
+                source,
+                index,
+                length,
+                obligation,
+                accepted_fact,
+            },
+            AbstractOperation::ByteSequenceRead {
+                source: expected_source,
+                index: expected_index,
+                length: expected_length,
+                obligation: expected_obligation,
+                ..
+            },
+        ) => {
+            if source != expected_source
+                || index != expected_index
+                || length != expected_length
+                || obligation != expected_obligation
+                || !unit.accepted_obligation_facts.iter().any(|fact| {
+                    fact.machine == optimized.machine
+                        && fact.operation == operation
+                        && fact.obligation == *obligation
+                        && fact.identity == *accepted_fact
+                })
+            {
+                return Err(invalid);
+            }
+        }
+        (
             LegalizedScalarInstructionKind::ByteSequenceLength {
                 source,
                 length_byte_offset: 8,

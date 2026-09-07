@@ -9,6 +9,15 @@ impl Checker<'_> {
     ) -> bool {
         let resolved = resolve(value, aliases);
         match expression {
+            Expression::ByteSequenceRead { psi_operation, source_value, source, source_placement, index, length, obligation } => {
+                let Some(abi) = &self.function.mixed_structural_scalar_abi else { return false; };
+                *source_value == resolved
+                    && abi.structural_parameters.iter().any(|parameter| parameter.place == *source && parameter.placement == *source_placement)
+                    && self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                        AbstractOperation::ByteSequenceRead { psi_operation: operation, result, source: expected, index: expected_index, length: expected_length, obligation: expected_obligation }
+                        if operation == psi_operation && result.value == resolved && expected == source
+                        && length == expected_length && obligation == expected_obligation && self.expression(index, *expected_index, aliases)))
+            }
             Expression::ByteSequenceLength { psi_operation, source_value, source, source_placement, length_byte_offset } => {
                 let Some(abi) = &self.function.mixed_structural_scalar_abi else { return false; };
                 *length_byte_offset == 8 && *source_value == resolved
@@ -20,7 +29,8 @@ impl Checker<'_> {
             Expression::Immediate {source_value,value:literal} => *source_value == value && self.optimized.blocks.iter().flat_map(|block|&block.nodes).any(|node|
                 matches!(&node.operation,AbstractOperation::IntegerConstant {result,value:actual,..} if *result == resolved && actual == literal)),
             Expression::Parameter {source_value,parameter_index,location} => {
-                let Some(parameter) = self.function.scalar_abi.as_ref().and_then(|abi|abi.parameters.get(*parameter_index)) else {return false;};
+                let Some(parameter) = self.function.scalar_abi.as_ref().and_then(|abi|abi.parameters.get(*parameter_index))
+                    .or_else(|| self.function.mixed_structural_scalar_abi.as_ref().and_then(|abi| abi.scalar_parameters.get(*parameter_index))) else {return false;};
                 *source_value == value && parameter.value == resolved && location_matches(*location,&parameter.placement)
             }
             Expression::Call {psi_operation,source_value,callee,arguments,requirement_obligations,crash_continuations} => {

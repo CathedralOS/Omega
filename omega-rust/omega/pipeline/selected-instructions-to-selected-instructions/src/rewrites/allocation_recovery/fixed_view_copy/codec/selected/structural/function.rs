@@ -52,6 +52,18 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) f
         bytes.extend_from_slice(&row.byte_offset.to_le_bytes());
         bytes.extend_from_slice(&row.byte_count.to_le_bytes());
         match row.role {
+            SelectedMemoryAccessRole::ReadByteSequence {
+                index,
+                length,
+                obligation,
+                accepted_fact,
+            } => {
+                bytes.push(3);
+                bytes.extend_from_slice(&index.get().to_le_bytes());
+                bytes.extend_from_slice(&length.get().to_le_bytes());
+                bytes.extend_from_slice(&obligation.get().to_le_bytes());
+                bytes.extend_from_slice(&accepted_fact.bytes());
+            }
             SelectedMemoryAccessRole::ReadPlace => bytes.push(0),
             SelectedMemoryAccessRole::WriteOutgoing { slot } => {
                 bytes.push(1);
@@ -102,6 +114,14 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec::selected) f
         let byte_offset = cursor.u32()?;
         let byte_count = cursor.u32()?;
         let role = match cursor.byte()? {
+            3 => SelectedMemoryAccessRole::ReadByteSequence {
+                index: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
+                length: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
+                obligation: decode_id(cursor, semantic_vocabulary::ObligationId::new)?,
+                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                    cursor.array()?,
+                ),
+            },
             0 => SelectedMemoryAccessRole::ReadPlace,
             1 => SelectedMemoryAccessRole::WriteOutgoing {
                 slot: decode_slot(cursor)?,

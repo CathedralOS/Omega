@@ -24,6 +24,7 @@ pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(Val
         | O::CallDynamicScalar { result, .. }
         | O::CallStoredDynamicScalar { result, .. }
         | O::CallDynamicParameterScalar { result, .. }
+        | O::ByteSequenceRead { result, .. }
         | O::ByteSequenceLength { result, .. }
         | O::IntegerStructuralField { result, .. } => Some((result.value, result.scalar_type)),
         O::BoundaryCall {
@@ -161,6 +162,7 @@ pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(Val
 pub(super) fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
     use AbstractOperation as O;
     match operation {
+        O::ByteSequenceRead { index, length, .. } => vec![*index, *length],
         O::Call { arguments, .. }
         | O::CallUnit { arguments, .. }
         | O::BoundaryCall { arguments, .. } => arguments.clone(),

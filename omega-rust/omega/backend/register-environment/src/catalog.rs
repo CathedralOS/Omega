@@ -61,6 +61,7 @@ pub(super) fn selected_environment_keys(
 ) -> TargetRegisterEnvironmentConstraintKeys {
     TargetRegisterEnvironmentConstraintKeys {
         load64: keys.load64,
+        load8_indexed: keys.load8_indexed,
         store64: keys.store64,
         frame_address: keys.frame_address,
         call_unit: keys.call_unit,
@@ -84,6 +85,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
     match (target.architecture, target.object_format) {
         (Architecture::X86_64, ObjectFormat::Elf) => Some(SelectedConstraintKeys {
             load64: Some(isa_x86_64::X86_64_LOAD64),
+            load8_indexed: Some(isa_x86_64::X86_64_LOAD8_INDEXED),
             store64: None,
             frame_address: None,
             call_unit: None,
@@ -103,6 +105,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
         }),
         (Architecture::X86_64, ObjectFormat::Coff) => Some(SelectedConstraintKeys {
             load64: Some(isa_x86_64::X86_64_LOAD64),
+            load8_indexed: Some(isa_x86_64::X86_64_LOAD8_INDEXED),
             store64: Some(isa_x86_64::X86_64_STORE64),
             frame_address: Some(isa_x86_64::X86_64_FRAME_ADDRESS),
             call_unit: Some(isa_x86_64::X86_64_MICROSOFT_CALL_UNIT),
@@ -122,6 +125,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
         }),
         (Architecture::Aarch64, ObjectFormat::Elf) => Some(SelectedConstraintKeys {
             load64: Some(isa_aarch64::AARCH64_LOAD64),
+            load8_indexed: Some(isa_aarch64::AARCH64_LOAD8_INDEXED),
             store64: None,
             frame_address: None,
             call_unit: None,
@@ -141,6 +145,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
         }),
         (Architecture::Aarch64, ObjectFormat::MachO) => Some(SelectedConstraintKeys {
             load64: Some(isa_aarch64::AARCH64_LOAD64),
+            load8_indexed: Some(isa_aarch64::AARCH64_LOAD8_INDEXED),
             store64: None,
             frame_address: None,
             call_unit: None,

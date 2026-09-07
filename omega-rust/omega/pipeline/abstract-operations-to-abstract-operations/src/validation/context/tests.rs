@@ -5,6 +5,8 @@ use abstract_operations::{AbstractFunctionResult, AbstractOperation, AbstractRes
 use terminal_fuel::TerminalFuelSchedule;
 use terminal_psi::VocabularyMarker;
 
+mod byte_reads;
+
 #[test]
 fn recomputed_immutable_signature_forgery_is_rejected_by_verified_context() {
     let verified = verified_unit();
