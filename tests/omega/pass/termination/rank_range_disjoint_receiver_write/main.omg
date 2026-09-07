@@ -1,0 +1,19 @@
+// Recording progress must not invalidate a rank range on unchanged scalar inputs.
+data Main {
+    visited: u64;
+}
+
+machine Main::main(&mut self) -> u64 {
+    transition { _ -> self.walk(0, 4) }
+}
+
+machine Main::walk(&mut self, index: u64, limit: u64)
+requires index <= limit;
+terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1);
+-> u64 {
+    self.visited = index;
+    transition index < limit {
+        true -> walk(index + 1, limit)
+        false -> index
+    }
+}

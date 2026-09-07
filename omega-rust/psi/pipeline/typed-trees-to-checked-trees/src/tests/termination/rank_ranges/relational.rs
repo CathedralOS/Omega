@@ -109,6 +109,30 @@ fn intervening_write_cannot_reuse_entry_hypotheses() {
 }
 
 #[test]
+fn disjoint_receiver_store_preserves_rank_range_and_pinned_endpoints() {
+    let source = "data Cursor { visited: u64; } machine Cursor::walk(&mut self, index: u64, limit: u64) requires index <= limit; terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1); -> u64 { self.visited = index; transition index < limit { true -> walk(index + 1, limit) false -> index } }";
+    prove(source);
+    for replacement in ["index = 0", "limit = 0"] {
+        reject(&source.replace("self.visited = index", replacement));
+    }
+    reject(&source.replace("walk(index + 1, limit)", "walk(index + 1, limit + 1)"));
+    reject(&source.replace("walk(index + 1, limit)", "walk(index, limit)"));
+    prove(&source.replace("self.visited = index", "self.visited = index * 1"));
+    reject(&format!(
+        "operator * u64::multiply(left: u64, right: u64) -> u64; {}",
+        source.replace("self.visited = index", "self.visited = index * 1")
+    ));
+    reject(&source.replace(
+        "self.visited = index",
+        "let alias: &mut u64 = &mut self.visited; alias = index",
+    ));
+    reject(&format!(
+        "boundary machine unknown() -> u64; {}",
+        source.replace("self.visited = index", "self.visited = unknown()")
+    ));
+}
+
+#[test]
 fn selected_arithmetic_and_every_evaluated_prefix_keep_builtin_custody() {
     let declaration =
         "machine walk(n: u64) requires 5 <= n && n <= 10; terminates by n in 5..=10; -> u64";
