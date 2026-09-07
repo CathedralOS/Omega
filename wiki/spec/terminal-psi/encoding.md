@@ -31,6 +31,14 @@ Operation variants are closed and typed. Their referenced values must be
 available under the operation's definition/dominance rules. Each reconstructs
 its logical result and obligations; an encoded proof cannot select them.
 
+## Residual jump encoding
+
+Within the terminator tag space, a Jump with no residual affine discards uses
+tag 1; a nonempty residual list uses tag 10. Both have the same jump semantics.
+Tag 10 with an empty list is noncanonical. Each residual retains place, ordered
+structural path, and exact subtree type; ownership validation reconstructs the
+complement rather than trusting this list.
+
 ## Section identities
 
 | Section | Identity and role |

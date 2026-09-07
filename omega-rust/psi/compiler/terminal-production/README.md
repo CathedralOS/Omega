@@ -148,6 +148,42 @@ receiver write-frame root. Entry-bridge storage is a separate native obligation.
 Artifact interpretation of broader store sequences is not evidence that source
 production or native realization supports them.
 
+## Partial ownership and cleanup
+
+The [ownership contract](../../../../wiki/spec/terminal-psi/ownership.md) owns
+claim maps, residual complements, and static cleanup order. Source production
+admits bounded plain record/literal-array partial moves through ordinary Unit
+disposers. Parameter, immutable-local, and anonymous result roots keep their
+actual source establishment; do not synthesize a local for an anonymous producer
+or reinterpret its result ordinal as a parameter.
+
+Whole structural-result claim maps have broader codec/verifier support than the
+source producer's one-claim slice. Literal indexed linear transfers and
+claim-free affine residual cleanup have separate admission rules. General
+projected contracts/content partitions, mixed dying roots, reference fields,
+cases, dynamic indexes, nominal destruction of partial roots, and arbitrary
+construction-local partial moves do not follow from either case.
+
+One final projected temporary uses return cleanup. Continuing Unit bodies retain
+their exact `CallContinuationCleanup` and residual Jump, including an empty
+complement. The bounded form has one ordinary/boundary producer and one owned
+argument per consumer, with exact empty effect-free Unit disposers. Mixed
+argument effects/producers and non-Unit consumers need further support.
+
+The current construction-prefix parser in
+[calls.rs](../../pipeline/typed-trees-to-checked-trees/src/flow/terminal_unit/calls.rs)
+admits empty, unqualified, claim-free affine elements and fixed-array lengths
+through 26, with literal establishment of the all-but-last prefix. The general
+reverse-index cleanup rule is not limited to that bound. Wider or dynamic plans
+remain implementation work, not a sequence of new language cases.
+
+Nominal cleanup is bounded to root-only Unit machines with eligible affine
+records, empty drops or receiver-independent helper-call bodies, and supported
+Boolean-field prerequisites. Rejoin target clauses to each owned place; a caller
+fact at another position is not evidence. Conditional whole-parameter cleanup
+has its own bounded structural-control producer. It is not admission of nominal,
+projected, claim-bearing, or mixed-root cleanup on arbitrary control-flow edges.
+
 ## Structural results and suspension
 
 The [call/outcome contract](../../../../wiki/spec/terminal-psi/calls_and_outcomes.md)
