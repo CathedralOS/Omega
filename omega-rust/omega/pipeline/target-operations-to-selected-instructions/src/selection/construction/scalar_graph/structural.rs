@@ -354,7 +354,7 @@ pub(super) fn byte_sequence_length(
     source: PlaceId,
     length_byte_offset: u32,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let result = row.result.ok_or_else(|| invalid())?;
+    let result = row.result.ok_or_else(invalid)?;
     if length_byte_offset != 8
         || result.scalar_type
             != ScalarType::Integer(
@@ -369,7 +369,7 @@ pub(super) fn byte_sequence_length(
         .iter()
         .find(|(place, _)| *place == source)
         .map(|(_, register)| *register)
-        .ok_or_else(|| invalid())?;
+        .ok_or_else(invalid)?;
     let output = builder.register(result.value, result.definition_site, result.scalar_type)?;
     memory(
         builder,
@@ -389,7 +389,7 @@ pub(super) fn byte_sequence_length(
         SelectedInstructionKind::Load64 {
             byte_offset: length_byte_offset,
         },
-        builder.constraints.keys.load64.ok_or_else(|| invalid())?,
+        builder.constraints.keys.load64.ok_or_else(invalid)?,
         &[input, output],
         provenance,
     )?;

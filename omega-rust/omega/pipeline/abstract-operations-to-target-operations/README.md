@@ -13,6 +13,18 @@ access through as a value shape. [scalar/setup.rs](src/lowering/scalar/setup.rs)
 has another access-to-shape decision. These are implementation gaps, not a
 shared-reference snapshot contract.
 
+The native byte-length path admits one unqualified, unrestricted shared
+`BorrowedView` parameter and a `u64` result. It uses `BorrowedReference(16, 8)`:
+one pointer to the original two-word descriptor, with the length at byte offset
+eight. The selected `Load64` retains the logical source place and independently
+replayed read footprint. This does not complete the general shared-reference
+classifier below, literal descriptor materialization, structural helper calls,
+byte reads/subslices, or ranked control. The
+[native regression](../../../../tests/native-differential/tests/terminal_byte_views.rs)
+starts from encoded, verified Terminal, cross-lowers four hosted targets, and
+executes caller-owned descriptors on supported hosts; it does not establish
+Omega-source helper closure or standalone executable publication.
+
 Consolidate structural-signature producers under one mandatory derivation from
 declarations and referent shapes. Audit caller preparation and independent
 receiving validation/replay as well; fixing the classifier does not prevent a
