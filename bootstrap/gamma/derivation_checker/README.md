@@ -12,9 +12,11 @@ proof acceptance. There is deliberately no proof-accepting production `main`.
 The [admission gate](../../../tests/gamma/derivation-admission/README.md) supplies
 a separate diagnostic entry and exercises the actual ordinary-Gamma source.
 
+The [inner format](FORMAT.md) specifies the theory, clause-local templates,
+owner-root terms, witness terms, and explicit proof rows to implement. Its
+decoders and the complete resource profile are not yet executable.
 The [implementation design](../../../wiki/architecture/bootstrap_chain/derivation_calculus.md)
-owns the remaining direction: concrete inner encodings and resource profile,
-conservative definition formation, explicit derivation checks, exact-root
+owns conservative definition formation, explicit derivation checks, exact-root
 comparison, and a complete certificate for the selected Gamma evaluator's
 Beta-source-to-Alpha-tape encoding. Small admission or rule tests cannot replace
 that full-subject acceptance.

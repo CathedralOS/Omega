@@ -4,7 +4,8 @@
 
 This specifies an implementation direction for the missing ordinary-Gamma
 derivation checker. It is not an accepted checker, certificate, or new admission
-of the Gamma evaluator. Concrete wire assignments, executable formation checks,
+of the Gamma evaluator. The [inner format](../../../bootstrap/gamma/derivation_checker/FORMAT.md)
+assigns concrete wire fields; its decoders, executable formation checks,
 the soundness argument, and certificate measurements remain acceptance work.
 
 ## First complete subject
@@ -166,9 +167,10 @@ to represent this layout. No host semantic helper or second kernel is introduced
 
 Implement in dependency order:
 
-1. Specify concrete term, template, proof-row, input, and result encodings, keeping
+1. Implement the concrete term, template, proof-row, and input encodings with
    owner-controlled theory/root inputs distinct from certificate witnesses.
-   Specify each finite resource and its preflight before executable acceptance.
+   Specify the result encoding, each finite resource, and its preflight before
+   executable acceptance.
 2. Implement formation, comparison, substitution, explicit rules, and exact-root
    publication in ordinary Gamma. Register malformed and exact/adjacent controls
    for every boundary as it becomes executable.

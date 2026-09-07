@@ -38,8 +38,10 @@ Unknown rules, malformed terms, missing premises, cyclic derivations,
 wrong-subject evidence, and resource exhaustion cannot accept. Product proof
 ambitions do not enlarge this bootstrap tool automatically.
 
-The complete checker, concrete inner calculus encoding, and full executable
-profile are currently absent. The ordinary-Gamma
+The complete checker, inner decoders, and full executable profile are currently
+absent. The [concrete inner format](../../../bootstrap/gamma/derivation_checker/FORMAT.md)
+assigns theory, template, ground-term, and proof-row fields without adding an
+accepted artifact. The ordinary-Gamma
 [outer request admission](../../../bootstrap/gamma/derivation_checker/REQUEST.md)
 retains separate exact theory, proposition, and certificate spans; a framed
 result is neither theory validation nor proof acceptance. The
