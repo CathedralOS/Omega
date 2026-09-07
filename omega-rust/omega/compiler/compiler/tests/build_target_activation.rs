@@ -58,6 +58,9 @@ fn application_build(body: &str) -> String {
 #[path = "fixture_rosters/build_target_activation.rs"]
 mod fixtures;
 
+#[path = "support/console_acceptance.rs"]
+mod console_acceptance;
+
 fn pass_canary_main(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../../../tests/omega/pass")
@@ -381,6 +384,94 @@ fn admitted_x86_fma_demand_retains_exact_plan_associations() {
         );
         assert_eq!(provider.profile(), profile);
     }
+}
+
+#[test]
+fn boundary_operator_and_float_adapters_retain_terminal_execution() {
+    let project = TempProject::with_main(
+        r#"use omega::language::core::float_operations;
+use omega_language_std::console;
+
+data Arithmetic {}
+boundary operator Arithmetic::identity(value: i32) -> i32;
+data ArithmeticProvider {}
+machine ArithmeticProvider::identity(value: i32) -> i32
+    satisfies Arithmetic::identity { value }
+
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let fused32: f32 = F32::fused_multiply_add(2.0f32, 3.0f32, 4.0f32);
+    let fused64: f64 = F64::fused_multiply_add(2.0f64, 3.0f64, 4.0f64);
+    self.emit();
+}
+machine Main::emit(&mut self) {
+    let value: i32 = Arithmetic::identity(7);
+    self.console.write_line("mixed execution");
+    self.console.exit_process(value);
+}
+"#,
+        &application_build(
+            r#"    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.x86_deployment_features = X86DeploymentFeatures::AvxFma3;
+    builder.select_provider<Arithmetic::identity, ArithmeticProvider>();"#,
+        ),
+    );
+    let package_inputs = package_inputs_with_standard_library(&project.main(), "target-activation");
+    let preliminary = compile_to_checked_with_packages(
+        &project.main(),
+        Some("linux_x86_64"),
+        package_inputs.clone(),
+    )
+    .expect("derive the exact mixed fixture provider plans");
+    let console_binding = console_acceptance::candidate_console_exit_binding(
+        &preliminary,
+        package_identity(2),
+        true,
+        false,
+    )
+    .expect("the fixture explicitly accepts Console output and exit");
+    let package_inputs = package_inputs
+        .with_accepted_semantic_bindings(vec![console_binding])
+        .unwrap();
+    let report = compile(
+        CompileRequest::new(CompileOptions {
+            root_path: project.main(),
+            build_dir: None,
+            target_name: Some("linux_x86_64".into()),
+        })
+        .with_requested_product(RequestedCompileProduct::TerminalArtifact)
+        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly)
+        .with_package_inputs(package_inputs),
+    )
+    .unwrap_or_else(|diagnostics| panic!("mixed selected execution failed: {diagnostics:#?}"));
+    let retained = report.into_retained_terminal_artifact().unwrap();
+    retained
+        .validate()
+        .expect("mixed Terminal artifact verifies");
+    let proposal = retained.native_realization_proposal().unwrap();
+    assert_eq!(
+        proposal
+            .ieee_float_fma_occurrences()
+            .iter()
+            .map(|occurrence| occurrence.format())
+            .collect::<Vec<_>>(),
+        [
+            semantic_vocabulary::IeeeFloatFormat::Binary32,
+            semantic_vocabulary::IeeeFloatFormat::Binary64
+        ],
+        "boundary settlement preserves both ordered FMA applications"
+    );
+    assert_eq!(
+        proposal
+            .checked_boundary_operator_scope()
+            .occurrences()
+            .len(),
+        3,
+        "both float applications and the checked operator retain occurrence custody"
+    );
+    assert_eq!(proposal.boundary_application_realizations().rows().iter().filter(|realization| {
+        realization.role() == boundary_applications::BoundaryApplicationRealizationRole::NongenericCheckedBody
+    }).count(), 1, "boundary settlement preserves the checked operator realization");
 }
 
 #[test]
