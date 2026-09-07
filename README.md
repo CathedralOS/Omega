@@ -168,7 +168,9 @@ The literal Epsilon v1 contract and the incidental ordinary-Omega surface used b
 the compiler source are defined and kept distinct in
 [`compiler_source_profile.md`](wiki/architecture/bootstrap_chain/compiler_source_profile.md).
 [`source/README.md`](source/README.md) describes the final product-source side;
-the replacement derivation checker is a future Gamma tool, not another language rung.
+the [ground-equality checker](bootstrap/gamma/derivation_checker/README.md) is an
+ordinary Gamma tool, not another language rung. Its full Beta encoding certificate
+and artifact admission remain open.
 
 ## Samples And Language Cases
 

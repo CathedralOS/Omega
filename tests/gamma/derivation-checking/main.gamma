@@ -1,0 +1,26 @@
+; Generic supplied-theory proof verdict; this does not admit a bootstrap artifact.
+(def $application () Int 1)
+(def main () Int
+  (let result Int (check_derivation)
+    (let tag Int (first result)
+      (let prefix Int (write tag)
+        (let observed Int
+          (if (eq tag 7)
+            (derivation_test_checked (second result))
+            (derivation_test_failure (second result)))
+          (pair 0 1))))))
+
+(def derivation_test_checked ((payload Int)) Int
+  (let count Int (derivation_test_word (derivation_proof_count payload) 8)
+    (derivation_test_word (derivation_steps payload) 8)))
+
+(def derivation_test_failure ((payload Int)) Int
+  (let code Int (derivation_test_word (admission_failure_code payload) 8)
+    (let coordinate Int (derivation_test_word (admission_failure_coordinate payload) 8)
+      (let limit Int (derivation_test_word (admission_failure_limit payload) 8)
+        (derivation_test_word (admission_failure_requested payload) 8)))))
+
+(def derivation_test_word ((value Int) (remaining Int)) Int
+  (if (eq remaining 0) 0
+    (let byte Int (write (% value 256))
+      (derivation_test_word (/ value 256) (- remaining 1)))))

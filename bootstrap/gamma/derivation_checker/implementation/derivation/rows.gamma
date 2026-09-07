@@ -1,0 +1,34 @@
+(def derivation_rows ((cursor Int) (remaining Int) (identity Int) (last Int)
+  (context Int) (session Int)) Int
+  (if (eq remaining 0)
+    (derivation_conclude context last session)
+    (let checked Int (derivation_row cursor identity context session)
+      (if (eq (first checked) 6)
+        (derivation_rows (formation_record_next cursor) (- remaining 1)
+          (+ identity 1) cursor context (comparison_session (second checked)))
+        checked))))
+
+(def derivation_row ((record Int) (identity Int) (context Int) (session Int)) Int
+  (let reserved Int (comparison_reserve session 1 (+ record 4))
+    (if (eq (first reserved) 6)
+      (derivation_row_terms record identity context (comparison_session (second reserved)))
+      reserved)))
+
+(def derivation_row_terms ((record Int) (identity Int) (context Int) (session Int)) Int
+  (let grounded Int (derivation_grounded context)
+    (let left Int (grounded_term_lookup grounded (layout_word (+ record 8)))
+      (if (eq left 0) (admission_rejected 12 (+ record 8))
+        (let right Int (grounded_term_lookup grounded (layout_word (+ record 12)))
+          (if (eq right 0) (admission_rejected 12 (+ record 12))
+            (if (eq (derivation_term_sort grounded left) (derivation_term_sort grounded right))
+              (derivation_rule record identity left right context session)
+              (admission_rejected 12 (+ record 12)))))))))
+
+; Ground admission already owns each tag-selected symbol and its signature.
+(def derivation_term_sort ((grounded Int) (record Int)) Int
+  (let theory Int (grounded_theory grounded)
+    (formation_result_sort
+      (formation_index_lookup
+        (if (eq (layout_word (+ record 4)) 1)
+          (formed_constructors theory) (formed_functions theory))
+        (layout_word (+ record 8))))))

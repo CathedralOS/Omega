@@ -38,7 +38,7 @@ Unknown rules, malformed terms, missing premises, cyclic derivations,
 wrong-subject evidence, and resource exhaustion cannot accept. Product proof
 ambitions do not enlarge this bootstrap tool automatically.
 
-The complete checker and full executable profile are currently
+An artifact-accepted checker and complete Beta encoding certificate are still
 absent. The [concrete inner format](../../../bootstrap/gamma/derivation_checker/FORMAT.md)
 assigns theory, template, ground-term, and proof-row fields without adding an
 accepted artifact. The ordinary-Gamma
@@ -60,8 +60,10 @@ compares validated term syntax with completed-pair memoization and cumulative
 session work. A structurally different result does not disprove theory equality;
 [checked substitution](../../../bootstrap/gamma/derivation_checker/SUBSTITUTION.md)
 validates a stated unfolding without evaluating functions or polluting structural
-memoization. Explicit derivation coordination and final-root checking remain
-missing. The
+memoization. [Explicit derivation checking](../../../bootstrap/gamma/derivation_checker/CHECKING.md)
+validates all rows and the final owner root under one cumulative resource profile.
+Its generic Checked outcome proves equality under the supplied formed theory;
+it does not authenticate that theory or root as the intended Beta subject. The
 [ground equality implementation design](derivation_calculus.md)
 specifies the first complete encoding subject, conservative definitions, explicit
 proof checks, ownership, and implementation dependencies. It does not supply an

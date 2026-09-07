@@ -1,0 +1,22 @@
+(def derivation_transitivity ((record Int) (identity Int) (context Int) (session Int)) Int
+  (let first_premise Int (derivation_premise context identity (+ record 16))
+    (if (eq first_premise 0) (admission_rejected 12 (+ record 16))
+      (let second_premise Int (derivation_premise context identity (+ record 20))
+        (if (eq second_premise 0) (admission_rejected 12 (+ record 20))
+          (derivation_transitivity_sides record first_premise second_premise session))))))
+
+(def derivation_transitivity_sides ((record Int) (first_premise Int)
+  (second_premise Int) (session Int)) Int
+  (let left Int
+    (derivation_require session (layout_word (+ record 8))
+      (layout_word (+ first_premise 8)) (+ record 8))
+    (if (eq (first left) 6)
+      (let middle Int
+        (derivation_require (comparison_session (second left))
+          (layout_word (+ first_premise 12)) (layout_word (+ second_premise 8))
+          (+ record 20))
+        (if (eq (first middle) 6)
+          (derivation_require (comparison_session (second middle))
+            (layout_word (+ record 12)) (layout_word (+ second_premise 12)) (+ record 12))
+          middle))
+      left)))

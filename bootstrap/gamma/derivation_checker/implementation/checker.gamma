@@ -1,0 +1,10 @@
+(def check_derivation () Int
+  (let admitted Int (check_derivation_ground)
+    (if (eq (first admitted) 5)
+      (let grounded Int (second admitted)
+        (let table Int (grounded_proof_table grounded)
+          (let count Int (layout_word table)
+            (if (eq count 0)
+              (admission_rejected 12 table)
+              (derivation_provision grounded table count)))))
+      admitted)))

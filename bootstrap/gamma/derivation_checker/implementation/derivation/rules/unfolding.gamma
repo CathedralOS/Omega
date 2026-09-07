@@ -1,0 +1,6 @@
+(def derivation_unfolding ((record Int) (session Int)) Int
+  (derivation_requirement_result
+    (compare_unfolded_terms session (layout_word (+ record 8))
+      (layout_word (+ record 12)) (layout_word (+ record 16))
+      (+ record 8) (+ record 12) (+ record 16))
+    (+ record 12)))
