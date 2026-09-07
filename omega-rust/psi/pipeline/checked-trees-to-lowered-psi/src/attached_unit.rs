@@ -486,6 +486,8 @@ fn assemble_unit_closure(
             );
         }
         validate_unit_operation_sequence(machine)?;
+        crate::structural_scalar_store_source::validate(checked, machine)?;
+        crate::call_source_custody::validate_store_sequence_calls(checked, machine)?;
         for (operation_index, operation) in machine.operations.iter().enumerate() {
             crate::call_source_custody::validate_operation(
                 checked,

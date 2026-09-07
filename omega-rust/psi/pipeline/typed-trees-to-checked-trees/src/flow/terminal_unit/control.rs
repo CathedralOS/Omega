@@ -1255,6 +1255,7 @@ pub(super) fn build_checked_machine_with(
             machine,
             state,
             &structural_parameters,
+            &scalar_parameters,
             &entry_claims,
             &calls,
             sequence_trivial_locals.as_deref().unwrap_or(&[]),

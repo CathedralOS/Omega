@@ -15,6 +15,9 @@ use terminal_psi::{
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
 
+#[path = "receiver_scalar_store_source/store_custody.rs"]
+mod store_custody;
+
 const SOURCE: &str = r#"
     data Pair { prefix: u8; value: u16; }
     data Inner { prefix: u8; value: u16; }
@@ -38,6 +41,116 @@ const SOURCE: &str = r#"
         self.value = replacement;
     }
 "#;
+
+#[test]
+fn receiver_store_sequence_retains_each_write_around_an_ordinary_call() {
+    let source = r#"
+        data Pair { left: u16; right: u16; }
+        machine tick(value: u16) {}
+        machine Pair::replace(&mut self, replacement: u16) {
+            self.left = 3;
+            tick(replacement);
+            self.right = replacement;
+            self.left = 9;
+        }
+    "#;
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed_from_source(source))
+        .expect("ordered receiver stores check");
+    let artifact = terminal_production::produce_terminal_artifact(&checked, "Pair::replace")
+        .expect("every authored store and intervening call reaches Terminal");
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
+    let profile = proof_admission::AdmissionProfile::default();
+    let verified = terminal_verifier::verify_module(&module, &proof, &profile).unwrap();
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let effects = entry.blocks[0]
+        .operations
+        .iter()
+        .filter_map(|operation| match &operation.kind {
+            OperationKind::StructuralScalarFieldStore { field, .. } => Some(Some(*field)),
+            OperationKind::CallUnit { .. } => Some(None),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(effects.len(), 4);
+    assert_eq!(
+        effects[0], effects[3],
+        "the final store overwrites the first field"
+    );
+    assert_ne!(
+        effects[0], effects[2],
+        "the middle store targets the other field"
+    );
+    assert_eq!(
+        effects[1], None,
+        "the ordinary call remains between its writes"
+    );
+    let stores = entry.blocks[0]
+        .operations
+        .iter()
+        .filter_map(|operation| {
+            let OperationKind::StructuralScalarFieldStore { value, .. } = operation.kind else {
+                return None;
+            };
+            Some((operation.id, value))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        stores[1].1, entry.parameters[0].id,
+        "the parameter is delivered to the middle write"
+    );
+    for (store, expected) in [(stores[0], 3), (stores[2], 9)] {
+        let producer = entry.blocks[0].operations.iter().find(|operation| {
+            matches!(operation.result, OperationResult::Scalar(value) if value.id == store.1)
+        }).expect("literal store operand has its own producer");
+        assert_eq!(
+            producer.kind,
+            OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(expected)
+            }
+        );
+    }
+    let receiver = &entry.structural_parameters[0];
+    let integer_type = IntegerType::new(IntegerSign::Unsigned, 16).unwrap();
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &profile,
+        &[TerminalScalarValue::Integer {
+            scalar_type: integer_type,
+            value: IntegerValue::Unsigned(23),
+        }],
+        &[TerminalStructuralValue {
+            opaque_identity: 71,
+            structural_type: receiver.structural_type,
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        }],
+    )
+    .unwrap();
+    let certificate =
+        terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry).unwrap();
+    let mut meter = terminal_fuel::TerminalFuelMeter::with_allowance(certificate.ceiling_units());
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(meter.usage().total_units(), certificate.ceiling_units());
+    for (operation, _) in stores {
+        assert_eq!(
+            meter
+                .usage()
+                .at(terminal_fuel::FuelChargeSite::Operation(operation))
+                .unwrap()
+                .executions(),
+            1
+        );
+    }
+}
 
 fn typed_from_source(source: &str) -> typed_trees::TypedTrees {
     let tokens = Lexer::new(source)

@@ -159,7 +159,7 @@ fn rejects_checked_record_field_store_path_corruption() {
     assert!(matches!(
         lower_machine(&checked, "Sink::nested"),
         Err(LoweringError::Unsupported(
-            "structural scalar store field is absent or ambiguous"
+            "structural scalar store destination drifted from its authored place"
         ))
     ));
 }
@@ -192,7 +192,7 @@ fn rejects_checked_literal_indexed_store_bound_corruption() {
     assert!(matches!(
         lower_machine(&checked, "Sink::indexed"),
         Err(LoweringError::Unsupported(
-            "structural scalar store fixed index is out of bounds"
+            "structural scalar store destination drifted from its authored place"
         ))
     ));
 }
@@ -300,7 +300,7 @@ fn scalar_result_reaches_one_projected_store_and_local_drift_rejects() {
     assert!(matches!(
         lower_machine(&drifted, "Root::enter"),
         Err(LoweringError::Unsupported(
-            "structural scalar store lost exact exclusive custody"
+            "structural scalar store RHS drifted from its selected expression"
         ))
     ));
 }

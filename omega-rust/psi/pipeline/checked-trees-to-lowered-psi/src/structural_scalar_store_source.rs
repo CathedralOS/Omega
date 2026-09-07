@@ -1,0 +1,238 @@
+//! Independent source occurrence custody for ordered projected scalar stores.
+
+use super::*;
+use checked_trees::expression::ExpressionNode;
+use checked_trees::statement::StatementNode;
+
+pub(super) fn validate(
+    checked: &CheckedTrees,
+    plan: &CheckedUnitEffectMachinePlan,
+) -> Result<(), LoweringError> {
+    let (machine, state) = crate::scalar_source_custody::authored_state(checked, plan.state)?;
+    if machine.symbol != plan.machine {
+        return unsupported("structural scalar store has a different authored machine");
+    }
+    let statements = checked.statement_table.statements(state.statement_nodes);
+    let stores = plan
+        .operations
+        .iter()
+        .filter_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => Some(store),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    // Select from the authored statement roster too: deleting every store
+    // must not disable source coverage validation.
+    for (statement_index, statement) in statements.iter().enumerate() {
+        let StatementNode::Assignment(assignment) = statement else {
+            continue;
+        };
+        let statement_index = u32::try_from(statement_index).map_err(|_| {
+            LoweringError::Unsupported("structural scalar store statement ordinal exceeds u32")
+        })?;
+        if plan.operations.iter().any(|operation| {
+            matches!(operation,
+            CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { statement_index: ordinal, .. }
+                if *ordinal == statement_index)
+        }) {
+            continue;
+        }
+        if construction_assignment_owner(checked, plan, statements, statement_index, assignment)
+            .is_some()
+        {
+            continue;
+        }
+        let matching = stores
+            .iter()
+            .filter(|store| store.statement_index == statement_index)
+            .collect::<Vec<_>>();
+        let [store] = matching.as_slice() else {
+            return unsupported(
+                "structural scalar store roster omits or duplicates an authored assignment",
+            );
+        };
+        validate_assignment(checked, plan, statement_index, assignment, store)?;
+    }
+    for store in &stores {
+        if !matches!(
+            statements.get(store.statement_index as usize),
+            Some(StatementNode::Assignment(_))
+        ) {
+            return unsupported("structural scalar store has no authored assignment");
+        }
+    }
+    if !stores.is_empty()
+        && !matches!(plan.operations.last(),
+        Some(CheckedUnitEffectOperationPlan::ReturnUnit { statement_index, .. })
+            if usize::try_from(*statement_index).ok() == Some(statements.len()))
+    {
+        return unsupported("structural scalar store return lost its authored statement boundary");
+    }
+    Ok(())
+}
+
+/// Existing affine construction writes target a local, not a receiver field.
+/// Delegate only the exact source element occurrence retained by that owner.
+fn construction_assignment_owner(
+    checked: &CheckedTrees,
+    plan: &CheckedUnitEffectMachinePlan,
+    statements: &[StatementNode],
+    statement_index: u32,
+    assignment: &checked_trees::statement::TableAssignment,
+) -> Option<()> {
+    let ExpressionNode::Indexed(target) = checked.expression_table.expression(assignment.target)
+    else {
+        return None;
+    };
+    let ExpressionNode::Name(root) = checked.expression_table.expression(target.collection) else {
+        return None;
+    };
+    let ExpressionNode::Integer(index) = checked.expression_table.expression(target.index) else {
+        return None;
+    };
+    let index = index.value_bignum()?.to_u64()?;
+    if !root.symbol.is_valid()
+        || root.head_symbol != root.symbol
+        || checked
+            .expression_table
+            .name_path_members(root.members)
+            .len()
+            != 1
+    {
+        return None;
+    }
+    let local = statements
+        .get(..statement_index as usize)?
+        .iter()
+        .find_map(|statement| match statement {
+            StatementNode::LocalData(local)
+                if local.symbol == root.symbol
+                    && local.is_mutable
+                    && !local.initial_value.is_valid() =>
+            {
+                Some(local)
+            }
+            _ => None,
+        })?;
+    let checked_trees::types::TypeReferenceNode::FixedArray { element_type, .. } = checked
+        .type_reference_table
+        .type_reference(local.type_reference)
+    else {
+        return None;
+    };
+    let checked_trees::types::TypeReferenceNode::Named { symbol, .. } =
+        checked.type_reference_table.type_reference(*element_type)
+    else {
+        return None;
+    };
+    let ExpressionNode::StructLiteral(literal) =
+        checked.expression_table.expression(assignment.value)
+    else {
+        return None;
+    };
+    if literal.type_symbol != *symbol
+        || literal.case_name.is_some()
+        || !checked
+            .expression_table
+            .struct_fields(literal.fields)
+            .is_empty()
+    {
+        return None;
+    }
+    let mut operations = plan
+        .operations
+        .iter()
+        .filter_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+                statement_index: ordinal,
+                declaration_ordinal,
+                type_identity,
+            } if *ordinal == statement_index => Some((*declaration_ordinal, type_identity)),
+            _ => None,
+        });
+    let (ordinal, identity) = operations.next()?;
+    if operations.next().is_some() {
+        return None;
+    }
+    let mut declarations = plan
+        .trivial_affine_locals
+        .iter()
+        .filter(|local| local.declaration_ordinal == ordinal);
+    let declaration = declarations.next()?;
+    if declarations.next().is_some()
+        || declaration.type_identity != *identity
+        || declaration.construction.as_ref()?.index != index
+    {
+        return None;
+    }
+    Some(())
+}
+
+fn validate_assignment(
+    checked: &CheckedTrees,
+    plan: &CheckedUnitEffectMachinePlan,
+    statement_index: u32,
+    assignment: &checked_trees::statement::TableAssignment,
+    store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
+) -> Result<(), LoweringError> {
+    let (_, state) = crate::scalar_source_custody::authored_state(checked, plan.state)?;
+    let source = crate::call_source_custody::projected_receivers::store_destination(
+        checked,
+        plan.machine,
+        plan.state,
+        assignment.target,
+    )?;
+    let parameter = checked
+        .state_parameters(state)
+        .get(store.destination_parameter_position as usize)
+        .ok_or(LoweringError::Unsupported(
+            "structural scalar store has no authored destination parameter",
+        ))?;
+    let mut path = store.carrier_path.clone();
+    path.push(CheckedUnitStructuralPathSegment::Field(
+        store.field_identity.clone(),
+    ));
+    if source.root != parameter.symbol || source.path != path {
+        return unsupported("structural scalar store destination drifted from its authored place");
+    }
+    let plans = &checked.facts.values.scalar_expressions;
+    let role = CheckedScalarExpressionRole::AssignmentValue;
+    let expressions = plans
+        .expressions
+        .iter()
+        .filter(|expression| {
+            expression.state == plan.state
+                && expression.statement_ordinal == statement_index
+                && expression.role == role
+        })
+        .collect::<Vec<_>>();
+    let [expression] = expressions.as_slice() else {
+        return unsupported("structural scalar store has no unique selected RHS");
+    };
+    if expression.expression != store.value {
+        return unsupported("structural scalar store RHS drifted from its selected expression");
+    }
+    let bindings = plans
+        .source_bindings
+        .iter()
+        .filter(|(_, binding)| {
+            binding.state == plan.state
+                && binding.statement_ordinal == statement_index
+                && binding.role == role
+        })
+        .map(|(_, binding)| binding)
+        .collect::<Vec<_>>();
+    let [binding] = bindings.as_slice() else {
+        return unsupported("structural scalar store has no unique RHS source binding");
+    };
+    let destination = match checked.expression_table.expression(assignment.target) {
+        ExpressionNode::Name(name) => name.symbol,
+        _ => symbols::SymbolHandle::invalid(),
+    };
+    if binding.expression != assignment.value || binding.destination != destination {
+        return unsupported(
+            "structural scalar store RHS binding drifted from its authored assignment",
+        );
+    }
+    crate::scalar_source_custody::validate_namespace(checked, binding)
+}

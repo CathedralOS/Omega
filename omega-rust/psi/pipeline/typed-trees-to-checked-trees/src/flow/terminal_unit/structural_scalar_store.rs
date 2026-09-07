@@ -25,6 +25,98 @@ pub(super) fn build_structural_scalar_field_store(
         ) if result.statement_index == 0 && result.binding_ordinal == 0 => (1, assignment),
         _ => return None,
     };
+    build_structural_scalar_field_store_at(
+        program,
+        facts,
+        machine,
+        state,
+        structural_parameters,
+        scalar_parameters,
+        statement_index,
+        assignment,
+        result_local,
+        selected_scalar_result_local.is_some(),
+        false,
+    )
+}
+
+pub(super) fn build_structural_scalar_field_store_sequence(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
+) -> Option<Vec<CheckedStructuralScalarFieldStorePlan>> {
+    let statements = program.statement_table.statements(state.statement_nodes);
+    if !statements
+        .iter()
+        .any(|statement| matches!(statement, StatementNode::Assignment(_)))
+    {
+        return Some(Vec::new());
+    }
+    let [destination] = structural_parameters else {
+        return None;
+    };
+    let parameter = program.state_parameters(state).first()?;
+    let mutation_root = if destination.is_self {
+        "self".to_owned()
+    } else {
+        format!("$P{}", destination.position)
+    };
+    let frame = &facts
+        .mutation
+        .for_machine(machine.symbol)?
+        .state_write_frames
+        .iter()
+        .find(|frame| frame.state == state.symbol)?
+        .frame;
+    if !assignment_frame_matches(program, state, parameter.symbol, &mutation_root, frame) {
+        return None;
+    }
+    statements
+        .iter()
+        .enumerate()
+        .filter_map(|(statement_index, statement)| {
+            let StatementNode::Assignment(assignment) = statement else {
+                return None;
+            };
+            Some(
+                u32::try_from(statement_index)
+                    .ok()
+                    .and_then(|statement_index| {
+                        build_structural_scalar_field_store_at(
+                            program,
+                            facts,
+                            machine,
+                            state,
+                            structural_parameters,
+                            scalar_parameters,
+                            statement_index,
+                            assignment,
+                            None,
+                            false,
+                            true,
+                        )
+                    }),
+            )
+        })
+        .collect()
+}
+
+fn build_structural_scalar_field_store_at(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
+    statement_index: u32,
+    assignment: &typed_trees::statement::TableAssignment,
+    result_local: Option<&CheckedUnitScalarResultBindingPlan>,
+    selected_result: bool,
+    exact_sequence_frame: bool,
+) -> Option<CheckedStructuralScalarFieldStorePlan> {
     let [destination] = structural_parameters else {
         return None;
     };
@@ -196,9 +288,14 @@ pub(super) fn build_structural_scalar_field_store(
     // mutation analysis, so that initializer leaves the pre-selection frame
     // opaque. The exact selected result, two-statement body, and canonical
     // projected destination are independently rejoined above and below.
-    let unresolved_selected_frame = selected_scalar_result_local.is_some()
+    let unresolved_selected_frame = selected_result
+        && !exact_sequence_frame
         && frame.completeness() == facts::WriteFrameCompleteness::Opaque;
-    if !exact_frame && !exact_collection_frame && !unresolved_selected_frame {
+    if !exact_frame
+        && !exact_collection_frame
+        && !unresolved_selected_frame
+        && !exact_sequence_frame
+    {
         return None;
     }
     let value = facts.values.scalar_expressions.expression_at(
@@ -229,22 +326,23 @@ pub(super) fn build_structural_scalar_field_store(
             )
             && scalar_parameters.is_empty()
     );
-    let exact_source = if direct_result_is_exact {
+    let literal = match value {
+        CheckedScalarExpression::IntegerLiteral { .. } => {
+            primitive_type.accepts_integer_literal() && primitive_type != PrimitiveType::Addr
+        }
+        CheckedScalarExpression::Boolean(boolean) => {
+            primitive_type == PrimitiveType::Bool
+                && matches!(
+                    boolean.as_ref(),
+                    checked_trees::CheckedBooleanExpression::Constant(_)
+                )
+        }
+        _ => false,
+    };
+    let exact_source = if direct_result_is_exact || literal {
         true
     } else if scalar_parameters.is_empty() {
-        match value {
-            CheckedScalarExpression::IntegerLiteral { .. } => {
-                primitive_type.accepts_integer_literal() && primitive_type != PrimitiveType::Addr
-            }
-            CheckedScalarExpression::Boolean(boolean) => {
-                primitive_type == PrimitiveType::Bool
-                    && matches!(
-                        boolean.as_ref(),
-                        checked_trees::CheckedBooleanExpression::Constant(_)
-                    )
-            }
-            _ => false,
-        }
+        false
     } else {
         let (position, source_type) = checked_parameter_source(value)?;
         scalar_parameters.get(position).is_some_and(|parameter| {
@@ -269,6 +367,62 @@ pub(super) fn build_structural_scalar_field_store(
         primitive_type,
         value: value.clone(),
     })
+}
+
+/// Reconcile the complete state frame with its authored assignment destinations.
+/// Calls remain separate ordered operations; an opaque or additional write is
+/// not justified by the presence of an assignment elsewhere in the state.
+fn assignment_frame_matches(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    parameter: SymbolHandle,
+    mutation_root: &str,
+    frame: &facts::NormalizedWriteFrame,
+) -> bool {
+    let Some(paths) = frame.complete_paths() else {
+        return false;
+    };
+    let mut expected = Vec::new();
+    for (statement_index, statement) in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .enumerate()
+    {
+        let StatementNode::Assignment(assignment) = statement else {
+            continue;
+        };
+        let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+            program,
+            state.symbol,
+            statement_index,
+            assignment.target,
+        ) else {
+            return false;
+        };
+        if place.root != facts::PlaceRoot::Symbol(parameter) || place.segments.is_empty() {
+            return false;
+        }
+        let segments = place
+            .segments
+            .iter()
+            .position(|segment| matches!(segment, facts::PlaceSegment::FixedIndex { .. }))
+            .map_or(place.segments.as_slice(), |position| {
+                &place.segments[..position]
+            });
+        let root = crate::labels::canonical_place_label_from_parts(program, place.root, &[]);
+        let label = crate::labels::canonical_place_label_from_parts(program, place.root, segments);
+        let Some(suffix) = label.strip_prefix(&root) else {
+            return false;
+        };
+        let path = format!("{mutation_root}{suffix}");
+        if !expected.contains(&path) {
+            expected.push(path);
+        }
+    }
+    !expected.is_empty()
+        && paths.len() == expected.len()
+        && paths.iter().all(|path| expected.contains(path))
 }
 
 fn authored_scalar_position(dense_position: usize) -> Option<u32> {

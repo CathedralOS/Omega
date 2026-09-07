@@ -137,12 +137,12 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   `INSTALLED-PROGRAM-LOCAL-ROOT-INTRODUCTION` in P1. The projected byte-field
   argument still needs the carrier transport below: `resolve_structural_path`
   in `terminal-verifier` walks only `Structural` fields, while `pause` is a
-  `ByteSequence(BoundedOwned)` field. General receiver-store
-  sequences still need planning: `win64_direct_aggregate_import_compile`
+  `ByteSequence(BoundedOwned)` field. Receiver-store sequences still need
+  aggregate replacements and foreign-result assignments: `win64_direct_aggregate_import_compile`
   combines scalar writes, an aggregate replacement, and a foreign-result
   assignment. Extend the checked Unit statement sequence without dropping
-  any write or its exact frame; the bounded single-scalar-store form is not
-  a plan for that complete body.
+  any write or its exact frame; ordered literal/parameter scalar field stores
+  do not cover that complete body.
 
   Byte-carrier boundary forwarding must retain the exact source place, path,
   capacity, and live-length writeback separately from the borrowed-view

@@ -132,6 +132,9 @@ fn checked_store_source_matches(
     scalar_parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
     available_scalar_types: &[ScalarType],
 ) -> bool {
+    if checked_store_literal_matches(value, primitive_type) {
+        return true;
+    }
     if let CheckedScalarExpression::Local {
         position,
         primitive_type: source_type,

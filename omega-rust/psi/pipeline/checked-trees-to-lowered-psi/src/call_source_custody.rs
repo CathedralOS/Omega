@@ -7,6 +7,71 @@ pub(crate) mod initializers;
 pub(crate) mod occurrences;
 pub(crate) mod projected_receivers;
 
+/// Preserve the ordinary call roster around direct authored stores. The
+/// selected-result/local-binding families retain their own call custody.
+pub(super) fn validate_store_sequence_calls(
+    checked: &CheckedTrees,
+    plan: &CheckedUnitEffectMachinePlan,
+) -> Result<(), LoweringError> {
+    use checked_trees::statement::StatementNode;
+    let (_, state) = crate::scalar_source_custody::authored_state(checked, plan.state)?;
+    let statements = checked.statement_table.statements(state.statement_nodes);
+    if !statements
+        .iter()
+        .any(|statement| matches!(statement, StatementNode::Assignment(_)))
+    {
+        return Ok(());
+    }
+    for (statement_index, statement) in statements.iter().enumerate() {
+        if matches!(
+            statement,
+            StatementNode::Assignment(_) | StatementNode::LocalData(_)
+        ) {
+            continue;
+        }
+        let statement_index = u32::try_from(statement_index).map_err(|_| {
+            LoweringError::Unsupported("store sequence call statement ordinal exceeds u32")
+        })?;
+        let coordinate = checked_trees::CheckedUnitCallCoordinate {
+            statement_index,
+            call_ordinal: 0,
+        };
+        // The existing call owner resolves the exact authored occurrence;
+        // this roster check does not interpret its dispatch or arguments.
+        authored::locate_source(checked, plan.state, coordinate)?;
+        let count = plan
+            .operations
+            .iter()
+            .filter(|operation| match operation {
+                CheckedUnitEffectOperationPlan::CallUnit {
+                    coordinate: actual, ..
+                }
+                | CheckedUnitEffectOperationPlan::BoundaryCall {
+                    coordinate: actual, ..
+                }
+                | CheckedUnitEffectOperationPlan::ScalarCall {
+                    coordinate: actual, ..
+                }
+                | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                    coordinate: actual, ..
+                }
+                | CheckedUnitEffectOperationPlan::StructuralCall {
+                    coordinate: actual, ..
+                }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                    coordinate: actual,
+                    ..
+                } => *actual == coordinate,
+                _ => false,
+            })
+            .count();
+        if count != 1 {
+            return unsupported("store sequence omits or duplicates an authored call");
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn validate_operation(
     checked: &CheckedTrees,
     caller_machine: symbols::SymbolHandle,

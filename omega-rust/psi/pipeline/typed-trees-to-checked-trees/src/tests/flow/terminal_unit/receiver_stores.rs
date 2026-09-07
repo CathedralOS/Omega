@@ -102,7 +102,7 @@ fn retains_mutable_receiver_field_stores() {
 }
 
 #[test]
-fn receiver_store_does_not_admit_an_unaccounted_second_write() {
+fn receiver_store_sequence_accounts_for_each_authored_write() {
     let checked = checked(
         r#"
         data Pair { left: u8; right: u16; }
@@ -112,13 +112,29 @@ fn receiver_store_does_not_admit_an_unaccounted_second_write() {
         }
         "#,
     );
-    assert!(
-        checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .for_machine(machine_named(&checked, "Pair::replace"))
-            .is_none()
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "Pair::replace"))
+        .expect("both receiver stores have ordered operations");
+    let [
+        CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(first),
+        CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(second),
+        CheckedUnitEffectOperationPlan::ReturnUnit {
+            statement_index: 2, ..
+        },
+    ] = plan.operations.as_slice()
+    else {
+        panic!("exactly two stores and the final return");
+    };
+    assert_eq!(
+        (first.statement_index, first.field_identity.as_str()),
+        (0, "left")
+    );
+    assert_eq!(
+        (second.statement_index, second.field_identity.as_str()),
+        (1, "right")
     );
 }
 
@@ -144,6 +160,48 @@ fn receiver_store_requires_its_exact_receiver_write_frame() {
         facts::NormalizedWriteFrame::complete(vec!["self.right".into()]),
         facts::NormalizedWriteFrame::complete(vec!["self.left".into(), "self.right".into()]),
         facts::NormalizedWriteFrame::complete(Vec::new()),
+        facts::NormalizedWriteFrame::opaque(),
+    ] {
+        let mut changed = checked.facts.clone();
+        changed
+            .mutation
+            .machines
+            .iter_mut()
+            .find(|fact| fact.machine == machine)
+            .unwrap()
+            .state_write_frames[0]
+            .frame = frame;
+        let rebuilt =
+            crate::flow::build_checked_unit_effect_plans(&checked.typed, &changed, &[], &[]);
+        assert!(rebuilt.for_machine(machine).is_none());
+    }
+}
+
+#[test]
+fn receiver_store_sequence_requires_the_complete_assignment_frame() {
+    let checked = checked(
+        r#"
+        data Pair { left: u16; right: u16; extra: u16; }
+        machine Pair::replace(&mut self) { self.left = 7; self.right = 11; self.left = 13; }
+    "#,
+    );
+    let machine = machine_named(&checked, "Pair::replace");
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine)
+            .is_some()
+    );
+    for frame in [
+        facts::NormalizedWriteFrame::complete(vec!["self.left".into()]),
+        facts::NormalizedWriteFrame::complete(vec![
+            "self.left".into(),
+            "self.right".into(),
+            "self.extra".into(),
+        ]),
+        facts::NormalizedWriteFrame::complete(vec!["$P0.left".into(), "$P0.right".into()]),
         facts::NormalizedWriteFrame::opaque(),
     ] {
         let mut changed = checked.facts.clone();
