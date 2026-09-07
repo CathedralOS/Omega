@@ -174,6 +174,15 @@ pub enum OperationKind {
         length: ValueId,
         obligation: ObligationId,
     },
+    /// Derive a borrowed byte view for [start, end), with a certificate of
+    /// start <= end <= length. Length must directly observe the same source.
+    ByteSequenceSubslice {
+        source: PlaceId,
+        start: ValueId,
+        end: ValueId,
+        length: ValueId,
+        obligation: ObligationId,
+    },
     /// Establish one whole, claim-free affine empty-record local. This is a
     /// semantic ownership event, not an ABI input or a target storage choice.
     EstablishTrivialAffineLocal {

@@ -37,6 +37,20 @@ pub enum SuspensionCallPlanError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ModuleError {
+    InvalidByteSequenceSubslice(OperationId),
+    ByteSequenceSubsliceReturnUnsupported {
+        machine: MachineId,
+        place: PlaceId,
+    },
+    ByteSequenceSubsliceOperandTypeMismatch {
+        operation: OperationId,
+        operand: ValueId,
+        actual: ScalarType,
+    },
+    ByteSequenceViewNotEstablished {
+        operation: OperationId,
+        place: PlaceId,
+    },
     InvalidSuspensionCallPlan {
         operation: Option<OperationId>,
         reason: SuspensionCallPlanError,

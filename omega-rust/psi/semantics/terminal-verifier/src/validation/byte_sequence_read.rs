@@ -26,7 +26,18 @@ pub(super) fn validate(
     })?;
     // The operand pass separately checks dominance and exact u64 types. A
     // parameter, alias, or merely equal integer cannot replace this producer.
-    let exact_length = machine
+    if !is_exact_length(machine, source, length) {
+        return Err(ModuleError::InvalidByteSequenceReadLength {
+            operation: operation.id,
+            source,
+            length,
+        });
+    }
+    Ok(())
+}
+
+pub(super) fn is_exact_length(machine: &TerminalMachine, source: PlaceId, length: ValueId) -> bool {
+    machine
         .blocks
         .iter()
         .flat_map(|block| &block.operations)
@@ -37,13 +48,5 @@ pub(super) fn validate(
                 .is_some_and(|result| result.id == length)
                 && matches!(candidate.kind,
                     OperationKind::ByteSequenceLength { source: measured } if measured == source)
-        });
-    if !exact_length {
-        return Err(ModuleError::InvalidByteSequenceReadLength {
-            operation: operation.id,
-            source,
-            length,
-        });
-    }
-    Ok(())
+        })
 }

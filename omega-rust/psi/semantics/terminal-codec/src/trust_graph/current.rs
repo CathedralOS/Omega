@@ -1,4 +1,8 @@
 //! Exact source-bound construction of the current migration trust graph.
+use super::{
+    BYTE_SUBSLICE_VALIDATION_SOURCE, BYTE_VIEW_ARGUMENTS_SOURCE, BYTE_VIEW_DOMINANCE_SOURCE,
+    BYTE_VIEW_FRONTIER_SOURCE,
+};
 
 use super::{
     BOOLEAN_POLARITY_RECONSTRUCTION_SOURCE, BYTE_READ_VALIDATION_SOURCE,
@@ -36,7 +40,7 @@ fn terminal_vocabulary_version() -> String {
 }
 
 fn canonical_terminal_bytes_identity() -> &'static str {
-    "root:canonical-terminal-bytes-format-77-vocabulary-82"
+    "root:canonical-terminal-bytes-format-77-vocabulary-83"
 }
 
 fn canonical_terminal_bytes_version() -> String {
@@ -435,8 +439,14 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                     TERMINAL_STRUCTURAL_EFFECT_SOURCE,
                 ));
             }
-            if row.tag() == terminal_semantics::OperationSemanticTag::ByteSequenceRead {
+            if matches!(row.tag(), terminal_semantics::OperationSemanticTag::ByteSequenceRead
+                | terminal_semantics::OperationSemanticTag::ByteSequenceLength
+                | terminal_semantics::OperationSemanticTag::ByteSequenceSubslice) {
                 exact_sources.extend([
+                    ("terminal-verifier/validation/byte_sequence_subslice.rs", BYTE_SUBSLICE_VALIDATION_SOURCE),
+                    ("terminal-verifier/validation/control_flow.rs", BYTE_VIEW_DOMINANCE_SOURCE),
+                    ("terminal-verifier/validation/frontier.rs", BYTE_VIEW_FRONTIER_SOURCE),
+                    ("terminal-verifier/validation/structural_operations.rs", BYTE_VIEW_ARGUMENTS_SOURCE),
                     ("terminal-verifier/validation/byte_sequence_read.rs", BYTE_READ_VALIDATION_SOURCE),
                     ("terminal-verifier/validation/byte_sequence_length.rs", BYTE_VIEW_VALIDATION_SOURCE),
                     ("terminal-verifier/verification/reconstruction/operation_facts.rs", OPERATION_FACTS_SOURCE),

@@ -860,6 +860,22 @@ fn validate_operation_foundation(
     operation: &Operation,
 ) -> Result<(), CodecError> {
     match &operation.kind {
+        OperationKind::ByteSequenceSubslice { .. } => {
+            let Some(result) = operation.result.structural() else {
+                return malformed("byte-sequence subslice requires a structural result");
+            };
+            if result.multiplicity != StructuralMultiplicity::Unrestricted
+                || !result.qualifications.is_empty() || !result.projected_qualifications.is_empty()
+                || !result.claims.is_empty()
+                || !module.structural_types.iter().any(|row| row.id == result.structural_type
+                    && matches!(row.shape, StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView)))
+                || !machine.structural_places.iter().any(|row| row.id == result.place
+                    && matches!(row.kind, StructuralPlaceKind::OperationResult { producer, structural_type }
+                        if producer == operation.id && structural_type == result.structural_type))
+            {
+                return malformed("byte-sequence subslice requires its exact immutable borrowed result place");
+            }
+        }
         OperationKind::ByteSequenceRead { .. } => {
             let expected = ScalarType::Integer(
                 semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 8)

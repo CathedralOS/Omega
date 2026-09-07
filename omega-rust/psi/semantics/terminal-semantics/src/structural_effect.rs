@@ -6,6 +6,9 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{Operation, OperationKind, OperationResult};
 
+#[cfg(test)]
+mod subslice_tests;
+
 use super::{OperationSemanticError, OperationSemanticTag};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -39,6 +42,7 @@ pub enum StructuralEffectAction {
     EstablishByteSequencePlace,
     ReadByteSequenceLength,
     ReadByteSequence,
+    EstablishByteSequenceSubslice,
     ReadBooleanField,
     ReadIntegerField,
     EmitPortWrite,
@@ -62,12 +66,14 @@ pub enum StructuralEffectFuelPolicy {
 pub enum StructuralEffectGoalShape {
     None,
     ByteIndexInBounds,
+    ByteRangeInBounds,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralEffectFrontierPolicy {
     RequiresAndKeepsWriteOnlyPrimitivePlace,
     RequiresAndKeepsStructuralPlace,
+    RequiresViewAndEstablishesBorrowedView,
     AddsUnrestrictedPlace,
     RequiresAndKeepsAffinePlace,
     KeepsPlaceFrontier,
@@ -136,6 +142,9 @@ const fn structural_effect_leaf(
             StructuralEffectAction::ReadByteSequence => {
                 StructuralEffectGoalShape::ByteIndexInBounds
             }
+            StructuralEffectAction::EstablishByteSequenceSubslice => {
+                StructuralEffectGoalShape::ByteRangeInBounds
+            }
             _ => StructuralEffectGoalShape::None,
         },
         frontier,
@@ -149,7 +158,17 @@ pub struct StructuralEffectSemanticRow {
 }
 
 impl StructuralEffectSemanticRow {
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 12] = [
+        Self {
+            tag: OperationSemanticTag::ByteSequenceSubslice,
+            schema: structural_effect_leaf(
+                StructuralEffectResultShape::Structural,
+                StructuralEffectCustody::ExactImmutableByteView,
+                StructuralEffectAction::EstablishByteSequenceSubslice,
+                StructuralEffectExternalEffect::None,
+                StructuralEffectFrontierPolicy::RequiresViewAndEstablishesBorrowedView,
+            ),
+        },
         Self {
             tag: OperationSemanticTag::ByteSequenceRead,
             schema: structural_effect_leaf(
@@ -280,6 +299,7 @@ const fn is_structural_effect_tag(tag: OperationSemanticTag) -> bool {
             | OperationSemanticTag::EstablishByteSequenceLiteral
             | OperationSemanticTag::ByteSequenceLength
             | OperationSemanticTag::ByteSequenceRead
+            | OperationSemanticTag::ByteSequenceSubslice
             | OperationSemanticTag::BooleanStructuralField
             | OperationSemanticTag::IntegerStructuralField
             | OperationSemanticTag::PortWrite
@@ -332,6 +352,7 @@ pub fn validate_structural_effect_semantic_rows(
         OperationSemanticTag::EstablishByteSequenceLiteral,
         OperationSemanticTag::ByteSequenceLength,
         OperationSemanticTag::ByteSequenceRead,
+        OperationSemanticTag::ByteSequenceSubslice,
         OperationSemanticTag::BooleanStructuralField,
         OperationSemanticTag::IntegerStructuralField,
         OperationSemanticTag::PortWrite,
@@ -374,6 +395,14 @@ pub enum StructuralEffectObservation {
         result: ValueId,
         obligation: ObligationId,
     },
+    ByteSequenceSubslice {
+        source: PlaceId,
+        start: ValueId,
+        end: ValueId,
+        length: ValueId,
+        destination: PlaceId,
+        obligation: ObligationId,
+    },
     BooleanFieldEquation(Proposition),
     IntegerFieldRead {
         source: PlaceId,
@@ -398,24 +427,34 @@ pub enum StructuralEffectObservation {
 impl StructuralEffectObservation {
     /// The canonical goal depends only on this operation's explicit operands.
     pub fn canonical_obligation(&self) -> Option<(ObligationId, Proposition)> {
-        let Self::ByteSequenceRead {
-            index,
-            length,
-            obligation,
-            ..
-        } = self
-        else {
-            return None;
-        };
         let scalar_type =
             ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"));
-        Some((
-            *obligation,
-            Proposition::LessThan(
-                ScalarTerm::value(*index, scalar_type),
-                ScalarTerm::value(*length, scalar_type),
-            ),
-        ))
+        let value = |identity| ScalarTerm::value(identity, scalar_type);
+        match self {
+            Self::ByteSequenceRead {
+                index,
+                length,
+                obligation,
+                ..
+            } => Some((
+                *obligation,
+                Proposition::LessThan(value(*index), value(*length)),
+            )),
+            Self::ByteSequenceSubslice {
+                start,
+                end,
+                length,
+                obligation,
+                ..
+            } => Some((
+                *obligation,
+                Proposition::Conjunction(vec![
+                    Proposition::LessOrEqual(value(*start), value(*end)),
+                    Proposition::LessOrEqual(value(*end), value(*length)),
+                ]),
+            )),
+            _ => None,
+        }
     }
 
     pub fn local_equation(&self) -> Option<&Proposition> {
@@ -431,6 +470,7 @@ impl StructuralEffectObservation {
             | Self::ByteSequencePlaceEstablished { .. }
             | Self::ByteSequenceLengthRead { .. }
             | Self::ByteSequenceRead { .. }
+            | Self::ByteSequenceSubslice { .. }
             | Self::IntegerFieldRead { .. }
             | Self::PortWrite { .. }
             | Self::AffinePlaceEstablished { .. } => None,
@@ -443,6 +483,9 @@ fn validate_structural_effect_schema(
     schema: StructuralEffectLeafSchema,
 ) -> Result<(), OperationSemanticError> {
     let action_tag = match schema.action {
+        StructuralEffectAction::EstablishByteSequenceSubslice => {
+            OperationSemanticTag::ByteSequenceSubslice
+        }
         StructuralEffectAction::ReadByteSequence => OperationSemanticTag::ByteSequenceRead,
         StructuralEffectAction::ReadByteSequenceLength => OperationSemanticTag::ByteSequenceLength,
         StructuralEffectAction::StorePrimitive => OperationSemanticTag::WriteOnlyPrimitiveStore,
@@ -466,86 +509,95 @@ fn validate_structural_effect_schema(
         }
     };
     let expected_goal = match schema.action {
+        StructuralEffectAction::EstablishByteSequenceSubslice => {
+            StructuralEffectGoalShape::ByteRangeInBounds
+        }
         StructuralEffectAction::ReadByteSequence => StructuralEffectGoalShape::ByteIndexInBounds,
         _ => StructuralEffectGoalShape::None,
     };
-    let valid = action_tag == tag
-        && schema.goal == expected_goal
-        && match schema.action {
-            StructuralEffectAction::ReadByteSequence => {
-                schema.result == StructuralEffectResultShape::Byte
+    let valid =
+        action_tag == tag
+            && schema.goal == expected_goal
+            && match schema.action {
+                StructuralEffectAction::EstablishByteSequenceSubslice => schema.result
+                    == StructuralEffectResultShape::Structural
                     && schema.custody == StructuralEffectCustody::ExactImmutableByteView
                     && schema.external_effect == StructuralEffectExternalEffect::None
                     && schema.frontier
-                        == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
-            }
-            StructuralEffectAction::ReadByteSequenceLength => {
-                schema.result == StructuralEffectResultShape::ByteCount
-                    && schema.custody == StructuralEffectCustody::ExactImmutableByteView
-                    && schema.external_effect == StructuralEffectExternalEffect::None
-                    && schema.frontier
-                        == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
-            }
-            StructuralEffectAction::StorePrimitive => {
-                schema.result == StructuralEffectResultShape::Unit
+                        == StructuralEffectFrontierPolicy::RequiresViewAndEstablishesBorrowedView,
+                StructuralEffectAction::ReadByteSequence => {
+                    schema.result == StructuralEffectResultShape::Byte
+                        && schema.custody == StructuralEffectCustody::ExactImmutableByteView
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier
+                            == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
+                }
+                StructuralEffectAction::ReadByteSequenceLength => {
+                    schema.result == StructuralEffectResultShape::ByteCount
+                        && schema.custody == StructuralEffectCustody::ExactImmutableByteView
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier
+                            == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
+                }
+                StructuralEffectAction::StorePrimitive => schema.result
+                    == StructuralEffectResultShape::Unit
                     && schema.custody == StructuralEffectCustody::ExactWriteOnlyPrimitiveRoot
                     && schema.external_effect == StructuralEffectExternalEffect::None
                     && schema.frontier
-                        == StructuralEffectFrontierPolicy::RequiresAndKeepsWriteOnlyPrimitivePlace
+                        == StructuralEffectFrontierPolicy::RequiresAndKeepsWriteOnlyPrimitivePlace,
+                StructuralEffectAction::StoreScalarField => {
+                    schema.result == StructuralEffectResultShape::Unit
+                        && schema.custody == StructuralEffectCustody::ExactStructuralScalarField
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier
+                            == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
+                }
+                StructuralEffectAction::EstablishByteSequencePlace => {
+                    schema.result == StructuralEffectResultShape::Unit
+                        && schema.custody == StructuralEffectCustody::ExactByteSequenceLiteral
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier == StructuralEffectFrontierPolicy::AddsUnrestrictedPlace
+                }
+                StructuralEffectAction::ReadBooleanField => {
+                    schema.result == StructuralEffectResultShape::Boolean
+                        && schema.custody == StructuralEffectCustody::ExactLiveBooleanField
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier
+                            == StructuralEffectFrontierPolicy::RequiresAndKeepsAffinePlace
+                }
+                StructuralEffectAction::ReadIntegerField => {
+                    schema.result == StructuralEffectResultShape::Integer
+                        && schema.custody == StructuralEffectCustody::ExactLiveIntegerField
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier
+                            == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
+                }
+                StructuralEffectAction::EmitPortWrite => {
+                    schema.result == StructuralEffectResultShape::Unit
+                        && schema.custody == StructuralEffectCustody::ExactPublishedService
+                        && schema.external_effect == StructuralEffectExternalEffect::PortWrite
+                        && schema.frontier == StructuralEffectFrontierPolicy::KeepsPlaceFrontier
+                }
+                StructuralEffectAction::EstablishAffinePlace => {
+                    schema.result == StructuralEffectResultShape::Unit
+                        && schema.custody == StructuralEffectCustody::ExactEmptyAffineLocal
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier == StructuralEffectFrontierPolicy::AddsAffinePlace
+                }
+                StructuralEffectAction::EstablishAffineScalarRecord => {
+                    schema.result == StructuralEffectResultShape::Structural
+                        && schema.custody == StructuralEffectCustody::ExactAffineScalarRecord
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier == StructuralEffectFrontierPolicy::AddsAffinePlace
+                }
+                StructuralEffectAction::EstablishPayloadlessCase => {
+                    schema.result == StructuralEffectResultShape::Structural
+                        && schema.custody == StructuralEffectCustody::ExactPayloadlessCase
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier == StructuralEffectFrontierPolicy::AddsOwnedPlace
+                }
             }
-            StructuralEffectAction::StoreScalarField => {
-                schema.result == StructuralEffectResultShape::Unit
-                    && schema.custody == StructuralEffectCustody::ExactStructuralScalarField
-                    && schema.external_effect == StructuralEffectExternalEffect::None
-                    && schema.frontier
-                        == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
-            }
-            StructuralEffectAction::EstablishByteSequencePlace => {
-                schema.result == StructuralEffectResultShape::Unit
-                    && schema.custody == StructuralEffectCustody::ExactByteSequenceLiteral
-                    && schema.external_effect == StructuralEffectExternalEffect::None
-                    && schema.frontier == StructuralEffectFrontierPolicy::AddsUnrestrictedPlace
-            }
-            StructuralEffectAction::ReadBooleanField => {
-                schema.result == StructuralEffectResultShape::Boolean
-                    && schema.custody == StructuralEffectCustody::ExactLiveBooleanField
-                    && schema.external_effect == StructuralEffectExternalEffect::None
-                    && schema.frontier
-                        == StructuralEffectFrontierPolicy::RequiresAndKeepsAffinePlace
-            }
-            StructuralEffectAction::ReadIntegerField => {
-                schema.result == StructuralEffectResultShape::Integer
-                    && schema.custody == StructuralEffectCustody::ExactLiveIntegerField
-                    && schema.external_effect == StructuralEffectExternalEffect::None
-                    && schema.frontier
-                        == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
-            }
-            StructuralEffectAction::EmitPortWrite => {
-                schema.result == StructuralEffectResultShape::Unit
-                    && schema.custody == StructuralEffectCustody::ExactPublishedService
-                    && schema.external_effect == StructuralEffectExternalEffect::PortWrite
-                    && schema.frontier == StructuralEffectFrontierPolicy::KeepsPlaceFrontier
-            }
-            StructuralEffectAction::EstablishAffinePlace => {
-                schema.result == StructuralEffectResultShape::Unit
-                    && schema.custody == StructuralEffectCustody::ExactEmptyAffineLocal
-                    && schema.external_effect == StructuralEffectExternalEffect::None
-                    && schema.frontier == StructuralEffectFrontierPolicy::AddsAffinePlace
-            }
-            StructuralEffectAction::EstablishAffineScalarRecord => {
-                schema.result == StructuralEffectResultShape::Structural
-                    && schema.custody == StructuralEffectCustody::ExactAffineScalarRecord
-                    && schema.external_effect == StructuralEffectExternalEffect::None
-                    && schema.frontier == StructuralEffectFrontierPolicy::AddsAffinePlace
-            }
-            StructuralEffectAction::EstablishPayloadlessCase => {
-                schema.result == StructuralEffectResultShape::Structural
-                    && schema.custody == StructuralEffectCustody::ExactPayloadlessCase
-                    && schema.external_effect == StructuralEffectExternalEffect::None
-                    && schema.frontier == StructuralEffectFrontierPolicy::AddsOwnedPlace
-            }
-        }
-        && schema.fuel == StructuralEffectFuelPolicy::ConsumeOne;
+            && schema.fuel == StructuralEffectFuelPolicy::ConsumeOne;
     valid
         .then_some(())
         .ok_or(OperationSemanticError::StructuralEffectSchemaMismatch(tag))
@@ -599,6 +651,27 @@ pub fn structural_effect_leaf_observation_in(
     let schema = row.schema;
     validate_structural_effect_result(operation, tag, schema)?;
     let observation = match (schema.action, &operation.kind) {
+        (
+            StructuralEffectAction::EstablishByteSequenceSubslice,
+            OperationKind::ByteSequenceSubslice {
+                source,
+                start,
+                end,
+                length,
+                obligation,
+            },
+        ) => StructuralEffectObservation::ByteSequenceSubslice {
+            source: *source,
+            start: *start,
+            end: *end,
+            length: *length,
+            destination: operation
+                .result
+                .structural()
+                .expect("validated structural result")
+                .place,
+            obligation: *obligation,
+        },
         (
             StructuralEffectAction::ReadByteSequence,
             OperationKind::ByteSequenceRead {
@@ -787,13 +860,14 @@ mod tests {
 
     #[test]
     fn inventory_is_exact_unique_and_keeps_axes_separate() {
-        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 11);
+        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 12);
         assert_eq!(
             StructuralEffectSemanticRow::ALL
                 .iter()
                 .map(|row| row.tag())
                 .collect::<BTreeSet<_>>(),
             BTreeSet::from([
+                OperationSemanticTag::ByteSequenceSubslice,
                 OperationSemanticTag::ByteSequenceRead,
                 OperationSemanticTag::ByteSequenceLength,
                 OperationSemanticTag::WriteOnlyPrimitiveStore,

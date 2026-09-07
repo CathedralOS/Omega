@@ -31,6 +31,9 @@ pub(super) fn lower(
         OperationKind::ByteSequenceRead { .. } => Err(
             crate::lowering::LoweringError::UnsupportedByteSequenceRead(operation.id),
         ),
+        OperationKind::ByteSequenceSubslice { .. } => {
+            Err(crate::lowering::LoweringError::UnsupportedByteSequenceSubslice(operation.id))
+        }
         OperationKind::ByteSequenceLength { .. } => {
             Err(crate::lowering::LoweringError::UnsupportedByteSequenceLength(operation.id))
         }

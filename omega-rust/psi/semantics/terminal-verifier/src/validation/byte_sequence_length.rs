@@ -81,6 +81,11 @@ pub(super) fn validate_source(
             }
             structural_type
         }
+        StructuralPlaceKind::OperationResult { .. } => {
+            super::byte_sequence_subslice::borrowed_result(machine, source)
+                .ok_or_else(&invalid)?
+                .structural_type
+        }
         _ => return Err(invalid()),
     };
     if !module.structural_types.iter().any(|declaration| {

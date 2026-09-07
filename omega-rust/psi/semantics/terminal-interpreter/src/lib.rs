@@ -5,7 +5,9 @@
 //! execution state; no source or checked-tree representation crosses this
 //! boundary.
 
+mod byte_sequence_view;
 mod effect_results;
+use byte_sequence_view::ByteSequenceView;
 mod semantic_value_comparison;
 
 pub use effect_results::TerminalEffectResult;
@@ -491,7 +493,7 @@ pub struct TerminalExecution {
     /// Immutable exact bytes owned by this invocation, including borrowed
     /// arguments rebound to its parameter places. Opaque identities do not
     /// determine byte contents.
-    byte_sequence_values: BTreeMap<PlaceId, Vec<u8>>,
+    byte_sequence_values: BTreeMap<PlaceId, ByteSequenceView>,
     /// Exact claim-free affine ownership frontier. Opaque structural storage is
     /// root-addressed, so projected moves must be represented here rather than
     /// by unsoundly deleting their containing root.
@@ -523,7 +525,7 @@ struct SuspendedCall {
     values: BTreeMap<ValueId, TerminalScalarValue>,
     structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
     payloadless_case_values: BTreeMap<PlaceId, TerminalPayloadlessCaseValue>,
-    byte_sequence_values: BTreeMap<PlaceId, Vec<u8>>,
+    byte_sequence_values: BTreeMap<PlaceId, ByteSequenceView>,
     live_affine_frontier: BTreeSet<StructuralAffineDiscard>,
     live_claims: BTreeMap<ClaimId, LiveClaim>,
     dynamic_parameters: BTreeMap<u32, RuntimeDynamicDescriptor>,
@@ -1056,7 +1058,7 @@ impl TerminalExecution {
         parameters: &[StructuralParameterDeclaration],
         arguments: &[StructuralArgument],
         resolved_arguments: &[TerminalStructuralValue],
-    ) -> Result<BTreeMap<PlaceId, Vec<u8>>, TerminalInterpretError> {
+    ) -> Result<BTreeMap<PlaceId, ByteSequenceView>, TerminalInterpretError> {
         if parameters.len() != arguments.len() || parameters.len() != resolved_arguments.len() {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
@@ -1614,7 +1616,7 @@ impl TerminalExecution {
                         };
                         if self
                             .byte_sequence_values
-                            .insert(destination, bytes)
+                            .insert(destination, ByteSequenceView::new(bytes))
                             .is_some()
                         {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
@@ -2033,7 +2035,11 @@ impl TerminalExecution {
                             byte_sequence_arguments: boundary_declaration
                                 .structural_parameters
                                 .iter()
-                                .map(|parameter| byte_sequence_values.remove(&parameter.place))
+                                .map(|parameter| {
+                                    byte_sequence_values
+                                        .remove(&parameter.place)
+                                        .map(|view| view.bytes().to_vec())
+                                })
                                 .collect(),
                             completion_receipts,
                             result: boundary_declaration.result.clone(),
@@ -2403,6 +2409,76 @@ impl TerminalExecution {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         }
                         self.values.insert(result.id, value);
+                    }
+                    OperationKind::ByteSequenceSubslice {
+                        source,
+                        start,
+                        end,
+                        length,
+                        ..
+                    } => {
+                        let result = operation
+                            .result
+                            .structural()
+                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        let count_type =
+                            IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                                .expect("u64 is valid");
+                        let count = |operand| -> Result<usize, TerminalInterpretError> {
+                            let value = self
+                                .values
+                                .get(&operand)
+                                .ok_or(TerminalInterpretError::VerifiedValueMissing(operand))?;
+                            let TerminalScalarValue::Integer {
+                                scalar_type,
+                                value: IntegerValue::Unsigned(value),
+                            } = value
+                            else {
+                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                            };
+                            if *scalar_type != count_type {
+                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                            }
+                            let value = u64::try_from(*value)
+                                .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
+                            usize::try_from(value)
+                                .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)
+                        };
+                        let start = count(start)?;
+                        let end = count(end)?;
+                        let length = count(length)?;
+                        let source_value = self.structural_values.get(&source).ok_or(
+                            TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
+                        )?;
+                        let bytes = self.byte_sequence_values.get(&source).ok_or(
+                            TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
+                        )?;
+                        if bytes.len() != length
+                            || source_value.structural_type != result.structural_type
+                            || !source_value.path.is_empty()
+                            || !source_value.qualifications.is_empty()
+                            || result.multiplicity != StructuralMultiplicity::Unrestricted
+                            || !result.qualifications.is_empty()
+                            || !result.projected_qualifications.is_empty()
+                            || !result.claims.is_empty()
+                            || self.structural_values.contains_key(&result.place)
+                            || self.byte_sequence_values.contains_key(&result.place)
+                        {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let view = bytes
+                            .subslice(start, end)
+                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        self.byte_sequence_values.insert(result.place, view);
+                        self.structural_values.insert(
+                            result.place,
+                            TerminalStructuralValue {
+                                opaque_identity: result.place.get(),
+                                structural_type: result.structural_type,
+                                qualifications: Vec::new(),
+                                path: Vec::new(),
+                            },
+                        );
                     }
                     OperationKind::ByteSequenceRead {
                         source,

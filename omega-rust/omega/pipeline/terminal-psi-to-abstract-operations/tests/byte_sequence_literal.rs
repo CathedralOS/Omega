@@ -85,11 +85,21 @@ fn byte_sequence_length_has_an_explicit_native_realization_fence() {
 
 #[test]
 fn byte_sequence_read_has_an_explicit_native_realization_fence_after_verification() {
+    byte_operation_fence(false);
+}
+
+#[test]
+fn byte_sequence_subslice_has_an_explicit_native_realization_fence_after_verification() {
+    byte_operation_fence(true);
+}
+
+fn byte_operation_fence(subslice: bool) {
     use proof_admission::{
         CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
     };
     use semantic_vocabulary::{
-        EvidenceIdentity, IntegerSign, IntegerType, ObligationId, ScalarType, ValueId,
+        EvidenceIdentity, IntegerSign, IntegerType, ObligationId, Proposition, ScalarTerm,
+        ScalarType, ValueId,
     };
     use terminal_psi::{SuccessorEdge, ValueDeclaration};
     let mut module = byte_sequence_module(Vec::new());
@@ -191,6 +201,31 @@ fn byte_sequence_read_has_an_explicit_native_realization_fence_after_verificatio
             },
         },
     ];
+    if subslice {
+        machine.structural_places.push(StructuralPlaceDeclaration {
+            id: place_id(3),
+            kind: semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                producer: operation_id(3),
+                structural_type: StructuralTypeId::new(1).unwrap(),
+            },
+        });
+        machine.blocks[0].operations[0].result =
+            OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                place: place_id(3),
+                structural_type: StructuralTypeId::new(1).unwrap(),
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            });
+        machine.blocks[0].operations[0].kind = OperationKind::ByteSequenceSubslice {
+            source: place_id(1),
+            start: value(1),
+            end: value(2),
+            length: value(2),
+            obligation: ObligationId::new(1).unwrap(),
+        };
+    }
     let questions = terminal_verifier::reconstruct_terminal_obligations(&module).unwrap();
     let [site] = questions.obligations() else {
         panic!("one read question")
@@ -198,8 +233,45 @@ fn byte_sequence_read_has_an_explicit_native_realization_fence_after_verificatio
     let index = site
         .semantic_axioms
         .iter()
-        .position(|fact| fact == &site.obligation.proposition)
+        .position(|fact| {
+            fact == &Proposition::LessThan(
+                ScalarTerm::value(value(1), count_type),
+                ScalarTerm::value(value(2), count_type),
+            )
+        })
         .unwrap();
+    let rule = if subslice {
+        let Proposition::Conjunction(children) = &site.obligation.proposition else {
+            panic!("range")
+        };
+        ProofRule::ConjunctionIntroduction(vec![
+            ProofNode {
+                conclusion: children[0].clone(),
+                rule: ProofRule::IntegerOrderWeakening {
+                    relation: Box::new(ProofNode {
+                        conclusion: site.semantic_axioms[index].clone(),
+                        rule: ProofRule::SemanticAxiom { index },
+                    }),
+                },
+            },
+            ProofNode {
+                conclusion: children[1].clone(),
+                rule: ProofRule::IntegerOrderWeakening {
+                    relation: Box::new(ProofNode {
+                        conclusion: Proposition::Equal(
+                            ScalarTerm::value(value(2), count_type),
+                            ScalarTerm::value(value(2), count_type),
+                        ),
+                        rule: ProofRule::Primitive(
+                            proof_admission::PrimitiveJudgment::ReflexiveEquality,
+                        ),
+                    }),
+                },
+            },
+        ])
+    } else {
+        ProofRule::SemanticAxiom { index }
+    };
     let bundle = ProofBundle {
         evidence: vec![terminal_verifier::ObligationEvidence {
             obligation: site.obligation.id,
@@ -208,7 +280,7 @@ fn byte_sequence_read_has_an_explicit_native_realization_fence_after_verificatio
                 proof_system_marker: ProofSystemMarker::CURRENT,
                 proof: ProofNode {
                     conclusion: site.obligation.proposition.clone(),
-                    rule: ProofRule::SemanticAxiom { index },
+                    rule,
                 },
             }),
         }],
@@ -217,12 +289,21 @@ fn byte_sequence_read_has_an_explicit_native_realization_fence_after_verificatio
     terminal_verifier::verify_module(&module, &bundle, &AdmissionProfile::default()).unwrap();
     let semantic = encode_module(&module).unwrap();
     let proof = encode_proof_bundle(&bundle).unwrap();
-    assert!(
-        matches!(lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default()),
-        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::Lowering(
-            terminal_psi_to_abstract_operations::LoweringError::UnsupportedByteSequenceRead(operation)
-        )) if operation == operation_id(3))
-    );
+    let error =
+        lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default()).unwrap_err();
+    match error {
+        terminal_psi_to_abstract_operations::ArtifactLoweringError::Lowering(
+            terminal_psi_to_abstract_operations::LoweringError::UnsupportedByteSequenceRead(
+                operation,
+            ),
+        ) if !subslice => assert_eq!(operation, operation_id(3)),
+        terminal_psi_to_abstract_operations::ArtifactLoweringError::Lowering(
+            terminal_psi_to_abstract_operations::LoweringError::UnsupportedByteSequenceSubslice(
+                operation,
+            ),
+        ) if subslice => assert_eq!(operation, operation_id(3)),
+        other => panic!("wrong native fence: {other:?}"),
+    }
 }
 
 fn byte_sequence_module(bytes: Vec<u8>) -> TerminalModule {
