@@ -29,7 +29,7 @@ Every `build.omg` states its kind explicitly — `builder.package` for a package
 application. No role is inferred from an absent declaration.
 
 For complete macOS GUI application output, the settled
-[publication contract](../design_briefs/macos_application_publication.md) uses
+[publication contract](../pre_migration/design_briefs/macos_application_publication.md) uses
 `builder.subsystem = Subsystem::Gui` as the opt-in to one `.app`, assembled
 after native emission. The application name supplies the executable and bundle
 basename; an explicit application identifier is required before signed macOS
@@ -114,7 +114,7 @@ boundary surfaces.
 A package's dependencies — the external packages it may reach — are declared in
 its **`build.omg`**, a capability-checked build-entry machine that augments a
 `Build` (see
-[`../design_briefs/build_and_package_model.md`](../design_briefs/build_and_package_model.md)).
+[`../design_briefs/build_and_package_model.md`](../pre_migration/design_briefs/build_and_package_model.md)).
 Each dependency row requests a source and update selector. After fetching it,
 Omega reads the dependency's own `builder.package("name")` declaration and
 derives the default local alias
@@ -284,8 +284,8 @@ volatile-capable build before running it. The artifact separately reports:
 
 A hash-pinned dependency artifact can satisfy the first even when its own build
 used a volatile observation, in which case the graph fails the second. See the
-[build/package brief](../design_briefs/build_and_package_model.md) and the
-[semantic-evaluation brief](../design_briefs/build_time_evaluation.md).
+[build/package brief](../pre_migration/design_briefs/build_and_package_model.md) and the
+[semantic-evaluation brief](../pre_migration/design_briefs/build_time_evaluation.md).
 
 ## Path separator: `::` for names, `.` for values
 
@@ -609,7 +609,7 @@ An admitted provider may originate a routed qualification when it satisfies
 an exact boundary requirement named in the domain declaration; admission
 records the receipt. Checked resource transformations preserve or divide that
 evidence while accounting for every linear claim. See
-[`authority_values_and_boundary_evidence.md`](../design_briefs/authority_values_and_boundary_evidence.md).
+[`authority_values_and_boundary_evidence.md`](../pre_migration/design_briefs/authority_values_and_boundary_evidence.md).
 
 Confidential state remains in provider custody. A public value may carry an
 index into that state, while the provider boundary controls lookup and
@@ -631,7 +631,7 @@ Names resolve in this order:
   package the current package did not declare in its `build.omg` is a resolution
   error, not an ambient reach. (This gate is the build-time analog of the
   capability model; see
-  [`../design_briefs/build_and_package_model.md`](../design_briefs/build_and_package_model.md).)
+  [`../design_briefs/build_and_package_model.md`](../pre_migration/design_briefs/build_and_package_model.md).)
 
 Ambiguity is an error. The compiler should not guess between two imported
 declarations with the same visible name.

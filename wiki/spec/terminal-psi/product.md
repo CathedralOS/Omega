@@ -1,7 +1,7 @@
 # Terminal Psi product
 
 This is the current portable-product contract, independent of the implementation
-language. The [remaining vocabulary reference](../../architecture/pipeline/terminal_psi.md)
+language. The [remaining vocabulary reference](../../pre_migration/architecture/pipeline/terminal_psi.md)
 still owns operation and verification details not yet consolidated here.
 [Boundary calls](boundary_calls.md), [byte views](byte_views.md), and
 [observations](observations.md) have their

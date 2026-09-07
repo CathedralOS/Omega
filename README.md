@@ -130,7 +130,7 @@ The native path runs real programs on macOS ARM64, Windows x64, and Linux
 The general implementation queue and its acceptance checks live in
 [`TASKS.md`](TASKS.md). Optimizer architecture and its dedicated execution queue
 live in
-[`optimizer_architecture.md`](wiki/design_briefs/optimizer_architecture.md) and
+[`optimizer_architecture.md`](wiki/pre_migration/design_briefs/optimizer_architecture.md) and
 [`TASKS_OPTIMIZER.md`](TASKS_OPTIMIZER.md). Completed limitations are removed
 rather than retained as status history.
 
@@ -145,28 +145,28 @@ optimization, and native lowering. The current Rust pipeline predates that cut
 and is being migrated; `StateGraph` and `ControlFlowPlan` are not the public
 portable format.
 
-See [wiki/architecture/architecture.md](wiki/architecture/architecture.md) for a complete breakdown of the compiler architecture and pipeline.
+See [wiki/pre_migration/architecture/architecture.md](wiki/pre_migration/architecture/architecture.md) for a complete breakdown of the compiler architecture and pipeline.
 
 The selected bootstrap lattice is Alpha -> Beta -> Gamma -> Delta -> Epsilon ->
 Omega. Alpha is raw tape execution; Beta is the trusted imperative tape-
 assembly language; Gamma is the small typed scalar/effect language; Delta is
 the typed functional compiler language; and Epsilon is the fixed-storage
 compiler host. Their implementations and the Epsilon-written compiler closure
-`D` live under [`bootstrap/`](bootstrap/). D produces the first full Omega
+`D` live under [`bootstrap/`](bootstrap). D produces the first full Omega
 compiler `omega₀`, which compiles the Omega-written closure `C` into production
 `omega`. Intermediate self-hosting is not a goal. Its active queue lives in
 [`TASKS_BOOTSTRAP.md`](TASKS_BOOTSTRAP.md), while the canonical ownership map
 lives in
-[`repository_structure.md`](wiki/architecture/bootstrap_chain/repository_structure.md).
+[`repository_structure.md`](wiki/pre_migration/architecture/bootstrap_chain/repository_structure.md).
 Beta's self-reconstructing compiler and admitted Alpha tape live under
 `bootstrap/1_beta/`; the older imperative Gamma rung remains retired.
 The whole-chain audit is defined in
-[`bootstrap_minimization.md`](wiki/design_briefs/bootstrap_minimization.md), and
+[`bootstrap_minimization.md`](wiki/pre_migration/design_briefs/bootstrap_minimization.md), and
 the candidate shorter chains and common audit experiment are defined in
 [`bootstrap_chain_alternatives.md`](wiki/design_briefs/bootstrap_chain_alternatives.md).
 The literal Epsilon v1 contract and the incidental ordinary-Omega surface used by
 the compiler source are defined and kept distinct in
-[`compiler_source_profile.md`](wiki/architecture/bootstrap_chain/compiler_source_profile.md).
+[`compiler_source_profile.md`](wiki/pre_migration/architecture/bootstrap_chain/compiler_source_profile.md).
 [`source/README.md`](source/README.md) describes the final product-source side;
 the [ground-equality checker](bootstrap/2_gamma/derivation_checker/README.md) is an
 ordinary Gamma tool, not another language rung. Its full Beta encoding certificate
@@ -226,7 +226,7 @@ Set `OMEGA_LIBRARY_ROOT` to point at a different bundled library root when testi
 
 ## Useful Commands
 
-Run tests (see [local testing](wiki/testing.md) for installation and affected-test selection):
+Run tests (see [local testing](wiki/pre_migration/testing.md) for installation and affected-test selection):
 
 ```bash
 mbx nextest run --workspace --lib --no-fail-fast
@@ -257,5 +257,5 @@ The language is moving quickly. The best current design references are:
 
 - [Documentation index](wiki/README.md)
 - [Omega Language Guide](wiki/language_guide/language_guide.md)
-- [Architecture](wiki/architecture/architecture.md)
-- [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_contract.md)
+- [Architecture](wiki/pre_migration/architecture/architecture.md)
+- [Rust Compiler Completion Contract](wiki/pre_migration/releases/rust_compiler_completion_contract.md)

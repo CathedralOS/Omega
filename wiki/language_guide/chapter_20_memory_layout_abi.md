@@ -1363,8 +1363,8 @@ two's-complement bit-pattern sets, merging adjacent or overlapping intervals;
 therefore `i8 [-128..=127]` and unconstrained `u8` may alias mutably, while
 equal-cardinality sets at different bit positions still reject.
 
-See [`Programmable Layouts`](../design_briefs/programmable_layouts.md) and the
-[`OS Memory And Hardware Foundation`](../design_briefs/os_memory_and_hardware_foundation.md)
+See [`Programmable Layouts`](../pre_migration/design_briefs/programmable_layouts.md) and the
+[`OS Memory And Hardware Foundation`](../pre_migration/design_briefs/os_memory_and_hardware_foundation.md)
 for the settled public model and remaining engineering work.
 
 ## Endianness

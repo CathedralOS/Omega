@@ -51,11 +51,11 @@ they must not acquire customer-shaped semantic types or lifecycle protocols.
 ## Documentation consolidation
 
 - **DOCUMENTATION-CONSOLIDATION.** Execute the
-  [four-move cleanup plan](wiki/work/documentation_cleanup.md), owned by repository
-  documentation. Continue through the remaining Terminal operation, verification,
-  and encoding reference, then the other large mixed documents. The
+  [four-move cleanup plan](wiki/drafts/documentation_cleanup.md), owned by repository
+  documentation. Review and port the remaining Terminal operation and verification
+  reference, then the other documents in `wiki/pre_migration/`. The
   [documentation index](wiki/README.md) identifies the current subject owners.
-  Consolidate into guide, specification, proposals, and temporary work notes; keep
+  Consolidate into guide, specification, proposals, and temporary drafts; keep
   implementation documentation beside code. The protected bootstrap decision
   record needs explicit owner authorization for its eventual authority transition;
   unrelated documentation cleanup is not blocked on it.
@@ -66,7 +66,7 @@ they must not acquire customer-shaped semantic types or lifecycle protocols.
   satisfied. Remove this task and the temporary plan when complete.
 
   Native integration details extracted during the cleanup remain in the
-  [Terminal realization note](wiki/work/terminal_realization.md); implement them
+  [Terminal realization note](wiki/drafts/terminal_realization.md); implement them
   under their existing native/borrow/callback owners, not as documentation work.
 
 ## Immediate product closure
@@ -74,7 +74,7 @@ they must not acquire customer-shaped semantic types or lifecycle protocols.
 These are the next product-level priorities for the maintained Rust
 implementation. They take precedence over adding another evidence carrier that
 has no exercising program. The finite definition of Rust-product completion is
-the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_contract.md).
+the [Rust Compiler Completion Contract](wiki/pre_migration/releases/rust_compiler_completion_contract.md).
 
 - **OMEGA-PRODUCT-COMPILER-SOURCE.** Establish the production compiler as two
   sibling Omega packages: target-neutral phases under `source/psi/` and the
@@ -90,7 +90,7 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   construction of that closure belongs in `TASKS_BOOTSTRAP.md`.
 
 - **MACOS-APPLICATION-PUBLICATION.** Implement the
-  [settled publication contract](wiki/design_briefs/macos_application_publication.md)
+  [settled publication contract](wiki/pre_migration/design_briefs/macos_application_publication.md)
   in build evaluation/realization inputs, Mach-O signing, command publication,
   and compilation reports. Preserve flat/report validation and flat v1 digests.
   Specify the identifier field in ordinary build vocabulary,
@@ -154,7 +154,7 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   --build-dir build/cli-mvp-ranks samples/cli/basics/cli_mvp/main.omg` exits 1
   after checked package review: `fresh package review has blocking rows but no
   explicit --package-root-policy`. Implement
-  [single package acceptance](wiki/design_briefs/build_and_package_model.md#single-package-acceptance):
+  [single package acceptance](wiki/pre_migration/design_briefs/build_and_package_model.md#single-package-acceptance):
   preserve accepted project policy as native preparation's comparison baseline,
   check its join to fresh native requirements, and remove the duplicate file/flag.
   A locked one-claim fixture at `09bab8091c` passes ordinary update/resume and
@@ -289,7 +289,7 @@ the [Rust Compiler Completion Contract](wiki/releases/rust_compiler_completion_c
   constraints while changed endpoints and intervening writes invalidate their
   premises. Preserve the private-witness/public-guarantee split described in
   chapter 3 and the
-  [termination brief](wiki/design_briefs/termination_ranking_and_progress.md).
+  [termination brief](wiki/pre_migration/design_briefs/termination_ranking_and_progress.md).
 
 `omega-rust/` remains the production implementation until that contract
 closes. It may remain afterward as a differential implementation while it finds
@@ -299,7 +299,7 @@ machinery must not migrate into the Omega-written compiler source.
 ## P1 - Authority, roots, and entry
 
 Owners include
-`wiki/design_briefs/authority_values_and_boundary_evidence.md` and
+`wiki/pre_migration/design_briefs/authority_values_and_boundary_evidence.md` and
 `wiki/spec/resources/storage.md`.
 
 - **ENTRY-CONTENT-ROOTS.** Connect the generated target entry stub to the exact
@@ -384,7 +384,7 @@ Owners include
   canonical encoding, independent reconstruction, verification,
   interpretation, resource analysis, native lowering, artifact custody, and
   installation. The detailed vocabulary lives in
-  `wiki/architecture/pipeline/terminal_psi.md`; this task records no operation
+  `wiki/pre_migration/architecture/pipeline/terminal_psi.md`; this task records no operation
   ledger. Acceptance: source and producer state can be discarded before an
   independent verifier reconstructs every obligation and executes or lowers
   the same artifact.
@@ -397,8 +397,8 @@ Owners include
   `TRANSLATION-VALIDATION` in `TASKS_OPTIMIZER.md`.
 
 - **GENERAL-CYCLIC-EXECUTION.** Implement the
-  [settled cyclic control contract](wiki/architecture/pipeline/terminal_psi.md)
-  and [separate safety/progress rules](wiki/design_briefs/termination_ranking_and_progress.md)
+  [settled cyclic control contract](wiki/pre_migration/architecture/pipeline/terminal_psi.md)
+  and [separate safety/progress rules](wiki/pre_migration/design_briefs/termination_ranking_and_progress.md)
   for the actual effectful state graphs used by `print_squares` and the
   Console writer. Reuse blocks, `Jump`, `Conditional`, successor arguments,
   and ordinary operations. No new loop opcode, fabricated per-state machine,
@@ -447,7 +447,7 @@ Owners include
   substitutions, or sites reject.
 
 - **PROOF-CONTRACT-MIGRATION.** Migrate the proof surface to
-  [ordinary machine contracts and trait bundles](wiki/design_briefs/mathematical_proofs.md#contract-first-mathematical-proofs).
+  [ordinary machine contracts and trait bundles](wiki/pre_migration/design_briefs/mathematical_proofs.md#contract-first-mathematical-proofs).
   Owners: Psi syntax/resolution/typing, contract proof semantics, Terminal
   evidence/codec/replay, and core mathematical traits. First specify the missing
   logical binders, arbitrary mathematical function/predicate parameters, and
@@ -554,7 +554,7 @@ Owners include
   of the shared physical reference ABI.
 
 - **STRUCTURAL-BORROW-IDENTITY.** Enforce the settled
-  [structural borrow identity contract](wiki/design_briefs/core_multiplicity_and_linearity.md#structural-borrow-identity-at-native-calls)
+  [structural borrow identity contract](wiki/pre_migration/design_briefs/core_multiplicity_and_linearity.md#structural-borrow-identity-at-native-calls)
   through structural-signature construction, call argument preparation, and
   native validation/replay. All borrowed access modes use one classifier and
   the existing `BorrowedReference` tag; only owned inputs use value-shape ABI
@@ -630,7 +630,7 @@ Owners include
 
 - **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Finish consumer permission rows and
   exact target-mechanism classification under the settled
-  [filesystem control/lifecycle policy](wiki/design_briefs/effects_authority_and_observation.md#portable-filesystem-control-and-lifecycle-authority).
+  [filesystem control/lifecycle policy](wiki/pre_migration/design_briefs/effects_authority_and_observation.md#portable-filesystem-control-and-lifecycle-authority).
   Acceptance: remaining requirements have justified dispositions; every
   admitted leaf has one exact mechanism/contract row; unknowns and duplicates
   reject; exercised classes fit independently supplied service permissions.
@@ -736,7 +736,7 @@ Owners include
   calls.
   Extend the
   type-directed record/array complement in
-  [Terminal Psi](wiki/architecture/pipeline/terminal_psi.md) to construction-local
+  [Terminal Psi](wiki/pre_migration/architecture/pipeline/terminal_psi.md) to construction-local
   roots and mixed dying-root schedules, preserving maximal untouched subtrees,
   empty complements, and reverse establishment order without runtime liveness
   flags. Entry-parameter cleanup alone cannot dispose a temporary's remainder.

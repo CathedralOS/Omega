@@ -1,7 +1,7 @@
 # Omega product compiler
 
 This package is the Omega-owned half of the final self-hosted compiler. The
-sibling [`../psi/`](../psi/) package owns target-neutral source processing,
+sibling [`../psi/`](../psi) package owns target-neutral source processing,
 checking, proof, and Terminal Psi. This package consumes Terminal Psi and owns
 provider selection, target realization, ABI, artifact emission, and the product
 entrypoint.
@@ -12,9 +12,9 @@ Omega-written compiler closure C. The build binds the ordinary
 standard library through ordinary package declarations.
 
 The first compiler D is a separate Epsilon-written bootstrap implementation
-under [`../../bootstrap/5_omega/`](../../bootstrap/5_omega/). Interpreted D compiles
+under [`../../bootstrap/5_omega/`](../../bootstrap/5_omega). Interpreted D compiles
 this final closure to `omega0`; `omega0` then recompiles the same closure to
-`omega`. Rust under [`../../omega-rust/`](../../omega-rust/) remains a
+`omega`. Rust under [`../../omega-rust/`](../../omega-rust) remains a
 nonauthoritative development comparator.
 
 ```text

@@ -52,7 +52,7 @@ prefixes; arbitrary name order retains the same semantics without promising
 the same allocation savings. It does not raise a Gamma bound or convert a raw
 evaluator resource failure into a compiler-owned outcome.
 
-The [customer cost review](../../../../../../wiki/design_briefs/bootstrap_cost_review.md#delta-names-customer-allocation-versus-boundary-necessity)
+The [customer cost review](../../../../../../wiki/pre_migration/design_briefs/bootstrap_cost_review.md#delta-names-customer-allocation-versus-boundary-necessity)
 compares prefix reuse with rebuilding from the root on the exact Epsilon source.
 It supports retaining the current implementation without expansion, not claiming
 that the customer requires it to fit or that boundary conformance is complete.

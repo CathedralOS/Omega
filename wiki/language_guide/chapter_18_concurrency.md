@@ -29,7 +29,7 @@ language construct. Starting and controlling a task reach that service through
 the ordinary reach/provider model from chapter 19.
 
 The full custody/storage/claim model and implementation sequence are recorded
-in [Task Runtime And Lifecycle](../design_briefs/task_runtime_and_lifecycle.md).
+in [Task Runtime And Lifecycle](../pre_migration/design_briefs/task_runtime_and_lifecycle.md).
 
 ## Starting Is A Provider Operation
 
@@ -160,7 +160,7 @@ claim-bearing, Unit, boundary, and dynamic frontiers, park/resume lowering, and
 evidence-backed widening of the suspension-safe-loan subset remain engineering
 work under the settled model.
 See
-[effects_authority_and_observation.md](../design_briefs/effects_authority_and_observation.md).
+[effects_authority_and_observation.md](../pre_migration/design_briefs/effects_authority_and_observation.md).
 
 ### Call-site acknowledgements
 

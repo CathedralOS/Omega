@@ -1,6 +1,6 @@
 # Omega Package Subsystem
 
-Start in [`manager/src/operations/`](manager/src/operations/) to follow a
+Start in [`manager/src/operations/`](manager/src/operations) to follow a
 complete package operation.
 
 ```text
@@ -73,6 +73,6 @@ rejects during candidate checking.
 
 Design and acquisition references:
 
-- [Build And Package Model](../../../wiki/design_briefs/build_and_package_model.md)
-- [Package Manager: Scope and Workflow](../../../wiki/design_briefs/package_manager_first_draft.md)
+- [Build And Package Model](../../../wiki/pre_migration/design_briefs/build_and_package_model.md)
+- [Package Manager: Scope and Workflow](../../../wiki/pre_migration/design_briefs/package_manager_first_draft.md)
 - [Source Resolver Security](sources/acquisition/SOURCE_RESOLVER_SECURITY.md)

@@ -18,7 +18,7 @@ source, produces an exact richer-language receipt, and evaluates the expanded
 program to byte 42.
 
 The former concatenative Gamma evaluator/compiler is preserved under
-[`bootstrap/concatenative/`](bootstrap/concatenative/). It is bootstrap
+[`bootstrap/concatenative/`](bootstrap/concatenative). It is bootstrap
 comparison evidence, not the selected Gamma language.
 
 The selected evaluator is complete for the current Gamma contract. Proper-tail

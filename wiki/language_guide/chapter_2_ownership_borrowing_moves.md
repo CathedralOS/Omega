@@ -8,7 +8,7 @@ This chapter is the place for the rules other chapters rely on.
 > **Core multiplicity.** Usage is an explicit type
 > property with three cases: unrestricted, affine, and linear. Facts and
 > permissions share control-flow/place infrastructure but not one algebra. See
-> [core_multiplicity_and_linearity.md](../design_briefs/core_multiplicity_and_linearity.md).
+> [core_multiplicity_and_linearity.md](../pre_migration/design_briefs/core_multiplicity_and_linearity.md).
 
 ## Usage Multiplicity
 
@@ -117,7 +117,7 @@ concurrency rules; where synchronized mutation is permitted, a shared reference
 must keep observing the original location. Mutable and write-only calls likewise
 write the caller's actual referent. Their common physical reference ABI does not
 make their access permissions interchangeable. Owned arguments retain ordinary
-value ABI selection. See the [native structural borrow identity contract](../design_briefs/core_multiplicity_and_linearity.md#structural-borrow-identity-at-native-calls).
+value ABI selection. See the [native structural borrow identity contract](../pre_migration/design_briefs/core_multiplicity_and_linearity.md#structural-borrow-identity-at-native-calls).
 
 ## Mutable Borrows
 
@@ -828,4 +828,4 @@ covered later in [Drops And Cleanup](chapter_17_drops_and_cleanup.md).
 The compiler records first-class `Establish`, `Transfer`, `Consume`, and
 `AffineDrop` permission events. The older parallel move/drop summaries have
 been deleted; cleanup-plan completion is tracked in
-[semantic_taxonomy_representation.md](../architecture/semantic_taxonomy_representation.md).
+[semantic_taxonomy_representation.md](../pre_migration/architecture/semantic_taxonomy_representation.md).

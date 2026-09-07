@@ -292,7 +292,7 @@ do not survive outside the graph paths where their lifetime is valid.
 
 A `const` is a named compile-time value. Its initializer is evaluated at build
 time (a build-time-admissible expression in constant position — see
-[Build-Time Evaluation](../design_briefs/build_time_evaluation.md)), so a `const`
+[Build-Time Evaluation](../pre_migration/design_briefs/build_time_evaluation.md)), so a `const`
 is a *value*, not runtime storage.
 
 ```omega
@@ -325,7 +325,7 @@ pub const IMPORT_NAME: [u8; 9] = "WriteFile";
   does not exist. There is no `static` keyword. A receiver-bound program entry
   gets one target-provisioned receiver, reachable only through its explicit
   `&mut self` parameter; see
-  [Constants And Provisioned Entry State](../design_briefs/static_root_and_constants.md).
+  [Constants And Provisioned Entry State](../pre_migration/design_briefs/static_root_and_constants.md).
 
 A constant may depend on a typed observation from the selected target-semantic
 capsule. Such an application remains symbolic in a target-neutral package and
@@ -335,7 +335,7 @@ an array length or const-generic argument. Its exact observation and selected-
 realization dependencies remain in the public signature, artifact identity,
 and diagnostic provenance after folding. This adds no conditional field/case
 or declaration-splice facility. See
-[Build-Time Evaluation](../design_briefs/build_time_evaluation.md#target-semantic-observations).
+[Build-Time Evaluation](../pre_migration/design_briefs/build_time_evaluation.md#target-semantic-observations).
 
 `const` names a value, not one addressable image occurrence. Compile-time-only
 uses may erase completely. When runtime use requires bytes, the compiler applies

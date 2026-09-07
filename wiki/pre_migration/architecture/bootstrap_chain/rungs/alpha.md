@@ -1,0 +1,19 @@
+# Rung: Alpha
+
+> **Needs porting.** This document has not been consolidated or vetted for the
+> current documentation structure. See the [migration index](../../../README.md).
+
+[Chain overview](../bootstrap_chain.md) | Next: [Beta](beta.md)
+
+Alpha is the unchanged deterministic tape executor and the only per-platform
+native rung. [`bootstrap/0_alpha/SEMANTICS.md`](../../../../../bootstrap/0_alpha/SEMANTICS.md)
+defines its 21 instructions, bounded flat memory, byte I/O, calls, halt, and
+trap.
+
+Alpha contains no textual language, type system, theorem prover, compiler
+framework, or higher-language primitive. Every compiler artifact is raw Alpha
+tape. Host stamping is packaging, not compilation.
+
+The selected root admits the Beta compiler tape and audits it against Alpha and
+Beta semantics. Beta's readable self-reconstruction binds that cold-start tape
+to the first trusted textual language edge.

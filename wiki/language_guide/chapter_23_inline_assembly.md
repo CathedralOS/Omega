@@ -296,5 +296,5 @@ instruction family.
   parsed checked assembly is the only source-level instruction surface.
 
 See
-[`OS Memory And Hardware Foundation`](../design_briefs/os_memory_and_hardware_foundation.md)
-and [`Calling And Machine-State Plans`](../design_briefs/calling_plans.md).
+[`OS Memory And Hardware Foundation`](../pre_migration/design_briefs/os_memory_and_hardware_foundation.md)
+and [`Calling And Machine-State Plans`](../pre_migration/design_briefs/calling_plans.md).

@@ -7,7 +7,7 @@ and unsigned comparison.
 It does not emit an assembler, complete encoding theory, owner-root
 reconstruction, or whole-source certificate.
 
-The [implementation design](../../../wiki/architecture/bootstrap_chain/derivation_calculus.md)
+The [implementation design](../../../wiki/pre_migration/architecture/bootstrap_chain/derivation_calculus.md)
 fixes the acceptance target: the entire selected Gamma evaluator's raw Beta
 source and persisted Alpha tape under the complete error-valued encoder.
 Keep artifact-specific definitions and eventual root reconstruction/proof

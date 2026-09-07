@@ -1,6 +1,6 @@
 # Explicit derivation checking
 
-[Format](FORMAT.md) | [Comparison](COMPARISON.md) | [Substitution](SUBSTITUTION.md) | [Calculus](../../../wiki/architecture/bootstrap_chain/derivation_calculus.md)
+[Format](FORMAT.md) | [Comparison](COMPARISON.md) | [Substitution](SUBSTITUTION.md) | [Calculus](../../../wiki/pre_migration/architecture/bootstrap_chain/derivation_calculus.md)
 
 `check_derivation()` is the generic ordinary-Gamma entrance. It checks the whole
 supplied proof table and its final conclusion against the owner root. It does

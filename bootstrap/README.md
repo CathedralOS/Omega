@@ -26,8 +26,8 @@ Alpha -> Beta -> Gamma -> Delta -> Epsilon -> Omega D
 
 Every rung is implemented in its immediate predecessor except Alpha's audited
 native execution floor. `5_omega/` is the bootstrap implementation of the Omega
-compiler; the final Omega-written compiler lives under [`../source/`](../source/).
-The maintained Rust implementation under [`../omega-rust/`](../omega-rust/) is a
+compiler; the final Omega-written compiler lives under [`../source/`](../source).
+The maintained Rust implementation under [`../omega-rust/`](../omega-rust) is a
 development comparator and grants no bootstrap authority.
 
 Cross-rung scripts resolve these owners through

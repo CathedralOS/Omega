@@ -17,7 +17,7 @@ Generated origin and checked trust, historical schema and migration coverage,
 and selected representation and authored representation law remain similarly
 distinct.
 
-Compiler architecture notes live in [Architecture](../architecture/architecture.md).
+Compiler architecture notes live in [Architecture](../pre_migration/architecture/architecture.md).
 
 Suggested reading path:
 

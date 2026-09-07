@@ -19,6 +19,6 @@ omega0 + source/{psi,omega,library}            -> omega
 ```
 
 The trust-minimizing languages and compiler D live under
-[`../bootstrap/`](../bootstrap/). The maintained Rust implementation under
-[`../omega-rust/`](../omega-rust/) is a development comparator and is not a
+[`../bootstrap/`](../bootstrap). The maintained Rust implementation under
+[`../omega-rust/`](../omega-rust) is a development comparator and is not a
 language rung or source of authority.
