@@ -2,6 +2,9 @@
 
 [Portable product](product.md) | [Boundary realization](boundary_calls.md)
 
+[Calls and outcomes](calls_and_outcomes.md) defines completion, cleanup,
+suspension, and crash behavior; this page defines their observation profile.
+
 ## Meaning of a profile
 
 `TerminalTraceV1` is a static observer reconstructed from the exact canonical

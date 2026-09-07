@@ -848,8 +848,11 @@ Owners include
 - **TR3-TR8.** Finish whole-call-graph worst-case stack derivation, exact
   `StackPlan`, nonmoving `StackLease`, suspension/cancellation preservation,
   transactional arguments, park/resume lowering, and the suspension-safe loan
-  subset. Acceptance: stack/control custody is never compiler-owned or lost
-  across a suspension edge.
+  subset. Bind an authoritative possibly-suspending crossing roster so coordinated
+  deletion of both a Terminal site and plan cannot erase a required crossing.
+  Acceptance: stack/control custody is never compiler-owned or lost across a
+  suspension edge, and missing crossing demand rejects under the
+  [call/outcome contract](wiki/spec/terminal-psi/calls_and_outcomes.md).
 
 - **BLOCKEXEC.** Implement a package-level blocking executor with bounded
   queues, moved custody, linear completion claims, suspension, and provider
