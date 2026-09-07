@@ -3617,6 +3617,14 @@ owning machine. Substituting a callee formal switches to caller ownership once;
 the caller's argument does not inherit a callee specialization's operator
 selection. Closed Boolean equality uses that checked meaning, not the spelling
 of a selected user-defined comparison.
+Bounds guards likewise recover the actual collection-length carrier and the
+carrier of a supported builtin integer computation before excluding unrelated
+operator candidates. Collection length requires an exact structural receiver;
+a nominal field named `len` retains its declared type. Computed operands require
+builtin inner-operation meaning and compatible known operand types. Anonymous
+literals and unresolved operands remain independent wildcard candidates, not
+copies of a sibling's type. Neither type recovery nor a visible comparison
+declaration supplies a bounds proof or changes the selected operation.
 Call preconditions cannot fall back to comparing an uninstantiated callee name
 with a caller fact: identically named formals do not establish anything about
 the actual argument.
