@@ -6,12 +6,10 @@ use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use crate::ValidatedTargetFrameProtocolEncoding;
 use crate::frame_layout::ValidatedTargetFrameLayout;
-use post_allocation_machine_to_post_allocation_machine::StagedOptimizedAarch64CbnzFusion;
 use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 use selected_form_encoding_to_resolved_layout::{
     StagedOptimizedResolvedSelectedFormLayout, validate_optimized_resolved_selected_form_layout,
-    validate_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion,
 };
 
 use super::{
@@ -197,73 +195,6 @@ pub fn validate_whole_function_exit_contract_after_x86_branch_relaxation<
         physical,
         encoding,
         relaxation.layout(),
-        layout_custody,
-        None,
-        contract.contract(),
-    )
-}
-
-/// Stage an exit contract over the independently replayed final CBNZ layout.
-/// The symbolic fusion receipt remains explicit authority for the zero-byte
-/// compare and fused branch; neither is admitted as an ordinary baseline row.
-pub fn stage_whole_function_exit_contract_after_aarch64_cbnz_fusion<
-    S: ValidatedSelectedAnalysis,
->(
-    selected: &S,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
-    physical: &ValidatedPhysicalRegisterModel,
-    encoding: &StagedOptimizedSelectedFormEncoding,
-    fusion: &StagedOptimizedAarch64CbnzFusion,
-    layout: &StagedOptimizedResolvedSelectedFormLayout,
-) -> Result<ValidatedWholeFunctionExitContract, WholeFunctionExitContractError> {
-    let layout_custody =
-        WholeFunctionExitLayoutCustody::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 {
-            fusion: fusion.fusion().receipt().identity(),
-        };
-    let contract = compute(
-        selected,
-        machine,
-        physical,
-        encoding,
-        layout.program(),
-        layout_custody,
-    )?;
-    let validated = ValidatedWholeFunctionExitContract {
-        contract: std::sync::Arc::new(contract),
-    };
-    validate_whole_function_exit_contract_after_aarch64_cbnz_fusion(
-        selected, machine, physical, encoding, fusion, layout, &validated,
-    )?;
-    Ok(validated)
-}
-
-/// Independently reconstruct the CBNZ encoding and final layout before
-/// accepting its whole-function exit contract.
-pub fn validate_whole_function_exit_contract_after_aarch64_cbnz_fusion<
-    S: ValidatedSelectedAnalysis,
->(
-    selected: &S,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
-    physical: &ValidatedPhysicalRegisterModel,
-    encoding: &StagedOptimizedSelectedFormEncoding,
-    fusion: &StagedOptimizedAarch64CbnzFusion,
-    layout: &StagedOptimizedResolvedSelectedFormLayout,
-    contract: &ValidatedWholeFunctionExitContract,
-) -> Result<(), WholeFunctionExitContractError> {
-    validate_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion(
-        selected, machine, physical, encoding, fusion, layout,
-    )
-    .map_err(WholeFunctionExitContractError::Layout)?;
-    let layout_custody =
-        WholeFunctionExitLayoutCustody::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 {
-            fusion: fusion.fusion().receipt().identity(),
-        };
-    super::validation::validate(
-        selected,
-        machine,
-        physical,
-        encoding,
-        layout.program(),
         layout_custody,
         None,
         contract.contract(),

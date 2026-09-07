@@ -2,13 +2,6 @@
 use machine_code::RelocationFreeTextSectionPlacement;
 use machine_emission::{TextPlacementInput, validate_fragment_text_section};
 
-pub(super) fn direct(staged: &crate::StagedOptimizedRelocationFreeTextSection) {
-    let source = staged.source();
-    let input = TextPlacementInput::RelocationFree(source.fragments());
-    check(input, staged.text_section());
-    let retained = staged.shared_text_section();
-    assert!(std::ptr::eq(retained.as_ref(), staged.text_section()));
-}
 pub(super) fn fixed(staged: &crate::StagedOptimizedFixedFrameTextSection) {
     let manifest = staged.manifest().shared_record();
     assert!(std::ptr::eq(manifest.as_ref(), staged.manifest().record()));

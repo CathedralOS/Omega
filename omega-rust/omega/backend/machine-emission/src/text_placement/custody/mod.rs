@@ -14,38 +14,17 @@ mod validation;
 pub use carriers::*;
 pub use error::*;
 pub use machine_code::{
-    FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionSourceCustody,
-    FunctionFragmentTextSectionStage, FunctionFragmentTextSectionStatistics,
-    FunctionFragmentTextSectionUnavailableData,
+    FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionStage,
+    FunctionFragmentTextSectionStatistics, FunctionFragmentTextSectionUnavailableData,
 };
 pub use validation::*;
 
 #[cfg(any(test, feature = "test-support"))]
 pub use placement::place_fragments_for_test;
 
-use crate::{
-    StagedFunctionFragmentFrameApplication, StagedOptimizedFunctionFragmentEmission,
-    validate_function_fragment_frame_application, validate_optimized_function_fragment_emission,
-};
+use crate::{StagedFunctionFragmentFrameApplication, validate_function_fragment_frame_application};
 
-use assembly::{compute, compute_fixed_frame, fixed_frame_receipt, receipt};
-
-pub fn stage_optimized_relocation_free_text_section(
-    source: StagedOptimizedFunctionFragmentEmission,
-) -> Result<StagedOptimizedRelocationFreeTextSection, RelocationFreeTextSectionPlacementError> {
-    validate_optimized_function_fragment_emission(&source)
-        .map_err(RelocationFreeTextSectionPlacementError::Source)?;
-    let (text_section, manifest) = compute(&source)?;
-    let custody = receipt(&manifest, &text_section);
-    let staged = StagedOptimizedRelocationFreeTextSection {
-        source,
-        text_section: std::sync::Arc::new(text_section),
-        manifest,
-        custody,
-    };
-    validate_optimized_relocation_free_text_section(&staged)?;
-    Ok(staged)
-}
+use assembly::{compute_fixed_frame, fixed_frame_receipt};
 
 /// Resolve every ordinary typed internal call after the exact target frame has
 /// shifted function-relative coordinates, then publish a relocation-free text

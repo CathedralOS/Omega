@@ -110,17 +110,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "assigned-target-operations"
-version = "0.1.0"
-dependencies = [
- "calling-conventions",
- "semantic-vocabulary",
- "target",
- "target-operations",
- "terminal-psi",
-]
-
-[[package]]
 name = "backend-plan"
 version = "0.1.0"
 dependencies = [
@@ -445,7 +434,6 @@ dependencies = [
  "lowered-psi-to-lowered-psi",
  "lowered-psi-to-terminal-psi",
  "machine-code",
- "machine-emission",
  "native-realization",
  "numerics",
  "object-file",
@@ -469,7 +457,6 @@ dependencies = [
  "syntax-trees-to-symbol-resolved-trees",
  "target",
  "target-operations",
- "target-operations-to-assigned-target-operations",
  "task-plans",
  "terminal-codec",
  "terminal-interpreter",
@@ -519,25 +506,10 @@ dependencies = [
 name = "component-publication"
 version = "0.1.0"
 dependencies = [
- "calling-conventions",
  "effects",
  "executable-installation",
- "extents",
  "external-roots",
- "function-identity",
  "image-emission",
- "installation-evidence",
- "isa-x86_64",
- "layout-plans",
- "machine-code",
- "machine-emission",
- "semantic-vocabulary",
- "symbols",
- "target",
- "target-operations",
- "target-operations-to-assigned-target-operations",
- "terminal-fuel",
- "terminal-psi",
 ]
 
 [[package]]
@@ -729,7 +701,6 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations",
  "abstract-operations-to-target-operations",
- "assigned-target-operations",
  "calling-conventions",
  "checked-trees-to-lowered-psi",
  "diagnostics",
@@ -759,7 +730,6 @@ dependencies = [
  "syntax-trees-to-symbol-resolved-trees",
  "target",
  "target-operations",
- "target-operations-to-assigned-target-operations",
  "task-plans",
  "terminal-codec",
  "terminal-fixed-fuel",
@@ -1008,20 +978,14 @@ dependencies = [
  "abstract-operations",
  "abstract-operations-to-abstract-operations",
  "abstract-operations-to-target-operations",
- "assigned-target-operations",
  "calling-conventions",
- "checked-trees-to-lowered-psi",
  "diagnostics",
- "iced-x86",
- "installation-evidence",
  "isa-aarch64",
  "isa-x86_64",
  "machine-code",
  "optimization-core",
  "physical-instructions",
- "post-allocation-machine-to-post-allocation-machine",
  "post-allocation-machine-to-selected-form-encoding",
- "proof-admission",
  "register-environment",
  "register-homes-to-post-allocation-machine",
  "register-model",
@@ -1031,20 +995,11 @@ dependencies = [
  "selected-instructions-to-register-homes",
  "semantic-vocabulary",
  "sha2",
- "source-files-to-tokens",
- "symbol-resolved-trees-to-typed-trees",
- "syntax-trees-to-symbol-resolved-trees",
  "target",
  "target-operations",
- "target-operations-to-assigned-target-operations",
- "task-plans",
- "terminal-codec",
  "terminal-fuel",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
- "tokens-to-syntax-trees",
- "typed-trees-to-checked-trees",
- "x86-encoding",
 ]
 
 [[package]]
@@ -1094,7 +1049,6 @@ dependencies = [
  "abstract-operations",
  "abstract-operations-to-abstract-operations",
  "abstract-operations-to-target-operations",
- "assigned-target-operations",
  "boundary-applications",
  "calling-conventions",
  "checked-trees",
@@ -1119,7 +1073,6 @@ dependencies = [
  "optimization",
  "optimization-core",
  "optimization-unit",
- "post-allocation-machine-to-post-allocation-machine",
  "program-entry-plan",
  "proof-admission",
  "provider-planning",
@@ -1139,7 +1092,6 @@ dependencies = [
  "syntax-trees-to-symbol-resolved-trees",
  "target",
  "target-operations",
- "target-operations-to-assigned-target-operations",
  "target-operations-to-selected-instructions",
  "task-plans",
  "terminal-codec",
@@ -1248,7 +1200,6 @@ dependencies = [
  "abstract-operations-to-target-operations",
  "arena",
  "artifacts",
- "assigned-target-operations",
  "boundary-applications",
  "calling-conventions",
  "checked-interpreter",
@@ -1282,7 +1233,6 @@ dependencies = [
  "optimization-unit",
  "optimization-unit-semantics",
  "physical-instructions",
- "post-allocation-machine-to-post-allocation-machine",
  "post-allocation-machine-to-selected-form-encoding",
  "program-entry-plan",
  "proof-admission",
@@ -1304,7 +1254,6 @@ dependencies = [
  "syntax-trees-to-symbol-resolved-trees",
  "target",
  "target-operations",
- "target-operations-to-assigned-target-operations",
  "target-operations-to-selected-instructions",
  "terminal-codec",
  "terminal-fixed-fuel",
@@ -1514,27 +1463,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "post-allocation-machine-to-post-allocation-machine"
-version = "0.1.0"
-dependencies = [
- "isa-aarch64",
- "isa-x86_64",
- "optimization-core",
- "optimization-unit",
- "physical-instructions",
- "register-homes",
- "register-homes-to-post-allocation-machine",
- "register-model",
- "selected-instructions",
- "selected-instructions-to-register-homes",
- "semantic-vocabulary",
- "sha2",
- "target",
- "target-operations",
- "terminal-psi",
-]
-
-[[package]]
 name = "post-allocation-machine-to-selected-form-encoding"
 version = "0.1.0"
 dependencies = [
@@ -1542,7 +1470,6 @@ dependencies = [
  "isa-x86_64",
  "machine-code",
  "physical-instructions",
- "post-allocation-machine-to-post-allocation-machine",
  "register-homes-to-post-allocation-machine",
  "register-model",
  "selected-instructions",
@@ -1732,7 +1659,6 @@ dependencies = [
  "machine-code",
  "optimization-core",
  "physical-instructions",
- "post-allocation-machine-to-post-allocation-machine",
  "post-allocation-machine-to-selected-form-encoding",
  "register-homes-to-post-allocation-machine",
  "register-model",
@@ -1822,7 +1748,6 @@ dependencies = [
  "machine-code",
  "optimization-core",
  "physical-instructions",
- "post-allocation-machine-to-post-allocation-machine",
  "post-allocation-machine-to-selected-form-encoding",
  "register-homes-to-post-allocation-machine",
  "register-model",
@@ -2096,32 +2021,6 @@ dependencies = [
  "target",
  "task-plans",
  "terminal-psi",
-]
-
-[[package]]
-name = "target-operations-to-assigned-target-operations"
-version = "0.1.0"
-dependencies = [
- "abstract-operations-to-target-operations",
- "assigned-target-operations",
- "calling-conventions",
- "checked-trees-to-lowered-psi",
- "function-identity",
- "proof-admission",
- "runtime-abi",
- "semantic-vocabulary",
- "source-files-to-tokens",
- "symbol-resolved-trees-to-typed-trees",
- "symbols",
- "syntax-trees-to-symbol-resolved-trees",
- "target",
- "target-operations",
- "task-plans",
- "terminal-codec",
- "terminal-psi",
- "terminal-psi-to-abstract-operations",
- "tokens-to-syntax-trees",
- "typed-trees-to-checked-trees",
 ]
 
 [[package]]

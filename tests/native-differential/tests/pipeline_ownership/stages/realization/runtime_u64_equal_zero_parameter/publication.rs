@@ -42,44 +42,15 @@ fn u64_parameter_equal_zero_reaches_linux_object_and_callable_on_both_isas() {
             target::Architecture::Aarch64 => {
                 assert!(
                     text.windows(4).any(|bytes| {
-                        let word = u32::from_le_bytes(bytes.try_into().unwrap());
-                        word & 0xff00_0000 == 0xb500_0000
-                    }),
-                    "AArch64 object must contain CBNZ on the allocated parameter copy"
-                );
-                assert!(
-                    !text.windows(4).any(|bytes| {
                         u32::from_le_bytes(bytes.try_into().unwrap()) & 0xffff_fc1f == 0xf100_001f
                     }),
-                    "CBNZ publication must elide the baseline zero comparison"
-                );
-                let emission = artifact.source().source().source();
-                let compare = emission.fragments().functions[0]
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.instructions)
-                    .find(|span| {
-                        span.alternative.family
-                            == selected_instructions::MachineAlternativeFamily::CompareI64Zero
-                    })
-                    .unwrap();
-                assert!(compare.bytes.is_empty());
-                assert_eq!(compare.provenance.fuel.len(), 2);
-                assert_eq!(
-                    emission
-                        .manifest()
-                        .record()
-                        .statistics
-                        .zero_byte_instruction_spans,
-                    1
+                    "AArch64 retains its zero comparison"
                 );
                 assert!(
-                    emission
-                        .manifest()
-                        .record()
-                        .statistics
-                        .logical_fuel_settlements
-                        >= 2
+                    text.windows(4).any(|bytes| {
+                        u32::from_le_bytes(bytes.try_into().unwrap()) & 0xff00_001f == 0x5400_0001
+                    }),
+                    "AArch64 branches on the comparison flags with B.NE"
                 );
             }
         }

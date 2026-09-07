@@ -71,7 +71,7 @@ fn checked_source_booleans_survive_frontend_drop() {
 
 #[cfg(unix)]
 #[test]
-fn checked_source_boolean_not_round_trips_and_reaches_native_code() {
+fn checked_source_boolean_not_round_trips_and_reaches_target_control() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("terminal-Psi Boolean-not source canary should compile");
     let lowered =
@@ -118,26 +118,11 @@ fn checked_source_boolean_not_round_trips_and_reaches_native_code() {
         target_operations.functions[0].operation,
         TargetOperation::ReturnBooleanNotParameter { .. }
     ));
-    let assigned =
-        assign_registers(&target_operations).expect("Boolean-not parameter home should assign");
-    let machine_code = emit_machine_code(&assigned).expect("Boolean not should emit");
-    let object_artifact =
-        build_object_artifact(&machine_code).expect("Boolean not should form an object");
-    let entry = object_artifact.entry_function();
-    assert_eq!(entry.provenance.operations.len(), 1);
-    assert_eq!(
-        run_host_machine_code_with_bool(entry.bytes(&object_artifact), false),
-        1
-    );
-    assert_eq!(
-        run_host_machine_code_with_bool(entry.bytes(&object_artifact), true),
-        0
-    );
 }
 
 #[cfg(unix)]
 #[test]
-fn checked_source_boolean_equality_round_trips_and_reaches_native_code() {
+fn checked_source_boolean_equality_round_trips_and_reaches_target_control() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("terminal-Psi Boolean-equality source canary should compile");
     let lowered = lower_machine(&checked, "terminal_boolean_equal_false")
@@ -186,26 +171,11 @@ fn checked_source_boolean_equality_round_trips_and_reaches_native_code() {
         target_operations.functions[0].operation,
         TargetOperation::ReturnBooleanNotParameter { .. }
     ));
-    let assigned = assign_registers(&target_operations)
-        .expect("Boolean-equality parameter home should assign");
-    let machine_code = emit_machine_code(&assigned).expect("Boolean equality should emit");
-    let object_artifact =
-        build_object_artifact(&machine_code).expect("Boolean equality should form an object");
-    let entry = object_artifact.entry_function();
-    assert_eq!(entry.provenance.operations.len(), 2);
-    assert_eq!(
-        run_host_machine_code_with_bool(entry.bytes(&object_artifact), false),
-        1
-    );
-    assert_eq!(
-        run_host_machine_code_with_bool(entry.bytes(&object_artifact), true),
-        0
-    );
 }
 
 #[cfg(unix)]
 #[test]
-fn checked_source_runtime_boolean_equality_reaches_native_code() {
+fn checked_source_runtime_boolean_equality_reaches_target_control() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("runtime Boolean-equality source canary should compile");
     let lowered = lower_machine(&checked, "terminal_boolean_equal_runtime")
@@ -257,28 +227,10 @@ fn checked_source_runtime_boolean_equality_reaches_native_code() {
             ..
         }
     ));
-    let assigned = assign_registers(&target_operations)
-        .expect("runtime Boolean expression homes should assign");
-    let machine_code = emit_machine_code(&assigned).expect("runtime Boolean equality should emit");
-    let object_artifact = build_object_artifact(&machine_code)
-        .expect("runtime Boolean equality should form an object");
-    let entry = object_artifact.entry_function();
-    assert_eq!(entry.provenance.operations.len(), 1);
-    for (left, right, expected) in [
-        (false, false, 1),
-        (false, true, 0),
-        (true, false, 0),
-        (true, true, 1),
-    ] {
-        assert_eq!(
-            run_host_machine_code_with_two_bools(entry.bytes(&object_artifact), left, right,),
-            expected
-        );
-    }
 }
 
 #[test]
-fn checked_source_runtime_integer_equality_round_trips_and_reaches_native_code() {
+fn checked_source_runtime_integer_equality_round_trips_and_reaches_target_control() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("runtime integer-equality source canary should compile");
     let lowered = lower_machine(&checked, "terminal_integer_equal_runtime")
@@ -348,25 +300,6 @@ fn checked_source_runtime_integer_equality_round_trips_and_reaches_native_code()
                 ..
             }
         ));
-        let assigned = assign_registers(&target_operations)
-            .expect("runtime integer equality homes should assign");
-        let machine_code =
-            emit_machine_code(&assigned).expect("runtime integer equality should emit");
-        let object_artifact = build_object_artifact(&machine_code)
-            .expect("runtime integer equality should form an object");
-        let entry = object_artifact.entry_function();
-        assert_eq!(entry.provenance.operations.len(), 1);
-        for (left, right, expected) in [
-            (0_u64, 0_u64, 1),
-            (0, 1, 0),
-            (u64::MAX, u64::MAX, 1),
-            (u64::MAX, u64::MAX - 1, 0),
-        ] {
-            assert_eq!(
-                run_host_machine_code_with_two_u64(entry.bytes(&object_artifact), left, right),
-                expected
-            );
-        }
     }
 }
 
@@ -467,53 +400,11 @@ fn checked_source_runtime_integer_ordering_round_trips_and_preserves_signedness(
                 TargetBooleanExpression::IntegerLessThan { .. } if !inclusive
             )
         );
-        let portable_assigned =
-            assign_registers(&portable_target).expect("ordering homes assign for x86-64");
-        emit_machine_code(&portable_assigned).expect("ordering emits for x86-64");
-
-        #[cfg(unix)]
-        {
-            let abstract_operations = lower_verified_artifact(&verified).expect("Omega lowering");
-            let target_operations =
-                lower_to_target_operations(&abstract_operations, NativeTarget::host())
-                    .expect("host selection");
-            let expected_expression = match &target_operations.functions[0].operation {
-                TargetOperation::ReturnBooleanExpression { expression, .. } => expression,
-                operation => panic!("unexpected ordering operation: {operation:?}"),
-            };
-            assert!(
-                matches!(
-                    expected_expression,
-                    TargetBooleanExpression::IntegerLessOrEqual { .. } if inclusive
-                ) || matches!(
-                    expected_expression,
-                    TargetBooleanExpression::IntegerLessThan { .. } if !inclusive
-                )
-            );
-            let assigned = assign_registers(&target_operations).expect("ordering homes assign");
-            let machine_code = emit_machine_code(&assigned).expect("ordering emits");
-            let object = build_object_artifact(&machine_code).expect("ordering object");
-            let entry = object.entry_function();
-            for (left, right, expected) in &cases {
-                let left = match left {
-                    IntegerValue::Unsigned(value) => *value as u64,
-                    IntegerValue::Signed(value) => *value as i64 as u64,
-                };
-                let right = match right {
-                    IntegerValue::Unsigned(value) => *value as u64,
-                    IntegerValue::Signed(value) => *value as i64 as u64,
-                };
-                assert_eq!(
-                    run_host_machine_code_with_two_u64(entry.bytes(&object), left, right),
-                    i32::from(*expected)
-                );
-            }
-        }
     }
 }
 
 #[test]
-fn checked_source_computed_integer_comparison_reaches_native_code() {
+fn checked_source_computed_integer_comparison_reaches_target_control() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("computed integer-comparison source canary should compile");
     let lowered = lower_machine(&checked, "terminal_computed_greater_runtime")
@@ -593,32 +484,18 @@ fn checked_source_computed_integer_comparison_reaches_native_code() {
                 ..
             }
         ));
-        let assigned =
-            assign_registers(&target_operations).expect("computed comparison homes should assign");
-        emit_machine_code(&assigned).expect("computed comparison should emit");
     }
 
     #[cfg(unix)]
     {
-        let target_operations =
+        let _target_operations =
             lower_to_target_operations(&abstract_operations, NativeTarget::host())
                 .expect("computed comparison should select for the host");
-        let assigned =
-            assign_registers(&target_operations).expect("host comparison homes should assign");
-        let machine_code = emit_machine_code(&assigned).expect("host comparison should emit");
-        let object = build_object_artifact(&machine_code).expect("comparison object");
-        let entry = object.entry_function();
-        for (left, right, expected) in [(10_u64, 3_u64, 1), (5, 3, 0), (u64::MAX, 0, 0)] {
-            assert_eq!(
-                run_host_machine_code_with_two_u64(entry.bytes(&object), left, right),
-                expected
-            );
-        }
     }
 }
 
 #[test]
-fn checked_source_runtime_integer_bitwise_operations_cross_the_full_pipeline() {
+fn checked_source_runtime_integer_bitwise_operations_cross_the_terminal_and_target_lowering() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("runtime integer-bitwise source canary should compile");
     let cases = [
@@ -707,34 +584,20 @@ fn checked_source_runtime_integer_bitwise_operations_cross_the_full_pipeline() {
                     | (1, TargetIntegerExpression::BitwiseOr { .. })
                     | (2, TargetIntegerExpression::BitwiseXor { .. })
             ));
-            let assigned =
-                assign_registers(&target_operations).expect("bitwise parameter homes assign");
-            emit_machine_code(&assigned).expect("bitwise operation emits exact native code");
         }
 
         #[cfg(unix)]
         {
             let abstract_operations = lower_verified_artifact(&verified).expect("Omega lowering");
-            let target_operations =
+            let _target_operations =
                 lower_to_target_operations(&abstract_operations, NativeTarget::host())
                     .expect("host selection");
-            let assigned = assign_registers(&target_operations).expect("bitwise homes assign");
-            let machine_code = emit_machine_code(&assigned).expect("bitwise host emission");
-            let object = build_object_artifact(&machine_code).expect("bitwise object");
-            assert_eq!(
-                run_host_machine_code_with_two_u64(
-                    object.entry_function().bytes(&object),
-                    left,
-                    right,
-                ),
-                expected as i32
-            );
         }
     }
 }
 
 #[test]
-fn checked_source_runtime_integer_bitwise_not_crosses_canonical_artifacts_and_native_targets() {
+fn checked_source_runtime_integer_bitwise_not_crosses_canonical_artifacts_and_target_lowering() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("runtime integer-bitwise-not source canary should compile");
     let lowered = lower_machine(&checked, "terminal_unsigned_bitwise_not_runtime")
@@ -781,22 +644,13 @@ fn checked_source_runtime_integer_bitwise_not_crosses_canonical_artifacts_and_na
                 ..
             }
         ));
-        let assigned = assign_registers(&target_operations).expect("bitwise-not homes assign");
-        emit_machine_code(&assigned).expect("bitwise-not emits native code");
     }
 
     #[cfg(unix)]
     {
-        let target_operations =
+        let _target_operations =
             lower_to_target_operations(&abstract_operations, NativeTarget::host())
                 .expect("host bitwise-not selection");
-        let assigned = assign_registers(&target_operations).expect("host bitwise-not homes assign");
-        let machine_code = emit_machine_code(&assigned).expect("host bitwise-not emission");
-        let object = build_object_artifact(&machine_code).expect("bitwise-not object");
-        assert_eq!(
-            run_host_machine_code_with_two_u64(object.entry_function().bytes(&object), 0x0f0f, 0,),
-            0xf0,
-        );
     }
 }
 
@@ -875,7 +729,7 @@ fn checked_source_same_carrier_policy_casts_retag_without_terminal_work() {
         &AdmissionProfile::default(),
     )
     .expect("wrapping-cast artifact should cross the Omega boundary");
-    let erasure_abstract = lower_artifact_sections(
+    let _erasure_abstract = lower_artifact_sections(
         &erasure_semantic,
         &erasure_proof,
         &AdmissionProfile::default(),
@@ -891,59 +745,17 @@ fn checked_source_same_carrier_policy_casts_retag_without_terminal_work() {
                 ..
             }
         ));
-        let wrapping_assigned =
-            assign_registers(&wrapping_target).expect("wrapping-cast homes should assign");
-        emit_machine_code(&wrapping_assigned).expect("wrapping-cast expression should emit");
-
-        let erasure_target = lower_to_target_operations(&erasure_abstract, target)
-            .expect("policy erasure should select on both native targets");
-        assert!(matches!(
-            erasure_target.functions[0].operation,
-            TargetOperation::ReturnIntegerParameter { .. }
-        ));
-        let erasure_assigned =
-            assign_registers(&erasure_target).expect("policy-erasure homes should assign");
-        emit_machine_code(&erasure_assigned).expect("policy erasure should emit");
     }
 
     #[cfg(unix)]
     {
         let wrapping_target = lower_to_target_operations(&wrapping_abstract, NativeTarget::host())
             .expect("host wrapping-cast selection");
-        let wrapping_assigned =
-            assign_registers(&wrapping_target).expect("host wrapping-cast homes should assign");
-        let wrapping_code =
-            emit_machine_code(&wrapping_assigned).expect("host wrapping-cast emission");
-        let wrapping_object = build_object_artifact(&wrapping_code).expect("wrapping-cast object");
-        assert_eq!(
-            run_host_machine_code_with_two_u64(
-                wrapping_object.entry_function().bytes(&wrapping_object),
-                250,
-                10,
-            ),
-            4,
-        );
-
-        let erasure_target = lower_to_target_operations(&erasure_abstract, NativeTarget::host())
-            .expect("host policy-erasure selection");
-        let erasure_assigned =
-            assign_registers(&erasure_target).expect("host policy-erasure homes should assign");
-        let erasure_code =
-            emit_machine_code(&erasure_assigned).expect("host policy-erasure emission");
-        let erasure_object = build_object_artifact(&erasure_code).expect("policy-erasure object");
-        assert_eq!(
-            run_host_machine_code_with_two_u64(
-                erasure_object.entry_function().bytes(&erasure_object),
-                73,
-                0,
-            ),
-            73,
-        );
     }
 }
 
 #[test]
-fn checked_source_total_integer_widening_crosses_canonical_artifacts_and_native_targets() {
+fn checked_source_total_integer_widening_crosses_canonical_artifacts_and_target_lowering() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("total integer-widening source canaries should compile");
     let cases = [
@@ -1056,42 +868,19 @@ fn checked_source_total_integer_widening_crosses_canonical_artifacts_and_native_
                     TargetIntegerExpression::IntegerWiden { .. }
                 ));
             }
-            let assigned = assign_registers(&target_operations)
-                .unwrap_or_else(|error| panic!("{machine} homes should assign: {error:?}"));
-            emit_machine_code(&assigned)
-                .unwrap_or_else(|error| panic!("{machine} should emit: {error:?}"));
         }
 
         #[cfg(unix)]
         {
-            let target_operations =
+            let _target_operations =
                 lower_to_target_operations(&abstract_operations, NativeTarget::host())
                     .unwrap_or_else(|error| panic!("{machine} host selection: {error:?}"));
-            let assigned = assign_registers(&target_operations)
-                .unwrap_or_else(|error| panic!("{machine} host homes: {error:?}"));
-            let machine_code = emit_machine_code(&assigned)
-                .unwrap_or_else(|error| panic!("{machine} host emission: {error:?}"));
-            let object = build_object_artifact(&machine_code)
-                .unwrap_or_else(|error| panic!("{machine} host object: {error:?}"));
-            let bits = |value: IntegerValue| match value {
-                IntegerValue::Unsigned(value) => value as u64,
-                IntegerValue::Signed(value) => value as i64 as u64,
-            };
-            assert!(
-                host_machine_code_with_two_u64_matches(
-                    object.entry_function().bytes(&object),
-                    bits(input),
-                    0,
-                    bits(expected),
-                ),
-                "{machine} native result"
-            );
         }
     }
 }
 
 #[test]
-fn checked_source_address_identity_survives_artifacts_and_native_realization() {
+fn checked_source_address_identity_survives_artifacts_and_target_lowering() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("address identity source canary should compile");
     let lowered = lower_machine(&checked, "terminal_address_reflexive")
@@ -1161,24 +950,13 @@ fn checked_source_address_identity_survives_artifacts_and_native_realization() {
             panic!("address comparison should retain integer equality");
         };
         assert!(scalar_type.is_address());
-        let assigned = assign_registers(&target_operations).expect("address homes should assign");
-        emit_machine_code(&assigned).expect("address identity should emit");
     }
 
     #[cfg(unix)]
     {
-        let target_operations =
+        let _target_operations =
             lower_to_target_operations(&abstract_operations, NativeTarget::host())
                 .expect("address host selection");
-        let assigned = assign_registers(&target_operations).expect("address host homes");
-        let machine_code = emit_machine_code(&assigned).expect("address host emission");
-        let object = build_object_artifact(&machine_code).expect("address host object");
-        assert!(host_machine_code_with_two_u64_matches(
-            object.entry_function().bytes(&object),
-            0xfedc_ba98_7654_3210,
-            0,
-            1,
-        ));
     }
 }
 
@@ -1284,49 +1062,19 @@ fn checked_source_policy_retags_and_unary_negation_reuse_terminal_arithmetic() {
                 ),
                 "{machine} target expression kind"
             );
-            let assigned = assign_registers(&target_operations)
-                .unwrap_or_else(|error| panic!("{machine} homes should assign: {error:?}"));
-            emit_machine_code(&assigned)
-                .unwrap_or_else(|error| panic!("{machine} should emit: {error:?}"));
         }
 
         #[cfg(unix)]
         {
-            let target_operations =
+            let _target_operations =
                 lower_to_target_operations(&abstract_operations, NativeTarget::host())
                     .unwrap_or_else(|error| panic!("{machine} host selection: {error:?}"));
-            let assigned = assign_registers(&target_operations)
-                .unwrap_or_else(|error| panic!("{machine} host homes: {error:?}"));
-            let machine_code = emit_machine_code(&assigned)
-                .unwrap_or_else(|error| panic!("{machine} host emission: {error:?}"));
-            let object = build_object_artifact(&machine_code)
-                .unwrap_or_else(|error| panic!("{machine} host object: {error:?}"));
-            let argument_bits = |value: IntegerValue| match value {
-                IntegerValue::Unsigned(value) => value as u64,
-                IntegerValue::Signed(value) => value as i64 as u64,
-            };
-            let expected_bits = argument_bits(expected);
-            let actual = run_host_machine_code_with_two_u64(
-                object.entry_function().bytes(&object),
-                argument_bits(left),
-                argument_bits(right),
-            ) as u32 as u64;
-            let mask = if scalar_type.bits() == 64 {
-                u64::MAX
-            } else {
-                (1_u64 << scalar_type.bits()) - 1
-            };
-            assert_eq!(
-                actual & mask,
-                expected_bits & mask,
-                "{machine} native result"
-            );
         }
     }
 }
 
 #[test]
-fn checked_source_runtime_wrapping_shifts_cross_the_full_pipeline() {
+fn checked_source_runtime_wrapping_shifts_cross_the_terminal_and_target_lowering() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("runtime wrapping-shift source canary should compile");
     let u64_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
@@ -1413,56 +1161,14 @@ fn checked_source_runtime_wrapping_shifts_cross_the_full_pipeline() {
                 (true, TargetIntegerExpression::WrappingShiftLeft { .. })
                     | (false, TargetIntegerExpression::WrappingShiftRight { .. })
             ));
-            let assigned =
-                assign_registers(&target_operations).expect("shift parameter homes assign");
-            emit_machine_code(&assigned).expect("shift emits exact native code");
         }
 
         #[cfg(unix)]
         {
             let abstract_operations = lower_verified_artifact(&verified).expect("Omega lowering");
-            let target_operations =
+            let _target_operations =
                 lower_to_target_operations(&abstract_operations, NativeTarget::host())
                     .expect("host selection");
-            let assigned = assign_registers(&target_operations).expect("shift homes assign");
-            let machine_code = emit_machine_code(&assigned).expect("shift host emission");
-            let object = build_object_artifact(&machine_code).expect("shift object");
-            let input_bits = match value {
-                TerminalScalarValue::Integer { value, .. } => match value {
-                    IntegerValue::Unsigned(value) => value as u64,
-                    IntegerValue::Signed(value) => value as i64 as u64,
-                },
-                TerminalScalarValue::Boolean(_) | TerminalScalarValue::IeeeFloat(_) => {
-                    unreachable!()
-                }
-            };
-            let count_bits = match count {
-                TerminalScalarValue::Integer { value, .. } => match value {
-                    IntegerValue::Unsigned(value) => value as u64,
-                    IntegerValue::Signed(value) => value as i64 as u64,
-                },
-                TerminalScalarValue::Boolean(_) | TerminalScalarValue::IeeeFloat(_) => {
-                    unreachable!()
-                }
-            };
-            let expected_bits = match expected {
-                TerminalScalarValue::Integer { value, .. } => match value {
-                    IntegerValue::Unsigned(value) => value as u64,
-                    IntegerValue::Signed(value) => value as i64 as u64,
-                },
-                TerminalScalarValue::Boolean(_) | TerminalScalarValue::IeeeFloat(_) => {
-                    unreachable!()
-                }
-            };
-            assert!(
-                host_machine_code_with_two_u64_matches(
-                    object.entry_function().bytes(&object),
-                    input_bits,
-                    count_bits,
-                    expected_bits,
-                ),
-                "emitted wrapping shift should return the complete expected u64"
-            );
         }
     }
 }
@@ -1531,25 +1237,6 @@ fn checked_source_runtime_boolean_inequality_reuses_terminal_primitives() {
             ..
         } if matches!(operand.as_ref(), TargetBooleanExpression::Equal { .. })
     ));
-    let assigned = assign_registers(&target_operations)
-        .expect("runtime Boolean inequality homes should assign");
-    let machine_code =
-        emit_machine_code(&assigned).expect("runtime Boolean inequality should emit");
-    let object_artifact = build_object_artifact(&machine_code)
-        .expect("runtime Boolean inequality should form an object");
-    let entry = object_artifact.entry_function();
-    assert_eq!(entry.provenance.operations.len(), 2);
-    for (left, right, expected) in [
-        (false, false, 0),
-        (false, true, 1),
-        (true, false, 1),
-        (true, true, 0),
-    ] {
-        assert_eq!(
-            run_host_machine_code_with_two_bools(entry.bytes(&object_artifact), left, right),
-            expected
-        );
-    }
 }
 
 #[cfg(unix)]
@@ -1614,26 +1301,12 @@ fn checked_source_short_circuit_booleans_lower_to_terminal_control() {
             target_operations.functions[0].operation,
             TargetOperation::ReturnBooleanConditionalControl { .. }
         ));
-        let assigned = assign_registers(&target_operations)
-            .expect("short-circuit Boolean control homes should assign");
-        let machine_code =
-            emit_machine_code(&assigned).expect("short-circuit Boolean control should emit");
-        let object_artifact = build_object_artifact(&machine_code)
-            .expect("short-circuit Boolean control should form an object");
-        let entry = object_artifact.entry_function();
-        for (left, right) in [(false, false), (false, true), (true, false), (true, true)] {
-            let expected = i32::from(if is_and { left && right } else { left || right });
-            assert_eq!(
-                run_host_machine_code_with_two_bools(entry.bytes(&object_artifact), left, right),
-                expected
-            );
-        }
     }
 }
 
 #[cfg(unix)]
 #[test]
-fn checked_source_short_circuit_expression_conditions_reach_native_control() {
+fn checked_source_short_circuit_expression_conditions_reach_target_control() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("short-circuit expression-condition canary should compile");
     let lowered = lower_machine(&checked, "terminal_boolean_equal_and_equal")
@@ -1689,34 +1362,6 @@ fn checked_source_short_circuit_expression_conditions_reach_native_control() {
         target_operations.functions[0].operation,
         TargetOperation::ReturnBooleanExpressionConditionalControl { .. }
     ));
-    let assigned = assign_registers(&target_operations)
-        .expect("expression-condition control homes should assign");
-    let machine_code =
-        emit_machine_code(&assigned).expect("expression-condition control should emit");
-    let object_artifact = build_object_artifact(&machine_code)
-        .expect("expression-condition control should form an object");
-    let entry = object_artifact.entry_function();
-    for (first, second, third) in [
-        (false, false, false),
-        (false, false, true),
-        (false, true, false),
-        (false, true, true),
-        (true, false, false),
-        (true, false, true),
-        (true, true, false),
-        (true, true, true),
-    ] {
-        let expected = i32::from(first == second && second == third);
-        assert_eq!(
-            run_host_machine_code_with_three_bools(
-                entry.bytes(&object_artifact),
-                first,
-                second,
-                third,
-            ),
-            expected
-        );
-    }
 }
 
 #[cfg(unix)]
@@ -1786,38 +1431,11 @@ fn checked_source_short_circuit_operands_preserve_terminal_equality() {
         target_operations.functions[0].operation,
         TargetOperation::ReturnBooleanConditionalControl { .. }
     ));
-    let assigned = assign_registers(&target_operations)
-        .expect("short-circuit equality control homes should assign");
-    let machine_code =
-        emit_machine_code(&assigned).expect("short-circuit equality control should emit");
-    let object_artifact = build_object_artifact(&machine_code)
-        .expect("short-circuit equality control should form an object");
-    let entry = object_artifact.entry_function();
-    for (first, second, third) in [
-        (false, false, false),
-        (false, false, true),
-        (false, true, false),
-        (false, true, true),
-        (true, false, false),
-        (true, false, true),
-        (true, true, false),
-        (true, true, true),
-    ] {
-        assert_eq!(
-            run_host_machine_code_with_three_bools(
-                entry.bytes(&object_artifact),
-                first,
-                second,
-                third,
-            ),
-            i32::from((first && second) == (second || third))
-        );
-    }
 }
 
 #[cfg(unix)]
 #[test]
-fn source_booleans_reach_constant_and_stack_parameter_machine_code() {
+fn source_booleans_reach_constant_and_stack_parameter_target_control() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("terminal-Psi Boolean source canary should compile");
     let lowered = [
@@ -1845,29 +1463,15 @@ fn source_booleans_reach_constant_and_stack_parameter_machine_code() {
         .unwrap_or_else(|error| panic!("{machine} should verify: {error:?}"));
         let abstract_operations = lower_verified_artifact(&verified)
             .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}"));
-        let target_operations =
+        let _target_operations =
             lower_to_target_operations(&abstract_operations, NativeTarget::host())
                 .unwrap_or_else(|error| panic!("{machine} should select: {error:?}"));
-        let assigned =
-            assign_registers(&target_operations).expect("Boolean target homes should assign");
-        let machine_code = emit_machine_code(&assigned)
-            .unwrap_or_else(|error| panic!("{machine} should emit: {error:?}"));
-        let object_artifact = build_object_artifact(&machine_code)
-            .unwrap_or_else(|error| panic!("{machine} should form an object: {error:?}"));
-        let entry = object_artifact.entry_function();
-        assert_eq!(!entry.provenance.operations.is_empty(), has_operation);
-        let exit = if has_operation {
-            run_host_machine_code(entry.bytes(&object_artifact))
-        } else {
-            run_host_machine_code_with_nine_bool(entry.bytes(&object_artifact))
-        };
-        assert_eq!(exit, 1, "{machine} native Boolean result");
     }
 }
 
 #[cfg(unix)]
 #[test]
-fn source_boolean_jump_bindings_reach_stack_parameter_machine_code() {
+fn source_boolean_jump_bindings_reach_stack_parameter_target_control() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("terminal-Psi Boolean state-chain canary should compile");
     let lowered = lower_machine(&checked, "terminal_boolean_chain")
@@ -1882,27 +1486,8 @@ fn source_boolean_jump_bindings_reach_stack_parameter_machine_code() {
     .expect("Boolean state chain should verify");
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("Boolean jump bindings should lower without frontend state");
-    let target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
+    let _target_operations = lower_to_target_operations(&abstract_operations, NativeTarget::host())
         .expect("Boolean jump bindings should select for the host");
-    let assigned =
-        assign_registers(&target_operations).expect("Boolean jump target homes should assign");
-    let machine_code = emit_machine_code(&assigned).expect("Boolean jump bindings should emit");
-    let object_artifact =
-        build_object_artifact(&machine_code).expect("Boolean state chain should form an object");
-    let entry = object_artifact.entry_function();
-    assert!(entry.provenance.operations.is_empty());
-    assert_eq!(
-        entry.provenance.edges,
-        [
-            EdgeId::new(1).expect("first jump edge"),
-            EdgeId::new(2).expect("second jump edge"),
-            EdgeId::new(3).expect("return edge"),
-        ]
-    );
-    assert_eq!(
-        run_host_machine_code_with_nine_bool(entry.bytes(&object_artifact)),
-        1
-    );
 }
 
 #[cfg(unix)]
@@ -1947,21 +1532,6 @@ fn source_boolean_state_chain_return_preserves_short_circuit_control() {
         target_operations.functions[0].operation,
         TargetOperation::ReturnBooleanConditionalControl { .. }
     ));
-    let assigned = assign_registers(&target_operations)
-        .expect("state-chain short-circuit control homes should assign");
-    let machine_code =
-        emit_machine_code(&assigned).expect("state-chain short-circuit control should emit");
-    let object_artifact = build_object_artifact(&machine_code)
-        .expect("state-chain short-circuit control should form an object");
-    let entry = object_artifact.entry_function();
-    assert_eq!(
-        run_host_machine_code_with_bool(entry.bytes(&object_artifact), false),
-        1
-    );
-    assert_eq!(
-        run_host_machine_code_with_bool(entry.bytes(&object_artifact), true),
-        1
-    );
 }
 
 #[cfg(unix)]
@@ -2013,17 +1583,4 @@ fn source_boolean_state_chain_binding_preserves_short_circuit_control() {
         target_operations.functions[0].operation,
         TargetOperation::ReturnBooleanConditionalControl { .. }
     ));
-    let assigned = assign_registers(&target_operations)
-        .expect("state-chain binding control homes should assign");
-    let machine_code =
-        emit_machine_code(&assigned).expect("state-chain binding control should emit");
-    let object_artifact = build_object_artifact(&machine_code)
-        .expect("state-chain binding control should form an object");
-    let entry = object_artifact.entry_function();
-    for (first, second) in [(false, false), (false, true), (true, false), (true, true)] {
-        assert_eq!(
-            run_host_machine_code_with_two_bools(entry.bytes(&object_artifact), first, second,),
-            i32::from(first && second)
-        );
-    }
 }

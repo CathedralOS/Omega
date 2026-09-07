@@ -78,7 +78,6 @@ fn function(terminators: Vec<SelectedTerminator>) -> SelectedFunction {
 fn order(function: &SelectedFunction) -> Vec<u32> {
     derive(
         function,
-        None,
         SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1,
     )
     .unwrap()
@@ -109,7 +108,6 @@ fn conflicting_or_cyclic_fallthrough_is_not_silently_reordered() {
         assert!(
             derive(
                 &graph,
-                None,
                 SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1
             )
             .is_err()

@@ -133,7 +133,7 @@ pub fn optimization_pipeline_report_from_object_artifact(
 ) -> OptimizationPipelineReport {
     let object_stage = staged.source();
     let text_stage = object_stage.source();
-    let fragment_stage = text_stage.source();
+    let fragment_stage = text_stage.source().source();
     OptimizationPipelineReport {
         pre_physical: fragment_stage.pre_physical_manifest().record().clone(),
         post_allocation: fragment_stage.post_allocation_manifest().record().clone(),

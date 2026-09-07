@@ -6,7 +6,7 @@ use selected_instructions::SelectedFunction;
 use target::Architecture;
 
 use super::super::row;
-use super::{CopyElision, Fusion, PreLayoutRows, order, plan, roster};
+use super::{PreLayoutRows, order, plan, roster};
 
 use super::super::super::{
     OptimizedResolvedSelectedFormLayoutError, ResolvedSelectedFunctionLayout,
@@ -18,8 +18,6 @@ pub(super) fn validate(
     selected: &SelectedFunction,
     machine: &PostAllocationMachineFunction,
     physical: &ValidatedPhysicalRegisterModel,
-    fusion: Fusion<'_>,
-    copy_elision: CopyElision<'_>,
     policy: SelectedFunctionLayoutPolicy,
     pre_rows: &mut PreLayoutRows<'_>,
     candidate: &ResolvedSelectedFunctionLayout,
@@ -39,7 +37,7 @@ pub(super) fn validate(
     if machine_blocks.len() != machine.blocks.len() {
         return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
     }
-    let ordered = order::derive(selected, fusion, policy)?;
+    let ordered = order::derive(selected, policy)?;
     if candidate.blocks.len() != ordered.len() {
         return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
     }
@@ -74,14 +72,11 @@ pub(super) fn validate(
             )?;
             row::validate(
                 architecture,
-                selected.machine,
                 block,
                 instruction,
                 machine_instruction,
                 pre,
                 physical,
-                fusion,
-                copy_elision,
                 instruction_offset,
                 &layout.block_offsets,
                 candidate_row,

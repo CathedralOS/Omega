@@ -1,17 +1,11 @@
 use abstract_operations::AbstractOperation;
 use abstract_operations_to_target_operations::lower_to_target_operations;
-use image_emission::{
-    ObjectError, build_object_artifact, derive_stack_demand, emit_executable_image,
-    emit_object_container, emit_scalar_call_reference_linux_x86_64_image,
-};
-use machine_emission::emit_machine_code;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
     ScalarType, ValueId,
 };
 use target::NativeTarget;
-use target_operations_to_assigned_target_operations::assign_registers;
 use terminal_codec::{decode_module, encode_module, encode_proof_bundle};
 use terminal_fixed_fuel::derive_fixed_entry_fuel;
 use terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
@@ -137,105 +131,8 @@ fn scalar_i32_call_has_exact_exportable_terminal_bytes() {
         &AdmissionProfile::default(),
     )
     .expect("lower scalar call fixture");
-    let target = lower_to_target_operations(&abstract_plan, NativeTarget::linux_x64())
+    let _target = lower_to_target_operations(&abstract_plan, NativeTarget::linux_x64())
         .expect("select Linux x86-64 scalar call ABI");
-    let assigned = assign_registers(&target).expect("assign scalar call arguments");
-    let machine_code = emit_machine_code(&assigned).expect("emit scalar call machine code");
-    assert_eq!(machine_code.functions[0].internal_calls.len(), 1);
-    assert_eq!(
-        machine_code.functions[0].internal_calls[0].target,
-        machine_id(2)
-    );
-    let artifact = build_object_artifact(&machine_code).expect("build scalar call object");
-    derive_stack_demand(&artifact, machine_id(1)).expect("compose scalar call stack");
-    assert_eq!(artifact.functions()[0].text_offset, 0);
-    assert_eq!(artifact.functions()[0].byte_count, 48);
-    assert_eq!(artifact.functions()[1].text_offset, 48);
-    assert_eq!(artifact.functions()[1].byte_count, 3);
-    let image = emit_scalar_call_reference_linux_x86_64_image(&artifact)
-        .expect("resolve runnable scalar call image");
-    let repeated_image = emit_scalar_call_reference_linux_x86_64_image(&artifact)
-        .expect("repeat runnable scalar call image");
-    assert_eq!(repeated_image.output().bytes, image.output().bytes);
-    let shim = image.linux_x86_scalar_exit_shim();
-    assert_eq!(shim.text_offset, 51);
-    assert_eq!(shim.byte_count, 16);
-    assert_eq!(shim.relocation_offset, 52);
-    assert_eq!(
-        image.output().final_text_bytes,
-        [
-            0x48, 0x83, 0xec, 0x10, // sub rsp, 16
-            0x48, 0xb8, 0x49, 0, 0, 0, 0, 0, 0, 0, // mov rax, 73
-            0x48, 0x63, 0xc0, // movsxd rax, eax
-            0x48, 0x89, 0x44, 0x24, 0, // spill argument
-            0x48, 0x83, 0xec, 8, // align call
-            0x48, 0x8b, 0x7c, 0x24, 8, // load rdi
-            0xe8, 0x0c, 0, 0, 0, // call machine 2
-            0x48, 0x83, 0xc4, 8, // release call area
-            0x48, 0x63, 0xc0, // normalize i32 result
-            0x48, 0x83, 0xc4, 0x10, // release expression frame
-            0xc3, // return from machine 1
-            0x89, 0xf8, 0xc3, // machine 2: mov eax, edi; ret
-            0xe8, 0xc8, 0xff, 0xff, 0xff, // shim call machine 1
-            0x89, 0xc7, // mov edi, eax
-            0xb8, 0xe7, 0, 0, 0, // mov eax, exit_group
-            0x0f, 0x05, // syscall
-            0x0f, 0x0b, // ud2
-        ]
-    );
-    assert_eq!(image.output().bytes.len(), 8192);
-    assert_eq!(
-        u64::from_le_bytes(image.output().bytes[24..32].try_into().unwrap()),
-        0x401033
-    );
-
-    if let Some(path) = std::env::var_os("OMEGA_TERMINAL_SCALAR_CALL_FIXTURE") {
-        std::fs::write(path, &semantic).expect("write requested scalar call terminal reference");
-    }
-    if let Some(path) = std::env::var_os("OMEGA_TERMINAL_SCALAR_CALL_X64_IMAGE") {
-        std::fs::write(path, &image.output().bytes)
-            .expect("write requested runnable scalar call image reference");
-    }
-
-    // Ordinary scalar arity is not retained in the object function carrier.
-    // This unused entry parameter deliberately leaves native bytes unchanged;
-    // the fixture-specific image API must reject it by semantic identity.
-    let mut parameterized_entry = i32_call_module();
-    parameterized_entry.machines[0]
-        .parameters
-        .push(scalar_declaration(
-            value_id(6),
-            ScalarType::Integer(i32_type()),
-        ));
-    let parameterized_semantic =
-        encode_module(&parameterized_entry).expect("encode parameterized scalar entry");
-    verify_module(
-        &parameterized_entry,
-        &ProofBundle::default(),
-        &AdmissionProfile::default(),
-    )
-    .expect("unused scalar entry parameter remains semantically valid");
-    let parameterized_abstract = lower_artifact_sections(
-        &parameterized_semantic,
-        &encode_proof_bundle(&ProofBundle::default()).expect("empty parameterized proof"),
-        &AdmissionProfile::default(),
-    )
-    .expect("lower parameterized scalar entry");
-    let parameterized_target =
-        lower_to_target_operations(&parameterized_abstract, NativeTarget::linux_x64())
-            .expect("select parameterized scalar entry ABI");
-    let parameterized_assigned =
-        assign_registers(&parameterized_target).expect("assign parameterized scalar entry");
-    let parameterized_code =
-        emit_machine_code(&parameterized_assigned).expect("emit parameterized scalar entry");
-    let parameterized_artifact = build_object_artifact(&parameterized_code)
-        .expect("build parameterized scalar entry object");
-    assert_eq!(parameterized_artifact.text_bytes(), artifact.text_bytes());
-    assert!(
-        emit_scalar_call_reference_linux_x86_64_image(&parameterized_artifact).is_err(),
-        "byte-identical parameterized entry must not acquire zero-argument process semantics"
-    );
-
     let mut wrong_arity = module.clone();
     let OperationKind::Call { arguments, .. } =
         &mut wrong_arity.machines[0].blocks[0].operations[1].kind
@@ -302,7 +199,7 @@ fn scalar_i32_call_has_exact_exportable_terminal_bytes() {
 }
 
 #[test]
-fn scalar_call_executes_resumes_and_reaches_a_relocated_native_image() {
+fn scalar_call_executes_resumes_and_lowers_with_exact_fuel() {
     let module = call_module();
     let semantic = encode_module(&module).expect("encode call semantics");
     let proof = encode_proof_bundle(&ProofBundle::default()).expect("encode empty proof");
@@ -378,27 +275,8 @@ fn scalar_call_executes_resumes_and_reaches_a_relocated_native_image() {
         abstract_plan.functions[0].operations[1],
         AbstractOperation::Call { .. }
     ));
-    let target =
+    let _target =
         lower_to_target_operations(&abstract_plan, NativeTarget::host()).expect("select call ABI");
-    let assigned = assign_registers(&target).expect("assign call arguments");
-    let machine_code = emit_machine_code(&assigned).expect("emit native call");
-    assert_eq!(machine_code.functions[0].internal_calls.len(), 1);
-    assert_eq!(
-        machine_code.functions[0].internal_calls[0].target,
-        machine_id(2)
-    );
-    let artifact = build_object_artifact(&machine_code).expect("build call object");
-    let stack = derive_stack_demand(&artifact, machine_id(1))
-        .expect("compose byte-validated scalar call stack");
-    assert!(stack.ceiling_bytes() >= 16);
-    assert_eq!(stack.contributing_machines().len(), 2);
-    let object = emit_object_container(&artifact);
-    assert_eq!(object.output.relocations, 1);
-    let image = emit_executable_image(&artifact, 3).expect("resolve internal call image");
-    assert_eq!(
-        image.output().final_text_bytes.len(),
-        artifact.text_bytes().len()
-    );
 }
 
 #[test]
@@ -482,18 +360,8 @@ fn unconditional_call_crash_is_explicitly_verified_interpreted_and_lowered() {
             .iter()
             .any(|operation| matches!(operation, AbstractOperation::Crash { .. }))
     );
-    let target = lower_to_target_operations(&abstract_plan, NativeTarget::host())
+    let _target = lower_to_target_operations(&abstract_plan, NativeTarget::host())
         .expect("select crash-capable call ABI");
-    let assigned = assign_registers(&target).expect("assign crash-capable call arguments");
-    let machine_code = emit_machine_code(&assigned).expect("emit call and callee crash leaf");
-    assert_eq!(machine_code.functions[0].internal_calls.len(), 1);
-    let artifact = build_object_artifact(&machine_code).expect("build call crash object");
-    assert_eq!(
-        derive_stack_demand(&artifact, machine_id(1)),
-        Err(ObjectError::UnaccountedTerminalStack(machine_id(2)))
-    );
-    assert_eq!(emit_object_container(&artifact).output.relocations, 1);
-    emit_executable_image(&artifact, 3).expect("resolve crash-capable internal call image");
 }
 
 fn call_module() -> TerminalModule {

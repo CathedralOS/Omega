@@ -228,7 +228,7 @@ fn scalar_calls_with_rel8_use_common_fixed_frame_publication() {
             &[],
         )
         .expect("ordinary calls and branch relaxation must compose through the common frame route");
-        let realization = physical.fixed_frame_for_test().unwrap();
+        let realization = physical.fixed_frame_for_test();
         validate_fixed_frame_function_relative_realization(realization).unwrap();
         assert!(!realization.relaxation().unwrap().actions().is_empty());
         let emitted = stage_optimized_function_fragment_emission(
@@ -338,19 +338,7 @@ fn publish_scalar_artifacts_with_arguments(
             NativeTarget::windows_x64(),
             NativeTarget::macos_arm64(),
         ] {
-            let materialization = match target.architecture {
-                target::Architecture::X86_64 => {
-                    Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1
-                }
-                target::Architecture::Aarch64 => {
-                    Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1
-                }
-            };
-            for choices in [
-                Vec::new(),
-                vec![Optimization::CopyPropagation],
-                vec![materialization],
-            ] {
+            for choices in [Vec::new(), vec![Optimization::CopyPropagation]] {
                 let selections = OptimizationSelections::new(choices).unwrap();
                 let optimized = optimize_artifact_sections(
                     &semantic,

@@ -57,12 +57,8 @@ fn exit_replay_checks_rosters_and_return_fields_after_reauthentication() {
             }
         }),
         ("ABI alignment", |record| record.stack_alignment += 1),
-        ("layout role", |record| {
-            record.layout_custody =
-                WholeFunctionExitLayoutCustody::PostAllocationMachineOptimizationV1 {
-                    optimization: Optimization::CopyPropagation,
-                    artifact_identity: [7; 32],
-                }
+        ("layout identity", |record| {
+            record.resolved_layout = ResolvedSelectedFormLayoutIdentity::from_bytes([0x93; 32]);
         }),
     ];
     for (target, relaxation) in [
@@ -71,8 +67,14 @@ fn exit_replay_checks_rosters_and_return_fields_after_reauthentication() {
         (NativeTarget::linux_arm64(), false),
     ] {
         let mut realization = crate::tests::with_allocated_machine(
-            allocation(target, true, relaxation),
-            stage_selected_lowering_function_relative_realization,
+            allocation(target, relaxation),
+            |allocation, machine| {
+                stage_fixed_frame_function_relative_realization(
+                    allocation,
+                    machine,
+                    selected_lowering_budget(),
+                )
+            },
         )
         .unwrap();
         let original = realization.exit_contract().shared_contract();
@@ -86,14 +88,14 @@ fn exit_replay_checks_rosters_and_return_fields_after_reauthentication() {
                 "{name} must change the record"
             );
             assert_eq!(
-                validate_selected_lowering_function_relative_realization_custody(&realization),
+                validate_fixed_frame_function_relative_realization(&realization),
                 Err(FunctionRelativeOptimizationRealizationError::ExitContract(
                     WholeFunctionExitContractError::ArtifactMismatch
                 )),
                 "{name}: {target:?}, relaxation={relaxation}"
             );
             *realization.exit_contract_mut().contract_mut() = (*original).clone();
-            validate_selected_lowering_function_relative_realization_custody(&realization).unwrap();
+            validate_fixed_frame_function_relative_realization(&realization).unwrap();
         }
     }
 }

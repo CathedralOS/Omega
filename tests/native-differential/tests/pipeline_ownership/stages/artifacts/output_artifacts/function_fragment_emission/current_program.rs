@@ -26,8 +26,7 @@ fn emission_retains_original_current_artifacts_without_the_producer_history() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         for selections in [
             OptimizationSelections::default(),
-            OptimizationSelections::new([Optimization::SelectedIncomingU12ExactAddImmediate])
-                .unwrap(),
+            OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
         ] {
             let source = source(target, selections);
             let replay = source.replay_for_test();
@@ -64,16 +63,26 @@ fn emission_retains_original_current_artifacts_without_the_producer_history() {
                 source.exit_contract().contract(),
                 replay.exit_contract().contract()
             ));
-            if let Some(protocol) = source.frame_protocol() {
-                assert!(std::ptr::eq(
-                    protocol.plan(),
-                    replay.frame_protocol().unwrap().plan()
-                ));
-            }
+            assert!(std::ptr::eq(
+                source.frame_protocol(),
+                replay.fixed_frame().protocol().plan()
+            ));
+            assert!(std::ptr::eq(
+                source.frame_layout(),
+                replay.fixed_frame().frame().plan()
+            ));
+            let frame_identity = machine_code::target_frame_layout_identity(&retained.frame);
+            let protocol_identity =
+                machine_code::target_frame_protocol_encoding_identity(&retained.protocol);
             let emitted = stage_optimized_function_fragment_emission(source).unwrap();
             assert_eq!(emitted.source().program(), &retained);
             let original_machine = retained.machine.identity;
             drop(emitted);
+            assert_eq!(retained.protocol.frame_layout, frame_identity);
+            assert_eq!(
+                machine_code::target_frame_protocol_encoding_identity(&retained.protocol),
+                protocol_identity
+            );
             assert_eq!(retained.machine.identity, original_machine);
             assert_eq!(
                 retained.encoding.identity,
@@ -98,7 +107,7 @@ fn emission_rejects_individually_canonical_substituted_current_artifacts() {
         OptimizationSelections::default(),
     );
     let other = other.program().clone();
-    for component in 0..6 {
+    for component in 0..8 {
         let mut candidate = source(NativeTarget::linux_x64(), OptimizationSelections::default());
         let program = candidate.program_mut();
         match component {
@@ -108,6 +117,8 @@ fn emission_rejects_individually_canonical_substituted_current_artifacts() {
             3 => program.machine = Arc::clone(&other.machine),
             4 => program.layout = Arc::clone(&other.layout),
             5 => program.encoding = Arc::clone(&other.encoding),
+            6 => program.frame = Arc::clone(&other.frame),
+            7 => program.protocol = Arc::clone(&other.protocol),
             _ => unreachable!(),
         }
         assert!(

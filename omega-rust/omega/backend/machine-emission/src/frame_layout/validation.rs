@@ -27,7 +27,7 @@ pub fn validate_target_frame_layout(
     replay::validate_layout(machine, requirements, storage, environment, &candidate)?;
     let receipt = seal(&candidate);
     Ok(ValidatedTargetFrameLayout {
-        plan: candidate,
+        plan: std::sync::Arc::new(candidate),
         receipt,
     })
 }

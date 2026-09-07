@@ -27,7 +27,6 @@ const ANCHOR_HEADER_EXCEPTIONS: &[(&str, usize)] = &[
         2,
     ),
     ("omega-rust/omega/backend/layout/src/lib.rs", 0),
-    ("omega-rust/omega/backend/machine-emission/src/lib.rs", 2),
     (
         "omega-rust/omega/backend/plans/program-entry-plan/src/lib.rs",
         3,

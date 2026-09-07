@@ -361,31 +361,6 @@ pub(crate) fn trivial_affine_local_unit_return_artifact() -> (Vec<u8>, Vec<u8>) 
     (terminal_codec::encode_module(&module).unwrap(), proof)
 }
 
-pub(crate) fn staged_unit_return(
-    target: NativeTarget,
-) -> (Vec<u8>, Vec<u8>, StagedOptimizedSelectedInstructions) {
-    let (semantic, proof) = unit_return_artifact();
-    let optimized = optimize_artifact_sections(
-        &semantic,
-        &proof,
-        &AdmissionProfile::default(),
-        // The Unit baseline realization runs the same callee-save and frame
-        // stages the fixed-frame route does, so it needs that route's budget.
-        ExplicitOptimizationRequest::new(
-            OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
-            selected_lowering_budget(),
-        )
-        .unwrap(),
-    )
-    .unwrap();
-    let target = lower_optimized_to_target_operations(optimized, target).unwrap();
-    (
-        semantic,
-        proof,
-        stage_optimized_instruction_selection(target).unwrap(),
-    )
-}
-
 pub(crate) fn structurally_parameterized_unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
     let (semantic, proof) = unit_return_artifact();
     let mut module = terminal_codec::decode_module(&semantic).unwrap();

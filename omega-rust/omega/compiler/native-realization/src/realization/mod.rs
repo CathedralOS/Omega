@@ -3,7 +3,6 @@
 mod api;
 mod boundary_applications;
 mod callback_custody;
-mod callback_machine_code;
 mod diagnostics;
 mod input;
 mod model;

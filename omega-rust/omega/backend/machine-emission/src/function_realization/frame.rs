@@ -97,36 +97,3 @@ pub(super) fn validate_frame(
         .map_err(Error::FrameProtocol)?;
     Ok(())
 }
-
-/// An input predicate, not frame construction: allocated physical writes and
-/// ordinary calls determine whether the current body needs ABI frame support.
-pub(super) fn ordinary_frame_required(
-    current: &AllocationOutput<'_>,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
-) -> Result<bool, Error> {
-    let preservation =
-        register_environment::selected_abi_preservation(current.register_environment())
-            .map_err(|_| Error::RootMismatch)?;
-    let saved = &preservation.convention.callee_saved;
-    Ok(machine.machine().plan().functions.iter().any(|function| {
-        function.blocks.iter().any(|block| {
-            block.instructions.iter().any(|instruction| {
-                instruction
-                    .unit_defs
-                    .iter()
-                    .chain(&instruction.unit_clobbers)
-                    .any(|unit| saved.contains(unit))
-            })
-        })
-    }) || current.selected_plan().functions.iter().any(|function| {
-        function.blocks.iter().any(|block| {
-            block.instructions.iter().any(|instruction| {
-                matches!(
-                    instruction.kind,
-                    selected_instructions::SelectedInstructionKind::CallI64 { .. }
-                        | selected_instructions::SelectedInstructionKind::CallUnit { .. }
-                )
-            })
-        })
-    }))
-}

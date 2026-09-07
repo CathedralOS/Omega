@@ -1,6 +1,6 @@
 # Abstract Operations To Target Operations
 
-[Pipeline](../pipeline.md) | Previous: Terminal Psi To Abstract Operations | Next: [Target Operations To Assigned Target Operations](target_operations_to_assigned_target_operations.md)
+[Pipeline](../pipeline.md) | Previous: Terminal Psi To Abstract Operations | Next: [Target Operations To Selected Instructions](target_operations_to_selected_instructions.md)
 
 This stage legalizes abstract operations against target, layout, ABI, ISA, and calling-convention constraints.
 

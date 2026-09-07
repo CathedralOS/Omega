@@ -1,5 +1,5 @@
+use super::FunctionFragmentEmissionError;
 use super::replay::FunctionFragmentReplayInputs;
-use super::{FunctionFragmentEmissionError, FunctionFragmentEmissionSourceKind};
 use machine_code::ResolvedMachineProgram;
 use std::sync::Arc;
 
@@ -10,15 +10,12 @@ pub(super) struct CurrentFunctionFragmentInput {
         register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan,
     pub(super) homes: selected_instructions_to_register_homes::ValidatedRegisterHomes,
     pub(super) environment: register_environment::ValidatedTargetRegisterEnvironment,
-    pub(super) frame_protocol: Option<crate::ValidatedTargetFrameProtocolEncoding>,
-    pub(super) frame_layout: Option<crate::frame_layout::ValidatedTargetFrameLayout>,
     pub(super) exit: crate::ValidatedWholeFunctionExitContract,
     pub(super) manifest: crate::ValidatedFunctionRelativeOptimizationRealizationManifest,
     pub(super) post_allocation_manifest:
         selected_instructions_to_register_homes::ValidatedPostAllocationOptimizationManifest,
     pub(super) target_input:
         Arc<abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations>,
-    pub(super) source_kind: FunctionFragmentEmissionSourceKind,
 }
 
 impl CurrentFunctionFragmentInput {
@@ -33,17 +30,16 @@ impl CurrentFunctionFragmentInput {
                 machine: machine.machine().shared_plan(),
                 encoding: replay.encoding().shared_program(),
                 layout: replay.layout_optimization().shared_layout(),
+                frame: replay.fixed_frame().frame().shared_plan(),
+                protocol: replay.fixed_frame().protocol().shared_plan(),
             },
             machine,
             homes,
             environment: replay.register_environment().clone(),
-            frame_protocol: replay.frame_protocol().cloned(),
-            frame_layout: replay.frame_layout().cloned(),
             exit: replay.exit_contract().clone(),
             manifest: replay.function_relative_manifest().clone(),
             post_allocation_manifest: replay.post_allocation_manifest().clone(),
             target_input: Arc::clone(replay.target_input_owner()),
-            source_kind: replay.source_kind(),
         }
     }
 
@@ -57,13 +53,10 @@ impl CurrentFunctionFragmentInput {
             || self.machine != expected.machine
             || self.homes != expected.homes
             || self.environment != expected.environment
-            || self.frame_protocol != expected.frame_protocol
-            || self.frame_layout != expected.frame_layout
             || self.exit != expected.exit
             || self.manifest != expected.manifest
             || self.post_allocation_manifest != expected.post_allocation_manifest
             || !Arc::ptr_eq(&self.target_input, &expected.target_input)
-            || self.source_kind != expected.source_kind
         {
             return Err(FunctionFragmentEmissionError::RootMismatch);
         }

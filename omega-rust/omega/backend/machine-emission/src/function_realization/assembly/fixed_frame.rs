@@ -5,6 +5,7 @@ use super::super::{
 use super::statistics::function_relative_statistics;
 use selected_instructions_to_register_homes::{
     AllocationEvidence, AllocationOutput, PostAllocationSelectedTransformation,
+    ValidatedSelectedAnalysis,
 };
 
 #[allow(clippy::too_many_arguments)]

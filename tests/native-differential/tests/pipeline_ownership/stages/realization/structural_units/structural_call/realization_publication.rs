@@ -1,6 +1,5 @@
 use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
-use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegisterHomes) {
     let current = homes.replay_allocation().unwrap();
@@ -88,7 +87,7 @@ pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegister
     validate_fixed_frame_function_relative_realization(&realization).unwrap();
 
     let mut fragments = stage_optimized_function_fragment_emission(
-        FunctionFragmentReplayInputs::FixedFrame(Box::new(realization)).into(),
+        FunctionFragmentReplayInputs::from(realization).into(),
     )
     .unwrap();
     assert_eq!(fragments.fragments().functions.len(), 2);
@@ -147,10 +146,6 @@ pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegister
         *fragments.fragments_mut() = original_fragments.clone();
     }
     let fragment_manifest = fragments.manifest().record();
-    assert_eq!(
-        fragment_manifest.source_kind,
-        FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1
-    );
     assert_eq!(fragment_manifest.statistics.functions, 2);
     assert_eq!(
         fragment_manifest
@@ -162,7 +157,7 @@ pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegister
         FunctionFragmentEmissionManifest::decode(&fragment_manifest.encode()),
         Ok(fragment_manifest.clone())
     );
-    for unsupported in [5_u32, 7, 12, 14] {
+    for unsupported in [5_u32, 7, 13, 15] {
         let mut encoded = fragment_manifest.encode();
         encoded[8..12].copy_from_slice(&unsupported.to_le_bytes());
         assert_eq!(
@@ -231,7 +226,7 @@ pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegister
         FunctionFragmentTextSectionManifest::decode(&text_manifest.encode()),
         Ok(text_manifest.clone())
     );
-    for unsupported in [5_u32, 7, 13, 15] {
+    for unsupported in [5_u32, 7, 14, 16] {
         let mut encoded = text_manifest.encode();
         encoded[8..12].copy_from_slice(&unsupported.to_le_bytes());
         assert_eq!(

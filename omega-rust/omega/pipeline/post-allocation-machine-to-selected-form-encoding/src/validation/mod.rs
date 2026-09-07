@@ -6,24 +6,19 @@
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
-use crate::{
-    StagedOptimizedPostAllocationMachineOptimization, StagedOptimizedPostAllocationMachinePlan,
-};
+use crate::StagedOptimizedPostAllocationMachinePlan;
 
-use super::{
-    OptimizedSelectedFormEncodingError, SelectedFormEncoding, custody::validate_optimization_roots,
-};
+use super::{OptimizedSelectedFormEncodingError, SelectedFormEncoding};
 
 mod aggregate;
 mod ordinary;
-mod row;
+pub(crate) mod row;
 
 pub(super) fn validate<S: ValidatedSelectedAnalysis>(
     selected: &S,
     staged: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     frame: Option<&machine_code::TargetFrameLayoutPlan>,
-    optimization: Option<&StagedOptimizedPostAllocationMachineOptimization>,
     artifact: &SelectedFormEncoding,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
     let machine = staged.machine().plan();
@@ -42,20 +37,10 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
     if artifact.machine != staged.machine().receipt().identity() {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
-    let expected_optimization = optimization
-        .map(|optimization| validate_optimization_roots(selected, staged, physical, optimization))
-        .transpose()?;
-    if artifact.post_allocation_machine_optimization != expected_optimization {
+    if artifact.post_allocation_machine_optimization.is_some() {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
 
-    ordinary::validate(
-        selected,
-        staged,
-        physical,
-        frame,
-        optimization,
-        artifact.rows(),
-    )?;
+    ordinary::validate(selected, staged, physical, frame, artifact.rows())?;
     aggregate::validate(artifact)
 }

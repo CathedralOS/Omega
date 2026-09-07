@@ -51,11 +51,7 @@ fn source_ordered_calls_reach_executable_publication() {
             .unwrap();
         for choices in [
             Vec::new(),
-            vec![if target.architecture == target::Architecture::X86_64 {
-                optimization_core::Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1
-            } else {
-                optimization_core::Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1
-            }],
+            vec![optimization_core::Optimization::CopyPropagation],
         ] {
             let all = optimization_core::OptimizationSelections::new(choices).unwrap();
             let selections = all.project_post_terminal();
@@ -86,9 +82,6 @@ fn source_ordered_calls_reach_executable_publication() {
             let target_stage =
                 lower_realization_target_stage(optimization, None, &[], &request).unwrap();
             let physical = lower_realization_physical_stage(target_stage, &request).unwrap();
-            let NativePhysicalStageResult::Optimized(physical) = physical else {
-                panic!("ordinary calls must leave the assigned route even with empty selections");
-            };
             let (object, _) = emit_optimized_fragments(
                 physical.physical,
                 OptimizedFragmentPublicationRequest {
@@ -148,11 +141,7 @@ fn terminal_scalar_returning_calls_reach_coordinated_native_artifact() {
             .unwrap();
         for choices in [
             Vec::new(),
-            vec![if target.architecture == target::Architecture::X86_64 {
-                optimization_core::Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1
-            } else {
-                optimization_core::Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1
-            }],
+            vec![optimization_core::Optimization::CopyPropagation],
         ] {
             let all = optimization_core::OptimizationSelections::new(choices).unwrap();
             let selections = all.project_post_terminal();
@@ -183,9 +172,6 @@ fn terminal_scalar_returning_calls_reach_coordinated_native_artifact() {
             let target_stage =
                 lower_realization_target_stage(optimization, None, &[], &request).unwrap();
             let physical = lower_realization_physical_stage(target_stage, &request).unwrap();
-            let NativePhysicalStageResult::Optimized(physical) = physical else {
-                panic!("ordinary calls must leave the assigned route even with empty selections");
-            };
             let (object, _) = emit_optimized_fragments(
                 physical.physical,
                 OptimizedFragmentPublicationRequest {

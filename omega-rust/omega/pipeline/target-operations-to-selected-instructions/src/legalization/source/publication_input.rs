@@ -3,15 +3,6 @@
 
 use super::shared::*;
 
-pub(crate) fn is_fragment_publication_program(
-    target: &abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
-) -> bool {
-    let native = target.target_operations();
-    let plan = target.optimized().plan();
-    let unit = target.optimized().unit();
-    accepts(native, plan, unit)
-}
-
 pub(crate) fn accepts(
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,

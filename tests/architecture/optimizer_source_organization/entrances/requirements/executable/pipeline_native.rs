@@ -50,14 +50,6 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn stage_optimized_selected_reanalysis",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/post-allocation-machine-to-post-allocation-machine/src/execution/mod.rs",
-        coordination_marker: "pub fn stage_optimized_post_allocation_machine_optimization",
-    },
-    RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/post-allocation-machine-to-post-allocation-machine/src/aarch64_same_view_copy/mod.rs",
-        coordination_marker: "use execution::{stage_with_inputs, validate_with_inputs};",
-    },
-    RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/register-homes-to-post-allocation-machine/src/construction/mod.rs",
         coordination_marker: "fn stage_optimized_post_allocation_machine_plan",
     },
@@ -87,11 +79,11 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/post-allocation-machine-to-selected-form-encoding/src/lib.rs",
-        coordination_marker: "stage_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization",
+        coordination_marker: "stage_optimized_layout_independent_selected_form_encoding",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout/mod.rs",
-        coordination_marker: "stage_optimized_resolved_selected_form_layout_with_post_allocation_machine_optimization",
+        coordination_marker: "stage_optimized_resolved_selected_form_layout",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/resolved-layout-to-resolved-layout/src/phase.rs",
@@ -102,8 +94,8 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn validate_resolved_layout_optimization",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/backend/machine-emission/src/exit_contract/mod.rs",
-        coordination_marker: "stage_whole_function_exit_contract_with_post_allocation_machine_optimization",
+        path: "omega-rust/omega/backend/machine-emission/src/exit_contract/layout_optimization.rs",
+        coordination_marker: "stage_whole_function_exit_contract_for_layout",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/backend/machine-emission/src/exit_contract/validation/mod.rs",
@@ -147,11 +139,11 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/backend/machine-emission/src/text_placement/custody/mod.rs",
-        coordination_marker: "stage_optimized_relocation_free_text_section",
+        coordination_marker: "stage_optimized_fixed_frame_text_section",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/backend/machine-emission/src/text_placement/custody/placement/mod.rs",
-        coordination_marker: "pub(super) fn place_fragments",
+        coordination_marker: "pub(super) fn place_fixed_frame_fragments",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/backend/object/object-file/src/fragment_container/mod.rs",
@@ -168,14 +160,6 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/backend/machine-emission/src/function_realization/routes/fixed_frame.rs",
         coordination_marker: "pub fn stage_fixed_frame_function_relative_realization",
-    },
-    RequiredCoordinationEntrance {
-        path: "omega-rust/omega/compiler/native-realization/src/native_pipeline/physical_pipeline/routes/composition/mod.rs",
-        coordination_marker: "fn resolve_physical_phase_composition",
-    },
-    RequiredCoordinationEntrance {
-        path: "omega-rust/omega/backend/machine-emission/src/function_realization/unit/mod.rs",
-        coordination_marker: "pub fn stage_optimized_unit_function_relative_realization",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/compiler/native-realization/src/entry_settlement/mod.rs",
@@ -228,10 +212,6 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout/validation/ordinary/mod.rs",
         coordination_marker: "pub(super) fn validate",
-    },
-    RequiredCoordinationEntrance {
-        path: "omega-rust/omega/backend/machine-emission/src/function_realization/assembly/mod.rs",
-        coordination_marker: "pub(super) fn build_realization",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/backend/machine-emission/src/function_realization/codec/mod.rs",

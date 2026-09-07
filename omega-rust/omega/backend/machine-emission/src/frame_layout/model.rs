@@ -74,13 +74,16 @@ impl TargetFrameLayoutReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedTargetFrameLayout {
-    pub(in crate::frame_layout) plan: TargetFrameLayoutPlan,
+    pub(in crate::frame_layout) plan: std::sync::Arc<TargetFrameLayoutPlan>,
     pub(in crate::frame_layout) receipt: TargetFrameLayoutReceipt,
 }
 
 impl ValidatedTargetFrameLayout {
-    pub const fn plan(&self) -> &TargetFrameLayoutPlan {
+    pub fn plan(&self) -> &TargetFrameLayoutPlan {
         &self.plan
+    }
+    pub fn shared_plan(&self) -> std::sync::Arc<TargetFrameLayoutPlan> {
+        std::sync::Arc::clone(&self.plan)
     }
     pub const fn receipt(&self) -> TargetFrameLayoutReceipt {
         self.receipt

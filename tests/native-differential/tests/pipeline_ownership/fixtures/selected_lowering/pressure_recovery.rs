@@ -42,24 +42,6 @@ pub(crate) fn conditional_active_resident_exact_add_original_victim_chain_artifa
     )
 }
 
-pub(crate) fn conditional_active_resident_exact_add_chain_artifact_with_false_literal(
-    false_literal: IntegerValue,
-) -> (Vec<u8>, Vec<u8>) {
-    conditional_active_resident_exact_add_chain_artifact_with_literals(
-        IntegerValue::Unsigned(3),
-        false_literal,
-    )
-}
-
-pub(crate) fn conditional_active_resident_exact_add_chain_artifact_with_resident_literal(
-    resident_literal: IntegerValue,
-) -> (Vec<u8>, Vec<u8>) {
-    conditional_active_resident_exact_add_chain_artifact_with_literals(
-        resident_literal,
-        IntegerValue::Unsigned(11),
-    )
-}
-
 fn conditional_active_resident_exact_add_chain_artifact_with_literals(
     resident_literal: IntegerValue,
     false_literal: IntegerValue,

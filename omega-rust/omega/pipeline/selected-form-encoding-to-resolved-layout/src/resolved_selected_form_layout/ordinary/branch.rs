@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 
 use isa_aarch64::{
-    encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
     encode_aarch64_selected_i64_less_than_branch_form, encode_aarch64_selected_nonzero_branch_form,
     encode_aarch64_selected_u64_less_than_branch_form,
 };
@@ -10,8 +9,6 @@ use isa_x86_64::{
     encode_x86_64_selected_u64_less_than_branch_form,
 };
 use physical_instructions::PostAllocationMachineInstruction;
-use physical_instructions::QualifiedPhysicalRead;
-use post_allocation_machine_to_post_allocation_machine::Aarch64CbnzFusionAction;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{
     MachineEncodedEffects, MachineSizeKnowledge, SelectedBlock, SelectedBlockId,
@@ -33,7 +30,6 @@ pub(super) fn resolve(
     block_offsets: &BTreeMap<SelectedBlockId, u64>,
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
-    fused: Option<(&QualifiedPhysicalRead, &Aarch64CbnzFusionAction)>,
 ) -> Result<(Vec<u8>, Option<Box<ResolvedBranchEvidence>>), OptimizedResolvedSelectedFormLayoutError>
 {
     let (predicate, terminator, when_taken, when_fallthrough) = match &block.terminator {
@@ -41,7 +37,7 @@ pub(super) fn resolve(
             instruction: jump,
             successor,
         } => {
-            if fused.is_some() || jump.id != instruction.id {
+            if jump.id != instruction.id {
                 return unexpected(instruction.id);
             }
             let target_offset = *block_offsets.get(&successor.block).ok_or(
@@ -153,27 +149,9 @@ pub(super) fn resolve(
         Architecture::X86_64 => checked_delta(taken_offset, branch_end)?,
         Architecture::Aarch64 => checked_delta(taken_offset, instruction_offset)?,
     };
-    let (bytes, register_reads, effects) = encode(
-        architecture,
-        physical,
-        machine,
-        fused,
-        predicate,
-        displacement,
-        instruction.id,
-    )?;
-    if let Some((source_read, action)) = fused {
-        validate_fused_footprint(
-            instruction.id,
-            block,
-            source_read,
-            action,
-            physical,
-            &register_reads,
-            &effects,
-            &machine.alternative.encoded,
-        )?;
-    } else if effects != machine.alternative.encoded {
+    let (bytes, register_reads, effects) =
+        encode(architecture, physical, machine, predicate, displacement)?;
+    if effects != machine.alternative.encoded {
         return Err(
             OptimizedResolvedSelectedFormLayoutError::BranchEffectsMismatch(instruction.id),
         );
@@ -207,10 +185,8 @@ fn encode(
     architecture: Architecture,
     physical: &ValidatedPhysicalRegisterModel,
     machine: &PostAllocationMachineInstruction,
-    fused: Option<(&QualifiedPhysicalRead, &Aarch64CbnzFusionAction)>,
     predicate: ResolvedConditionalBranchPredicate,
     displacement: i64,
-    instruction: SelectedInstructionId,
 ) -> Result<
     (
         Vec<u8>,
@@ -219,32 +195,8 @@ fn encode(
     ),
     OptimizedResolvedSelectedFormLayoutError,
 > {
-    match (architecture, fused, predicate) {
-        (
-            Architecture::Aarch64,
-            Some((source_read, _)),
-            ResolvedConditionalBranchPredicate::NonZeroV1,
-        ) => {
-            let encoded = encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form(
-                physical,
-                source_read.view,
-                displacement,
-            )
-            .map_err(OptimizedResolvedSelectedFormLayoutError::Aarch64)?;
-            Ok((
-                encoded.bytes().to_vec(),
-                encoded.footprint().register_reads.clone(),
-                encoded.footprint().encoded.clone(),
-            ))
-        }
-        (
-            _,
-            Some(_),
-            ResolvedConditionalBranchPredicate::U64LessThanV1
-            | ResolvedConditionalBranchPredicate::I64LessThanV1,
-        )
-        | (Architecture::X86_64, Some(_), _) => unexpected(instruction),
-        (Architecture::X86_64, None, ResolvedConditionalBranchPredicate::NonZeroV1) => {
+    match (architecture, predicate) {
+        (Architecture::X86_64, ResolvedConditionalBranchPredicate::NonZeroV1) => {
             let encoded = encode_x86_64_selected_nonzero_branch_form(
                 physical,
                 machine.alternative.key,
@@ -257,7 +209,7 @@ fn encode(
                 encoded.footprint().encoded.clone(),
             ))
         }
-        (Architecture::Aarch64, None, ResolvedConditionalBranchPredicate::NonZeroV1) => {
+        (Architecture::Aarch64, ResolvedConditionalBranchPredicate::NonZeroV1) => {
             let encoded = encode_aarch64_selected_nonzero_branch_form(
                 physical,
                 machine.alternative.key,
@@ -270,7 +222,7 @@ fn encode(
                 encoded.footprint().encoded.clone(),
             ))
         }
-        (Architecture::X86_64, None, ResolvedConditionalBranchPredicate::U64LessThanV1) => {
+        (Architecture::X86_64, ResolvedConditionalBranchPredicate::U64LessThanV1) => {
             let encoded = encode_x86_64_selected_u64_less_than_branch_form(
                 physical,
                 machine.alternative.key,
@@ -283,7 +235,7 @@ fn encode(
                 encoded.footprint().encoded.clone(),
             ))
         }
-        (Architecture::Aarch64, None, ResolvedConditionalBranchPredicate::U64LessThanV1) => {
+        (Architecture::Aarch64, ResolvedConditionalBranchPredicate::U64LessThanV1) => {
             let encoded = encode_aarch64_selected_u64_less_than_branch_form(
                 physical,
                 machine.alternative.key,
@@ -296,7 +248,7 @@ fn encode(
                 encoded.footprint().encoded.clone(),
             ))
         }
-        (Architecture::X86_64, None, ResolvedConditionalBranchPredicate::I64LessThanV1) => {
+        (Architecture::X86_64, ResolvedConditionalBranchPredicate::I64LessThanV1) => {
             let encoded = encode_x86_64_selected_i64_less_than_branch_form(
                 physical,
                 machine.alternative.key,
@@ -309,7 +261,7 @@ fn encode(
                 encoded.footprint().encoded.clone(),
             ))
         }
-        (Architecture::Aarch64, None, ResolvedConditionalBranchPredicate::I64LessThanV1) => {
+        (Architecture::Aarch64, ResolvedConditionalBranchPredicate::I64LessThanV1) => {
             let encoded = encode_aarch64_selected_i64_less_than_branch_form(
                 physical,
                 machine.alternative.key,
@@ -323,57 +275,6 @@ fn encode(
             ))
         }
     }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn validate_fused_footprint(
-    instruction: SelectedInstructionId,
-    block: &SelectedBlock,
-    source_read: &QualifiedPhysicalRead,
-    action: &Aarch64CbnzFusionAction,
-    physical: &ValidatedPhysicalRegisterModel,
-    register_reads: &[register_model::RegisterViewId],
-    effects: &MachineEncodedEffects,
-    original: &MachineEncodedEffects,
-) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
-    let view = physical
-        .model()
-        .views
-        .iter()
-        .find(|view| view.id == source_read.view)
-        .ok_or(OptimizedResolvedSelectedFormLayoutError::BranchEffectsMismatch(instruction))?;
-    let SelectedTerminator::ConditionalBranch {
-        when_nonzero,
-        when_zero,
-        ..
-    } = &block.terminator
-    else {
-        return unexpected(instruction);
-    };
-    if register_reads != [source_read.view]
-        || source_read.units != view.units
-        || &action.source_read != source_read
-        || action.when_nonzero_edge != when_nonzero.psi_edge
-        || action.when_nonzero_block != when_nonzero.block
-        || action.when_zero_edge != when_zero.psi_edge
-        || action.when_zero_block != when_zero.block
-        || !effects.external_operand_reads.is_empty()
-        || !effects.external_operand_writes.is_empty()
-        || effects.implicit_unit_uses != action.pc_units
-        || effects.implicit_unit_defs != action.pc_units
-        || !effects.implicit_unit_clobbers.is_empty()
-        || effects
-            .implicit_unit_uses
-            .iter()
-            .any(|unit| action.nzcv_units.contains(unit))
-        || effects.memory != original.memory
-        || effects.stack != original.stack
-        || effects.trap != original.trap
-        || effects.control != original.control
-    {
-        return Err(OptimizedResolvedSelectedFormLayoutError::BranchEffectsMismatch(instruction));
-    }
-    Ok(())
 }
 
 fn declared_size_matches(knowledge: MachineSizeKnowledge, actual: u64) -> bool {

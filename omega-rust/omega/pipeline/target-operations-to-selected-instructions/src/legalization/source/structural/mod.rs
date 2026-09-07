@@ -7,6 +7,7 @@ mod graph;
 mod input;
 mod operations;
 
+#[cfg(test)]
 pub(super) use input::accepts as accepts_publication_input;
 
 use super::matchers::MatchedStructuralUnitForm;

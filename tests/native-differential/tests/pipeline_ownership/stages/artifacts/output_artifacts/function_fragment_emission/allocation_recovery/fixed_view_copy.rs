@@ -25,9 +25,7 @@ fn fixed_view_copy_recovery_reaches_fragments_object_and_callable_on_both_archit
             &[],
         )
         .unwrap();
-        let realization = (physical).into_fixed_frame_for_test().unwrap_or_else(|| {
-            panic!("the fixed-view rule must complete the shared recovery realization")
-        });
+        let realization = (physical).into_fixed_frame_for_test();
         let current = realization.allocation().current();
         let copies = realization
             .allocation()
@@ -57,13 +55,9 @@ fn fixed_view_copy_recovery_reaches_fragments_object_and_callable_on_both_archit
             selections.identity()
         );
         let fragments = stage_optimized_function_fragment_emission(
-            FunctionFragmentReplayInputs::FixedFrame(Box::new(realization)).into(),
+            FunctionFragmentReplayInputs::from(realization).into(),
         )
         .unwrap();
-        assert_eq!(
-            fragments.manifest().record().source_kind,
-            FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1
-        );
         let copies: Vec<_> = fragments
             .fragments()
             .functions

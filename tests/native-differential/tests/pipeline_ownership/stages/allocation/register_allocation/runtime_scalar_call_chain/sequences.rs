@@ -119,15 +119,6 @@ fn ordered_scalar_calls_reach_shared_object_publication_with_empty_and_selected_
             for selections in [
                 OptimizationSelections::new([]).unwrap(),
                 OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
-                OptimizationSelections::new([match target.architecture {
-                    target::Architecture::X86_64 => {
-                        Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1
-                    }
-                    target::Architecture::Aarch64 => {
-                        Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1
-                    }
-                }])
-                .unwrap(),
             ] {
                 let optimized = optimize_artifact_sections(
                     &semantic,
@@ -188,98 +179,5 @@ fn ordered_scalar_calls_reach_shared_object_publication_with_empty_and_selected_
                 );
             }
         }
-    }
-}
-
-#[test]
-fn selected_materialization_preserves_normal_call_encoding_and_replay() {
-    use post_allocation_machine_to_post_allocation_machine::stage_optimized_post_allocation_machine_optimization;
-    use post_allocation_machine_to_selected_form_encoding::{
-        stage_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization as encode,
-        validate_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization as validate,
-    };
-
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let physical_optimization = match target.architecture {
-            target::Architecture::X86_64 => {
-                Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1
-            }
-            target::Architecture::Aarch64 => {
-                Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1
-            }
-        };
-        let (semantic, proof) = sequence_artifact(Sequence::InterleavedCallees);
-        let selections = OptimizationSelections::new([physical_optimization]).unwrap();
-        let optimized = optimize_artifact_sections(
-            &semantic,
-            &proof,
-            &AdmissionProfile::default(),
-            compiler_baseline_request_v1(&selections),
-        )
-        .unwrap();
-        let selected = stage_optimized_instruction_selection(
-            lower_optimized_to_target_operations(optimized, target).unwrap(),
-        )
-        .unwrap();
-        let homes = stage_optimized_register_homes(
-            stage_optimized_allocation_legality(
-                stage_optimized_live_ranges(stage_optimized_liveness(selected).unwrap()).unwrap(),
-            )
-            .unwrap(),
-        )
-        .unwrap();
-        let machine = stage_optimized_post_allocation_machine_plan(&homes).unwrap();
-        let optimized =
-            stage_optimized_post_allocation_machine_optimization(&homes, &machine).unwrap();
-        let selected = homes
-            .legality_stage()
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage();
-        let physical = selected.register_environment().physical();
-        let baseline = encode(selected.selected(), &machine, physical, None, None).unwrap();
-        let changed = encode(
-            selected.selected(),
-            &machine,
-            physical,
-            None,
-            Some(&optimized),
-        )
-        .unwrap();
-        validate(
-            selected.selected(),
-            &machine,
-            physical,
-            None,
-            Some(&optimized),
-            &changed,
-        )
-        .unwrap();
-        assert!(
-            validate(
-                selected.selected(),
-                &machine,
-                physical,
-                None,
-                None,
-                &changed
-            )
-            .is_err()
-        );
-        let calls = |encoded: &StagedOptimizedSelectedFormEncoding| {
-            encoded
-                .rows()
-                .iter()
-                .filter(|row| {
-                    matches!(
-                        row.state,
-                        SelectedFormEncodingState::UnresolvedInternalMachineCall { .. }
-                    )
-                })
-                .map(|row| (row.instruction, row.state.clone()))
-                .collect::<Vec<_>>()
-        };
-        assert_eq!(calls(&changed).len(), 4);
-        assert_eq!(calls(&changed), calls(&baseline));
     }
 }

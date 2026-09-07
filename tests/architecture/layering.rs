@@ -2063,14 +2063,6 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
                 optimized_fragment_projection_path.display()
             )
         });
-    let callback_machine_code_path = realization_root.join("callback_machine_code.rs");
-    let callback_machine_code = std::fs::read_to_string(&callback_machine_code_path)
-        .unwrap_or_else(|error| {
-            panic!(
-                "failed to read {}: {error}",
-                callback_machine_code_path.display()
-            )
-        });
     let input_path = realization_root.join("input.rs");
     let input = std::fs::read_to_string(&input_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", input_path.display()));
@@ -2078,7 +2070,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let model = std::fs::read_to_string(&model_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", model_path.display()));
     let production_realization = format!(
-        "{realization}\n{api}\n{input}\n{optimization_stage}\n{target_stage}\n{target_output}\n{physical_stage}\n{optimized_fragment_projection}\n{machine_code}\n{callback_machine_code}"
+        "{realization}\n{api}\n{input}\n{optimization_stage}\n{target_stage}\n{target_output}\n{physical_stage}\n{optimized_fragment_projection}\n{machine_code}"
     );
     let selection_path =
         root.join("omega-rust/omega/representations/optimization-core/src/selection.rs");
@@ -2125,40 +2117,9 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             optimizer_physical_phase_selections_path.display()
         )
     });
-    let optimizer_physical_composition_path = root.join(
-        "omega-rust/omega/compiler/native-realization/src/native_pipeline/physical_pipeline/routes/composition/mod.rs",
-    );
-    let optimizer_physical_composition =
-        std::fs::read_to_string(&optimizer_physical_composition_path).unwrap_or_else(|error| {
-            panic!(
-                "failed to read {}: {error}",
-                optimizer_physical_composition_path.display()
-            )
-        });
-    let optimizer_identity_route_path = root.join(
-        "omega-rust/omega/compiler/native-realization/src/native_pipeline/physical_pipeline/routes/current_allocation.rs",
-    );
-    let optimizer_identity_route = std::fs::read_to_string(&optimizer_identity_route_path)
-        .unwrap_or_else(|error| {
-            panic!(
-                "failed to read {}: {error}",
-                optimizer_identity_route_path.display()
-            )
-        });
-    let optimizer_selected_phases_path = root.join(
-        "omega-rust/omega/compiler/native-realization/src/native_pipeline/physical_pipeline/routes/selected_phases.rs",
-    );
-    let optimizer_selected_phases = std::fs::read_to_string(&optimizer_selected_phases_path)
-        .unwrap_or_else(|error| {
-            panic!(
-                "failed to read {}: {error}",
-                optimizer_selected_phases_path.display()
-            )
-        });
     let physical_catalog_entrances = [
         "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/mod.rs",
         "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/mod.rs",
-        "omega-rust/omega/pipeline/post-allocation-machine-to-post-allocation-machine/src/rules/mod.rs",
         "omega-rust/omega/pipeline/resolved-layout-to-resolved-layout/src/x86_branch_relaxation/catalog.rs",
     ]
     .map(|relative| {
@@ -2191,7 +2152,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && target_output.contains("self.program != self.evidence.shared_program()")
             && target_output.contains("Ok((self.program, self.evidence))")
             && physical_stage.contains("target program/evidence join")
-            && optimizer_physical_model.contains("StagedOptimizedUnitFunctionRelativeRealization")
+            && !optimizer_physical_model.contains("StagedOptimizedUnitFunctionRelativeRealization")
             && !optimizer_physical_model
                 .contains("StagedOptimizedStructuralUnitFunctionRelativeRealization")
             && optimizer_physical_model.contains("StagedFixedFrameFunctionRelativeRealization")
@@ -2201,27 +2162,12 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
                 ") -> &machine_emission::ValidatedFunctionRelativeOptimizationRealizationManifest"
             )
             && optimizer_physical_model.contains("into_function_fragment_emission_source(")
-            && optimizer_selected_phases
-                .contains("stage_current_allocation_function_relative_pipeline(allocation, machine)")
-            && optimizer_identity_route
-                .contains("stage_optimized_unit_function_relative_realization(allocation, machine)")
-            && !optimizer_identity_route.contains(
-                "stage_optimized_structural_unit_function_relative_realization"
-            )
-            && optimizer_identity_route
-                .contains("stage_fixed_frame_function_relative_realization(allocation, machine, budget)")
-            && !optimizer_identity_route.contains(".or_else(")
+            && optimizer_physical_pipeline.contains("stage_fixed_frame_function_relative_realization(allocation, machine, budget)")
             && optimizer_physical_pipeline
                 .contains("post_terminal: &PostTerminalOptimizationSelections")
             && optimizer_physical_pipeline.contains("PostTerminalSelectionMismatch")
-            && optimizer_physical_pipeline
-                .contains("PhysicalOptimizationPhaseSelections::project(post_terminal)")
-            && optimizer_physical_phase_selections
-                .contains("struct PhysicalOptimizationPhaseSelections")
-            && optimizer_physical_phase_selections.contains("UnconsumedPostTerminalPhase(phase)")
-            && optimizer_physical_composition
-                .contains("phases: &PhysicalOptimizationPhaseSelections")
-            && !optimizer_physical_composition.contains(".for_phase(")
+            && optimizer_physical_pipeline.contains("validate_physical_selections(")
+            && optimizer_physical_phase_selections.contains("UnconsumedPostTerminalPhase")
             && physical_catalog_entrances.iter().all(|catalog| {
                 catalog.contains("selections: &OptimizationPhaseSelections")
                     && catalog.contains(".require_phase(")
@@ -2245,16 +2191,15 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             && target_stage.contains("lower_validated_abstract_to_target_operations")
             && !target_stage.contains("optimization_selections")
             && !target_output.contains("Optimized(Box<")
-            && physical_stage.contains("enum NativePhysicalStageResult")
+            && physical_stage.contains("struct NativePhysicalStageResult")
             && !physical_stage.contains("NativeTargetStageEvidence")
             && !target_output.contains("enum NativeTargetStageEvidence")
             && target_stage.contains("lower_validated_ranked_to_target_operations(")
-            && physical_stage.contains(
-                "Assigned(assigned_target_operations::AssignedOperationPlanWithNativeCallbacks)"
-            )
+            && !physical_stage.contains("Assigned(")
+            && !root.join("omega-rust/omega/pipeline/target-operations-to-assigned-target-operations").exists()
             && !physical_stage.contains("IdentityRanked")
             && !machine_code.contains("IdentityRanked")
-            && physical_stage.contains("Optimized(Box<OptimizedNativePhysicalStage>)")
+            && physical_stage.contains("pub(crate) physical: crate::StagedOptimizedVerifiedPhysicalPipeline")
             && physical_stage.contains("stage_optimized_verified_physical_pipeline(")
             && machine_code.contains("lower_realization_target_stage(")
             && machine_code.contains("lower_realization_physical_stage(")
@@ -2309,19 +2254,19 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         .find("Ok(NativeTargetStageResult::new(target))")
         .expect("the target stage retains the validated current program");
     let optimization_stage_entrance = machine_code
-        .find("let optimization_stage =")
+        .find("let abstract_stage =")
         .expect("machine realization enters post-Terminal optimization once");
     let target_stage_entrance = machine_code
         .find("let target_stage =")
         .expect("machine realization enters target lowering once");
     let physical_stage_entrance = machine_code
-        .find("let physical_stage = lower_realization_physical_stage")
+        .find("let physical = lower_realization_physical_stage")
         .expect("machine realization enters physical routing once");
     let physical_stage_consumption = machine_code
-        .find("match physical_stage {")
+        .find("let (object, physical_evidence_scope) = emit_optimized_fragments(")
         .expect("machine realization consumes the completed physical stage");
     let physical_target_consumption = physical_stage
-        .find("let (target, optimized_target) = target_stage")
+        .find("let (_, optimized_target) = target_stage")
         .expect("physical routing consumes current target data and bound evidence");
     let selected_physical_stage = physical_stage
         .find("let physical = crate::stage_optimized_verified_physical_pipeline")
@@ -2332,7 +2277,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         !ranked_target_conveyor.contains(transitional_assignment)
             && !ordinary_target_conveyor.contains(transitional_assignment)
             && !target_stage.contains("if psi_only {")
-            && physical_stage.contains(transitional_assignment)
+            && !physical_stage.contains(transitional_assignment)
             && !machine_code.contains(transitional_assignment)
             && ordinary_target_stage < ordinary_target_result
             && physical_target_consumption < selected_physical_stage
@@ -4910,7 +4855,7 @@ fn selected_form_encoding_validation_cannot_reenter_its_producer() {
     let entrance = std::fs::read_to_string(stage.join("lib.rs"))
         .expect("read selected-form encoding entrance");
     let validate_candidate = entrance
-        .find("validation::validate(selected, machine, physical, frame, optimization, &artifact)?")
+        .find("validation::validate(selected, machine, physical, frame, &artifact)?")
         .expect("raw encoding candidates enter independent validation");
     let seal_candidate = entrance
         .find("Ok(StagedOptimizedSelectedFormEncoding {")
@@ -4930,24 +4875,15 @@ fn selected_form_encoding_validation_cannot_reenter_its_producer() {
         "the selected-form encoding validator must not reconstruct artifacts with its producer",
     );
 
-    let validation = [
-        "mod.rs",
-        "aggregate.rs",
-        "ordinary.rs",
-        "row.rs",
-        "row/aarch64_movn.rs",
-        "row/x86_mov_r32_imm32.rs",
-        "row/x86_mov_r64_imm32_sign_extended.rs",
-        "row/x86_xor_zero.rs",
-    ]
-    .into_iter()
-    .map(|leaf| {
-        let path = stage.join("validation").join(leaf);
-        std::fs::read_to_string(&path)
-            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()))
-    })
-    .collect::<Vec<_>>()
-    .join("\n");
+    let validation = ["mod.rs", "aggregate.rs", "ordinary.rs", "row.rs"]
+        .into_iter()
+        .map(|leaf| {
+            let path = stage.join("validation").join(leaf);
+            std::fs::read_to_string(&path)
+                .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()))
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
     for forbidden in [
         "compute::",
         "row_encoding",
@@ -4968,8 +4904,6 @@ fn selected_form_encoding_validation_cannot_reenter_its_producer() {
     for required_decoder in [
         "validate_x86_64_selected_form_encoding",
         "validate_aarch64_selected_form_encoding",
-        "validate_aarch64_shortest_movn_materialization",
-        "validate_x86_64_xor_zero_i64_materialization",
         "validate_x86_64_selected_memory_form",
     ] {
         assert!(
@@ -5202,7 +5136,6 @@ fn resolved_layout_validation_cannot_reenter_its_producer() {
     for required_decoder in [
         "validate_x86_64_selected_nonzero_branch_form",
         "validate_aarch64_selected_nonzero_branch_form",
-        "validate_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form",
     ] {
         assert!(
             validation.contains(required_decoder),
@@ -5258,55 +5191,6 @@ fn frame_application_validation_cannot_reenter_its_producer() {
         validation.contains("validate_x86") && validation.contains("validate_aarch64"),
         "frame-application replay must decode candidate branches through both target owners",
     );
-}
-
-#[test]
-fn selected_lowering_fragment_admission_is_rule_independent() {
-    let root = workspace_root();
-    let stage = root.join("omega-rust/omega/backend/machine-emission/src/fragment_emission");
-    let source = std::fs::read_to_string(stage.join("replay.rs"))
-        .expect("read function-fragment replay inputs");
-    let custody = std::fs::read_to_string(stage.join("custody.rs"))
-        .expect("read function-fragment source admission");
-    let model = std::fs::read_to_string(stage.join("model.rs"))
-        .expect("read function-fragment retained model");
-    let publication = root.join(
-        "omega-rust/omega/representations/machine-code/src/machine_code/fragments/publication.rs",
-    );
-    let record = std::fs::read_to_string(&publication)
-        .expect("read function-fragment publication representation");
-    assert!(
-        source.contains("SelectedLowering(Box<StagedSelectedLoweringFunctionRelativeRealization>)")
-            && model.contains("FunctionFragmentEmissionSourceKind")
-            && record.contains("SelectedLoweringV1"),
-        "fragment admission must expose one selected-lowering carrier and source kind",
-    );
-    for forbidden in [
-        "X86Rel8AfterSelectedLowering",
-        "MissingX86Rel8Realization",
-        "realization.relaxation().is_none()",
-    ] {
-        assert!(
-            !source.contains(forbidden) && !custody.contains(forbidden),
-            "selected-lowering fragment admission must not depend on exact layout rule `{forbidden}`",
-        );
-    }
-    for (manifest, version) in [
-        (publication.with_extension("").join("codec.rs"), 13),
-        (
-            root.join("omega-rust/omega/representations/machine-code/src/machine_code/layout/text_section/publication/codec.rs"),
-            14,
-        ),
-    ] {
-        let encoded = std::fs::read_to_string(&manifest)
-            .unwrap_or_else(|error| panic!("failed to read {}: {error}", manifest.display()));
-        assert!(
-            encoded.contains(&format!("const MANIFEST_VERSION: u32 = {version};"))
-                && encoded.contains("SelectedLoweringV1"),
-            "generic selected-lowering source custody must be explicit in v{version} manifest {}",
-            manifest.display(),
-        );
-    }
 }
 
 #[test]
@@ -5684,12 +5568,10 @@ fn build_evaluation_physical_package_source_uses_strong_commitment() {
 fn allocation_history_does_not_choose_a_separate_frame_or_publication_owner() {
     let root = workspace_root();
     let pipeline = root.join("omega-rust/omega/compiler/native-realization/src");
-    let route = std::fs::read_to_string(
-        pipeline.join("native_pipeline/physical_pipeline/routes/current_allocation.rs"),
-    )
-    .expect("read common function-relative route entrance");
+    let route = std::fs::read_to_string(pipeline.join("native_pipeline/physical_pipeline/mod.rs"))
+        .expect("read common function-relative route entrance");
     for required in [
-        "allocation: RetainedAllocation",
+        "stage_register_allocation(selected)",
         "stage_fixed_frame_function_relative_realization(allocation, machine, budget)",
     ] {
         assert!(
@@ -5697,7 +5579,6 @@ fn allocation_history_does_not_choose_a_separate_frame_or_publication_owner() {
             "common function-relative route must expose `{required}`"
         );
     }
-    assert!(!route.contains("stage_register_allocation("));
     let model =
         std::fs::read_to_string(pipeline.join("native_pipeline/physical_pipeline/model.rs"))
             .expect("read physical carrier model");

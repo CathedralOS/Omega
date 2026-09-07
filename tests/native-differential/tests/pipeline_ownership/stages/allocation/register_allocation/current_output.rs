@@ -103,57 +103,6 @@ fn baseline(target: NativeTarget) -> StagedOptimizedRegisterHomes {
 }
 
 #[test]
-fn baseline_realizations_reject_selected_lowering_evidence_roles() {
-    fn selected_allocation(
-        target: NativeTarget,
-    ) -> selected_instructions_to_register_homes::RetainedAllocation {
-        let selected = staged_exact_add_conditional_with_selections(
-            target,
-            OptimizationSelections::new([
-                Optimization::CopyPropagation,
-                Optimization::SelectedIncomingU12ExactAddImmediate,
-            ])
-            .unwrap(),
-            budget(),
-        );
-        let ranges =
-            stage_optimized_live_ranges(stage_optimized_liveness(selected).unwrap()).unwrap();
-        let allocation = stage_register_allocation(
-            selected_instructions_to_register_homes::optimize_analyzed_selected_instructions(
-                ranges,
-            )
-            .unwrap(),
-        )
-        .unwrap();
-        assert!(matches!(
-            allocation.current().evidence(),
-            AllocationEvidence::SelectedLowering(_)
-        ));
-        allocation
-    }
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        assert!(matches!(
-            crate::tests::with_allocated_machine(
-                selected_allocation(target),
-                stage_optimized_unit_function_relative_realization
-            ),
-            Err(OptimizedUnitFunctionRelativeRealizationError::RootMismatch)
-        ));
-        assert!(matches!(
-            crate::tests::with_allocated_machine(
-                selected_allocation(target),
-                |allocation, machine| stage_fixed_frame_function_relative_realization(
-                    allocation,
-                    machine,
-                    selected_lowering_budget()
-                )
-            ),
-            Err(FunctionRelativeOptimizationRealizationError::RootMismatch)
-        ));
-    }
-}
-
-#[test]
 fn allocation_view_preserves_exact_machine_output_and_rejects_substitution() {
     let x86 = baseline(NativeTarget::linux_x64());
     let arm = baseline(NativeTarget::linux_arm64());
@@ -326,79 +275,6 @@ fn fixed_frame_realization_accepts_baseline_allocation_without_recovery_history(
             realization.allocation().current().evidence()
         );
         machine_emission::validate_fixed_frame_function_relative_realization(&realization).unwrap();
-    }
-}
-
-#[test]
-fn allocation_phase_matches_explicit_baseline_and_selected_lowering_sequences() {
-    fn ranges(target: NativeTarget, lowering: bool) -> StagedOptimizedLiveRanges {
-        let selections = OptimizationSelections::new(if lowering {
-            vec![
-                Optimization::CopyPropagation,
-                Optimization::SelectedIncomingU12ExactAddImmediate,
-            ]
-        } else {
-            vec![Optimization::CopyPropagation]
-        })
-        .unwrap();
-        let selected = staged_exact_add_conditional_with_selections(target, selections, budget());
-        stage_optimized_live_ranges(stage_optimized_liveness(selected).unwrap()).unwrap()
-    }
-
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        for lowering in [false, true] {
-            let input = ranges(target, lowering);
-            let before = input
-                .liveness_stage()
-                .selected_stage()
-                .selected()
-                .selected_plan()
-                .clone();
-            let optimized =
-                selected_instructions_to_register_homes::optimize_analyzed_selected_instructions(
-                    input,
-                )
-                .unwrap();
-            let selected_program = optimized.program().clone();
-            // This ample-register fixture completes even the selected suite
-            // without applying a pressure-driven fold.
-            assert_eq!(selected_program.selected_plan(), &before);
-            let phase = stage_register_allocation(optimized).unwrap();
-            assert_eq!(
-                phase.current().selected_plan(),
-                selected_program.selected_plan()
-            );
-            assert_owned_program(&phase);
-            let expected = if lowering {
-                let legality =
-                    stage_optimized_allocation_legality_for_frameless_leaf(ranges(target, true))
-                        .unwrap();
-                let run = run_selected_lowering_optimizations(legality).unwrap();
-                let homes = stage_optimized_register_homes_after_selected_lowering(run).unwrap();
-                selected_instructions_to_register_homes::RetainedAllocation::try_from(homes)
-                    .unwrap()
-            } else {
-                let legality = stage_optimized_allocation_legality(ranges(target, false)).unwrap();
-                let homes = stage_optimized_register_homes(legality).unwrap();
-                selected_instructions_to_register_homes::RetainedAllocation::try_from(homes)
-                    .unwrap()
-            };
-            assert_eq!(
-                phase.current().selected_plan(),
-                expected.current().selected_plan()
-            );
-            assert_eq!(phase.current().homes(), expected.current().homes());
-            assert_eq!(phase.current().evidence(), expected.current().evidence());
-            let actual_machine =
-                stage_optimized_post_allocation_machine_plan(&phase.current()).unwrap();
-            let expected_machine =
-                stage_optimized_post_allocation_machine_plan(&expected.current()).unwrap();
-            assert_eq!(actual_machine, expected_machine);
-            assert_eq!(
-                actual_machine.machine().plan().encode(),
-                expected_machine.machine().plan().encode()
-            );
-        }
     }
 }
 

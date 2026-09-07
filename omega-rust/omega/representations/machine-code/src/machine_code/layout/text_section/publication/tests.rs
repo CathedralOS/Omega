@@ -1,9 +1,9 @@
 use super::*;
 
 #[test]
-fn retired_realization_roles_and_prior_wire_versions_reject() {
-    let encoded = record(FunctionFragmentEmissionSourceKind::UnitBaselineV1).encode();
-    for version in 0..14_u32 {
+fn prior_wire_versions_with_route_taxonomy_reject() {
+    let encoded = record().encode();
+    for version in 0..15_u32 {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(
@@ -11,23 +11,15 @@ fn retired_realization_roles_and_prior_wire_versions_reject() {
             Err(FunctionFragmentTextSectionManifestDecodeError::UnsupportedVersion(version))
         );
     }
-    for tag in [1, 3, 5] {
-        let mut retired = encoded.clone();
-        retired[46] = tag;
-        assert_eq!(
-            FunctionFragmentTextSectionManifest::decode(&retired),
-            Err(FunctionFragmentTextSectionManifestDecodeError::UnknownSourceKind(tag))
-        );
-    }
 }
 
-fn record(source_kind: FunctionFragmentEmissionSourceKind) -> FunctionFragmentTextSectionManifest {
+fn record() -> FunctionFragmentTextSectionManifest {
     let unavailable = FunctionFragmentTextSectionUnavailableData::Unavailable;
     let mut value = FunctionFragmentTextSectionManifest {
         identity: FunctionFragmentTextSectionManifestIdentity::from_bytes([0; 32]),
-        stage: FunctionFragmentTextSectionStage::ValidatedRelocationFreeTextSectionPlacementV1,
-        source_custody: FunctionFragmentTextSectionSourceCustody::DirectFragmentEmissionV1,
-        source_kind,
+        stage:
+            FunctionFragmentTextSectionStage::ValidatedFixedFrameInternalCallTextSectionPlacementV1,
+        frame_application: FunctionFragmentFrameApplicationIdentity::from_bytes([16; 32]),
         source_fragment_manifest: FunctionFragmentEmissionManifestIdentity::from_bytes([1; 32]),
         source_realization: FunctionRelativeOptimizationRealizationManifestIdentity::from_bytes(
             [2; 32],
@@ -62,58 +54,36 @@ fn record(source_kind: FunctionFragmentEmissionSourceKind) -> FunctionFragmentTe
         installation: unavailable,
         publication: unavailable,
     };
-    if source_kind == FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1 {
-        value.stage =
-            FunctionFragmentTextSectionStage::ValidatedFixedFrameInternalCallTextSectionPlacementV1;
-        value.source_custody = FunctionFragmentTextSectionSourceCustody::FixedFrameApplicationV1 {
-            application: FunctionFragmentFrameApplicationIdentity::from_bytes([16; 32]),
-        };
-    }
     value.identity = value.recomputed_identity();
     value
 }
 
 #[test]
-fn text_publication_roundtrips_without_a_compiler_or_admission_capsule() {
-    for kind in [
-        FunctionFragmentEmissionSourceKind::SelectedLoweringV1,
-        FunctionFragmentEmissionSourceKind::UnitBaselineV1,
-        FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1,
-        FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
-            optimization: optimization_core::Optimization::X86SelectXorZeroI64MaterializationV1,
-        },
-    ] {
-        let record = record(kind);
-        let bytes = record.encode();
-        assert_eq!(&bytes[..8], b"OMGTSP\0\0");
-        assert_eq!(&bytes[8..12], &14_u32.to_le_bytes());
-        let extension = match kind {
-            FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1 => 32,
-            FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 { .. } => 1,
-            _ => 0,
-        };
-        assert_eq!(bytes.len(), 559 + extension);
-        assert_eq!(
-            FunctionFragmentTextSectionManifest::decode(&bytes),
-            Ok(record)
-        );
-    }
+fn publication_roundtrips_without_route_taxonomy() {
+    let record = record();
+    let bytes = record.encode();
+    assert_eq!(&bytes[..8], b"OMGTSP\0\0");
+    assert_eq!(&bytes[8..12], &15_u32.to_le_bytes());
+    assert_eq!(bytes.len(), 589);
+    assert_eq!(
+        FunctionFragmentTextSectionManifest::decode(&bytes),
+        Ok(record)
+    );
 }
 
 #[test]
-fn codec_checks_custody_shape_and_identity_not_the_truth_of_counts() {
-    let mut record = record(FunctionFragmentEmissionSourceKind::UnitBaselineV1);
+fn codec_checks_frame_identity_and_rejects_retired_direct_stage() {
+    let mut record = record();
     record.statistics.bytes = u64::MAX;
     record.identity = record.recomputed_identity();
     assert_eq!(
         FunctionFragmentTextSectionManifest::decode(&record.encode()),
         Ok(record.clone())
     );
-    record.stage =
-        FunctionFragmentTextSectionStage::ValidatedFixedFrameInternalCallTextSectionPlacementV1;
-    record.identity = record.recomputed_identity();
+    let mut retired = record.encode();
+    retired[44] = 1;
     assert_eq!(
-        FunctionFragmentTextSectionManifest::decode(&record.encode()),
-        Err(FunctionFragmentTextSectionManifestDecodeError::SourceCustodyMismatch)
+        FunctionFragmentTextSectionManifest::decode(&retired),
+        Err(FunctionFragmentTextSectionManifestDecodeError::UnknownStage(1))
     );
 }

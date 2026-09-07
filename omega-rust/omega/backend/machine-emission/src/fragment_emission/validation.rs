@@ -13,7 +13,6 @@ pub(super) fn manifest(
     let fragments = &staged.fragments;
     let record = staged.manifest.record();
     let counts = crate::function_fragment_emission_statistics(fragments)?;
-    let source_kind = current.source_kind();
     let stage = if counts.unresolved_internal_machine_fixups == 0 {
         FunctionFragmentEmissionStage::ValidatedRelocationFreeFunctionFragmentsV1
     } else {
@@ -28,7 +27,6 @@ pub(super) fn manifest(
     }
     if record.identity != record.recomputed_identity()
         || record.stage != stage
-        || record.source_kind != source_kind
         || record.source_realization != source.identity
         || record.selections != source.selections
         || record.psi != fragments.psi

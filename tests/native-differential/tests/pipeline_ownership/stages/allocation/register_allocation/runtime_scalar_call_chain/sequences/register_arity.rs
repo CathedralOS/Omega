@@ -77,12 +77,6 @@ fn register_argument_rosters_use_shared_selection() {
             )
             .unwrap();
             let lowered = lower_optimized_to_target_operations(optimized, target).unwrap();
-            assert!(
-                target_operations_to_selected_instructions::is_fragment_publication_program(
-                    &lowered
-                ),
-                "register-only arity {argument_count} must use the shared route on {target:?}"
-            );
             stage_optimized_instruction_selection(lowered).unwrap();
         }
     }
@@ -165,9 +159,6 @@ fn stack_argument_calls_do_not_claim_register_only_publication() {
         )
         .unwrap();
         let lowered = lower_optimized_to_target_operations(optimized, target).unwrap();
-        assert!(
-            !target_operations_to_selected_instructions::is_fragment_publication_program(&lowered)
-        );
         assert!(stage_optimized_instruction_selection(lowered).is_err());
     }
 }

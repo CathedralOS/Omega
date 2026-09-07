@@ -1,54 +1,6 @@
 use super::super::error::*;
 use super::super::prelude::*;
 
-pub(in crate::function_realization) fn stage_layout_optimization<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
-    physical: &register_model::ValidatedPhysicalRegisterModel,
-    encoding: &StagedOptimizedSelectedFormEncoding,
-    baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
-    selections: &OptimizationSelections,
-    budget: OptimizationWorkBudget,
-) -> Result<ResolvedLayoutOptimization, FunctionRelativeOptimizationRealizationError> {
-    let phase = selections.project_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
-    execute_resolved_layout_optimization(
-        selected,
-        machine,
-        physical,
-        encoding,
-        None,
-        baseline_layout,
-        &phase,
-        budget,
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)
-}
-
-pub(in crate::function_realization) fn validate_layout_optimization<
-    S: ValidatedSelectedAnalysis,
->(
-    selected: &S,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
-    physical: &register_model::ValidatedPhysicalRegisterModel,
-    encoding: &StagedOptimizedSelectedFormEncoding,
-    baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
-    layout: &ResolvedLayoutOptimization,
-    selections: &OptimizationSelections,
-) -> Result<(), FunctionRelativeOptimizationRealizationError> {
-    let phase = selections.project_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
-    validate_resolved_layout_optimization(
-        selected,
-        machine,
-        physical,
-        encoding,
-        None,
-        baseline_layout,
-        &phase,
-        layout,
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)
-}
-
 /// Manifest construction consumes current data and already-replayed phase
 /// evidence. It does not select a layout from optimization history.
 pub(in crate::function_realization) fn validate_layout_optimization_manifest_roots(

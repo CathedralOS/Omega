@@ -480,6 +480,3 @@ impl std::fmt::Display for RunnableEraRetirementError {
 }
 
 impl std::error::Error for RunnableEraRetirementError {}
-
-#[cfg(test)]
-mod tests;

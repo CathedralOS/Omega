@@ -8,13 +8,12 @@
 
 mod compute;
 mod error;
-mod identity;
 mod model;
 mod replay;
 mod validation;
 
 pub use error::*;
-pub use identity::target_frame_protocol_encoding_identity;
+pub use machine_code::target_frame_protocol_encoding_identity;
 pub use model::*;
 pub use validation::validate_target_frame_protocol_encoding;
 

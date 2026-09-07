@@ -21,11 +21,9 @@ fn relocation_free_text_section_preserves_disconnected_function_order_without_pa
         &[],
     )
     .unwrap();
-    let realization = (physical)
-        .into_fixed_frame_for_test()
-        .unwrap_or_else(|| panic!("rel8 must complete its direct function-relative realization"));
+    let realization = (physical).into_fixed_frame_for_test();
     let emitted = stage_optimized_function_fragment_emission(
-        FunctionFragmentReplayInputs::FixedFrame(Box::new(realization)).into(),
+        FunctionFragmentReplayInputs::from(realization).into(),
     )
     .unwrap();
     let mut fragments = emitted.fragments().clone();

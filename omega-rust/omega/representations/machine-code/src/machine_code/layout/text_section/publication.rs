@@ -20,26 +20,13 @@ use target::NativeTarget;
 use terminal_psi::TerminalPsiIdentity;
 
 use crate::{
-    FunctionFragmentEmissionSourceKind, FunctionFragmentFrameApplicationIdentity,
-    ResolvedSelectedFormLayoutIdentity, SelectedFormEncodingIdentity,
-    WholeFunctionExitContractIdentity,
+    FunctionFragmentFrameApplicationIdentity, ResolvedSelectedFormLayoutIdentity,
+    SelectedFormEncodingIdentity, WholeFunctionExitContractIdentity,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionFragmentTextSectionStage {
-    ValidatedRelocationFreeTextSectionPlacementV1,
     ValidatedFixedFrameInternalCallTextSectionPlacementV1,
-}
-
-/// Role-specific custody for the fragment representation consumed by text
-/// placement. The frame-applied role binds the exact application that shifted
-/// instruction and fixup coordinates; it is not inferred from final bytes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FunctionFragmentTextSectionSourceCustody {
-    DirectFragmentEmissionV1,
-    FixedFrameApplicationV1 {
-        application: FunctionFragmentFrameApplicationIdentity,
-    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -65,8 +52,7 @@ pub struct FunctionFragmentTextSectionStatistics {
 pub struct FunctionFragmentTextSectionManifest {
     pub identity: FunctionFragmentTextSectionManifestIdentity,
     pub stage: FunctionFragmentTextSectionStage,
-    pub source_custody: FunctionFragmentTextSectionSourceCustody,
-    pub source_kind: FunctionFragmentEmissionSourceKind,
+    pub frame_application: FunctionFragmentFrameApplicationIdentity,
     pub source_fragment_manifest: FunctionFragmentEmissionManifestIdentity,
     pub source_realization: FunctionRelativeOptimizationRealizationManifestIdentity,
     pub selections: OptimizationSelectionIdentity,

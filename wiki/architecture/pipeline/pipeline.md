@@ -375,8 +375,7 @@ the stage and the noun: `none`, `syntax`, `identity`, `typed`, `checked`,
 | Target To Register Environment | none | none | target metadata | none | none | none | none | none | none | target metadata |
 | Target Operations To Selected Instructions | selected | selected | metadata | none | selected | selected | selected | selected | selected | selected metadata |
 | Selected Instructions Through Allocation | assigned | assigned | metadata | none | assigned | assigned | assigned | assigned | assigned | assigned metadata |
-| Target Operations To Assigned Target Operations | assigned | assigned | metadata | none | assigned | assigned | assigned | assigned | assigned | assigned metadata |
-| Assigned Operations To Machine Code | encoded | encoded | metadata | none | metadata | metadata | encoded call bytes | encoded branch bytes | encoded bytes | encoded metadata |
+| Resolved Layout To Machine Code | encoded | encoded | metadata | none | metadata | metadata | encoded call bytes | encoded branch bytes | encoded bytes | encoded metadata |
 | Machine Code To Native Artifact | final | final | final layout | none | metadata | metadata | final import/fixup | final branch fixup | final artifact | final metadata |
 
 Current deliberate gaps:
@@ -407,4 +406,3 @@ Current deliberate gaps:
 - [Target To Register Environment](stages/register_environment.md)
 - [Target Operations To Selected Instructions](stages/target_operations_to_selected_instructions.md)
 - [Selected Instructions To Register Homes](stages/selected_instructions_to_register_homes.md)
-- [Target Operations To Assigned Target Operations](stages/target_operations_to_assigned_target_operations.md)

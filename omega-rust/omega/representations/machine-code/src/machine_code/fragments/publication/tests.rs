@@ -1,9 +1,9 @@
 use super::*;
 
 #[test]
-fn retired_realization_roles_and_prior_wire_versions_reject() {
-    let encoded = record(FunctionFragmentEmissionSourceKind::UnitBaselineV1).encode();
-    for version in 0..13_u32 {
+fn prior_wire_versions_with_route_taxonomy_reject() {
+    let encoded = record().encode();
+    for version in 0..14_u32 {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(
@@ -11,22 +11,13 @@ fn retired_realization_roles_and_prior_wire_versions_reject() {
             Err(FunctionFragmentEmissionManifestDecodeError::UnsupportedVersion(version))
         );
     }
-    for tag in [1, 3, 5] {
-        let mut retired = encoded.clone();
-        retired[45] = tag;
-        assert_eq!(
-            FunctionFragmentEmissionManifest::decode(&retired),
-            Err(FunctionFragmentEmissionManifestDecodeError::UnknownSourceKind(tag))
-        );
-    }
 }
 
-fn record(source_kind: FunctionFragmentEmissionSourceKind) -> FunctionFragmentEmissionManifest {
+fn record() -> FunctionFragmentEmissionManifest {
     let unavailable = FunctionFragmentEmissionUnavailableData::Unavailable;
     let mut record = FunctionFragmentEmissionManifest {
         identity: FunctionFragmentEmissionManifestIdentity::from_bytes([0; 32]),
         stage: FunctionFragmentEmissionStage::ValidatedRelocationFreeFunctionFragmentsV1,
-        source_kind,
         source_realization: FunctionRelativeOptimizationRealizationManifestIdentity::from_bytes(
             [1; 32],
         ),
@@ -68,35 +59,18 @@ fn record(source_kind: FunctionFragmentEmissionSourceKind) -> FunctionFragmentEm
 }
 
 #[test]
-fn publication_records_roundtrip_without_a_compiler_or_admission_capsule() {
-    let sources = [
-        FunctionFragmentEmissionSourceKind::SelectedLoweringV1,
-        FunctionFragmentEmissionSourceKind::UnitBaselineV1,
-        FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1,
-        FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
-            optimization: Optimization::X86SelectXorZeroI64MaterializationV1,
-        },
-    ];
-    for source in sources {
-        let record = record(source);
-        let encoded = record.encode();
-        assert_eq!(&encoded[..8], b"OMGFFE\0\0");
-        assert_eq!(&encoded[8..12], &13_u32.to_le_bytes());
-        let extra_rule_tag = usize::from(matches!(
-            source,
-            FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 { .. }
-        ));
-        assert_eq!(encoded.len(), 460 + extra_rule_tag);
-        assert_eq!(
-            FunctionFragmentEmissionManifest::decode(&encoded),
-            Ok(record)
-        );
-    }
+fn publication_roundtrips_without_route_taxonomy() {
+    let record = record();
+    let bytes = record.encode();
+    assert_eq!(&bytes[..8], b"OMGFFE\0\0");
+    assert_eq!(&bytes[8..12], &14_u32.to_le_bytes());
+    assert_eq!(bytes.len(), 459);
+    assert_eq!(FunctionFragmentEmissionManifest::decode(&bytes), Ok(record));
 }
 
 #[test]
 fn publication_codec_checks_integrity_not_the_truth_of_claimed_statistics() {
-    let mut record = record(FunctionFragmentEmissionSourceKind::UnitBaselineV1);
+    let mut record = record();
     let mut encoded = record.encode();
     encoded[12] ^= 1;
     assert_eq!(

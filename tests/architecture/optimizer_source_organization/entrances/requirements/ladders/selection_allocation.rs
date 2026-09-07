@@ -379,19 +379,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         ],
     },
     SemanticLadder {
-        family: "assigned target-operation carrier",
-        paths: &[
-            "omega-rust/omega/representations/assigned-target-operations/src/lib.rs",
-            "omega-rust/omega/representations/assigned-target-operations/src/assigned_operations/operations/operation.rs",
-            "omega-rust/omega/representations/assigned-target-operations/src/assigned_operations.rs",
-            "omega-rust/omega/representations/assigned-target-operations/src/assigned_operations/operations/unit.rs",
-            "omega-rust/omega/representations/assigned-target-operations/src/assigned_operations/values/mod.rs",
-            "omega-rust/omega/representations/assigned-target-operations/src/assigned_operations/values/boolean.rs",
-            "omega-rust/omega/representations/assigned-target-operations/src/assigned_operations/values/integer.rs",
-            "omega-rust/omega/representations/assigned-target-operations/src/assigned_operations/storage.rs",
-        ],
-    },
-    SemanticLadder {
         family: "fixed-view-copy codec",
         paths: &[
             "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/codec/mod.rs",
@@ -525,27 +512,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "tests/native-differential/tests/pipeline_ownership/stages/allocation/register_allocation/selected_input.rs",
             "tests/native-differential/tests/pipeline_ownership/stages/allocation/register_allocation/stack_slot_coloring.rs",
             "tests/native-differential/tests/pipeline_ownership/stages/allocation/register_allocation/synthetic_reload_values.rs",
-        ],
-    },
-    SemanticLadder {
-        family: "selected-lowering tests",
-        paths: &[
-            "tests/native-differential/tests/pipeline_ownership/stages/machine/selected_lowering/mod.rs",
-            "tests/native-differential/tests/pipeline_ownership/stages/machine/selected_lowering/exact_add_operational/mod.rs",
-            "tests/native-differential/tests/pipeline_ownership/stages/machine/selected_lowering/exact_add_operational/fixture.rs",
-            "tests/native-differential/tests/pipeline_ownership/stages/machine/selected_lowering/exact_add_operational/execution.rs",
-            "tests/native-differential/tests/pipeline_ownership/stages/machine/selected_lowering/exact_add_operational/budget.rs",
-            "tests/native-differential/tests/pipeline_ownership/stages/machine/selected_lowering/exact_add_operational/corruption.rs",
-            "tests/native-differential/tests/pipeline_ownership/stages/machine/selected_lowering/exact_immediates.rs",
-            "tests/native-differential/tests/pipeline_ownership/stages/machine/selected_lowering/exact_subtract_operational/mod.rs",
-            "tests/native-differential/tests/pipeline_ownership/stages/machine/selected_lowering/exact_subtract_operational/fixture.rs",
-            "tests/native-differential/tests/pipeline_ownership/stages/machine/selected_lowering/exact_subtract_operational/execution.rs",
-            "tests/native-differential/tests/pipeline_ownership/stages/machine/selected_lowering/exact_subtract_operational/budget.rs",
-            "tests/native-differential/tests/pipeline_ownership/stages/machine/selected_lowering/exact_subtract_operational/corruption.rs",
-            "tests/native-differential/tests/pipeline_ownership/stages/machine/selected_lowering/exact_subtract_operational/semantic_boundary.rs",
-            "tests/native-differential/tests/pipeline_ownership/stages/machine/selected_lowering/exit_contract.rs",
-            "tests/native-differential/tests/pipeline_ownership/stages/machine/selected_lowering/named_suite.rs",
-            "tests/native-differential/tests/pipeline_ownership/stages/machine/selected_lowering/pressure_recovery.rs",
         ],
     },
     SemanticLadder {
@@ -684,7 +650,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
         family: "runtime U64 parameter-equals-zero publication tests",
         paths: &[
-            "tests/native-differential/tests/pipeline_ownership/coordination/physical_pipeline/equal_zero_parameter.rs",
             "tests/native-differential/tests/pipeline_ownership/stages/realization/runtime_u64_equal_zero_parameter/mod.rs",
             "tests/native-differential/tests/pipeline_ownership/stages/realization/runtime_u64_equal_zero_parameter/fixture.rs",
             "tests/native-differential/tests/pipeline_ownership/stages/realization/runtime_u64_equal_zero_parameter/publication.rs",
@@ -693,7 +658,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
         family: "runtime U64 parameter-not-equal-zero publication tests",
         paths: &[
-            "tests/native-differential/tests/pipeline_ownership/coordination/physical_pipeline/not_equal_zero_parameter.rs",
             "tests/native-differential/tests/pipeline_ownership/stages/realization/runtime_u64_not_equal_zero_parameter/mod.rs",
             "tests/native-differential/tests/pipeline_ownership/stages/realization/runtime_u64_not_equal_zero_parameter/fixture.rs",
             "tests/native-differential/tests/pipeline_ownership/stages/realization/runtime_u64_not_equal_zero_parameter/publication.rs",

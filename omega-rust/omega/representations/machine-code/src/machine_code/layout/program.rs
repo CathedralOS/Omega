@@ -19,4 +19,6 @@ pub struct ResolvedMachineProgram {
     pub machine: Arc<PostAllocationMachinePlan>,
     pub encoding: Arc<SelectedFormEncoding>,
     pub layout: Arc<ResolvedMachineLayout>,
+    pub frame: Arc<crate::TargetFrameLayoutPlan>,
+    pub protocol: Arc<crate::TargetFrameProtocolEncodingPlan>,
 }

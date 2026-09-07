@@ -6,9 +6,6 @@ use selected_instructions::{SelectedFunction, SelectedInstructionId};
 use target::Architecture;
 
 use machine_code::SelectedFormEncodingRow;
-use post_allocation_machine_to_post_allocation_machine::{
-    StagedOptimizedAarch64CbnzFusion, StagedOptimizedAarch64SameViewCopyElision,
-};
 
 use super::super::{
     OptimizedResolvedSelectedFormLayoutError, ResolvedSelectedBlockLayout, ResolvedSelectedFormRow,
@@ -22,11 +19,9 @@ pub(in super::super) fn layout(
     pre_rows: &BTreeMap<SelectedInstructionId, &SelectedFormEncodingRow>,
     machine_rows: &BTreeMap<SelectedInstructionId, &PostAllocationMachineInstruction>,
     physical: &ValidatedPhysicalRegisterModel,
-    fusion: Option<&StagedOptimizedAarch64CbnzFusion>,
-    copy_elision: Option<&StagedOptimizedAarch64SameViewCopyElision>,
     policy: SelectedFunctionLayoutPolicy,
 ) -> Result<ResolvedSelectedFunctionLayout, OptimizedResolvedSelectedFormLayoutError> {
-    let ordered = order::derive(function, fusion, policy)?;
+    let ordered = order::derive(function, policy)?;
     let layout = plan::derive(architecture, &ordered, pre_rows)?;
     let mut blocks = Vec::with_capacity(ordered.len());
     for block in ordered {
@@ -47,7 +42,6 @@ pub(in super::super) fn layout(
             }
             let (bytes, branch, internal_machine_fixup) = row::resolve(
                 architecture,
-                function.machine,
                 block,
                 instruction,
                 instruction_offset,
@@ -55,8 +49,6 @@ pub(in super::super) fn layout(
                 machine,
                 pre,
                 physical,
-                fusion,
-                copy_elision,
             )?;
             let byte_count = u64::try_from(bytes.len())
                 .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;

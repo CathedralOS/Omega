@@ -21,11 +21,9 @@ fn relocation_free_rel8_text_section_replays_bytes_manifest_and_custody() {
         &[],
     )
     .unwrap();
-    let realization = (physical)
-        .into_fixed_frame_for_test()
-        .unwrap_or_else(|| panic!("rel8 must complete its direct function-relative realization"));
+    let realization = (physical).into_fixed_frame_for_test();
     let emitted = stage_optimized_function_fragment_emission(
-        FunctionFragmentReplayInputs::FixedFrame(Box::new(realization)).into(),
+        FunctionFragmentReplayInputs::from(realization).into(),
     )
     .unwrap();
     let applied = stage_function_fragment_frame_application(emitted).unwrap();

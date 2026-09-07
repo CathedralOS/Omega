@@ -1,4 +1,3 @@
-use crate::FunctionFragmentReplayInputs;
 use crate::tests::*;
 
 pub(super) fn staged_object_artifact(
@@ -11,11 +10,9 @@ pub(super) fn staged_object_artifact(
             Optimization::X86RelaxConditionalBranchesToRel8V1,
         ])
         .unwrap(),
-        target::Architecture::Aarch64 => OptimizationSelections::new([
-            Optimization::CopyPropagation,
-            Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
-        ])
-        .unwrap(),
+        target::Architecture::Aarch64 => {
+            OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()
+        }
     };
     let optimized = optimize_artifact_sections(
         &semantic,
@@ -29,20 +26,13 @@ pub(super) fn staged_object_artifact(
             .unwrap();
     let source = {
         let source = (physical).into_function_fragment_emission_source();
-        assert!(matches!(
-            source.replay_for_test(),
-            FunctionFragmentReplayInputs::FixedFrame(_)
-                | FunctionFragmentReplayInputs::PostAllocationMachine(_)
-        ));
+        assert_eq!(source.frame_layout(), source.program().frame.as_ref());
         source
     };
     let fragments = stage_optimized_function_fragment_emission(source).unwrap();
-    let object = if fragments.source().frame_layout().is_some() {
+    let object = {
         let applied = stage_function_fragment_frame_application(fragments).unwrap();
         let text = stage_optimized_fixed_frame_text_section(applied).unwrap();
-        stage_optimized_relocation_free_object_container(text).unwrap()
-    } else {
-        let text = stage_optimized_relocation_free_text_section(fragments).unwrap();
         stage_optimized_relocation_free_object_container(text).unwrap()
     };
     stage_validated_optimized_object_artifact(canonical_artifact(&semantic, &proof), object)

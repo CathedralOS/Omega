@@ -28,10 +28,17 @@ some bytes changed.
 
 Pipeline folders name both endpoints literally, including identical endpoints:
 `abstract-operations-to-abstract-operations` and
-`post-allocation-machine-to-post-allocation-machine`. There is no
+`selected-instructions-to-selected-instructions`. There is no
 `-optimizer` naming exception. The visible sequence is `X-to-Y`, `Y-to-Y`,
 `Y-to-Z`; individual passes and analyses are modules within the owning phase,
 not additional apparent program routes. Empty selections preserve that sequence.
+
+The former post-allocation rewrite implementation and its six rule-specific
+downstream carriers are removed. The current physical route goes from the
+post-allocation machine to selected-form encoding and resolved layout directly.
+Reintroducing post-allocation optimization requires an actual current-machine
+`X-to-X` transform; an unused folder or history-dispatch carrier is not a phase.
+Selections for the removed rewrites reject explicitly.
 
 Before Terminal publication the current Rust sequence is
 `checked-trees-to-lowered-psi` → `lowered-psi-to-lowered-psi` →

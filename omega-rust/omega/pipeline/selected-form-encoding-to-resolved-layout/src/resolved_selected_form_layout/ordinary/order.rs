@@ -1,13 +1,11 @@
 //! Place ordinary blocks by mandatory conditional fallthrough chains.
 use super::super::{OptimizedResolvedSelectedFormLayoutError, SelectedFunctionLayoutPolicy};
-use post_allocation_machine_to_post_allocation_machine::StagedOptimizedAarch64CbnzFusion;
 use selected_instructions::{SelectedBlock, SelectedFunction, SelectedTerminator};
 
-pub(super) fn derive<'a>(
-    function: &'a SelectedFunction,
-    _fusion: Option<&StagedOptimizedAarch64CbnzFusion>,
+pub(super) fn derive(
+    function: &SelectedFunction,
     policy: SelectedFunctionLayoutPolicy,
-) -> Result<Vec<&'a SelectedBlock>, OptimizedResolvedSelectedFormLayoutError> {
+) -> Result<Vec<&SelectedBlock>, OptimizedResolvedSelectedFormLayoutError> {
     let invalid =
         || OptimizedResolvedSelectedFormLayoutError::UnsupportedFunctionShape(function.machine);
     let count = function.blocks.len();

@@ -1,43 +1,35 @@
-use super::FunctionFragmentEmissionSourceKind;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
-use crate::{
-    StagedFixedFrameFunctionRelativeRealization, StagedOptimizedUnitFunctionRelativeRealization,
-    StagedPostAllocationMachineFunctionRelativeRealization,
-    StagedSelectedLoweringFunctionRelativeRealization,
-};
+use crate::StagedFixedFrameFunctionRelativeRealization;
 
 #[derive(Debug)]
 /// Retained inputs for independently replaying the completed realization.
 /// These roles are replay inputs only. Current program data are retained separately.
-pub enum FunctionFragmentReplayInputs {
-    SelectedLowering(Box<StagedSelectedLoweringFunctionRelativeRealization>),
-    PostAllocationMachine(Box<StagedPostAllocationMachineFunctionRelativeRealization>),
-    UnitBaseline(Box<StagedOptimizedUnitFunctionRelativeRealization>),
-    FixedFrame(Box<StagedFixedFrameFunctionRelativeRealization>),
+pub struct FunctionFragmentReplayInputs {
+    realization: StagedFixedFrameFunctionRelativeRealization,
+}
+
+impl From<StagedFixedFrameFunctionRelativeRealization> for FunctionFragmentReplayInputs {
+    fn from(realization: StagedFixedFrameFunctionRelativeRealization) -> Self {
+        Self { realization }
+    }
+}
+impl FunctionFragmentReplayInputs {
+    pub fn fixed_frame(&self) -> &StagedFixedFrameFunctionRelativeRealization {
+        &self.realization
+    }
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn fixed_frame_mut(&mut self) -> &mut StagedFixedFrameFunctionRelativeRealization {
+        &mut self.realization
+    }
+    pub fn into_fixed_frame(self) -> StagedFixedFrameFunctionRelativeRealization {
+        self.realization
+    }
 }
 
 impl FunctionFragmentReplayInputs {
     fn allocation(&self) -> &selected_instructions_to_register_homes::RetainedAllocation {
-        match self {
-            Self::SelectedLowering(realization) => realization.allocation(),
-            Self::PostAllocationMachine(realization) => realization.allocation(),
-            Self::UnitBaseline(realization) => realization.allocation(),
-            Self::FixedFrame(realization) => realization.allocation(),
-        }
-    }
-
-    pub fn source_kind(&self) -> FunctionFragmentEmissionSourceKind {
-        match self {
-            Self::SelectedLowering(_) => FunctionFragmentEmissionSourceKind::SelectedLoweringV1,
-            Self::PostAllocationMachine(realization) => {
-                FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
-                    optimization: realization.optimization().optimization(),
-                }
-            }
-            Self::UnitBaseline(_) => FunctionFragmentEmissionSourceKind::UnitBaselineV1,
-            Self::FixedFrame(_) => FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1,
-        }
+        self.realization.allocation()
     }
 }
 
@@ -45,12 +37,7 @@ impl FunctionFragmentReplayInputs {
     pub fn machine(
         &self,
     ) -> &register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan {
-        match self {
-            Self::UnitBaseline(realization) => realization.machine(),
-            Self::FixedFrame(realization) => realization.machine(),
-            Self::PostAllocationMachine(realization) => realization.machine(),
-            Self::SelectedLowering(realization) => realization.machine(),
-        }
+        self.realization.machine()
     }
 
     pub fn resolved_layout(&self) -> &machine_code::ResolvedMachineLayout {
@@ -60,50 +47,18 @@ impl FunctionFragmentReplayInputs {
     pub fn layout_optimization(
         &self,
     ) -> &resolved_layout_to_resolved_layout::ResolvedLayoutOptimization {
-        match self {
-            Self::UnitBaseline(realization) => realization.layout_optimization(),
-            Self::FixedFrame(realization) => realization.layout_optimization(),
-            Self::PostAllocationMachine(realization) => realization.layout_optimization(),
-            Self::SelectedLowering(realization) => realization.layout_optimization(),
-        }
+        self.realization.layout_optimization()
     }
 
-    pub fn post_allocation_machine_optimization(
-        &self,
-    ) -> Option<&post_allocation_machine_to_post_allocation_machine::StagedOptimizedPostAllocationMachineOptimization>{
-        match self {
-            Self::PostAllocationMachine(realization) => Some(realization.optimization()),
-            Self::SelectedLowering(_) | Self::UnitBaseline(_) | Self::FixedFrame(_) => None,
-        }
-    }
-
-    /// Routes whose realization owns a validated target frame protocol. The
-    /// Unit baseline and selected-lowering routes join the fixed-frame route
-    /// here because every AArch64 Unit function carries a saved return address.
+    /// The canonical frame protocol retained for independent replay.
     pub fn frame_protocol(&self) -> Option<&crate::ValidatedTargetFrameProtocolEncoding> {
-        match self {
-            Self::FixedFrame(realization) => Some(realization.protocol()),
-            Self::UnitBaseline(realization) => realization.protocol(),
-            Self::PostAllocationMachine(realization) => {
-                realization.frame().map(|frame| frame.protocol())
-            }
-            Self::SelectedLowering(realization) => {
-                realization.frame().map(|frame| frame.protocol())
-            }
-        }
+        Some(self.realization.protocol())
     }
 
     /// The target-owned geometry the frame protocol encodes. Present exactly
     /// where [`Self::frame_protocol`] is.
     pub fn frame_layout(&self) -> Option<&crate::frame_layout::ValidatedTargetFrameLayout> {
-        match self {
-            Self::FixedFrame(realization) => Some(realization.frame()),
-            Self::UnitBaseline(realization) => realization.frame().map(|frame| frame.layout()),
-            Self::PostAllocationMachine(realization) => {
-                realization.frame().map(|frame| frame.layout())
-            }
-            Self::SelectedLowering(realization) => realization.frame().map(|frame| frame.layout()),
-        }
+        Some(self.realization.frame())
     }
 
     pub fn register_homes(
@@ -119,23 +74,13 @@ impl FunctionFragmentReplayInputs {
     }
 
     pub const fn exit_contract(&self) -> &crate::ValidatedWholeFunctionExitContract {
-        match self {
-            Self::SelectedLowering(realization) => realization.exit_contract(),
-            Self::PostAllocationMachine(realization) => realization.exit_contract(),
-            Self::UnitBaseline(realization) => realization.exit_contract(),
-            Self::FixedFrame(realization) => realization.exit_contract(),
-        }
+        self.realization.exit_contract()
     }
 
     pub const fn function_relative_manifest(
         &self,
     ) -> &crate::ValidatedFunctionRelativeOptimizationRealizationManifest {
-        match self {
-            Self::SelectedLowering(realization) => realization.manifest(),
-            Self::PostAllocationMachine(realization) => realization.manifest(),
-            Self::UnitBaseline(realization) => realization.manifest(),
-            Self::FixedFrame(realization) => realization.manifest(),
-        }
+        self.realization.manifest()
     }
 
     pub fn post_allocation_manifest(
@@ -166,11 +111,6 @@ impl FunctionFragmentReplayInputs {
         &self,
     ) -> &post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding
     {
-        match self {
-            Self::SelectedLowering(realization) => realization.encoding(),
-            Self::PostAllocationMachine(realization) => realization.encoding(),
-            Self::UnitBaseline(realization) => realization.encoding(),
-            Self::FixedFrame(realization) => realization.encoding(),
-        }
+        self.realization.encoding()
     }
 }

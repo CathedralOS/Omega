@@ -4,12 +4,9 @@ use super::prelude::*;
 pub enum FunctionRelativeOptimizationRealizationError {
     Allocation(selected_instructions_to_register_homes::AllocationReplayError),
     PostAllocationMachine(OptimizedPostAllocationMachinePipelineError),
-    PostAllocationMachineOptimization(OptimizedPostAllocationMachineOptimizationError),
     Encoding(OptimizedSelectedFormEncodingError),
     Layout(OptimizedResolvedSelectedFormLayoutError),
     LayoutOptimization(ResolvedLayoutOptimizationError),
-    X86BranchRelaxation(OptimizedX86BranchRelaxationError),
-    RuleCatalog(resolved_layout_to_resolved_layout::FunctionRelativeLayoutCatalogError),
     ExitContract(WholeFunctionExitContractError),
     CalleeSavedRequirements(
         selected_instructions_to_register_homes::AllocatedCalleeSavedRequirementError,
@@ -17,7 +14,6 @@ pub enum FunctionRelativeOptimizationRealizationError {
     CalleeSaveStorage(crate::frame_layout::NonAuthoritativeCalleeSaveStorageError),
     FrameLayout(crate::frame_layout::TargetFrameLayoutError),
     FrameProtocol(crate::TargetFrameProtocolEncodingError),
-    OptimizationCustodyUnavailable,
     StatisticsOverflow,
     RootMismatch,
     ReceiptMismatch,

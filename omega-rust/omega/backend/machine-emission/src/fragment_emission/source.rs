@@ -1,8 +1,8 @@
 use machine_code::ResolvedMachineProgram;
 
+use super::FunctionFragmentEmissionError;
 use super::current::CurrentFunctionFragmentInput;
 use super::replay::FunctionFragmentReplayInputs;
-use super::{FunctionFragmentEmissionError, FunctionFragmentEmissionSourceKind};
 
 /// Current program and admission facts are independent of replay history.
 /// Only independent replay consumes the earlier producer-stage objects.
@@ -49,11 +49,11 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
     pub fn encoding(&self) -> &machine_code::SelectedFormEncoding {
         &self.current.program.encoding
     }
-    pub fn frame_protocol(&self) -> Option<&crate::ValidatedTargetFrameProtocolEncoding> {
-        self.current.frame_protocol.as_ref()
+    pub fn frame_protocol(&self) -> &machine_code::TargetFrameProtocolEncodingPlan {
+        &self.current.program.protocol
     }
-    pub fn frame_layout(&self) -> Option<&crate::frame_layout::ValidatedTargetFrameLayout> {
-        self.current.frame_layout.as_ref()
+    pub fn frame_layout(&self) -> &machine_code::TargetFrameLayoutPlan {
+        &self.current.program.frame
     }
     pub const fn exit_contract(&self) -> &crate::ValidatedWholeFunctionExitContract {
         &self.current.exit
@@ -88,16 +88,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
     ) -> Option<&terminal_psi_to_abstract_operations::AdmittedProviderInstallation> {
         self.optimized_target().provider_installation()
     }
-    pub const fn source_kind(&self) -> FunctionFragmentEmissionSourceKind {
-        self.current.source_kind
-    }
 
-    /// Rule-specific historical evidence, not a current-program accessor.
-    pub fn post_allocation_machine_optimization(
-        &self,
-    ) -> Option<&post_allocation_machine_to_post_allocation_machine::StagedOptimizedPostAllocationMachineOptimization>{
-        self.replay.post_allocation_machine_optimization()
-    }
     pub(crate) fn replay(&self) -> &FunctionFragmentReplayInputs {
         &self.replay
     }
@@ -122,34 +113,10 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
     }
 }
 
-impl From<crate::StagedSelectedLoweringFunctionRelativeRealization>
-    for StagedOptimizedFunctionFragmentEmissionSource
-{
-    fn from(realization: crate::StagedSelectedLoweringFunctionRelativeRealization) -> Self {
-        FunctionFragmentReplayInputs::SelectedLowering(Box::new(realization)).into()
-    }
-}
-
-impl From<crate::StagedPostAllocationMachineFunctionRelativeRealization>
-    for StagedOptimizedFunctionFragmentEmissionSource
-{
-    fn from(realization: crate::StagedPostAllocationMachineFunctionRelativeRealization) -> Self {
-        FunctionFragmentReplayInputs::PostAllocationMachine(Box::new(realization)).into()
-    }
-}
-
-impl From<crate::StagedOptimizedUnitFunctionRelativeRealization>
-    for StagedOptimizedFunctionFragmentEmissionSource
-{
-    fn from(realization: crate::StagedOptimizedUnitFunctionRelativeRealization) -> Self {
-        FunctionFragmentReplayInputs::UnitBaseline(Box::new(realization)).into()
-    }
-}
-
 impl From<crate::StagedFixedFrameFunctionRelativeRealization>
     for StagedOptimizedFunctionFragmentEmissionSource
 {
     fn from(realization: crate::StagedFixedFrameFunctionRelativeRealization) -> Self {
-        FunctionFragmentReplayInputs::FixedFrame(Box::new(realization)).into()
+        FunctionFragmentReplayInputs::from(realization).into()
     }
 }

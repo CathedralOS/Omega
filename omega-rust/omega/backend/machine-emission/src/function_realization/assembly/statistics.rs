@@ -75,10 +75,3 @@ pub(crate) fn function_relative_statistics(
         unresolved_internal_machine_fixups,
     })
 }
-
-pub(crate) fn seal_function_relative_manifest(
-    mut record: FunctionRelativeOptimizationRealizationManifest,
-) -> ValidatedFunctionRelativeOptimizationRealizationManifest {
-    record.identity = record.recomputed_identity();
-    ValidatedFunctionRelativeOptimizationRealizationManifest { record }
-}

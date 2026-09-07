@@ -2,9 +2,8 @@ use super::super::{TextSectionPlacementPolicy, TextSectionRelocationRequirements
 use optimization_core::{
     FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
     FunctionFragmentTextSectionManifestIdentity,
-    FunctionRelativeOptimizationRealizationManifestIdentity, Optimization,
-    OptimizationSelectionIdentity, PostAllocationOptimizationManifestIdentity,
-    TerminalRelocationFreeTextSectionIdentity,
+    FunctionRelativeOptimizationRealizationManifestIdentity, OptimizationSelectionIdentity,
+    PostAllocationOptimizationManifestIdentity, TerminalRelocationFreeTextSectionIdentity,
 };
 use selected_instructions::SelectedInstructionPlanIdentity;
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
@@ -12,22 +11,22 @@ use target::{Architecture, NativeTarget, ObjectFormat};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 use crate::{
-    FunctionFragmentEmissionSourceKind, ResolvedSelectedFormLayoutIdentity,
-    SelectedFormEncodingIdentity, WholeFunctionExitContractIdentity,
+    ResolvedSelectedFormLayoutIdentity, SelectedFormEncodingIdentity,
+    WholeFunctionExitContractIdentity,
 };
 
 use super::{
     FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionManifestDecodeError,
-    FunctionFragmentTextSectionSourceCustody, FunctionFragmentTextSectionStage,
-    FunctionFragmentTextSectionStatistics, FunctionFragmentTextSectionUnavailableData,
+    FunctionFragmentTextSectionStage, FunctionFragmentTextSectionStatistics,
+    FunctionFragmentTextSectionUnavailableData,
 };
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGTSP\0\0";
-const MANIFEST_VERSION: u32 = 14;
+const MANIFEST_VERSION: u32 = 15;
 
 impl FunctionFragmentTextSectionManifest {
     pub fn recomputed_identity(&self) -> FunctionFragmentTextSectionManifestIdentity {
-        let mut canonical = b"omega.function-fragment-text-section-manifest.v14\0".to_vec();
+        let mut canonical = b"omega.function-fragment-text-section-manifest.v15\0".to_vec();
         canonical.extend_from_slice(&encode_manifest_content(self));
         FunctionFragmentTextSectionManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -55,53 +54,11 @@ impl FunctionFragmentTextSectionManifest {
         }
         let identity = FunctionFragmentTextSectionManifestIdentity::from_bytes(cursor.array()?);
         let stage = match cursor.byte()? {
-            1 => FunctionFragmentTextSectionStage::ValidatedRelocationFreeTextSectionPlacementV1,
             2 => FunctionFragmentTextSectionStage::ValidatedFixedFrameInternalCallTextSectionPlacementV1,
             tag => return Err(FunctionFragmentTextSectionManifestDecodeError::UnknownStage(tag)),
         };
-        let source_custody = match cursor.byte()? {
-            1 => FunctionFragmentTextSectionSourceCustody::DirectFragmentEmissionV1,
-            2 => FunctionFragmentTextSectionSourceCustody::FixedFrameApplicationV1 {
-                application: crate::FunctionFragmentFrameApplicationIdentity::from_bytes(
-                    cursor.array()?,
-                ),
-            },
-            tag => {
-                return Err(
-                    FunctionFragmentTextSectionManifestDecodeError::UnknownSourceCustody(tag),
-                );
-            }
-        };
-        let source_kind = match cursor.byte()? {
-            2 => FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
-                optimization: decode_post_allocation_optimization(cursor.byte()?)?,
-            },
-            4 => FunctionFragmentEmissionSourceKind::UnitBaselineV1,
-            6 => FunctionFragmentEmissionSourceKind::SelectedLoweringV1,
-            7 => FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1,
-            tag => {
-                return Err(FunctionFragmentTextSectionManifestDecodeError::UnknownSourceKind(tag));
-            }
-        };
-        match (stage, source_custody, source_kind) {
-            (
-                FunctionFragmentTextSectionStage::ValidatedRelocationFreeTextSectionPlacementV1,
-                FunctionFragmentTextSectionSourceCustody::DirectFragmentEmissionV1,
-                FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 { .. }
-                | FunctionFragmentEmissionSourceKind::UnitBaselineV1
-                | FunctionFragmentEmissionSourceKind::SelectedLoweringV1,
-            )
-            | (
-                FunctionFragmentTextSectionStage::ValidatedFixedFrameInternalCallTextSectionPlacementV1,
-                FunctionFragmentTextSectionSourceCustody::FixedFrameApplicationV1 { .. },
-                FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1,
-            ) => {}
-            _ => {
-                return Err(
-                    FunctionFragmentTextSectionManifestDecodeError::SourceCustodyMismatch,
-                );
-            }
-        }
+        let frame_application =
+            crate::FunctionFragmentFrameApplicationIdentity::from_bytes(cursor.array()?);
         let source_fragment_manifest =
             FunctionFragmentEmissionManifestIdentity::from_bytes(cursor.array()?);
         let source_realization =
@@ -176,8 +133,7 @@ impl FunctionFragmentTextSectionManifest {
         let manifest = Self {
             identity,
             stage,
-            source_custody,
-            source_kind,
+            frame_application,
             source_fragment_manifest,
             source_realization,
             selections,
@@ -214,29 +170,11 @@ impl FunctionFragmentTextSectionManifest {
 fn encode_manifest_content(record: &FunctionFragmentTextSectionManifest) -> Vec<u8> {
     let mut bytes = Vec::new();
     bytes.push(match record.stage {
-        FunctionFragmentTextSectionStage::ValidatedRelocationFreeTextSectionPlacementV1 => 1,
         FunctionFragmentTextSectionStage::ValidatedFixedFrameInternalCallTextSectionPlacementV1 => {
             2
         }
     });
-    match record.source_custody {
-        FunctionFragmentTextSectionSourceCustody::DirectFragmentEmissionV1 => bytes.push(1),
-        FunctionFragmentTextSectionSourceCustody::FixedFrameApplicationV1 { application } => {
-            bytes.push(2);
-            bytes.extend_from_slice(&application.bytes());
-        }
-    }
-    match record.source_kind {
-        FunctionFragmentEmissionSourceKind::SelectedLoweringV1 => bytes.push(6),
-        FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
-            optimization,
-        } => {
-            bytes.push(2);
-            bytes.push(optimization as u8);
-        }
-        FunctionFragmentEmissionSourceKind::UnitBaselineV1 => bytes.push(4),
-        FunctionFragmentEmissionSourceKind::CanonicalFixedFrameBodyV1 => bytes.push(7),
-    }
+    bytes.extend_from_slice(&record.frame_application.bytes());
     bytes.extend_from_slice(&record.source_fragment_manifest.bytes());
     bytes.extend_from_slice(&record.source_realization.bytes());
     bytes.extend_from_slice(&record.selections.bytes());
@@ -287,63 +225,6 @@ fn encode_manifest_content(record: &FunctionFragmentTextSectionManifest) -> Vec<
     );
     bytes.extend_from_slice(&[1; 6]);
     bytes
-}
-
-fn decode_post_allocation_optimization(
-    tag: u8,
-) -> Result<Optimization, FunctionFragmentTextSectionManifestDecodeError> {
-    match tag {
-        value
-            if value
-                == Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 as u8 =>
-        {
-            Ok(Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1)
-        }
-        value
-            if value
-                == Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1 as u8 =>
-        {
-            Ok(Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1)
-        }
-        value if value == Optimization::X86SelectXorZeroI64MaterializationV1 as u8 => {
-            Ok(Optimization::X86SelectXorZeroI64MaterializationV1)
-        }
-        value
-            if value
-                == Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1 as u8 =>
-        {
-            Ok(Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1)
-        }
-        value
-            if value
-                == Optimization::X86SelectMovR64Imm32SignExtendedI64MaterializationV1 as u8 =>
-        {
-            Ok(Optimization::X86SelectMovR64Imm32SignExtendedI64MaterializationV1)
-        }
-        value if value == Optimization::Aarch64ElideSameViewCopyI64BeforeReturnV1 as u8 => {
-            Ok(Optimization::Aarch64ElideSameViewCopyI64BeforeReturnV1)
-        }
-        value if value == Optimization::Aarch64ElideSameViewCopyI64BeforeCompareZeroV1 as u8 => {
-            Ok(Optimization::Aarch64ElideSameViewCopyI64BeforeCompareZeroV1)
-        }
-        value
-            if value
-                == Optimization::Aarch64ElideSameViewCopyI64BeforeCompareI64LeftOperandV1 as u8 =>
-        {
-            Ok(Optimization::Aarch64ElideSameViewCopyI64BeforeCompareI64LeftOperandV1)
-        }
-        value
-            if value
-                == Optimization::Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1 as u8 =>
-        {
-            Ok(Optimization::Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1)
-        }
-        value => Err(
-            FunctionFragmentTextSectionManifestDecodeError::UnknownPostAllocationMachineOptimization(
-                value,
-            ),
-        ),
-    }
 }
 
 fn encode_target(bytes: &mut Vec<u8>, target: NativeTarget) {

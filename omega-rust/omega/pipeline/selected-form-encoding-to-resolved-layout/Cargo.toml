@@ -19,6 +19,5 @@ register-model = { path = "../../representations/register-model" }
 selected-instructions = { path = "../../representations/selected-instructions" }
 target = { path = "../../representations/target" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
-post-allocation-machine-to-post-allocation-machine = { path = "../post-allocation-machine-to-post-allocation-machine" }
 register-homes-to-post-allocation-machine = { path = "../register-homes-to-post-allocation-machine" }
 post-allocation-machine-to-selected-form-encoding = { path = "../post-allocation-machine-to-selected-form-encoding" }

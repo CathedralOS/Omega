@@ -16,19 +16,20 @@ use optimization_core::{
 };
 mod model;
 mod reconstruction;
-mod source;
 mod validation;
 
+use machine_emission::{
+    StagedOptimizedFixedFrameTextSection, validate_optimized_fixed_frame_text_section,
+};
 pub use model::*;
 use reconstruction::*;
-pub use source::*;
 pub use validation::validate_optimized_relocation_free_object_container;
 
 pub fn stage_optimized_relocation_free_object_container(
-    source: impl Into<StagedOptimizedObjectTextSectionSource>,
+    source: StagedOptimizedFixedFrameTextSection,
 ) -> Result<StagedOptimizedRelocationFreeObjectContainer, RelocationFreeObjectContainerError> {
-    let source = source.into();
-    source.validate()?;
+    validate_optimized_fixed_frame_text_section(&source)
+        .map_err(RelocationFreeObjectContainerError::Source)?;
     let object = construct_relocation_free_object_from_text(
         source.text_section(),
         source.manifest().record().selections,

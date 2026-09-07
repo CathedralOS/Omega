@@ -8,11 +8,7 @@ mod stress;
 
 pub(super) fn run() {
     for count in 0..=4 {
-        for choices in [
-            Vec::new(),
-            vec![Optimization::CopyPropagation],
-            vec![Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1],
-        ] {
+        for choices in [Vec::new(), vec![Optimization::CopyPropagation]] {
             let selections = OptimizationSelections::new(choices).unwrap();
             let physical = physical(count, &selections);
             let emitted = stage_optimized_function_fragment_emission(

@@ -1,4 +1,4 @@
-//! Provider-aware admission into physical optimizer routing.
+//! Provider-aware admission into the common physical sequence.
 
 use abstract_operations_to_abstract_operations::ValidatedOptimizedAbstractPlan;
 use abstract_operations_to_target_operations::AdmittedBoundarySettlement;
@@ -12,9 +12,8 @@ use super::{
 };
 
 /// Lower one verified optimized plan through every currently admitted
-/// selected/physical validation stage. Phase routing is derived from the exact
-/// retained build suite; callers cannot request or skip selected-lowering work
-/// independently.
+/// selected/physical validation stage. The exact retained build suite is checked
+/// before execution; unavailable rewrites cannot select another physical path.
 pub fn stage_optimized_verified_physical_pipeline_with_provider_executions(
     optimized: ValidatedOptimizedAbstractPlan,
     target: NativeTarget,

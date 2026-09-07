@@ -4,8 +4,6 @@ pub enum FunctionFragmentEmissionManifestDecodeError {
     WrongMagic,
     UnsupportedVersion(u32),
     UnknownStage(u8),
-    UnknownSourceKind(u8),
-    UnknownPostAllocationMachineOptimization(u8),
     UnknownVocabulary(u16),
     InvalidFuelSchedule,
     UnknownArchitecture(u8),

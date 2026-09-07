@@ -25,7 +25,7 @@ fn runtime_u64_parameter_inequality_reaches_object_and_callable_on_both_isas() {
         assert_eq!(artifact.source().object().relocation_record_count, 0);
         assert_eq!(artifact.source().object().symbols.len(), 1);
         let text = &artifact.source().object().text_section.bytes;
-        let emission = artifact.source().source().source();
+        let emission = artifact.source().source().source().source();
         let compare = emission.fragments().functions[0]
             .blocks
             .iter()

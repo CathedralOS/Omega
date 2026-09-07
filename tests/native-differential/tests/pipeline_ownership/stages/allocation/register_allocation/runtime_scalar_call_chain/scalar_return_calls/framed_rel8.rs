@@ -72,7 +72,7 @@ fn framed(equal: bool, padding: u32) -> (bool, StagedFunctionFragmentFrameApplic
         &[],
     )
     .unwrap();
-    let realization = physical.fixed_frame_for_test().unwrap();
+    let realization = physical.fixed_frame_for_test();
     validate_fixed_frame_function_relative_realization(realization).unwrap();
     let emitted = stage_optimized_function_fragment_emission(
         physical.into_function_fragment_emission_source(),

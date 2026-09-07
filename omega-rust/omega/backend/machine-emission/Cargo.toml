@@ -15,7 +15,6 @@ abstract-operations-to-target-operations = { path = "../../pipeline/abstract-ope
 terminal-psi-to-abstract-operations = { path = "../../pipeline/terminal-psi-to-abstract-operations" }
 abstract-operations-to-abstract-operations = { path = "../../pipeline/abstract-operations-to-abstract-operations" }
 register-environment = { path = "../register-environment" }
-post-allocation-machine-to-post-allocation-machine = { path = "../../pipeline/post-allocation-machine-to-post-allocation-machine" }
 post-allocation-machine-to-selected-form-encoding = { path = "../../pipeline/post-allocation-machine-to-selected-form-encoding" }
 register-homes-to-post-allocation-machine = { path = "../../pipeline/register-homes-to-post-allocation-machine" }
 selected-form-encoding-to-resolved-layout = { path = "../../pipeline/selected-form-encoding-to-resolved-layout" }
@@ -26,34 +25,18 @@ selected-instructions = { path = "../../representations/selected-instructions" }
 optimization-core = { path = "../../representations/optimization-core" }
 target = { path = "../../representations/target" }
 calling-conventions = { path = "../../representations/calling-conventions" }
-x86-encoding = { path = "../instruction_set_architectures/x86-encoding" }
-assigned-target-operations = { path = "../../representations/assigned-target-operations" }
 machine-code = { path = "../../representations/machine-code" }
-installation-evidence = { path = "../../representations/installation-evidence" }
-target-operations = { path = "../../representations/target-operations" }
-task-plans = { path = "../../representations/task-plans" }
 isa-aarch64 = { path = "../instruction_set_architectures/isa-aarch64" }
 isa-x86_64 = { path = "../instruction_set_architectures/isa-x86_64" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 terminal-fuel = { path = "../../../psi/semantics/terminal-fuel" }
-terminal-psi = { path = "../../../psi/representations/terminal-psi" }
-iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder"] }
 
 physical-instructions = { path = "../../representations/physical-instructions" }
 
 [dev-dependencies]
-abstract-operations-to-target-operations = { path = "../../pipeline/abstract-operations-to-target-operations" }
-terminal-psi-to-abstract-operations = { path = "../../pipeline/terminal-psi-to-abstract-operations" }
-target-operations-to-assigned-target-operations = { path = "../../pipeline/target-operations-to-assigned-target-operations" }
-checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/checked-trees-to-lowered-psi" }
-proof-admission = { path = "../../../psi/semantics/proof-admission" }
-source-files-to-tokens = { path = "../../../psi/pipeline/source-files-to-tokens" }
-symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/symbol-resolved-trees-to-typed-trees" }
-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/syntax-trees-to-symbol-resolved-trees" }
-terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
-tokens-to-syntax-trees = { path = "../../../psi/pipeline/tokens-to-syntax-trees" }
-typed-trees-to-checked-trees = { path = "../../../psi/pipeline/typed-trees-to-checked-trees" }
+target-operations = { path = "../../representations/target-operations" }
+terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 
 [features]
 test-support = [

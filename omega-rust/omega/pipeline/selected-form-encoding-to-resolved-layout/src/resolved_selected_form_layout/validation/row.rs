@@ -1,23 +1,15 @@
 use std::collections::BTreeMap;
 
 use physical_instructions::PostAllocationMachineInstruction;
-use post_allocation_machine_to_post_allocation_machine::{
-    Aarch64CbnzFusionAction, Aarch64SameViewCopyElisionAction,
-};
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedInstruction, SelectedInstructionId,
-    SelectedInstructionKind,
+    SelectedBlock, SelectedBlockId, SelectedInstruction, SelectedInstructionKind,
 };
-use semantic_vocabulary::MachineId;
 use target::Architecture;
 
 use machine_code::{
     DeferredControlEncodingReason, SelectedFormEncodingRow, SelectedFormEncodingState,
     SelectedFormMachineDisposition,
-};
-use post_allocation_machine_to_post_allocation_machine::{
-    StagedOptimizedAarch64CbnzFusion, StagedOptimizedAarch64SameViewCopyElision,
 };
 
 use super::super::{OptimizedResolvedSelectedFormLayoutError, ResolvedSelectedFormRow};
@@ -26,14 +18,11 @@ use super::branch;
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate(
     architecture: Architecture,
-    function: MachineId,
     block: &SelectedBlock,
     instruction: &SelectedInstruction,
     machine: &PostAllocationMachineInstruction,
     pre: &SelectedFormEncodingRow,
     physical: &ValidatedPhysicalRegisterModel,
-    fusion: Option<&StagedOptimizedAarch64CbnzFusion>,
-    copy_elision: Option<&StagedOptimizedAarch64SameViewCopyElision>,
     expected_offset: u64,
     block_offsets: &BTreeMap<SelectedBlockId, u64>,
     candidate: &ResolvedSelectedFormRow,
@@ -84,112 +73,8 @@ pub(super) fn validate(
             block_offsets,
             machine,
             physical,
-            None,
             candidate,
         ),
-        (
-            SelectedFormMachineDisposition::Aarch64ElidedCompareI64ZeroV1 { consumer },
-            SelectedFormEncodingState::Encoded { .. },
-        ) => {
-            let action = fusion_action(fusion, function, block.id, instruction.id, *consumer)?;
-            if architecture != Architecture::Aarch64
-                || !matches!(
-                    instruction.kind,
-                    selected_instructions::SelectedInstructionKind::CompareI64Zero
-                )
-                || action.compare != instruction.id
-                || action.branch != *consumer
-                || !candidate.bytes.is_empty()
-                || candidate.branch.is_some()
-                || candidate.internal_machine_fixup.is_some()
-            {
-                return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
-            }
-            Ok(())
-        }
-        (
-            SelectedFormMachineDisposition::Aarch64FusedBranchNonZeroToCbnzV1 {
-                compare,
-                source_read,
-            },
-            SelectedFormEncodingState::DeferredControl {
-                reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,
-            },
-        ) => {
-            let action = fusion_action(fusion, function, block.id, *compare, instruction.id)?;
-            if architecture != Architecture::Aarch64 || &action.source_read != source_read {
-                return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
-            }
-            branch::validate(
-                architecture,
-                block,
-                instruction,
-                expected_offset,
-                block_offsets,
-                machine,
-                physical,
-                Some((source_read, action)),
-                candidate,
-            )
-        }
-        (
-            SelectedFormMachineDisposition::Aarch64ElidedSameViewCopyI64V1 { consumer },
-            SelectedFormEncodingState::Encoded { .. },
-        ) => {
-            let action = copy_action(copy_elision, function, block.id, instruction.id, *consumer)?;
-            if architecture != Architecture::Aarch64
-                || !matches!(
-                    instruction.kind,
-                    selected_instructions::SelectedInstructionKind::CopyI64
-                )
-                || action.copy != instruction.id
-                || action.consumer != *consumer
-                || !candidate.bytes.is_empty()
-                || candidate.branch.is_some()
-                || candidate.internal_machine_fixup.is_some()
-            {
-                return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
-            }
-            Ok(())
-        }
         _ => Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch),
     }
-}
-
-fn copy_action(
-    elision: Option<&StagedOptimizedAarch64SameViewCopyElision>,
-    machine: MachineId,
-    block: SelectedBlockId,
-    copy: SelectedInstructionId,
-    returned: SelectedInstructionId,
-) -> Result<&Aarch64SameViewCopyElisionAction, OptimizedResolvedSelectedFormLayoutError> {
-    elision
-        .and_then(|elision| {
-            elision.elision().plan().actions.iter().find(|action| {
-                action.machine == machine
-                    && action.block == block
-                    && action.copy == copy
-                    && action.consumer == returned
-            })
-        })
-        .ok_or(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
-}
-
-fn fusion_action(
-    fusion: Option<&StagedOptimizedAarch64CbnzFusion>,
-    machine: MachineId,
-    block: SelectedBlockId,
-    compare: SelectedInstructionId,
-    branch: SelectedInstructionId,
-) -> Result<&Aarch64CbnzFusionAction, OptimizedResolvedSelectedFormLayoutError> {
-    fusion
-        .and_then(|fusion| {
-            fusion.fusion().plan().actions.iter().find(|action| {
-                action.machine == machine
-                    && action.block == block
-                    && action.compare == compare
-                    && action.branch == branch
-            })
-        })
-        .ok_or(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
 }

@@ -1,5 +1,6 @@
 //! Whole-roster structural classification from borrowed source inputs.
 
+#[cfg(test)]
 use super::super::shared::*;
 pub(super) use crate::structural_unit_input::Parameter;
 
@@ -8,6 +9,7 @@ pub(super) struct Argument<'a> {
     pub target: &'a target_operations::TargetStructuralArgument,
 }
 
+#[cfg(test)]
 pub(in crate::legalization::source) fn accepts(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
@@ -59,6 +61,7 @@ pub(in crate::legalization::source) fn accepts(
     })
 }
 
+#[cfg(test)]
 fn matches_function(
     index: usize,
     function: &target_operations::TargetFunction,

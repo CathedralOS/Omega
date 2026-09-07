@@ -1,8 +1,7 @@
 //! Check publication claims against admitted inputs and the independently checked section.
 use super::super::{
-    FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionSourceCustody,
-    FunctionFragmentTextSectionStage, FunctionFragmentTextSectionUnavailableData,
-    RelocationFreeTextSectionPlacementError,
+    FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionStage,
+    FunctionFragmentTextSectionUnavailableData, RelocationFreeTextSectionPlacementError,
 };
 use machine_code::{
     FunctionFragmentEmissionManifest, FunctionFragmentEmissionPlan,
@@ -12,16 +11,15 @@ use machine_code::{
 pub(super) fn check(
     source: &FunctionFragmentEmissionManifest,
     stage: FunctionFragmentTextSectionStage,
-    custody: FunctionFragmentTextSectionSourceCustody,
+    frame_application: machine_code::FunctionFragmentFrameApplicationIdentity,
     section: &RelocationFreeTextSectionPlacement,
     fragments: &FunctionFragmentEmissionPlan,
     candidate: &FunctionFragmentTextSectionManifest,
 ) -> Result<(), RelocationFreeTextSectionPlacementError> {
     if candidate.identity != candidate.recomputed_identity()
         || candidate.stage != stage
-        || candidate.source_custody != custody
+        || candidate.frame_application != frame_application
         || candidate.source_fragment_manifest != source.identity
-        || candidate.source_kind != source.source_kind
         || candidate.source_realization != source.source_realization
         || candidate.selections != source.selections
         || candidate.psi != source.psi

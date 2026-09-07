@@ -8,10 +8,6 @@ use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use machine_code::SelectedFormEncodingRow;
-use post_allocation_machine_to_post_allocation_machine::{
-    StagedOptimizedAarch64CbnzFusion, StagedOptimizedAarch64SameViewCopyElision,
-    StagedOptimizedPostAllocationMachineOptimization,
-};
 use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 
@@ -29,7 +25,6 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     pre_layout: &StagedOptimizedSelectedFormEncoding,
-    optimization: Option<&StagedOptimizedPostAllocationMachineOptimization>,
     policy: super::super::SelectedFunctionLayoutPolicy,
     artifact: &StagedOptimizedResolvedSelectedFormLayout,
 ) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
@@ -38,17 +33,7 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
     if artifact.functions().len() != selected_plan.functions.len() {
         return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
     }
-    let fusion = optimization.and_then(|optimization| match optimization {
-        StagedOptimizedPostAllocationMachineOptimization::Aarch64Cbnz(fusion) => Some(fusion),
-        _ => None,
-    });
     let mut pre_rows = pre_layout.rows().iter();
-    let copy_elision = optimization.and_then(|optimization| match optimization {
-        StagedOptimizedPostAllocationMachineOptimization::Aarch64SameViewCopyElision(elision) => {
-            Some(elision)
-        }
-        _ => None,
-    });
     for ((selected_function, machine_function), candidate) in selected_plan
         .functions
         .iter()
@@ -60,8 +45,6 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
             selected_function,
             machine_function,
             physical,
-            fusion,
-            copy_elision,
             policy,
             &mut pre_rows,
             candidate,
@@ -74,5 +57,3 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
 }
 
 pub(super) type PreLayoutRows<'a> = std::slice::Iter<'a, SelectedFormEncodingRow>;
-pub(super) type Fusion<'a> = Option<&'a StagedOptimizedAarch64CbnzFusion>;
-pub(super) type CopyElision<'a> = Option<&'a StagedOptimizedAarch64SameViewCopyElision>;

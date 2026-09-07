@@ -6,17 +6,13 @@
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
-use post_allocation_machine_to_post_allocation_machine::StagedOptimizedPostAllocationMachineOptimization;
 use post_allocation_machine_to_selected_form_encoding::{
     StagedOptimizedSelectedFormEncoding,
-    validate_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization,
+    validate_optimized_layout_independent_selected_form_encoding,
 };
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 
-use super::{
-    OptimizedResolvedSelectedFormLayoutError, StagedOptimizedResolvedSelectedFormLayout,
-    optimization::validate_optimization_custody,
-};
+use super::{OptimizedResolvedSelectedFormLayoutError, StagedOptimizedResolvedSelectedFormLayout};
 
 mod aggregate;
 mod branch;
@@ -29,19 +25,16 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     pre_layout: &StagedOptimizedSelectedFormEncoding,
-    optimization: Option<&StagedOptimizedPostAllocationMachineOptimization>,
     artifact: &StagedOptimizedResolvedSelectedFormLayout,
 ) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
-    validate_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization(
+    validate_optimized_layout_independent_selected_form_encoding(
         selected,
         machine,
         physical,
         pre_layout.program().frame.as_ref(),
-        optimization,
         pre_layout,
     )
     .map_err(OptimizedResolvedSelectedFormLayoutError::PreLayout)?;
-    let normalized = validate_optimization_custody(machine, pre_layout, optimization)?;
     let selected_plan = selected.selected_plan();
     let machine_plan = machine.machine().plan();
     if pre_layout.selected() != selected.selected_identity()
@@ -49,7 +42,7 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
         || selected_plan.target != machine_plan.target
         || selected_plan.target.architecture != physical.model().architecture
         || selected_plan.functions.len() != machine_plan.functions.len()
-        || pre_layout.post_allocation_machine_optimization() != normalized
+        || pre_layout.post_allocation_machine_optimization().is_some()
     {
         return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
     }
@@ -58,7 +51,7 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
         selected,
         machine,
         pre_layout,
-        normalized,
+        None,
         expected_policy,
         artifact,
     )?;
@@ -67,7 +60,6 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
         machine,
         physical,
         pre_layout,
-        optimization,
         expected_policy,
         artifact,
     )?;

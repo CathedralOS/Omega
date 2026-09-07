@@ -25,7 +25,7 @@ impl ValidatedFunctionFragmentObjectContainerManifest {
 #[derive(Debug)]
 #[must_use = "a staged object container owns its complete text-section custody"]
 pub struct StagedOptimizedRelocationFreeObjectContainer {
-    pub(super) source: StagedOptimizedObjectTextSectionSource,
+    pub(super) source: StagedOptimizedFixedFrameTextSection,
     pub(super) object: Arc<RelocationFreeObjectPlan>,
     pub(super) container: Arc<RelocationFreeObjectContainer>,
     pub(super) manifest: ValidatedFunctionFragmentObjectContainerManifest,
@@ -33,7 +33,7 @@ pub struct StagedOptimizedRelocationFreeObjectContainer {
 }
 
 impl StagedOptimizedRelocationFreeObjectContainer {
-    pub const fn source(&self) -> &StagedOptimizedObjectTextSectionSource {
+    pub const fn source(&self) -> &StagedOptimizedFixedFrameTextSection {
         &self.source
     }
 
@@ -63,13 +63,13 @@ impl StagedOptimizedRelocationFreeObjectContainer {
     pub fn verified_input(
         &self,
     ) -> &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput {
-        self.source.source().verified_input()
+        self.source.source().source().verified_input()
     }
 
     pub fn provider_installation(
         &self,
     ) -> Option<&terminal_psi_to_abstract_operations::AdmittedProviderInstallation> {
-        self.source.source().provider_installation()
+        self.source.source().source().provider_installation()
     }
 
     #[cfg(any(test, feature = "test-support"))]
